@@ -730,22 +730,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('hero-background-input');
             const dataTransfer = new DataTransfer();
 
-            // Create a File object from Uppy file data
-            fetch(file.data instanceof File ? URL.createObjectURL(file.data) : file.preview)
-                .then(res => res.blob())
-                .then(blob => {
-                    const newFile = new File([blob], file.name, { type: file.type });
-                    dataTransfer.items.add(newFile);
-                    fileInput.files = dataTransfer.files;
-                })
-                .catch(err => {
-                    console.error('Error converting file:', err);
-                    // Fallback: if file.data is already a File object
-                    if (file.data instanceof File) {
-                        dataTransfer.items.add(file.data);
+            // Uppy already hands us a File in file.data — use it directly.
+            // The previous code did fetch(URL.createObjectURL(file.data)),
+            // which a strict `connect-src` CSP blocks (blob: is not always
+            // allowed), so the hero image never reached the form (issue #292).
+            // Only fall back to fetching a preview URL when file.data is not
+            // itself a File (mirrors the logo uploader in settings/index.php).
+            if (file.data instanceof File) {
+                dataTransfer.items.add(file.data);
+                fileInput.files = dataTransfer.files;
+            } else if (file.preview) {
+                fetch(file.preview)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const newFile = new File([blob], file.name, { type: file.type });
+                        dataTransfer.items.add(newFile);
                         fileInput.files = dataTransfer.files;
-                    }
-                });
+                    })
+                    .catch(err => {
+                        console.error('Error converting file:', err);
+                    });
+            }
         });
 
         // Handle file removed

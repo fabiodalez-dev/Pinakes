@@ -1486,13 +1486,16 @@ $additional_css = "
         margin-right: auto;
     }
 
-    /* Responsive related-books grid: one row of as many cards as fit the
-       viewport (≈6 desktop, 4 laptop, 3 tablet, 2 phone), overflow hidden — so
-       the COUNT shown adapts to screen size instead of being a fixed 3.
-       grid-auto-rows:0 + overflow:hidden collapse every row after the first. */
+    /* Responsive related-books grid: one visible row, capped at 4 cards on
+       wide/high-res screens and degrading to 3/2/1 as the viewport narrows —
+       each column is at least a quarter of the row (minus the 3 inter-column
+       gaps) OR 200px, whichever is larger, so auto-fill can never pack more
+       than 4 columns even on a high-resolution laptop. grid-auto-rows:0 +
+       overflow:hidden collapse every row after the first, so extra related
+       books beyond the first 4 stay clipped rather than wrapping. */
     .related-books-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(max(200px, calc((100% - 3 * 1.5rem) / 4)), 1fr));
         /* row-gap:0 so the zero-height clipped rows don't add trailing
            whitespace below the single visible row (F002). Horizontal spacing
            between cards in the visible row is preserved via column-gap. */
@@ -1750,6 +1753,12 @@ ob_start();
                     <h1 class="fw-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);">
                         <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                     </h1>
+
+                    <?php if (!empty($book['sottotitolo'])): ?>
+                    <p class="book-subtitle-hero mb-3" id="book-subtitle" style="font-size: clamp(1.05rem, 2vw, 1.35rem); color: var(--text-muted, #6b7280); font-weight: 500; line-height: 1.4;">
+                        <?= htmlspecialchars(html_entity_decode($book['sottotitolo'], ENT_QUOTES, 'UTF-8')) ?>
+                    </p>
+                    <?php endif; ?>
 
                     <div class="authors-list" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
