@@ -427,42 +427,66 @@ class LibriController
         $copie = $copyRepo->getByBookId($id);
         $copySchedule = $copyRepo->getScheduleByBookId($id);
 
-        // Get loan history for this book
-        $loanHistoryQuery = "
-            SELECT
-                p.id,
-                p.data_prestito,
-                p.data_scadenza,
-                p.data_restituzione,
-                p.stato,
-                p.renewals,
-                p.note,
-                u.nome as utente_nome,
-                u.cognome as utente_cognome,
-                u.email as utente_email,
-                u.id as utente_id,
-                staff.nome as staff_nome,
-                staff.cognome as staff_cognome
-            FROM prestiti p
-            LEFT JOIN utenti u ON p.utente_id = u.id
-            LEFT JOIN utenti staff ON p.processed_by = staff.id
-            WHERE p.libro_id = ?
-            ORDER BY p.data_prestito DESC
-        ";
-        $stmt = $db->prepare($loanHistoryQuery);
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $loanHistory = [];
-        while ($row = $result->fetch_assoc()) {
-            $loanHistory[] = $row;
+        // Borrower identity (name/email/reading history) is GDPR-sensitive and must
+        // only be exposed to admin/staff. Standard/premium patrons can reach this
+        // page (route allows them) but must see availability WITHOUT any borrower PII.
+        $currentUserRole = $_SESSION['user']['tipo_utente'] ?? '';
+        $isAdminOrStaff = \in_array($currentUserRole, ['admin', 'staff'], true);
+
+        // Redact borrower PII from the active loan for non-admin/staff viewers,
+        // preserving the loan-existence/date fields needed for availability display.
+        if (!$isAdminOrStaff && !empty($activeLoan)) {
+            foreach (['utente_nome', 'utente_cognome', 'utente_email', 'utente_id'] as $piiField) {
+                unset($activeLoan[$piiField]);
+            }
         }
-        $stmt->close();
+
+        // Redact per-copy current-borrower PII for non-admin/staff viewers.
+        if (!$isAdminOrStaff) {
+            foreach ($copie as $ci => $copia) {
+                foreach (['utente_nome', 'utente_cognome', 'utente_email', 'utente_id'] as $piiField) {
+                    unset($copie[$ci][$piiField]);
+                }
+            }
+        }
+
+        // Get loan history for this book — contains borrower PII, so only fetch it
+        // for admin/staff. Non-admin viewers get an empty history (block hidden).
+        $loanHistory = [];
+        if ($isAdminOrStaff) {
+            $loanHistoryQuery = "
+                SELECT
+                    p.id,
+                    p.data_prestito,
+                    p.data_scadenza,
+                    p.data_restituzione,
+                    p.stato,
+                    p.renewals,
+                    p.note,
+                    u.nome as utente_nome,
+                    u.cognome as utente_cognome,
+                    u.email as utente_email,
+                    u.id as utente_id,
+                    staff.nome as staff_nome,
+                    staff.cognome as staff_cognome
+                FROM prestiti p
+                LEFT JOIN utenti u ON p.utente_id = u.id
+                LEFT JOIN utenti staff ON p.processed_by = staff.id
+                WHERE p.libro_id = ?
+                ORDER BY p.data_prestito DESC
+            ";
+            $stmt = $db->prepare($loanHistoryQuery);
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($row = $result->fetch_assoc()) {
+                $loanHistory[] = $row;
+            }
+            $stmt->close();
+        }
 
         // Active reservations for this book (admin/staff only - contains PII)
         $activeReservations = [];
-        $currentUserRole = $_SESSION['user']['tipo_utente'] ?? '';
-        $isAdminOrStaff = \in_array($currentUserRole, ['admin', 'staff'], true);
 
         if ($isAdminOrStaff) {
             $resStmt = $db->prepare("

@@ -290,6 +290,10 @@ class PublicApiController
      */
     private function getBookLoanStatus(mysqli $db, int $bookId): ?array
     {
+        // Public payload: expose only availability / due-date, never the
+        // borrower's identity. This endpoint is reachable by any API key
+        // holder, so returning the patron's name/email would leak PII
+        // (CWE-863). The JOIN on utenti is therefore intentionally dropped.
         $sql = "
             SELECT
                 p.id,
@@ -297,13 +301,8 @@ class PublicApiController
                 p.data_scadenza,
                 p.data_restituzione,
                 p.stato,
-                p.attivo,
-                u.id AS utente_id,
-                u.nome AS utente_nome,
-                u.cognome AS utente_cognome,
-                u.email AS utente_email
+                p.attivo
             FROM prestiti p
-            JOIN utenti u ON p.utente_id = u.id
             WHERE p.libro_id = ? AND p.attivo = 1
             ORDER BY p.data_prestito DESC
             LIMIT 1
@@ -330,13 +329,7 @@ class PublicApiController
             'data_scadenza' => $row['data_scadenza'],
             'data_restituzione' => $row['data_restituzione'],
             'stato' => $row['stato'],
-            'attivo' => (bool)$row['attivo'],
-            'utente' => [
-                'id' => (int)$row['utente_id'],
-                'nome' => $row['utente_nome'],
-                'cognome' => $row['utente_cognome'],
-                'email' => $row['utente_email']
-            ]
+            'attivo' => (bool)$row['attivo']
         ];
     }
 

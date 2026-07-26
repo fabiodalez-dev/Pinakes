@@ -59,32 +59,52 @@ class PasswordController
             $stmt->execute();
             $stmt->close();
 
+            // Build the reset link ONLY from an operator-configured canonical /
+            // trusted host, NEVER from the request Host header (which an attacker
+            // controls on a catch-all vhost → reset-link poisoning, CWE-20).
+            $resetPath = RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
             $envUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
+            $resetUrl = null;
             if (is_string($envUrl) && $envUrl !== '') {
-                $resetUrl = rtrim($envUrl, '/') . RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
+                // Full canonical URL preserves scheme and any base path.
+                $resetUrl = rtrim($envUrl, '/') . $resetPath;
             } else {
-                SecureLogger::warning('Password reset URL generated without APP_CANONICAL_URL — relies on Host header');
-                $resetUrl = absoluteUrl(RouteTranslator::route('reset_password')) . '?token=' . urlencode($resetToken);
+                // No canonical URL: fall back ONLY to a configured trusted host.
+                $trustedHost = \App\Support\HtmlHelper::configuredTrustedHost();
+                if ($trustedHost !== null) {
+                    $resetUrl = 'https://' . $trustedHost . $resetPath;
+                }
             }
-            $name = trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? ''));
-            $subject = __('Recupera la tua password');
-            $html = '<h2>' . __('Recupera la tua password') . '</h2>' .
-                '<p>' . __('Ciao') . ' ' . htmlspecialchars($name !== '' ? $name : $email, ENT_QUOTES, 'UTF-8') . ',</p>' .
-                '<p>' . __('Abbiamo ricevuto una richiesta di reset della password per il tuo account.') . '</p>' .
-                '<p>' . __('Clicca sul pulsante qui sotto per resettare la tua password:') . '</p>' .
-                '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #111827; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . __('Resetta Password') . '</a></p>' .
-                '<p>' . __('Oppure copia e incolla questo link nel tuo browser:') . '</p>' .
-                '<p><code style="background-color: #f3f4f6; padding: 10px; display: block; word-break: break-all;">' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '</code></p>' .
-                '<p><strong>' . __('Nota:') . '</strong> ' . __('Questo link scadrà tra 2 ore.') . '</p>' .
-                '<p>' . __('Se non hai richiesto il reset della password, puoi ignorare questa email. Il tuo account rimane sicuro.') . '</p>';
 
-            // Use EmailService if available, fall back to Mailer
-            try {
-                $emailService = new EmailService($db);
-                $emailService->sendEmail($email, $subject, $html, $name);
-            } catch (\Throwable $e) {
-                error_log('EmailService failed, falling back to Mailer: ' . $e->getMessage());
-                Mailer::send($email, $subject, $html);
+            if ($resetUrl === null) {
+                // Fail closed: no trustworthy host is configured, so refuse to
+                // emit a link derived from the raw Host header. Suppress this
+                // email but still fall through to the generic 'sent' response
+                // below so account existence is not disclosed (anti-enumeration).
+                SecureLogger::error('Password reset email suppressed: neither APP_CANONICAL_URL nor APP_TRUSTED_HOSTS is configured; refusing to build the reset link from the request Host header', [
+                    'user_id' => $row['id'],
+                ]);
+            } else {
+                $name = trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? ''));
+                $subject = __('Recupera la tua password');
+                $html = '<h2>' . __('Recupera la tua password') . '</h2>' .
+                    '<p>' . __('Ciao') . ' ' . htmlspecialchars($name !== '' ? $name : $email, ENT_QUOTES, 'UTF-8') . ',</p>' .
+                    '<p>' . __('Abbiamo ricevuto una richiesta di reset della password per il tuo account.') . '</p>' .
+                    '<p>' . __('Clicca sul pulsante qui sotto per resettare la tua password:') . '</p>' .
+                    '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #111827; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . __('Resetta Password') . '</a></p>' .
+                    '<p>' . __('Oppure copia e incolla questo link nel tuo browser:') . '</p>' .
+                    '<p><code style="background-color: #f3f4f6; padding: 10px; display: block; word-break: break-all;">' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '</code></p>' .
+                    '<p><strong>' . __('Nota:') . '</strong> ' . __('Questo link scadrà tra 2 ore.') . '</p>' .
+                    '<p>' . __('Se non hai richiesto il reset della password, puoi ignorare questa email. Il tuo account rimane sicuro.') . '</p>';
+
+                // Use EmailService if available, fall back to Mailer
+                try {
+                    $emailService = new EmailService($db);
+                    $emailService->sendEmail($email, $subject, $html, $name);
+                } catch (\Throwable $e) {
+                    error_log('EmailService failed, falling back to Mailer: ' . $e->getMessage());
+                    Mailer::send($email, $subject, $html);
+                }
             }
         } else {
             $stmt->close();

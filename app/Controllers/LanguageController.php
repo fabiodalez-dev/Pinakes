@@ -69,6 +69,16 @@ class LanguageController
             return '/';
         }
 
-        return $redirect[0] === '/' ? $redirect : '/';
+        if ($redirect[0] !== '/') {
+            return '/';
+        }
+
+        // Reject backslash- or double-slash-prefixed paths (e.g. "/\evil.com")
+        // that browsers normalise into a cross-origin redirect.
+        if (preg_match('#^/[\\\\/]#', $redirect)) {
+            return '/';
+        }
+
+        return $redirect;
     }
 }

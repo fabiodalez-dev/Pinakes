@@ -35,7 +35,7 @@ class ApiKeyMiddleware implements MiddlewareInterface
         $apiKey = $this->extractApiKey($request);
 
         if ($apiKey === null) {
-            return $this->jsonError('API key is required. Provide it via X-API-Key header or api_key query parameter', 401);
+            return $this->jsonError('API key is required. Provide it via the X-API-Key header or an Authorization: Bearer token', 401);
         }
 
         // Validate API key
@@ -64,16 +64,26 @@ class ApiKeyMiddleware implements MiddlewareInterface
 
     private function extractApiKey(Request $request): ?string
     {
-        // Try header first (preferred method)
+        // Security scan F12 (CWE-598): the API key must NEVER travel in the query
+        // string — it would be captured verbatim in Apache access logs, proxy
+        // logs and browser history. Accept it only via request headers.
+
+        // Preferred: dedicated X-API-Key header.
         $headers = $request->getHeader('X-API-Key');
         if (!empty($headers)) {
-            return trim($headers[0]);
+            $key = trim($headers[0]);
+            if ($key !== '') {
+                return $key;
+            }
         }
 
-        // Fallback to query parameter
-        $queryParams = $request->getQueryParams();
-        if (isset($queryParams['api_key']) && is_string($queryParams['api_key'])) {
-            return trim($queryParams['api_key']);
+        // Also accept a standard Authorization: Bearer <key> header.
+        $authHeaders = $request->getHeader('Authorization');
+        if (!empty($authHeaders) && preg_match('/^\s*Bearer\s+(.+)$/i', $authHeaders[0], $m)) {
+            $key = trim($m[1]);
+            if ($key !== '') {
+                return $key;
+            }
         }
 
         return null;

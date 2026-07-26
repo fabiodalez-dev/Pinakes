@@ -2141,7 +2141,7 @@ class LibraryThingImportController
 
         // LibraryThing headers (TSV format). Field encoding (RFC 4180 quoting
         // of tab/newline/quote, doubled quotes) is handled by league/csv.
-        $writer = Csv::writerToStream($stream, "\t");
+        $writer = Csv::writerToStream($stream, "\t", "'");
         $headers = $this->getLibraryThingHeaders();
         $writer->insertOne($headers);
 

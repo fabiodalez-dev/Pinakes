@@ -45,7 +45,7 @@ Pinakes exposes **two distinct API surfaces** with different authentication mode
 | Surface | Routes | Auth |
 |---------|--------|------|
 | **Internal / admin API** | `/api/libri`, `/api/prestiti`, `/api/utenti`, `/api/autori`, `/api/editori`, `/api/generi/*`, `/api/dewey/*`, `/api/search/*`, `/api/collane/*`, `/api/collocazione/*`, `/api/books/{id}/availability*`, ... | **Session-based** (browser cookies + role middleware). Used by the admin UI / DataTables. |
-| **Public API** | `/api/public/*` | **API key** via `ApiKeyMiddleware`. Requires `api.enabled = '1'` in settings and a valid key in the `X-API-Key` header or `api_key` query parameter. |
+| **Public API** | `/api/public/*` | **API key** via `ApiKeyMiddleware`. Requires `api.enabled = '1'` in settings and a valid key in the `X-API-Key` (or `Authorization: Bearer`) header. |
 
 The internal endpoints below are **not** intended for third-party integration — they are session-gated through `AuthMiddleware`/`AdminAuthMiddleware` and return HTML-laced DataTables payloads. For programmatic third-party access use the **Public API** described below.
 
@@ -101,9 +101,13 @@ session-based admin endpoints.
 
 ### Passing the key
 
-Provide the key in **either**:
-- HTTP header (preferred): `X-API-Key: <key>`
-- Query parameter: `?api_key=<key>`
+Provide the key in an HTTP header (either form):
+- `X-API-Key: <key>`
+- `Authorization: Bearer <key>`
+
+The key is **never** accepted as a `?api_key=` query parameter: query strings
+are written to web-server access logs, so a key passed that way leaks to anyone
+with log access. Header-only avoids that exposure.
 
 Each authenticated request updates the key's `last_used` timestamp
 (non-blocking; failures are logged, not fatal).

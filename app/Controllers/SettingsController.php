@@ -46,6 +46,12 @@ class SettingsController
         $queryParams = $request->getQueryParams();
         $activeTab = $queryParams['tab'] ?? 'general';
 
+        // Security scan F11 (CWE-522): the settings page is reachable by 'staff'
+        // (AdminAuthMiddleware admits them), but the advanced/contacts tabs echo
+        // admin secrets (API keys, reCAPTCHA secret) verbatim. Only real admins
+        // may see those values; the partials gate secret output on $isAdmin.
+        $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
+
         ob_start();
         $data = compact(
             'appSettings',
@@ -60,7 +66,8 @@ class SettingsController
             'contactMessages',
             'activeTab',
             'db',
-            'cookieBannerTexts'
+            'cookieBannerTexts',
+            'isAdmin'
         );
         require __DIR__ . '/../Views/settings/index.php';
         $content = ob_get_clean();

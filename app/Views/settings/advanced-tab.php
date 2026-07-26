@@ -680,6 +680,9 @@ use App\Support\HtmlHelper;
     }
     $apiEnabled = ($advancedSettings['api_enabled'] ?? '0') === '1';
     $apiEndpoint = \App\Controllers\SeoController::resolveBaseUrl() . '/api/public/books/search';
+    // Security scan F11 (CWE-522): only real admins may see the API key VALUES.
+    // 'staff' can reach this page but must never receive the secrets in the HTML.
+    $isAdmin = $isAdmin ?? (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
   ?>
 
   <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
@@ -720,6 +723,7 @@ use App\Support\HtmlHelper;
       </form>
 
       <!-- <?= __("API Keys") ?> Management -->
+      <?php if (!empty($isAdmin)): ?>
       <div class="space-y-4">
         <div class="flex items-center justify-between">
           <h4 class="text-base font-semibold text-gray-900 flex items-center gap-2">
@@ -809,6 +813,12 @@ use App\Support\HtmlHelper;
           </div>
         <?php endif; ?>
       </div>
+      <?php else: ?>
+      <div class="p-4 bg-gray-50 rounded-xl border border-gray-200 text-sm text-gray-600 flex items-center gap-2">
+        <i class="fas fa-lock text-gray-400"></i>
+        <?= __("Solo gli amministratori possono visualizzare e gestire le API key.") ?>
+      </div>
+      <?php endif; ?>
 
       <!-- API Documentation -->
       <details class="border border-gray-200 rounded-xl overflow-hidden">
@@ -838,8 +848,8 @@ use App\Support\HtmlHelper;
                 <pre class="mt-2 bg-gray-900 text-green-400 p-2 rounded overflow-x-auto"><code>X-API-Key: your-api-key-here</code></pre>
               </div>
               <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                <strong class="text-gray-900"><?= __("Query parameter:") ?></strong>
-                <pre class="mt-2 bg-gray-900 text-green-400 p-2 rounded overflow-x-auto"><code>?api_key=your-api-key-here</code></pre>
+                <strong class="text-gray-900"><?= __("Authorization header:") ?></strong>
+                <pre class="mt-2 bg-gray-900 text-green-400 p-2 rounded overflow-x-auto"><code>Authorization: Bearer your-api-key-here</code></pre>
               </div>
             </div>
           </div>

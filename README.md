@@ -37,6 +37,34 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.42
+
+A security-hardening and bug-fix release. It closes a set of access-control,
+SSRF, open-redirect and data-exposure issues found in a full security audit,
+and fixes three OPAC/CMS regressions.
+
+### Security
+- **Access control on the internal APIs** — `GET /api/editori` and `GET /api/libri` were reachable without a session and returned every column, exposing publisher PII (email, phone, tax code, referent contacts) and internal book fields (purchase price, private notes, inventory numbers). They now require the admin session middleware, matching how they are already documented.
+- **Borrower privacy on the book page** — a non-admin patron could open `/admin/books/{id}` and read every borrower's name, email and loan history. Borrower identity is now gated to admin/staff only (the reservations block already was).
+- **Privilege boundary on updates** — a `staff` user could upload and install an update package, or trigger a full update/downgrade, over the application files (a route to code execution). Those actions now require an explicit `admin` role, like the backup/restore actions.
+- **Public search API** no longer leaks the current borrower's name/email; it returns availability and due dates only.
+- **Session-role enforcement** — admin routes now re-validate the user against the database each request, so demoting or suspending a user takes effect immediately instead of at session expiry.
+- **Secrets** — the settings page no longer shows API keys or the reCAPTCHA secret to the `staff` role; API keys are accepted only via the `X-API-Key` / `Authorization: Bearer` header (never a `?api_key=` query string, which leaks into access logs).
+- **Hardening** — fixed an open redirect after login and on the language switch (`/\` backslash bypass), a path-traversal on language-file upload, SSRF in the image proxy (redirect + DNS-rebinding) and the installer DB test, plaintext SMTP password storage in the installer, CSV/formula injection in two exports, reset-link Host-header poisoning, a login timing side channel, and rate-limit bypass via forged forwarding headers.
+
+### Fixes
+- **Book subtitle now shows on the public book page** ([#293](https://github.com/fabiodalez-dev/Pinakes/issues/293)) — the `sottotitolo` was never rendered in the OPAC; it now appears under the title.
+- **Hero background image upload under a strict CSP** ([#292](https://github.com/fabiodalez-dev/Pinakes/issues/292)) — the uploader fetched a `blob:` URL that a strict `connect-src` policy blocks, so the image never reached the form. It now uses the file object directly and works regardless of the site's CSP.
+- **Related-books count on high-resolution screens** — the related strip packed 6+ cards on high-res laptops; it now caps at 4 and adapts down to 3/2/1 as the viewport narrows, with the mobile swipe carousel unchanged.
+
+### Database Changes
+- `migrate_0.7.42.sql` — bumps the `da_DK` translation key count (6607 → 6611) for installs already on 0.7.41, after this release added 4 UI strings. Idempotent.
+
+### Upgrade Notes
+- Back up your database before updating (the in-app updater does this automatically).
+
+---
+
 ## What's New in v0.7.41
 
 A maintenance release bundling seven merged pull requests: a new interface

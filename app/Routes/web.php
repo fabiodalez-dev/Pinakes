@@ -2057,11 +2057,16 @@ return function (App $app): void {
         ->add(new \App\Middleware\RateLimitMiddleware(10, 60))
         ->add(new CsrfMiddleware())
         ->add(new AdminAuthMiddleware());
+    // Admin-only: this DataTables feed runs SELECT l.* and exposes internal
+    // fields (prezzo, note_varie, numero_inventario, tipo_acquisizione,
+    // collocazione) never shown on the public catalog. Guard it like its
+    // sibling /api/libri/bulk-* routes so anonymous visitors can't page
+    // through internal book data (CWE-862).
     $app->get('/api/libri', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\LibriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->list($request, $response, $db);
-    });
+    })->add(new AdminAuthMiddleware());
     // API Autori (server-side DataTables)
     $app->get('/api/autori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\AutoriApiController();
@@ -2084,11 +2089,15 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // API Editori (server-side DataTables)
+    // Admin-only: this feed runs SELECT e.* and exposes publisher PII
+    // (telefono, email, referente_*, codice_fiscale). Guard it like its
+    // sibling /api/editori/bulk-* and merge routes so anonymous visitors
+    // can't exfiltrate contact data (CWE-862).
     $app->get('/api/editori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\EditoriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->list($request, $response, $db);
-    });
+    })->add(new AdminAuthMiddleware());
 
     // API Editori - Bulk Delete
     $app->post('/api/editori/bulk-delete', function ($request, $response) use ($app) {
