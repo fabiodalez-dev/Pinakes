@@ -1137,58 +1137,28 @@ $activeTab = $activeTab ?? 'general';
             removeLogoCheckbox.checked = false;
           }
 
+          // Preview via an object URL — works for SVG logos too, which Uppy's
+          // ThumbnailGenerator does not rasterise. blob: is allowed by img-src,
+          // so no CSP issue (the #292 breakage was a blob: fetch on connect-src).
           let previewSrc = '';
-
-          if (file.preview) {
-            if (tempLogoObjectUrl) {
-              URL.revokeObjectURL(tempLogoObjectUrl);
-              tempLogoObjectUrl = null;
-            }
-            previewSrc = file.preview;
-          } else if (file.data instanceof Blob) {
+          if (file.data instanceof Blob) {
             if (tempLogoObjectUrl) {
               URL.revokeObjectURL(tempLogoObjectUrl);
             }
             tempLogoObjectUrl = URL.createObjectURL(file.data);
             previewSrc = tempLogoObjectUrl;
-          }
-
-          if (previewSrc) {
             setLogoPreview(previewSrc);
-          }
-
-          const dataTransfer = new DataTransfer();
-
-          if (file.data instanceof File) {
-            dataTransfer.items.add(file.data);
-            if (logoFileInput) {
-              logoFileInput.files = dataTransfer.files;
-            }
-          } else if (file.data instanceof Blob) {
-            const newFile = new File([file.data], file.name, { type: file.type });
-            dataTransfer.items.add(newFile);
-            if (logoFileInput) {
-              logoFileInput.files = dataTransfer.files;
-            }
-          } else if (file.preview) {
-            fetch(file.preview)
-              .then(res => res.blob())
-              .then(blob => {
-                const newFile = new File([blob], file.name, { type: file.type });
-                dataTransfer.items.add(newFile);
-                if (logoFileInput) {
-                  logoFileInput.files = dataTransfer.files;
-                }
-              })
-              .catch(() => {
-                if (logoFileInput) {
-                  logoFileInput.value = '';
-                }
-              });
-          }
-
-          if (previewSrc) {
             currentLogoPreviewSrc = previewSrc;
+          }
+
+          // Transfer Uppy's File to the hidden input the form submits.
+          const dataTransfer = new DataTransfer();
+          const normalized = file.data instanceof File
+            ? file.data
+            : new File([file.data], file.name, { type: file.type });
+          dataTransfer.items.add(normalized);
+          if (logoFileInput) {
+            logoFileInput.files = dataTransfer.files;
           }
         });
 
