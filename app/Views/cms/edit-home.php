@@ -163,7 +163,7 @@ function getSectionDisplayName($key) {
           <!-- #292: native Uppy ThumbnailGenerator preview of the just-picked image -->
           <div id="hero-preview-container" class="mb-4 hidden">
             <p class="text-xs text-gray-500 mb-1"><?= __("Anteprima nuova immagine") ?></p>
-            <img id="hero-preview-img" alt="<?= HtmlHelper::e(__('Anteprima nuova immagine')) ?>"
+            <img id="hero-preview-img" alt="<?= htmlspecialchars(__('Anteprima nuova immagine'), ENT_QUOTES, 'UTF-8') ?>"
                  class="rounded-xl border border-gray-200 max-h-48 w-auto object-cover">
           </div>
           <!-- Fallback file input (hidden, used by Uppy) -->
