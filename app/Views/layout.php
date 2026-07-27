@@ -90,6 +90,14 @@ $htmlLang = substr($currentLocale, 0, 2);
       }
     }
   </style>
+  <?php
+  // Issue #291: apply the admin-configured custom CSS to the admin chrome too
+  // (it previously reached only the frontend layout + auth pages), so rules
+  // targeting admin pages — e.g. hiding unused fields on the book form — take
+  // effect. Emitted LAST in <head> so it can override the app's own styles.
+  // Same render-time ContentSanitizer::sanitizeCustomCss() guard as elsewhere.
+  require __DIR__ . '/auth/partials/custom-css.php';
+  ?>
 </head>
 
 <body class="bg-gray-50 text-gray-900 antialiased">
