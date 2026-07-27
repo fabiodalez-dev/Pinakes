@@ -52,12 +52,29 @@ const files = {
   png: path.join(tmp, 'photo.png'),
   webp: path.join(tmp, 'photo.webp'),
   big: path.join(tmp, 'big.jpg'),          // 6MB: passes PHP, trips the 5MB app limit
-  huge: path.join(tmp, 'huge.jpg'),        // 33MB: trips PHP upload_max_filesize (INI_SIZE)
+  huge: path.join(tmp, 'huge.jpg'),        // sized in beforeAll: > upload_max_filesize, < post_max_size
   txt: path.join(tmp, 'notes.txt'),        // wrong extension
   gif: path.join(tmp, 'anim.gif'),         // gif is NOT in the whitelist
   svg: path.join(tmp, 'evil.svg'),         // svg is an XSS vector, must be rejected
   fakejpg: path.join(tmp, 'fake.jpg'),     // .jpg extension, text content (MIME mismatch)
 };
+
+// PHP has two independent upload limits with DIFFERENT failure modes:
+//   - over upload_max_filesize  -> that one file arrives with error=UPLOAD_ERR_INI_SIZE,
+//     the rest of $_POST is intact. THIS is what the getError() fix handles.
+//   - over post_max_size        -> PHP discards the WHOLE body: $_POST and $_FILES are
+//     empty and the CSRF token is gone. A different failure entirely.
+// To exercise the INI_SIZE path we need a file that is > upload_max_filesize but
+// < post_max_size, which is only possible when upload_max_filesize < post_max_size.
+// Read both from the running PHP (CLI shares the app's php.ini here) and skip the
+// sub-case with a clear message when the environment can't produce it.
+function phpBytes(v) {
+  const m = String(v).trim().match(/^(\d+)\s*([KMG]?)$/i);
+  if (!m) return parseInt(v, 10) || 0;
+  const n = parseInt(m[1], 10);
+  return n * ({ '': 1, K: 1024, M: 1024 * 1024, G: 1024 * 1024 * 1024 }[m[2].toUpperCase()]);
+}
+let iniUploadMax = 0, iniPostMax = 0, iniSizeTestable = false;
 
 let priorRow = null;          // snapshot of the hero background_image for restore
 const assetsDir = INSTALL_ROOT ? path.join(INSTALL_ROOT, 'public/uploads/assets') : '';
@@ -120,7 +137,22 @@ test.beforeAll(() => {
 
   const jpegMagic = fs.readFileSync(files.jpg);
   fs.writeFileSync(files.big, Buffer.concat([jpegMagic, Buffer.alloc(6 * 1024 * 1024, 0x20)]));   // >5MB app limit
-  fs.writeFileSync(files.huge, Buffer.concat([jpegMagic, Buffer.alloc(33 * 1024 * 1024, 0x20)])); // >32M PHP limit
+
+  // Read PHP's two upload limits and decide whether the INI_SIZE sub-case is
+  // producible here. Size `huge` to sit strictly between them when it is.
+  const ini = execFileSync('php', ['-r', 'echo ini_get("upload_max_filesize")."|".ini_get("post_max_size");'],
+    { encoding: 'utf-8', timeout: 10000 }).trim();
+  [iniUploadMax, iniPostMax] = ini.split('|').map(phpBytes);
+  iniSizeTestable = iniUploadMax > 0 && iniPostMax > iniUploadMax;
+  if (iniSizeTestable) {
+    // Strictly > upload_max_filesize and strictly < post_max_size.
+    const hugeSize = iniUploadMax + Math.floor((iniPostMax - iniUploadMax) / 2);
+    fs.writeFileSync(files.huge, Buffer.concat([jpegMagic, Buffer.alloc(Math.max(hugeSize - jpegMagic.length, 1), 0x20)]));
+    console.log(`[#292] INI_SIZE sub-case ENABLED: upload_max=${iniUploadMax}B post_max=${iniPostMax}B, huge=${hugeSize}B`);
+  } else {
+    console.log(`[#292] INI_SIZE sub-case SKIPPED: upload_max_filesize (${iniUploadMax}B) >= post_max_size (${iniPostMax}B); ` +
+      `cannot produce an isolated UPLOAD_ERR_INI_SIZE (a file over post_max_size empties $_POST/$_FILES instead).`);
+  }
   fs.writeFileSync(files.txt, 'just some notes, not an image');
   fs.writeFileSync(files.gif, Buffer.from('GIF89a' + '\x01\x00\x01\x00\x00\x00\x00;', 'binary'));
   fs.writeFileSync(files.svg, '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
@@ -203,19 +235,23 @@ test('#292 hero upload: saves, serves, renders, and rejects correctly', async ({
     await expect(page.locator('[role="alert"]')).toContainText(/troppo grande|Max|supera il limite/i);
   }
 
-  // --- 6) Over PHP's upload_max_filesize (33MB): the SILENT-FAILURE fix. PHP
-  //        rejects it before the app sees it (getError=INI_SIZE); the old code
-  //        reported success with no image. Now it must be a visible error and
-  //        the background must be untouched.
-  {
+  // --- 6) Over upload_max_filesize (but under post_max_size): the SILENT-FAILURE
+  //        fix. PHP hands the file to the app with error=UPLOAD_ERR_INI_SIZE; the
+  //        old code only handled UPLOAD_ERR_OK, so $errors stayed empty and the
+  //        page reported success with no image. Now it must be a visible error and
+  //        the background must be untouched. Only runs where the environment can
+  //        produce an isolated INI_SIZE (upload_max_filesize < post_max_size).
+  if (iniSizeTestable) {
     const before = heroBackground();
     const { status } = await postHero(page, { filePath: files.huge, mime: 'image/jpeg' });
     expect(status).toBe(303);
-    expect(heroBackground(), 'over-PHP-limit upload must not change the background').toBe(before);
+    expect(heroBackground(), 'over-upload_max_filesize upload must not change the background').toBe(before);
     await page.goto(`${BASE}/admin/cms/home`);
     await expect(page.locator('[role="alert"]'),
-      'a file beyond the PHP limit must produce a visible error, not a silent success')
+      'a file beyond upload_max_filesize must produce a visible error, not a silent success')
       .toContainText(/supera il limite|troppo grande|interrotto|Max/i);
+  } else {
+    console.log('[#292] skipping INI_SIZE assertion (see beforeAll message).');
   }
 
   // --- 7) Wrong extension (.txt): rejected, background unchanged.

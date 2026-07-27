@@ -148,6 +148,30 @@ class CmsController
         return $response;
     }
 
+    /**
+     * Map a PHP file-upload error code to a user-facing message, or null when
+     * there is nothing to report (UPLOAD_ERR_OK / UPLOAD_ERR_NO_FILE).
+     *
+     * #292: a hero photo bigger than upload_max_filesize arrives with a non-OK
+     * error code BEFORE the app can validate it. The upload block only ran on
+     * UPLOAD_ERR_OK, so the failure fell through silently and the page reported
+     * success with no image. Extracted so the mapping is unit-testable without a
+     * specific php.ini (the E2E INI_SIZE case needs upload_max < post_max, which
+     * not every environment has).
+     */
+    public static function heroUploadErrorMessage(int $err): ?string
+    {
+        return match ($err) {
+            UPLOAD_ERR_OK, UPLOAD_ERR_NO_FILE => null,
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE =>
+                "L'immagine supera il limite di upload del server. Riduci la dimensione dell'immagine, oppure aumenta upload_max_filesize e post_max_size nella configurazione PHP.",
+            UPLOAD_ERR_PARTIAL => "L'upload dell'immagine è stato interrotto. Riprova.",
+            UPLOAD_ERR_NO_TMP_DIR => "Cartella temporanea mancante sul server. Contatta l'amministratore.",
+            UPLOAD_ERR_CANT_WRITE => "Impossibile scrivere il file sul server. Controlla i permessi.",
+            default => "Errore durante l'upload dell'immagine (codice {$err}).",
+        };
+    }
+
     public function updateHome(Request $request, Response $response, \mysqli $db, array $args): Response
     {
         $data = $request->getParsedBody();
@@ -208,15 +232,9 @@ class CmsController
             // page reported "saved successfully". Surface a clear error instead.
             $heroUpload = $files['hero_background'] ?? null;
             $heroUploadErr = $heroUpload !== null ? $heroUpload->getError() : UPLOAD_ERR_NO_FILE;
-            if ($heroUpload !== null && $heroUploadErr !== UPLOAD_ERR_OK && $heroUploadErr !== UPLOAD_ERR_NO_FILE) {
-                $errors[] = match ($heroUploadErr) {
-                    UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE =>
-                        "L'immagine supera il limite di upload del server. Riduci la dimensione dell'immagine, oppure aumenta upload_max_filesize e post_max_size nella configurazione PHP.",
-                    UPLOAD_ERR_PARTIAL => "L'upload dell'immagine è stato interrotto. Riprova.",
-                    UPLOAD_ERR_NO_TMP_DIR => "Cartella temporanea mancante sul server. Contatta l'amministratore.",
-                    UPLOAD_ERR_CANT_WRITE => "Impossibile scrivere il file sul server. Controlla i permessi.",
-                    default => "Errore durante l'upload dell'immagine (codice {$heroUploadErr}).",
-                };
+            $heroUploadError = self::heroUploadErrorMessage($heroUploadErr);
+            if ($heroUploadError !== null) {
+                $errors[] = $heroUploadError;
             }
 
             // SECURITY: Enhanced file upload validation
