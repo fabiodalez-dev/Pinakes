@@ -199,6 +199,26 @@ class CmsController
 
             $bgImagePath = null;
 
+            // #292: the browser sent a hero image but PHP rejected it BEFORE the
+            // app could validate/save it — almost always because the file exceeds
+            // upload_max_filesize / post_max_size on a self-hosted install (a
+            // phone photo easily beats the 2M PHP default). This used to fall
+            // through silently: the block below (getError() === OK) was skipped,
+            // $errors stayed empty, the UPSERT ran WITHOUT a background, and the
+            // page reported "saved successfully". Surface a clear error instead.
+            $heroUpload = $files['hero_background'] ?? null;
+            $heroUploadErr = $heroUpload !== null ? $heroUpload->getError() : UPLOAD_ERR_NO_FILE;
+            if ($heroUpload !== null && $heroUploadErr !== UPLOAD_ERR_OK && $heroUploadErr !== UPLOAD_ERR_NO_FILE) {
+                $errors[] = match ($heroUploadErr) {
+                    UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE =>
+                        "L'immagine supera il limite di upload del server. Riduci la dimensione dell'immagine, oppure aumenta upload_max_filesize e post_max_size nella configurazione PHP.",
+                    UPLOAD_ERR_PARTIAL => "L'upload dell'immagine è stato interrotto. Riprova.",
+                    UPLOAD_ERR_NO_TMP_DIR => "Cartella temporanea mancante sul server. Contatta l'amministratore.",
+                    UPLOAD_ERR_CANT_WRITE => "Impossibile scrivere il file sul server. Controlla i permessi.",
+                    default => "Errore durante l'upload dell'immagine (codice {$heroUploadErr}).",
+                };
+            }
+
             // SECURITY: Enhanced file upload validation
             if (isset($files['hero_background']) && $files['hero_background']->getError() === UPLOAD_ERR_OK) {
                 $uploadedFile = $files['hero_background'];
@@ -261,7 +281,14 @@ class CmsController
                                             $uploadedFile->moveTo($uploadPath);
                                             // SECURITY: Set secure file permissions
                                             @chmod($uploadPath, 0644);
-                                            $bgImagePath = '/assets/' . $newFilename;
+                                            // #292: the file is written under
+                                            // public/uploads/assets, so the stored
+                                            // URL must be /uploads/assets/… —
+                                            // /assets/ resolves to public/assets
+                                            // (a different dir) and 404s, so the
+                                            // hero image never rendered even when
+                                            // the upload succeeded.
+                                            $bgImagePath = '/uploads/assets/' . $newFilename;
                                         } catch (\Throwable $e) {
                                             \App\Support\SecureLogger::error('CmsController: Image upload error: ' . $e->getMessage());
                                             $errors[] = 'Errore durante l\'upload dell\'immagine. Riprova.';
