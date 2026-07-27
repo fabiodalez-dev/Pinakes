@@ -275,7 +275,6 @@ $getBookStatusBadge = static function ($book) {
     
     .book-title {
         font-size: 1rem;
-        min-height: 2.4em;
     }
 }
 
