@@ -35,10 +35,13 @@ let priorValue = '';
 
 test.beforeAll(() => {
   bookId = parseInt(db("SELECT id FROM libri WHERE deleted_at IS NULL ORDER BY id LIMIT 1"), 10);
-  // Preserve any existing custom CSS, then set our test rule.
-  const cur = db("SELECT setting_value FROM system_settings WHERE category='advanced' AND setting_key='custom_header_css'");
-  hadPrior = cur !== '';
-  priorValue = cur;
+  // Preserve any existing custom CSS, then set our test rule. Use EXISTS to tell
+  // an absent row from a present-but-empty value, so afterAll restores a real
+  // empty configuration instead of deleting it.
+  hadPrior = db("SELECT EXISTS(SELECT 1 FROM system_settings WHERE category='advanced' AND setting_key='custom_header_css')") === '1';
+  priorValue = hadPrior
+    ? db("SELECT setting_value FROM system_settings WHERE category='advanced' AND setting_key='custom_header_css'")
+    : '';
   db(`INSERT INTO system_settings (category, setting_key, setting_value, updated_at)
       VALUES ('advanced','custom_header_css',${sqlq(CUSTOM_CSS)}, NOW())
       ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_at=NOW()`);
@@ -75,10 +78,11 @@ test('#291: admin custom CSS applies on the book edit form', async ({ page }) =>
   }, 'PINAKES291SPEC');
   expect(inHead, 'custom CSS emitted in admin <head>').toBe(true);
 
-  // And it must actually take effect: #ean is now display:none.
+  // And it must actually take effect: #ean must exist on the book form AND be
+  // hidden by the custom CSS — the exact behaviour the issue asks for. No `if`
+  // guard: a redirect or a form that failed to render must fail the test, not
+  // silently skip the assertion.
   const ean = page.locator('input#ean');
-  if (await ean.count()) {
-    const display = await ean.evaluate((el) => getComputedStyle(el).display);
-    expect(display, '#ean hidden by custom CSS').toBe('none');
-  }
+  await expect(ean).toHaveCount(1);
+  await expect(ean).toHaveCSS('display', 'none');
 });
