@@ -37,6 +37,22 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.43
+
+A bug-fix release that completes the #292 hero-upload fix and applies the admin custom CSS on admin pages.
+
+### Fixes
+- **Hero background upload now saves and displays** ([#292](https://github.com/fabiodalez-dev/Pinakes/issues/292)) — completing the CSP fix from 0.7.42. Two further bugs were behind "the image doesn't show after upload": the file was written under `/uploads/assets` but stored with an `/assets` path that 404s, so a successfully-uploaded image never rendered; and a photo larger than the server's `upload_max_filesize` was dropped silently as a fake "saved". The stored path now matches the served path, oversized uploads show a clear error naming the `php.ini` keys to raise, and every image uploader (hero, event, book cover, author photo, site logo) now shows a preview of the picked file before saving.
+- **Admin custom CSS now applies on admin pages** ([#291](https://github.com/fabiodalez-dev/Pinakes/issues/291)) — the configured custom header CSS was emitted only on the public frontend, so a rule meant to (for example) hide unused fields on the book form had no effect. It now applies to the admin interface too.
+
+### Database Changes
+- None — this release changes views, a controller and client-side assets only; no schema or translation-count changes.
+
+### Upgrade Notes
+- Back up your database before updating (the in-app updater does this automatically).
+
+---
+
 ## What's New in v0.7.42
 
 A security-hardening and bug-fix release. It closes a set of access-control,
