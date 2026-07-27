@@ -3796,6 +3796,9 @@ select {
 .invisible {
   visibility: hidden;
 }
+.collapse {
+  visibility: collapse;
+}
 .static {
   position: static;
 }
@@ -3813,6 +3816,10 @@ select {
 }
 .inset-0 {
   inset: 0px;
+}
+.inset-x-0 {
+  left: 0px;
+  right: 0px;
 }
 .inset-y-0 {
   top: 0px;

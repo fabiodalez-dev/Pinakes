@@ -456,48 +456,30 @@ document.addEventListener('DOMContentLoaded', function() {
         hideAfterFinish: false
       });
 
-      const updatePreview = (fileObj) => {
-        if (!previewWrapper || !previewImage) {
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          previewImage.src = e.target?.result || '';
-          previewWrapper.classList.remove('hidden');
-          if (previewText) {
-            previewText.textContent = <?= json_encode(__("Anteprima immagine caricata"), JSON_HEX_TAG) ?>;
+      // #292: native Uppy image preview (DragDrop has none of its own).
+      if (typeof UppyThumbnailGenerator !== 'undefined') {
+        uppyEvent.use(UppyThumbnailGenerator, { thumbnailWidth: 400 });
+        uppyEvent.on('thumbnail:generated', (file, preview) => {
+          if (previewWrapper && previewImage) {
+            previewImage.src = preview;
+            previewWrapper.classList.remove('hidden');
+            if (previewText) {
+              previewText.textContent = <?= json_encode(__("Anteprima immagine caricata"), JSON_HEX_TAG) ?>;
+            }
           }
-        };
-        reader.readAsDataURL(fileObj);
-      };
+        });
+      }
 
-      // Handle file added
+      // Handle file added — transfer Uppy's File to the hidden input the form
+      // submits. Uppy always hands us a File/Blob in file.data (no blob: fetch,
+      // which a strict connect-src CSP would block — that was issue #292).
       uppyEvent.on('file-added', (file) => {
         const dataTransfer = new DataTransfer();
-        let normalizedFile = null;
-
-        if (file.data instanceof File) {
-          normalizedFile = file.data;
-        } else if (file.data instanceof Blob) {
-          normalizedFile = new File([file.data], file.name, { type: file.type });
-        } else if (file.preview) {
-          fetch(file.preview)
-            .then(res => res.blob())
-            .then(blob => {
-              const fetchedFile = new File([blob], file.name, { type: file.type });
-              dataTransfer.items.add(fetchedFile);
-              fileInput.files = dataTransfer.files;
-              updatePreview(fetchedFile);
-            })
-            .catch(err => console.error('Error loading preview blob:', err));
-          return;
-        }
-
-        if (normalizedFile) {
-          dataTransfer.items.add(normalizedFile);
-          fileInput.files = dataTransfer.files;
-          updatePreview(normalizedFile);
-        }
+        const f = file.data instanceof File
+          ? file.data
+          : new File([file.data], file.name, { type: file.type });
+        dataTransfer.items.add(f);
+        fileInput.files = dataTransfer.files;
       });
 
       // Handle file removed
@@ -505,6 +487,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('event-image-input').value = '';
         if (previewWrapper) {
           previewWrapper.classList.add('hidden');
+        }
+        if (previewImage) {
+          previewImage.removeAttribute('src');
         }
       });
 

@@ -160,6 +160,12 @@ function getSectionDisplayName($key) {
           <!-- Uppy Upload Area -->
           <div id="uppy-hero-upload" class="mb-4"></div>
           <div id="uppy-hero-progress" class="mb-4"></div>
+          <!-- #292: native Uppy ThumbnailGenerator preview of the just-picked image -->
+          <div id="hero-preview-container" class="mb-4 hidden">
+            <p class="text-xs text-gray-500 mb-1"><?= __("Anteprima nuova immagine") ?></p>
+            <img id="hero-preview-img" alt="<?= HtmlHelper::e(__('Anteprima nuova immagine')) ?>"
+                 class="rounded-xl border border-gray-200 max-h-48 w-auto object-cover">
+          </div>
           <!-- Fallback file input (hidden, used by Uppy) -->
           <input type="file" name="hero_background" accept="image/jpeg,image/jpg,image/png,image/webp"
                  style="display: none;" id="hero-background-input">
@@ -723,39 +729,36 @@ document.addEventListener('DOMContentLoaded', function() {
             hideAfterFinish: false
         });
 
-        // Handle file added
-        uppyHero.on('file-added', (file) => {
+        // #292: native Uppy image preview (DragDrop has none of its own).
+        if (typeof UppyThumbnailGenerator !== 'undefined') {
+            uppyHero.use(UppyThumbnailGenerator, { thumbnailWidth: 400 });
+            uppyHero.on('thumbnail:generated', (file, preview) => {
+                const img = document.getElementById('hero-preview-img');
+                const box = document.getElementById('hero-preview-container');
+                if (img && box) { img.src = preview; box.classList.remove('hidden'); }
+            });
+        }
 
-            // Set the file to the hidden input for form submission
+        // Handle file added — transfer Uppy's File to the hidden input the form
+        // submits. Uppy always hands us a File/Blob in file.data (no blob: fetch,
+        // which a strict connect-src CSP would block — that was issue #292).
+        uppyHero.on('file-added', (file) => {
             const fileInput = document.getElementById('hero-background-input');
             const dataTransfer = new DataTransfer();
-
-            // Uppy already hands us a File in file.data — use it directly.
-            // The previous code did fetch(URL.createObjectURL(file.data)),
-            // which a strict `connect-src` CSP blocks (blob: is not always
-            // allowed), so the hero image never reached the form (issue #292).
-            // Only fall back to fetching a preview URL when file.data is not
-            // itself a File (mirrors the logo uploader in settings/index.php).
-            if (file.data instanceof File) {
-                dataTransfer.items.add(file.data);
-                fileInput.files = dataTransfer.files;
-            } else if (file.preview) {
-                fetch(file.preview)
-                    .then(res => res.blob())
-                    .then(blob => {
-                        const newFile = new File([blob], file.name, { type: file.type });
-                        dataTransfer.items.add(newFile);
-                        fileInput.files = dataTransfer.files;
-                    })
-                    .catch(err => {
-                        console.error('Error converting file:', err);
-                    });
-            }
+            const f = file.data instanceof File
+                ? file.data
+                : new File([file.data], file.name, { type: file.type });
+            dataTransfer.items.add(f);
+            fileInput.files = dataTransfer.files;
         });
 
         // Handle file removed
         uppyHero.on('file-removed', (file) => {
             document.getElementById('hero-background-input').value = '';
+            const img = document.getElementById('hero-preview-img');
+            const box = document.getElementById('hero-preview-container');
+            if (img) { img.removeAttribute('src'); }
+            if (box) { box.classList.add('hidden'); }
         });
 
         uppyHero.on('restriction-failed', (file, error) => {

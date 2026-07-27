@@ -20,6 +20,7 @@ import '@uppy/drag-drop/dist/style.min.css';
 import * as ProgressBar from '@uppy/progress-bar';
 import '@uppy/progress-bar/dist/style.min.css';
 import * as XHRUpload from '@uppy/xhr-upload';
+import * as ThumbnailGenerator from '@uppy/thumbnail-generator';
 
 import Choices from 'choices.js';
 import 'choices.js/public/assets/styles/choices.min.css';
@@ -67,6 +68,10 @@ window.UppyDashboard = Dashboard.default || Dashboard;
 window.UppyDragDrop = DragDrop.default || DragDrop;
 window.UppyProgressBar = ProgressBar.default || ProgressBar;
 window.UppyXHRUpload = XHRUpload.default || XHRUpload;
+// #292: native Uppy image preview for DragDrop uploaders (Dashboard has it
+// built in; DragDrop does not). Emits 'thumbnail:generated' with a blob: URL,
+// which is fine under img-src (the CSP only ever blocked blob: on connect-src).
+window.UppyThumbnailGenerator = ThumbnailGenerator.default || ThumbnailGenerator;
 window.Choices = Choices;
 window.Swal = Swal;
 window.Chart = Chart;
