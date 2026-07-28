@@ -946,7 +946,10 @@ class FrontendController
         if ($filters['disponibilita'] === 'disponibile') {
             $conditions[] = "l.copie_disponibili > 0";
         } elseif ($filters['disponibilita'] === 'prestato') {
-            $conditions[] = "l.copie_disponibili <= 0";
+            // "On loan" means every copy is out — NOT a book with no copies at all
+            // (copie_totali = 0), which also has copie_disponibili = 0 but isn't
+            // borrowed. Require copie_totali > 0 so empty records don't count.
+            $conditions[] = "l.copie_disponibili <= 0 AND l.copie_totali > 0";
         }
 
         if (!empty($filters['anno_min'])) {
@@ -1167,8 +1170,10 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $row = $stmt->get_result()->fetch_assoc();
     $availableCount = $row['cnt'] ?? 0;
 
-    // Count borrowed/unavailable books (coerente col filtro: copie_disponibili <= 0)
-    $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.copie_disponibili <= 0";
+    // Count borrowed books: every copy out. copie_totali > 0 excludes records with
+    // no copies at all (copie_totali = 0 → copie_disponibili = 0), which are not
+    // on loan — otherwise they inflate the "on loan" filter count.
+    $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.copie_disponibili <= 0 AND l.copie_totali > 0";
     $stmt = $db->prepare($queryBorrowed);
     if (!empty($paramsAvail)) {
         $stmt->bind_param($typesAvail, ...$paramsAvail);
@@ -1177,10 +1182,22 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $row = $stmt->get_result()->fetch_assoc();
     $borrowedCount = $row['cnt'] ?? 0;
 
+    // Real total: all catalogue books matching the other filters. Since a book
+    // with no copies is neither available nor borrowed, available + borrowed
+    // would under-count it — count the total directly instead.
+    $queryTotal = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery;
+    $stmt = $db->prepare($queryTotal);
+    if (!empty($paramsAvail)) {
+        $stmt->bind_param($typesAvail, ...$paramsAvail);
+    }
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $totalCount = $row['cnt'] ?? 0;
+
     $options['availability_stats'] = [
         'available' => $availableCount,
         'borrowed' => $borrowedCount,
-        'total' => $availableCount + $borrowedCount
+        'total' => $totalCount
     ];
 
     // Shared LEFT JOIN block so the remove-self WHERE conditions (which reference
