@@ -345,8 +345,8 @@ $getBookStatusBadge = static function ($book) {
     els.forEach(function (e) { e.style[prop] = max + 'px'; });
     return max;
   }
-  function align() {
-    var cards = Array.prototype.slice.call(document.querySelectorAll('.books-grid .book-card'));
+  function alignGrid(grid) {
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('.book-card'));
     if (!cards.length) return;
     // undo previous adjustments so a resize recomputes from scratch
     cards.forEach(function (c) {
@@ -376,6 +376,11 @@ $getBookStatusBadge = static function ($book) {
         t.insertAdjacentElement('afterend', ph);
       });
     });
+  }
+  function align() {
+    // Scope per grid: two .books-grid on the same page must not have their rows
+    // merged just because cards happen to share a vertical position.
+    Array.prototype.slice.call(document.querySelectorAll('.books-grid')).forEach(alignGrid);
   }
   var timer;
   function schedule() { clearTimeout(timer); timer = setTimeout(align, 120); }
