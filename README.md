@@ -37,6 +37,21 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.44
+
+A bug-fix release for email-template links.
+
+### Fixes
+- **Email template links no longer double-prefixed with `/admin`** ([#299](https://github.com/fabiodalez-dev/Pinakes/issues/299)) — the WYSIWYG editor's `convert_urls` resolved every link against the admin page, so a placeholder like `{{login_url}}` was saved as `https://host/admin/{{login_url}}` and the sent email link came out double-prefixed. `convert_urls` is now off on every editor, so URLs and placeholders are stored exactly as written. Templates already saved corrupted are repaired automatically the next time the settings page is opened (and emails render correctly even before that).
+
+### Database Changes
+- None — the repair of already-corrupted templates runs in PHP on settings open (portable across MySQL 5.7+/MariaDB); no schema or migration.
+
+### Upgrade Notes
+- Back up your database before updating (the in-app updater does this automatically).
+
+---
+
 ## What's New in v0.7.43
 
 A bug-fix release that completes the #292 hero-upload fix and applies the admin custom CSS on admin pages.
