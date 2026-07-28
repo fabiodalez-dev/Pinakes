@@ -6609,5 +6609,8 @@
   "Authorization header:": "En-tête Authorization :",
   "Percorso file non valido": "Chemin de fichier invalide",
   "Solo gli amministratori possono modificare questa chiave.": "Seuls les administrateurs peuvent modifier cette clé.",
-  "Solo gli amministratori possono visualizzare e gestire le API key.": "Seuls les administrateurs peuvent voir et gérer les clés API."
+  "Solo gli amministratori possono visualizzare e gestire le API key.": "Seuls les administrateurs peuvent voir et gérer les clés API.",
+  "Prenotati": "Réservés",
+  "Attualmente riservati": "Actuellement réservés",
+  "Tutto il catalogo": "Tout le catalogue"
 }

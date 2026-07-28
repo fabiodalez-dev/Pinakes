@@ -6609,5 +6609,8 @@
   "Authorization header:": "Authorization-header:",
   "Percorso file non valido": "Ugyldig filsti",
   "Solo gli amministratori possono modificare questa chiave.": "Kun administratorer kan redigere denne nøgle.",
-  "Solo gli amministratori possono visualizzare e gestire le API key.": "Kun administratorer kan se og administrere API-nøgler."
+  "Solo gli amministratori possono visualizzare e gestire le API key.": "Kun administratorer kan se og administrere API-nøgler.",
+  "Prenotati": "Reserverede",
+  "Attualmente riservati": "I øjeblikket reserveret",
+  "Tutto il catalogo": "Hele kataloget"
 }

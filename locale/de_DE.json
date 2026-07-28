@@ -6609,5 +6609,8 @@
   "Authorization header:": "Authorization-Header:",
   "Percorso file non valido": "Ungültiger Dateipfad",
   "Solo gli amministratori possono modificare questa chiave.": "Nur Administratoren können diesen Schlüssel bearbeiten.",
-  "Solo gli amministratori possono visualizzare e gestire le API key.": "Nur Administratoren können API-Schlüssel anzeigen und verwalten."
+  "Solo gli amministratori possono visualizzare e gestire le API key.": "Nur Administratoren können API-Schlüssel anzeigen und verwalten.",
+  "Prenotati": "Vorgemerkt",
+  "Attualmente riservati": "Derzeit vorgemerkt",
+  "Tutto il catalogo": "Gesamter Katalog"
 }

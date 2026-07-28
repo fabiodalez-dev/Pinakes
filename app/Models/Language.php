@@ -15,11 +15,87 @@ use App\Support\I18n;
  */
 class Language
 {
+    /**
+     * Source language. Every __() key IS the Italian string, so Italian is the
+     * translation source: it has no lookup file and is, by definition, complete.
+     * Its key count is the canonical denominator for every locale's completion.
+     */
+    public const SOURCE_LOCALE = 'it_IT';
+
     private mysqli $db;
 
     public function __construct(mysqli $db)
     {
         $this->db = $db;
+    }
+
+    /**
+     * Number of translatable keys defined by the source language (Italian).
+     * Derived live from locale/it_IT.json so it can never drift from the actual
+     * string set — no migration is needed when keys are added or removed.
+     *
+     * @return int
+     */
+    public function sourceKeyCount(): int
+    {
+        static $count = null;
+        if ($count !== null) {
+            return $count;
+        }
+        $path = __DIR__ . '/../../locale/' . self::SOURCE_LOCALE . '.json';
+        $decoded = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
+        $count = is_array($decoded) ? count($decoded) : 0;
+        return $count;
+    }
+
+    /**
+     * Count of non-empty translations actually present in a locale's file,
+     * capped at the source total (orphan keys never push completion past 100%).
+     * The source language is complete by definition.
+     *
+     * @param string $code        Locale code
+     * @param int    $sourceTotal Source key count (denominator)
+     * @return int
+     */
+    private function translatedKeyCount(string $code, int $sourceTotal): int
+    {
+        if ($code === self::SOURCE_LOCALE) {
+            return $sourceTotal;
+        }
+        $path = __DIR__ . '/../../locale/' . $code . '.json';
+        if (!is_file($path)) {
+            return 0;
+        }
+        $decoded = json_decode((string) file_get_contents($path), true);
+        if (!is_array($decoded)) {
+            return 0;
+        }
+        $translated = count(array_filter($decoded, static fn($value) => is_string($value) && $value !== ''));
+        return min($translated, $sourceTotal);
+    }
+
+    /**
+     * Same as getAll(), but with translation stats DERIVED from the source
+     * language instead of the stored (often stale) columns: total_keys is the
+     * source key count for every locale, translated_keys is what that locale's
+     * file actually covers, and completion_percentage is recomputed. This keeps
+     * the admin figures linked to Italian without a migration per key change.
+     *
+     * @param bool $activeOnly
+     * @return array<int, array<string, mixed>>
+     */
+    public function getAllWithDerivedStats(bool $activeOnly = false): array
+    {
+        $total = $this->sourceKeyCount();
+        $languages = $this->getAll($activeOnly);
+        foreach ($languages as &$lang) {
+            $translated = $this->translatedKeyCount((string) ($lang['code'] ?? ''), $total);
+            $lang['total_keys'] = $total;
+            $lang['translated_keys'] = $translated;
+            $lang['completion_percentage'] = $total > 0 ? round($translated / $total * 100, 2) : 0.00;
+        }
+        unset($lang);
+        return $languages;
     }
 
     /**

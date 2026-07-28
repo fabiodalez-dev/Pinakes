@@ -112,13 +112,15 @@ try {
     $check($row !== null, 'da_DK row inserted by migration');
     $check($row !== null && $row['native_name'] === 'Dansk', 'native_name = Dansk');
     $check($row !== null && (int) $row['is_active'] === 1, 'da_DK is active');
-    $locale = json_decode((string) file_get_contents($root . '/locale/da_DK.json'), true, 512, JSON_THROW_ON_ERROR);
-    $expectedKeys = count($locale);
+    // migrate_0.7.41.sql inserts da_DK with the fixed literal 6611 it shipped with.
+    // (Live completion is now derived dynamically from the Italian source, so the
+    // da_DK.json file may hold more keys than this historical migration wrote.)
+    $expectedKeys = 6611;
     $check(
         $row !== null
         && (int) $row['total_keys'] === $expectedKeys
         && (int) $row['translated_keys'] === $expectedKeys,
-        "key counts match locale/da_DK.json ({$expectedKeys}/{$expectedKeys})"
+        "key counts match migrate_0.7.41.sql literal ({$expectedKeys}/{$expectedKeys})"
     );
     $check($row !== null && (float) $row['completion_percentage'] === 100.00, 'completion_percentage = 100.00');
     $check($row !== null && $row['translation_file'] === 'locale/da_DK.json', 'translation_file = locale/da_DK.json');

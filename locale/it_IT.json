@@ -6609,5 +6609,8 @@
   "Authorization header:": "Authorization header:",
   "Percorso file non valido": "Percorso file non valido",
   "Solo gli amministratori possono modificare questa chiave.": "Solo gli amministratori possono modificare questa chiave.",
-  "Solo gli amministratori possono visualizzare e gestire le API key.": "Solo gli amministratori possono visualizzare e gestire le API key."
+  "Solo gli amministratori possono visualizzare e gestire le API key.": "Solo gli amministratori possono visualizzare e gestire le API key.",
+  "Prenotati": "Prenotati",
+  "Attualmente riservati": "Attualmente riservati",
+  "Tutto il catalogo": "Tutto il catalogo"
 }

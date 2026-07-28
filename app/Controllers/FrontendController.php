@@ -940,16 +940,20 @@ class FrontendController
             }
         }
 
-        // Filtra sulla disponibilità reale (copie_disponibili), coerente con badge e
-        // bottone prestito. Usare l.stato escludeva i libri 'prenotato' (copie a 0)
-        // da entrambi i filtri.
+        // Availability facets mirror the recomputed l.stato so the filter agrees
+        // with the card badge and the book page by construction:
+        //   - "available"  → copie_disponibili > 0 (canonical, drives the loan button)
+        //   - "prenotato"  → reserved: physically present but held by a scheduled
+        //                    loan / pending request / slot reservation (l.stato)
+        //   - "prestato"   → on loan: a copy is actually checked out (l.stato)
+        // Books with copies all out of circulation (l.stato = 'non_disponibile')
+        // and empty records belong to none of the three — they show only under "All".
         if ($filters['disponibilita'] === 'disponibile') {
             $conditions[] = "l.copie_disponibili > 0";
+        } elseif ($filters['disponibilita'] === 'prenotato') {
+            $conditions[] = "l.stato = 'prenotato'";
         } elseif ($filters['disponibilita'] === 'prestato') {
-            // "On loan" means every copy is out — NOT a book with no copies at all
-            // (copie_totali = 0), which also has copie_disponibili = 0 but isn't
-            // borrowed. Require copie_totali > 0 so empty records don't count.
-            $conditions[] = "l.copie_disponibili <= 0 AND l.copie_totali > 0";
+            $conditions[] = "l.stato = 'prestato'";
         }
 
         if (!empty($filters['anno_min'])) {
@@ -1170,10 +1174,11 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $row = $stmt->get_result()->fetch_assoc();
     $availableCount = $row['cnt'] ?? 0;
 
-    // Count borrowed books: every copy out. copie_totali > 0 excludes records with
-    // no copies at all (copie_totali = 0 → copie_disponibili = 0), which are not
-    // on loan — otherwise they inflate the "on loan" filter count.
-    $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.copie_disponibili <= 0 AND l.copie_totali > 0";
+    // Count borrowed books: a copy is actually checked out. Mirrors l.stato (the
+    // recomputed copy states) so it agrees with the card/book-page and does NOT
+    // count reserved books (stato='prenotato') or empty records (stato stays
+    // 'non_disponibile'/'disponibile'), which the old copie_disponibili<=0 proxy did.
+    $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.stato = 'prestato'";
     $stmt = $db->prepare($queryBorrowed);
     if (!empty($paramsAvail)) {
         $stmt->bind_param($typesAvail, ...$paramsAvail);
@@ -1181,6 +1186,17 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $borrowedCount = $row['cnt'] ?? 0;
+
+    // Count reserved books: physically present but held by a scheduled loan,
+    // pending request or slot reservation — not lendable now, yet not on loan.
+    $queryReserved = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.stato = 'prenotato'";
+    $stmt = $db->prepare($queryReserved);
+    if (!empty($paramsAvail)) {
+        $stmt->bind_param($typesAvail, ...$paramsAvail);
+    }
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $reservedCount = $row['cnt'] ?? 0;
 
     // Real total: all catalogue books matching the other filters. Since a book
     // with no copies is neither available nor borrowed, available + borrowed
@@ -1196,6 +1212,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
     $options['availability_stats'] = [
         'available' => $availableCount,
+        'reserved' => $reservedCount,
         'borrowed' => $borrowedCount,
         'total' => $totalCount
     ];

@@ -33,7 +33,9 @@ class LanguagesController
     public function index(Request $request, Response $response, \mysqli $db, array $args): Response
     {
         $languageModel = new Language($db);
-        $languages = $languageModel->getAll();
+        // Stats derived live from the Italian source (see Language::getAllWithDerivedStats)
+        // so total_keys is the same 6613-key denominator for every locale and can't drift.
+        $languages = $languageModel->getAllWithDerivedStats();
 
         // Render view content
         ob_start();

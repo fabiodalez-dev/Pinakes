@@ -1409,7 +1409,7 @@ ob_start();
                                 </div>
                                 <div class="availability-text">
                                     <div class="availability-title"><?= __("Tutti i libri") ?></div>
-                                    <div class="availability-desc"><?= __("Disponibili e in prestito") ?></div>
+                                    <div class="availability-desc"><?= __("Tutto il catalogo") ?></div>
                                 </div>
                                 <div class="availability-count" id="total-books-count">
                                     <?= number_format($filter_options['availability_stats']['total'] ?? $total_books) ?>
@@ -1428,6 +1428,21 @@ ob_start();
                                 </div>
                                 <div class="availability-count" id="available-books-count">
                                     <?= number_format($filter_options['availability_stats']['available'] ?? 0) ?>
+                                </div>
+                            </div>
+
+                        <div class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prenotato' ? 'active' : '' ?>"
+                             data-filter-value="prenotato"
+                             onclick="updateFilter('disponibilita', 'prenotato')">
+                                <div class="availability-icon">
+                                    <i class="fas fa-bookmark"></i>
+                                </div>
+                                <div class="availability-text">
+                                    <div class="availability-title"><?= __("Prenotati") ?></div>
+                                    <div class="availability-desc"><?= __("Attualmente riservati") ?></div>
+                                </div>
+                                <div class="availability-count" id="reserved-books-count">
+                                    <?= number_format($filter_options['availability_stats']['reserved'] ?? 0) ?>
                                 </div>
                             </div>
 
@@ -2111,10 +2126,12 @@ function updateFilterOptions(filterOptions, genreDisplay) {
     if (filterOptions.availability_stats) {
         const totalCount = document.getElementById('total-books-count');
         const availableCount = document.getElementById('available-books-count');
+        const reservedCount = document.getElementById('reserved-books-count');
         const borrowedCount = document.getElementById('borrowed-books-count');
 
         if (totalCount) totalCount.textContent = filterOptions.availability_stats.total.toLocaleString();
         if (availableCount) availableCount.textContent = filterOptions.availability_stats.available.toLocaleString();
+        if (reservedCount && filterOptions.availability_stats.reserved != null) reservedCount.textContent = filterOptions.availability_stats.reserved.toLocaleString();
         if (borrowedCount) borrowedCount.textContent = filterOptions.availability_stats.borrowed.toLocaleString();
         syncAvailabilityActiveState();
     }

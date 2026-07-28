@@ -72,9 +72,11 @@ $cleanup = static function () use ($db, $SB): void {
     $db->query("DROP TABLE IF EXISTS {$SB}");
 };
 
-// The count the migration targets — read from the shipped locale file so the
-// test tracks the real key count rather than a stale literal.
-$expectedKeys = count(json_decode((string) file_get_contents($root . '/locale/da_DK.json'), true, 512, JSON_THROW_ON_ERROR));
+// The count migrate_0.7.42.sql targets is the fixed literal 6611 it shipped with.
+// (Live completion stats are now derived dynamically from the Italian source in
+// Language::getAllWithDerivedStats, so the da_DK.json file may hold more keys than
+// this historical migration wrote — this test only checks that migration's own effect.)
+$expectedKeys = 6611;
 
 try {
     $cleanup();

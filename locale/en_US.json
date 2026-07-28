@@ -6609,5 +6609,8 @@
   "Authorization header:": "Authorization header:",
   "Percorso file non valido": "Invalid file path",
   "Solo gli amministratori possono modificare questa chiave.": "Only administrators can edit this key.",
-  "Solo gli amministratori possono visualizzare e gestire le API key.": "Only administrators can view and manage API keys."
+  "Solo gli amministratori possono visualizzare e gestire le API key.": "Only administrators can view and manage API keys.",
+  "Prenotati": "Reserved",
+  "Attualmente riservati": "Currently reserved",
+  "Tutto il catalogo": "Whole catalogue"
 }

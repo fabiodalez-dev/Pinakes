@@ -8,11 +8,18 @@ $createBookUrl = static function ($book) {
 $getBookStatusBadge = static function ($book) {
     ob_start();
     $available = ($book['copie_disponibili'] ?? 0) > 0;
-    $reserved = !$available && ($book['stato'] ?? '') === 'prenotato';
+    $stato = $book['stato'] ?? '';
+    $reserved = !$available && $stato === 'prenotato';
+    // A book whose copies are all out of circulation (maintenance, lost, damaged…)
+    // is 'non_disponibile' — not on loan. Without this branch it fell through to
+    // the "In prestito" badge, mislabelling it.
+    $unavailable = !$available && $stato === 'non_disponibile';
     if ($available) {
         echo '<span class="book-status-badge status-available">' . __("Disponibile");
     } elseif ($reserved) {
         echo '<span class="book-status-badge status-reserved">' . __("Prenotato");
+    } elseif ($unavailable) {
+        echo '<span class="book-status-badge status-unavailable">' . __("Non disponibile");
     } else {
         echo '<span class="book-status-badge status-borrowed">' . __("In prestito");
     }
@@ -249,6 +256,12 @@ $getBookStatusBadge = static function ($book) {
 .status-reserved {
     background: var(--warning-color); /* fallback for browsers without color-mix() */
     background: color-mix(in srgb, var(--warning-color) 90%, transparent);
+    color: white;
+}
+
+.status-unavailable {
+    /* Neutral grey — theme-agnostic, signals "not circulating" without alarm */
+    background: #6b7280;
     color: white;
 }
 
