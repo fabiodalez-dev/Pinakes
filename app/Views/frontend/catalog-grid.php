@@ -162,7 +162,13 @@ $getBookStatusBadge = static function ($book) {
     line-height: 1.4;
     margin-bottom: 0.5rem;
     color: var(--text-primary);
-    min-height: 2.8em;
+    /* #298: cap at two lines; the exact height is equalised per grid row by the
+       script below, so a row of short titles stays compact while a row that
+       needs two lines lines up. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .book-title a {
@@ -182,6 +188,9 @@ $getBookStatusBadge = static function ($book) {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    /* #298: the subtitle is rendered only when the book has one, so it takes
+       space conditionally — no reserved gap on the (majority) of cards without
+       a subtitle. */
 }
 
 .book-title a:hover {
@@ -192,7 +201,13 @@ $getBookStatusBadge = static function ($book) {
     font-size: 0.875rem;
     color: var(--text-secondary);
     margin-bottom: 0.5rem;
-    min-height: 1.2em;
+    /* #298: fixed single-line box so a long author name can't push the row
+       below out of alignment with adjacent cards. */
+    height: 1.3em;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .book-meta {
@@ -200,7 +215,12 @@ $getBookStatusBadge = static function ($book) {
     color: var(--text-muted);
     line-height: 1.5;
     margin-bottom: auto;
-    min-height: 1.5em;
+    /* #298: fixed single-line box (see .book-author). */
+    height: 1.5em;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .book-actions {
@@ -275,7 +295,6 @@ $getBookStatusBadge = static function ($book) {
     
     .book-title {
         font-size: 1rem;
-        min-height: 2.4em;
     }
 }
 
@@ -302,3 +321,67 @@ $getBookStatusBadge = static function ($book) {
     font-size: 0.75rem;
 }
 </style>
+<script>
+/* #298: equalise title AND subtitle height PER GRID ROW. A row where no card
+   has a subtitle stays compact; a row where at least one card has a subtitle
+   gets the same reserved subtitle height on every card of that row — including
+   a hidden placeholder on the cards that have none — so title, author, publisher
+   and "Details" line up. Pure layout — no theme colours. */
+(function () {
+  function rowsOf(cards) {
+    var rows = [];
+    cards.forEach(function (c) {
+      var top = Math.round(c.getBoundingClientRect().top);
+      var row = null;
+      for (var i = 0; i < rows.length; i++) { if (Math.abs(rows[i].top - top) < 8) { row = rows[i]; break; } }
+      if (!row) { row = { top: top, cards: [] }; rows.push(row); }
+      row.cards.push(c);
+    });
+    return rows;
+  }
+  function equalise(els, prop) {
+    var max = 0;
+    els.forEach(function (e) { if (e.offsetHeight > max) max = e.offsetHeight; });
+    els.forEach(function (e) { e.style[prop] = max + 'px'; });
+    return max;
+  }
+  function align() {
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.books-grid .book-card'));
+    if (!cards.length) return;
+    // undo previous adjustments so a resize recomputes from scratch
+    cards.forEach(function (c) {
+      var t = c.querySelector('.book-title'); if (t) t.style.height = '';
+      var s = c.querySelector('.book-subtitle:not(.subtitle-ph)'); if (s) s.style.height = '';
+      var ph = c.querySelector('.subtitle-ph'); if (ph) ph.parentNode.removeChild(ph);
+    });
+    rowsOf(cards).forEach(function (row) {
+      // titles: same height as the tallest title in the row
+      var titles = row.cards.map(function (c) { return c.querySelector('.book-title'); }).filter(Boolean);
+      if (titles.length) equalise(titles, 'height');
+      // subtitles: only if the row has at least one
+      var realSubs = row.cards.map(function (c) { return c.querySelector('.book-subtitle'); }).filter(Boolean);
+      if (!realSubs.length) return;
+      var maxS = equalise(realSubs, 'height'); // pad the shorter real subtitles too
+      row.cards.forEach(function (c) {
+        if (c.querySelector('.book-subtitle')) return; // already has one
+        var t = c.querySelector('.book-title'); if (!t) return;
+        // a hidden .book-subtitle placeholder inherits the same margins, so the
+        // author below lines up exactly with the subtitled cards.
+        var ph = document.createElement('p');
+        ph.className = 'book-subtitle subtitle-ph';
+        ph.setAttribute('aria-hidden', 'true');
+        ph.style.visibility = 'hidden';
+        ph.style.height = maxS + 'px';
+        ph.innerHTML = '&nbsp;';
+        t.insertAdjacentElement('afterend', ph);
+      });
+    });
+  }
+  var timer;
+  function schedule() { clearTimeout(timer); timer = setTimeout(align, 120); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', align);
+  else align();
+  window.addEventListener('load', align);
+  window.addEventListener('resize', schedule);
+})();
+</script>
