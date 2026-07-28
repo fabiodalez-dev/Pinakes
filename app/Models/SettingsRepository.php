@@ -163,6 +163,44 @@ class SettingsRepository
         }
     }
 
+    /**
+     * #299: repair email templates already stored with links double-prefixed by
+     * the admin base — the WYSIWYG editor used to resolve placeholder URLs (e.g.
+     * href="{{login_url}}") against the admin page, saving
+     * href="https://host/admin/{{login_url}}". The editor no longer does this
+     * (convert_urls:false), and EmailService heals at render time, but the stored
+     * value stays wrong until repaired. Runs on every install (all locales).
+     *
+     * Portable across MySQL 5.7+/MariaDB (no REGEXP_REPLACE): the LIKE narrows to
+     * the few possibly-affected rows, the fix is done in PHP. Idempotent.
+     *
+     * @return int number of template rows actually repaired
+     */
+    public function healCorruptedTemplateUrls(): int
+    {
+        $stmt = $this->prepare("SELECT name, locale, body FROM email_templates WHERE body LIKE '%/admin/{{%'");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $rows = [];
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $stmt->close();
+
+        $healed = 0;
+        foreach ($rows as $row) {
+            $fixed = \App\Support\EmailService::healPlaceholderUrls((string) $row['body']);
+            if ($fixed !== (string) $row['body']) {
+                $update = $this->prepare('UPDATE email_templates SET body = ? WHERE name = ? AND locale = ?');
+                $update->bind_param('sss', $fixed, $row['name'], $row['locale']);
+                $update->execute();
+                $update->close();
+                $healed++;
+            }
+        }
+        return $healed;
+    }
+
     public function getEmailTemplate(string $name, ?string $locale = null): ?array
     {
         $locale = $this->resolveTemplateLocale($locale);
