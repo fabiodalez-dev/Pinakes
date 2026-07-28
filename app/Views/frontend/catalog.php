@@ -1671,6 +1671,7 @@ $i18nTranslations = [
 
     // Status labels
     'disponibile' => __('Disponibile'),
+    'prenotato' => __('Prenotato'),
     'in_prestito' => __('In prestito'),
 
     // Actions
@@ -1878,7 +1879,12 @@ function updateActiveFiltersDisplay() {
         if (filterKey === 'sort') {
             displayValue = sortLabels[value] || value;
         } else if (filterKey === 'disponibilita') {
-            displayValue = value === 'disponibile' ? i18n.disponibile : i18n.in_prestito;
+            const availabilityLabels = {
+                disponibile: i18n.disponibile,
+                prenotato: i18n.prenotato,
+                prestato: i18n.in_prestito,
+            };
+            displayValue = availabilityLabels[value] || value;
         } else if (filterKey === 'genere_id') {
             displayValue = currentGenreName || value;
         } else if (filterKey === 'autore_id') {

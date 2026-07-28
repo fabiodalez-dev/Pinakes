@@ -110,6 +110,13 @@ test.describe.serial('catalogue reserved category', () => {
     await expect(page.locator('.book-card', { hasText: T_RESV })).toHaveCount(1);
   });
 
+  test('?disponibilita=prenotato labels the active filter as reserved, not on loan', async ({ page }) => {
+    await page.goto(`${BASE}/catalogo?disponibilita=prenotato`);
+    const activeFilter = page.locator('#active-filters-list .filter-tag');
+    await expect(activeFilter).toContainText(/Prenotato/i);
+    await expect(activeFilter).not.toContainText(/In prestito/i);
+  });
+
   test('?disponibilita=prenotato does NOT show the on-loan book', async ({ page }) => {
     await page.goto(`${BASE}/catalogo?disponibilita=prenotato`);
     await expect(page.locator('.book-card', { hasText: T_LOAN })).toHaveCount(0);

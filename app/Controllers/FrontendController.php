@@ -1163,52 +1163,25 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $availabilityBaseQuery .= " AND " . implode(' AND ', $conditionsAvail);
     }
 
-    // Count available books (base query always has WHERE l.deleted_at IS NULL).
-    // Conteggio coerente col filtro: basato su copie_disponibili, non su l.stato.
-    $queryAvailable = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.copie_disponibili > 0";
-    $stmt = $db->prepare($queryAvailable);
+    // Compute every mutually-exclusive availability facet and the real catalogue
+    // total in one scan. The direct total includes records with no copies, while
+    // the conditional counts mirror the corresponding filter predicates.
+    $queryStats = "SELECT
+        COUNT(DISTINCT l.id) AS total_cnt,
+        COUNT(DISTINCT CASE WHEN l.copie_disponibili > 0 THEN l.id END) AS available_cnt,
+        COUNT(DISTINCT CASE WHEN l.stato = 'prenotato' THEN l.id END) AS reserved_cnt,
+        COUNT(DISTINCT CASE WHEN l.stato = 'prestato' THEN l.id END) AS borrowed_cnt
+        " . $availabilityBaseQuery;
+    $stmt = $db->prepare($queryStats);
     if (!empty($paramsAvail)) {
         $stmt->bind_param($typesAvail, ...$paramsAvail);
     }
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
-    $availableCount = $row['cnt'] ?? 0;
-
-    // Count borrowed books: a copy is actually checked out. Mirrors l.stato (the
-    // recomputed copy states) so it agrees with the card/book-page and does NOT
-    // count reserved books (stato='prenotato') or empty records (stato stays
-    // 'non_disponibile'/'disponibile'), which the old copie_disponibili<=0 proxy did.
-    $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.stato = 'prestato'";
-    $stmt = $db->prepare($queryBorrowed);
-    if (!empty($paramsAvail)) {
-        $stmt->bind_param($typesAvail, ...$paramsAvail);
-    }
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $borrowedCount = $row['cnt'] ?? 0;
-
-    // Count reserved books: physically present but held by a scheduled loan,
-    // pending request or slot reservation — not lendable now, yet not on loan.
-    $queryReserved = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.stato = 'prenotato'";
-    $stmt = $db->prepare($queryReserved);
-    if (!empty($paramsAvail)) {
-        $stmt->bind_param($typesAvail, ...$paramsAvail);
-    }
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $reservedCount = $row['cnt'] ?? 0;
-
-    // Real total: all catalogue books matching the other filters. Since a book
-    // with no copies is neither available nor borrowed, available + borrowed
-    // would under-count it — count the total directly instead.
-    $queryTotal = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery;
-    $stmt = $db->prepare($queryTotal);
-    if (!empty($paramsAvail)) {
-        $stmt->bind_param($typesAvail, ...$paramsAvail);
-    }
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $totalCount = $row['cnt'] ?? 0;
+    $totalCount = (int) ($row['total_cnt'] ?? 0);
+    $availableCount = (int) ($row['available_cnt'] ?? 0);
+    $reservedCount = (int) ($row['reserved_cnt'] ?? 0);
+    $borrowedCount = (int) ($row['borrowed_cnt'] ?? 0);
 
     $options['availability_stats'] = [
         'available' => $availableCount,

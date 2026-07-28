@@ -53,9 +53,28 @@ try {
     exit(1);
 }
 
-$lang = new Language($db);
 $srcPath = $root . '/locale/' . Language::SOURCE_LOCALE . '.json';
-$srcCount = count(json_decode((string) file_get_contents($srcPath), true, 512, JSON_THROW_ON_ERROR));
+$sourceEntries = json_decode((string) file_get_contents($srcPath), true, 512, JSON_THROW_ON_ERROR);
+$srcCount = count($sourceEntries);
+
+// The suite database is intentionally not assumed to contain application seed
+// data. Build the minimum language catalogue in a transaction and roll it back
+// when the test finishes, preserving any rows that were already present.
+$db->begin_transaction();
+foreach ([
+    ['it_IT', 'Italian', 'Italiano'],
+    ['zz_AA', 'Fixture A', 'Fixture A'],
+    ['zz_BB', 'Fixture B', 'Fixture B'],
+    ['zz_CC', 'Fixture C', 'Fixture C'],
+    ['zz_DD', 'Fixture D', 'Fixture D'],
+] as [$code, $name, $nativeName]) {
+    $stmt = $db->prepare('INSERT IGNORE INTO languages (code, name, native_name, is_default, is_active) VALUES (?, ?, ?, 0, 1)');
+    $stmt->bind_param('sss', $code, $name, $nativeName);
+    $stmt->execute();
+    $stmt->close();
+}
+
+$lang = new Language($db);
 
 // Reflection handle for the private translatedKeyCount().
 $ref = new ReflectionMethod(Language::class, 'translatedKeyCount');
@@ -101,31 +120,39 @@ $check($translated('en_US', $srcCount) <= $srcCount, 'en_US translated <= source
 $check($translated('en_US', $srcCount) > 6000, 'en_US is a well-covered locale (>6000)');
 $check($translated('zz_NONEXISTENT', $srcCount) === 0, 'missing locale file → 0 translated');
 
-echo "E. Temp locale: incomplete, empty values, and orphan-key cap\n";
+echo "E. Temp locale: canonical coverage, empty values, and orphan keys\n";
 $tmpCode = 'zz_ZZ';
 $tmpPath = $root . '/locale/' . $tmpCode . '.json';
 try {
-    // 3 real translations + 2 empty (must not count) → 3 translated.
+    $canonicalKeys = array_slice(array_keys($sourceEntries), 0, 5);
+    // 3 canonical translations + 2 empty canonical values → 3 translated.
     file_put_contents($tmpPath, json_encode(
-        ['a' => 'x', 'b' => 'y', 'c' => 'z', 'd' => '', 'e' => ''],
+        [
+            $canonicalKeys[0] => 'x',
+            $canonicalKeys[1] => 'y',
+            $canonicalKeys[2] => 'z',
+            $canonicalKeys[3] => '',
+            $canonicalKeys[4] => '',
+        ],
         JSON_UNESCAPED_UNICODE
     ));
-    $check($translated($tmpCode, $srcCount) === 3, 'empty values are not counted (3 of 5)');
+    $check($translated($tmpCode, $srcCount) === 3, 'only non-empty canonical values are counted (3 of 5)');
 
     // A partial translation is below 100%.
     $partial = $translated($tmpCode, $srcCount);
     $pct = round($partial / $srcCount * 100, 2);
     $check($pct < 100.00, "partial locale completion is below 100% ({$pct}%)");
 
-    // Orphan keys beyond the source total must not push the count past the cap.
+    // Even more orphan entries than the source total contribute no coverage.
     $big = [];
     for ($i = 0; $i < $srcCount + 50; $i++) { $big["k{$i}"] = 'v'; }
     file_put_contents($tmpPath, json_encode($big, JSON_UNESCAPED_UNICODE));
-    $check($translated($tmpCode, $srcCount) === $srcCount, 'orphan keys cannot exceed the source total (cap at 100%)');
+    $check($translated($tmpCode, $srcCount) === 0, 'orphan-only keys do not count as translated');
 } finally {
     if (is_file($tmpPath)) { @unlink($tmpPath); }
 }
 
+$db->rollback();
 $db->close();
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

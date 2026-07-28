@@ -38,14 +38,24 @@ class Language
      */
     public function sourceKeyCount(): int
     {
-        static $count = null;
-        if ($count !== null) {
-            return $count;
+        return count($this->sourceKeys());
+    }
+
+    /**
+     * Canonical translation keys defined by the Italian source catalogue.
+     *
+     * @return array<string, true>
+     */
+    private function sourceKeys(): array
+    {
+        static $keys = null;
+        if ($keys !== null) {
+            return $keys;
         }
         $path = __DIR__ . '/../../locale/' . self::SOURCE_LOCALE . '.json';
         $decoded = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
-        $count = is_array($decoded) ? count($decoded) : 0;
-        return $count;
+        $keys = is_array($decoded) ? array_fill_keys(array_keys($decoded), true) : [];
+        return $keys;
     }
 
     /**
@@ -70,7 +80,11 @@ class Language
         if (!is_array($decoded)) {
             return 0;
         }
-        $translated = count(array_filter($decoded, static fn($value) => is_string($value) && $value !== ''));
+        // Only canonical source keys contribute to completion. Merely capping the
+        // number of locale entries would let orphan keys hide missing translations
+        // and could incorrectly report 100% completion.
+        $canonicalEntries = array_intersect_key($decoded, $this->sourceKeys());
+        $translated = count(array_filter($canonicalEntries, static fn($value) => is_string($value) && $value !== ''));
         return min($translated, $sourceTotal);
     }
 
