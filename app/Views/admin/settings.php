@@ -401,6 +401,9 @@ function initTinyMCE() {
 // TinyMCE Configuration
 tinymce.init({
   selector: '#template-body',
+  // #299: never rewrite URLs against the admin page's base_url — it prefixed
+  // email links/placeholders with /admin and double-prefixed on re-edit.
+  convert_urls: false,
   base_url: <?= json_encode(assetUrl("tinymce"), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
   suffix: '.min',
   model: 'dom',

@@ -315,6 +315,20 @@ class EmailService {
             $italianToEnglish = array_flip(self::PLACEHOLDER_ALIASES);
         }
 
+        // #299: heal templates corrupted by a WYSIWYG editor that resolved a
+        // placeholder URL against the admin page — e.g. href="{{login_url}}"
+        // was saved as href="https://host/admin/{{login_url}}", so substituting
+        // the (already absolute) URL produced a double-prefixed link. Strip an
+        // absolute "…/admin/" prefix sitting directly in front of a
+        // {{placeholder}} BEFORE substitution. The editor no longer does this
+        // (convert_urls:false), but templates already saved need repairing.
+        // A legitimate template never puts a host+/admin/ in front of a token.
+        $content = preg_replace(
+            '#https?://[^"\'\s<>]*?/admin/(\{\{[a-zA-Z0-9_]+\}\})#',
+            '$1',
+            $content
+        ) ?? $content;
+
         foreach ($normalizedVariables as $key => $value) {
             if ($escapeHtml) {
                 $replacement = in_array($key, self::RAW_HTML_VARIABLES, true)

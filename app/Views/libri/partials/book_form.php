@@ -4884,6 +4884,9 @@ function initBookTinyMCE() {
 
     tinymce.init({
         selector: '#descrizione',
+        // #299: never rewrite URLs against the admin page's base_url — it
+        // prefixes links/placeholders with /admin and double-prefixes on re-edit.
+        convert_urls: false,
         base_url: TINYMCE_BASE,
         suffix: '.min',
         model: 'dom',

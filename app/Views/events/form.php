@@ -397,6 +397,9 @@ document.addEventListener('DOMContentLoaded', function() {
   if (window.tinymce) {
     tinymce.init({
       selector: '#event_content',
+      // #299: never rewrite URLs against the admin page's base_url — it
+      // prefixes links/placeholders with /admin and double-prefixes on re-edit.
+      convert_urls: false,
       base_url: <?= json_encode(assetUrl("tinymce"), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
       suffix: '.min',
       model: 'dom',
