@@ -6,7 +6,8 @@
 // is neither available nor on loan, so available + borrowed would under-count it).
 //
 // This seeds books of each kind and checks the filter badges by DELTA: adding one
-// on-loan book and two no-copies books raises "On loan" by 1 (not 3) and "All" by 3.
+// available, one on-loan and two no-copies books raises "On loan" by 1 (not 3),
+// "Available" by 1 and "All books" by 4.
 //
 // Run: /tmp/run-e2e.sh tests/catalog-borrowed-count-empty-copies.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
