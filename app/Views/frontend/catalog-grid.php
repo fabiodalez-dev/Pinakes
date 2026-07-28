@@ -202,8 +202,10 @@ $getBookStatusBadge = static function ($book) {
     color: var(--text-secondary);
     margin-bottom: 0.5rem;
     /* #298: fixed single-line box so a long author name can't push the row
-       below out of alignment with adjacent cards. */
+       below out of alignment with adjacent cards. line-height matches the
+       height so the single line isn't clipped by overflow:hidden. */
     height: 1.3em;
+    line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
