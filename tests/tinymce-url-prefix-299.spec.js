@@ -11,12 +11,25 @@
 //
 // Run: /tmp/run-e2e.sh tests/tinymce-url-prefix-299.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
+const { execFileSync } = require('child_process');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
+const DB_USER = process.env.E2E_DB_USER || '';
+const DB_PASS = process.env.E2E_DB_PASS || '';
+const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
+const DB_NAME = process.env.E2E_DB_NAME || '';
 
 test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'E2E credentials not configured');
+
+function db(sql) {
+  const args = [];
+  if (DB_SOCKET) args.push('-S', DB_SOCKET);
+  args.push('-u', DB_USER, DB_NAME, '-N', '-B', '-e', sql);
+  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
+}
+function sqlq(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
 
 async function login(page) {
   await page.goto(`${BASE}/accedi`);
@@ -44,9 +57,10 @@ test.describe.serial('#299 TinyMCE does not prefix URLs (convert_urls:false)', (
     test(c.name, async ({ page }) => {
       await login(page);
       await page.goto(`${BASE}${c.url}`);
-      await page.waitForLoadState('networkidle');
 
-      // Wait until the target editor exists and is initialised. For the
+      // Wait until the target editor exists and is initialised (this is the
+      // real readiness signal — no networkidle, which is flaky on pages that
+      // poll or hold connections open). For the
       // class-based email editor, resolve the textarea in the DOM and look the
       // editor up by the id TinyMCE assigns it (avoids relying on tm.editors).
       await page.waitForFunction(
@@ -88,4 +102,35 @@ test.describe.serial('#299 TinyMCE does not prefix URLs (convert_urls:false)', (
       expect(result.content, `${c.name}: braces not URL-encoded`).not.toContain('%7B%7B');
     });
   }
+});
+
+// The DB-repair half of the fix: an install whose template was ALREADY saved
+// corrupted must be healed. SettingsController runs healCorruptedTemplateUrls()
+// when the settings page is rendered, so opening it repairs the stored value.
+test.describe('#299 stored templates are healed on settings open', () => {
+  test('a template corrupted with an /admin/ prefix is repaired in the DB', async ({ page }) => {
+    test.skip(!DB_USER || !DB_NAME, 'DB not configured');
+    const NAME = '__heal299_test__';
+    const LOCALE = 'it_IT';
+    const corrupted = '<p><a href="http://localhost:8081/admin/{{login_url}}">Accedi</a></p>';
+    db(`INSERT INTO email_templates (name, locale, subject, body, active)
+        VALUES (${sqlq(NAME)}, ${sqlq(LOCALE)}, 'Heal test', ${sqlq(corrupted)}, 1)
+        ON DUPLICATE KEY UPDATE body=VALUES(body), active=1`);
+    try {
+      // Sanity: the corrupt prefix is really in the DB before we open settings.
+      expect(db(`SELECT body FROM email_templates WHERE name=${sqlq(NAME)} AND locale=${sqlq(LOCALE)}`))
+        .toContain('/admin/{{login_url}}');
+
+      await login(page);
+      // Rendering the settings page runs the server-side heal.
+      await page.goto(`${BASE}/admin/settings?tab=templates`);
+      await page.waitForLoadState('domcontentloaded');
+
+      const body = db(`SELECT body FROM email_templates WHERE name=${sqlq(NAME)} AND locale=${sqlq(LOCALE)}`);
+      expect(body, 'placeholder is preserved').toContain('{{login_url}}');
+      expect(body, 'admin prefix stripped from the stored value').not.toContain('/admin/{{login_url}}');
+    } finally {
+      db(`DELETE FROM email_templates WHERE name=${sqlq(NAME)} AND locale=${sqlq(LOCALE)}`);
+    }
+  });
 });

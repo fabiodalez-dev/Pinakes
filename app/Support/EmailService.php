@@ -300,6 +300,26 @@ class EmailService {
      * non HTML) i valori non vengono HTML-escaped ma vengono ripuliti da
      * CR/LF per impedire header injection.
      */
+    /**
+     * #299: repair a template corrupted by a WYSIWYG editor that resolved a
+     * placeholder URL against the admin page — e.g. `href="{{login_url}}"` was
+     * saved as `href="https://host/admin/{{login_url}}"`, so substituting the
+     * (already absolute) URL produced a double-prefixed link. Strip an absolute
+     * `…/admin/` prefix sitting directly in front of a `{{placeholder}}`. The
+     * editor no longer does this (convert_urls:false); this heals values already
+     * saved, both at render time and when repairing stored templates in the DB.
+     * A legitimate template never puts a host+`/admin/` in front of a token, so
+     * this is safe. Returns the input unchanged when nothing matches.
+     */
+    public static function healPlaceholderUrls(string $content): string
+    {
+        return preg_replace(
+            '#https?://[^"\'\s<>]*?/admin/(\{\{[a-zA-Z0-9_]+\}\})#',
+            '$1',
+            $content
+        ) ?? $content;
+    }
+
     public function replaceVariables(string $content, array $variables, bool $escapeHtml = true): string {
         // Normalize English variable keys to Italian names for consistent processing
         // This ensures RAW_HTML_VARIABLES check works regardless of input key language
@@ -316,18 +336,8 @@ class EmailService {
         }
 
         // #299: heal templates corrupted by a WYSIWYG editor that resolved a
-        // placeholder URL against the admin page — e.g. href="{{login_url}}"
-        // was saved as href="https://host/admin/{{login_url}}", so substituting
-        // the (already absolute) URL produced a double-prefixed link. Strip an
-        // absolute "…/admin/" prefix sitting directly in front of a
-        // {{placeholder}} BEFORE substitution. The editor no longer does this
-        // (convert_urls:false), but templates already saved need repairing.
-        // A legitimate template never puts a host+/admin/ in front of a token.
-        $content = preg_replace(
-            '#https?://[^"\'\s<>]*?/admin/(\{\{[a-zA-Z0-9_]+\}\})#',
-            '$1',
-            $content
-        ) ?? $content;
+        // placeholder URL against the admin page (see healPlaceholderUrls).
+        $content = self::healPlaceholderUrls($content);
 
         foreach ($normalizedVariables as $key => $value) {
             if ($escapeHtml) {

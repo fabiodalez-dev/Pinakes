@@ -26,6 +26,10 @@ class SettingsController
         // l'invio li risolve per (name, locale_installazione), quindi seminare
         // sempre it_IT li renderebbe invisibili su installazioni non italiane.
         $repository->ensureEmailTemplates($this->templateDefaults(), \App\Support\I18n::getInstallationLocale());
+        // #299: repair any stored template whose links were double-prefixed with
+        // the admin base by the old WYSIWYG behaviour. Idempotent, cheap (LIKE
+        // filter), runs before the templates are read for display below.
+        $repository->healCorruptedTemplateUrls();
 
         $appSettings = $this->resolveAppSettings($repository);
         $emailSettings = $this->resolveEmailSettings($repository);
