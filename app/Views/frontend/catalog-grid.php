@@ -390,5 +390,9 @@ $getBookStatusBadge = static function ($book) {
   else align();
   window.addEventListener('load', align);
   window.addEventListener('resize', schedule);
+  // The catalogue replaces this partial through AJAX after filters, sorting and
+  // pagination. Scripts inserted through innerHTML do not execute, so the page
+  // explicitly emits this event once the replacement cards are in the DOM.
+  document.addEventListener('pinakes:catalog-grid-updated', align);
 })();
 </script>

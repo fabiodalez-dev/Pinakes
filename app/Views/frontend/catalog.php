@@ -1919,6 +1919,7 @@ function loadBooks() {
             } else {
                 container.style.display = 'grid';
                 container.innerHTML = data.html;
+                container.dispatchEvent(new Event('pinakes:catalog-grid-updated', { bubbles: true }));
                 container.classList.add('fade-in');
             }
 

@@ -97,6 +97,53 @@ test('#298: subtitle space is reserved per row so cards stay aligned', async ({ 
   expect(r.spacers, 'a spacer was reserved on the plain cards of subtitle rows').toBeGreaterThan(0);
 });
 
+test('#298: AJAX catalogue refresh realigns the replacement cards', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 1400 });
+  await page.goto(`${BASE}/catalogo`);
+  await page.waitForFunction(() => document.querySelectorAll('#books-grid .book-card').length > 0, { timeout: 15000 });
+
+  // Remove the initial alignment so a placeholder can only reappear if the
+  // post-AJAX replacement explicitly triggers a fresh alignment pass.
+  await page.evaluate(() => {
+    document.querySelectorAll('#books-grid .subtitle-ph').forEach((el) => el.remove());
+    document.querySelectorAll('#books-grid .book-title, #books-grid .book-subtitle').forEach((el) => { el.style.height = ''; });
+  });
+
+  const response = page.waitForResponse((res) =>
+    res.request().resourceType() === 'fetch' && res.url().includes('catalog') && res.ok()
+  );
+  await page.evaluate(() => updateFilter('sort', 'title_desc'));
+  await response;
+  await page.waitForFunction(() => document.querySelectorAll('#books-grid .subtitle-ph').length > 0, { timeout: 15000 });
+
+  const result = await page.evaluate(() => {
+    const cards = Array.from(document.querySelectorAll('#books-grid .book-card'));
+    const rows = [];
+    cards.forEach((card) => {
+      const top = Math.round(card.getBoundingClientRect().top);
+      let row = rows.find((candidate) => Math.abs(candidate.top - top) < 8);
+      if (!row) { row = { top, cards: [] }; rows.push(row); }
+      row.cards.push(card);
+    });
+
+    let subtitleRows = 0;
+    let misalignedRows = 0;
+    rows.forEach((row) => {
+      if (!row.cards.some((card) => card.querySelector('.book-subtitle:not(.subtitle-ph)'))) return;
+      subtitleRows++;
+      const authorTops = row.cards
+        .map((card) => card.querySelector('.book-author'))
+        .filter(Boolean)
+        .map((author) => Math.round(author.getBoundingClientRect().top));
+      if (authorTops.length > 1 && Math.max(...authorTops) - Math.min(...authorTops) > 3) misalignedRows++;
+    });
+    return { subtitleRows, misalignedRows };
+  });
+
+  expect(result.subtitleRows, 'AJAX result contains a row with a subtitle').toBeGreaterThan(0);
+  expect(result.misalignedRows, 'replacement cards are realigned after AJAX').toBe(0);
+});
+
 // Regression for the CodeRabbit finding: alignment must be scoped per .books-grid.
 // Two side-by-side grids share the same vertical position on their first row; a
 // subtitle in grid A must NOT inject a placeholder into grid B (which would happen
