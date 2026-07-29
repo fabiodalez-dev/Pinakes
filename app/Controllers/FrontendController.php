@@ -1054,7 +1054,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                    LEFT JOIN generi gfp ON gf.parent_id = gfp.id
                    LEFT JOIN generi gfpp ON gfp.parent_id = gfpp.id
                    LEFT JOIN generi sg ON l.sottogenere_id = sg.id
-                   WHERE (
+                   WHERE l.deleted_at IS NULL
+                   AND (
                        l.genere_id = g.id
                        OR l.sottogenere_id = g.id
                        OR l.genere_id IN (SELECT id FROM generi WHERE parent_id = g.id)

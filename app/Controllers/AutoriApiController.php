@@ -172,7 +172,10 @@ class AutoriApiController
         $selectNaz = $colNaz !== null ? "a.`$colNaz` AS nazionalita" : "'' AS nazionalita";
         $sql_prepared = "SELECT a.id, a.nome, a.pseudonimo, a.data_nascita, a.data_morte, a.biografia, a.sito_web,
                        $selectNaz,
-                       (SELECT COUNT(*) FROM libri_autori la WHERE la.autore_id = a.id) AS libri_count
+                       (SELECT COUNT(*)
+                          FROM libri_autori la
+                          JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
+                         WHERE la.autore_id = a.id) AS libri_count
                 FROM autori a $where_prepared ORDER BY $orderColumn $orderDir LIMIT ?, ?";
 
         $stmt = $db->prepare($sql_prepared);
@@ -377,7 +380,10 @@ class AutoriApiController
 
         $sql = "SELECT a.id, a.nome, a.pseudonimo, a.data_nascita, a.data_morte, a.sito_web,
                        $selectNaz,
-                       (SELECT COUNT(*) FROM libri_autori la WHERE la.autore_id = a.id) AS libri_count
+                       (SELECT COUNT(*)
+                          FROM libri_autori la
+                          JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
+                         WHERE la.autore_id = a.id) AS libri_count
                 FROM autori a
                 WHERE a.id IN ($placeholders)
                 ORDER BY a.nome ASC";

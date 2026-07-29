@@ -31,6 +31,10 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('loans', 'max_loan_duration_days', '90', 'Durata massima richiedibile per un prestito in giorni')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'auto_approve_requests', '0', 'Approva automaticamente le richieste di prestito')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 INSERT INTO `generi` VALUES (1,'Prosa',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (2,'Poesia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (3,'Teatro',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);

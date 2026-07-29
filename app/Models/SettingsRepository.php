@@ -83,6 +83,16 @@ class SettingsRepository
     }
 
     /**
+     * Whether user loan requests should skip the manual approval queue.
+     * Kept here so the web flow and the Mobile API share the same default and
+     * interpretation of the persisted setting.
+     */
+    public function autoApproveLoanRequests(): bool
+    {
+        return ($this->get('loans', 'auto_approve_requests', '0') ?? '0') === '1';
+    }
+
+    /**
      * @return array<string,string>
      */
     public function getCategory(string $category): array

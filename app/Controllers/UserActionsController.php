@@ -9,6 +9,7 @@ use App\Support\SecureLogger;
 use App\Controllers\ReservationManager;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Psr7\Response as SlimResponse;
 
 class UserActionsController
 {
@@ -585,7 +586,9 @@ class UserActionsController
                 }
             }
 
-            // Insert as 'pendente' - requires admin approval
+            // Always create the canonical pending request first. When automatic
+            // approval is enabled, the same race-safe approval controller used by
+            // admins promotes it immediately after request creation.
             $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'pendente', 0)");
             $stmt->bind_param('iiss', $libroId, $utenteId, $data_prestito, $data_scadenza);
 
@@ -599,6 +602,11 @@ class UserActionsController
             $stmt->close();
             $db->commit();
 
+            // Promote immediately before performing slower email I/O, minimizing
+            // the post-commit window in which another request could claim the
+            // same copy. The canonical approval path re-checks every constraint.
+            $autoApproved = $this->autoApproveLoanRequest($request, $db, $newLoanId);
+
             // Notify admins about new loan request (outside transaction)
             try {
                 $notificationService = new \App\Support\NotificationService($db);
@@ -607,7 +615,11 @@ class UserActionsController
                 SecureLogger::warning(__('Notifica richiesta prestito fallita'), ['error' => $e->getMessage()]);
             }
 
-            return $this->back($response, ['loan_request_success' => 1]);
+            return $this->back($response, [
+                'loan_request_success' => 1,
+                'loan_id' => $newLoanId,
+                'auto_approved' => $autoApproved ? 1 : 0,
+            ]);
 
         } catch (\Throwable $e) {
             $db->rollback();
@@ -761,6 +773,46 @@ class UserActionsController
 
         $sep = (str_contains($referer, '?') ? '&' : '?');
         return $response->withHeader('Location', $referer . $sep . $qs)->withStatus(302);
+    }
+
+    /**
+     * Promote a newly-created request through the canonical approval pipeline.
+     * A failure deliberately leaves the request pending, so an administrator can
+     * still process it instead of losing an otherwise valid request.
+     */
+    private function autoApproveLoanRequest(Request $request, mysqli $db, int $loanId): bool
+    {
+        $settings = new \App\Models\SettingsRepository($db);
+        if (!$settings->autoApproveLoanRequests()) {
+            return false;
+        }
+
+        try {
+            $approvalRequest = $request
+                ->withParsedBody(['loan_id' => $loanId])
+                ->withAttribute('automatic_loan_approval', true);
+            $result = (new LoanApprovalController())->approveLoan(
+                $approvalRequest,
+                new SlimResponse(),
+                $db
+            );
+
+            if ($result->getStatusCode() >= 200 && $result->getStatusCode() < 300) {
+                return true;
+            }
+
+            SecureLogger::warning('Automatic loan approval left request pending', [
+                'loan_id' => $loanId,
+                'status' => $result->getStatusCode(),
+            ]);
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Automatic loan approval failed; request left pending', [
+                'loan_id' => $loanId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return false;
     }
 
     /**
