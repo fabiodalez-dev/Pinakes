@@ -32,13 +32,14 @@ $additional_css = "
     }
 
     .hero-title {
-        font-size: 4rem;
-        font-weight: 900;
-        letter-spacing: -0.04em;
-        line-height: 1.1;
-        margin-bottom: 2rem;
+        font-family: var(--serif);
+        font-size: 3.6rem;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        line-height: 1.06;
+        margin-bottom: 1.5rem;
         color: #ffffff !important;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        text-shadow: 0 1px 12px rgba(0,0,0,0.35);
     }
 
     .hero-subtitle {
@@ -63,27 +64,28 @@ $additional_css = "
 
     .hero-stat {
         text-align: center;
-        padding: 2rem 1rem;
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 20px;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        transition: all 0.3s ease;
+        padding: 1.5rem 1rem 0;
+        background: none;
+        border: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 0;
+        transition: none;
     }
 
     .hero-stat:hover {
-        transform: translateY(-4px);
-        background: rgba(255, 255, 255, 0.12);
+        transform: none;
+        background: none;
     }
 
     .hero-stat-number {
-        font-size: 2.5rem;
-        font-weight: 800;
+        font-family: var(--serif);
+        font-size: 2.6rem;
+        font-weight: 600;
         display: block;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.35rem;
         letter-spacing: -0.02em;
         color: #ffffff !important;
-        text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        text-shadow: 0 1px 10px rgba(0,0,0,0.3);
     }
 
     .hero-stat-label {

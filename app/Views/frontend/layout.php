@@ -1259,6 +1259,58 @@ $htmlLang = substr($currentLocale, 0, 2);
             border-top: 1px solid var(--border-color);
         }
 
+        /* ============================================================
+           Modern refinement layer — design/modern-frontend
+           FORM only: typography, elevation, header. Theme COLOURS and
+           the --primary/--secondary/--button variables are untouched,
+           so every configured theme keeps its identity.
+           System font stacks only — no CDN webfonts.
+           ============================================================ */
+        :root {
+            --serif: 'Iowan Old Style', 'Palatino Linotype', 'URW Palladio L', P052, Palatino, 'Book Antiqua', Cambria, Georgia, serif;
+            /* crisper, tighter elevation than the previous soft clouds */
+            --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+            --card-shadow-hover: 0 12px 30px -16px rgba(15, 23, 42, 0.26);
+        }
+
+        body {
+            letter-spacing: -0.006em;
+        }
+
+        /* Editorial serif display on every heading — the main modernisation.
+           Views don't set font-family on these, so this wins cleanly. */
+        h1, h2, h3,
+        .hero-title, .section-title, .page-title, .book-title,
+        .book-detail-title, .event-title, .cms-title {
+            font-family: var(--serif);
+            font-weight: 600;
+            letter-spacing: -0.015em;
+        }
+
+        .hero-title {
+            font-weight: 600;
+            letter-spacing: -0.025em;
+            line-height: 1.05;
+        }
+
+        .header-brand .brand-text {
+            font-family: var(--serif);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* Header: keep the frosted feel but lighter and crisper. */
+        .header-container {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: saturate(1.05) blur(8px);
+            -webkit-backdrop-filter: saturate(1.05) blur(8px);
+        }
+
+        /* Buttons: refined tracking (radius/colour untouched). */
+        .btn-cta {
+            letter-spacing: -0.01em;
+        }
+
         <?= $additional_css ?? '' ?>
     </style>
 
