@@ -281,7 +281,7 @@ HTML,
                 'label' => __('Pronto per il ritiro'),
                 'description' => __("Inviata quando un prestito è stato approvato e il libro è pronto per il ritiro."),
                 'subject' => '📦 Libro pronto per il ritiro!',
-                'placeholders' => ['utente_nome', 'libro_titolo', 'data_inizio', 'data_fine', 'giorni_prestito', 'scadenza_ritiro', 'pickup_deadline', 'pickup_instructions'],
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_inizio', 'data_fine', 'giorni_prestito', 'scadenza_ritiro', 'pickup_instructions'],
                 'body' => <<<'HTML'
 <h2>Il tuo libro è pronto per il ritiro!</h2>
 <p>Ciao {{utente_nome}},</p>
@@ -306,7 +306,7 @@ HTML,
                 'label' => __('Ritiro scaduto'),
                 'description' => __("Inviata quando il tempo per ritirare un libro è scaduto e il prestito è stato annullato."),
                 'subject' => '⏰ Tempo per il ritiro scaduto',
-                'placeholders' => ['utente_nome', 'libro_titolo', 'scadenza_ritiro', 'pickup_deadline'],
+                'placeholders' => ['utente_nome', 'libro_titolo', 'scadenza_ritiro'],
                 'body' => <<<'HTML'
 <h2>Tempo per il ritiro scaduto</h2>
 <p>Ciao {{utente_nome}},</p>
