@@ -5,10 +5,13 @@ declare(strict_types=1);
  * Unit test for the Goodreads cover scraper in OpenLibraryPlugin
  * (replaces the retired bookcover.longitood.com service).
  *
- * The parsing (og:image extraction + trusted-CDN host guard) is tested
- * deterministically against HTML fixtures — no network. A final best-effort
- * live check hits Goodreads only if reachable, and never fails the suite when
- * the network is unavailable.
+ * The scraper fetches the Goodreads book page by shelling out to the system
+ * `curl` binary — Cloudflare's anti-bot serves a 202 to PHP's HTTP client but
+ * 200 to curl's TLS fingerprint — and parses the og:image with a trusted-CDN
+ * host guard. The parsing is tested deterministically against HTML fixtures
+ * (no network). A final best-effort live check hits Goodreads only when a curl
+ * binary is available and the page is reachable, and never fails the suite when
+ * exec is disabled or the network is unavailable.
  *
  * Run:  php tests/plugin-goodreads-cover.unit.php   (exit 0 iff all pass)
  */

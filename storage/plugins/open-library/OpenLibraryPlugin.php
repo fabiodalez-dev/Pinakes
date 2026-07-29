@@ -419,25 +419,84 @@ class OpenLibraryPlugin
             return null;
         }
 
-        try {
-            $res = \App\Support\HttpClient::get(
-                'https://www.goodreads.com/book/isbn/' . urlencode($clean),
-                [
-                    'Accept' => 'text/html,application/xhtml+xml',
-                    'Accept-Language' => 'en-US,en;q=0.9',
-                ],
-                ['timeout' => 5, 'max_redirects' => 3, 'user_agent' => self::USER_AGENT]
-            );
-
-            if (!$res['ok'] || $res['status'] !== 200 || empty($res['body'])) {
-                return null;
-            }
-
-            return $this->extractGoodreadsCoverFromHtml((string) $res['body']);
-        } catch (\Throwable $e) {
-            \App\Support\SecureLogger::warning('[OpenLibrary] Goodreads cover scrape error: ' . $e->getMessage());
+        $html = $this->fetchGoodreadsHtml($clean);
+        if ($html === null) {
             return null;
         }
+        return $this->extractGoodreadsCoverFromHtml($html);
+    }
+
+    /**
+     * Fetch the Goodreads book page HTML.
+     *
+     * Goodreads sits behind Cloudflare, which serves a 202 anti-bot interstitial
+     * to PHP's HTTP stack (Guzzle/libcurl present a TLS/JA3 fingerprint Cloudflare
+     * challenges) — so an in-process HTTP client never gets the real page. The
+     * system `curl` binary's fingerprint passes, so we shell out to it when the
+     * host allows process execution; otherwise we give up gracefully (the caller
+     * simply gets no cover). $isbn is already validated to [0-9Xx]{10,13} by the
+     * caller and is passed through escapeshellarg, so no shell injection is
+     * possible.
+     *
+     * @param string $isbn Validated ISBN-10/13 (digits and X only)
+     * @return string|null Raw HTML, or null when unreachable / exec unavailable
+     */
+    private function fetchGoodreadsHtml(string $isbn): ?string
+    {
+        $curl = $this->findCurlBinary();
+        if ($curl === null) {
+            return null;
+        }
+        $url = 'https://www.goodreads.com/book/isbn/' . $isbn;
+        $cmd = sprintf(
+            '%s -sL --max-time 8 -A %s %s 2>/dev/null',
+            escapeshellarg($curl),
+            escapeshellarg(self::USER_AGENT),
+            escapeshellarg($url)
+        );
+        try {
+            $out = shell_exec($cmd);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[OpenLibrary] Goodreads cover fetch error: ' . $e->getMessage());
+            return null;
+        }
+        return (is_string($out) && $out !== '') ? $out : null;
+    }
+
+    /**
+     * Locate a usable system `curl` binary, or null when process execution is
+     * unavailable (shell_exec disabled — common on hardened shared hosting) or
+     * no curl is installed. Cached per instance.
+     *
+     * @return string|null Absolute path to curl, or null
+     */
+    private function findCurlBinary(): ?string
+    {
+        static $resolved = false;
+        static $path = null;
+        if ($resolved) {
+            return $path;
+        }
+        $resolved = true;
+
+        if (!function_exists('shell_exec')) {
+            return $path = null;
+        }
+        $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+        if (in_array('shell_exec', $disabled, true)) {
+            return $path = null;
+        }
+        foreach (['/usr/bin/curl', '/bin/curl', '/usr/local/bin/curl'] as $candidate) {
+            if (@is_executable($candidate)) {
+                return $path = $candidate;
+            }
+        }
+        $found = @shell_exec('command -v curl 2>/dev/null');
+        $found = is_string($found) ? trim($found) : '';
+        if ($found !== '' && @is_executable($found)) {
+            return $path = $found;
+        }
+        return $path = null;
     }
 
     /**
