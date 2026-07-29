@@ -341,30 +341,39 @@ $getBookStatusBadge = static function ($book) {
     });
     return rows;
   }
-  function equalise(els, prop) {
+  function maxHeight(els) {
     var max = 0;
     els.forEach(function (e) { if (e.offsetHeight > max) max = e.offsetHeight; });
-    els.forEach(function (e) { e.style[prop] = max + 'px'; });
     return max;
   }
   function alignGrid(grid) {
     var cards = Array.prototype.slice.call(grid.querySelectorAll('.book-card'));
     if (!cards.length) return;
-    // undo previous adjustments so a resize recomputes from scratch
+    // 1) RESET (writes only): undo previous adjustments so the READ phase below
+    //    measures natural heights.
     cards.forEach(function (c) {
       var t = c.querySelector('.book-title'); if (t) t.style.height = '';
       var s = c.querySelector('.book-subtitle:not(.subtitle-ph)'); if (s) s.style.height = '';
       var ph = c.querySelector('.subtitle-ph'); if (ph) ph.parentNode.removeChild(ph);
     });
-    rowsOf(cards).forEach(function (row) {
-      // titles: same height as the tallest title in the row
+    // 2) READ (measurements only): batch every getBoundingClientRect/offsetHeight
+    //    read here so the WRITE phase can't interleave reads and force repeated
+    //    synchronous reflows (#302 review, layout-thrashing fix).
+    var plan = rowsOf(cards).map(function (row) {
       var titles = row.cards.map(function (c) { return c.querySelector('.book-title'); }).filter(Boolean);
-      if (titles.length) equalise(titles, 'height');
-      // subtitles: only if the row has at least one
       var realSubs = row.cards.map(function (c) { return c.querySelector('.book-subtitle'); }).filter(Boolean);
-      if (!realSubs.length) return;
-      var maxS = equalise(realSubs, 'height'); // pad the shorter real subtitles too
-      row.cards.forEach(function (c) {
+      return { row: row, titles: titles, realSubs: realSubs, maxT: maxHeight(titles), maxS: maxHeight(realSubs) };
+    });
+    // 3) WRITE (mutations only): apply heights and inject placeholders. No reads
+    //    here, so the browser reflows at most once after this batch.
+    plan.forEach(function (p) {
+      // maxT === 0 means the grid is not laid out (e.g. an ancestor is
+      // display:none) — skip rather than collapse every title to 0px.
+      if (!p.maxT) return;
+      p.titles.forEach(function (e) { e.style.height = p.maxT + 'px'; });
+      if (!p.realSubs.length) return; // row has no subtitle → stays compact
+      p.realSubs.forEach(function (e) { e.style.height = p.maxS + 'px'; });
+      p.row.cards.forEach(function (c) {
         if (c.querySelector('.book-subtitle')) return; // already has one
         var t = c.querySelector('.book-title'); if (!t) return;
         // a hidden .book-subtitle placeholder inherits the same margins, so the
@@ -373,16 +382,23 @@ $getBookStatusBadge = static function ($book) {
         ph.className = 'book-subtitle subtitle-ph';
         ph.setAttribute('aria-hidden', 'true');
         ph.style.visibility = 'hidden';
-        ph.style.height = maxS + 'px';
+        ph.style.height = p.maxS + 'px';
         ph.innerHTML = '&nbsp;';
         t.insertAdjacentElement('afterend', ph);
       });
     });
   }
+  var frame = null;
   function align() {
-    // Scope per grid: two .books-grid on the same page must not have their rows
-    // merged just because cards happen to share a vertical position.
-    Array.prototype.slice.call(document.querySelectorAll('.books-grid')).forEach(alignGrid);
+    // Coalesce bursts of triggers (DOMContentLoaded+load, rapid resize/AJAX)
+    // into a single alignment per animation frame (#302 review, thrashing fix).
+    if (frame) return;
+    frame = (window.requestAnimationFrame || window.setTimeout)(function () {
+      frame = null;
+      // Scope per grid: two .books-grid on the same page must not have their rows
+      // merged just because cards happen to share a vertical position.
+      Array.prototype.slice.call(document.querySelectorAll('.books-grid')).forEach(alignGrid);
+    }, 16);
   }
   var timer;
   function schedule() { clearTimeout(timer); timer = setTimeout(align, 120); }
@@ -390,6 +406,12 @@ $getBookStatusBadge = static function ($book) {
   else align();
   window.addEventListener('load', align);
   window.addEventListener('resize', schedule);
+  // Re-align once web fonts settle: a late font swap can reflow a title from one
+  // line to two after the initial pass, leaving the row misaligned until a resize
+  // (#302 review). Harmless where fonts are already loaded.
+  if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+    document.fonts.ready.then(align);
+  }
   // The catalogue replaces this partial through AJAX after filters, sorting and
   // pagination. Scripts inserted through innerHTML do not execute, so the page
   // explicitly emits this event once the replacement cards are in the DOM.

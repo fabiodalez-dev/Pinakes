@@ -30,6 +30,21 @@ function db(sql) {
 }
 function sqlq(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
 
+// Wait until the alignment pass has run AFTER web fonts settle: resolve
+// document.fonts.ready, then two animation frames guarantee the coalesced
+// align() frame has painted. Avoids measuring a pre-font-swap layout, which
+// would be flaky or hide a real reflow-after-swap bug (#302 review).
+async function waitForAligned(page) {
+  await page.evaluate(() => new Promise((resolve) => {
+    const settle = () => requestAnimationFrame(() => requestAnimationFrame(resolve));
+    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+      document.fonts.ready.then(settle);
+    } else {
+      settle();
+    }
+  }));
+}
+
 const TAG = 'ZZ298ALIGN';
 // A handful of books so a 2/3-column grid puts a subtitled card next to a
 // plain one: several plain titles + two with a subtitle.
@@ -58,7 +73,15 @@ test('#298: subtitle space is reserved per row so cards stay aligned', async ({ 
   await page.goto(`${BASE}/catalogo`);
   // The alignment script runs on load and settles; wait for it rather than networkidle.
   await page.waitForFunction(() => document.querySelectorAll('.books-grid .book-card').length > 0, { timeout: 15000 });
-  await page.waitForTimeout(600);
+  await waitForAligned(page);
+
+  // Pin the assertion to the seeded fixture: if ambient data pushed the seeds off
+  // page 1 (LIMIT 12, created_at DESC), fail clearly rather than silently
+  // measuring unrelated books (#302 review).
+  const seedsVisible = await page.evaluate((tag) =>
+    Array.from(document.querySelectorAll('.books-grid .book-title'))
+      .filter((t) => (t.textContent || '').includes(tag)).length, TAG);
+  expect(seedsVisible, 'seeded fixture cards are on the first page').toBeGreaterThan(0);
 
   const r = await page.evaluate(() => {
     const cards = Array.from(document.querySelectorAll('.books-grid .book-card'));
@@ -95,6 +118,32 @@ test('#298: subtitle space is reserved per row so cards stay aligned', async ({ 
   expect(r.misalignedRows, 'every row with a subtitle keeps its authors aligned').toBe(0);
   expect(r.badSpacerRows, 'rows without a subtitle get no spacer (stay compact)').toBe(0);
   expect(r.spacers, 'a spacer was reserved on the plain cards of subtitle rows').toBeGreaterThan(0);
+});
+
+test('#298: single-column (mobile) layout injects no spurious placeholder', async ({ page }) => {
+  // At a narrow viewport the auto-fill grid collapses to one column, so each
+  // visual row holds exactly one card. A subtitled card alone must keep its own
+  // subtitle (no placeholder), a plain card alone must get nothing, and no title
+  // may collapse to zero height (#302 review — this path was previously untested).
+  await page.setViewportSize({ width: 375, height: 1600 });
+  await page.goto(`${BASE}/catalogo`);
+  await page.waitForFunction(() => document.querySelectorAll('.books-grid .book-card').length > 0, { timeout: 15000 });
+  await waitForAligned(page);
+
+  const r = await page.evaluate(() => {
+    const grid = document.querySelector('.books-grid');
+    const cards = Array.from(grid.querySelectorAll('.book-card'));
+    const cols = new Set(cards.map((c) => Math.round(c.getBoundingClientRect().left))).size;
+    const placeholders = grid.querySelectorAll('.subtitle-ph').length;
+    const zeroHeightTitles = cards.map((c) => c.querySelector('.book-title'))
+      .filter(Boolean).filter((t) => t.offsetHeight === 0).length;
+    return { cards: cards.length, cols, placeholders, zeroHeightTitles };
+  });
+
+  expect(r.cards, 'catalogue rendered cards').toBeGreaterThan(0);
+  expect(r.cols, 'layout collapses to a single column at 375px').toBe(1);
+  expect(r.placeholders, 'no spurious subtitle placeholder in single-column layout').toBe(0);
+  expect(r.zeroHeightTitles, 'no title collapsed to zero height').toBe(0);
 });
 
 test('#298: AJAX catalogue refresh realigns the replacement cards', async ({ page }) => {
