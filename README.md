@@ -42,9 +42,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 A catalogue-consistency and scraper-maintenance release.
 
 ### Improvements
-- **Catalogue availability facets now reflect real circulation state** — reserved, on-loan, available and non-circulating records are shown and counted separately; records without physical copies remain visible under the complete catalogue without being mislabelled as loans.
-- **Language completion statistics are derived from the Italian source catalogue** — every locale now uses the same live denominator, so translation percentages cannot drift from the shipped keys.
+- **Catalogue availability facets now reflect real circulation state** — reserved, on-loan, available and non-circulating records are shown and counted separately; records without physical copies remain visible under the complete catalogue without being mislabelled as loans ([#303](https://github.com/fabiodalez-dev/Pinakes/issues/303)).
+- **Catalogue card rows stay aligned** — a card with a subtitle no longer pushes its author, publisher and "Details" out of line with neighbouring cards; the subtitle space is reserved per row only where a row actually needs it, and the layout re-aligns after AJAX filtering, on resize, and once web fonts settle ([#298](https://github.com/fabiodalez-dev/Pinakes/issues/298)).
+- **Language completion statistics are derived from the Italian source catalogue** — every locale (list and edit views alike) now uses the same live denominator, so translation percentages cannot drift from the shipped keys.
 - **Open Library plugin 1.0.2** — replaces the retired third-party Goodreads-cover service with a direct, timeout-bounded lookup of the public Goodreads ISBN page. Only HTTPS cover URLs from exact Goodreads/Amazon CDN domains or their subdomains are accepted; its manifest now correctly requires Pinakes 0.7.16+ and PHP 8.2+.
+- **Email templates: `{{pickup_deadline}}` now resolves**, and every placeholder token carries a localised description tooltip in the template editor ([#304](https://github.com/fabiodalez-dev/Pinakes/issues/304)).
 
 ### Database Changes
 - None — catalogue availability is derived from existing circulation state and language statistics are computed from the shipped locale files.
@@ -919,7 +921,7 @@ Pinakes v0.7.x introduced a full library-interoperability layer, delivered as op
 
 - Collane now support an optional umbrella group for related spin-offs, universes, or franchises, so separate series like `Fairy Tail`, `Fairy Tail: 100 Year Quest`, and `Fairy Tail: Happy` can remain distinct while sharing one parent group.
 - Collane also support an optional cycle/season label plus numeric ordering, matching LibraryThing-style series such as `The Worlds of Aldebaran` with `Cycle 1`, `Cycle 2`, and later arcs.
-- Book create/edit forms can set group, cycle/season, cycle order, series name, and series number in one flow; the Collane admin page exposes the same metadata and shows related series in the same group.
+- Book create/edit forms can set group, cycle/season, cycle order, series name, and number in series in one flow; the Collane admin page exposes the same metadata and shows related series in the same group.
 
 ### Archives plugin (ISAD(G) / ISAAR(CPF))
 
