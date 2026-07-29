@@ -2,10 +2,13 @@
 
 Plugin per l'integrazione delle API di Open Library (openlibrary.org) nel sistema di scraping della Biblioteca.
 
+Requisiti: Pinakes 0.7.16 o successivo e PHP 8.2 o successivo.
+
 ## Caratteristiche
 
 - **Scraping completo via API**: Utilizza le API ufficiali di Open Library invece dello scraping HTML
 - **Copertine ad alta qualità**: Accesso diretto alle copertine in alta risoluzione
+- **Fallback Goodreads sicuro**: Se Open Library non dispone della copertina, legge `og:image` dalla pagina ISBN pubblica di Goodreads e accetta soltanto URL HTTPS dei CDN Goodreads/Amazon autorizzati
 - **Dati arricchiti**: Include informazioni su opere, edizioni e autori
 - **Multilingua**: Supporta libri in tutte le lingue disponibili su Open Library
 - **Alta priorità**: Configurato con priorità 5 (alta) per essere preferito rispetto ad altre fonti
@@ -18,6 +21,7 @@ Il plugin integra le seguenti API di Open Library:
 2. **Works API** - `/works/{id}.json` - Informazioni sull'opera
 3. **Authors API** - `/authors/{id}.json` - Dettagli autori
 4. **Covers API** - `https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg` - Copertine
+5. **Goodreads ISBN page** - `https://www.goodreads.com/book/isbn/{isbn}` - Fallback copertina tramite metadato Open Graph
 
 ## Dati Forniti
 

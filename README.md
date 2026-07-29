@@ -37,6 +37,24 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.45
+
+A catalogue-consistency and scraper-maintenance release.
+
+### Improvements
+- **Catalogue availability facets now reflect real circulation state** — reserved, on-loan, available and non-circulating records are shown and counted separately; records without physical copies remain visible under the complete catalogue without being mislabelled as loans.
+- **Language completion statistics are derived from the Italian source catalogue** — every locale now uses the same live denominator, so translation percentages cannot drift from the shipped keys.
+- **Open Library plugin 1.0.2** — replaces the retired third-party Goodreads-cover service with a direct, timeout-bounded lookup of the public Goodreads ISBN page. Only HTTPS cover URLs from exact Goodreads/Amazon CDN domains or their subdomains are accepted; its manifest now correctly requires Pinakes 0.7.16+ and PHP 8.2+.
+
+### Database Changes
+- None — catalogue availability is derived from existing circulation state and language statistics are computed from the shipped locale files.
+
+### Upgrade Notes
+- The bundled Open Library plugin is replaced atomically by the updater and its database metadata advances from 1.0.1 to 1.0.2.
+- Back up your database before updating (the in-app updater does this automatically).
+
+---
+
 ## What's New in v0.7.44
 
 A bug-fix release for email-template links.
@@ -1433,10 +1451,10 @@ Plugins support encrypted secrets and isolated configuration. Install via ZIP up
 
 All plugins are located in `storage/plugins/` and can be managed from **Admin → Plugins**.
 
-### 1. Open Library (`open-library-v1.0.1.zip`)
+### 1. Open Library (`open-library-v1.0.2.zip`)
 - **Metadata scraping** from Open Library API
 - **Fallback to Google Books** when Open Library lacks data
-- **Automatic cover download** with validation
+- **Automatic cover lookup** from Open Library with a secure Goodreads/Amazon CDN fallback
 - **Subject mapping** and language normalization
 - **Configurable priority** and caching options
 

@@ -260,6 +260,7 @@ async function requestLoanViaSwal(page, dateISO) {
       const el = document.querySelector('#swal-date-start');
       return el && /** @type {any} */ (el)._flatpickr;
     },
+    undefined,
     { timeout: 8000 },
   );
 
@@ -381,6 +382,7 @@ test.describe.serial('Phase 1: Installation (Italian)', () => {
         const el = document.getElementById('connection-result');
         return el && el.style.display !== 'none' && el.textContent.trim().length > 0;
       },
+      undefined,
       { timeout: 30000 }
     );
     const resultClass = await page.locator('#connection-result').getAttribute('class');
@@ -630,14 +632,14 @@ test.describe.serial('Phase 3: Manual Book Creation', () => {
       await page.waitForFunction(() => {
         const sel = document.querySelector('#radice_select');
         return sel && sel.options.length > 1;
-      }, { timeout: 10000 });
+      }, undefined, { timeout: 10000 });
       await radiceSelect.selectOption({ index: 1 });
 
       // Wait for L2 to load
       await page.waitForFunction(() => {
         const sel = document.getElementById('genere_select');
         return sel && !sel.disabled && sel.options.length > 1;
-      }, { timeout: 10000 }).catch(() => {});
+      }, undefined, { timeout: 10000 }).catch(() => {});
 
       const genereSelect = page.locator('#genere_select');
       if (!await genereSelect.isDisabled()) {
@@ -651,7 +653,7 @@ test.describe.serial('Phase 3: Manual Book Creation', () => {
         const l3Populated = await page.waitForFunction(() => {
           const sel = document.getElementById('sottogenere_select');
           return sel && !sel.disabled && sel.options.length > 1;
-        }, { timeout: 5000 }).then(() => true).catch(() => false);
+        }, undefined, { timeout: 5000 }).then(() => true).catch(() => false);
 
         if (l3Populated) {
           // Mandatory selection — no silent swallow. If selection fails here
@@ -764,11 +766,16 @@ test.describe.serial('Phase 4: ISBN Scraping', () => {
       await importInput.fill('9788845292613');
       await importBtn.click();
       // Wait for title field to be populated or for a timeout (external API may fail)
+      // Playwright signature is waitForFunction(fn, arg, options) — the options
+      // object MUST be the third argument. Passing it in the second (arg) slot
+      // silently drops the 15s timeout, so if scraping doesn't populate the
+      // title (degraded external APIs) the wait hangs until the 120s test timeout.
       await page.waitForFunction(
         () => {
           const el = document.querySelector('#titolo');
           return el && el.value && el.value.length > 0;
         },
+        undefined,
         { timeout: 15000 },
       ).catch(() => {});
       await expect(page.locator('#titolo')).toBeVisible();
@@ -799,7 +806,7 @@ test.describe.serial('Phase 4: ISBN Scraping', () => {
       await page.waitForFunction(() => {
         const sel = document.querySelector('#radice_select');
         return sel && sel.options.length > 1;
-      }, { timeout: 10000 }).catch(() => {});
+      }, undefined, { timeout: 10000 }).catch(() => {});
       const currentVal = await radiceSelect.inputValue();
       if (!currentVal || currentVal === '0') {
         await radiceSelect.selectOption({ index: 1 }).catch(() => {});
@@ -1015,7 +1022,7 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
       await page.waitForFunction(() => {
         const titleInput = document.querySelector('input[name="titolo"]');
         return titleInput && titleInput.value && titleInput.value.trim().length > 0;
-      }, { timeout: 30000 });
+      }, undefined, { timeout: 30000 });
     } catch {
       // External API may be down — acceptable
     }
@@ -1033,7 +1040,7 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
       await page.waitForFunction(() => {
         const sel = document.querySelector('#radice_select');
         return sel && sel.options.length > 1;
-      }, { timeout: 10000 }).catch(() => {});
+      }, undefined, { timeout: 10000 }).catch(() => {});
       const currentVal = await radiceSelect.inputValue();
       if (!currentVal || currentVal === '0') {
         await radiceSelect.selectOption({ index: 1 }).catch(() => {});
@@ -1086,6 +1093,7 @@ test.describe.serial('Phase 6: Edit Book', () => {
         const el = document.querySelector('#titolo');
         return el && el.value && el.value.length > 0;
       },
+      undefined,
       { timeout: 10000 },
     );
   });
@@ -1363,6 +1371,7 @@ test.describe.serial('Phase 7: Author Management', () => {
         const icon = document.querySelector('.swal2-popup .swal2-icon.swal2-success');
         return icon !== null;
       },
+      undefined,
       { timeout: 15000 },
     ).catch(() => {});
     await page.keyboard.press('Enter').catch(() => {});
@@ -3478,6 +3487,7 @@ async function createBookWithRelations(page, { title, authors = [], publishers =
   if (await radiceSelect.isVisible({ timeout: 2000 }).catch(() => false)) {
     await page.waitForFunction(
       () => { const s = document.querySelector('#radice_select'); return s && s.options.length > 1; },
+      undefined,
       { timeout: 8000 },
     ).catch(() => {});
     await radiceSelect.selectOption({ index: 1 }).catch(() => {});

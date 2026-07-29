@@ -16,8 +16,7 @@ class OpenLibraryPlugin
 {
     private const API_BASE = 'https://openlibrary.org';
     private const COVERS_BASE = 'https://covers.openlibrary.org';
-    private const GOODREADS_COVERS_BASE = 'https://bookcover.longitood.com/bookcover';
-    private const TIMEOUT = 15;
+    private const TIMEOUT = 6;
     private const USER_AGENT = 'Mozilla/5.0 (compatible; BibliotecaBot/1.0) Safari/537.36';
     private const MIN_COVER_SIZE_BYTES = 1000;
 
@@ -231,20 +230,6 @@ class OpenLibraryPlugin
             $editionData = $this->fetchEditionByISBN($isbn);
 
             if (empty($editionData) || isset($editionData['error']) || empty($editionData['title'])) {
-                // Try to get at least a cover from Goodreads as last resort
-                $goodreadsCover = $this->getGoodreadsCover($isbn, '', '');
-
-                if ($goodreadsCover) {
-                    // Minimal data with just the cover - merge with existing
-                    $coverData = [
-                        'image' => $goodreadsCover,
-                        'isbn' => $isbn,
-                        'source' => self::GOODREADS_COVERS_BASE . '/' . $isbn,
-                        '_cover_only' => true,
-                    ];
-                    return $this->mergeBookData($existing, $coverData, 'goodreads');
-                }
-
                 // Nothing found - return existing data unchanged
                 return $existing;
             }
@@ -271,9 +256,8 @@ class OpenLibraryPlugin
                 }
             }
 
-            // Fetch cover image (pass first author name for Goodreads fallback)
-            $firstAuthor = !empty($authorNames) ? $authorNames[0] : '';
-            $coverUrl = $this->getCoverUrl($isbn, $editionData, $firstAuthor);
+            // Fetch cover image
+            $coverUrl = $this->getCoverUrl($isbn, $editionData);
 
             // Build response in the format expected by the application
             $openLibraryData = [
@@ -366,22 +350,12 @@ class OpenLibraryPlugin
 
         // Try to fetch cover if missing
         if (empty($payload['image'])) {
-            // Extract author and title from payload for Goodreads fallback
-            $authorName = '';
-            if (!empty($payload['author'])) {
-                // Get first author if comma-separated list
-                $authors = explode(',', $payload['author']);
-                $authorName = trim($authors[0]);
-            } elseif (!empty($payload['authors'][0])) {
-                $authorName = $payload['authors'][0];
-            }
-
             $editionData = [];
             if (!empty($payload['title'])) {
                 $editionData['title'] = $payload['title'];
             }
 
-            $coverUrl = $this->getCoverUrl($isbn, $editionData, $authorName);
+            $coverUrl = $this->getCoverUrl($isbn, $editionData);
             if ($coverUrl) {
                 $payload['image'] = $coverUrl;
             }
@@ -427,136 +401,83 @@ class OpenLibraryPlugin
     }
 
     /**
-     * Convert ISBN-10 to ISBN-13
+     * Scrape a book cover from Goodreads' public book page.
      *
-     * @param string $isbn10 ISBN-10 code
-     * @return string ISBN-13 code
-     */
-    private function convertIsbn10ToIsbn13(string $isbn10): string
-    {
-        // Remove any hyphens or spaces
-        $isbn10 = preg_replace('/[\s\-]/', '', $isbn10);
-
-        // Check if it's already ISBN-13
-        if (strlen($isbn10) === 13) {
-            return $isbn10;
-        }
-
-        // Check if it's a valid ISBN-10 length
-        if (strlen($isbn10) !== 10) {
-            return $isbn10; // Return as-is if invalid
-        }
-
-        // Remove the check digit from ISBN-10
-        $isbn10WithoutCheck = substr($isbn10, 0, 9);
-
-        // Add 978 prefix
-        $isbn13WithoutCheck = '978' . $isbn10WithoutCheck;
-
-        // Calculate ISBN-13 check digit
-        $sum = 0;
-        for ($i = 0; $i < 12; $i++) {
-            $digit = (int)$isbn13WithoutCheck[$i];
-            $sum += ($i % 2 === 0) ? $digit : $digit * 3;
-        }
-
-        $checkDigit = (10 - ($sum % 10)) % 10;
-
-        return $isbn13WithoutCheck . $checkDigit;
-    }
-
-    /**
-     * Get cover from Goodreads API via bookcover.longitood.com
+     * Goodreads' /search endpoint sits behind an anti-bot challenge (HTTP 202),
+     * but the canonical /book/isbn/{isbn} page returns full HTML (200). We read
+     * the Open Graph og:image meta tag — Goodreads fills it with the cover on
+     * Amazon's CDN, and it is stable across layout changes (unlike the CSS-class
+     * scraping the retired bookcover.longitood.com service relied on).
      *
-     * @param string $isbn ISBN/EAN code (ISBN-10, ISBN-13, or any 13-digit EAN)
-     * @param string $title Book title (optional, for fallback)
-     * @param string $author Author name (optional, for fallback)
-     * @return string|null Cover URL or null
+     * @param string $isbn ISBN-10 or ISBN-13
+     * @return string|null Cover image URL, or null if not on Goodreads / on error
      */
-    private function getGoodreadsCover(string $isbn, string $title = '', string $author = ''): ?string
+    private function getGoodreadsCover(string $isbn): ?string
     {
-        try {
-            // Clean the code
-            $cleanCode = preg_replace('/[\s\-]/', '', $isbn);
-
-            // Try with original code first (ISBN-13 or EAN-13)
-            if (strlen($cleanCode) === 13 && ctype_digit($cleanCode)) {
-                $url = self::GOODREADS_COVERS_BASE . '/' . urlencode($cleanCode);
-                $coverUrl = $this->fetchGoodreadsCoverUrl($url);
-
-                if ($coverUrl) {
-                    return $coverUrl;
-                }
-            }
-
-            // Try converting ISBN-10 to ISBN-13 if it's 10 digits
-            if (strlen($cleanCode) === 10) {
-                $isbn13 = $this->convertIsbn10ToIsbn13($cleanCode);
-                if (strlen($isbn13) === 13) {
-                    $url = self::GOODREADS_COVERS_BASE . '/' . urlencode($isbn13);
-                    $coverUrl = $this->fetchGoodreadsCoverUrl($url);
-
-                    if ($coverUrl) {
-                        return $coverUrl;
-                    }
-                }
-            }
-
-            // Fallback to title/author search - BOTH parameters are required
-            if (!empty($title) && !empty($author)) {
-                $queryParams = [
-                    'book_title' => $title,
-                    'author_name' => $author
-                ];
-
-                $url = self::GOODREADS_COVERS_BASE . '?' . http_build_query($queryParams);
-                $coverUrl = $this->fetchGoodreadsCoverUrl($url);
-
-                if ($coverUrl) {
-                    return $coverUrl;
-                }
-            }
-
-            return null;
-        } catch (\Throwable $e) {
-            // Gracefully handle errors - don't break the app
-            \App\Support\SecureLogger::warning("[OpenLibrary] Goodreads cover API error: " . $e->getMessage());
+        $clean = preg_replace('/[^0-9Xx]/', '', $isbn);
+        if (!is_string($clean) || (strlen($clean) !== 10 && strlen($clean) !== 13)) {
             return null;
         }
-    }
 
-    /**
-     * Fetch cover URL from Goodreads API response
-     *
-     * @param string $apiUrl API endpoint URL
-     * @return string|null Cover URL or null
-     */
-    private function fetchGoodreadsCoverUrl(string $apiUrl): ?string
-    {
         try {
             $res = \App\Support\HttpClient::get(
-                $apiUrl,
-                ['Accept' => 'application/json'],
-                ['timeout' => 10, 'user_agent' => self::USER_AGENT]
+                'https://www.goodreads.com/book/isbn/' . urlencode($clean),
+                [
+                    'Accept' => 'text/html,application/xhtml+xml',
+                    'Accept-Language' => 'en-US,en;q=0.9',
+                ],
+                ['timeout' => 5, 'max_redirects' => 3, 'user_agent' => self::USER_AGENT]
             );
 
-            // Gracefully handle non-200 responses
             if (!$res['ok'] || $res['status'] !== 200 || empty($res['body'])) {
                 return null;
             }
 
-            $data = json_decode($res['body'], true);
-
-            // Extract URL from response
-            if (!empty($data['url']) && filter_var($data['url'], FILTER_VALIDATE_URL)) {
-                return $data['url'];
-            }
-
-            return null;
+            return $this->extractGoodreadsCoverFromHtml((string) $res['body']);
         } catch (\Throwable $e) {
-            \App\Support\SecureLogger::warning("[OpenLibrary] Error fetching Goodreads cover from $apiUrl: " . $e->getMessage());
+            \App\Support\SecureLogger::warning('[OpenLibrary] Goodreads cover scrape error: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Extract the cover URL from a Goodreads book page's Open Graph og:image tag,
+     * accepting only the known Goodreads/Amazon image CDNs. Pure string parsing,
+     * separated from the HTTP fetch so it can be unit-tested deterministically.
+     *
+     * @param string $html Raw HTML of the Goodreads book page
+     * @return string|null Cover image URL, or null if absent / not a trusted CDN
+     */
+    private function extractGoodreadsCoverFromHtml(string $html): ?string
+    {
+        // Open Graph cover image — match property/content in either order.
+        if (!preg_match('/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $m)
+            && !preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']/i', $html, $m)) {
+            return null;
+        }
+
+        $url = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5);
+        if (filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        // Only trust covers served from the known Goodreads/Amazon image CDNs.
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        $host = parse_url($url, PHP_URL_HOST);
+        if (!is_string($scheme) || strtolower($scheme) !== 'https' || !is_string($host)) {
+            return null;
+        }
+
+        $host = strtolower(rtrim($host, '.'));
+        $trustedHost = $host === 'gr-assets.com'
+            || str_ends_with($host, '.gr-assets.com')
+            || $host === 'media-amazon.com'
+            || str_ends_with($host, '.media-amazon.com');
+        if (!$trustedHost) {
+            return null;
+        }
+
+        return $url;
     }
 
     /**
@@ -564,10 +485,9 @@ class OpenLibraryPlugin
      *
      * @param string $isbn ISBN
      * @param array $editionData Edition data (optional)
-     * @param string $authorName Author name (optional, for Goodreads fallback)
      * @return string|null Cover URL or null
      */
-    private function getCoverUrl(string $isbn, array $editionData = [], string $authorName = ''): ?string
+    private function getCoverUrl(string $isbn, array $editionData = []): ?string
     {
         // Try to get cover ID from edition data first
         if (!empty($editionData['covers'][0])) {
@@ -584,11 +504,9 @@ class OpenLibraryPlugin
             return $url;
         }
 
-        // Third fallback: Try Goodreads via bookcover.longitood.com
-        $title = $editionData['title'] ?? '';
-
-        $goodreadsCover = $this->getGoodreadsCover($isbn, $title, $authorName);
-        if ($goodreadsCover) {
+        // Last resort: scrape the cover from Goodreads' public book page.
+        $goodreadsCover = $this->getGoodreadsCover($isbn);
+        if ($goodreadsCover !== null) {
             return $goodreadsCover;
         }
 
@@ -609,7 +527,7 @@ class OpenLibraryPlugin
             CURLOPT_NOBODY => true,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 5,
+            CURLOPT_TIMEOUT => 3,
             CURLOPT_USERAGENT => self::USER_AGENT,
         ]);
 
@@ -644,7 +562,7 @@ class OpenLibraryPlugin
                     CURLOPT_URL => $url,
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_FOLLOWLOCATION => true,
-                    CURLOPT_TIMEOUT => 5,
+                    CURLOPT_TIMEOUT => 3,
                     CURLOPT_USERAGENT => self::USER_AGENT,
                     CURLOPT_RANGE => '0-1023',
                 ]);

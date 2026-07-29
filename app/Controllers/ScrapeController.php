@@ -245,16 +245,8 @@ class ScrapeController
             $fallbackData = $this->fallbackFromOpenLibrary($searchIdentifier);
         }
 
-        // If fallback found data but no cover, try Goodreads cover API
-        if ($fallbackData !== null && empty($fallbackData['image'])) {
-            $goodreadsCover = $this->fallbackCoverFromGoodreads($searchIdentifier);
-            if ($goodreadsCover !== null) {
-                $fallbackData['image'] = $goodreadsCover;
-            }
-        }
-
         if ($fallbackData !== null) {
-            // Merge partial plugin data (e.g., cover from Goodreads) into fallback data
+            // Merge partial plugin data into fallback data
             if (is_array($customResult)) {
                 // Fallback data is the base, plugin data fills gaps (like cover)
                 foreach ($customResult as $key => $value) {
@@ -415,7 +407,7 @@ class ScrapeController
             $url .= '&key=' . urlencode($apiKey);
         }
 
-        $json = $this->safeHttpGet($url, 10);
+        $json = $this->safeHttpGet($url, 5);
         if (!$json) {
             return null;
         }
@@ -545,7 +537,7 @@ class ScrapeController
         }
 
         $url = "https://openlibrary.org/isbn/" . urlencode($isbn) . ".json";
-        $json = $this->safeHttpGet($url, 10);
+        $json = $this->safeHttpGet($url, 5);
         if (!$json) {
             return null;
         }
@@ -594,37 +586,7 @@ class ScrapeController
     }
 
     /**
-     * Fallback: get cover image URL from Goodreads via bookcover.longitood.com API
-     */
-    private function fallbackCoverFromGoodreads(string $isbn): ?string
-    {
-        if (!$this->checkRateLimit('goodreads_cover', 60)) {
-            SecureLogger::debug('[ScrapeController] Goodreads cover API rate limit exceeded', ['isbn' => $isbn]);
-            return null;
-        }
-
-        $url = 'https://bookcover.longitood.com/bookcover/' . urlencode($isbn);
-        $json = $this->safeHttpGet($url, 8);
-        if (!$json) {
-            return null;
-        }
-
-        $data = json_decode($json, true);
-        if (!is_array($data) || empty($data['url'])) {
-            return null;
-        }
-
-        $coverUrl = $data['url'];
-        if (!filter_var($coverUrl, FILTER_VALIDATE_URL)) {
-            return null;
-        }
-
-        SecureLogger::debug('[ScrapeController] Goodreads cover found', ['isbn' => $isbn, 'cover' => $coverUrl]);
-        return $coverUrl;
-    }
-
-    /**
-     * Try built-in sources (Google Books, Open Library, Goodreads) for cover image only.
+     * Try built-in sources (Google Books, Open Library) for cover image only.
      * Used when a plugin returned complete metadata but no cover image.
      *
      * @param string $isbn ISBN to search
@@ -632,19 +594,13 @@ class ScrapeController
      */
     public function findCoverFromBuiltinSources(string $isbn): ?string
     {
-        // 1. Try Goodreads cover API (lightest — single URL check)
-        $goodreads = $this->fallbackCoverFromGoodreads($isbn);
-        if ($goodreads !== null) {
-            return $goodreads;
-        }
-
-        // 2. Try Google Books (reliable, has good cover database)
+        // 1. Try Google Books (reliable, has good cover database)
         $gbData = $this->fallbackFromGoogleBooks($isbn);
         if (!empty($gbData['image'])) {
             return $gbData['image'];
         }
 
-        // 3. Try Open Library (has covers for many editions)
+        // 2. Try Open Library (has covers for many editions)
         $olData = $this->fallbackFromOpenLibrary($isbn);
         if (!empty($olData['image'])) {
             return $olData['image'];
@@ -656,7 +612,7 @@ class ScrapeController
     /**
      * Safe HTTP GET with timeout and basic validation.
      */
-    private function safeHttpGet(string $url, int $timeout = 10): ?string
+    private function safeHttpGet(string $url, int $timeout = 5): ?string
     {
         // Routed through the shared HttpClient (Guzzle): same timeouts, SSL
         // verification, User-Agent and http/https-only redirect policy as the
