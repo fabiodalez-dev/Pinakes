@@ -1098,6 +1098,10 @@ class NotificationService {
                 'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
                 'giorni_prestito' => $days,
                 'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : '',
+                // #304: alias under the DB column name so a customised template using
+                // {{pickup_deadline}} (the natural name a user copies from the schema)
+                // resolves as well as the canonical {{scadenza_ritiro}}.
+                'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : '',
                 'pickup_instructions' => __('Recati in biblioteca durante gli orari di apertura per ritirare il libro.')
             ];
 
@@ -1135,7 +1139,9 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : ''
+                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : '',
+                // #304: alias under the DB column name, see sendPickupReadyNotification.
+                'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : ''
             ];
 
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_expired', $variables, \App\Support\I18n::getInstallationLocale());
