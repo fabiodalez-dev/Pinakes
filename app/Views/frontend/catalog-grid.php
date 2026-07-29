@@ -9,19 +9,17 @@ $getBookStatusBadge = static function ($book) {
     ob_start();
     $available = ($book['copie_disponibili'] ?? 0) > 0;
     $stato = $book['stato'] ?? '';
-    $reserved = !$available && $stato === 'prenotato';
-    // A book whose copies are all out of circulation (maintenance, lost, damaged…)
-    // is 'non_disponibile' — not on loan. Without this branch it fell through to
-    // the "In prestito" badge, mislabelling it.
-    $unavailable = !$available && $stato === 'non_disponibile';
+    // "In prestito" is shown ONLY for stato='prestato'. Every other not-available
+    // case — 'non_disponibile', or a stale/unexpected stato on a zero-copy book —
+    // falls to "Non disponibile" rather than being mislabelled as on loan (#303 review).
     if ($available) {
         echo '<span class="book-status-badge status-available">' . __("Disponibile");
-    } elseif ($reserved) {
+    } elseif ($stato === 'prenotato') {
         echo '<span class="book-status-badge status-reserved">' . __("Prenotato");
-    } elseif ($unavailable) {
-        echo '<span class="book-status-badge status-unavailable">' . __("Non disponibile");
-    } else {
+    } elseif ($stato === 'prestato') {
         echo '<span class="book-status-badge status-borrowed">' . __("In prestito");
+    } else {
+        echo '<span class="book-status-badge status-unavailable">' . __("Non disponibile");
     }
     // Hook: Allow plugins to add icons to status badge (e.g., eBook/audio icons)
     do_action('book.badge.digital_icons', $book);

@@ -34,7 +34,7 @@ class LanguagesController
     {
         $languageModel = new Language($db);
         // Stats derived live from the Italian source (see Language::getAllWithDerivedStats)
-        // so total_keys is the same 6613-key denominator for every locale and can't drift.
+        // so total_keys is the same source-derived denominator for every locale and can't drift.
         $languages = $languageModel->getAllWithDerivedStats();
 
         // Render view content
@@ -167,7 +167,9 @@ class LanguagesController
                 ->withStatus(302);
         }
         $languageModel = new Language($db);
-        $language = $languageModel->getByCode($code);
+        // Derive the completion stats from the Italian source (same as the list
+        // view) so the edit page can't show a different denominator (#303 review).
+        $language = $languageModel->getByCodeWithDerivedStats($code);
 
         if (!$language) {
             $_SESSION['flash_error'] = __("Lingua non trovata");

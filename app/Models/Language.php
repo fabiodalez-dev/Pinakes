@@ -72,6 +72,13 @@ class Language
         if ($code === self::SOURCE_LOCALE) {
             return $sourceTotal;
         }
+        // Defence-in-depth: $code originates from the languages.code DB column and
+        // is interpolated into a filesystem path, so require the canonical locale
+        // shape before touching disk — a crafted value can never traverse out of
+        // the locale/ directory (#303 review).
+        if (!preg_match('/^[a-z]{2}_[A-Z]{2}$/', $code)) {
+            return 0;
+        }
         $path = __DIR__ . '/../../locale/' . $code . '.json';
         if (!is_file($path)) {
             return 0;
@@ -103,13 +110,46 @@ class Language
         $total = $this->sourceKeyCount();
         $languages = $this->getAll($activeOnly);
         foreach ($languages as &$lang) {
-            $translated = $this->translatedKeyCount((string) ($lang['code'] ?? ''), $total);
-            $lang['total_keys'] = $total;
-            $lang['translated_keys'] = $translated;
-            $lang['completion_percentage'] = $total > 0 ? round($translated / $total * 100, 2) : 0.00;
+            $lang = $this->withDerivedStats($lang, $total);
         }
         unset($lang);
         return $languages;
+    }
+
+    /**
+     * getByCode(), but with the same source-derived translation stats as
+     * getAllWithDerivedStats(). Use this on any admin surface that displays a
+     * single language's completion so the list and edit views cannot disagree.
+     *
+     * @param string $code
+     * @return array<string, mixed>|null
+     */
+    public function getByCodeWithDerivedStats(string $code): ?array
+    {
+        $language = $this->getByCode($code);
+        if ($language === null) {
+            return null;
+        }
+        return $this->withDerivedStats($language, $this->sourceKeyCount());
+    }
+
+    /**
+     * Overlay source-derived translation stats onto a single language row:
+     * total_keys = source key count, translated_keys = what the locale covers,
+     * completion_percentage recomputed. Single source of truth for both the
+     * list (getAllWithDerivedStats) and edit (getByCodeWithDerivedStats) views.
+     *
+     * @param array<string, mixed> $lang
+     * @param int $total Source key count (denominator)
+     * @return array<string, mixed>
+     */
+    private function withDerivedStats(array $lang, int $total): array
+    {
+        $translated = $this->translatedKeyCount((string) ($lang['code'] ?? ''), $total);
+        $lang['total_keys'] = $total;
+        $lang['translated_keys'] = $translated;
+        $lang['completion_percentage'] = $total > 0 ? round($translated / $total * 100, 2) : 0.00;
+        return $lang;
     }
 
     /**
