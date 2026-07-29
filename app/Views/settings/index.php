@@ -512,10 +512,12 @@ $activeTab = $activeTab ?? 'general';
                     <h3 class="text-lg font-semibold text-gray-900"><?php echo HtmlHelper::e(__($template['label'])); ?></h3>
                     <p class="text-sm text-gray-600 mt-1"><?php echo HtmlHelper::e(__($template['description'])); ?></p>
                     <?php if (!empty($template['placeholders'])): ?>
+                      <?php $placeholderDescriptions = \App\Support\SettingsMailTemplates::placeholderDescriptions(); ?>
                       <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                         <span class="font-medium text-gray-700"><?= __("Segnaposto:") ?></span>
                         <?php foreach ($template['placeholders'] as $placeholder): ?>
-                          <span class="inline-flex items-center rounded-lg bg-gray-200/70 px-2 py-1 text-[11px] font-semibold text-gray-700">{{<?php echo HtmlHelper::e($placeholder); ?>}}</span>
+                          <?php $phDescription = $placeholderDescriptions[$placeholder] ?? ''; ?>
+                          <span class="inline-flex items-center rounded-lg bg-gray-200/70 px-2 py-1 text-[11px] font-semibold text-gray-700<?= $phDescription !== '' ? ' cursor-help' : '' ?>"<?= $phDescription !== '' ? ' title="' . HtmlHelper::e($phDescription) . '"' : '' ?>>{{<?php echo HtmlHelper::e($placeholder); ?>}}</span>
                         <?php endforeach; ?>
                       </div>
                     <?php endif; ?>

@@ -553,4 +553,59 @@ HTML,
     {
         return array_keys(self::all());
     }
+
+    /**
+     * Localised human-readable descriptions for every placeholder token, keyed
+     * by token name. The settings UI shows these as a translated tooltip next to
+     * each {{token}} chip (issue #304). The tokens themselves are substitution
+     * keys and are never translated; only the description is localised.
+     *
+     * @return array<string, string>
+     */
+    public static function placeholderDescriptions(): array
+    {
+        return [
+            'admin_users_url'        => __('Link alla gestione utenti (area amministrazione)'),
+            'app_name'               => __('Nome della biblioteca o applicazione'),
+            'approve_url'            => __('Link per approvare la richiesta'),
+            'book_url'               => __('Link alla scheda del libro'),
+            'codice_tessera'         => __('Codice tessera dell\'utente'),
+            'cognome'                => __('Cognome dell\'utente'),
+            'dashboard_url'          => __('Link alla dashboard'),
+            'data_disponibilita'     => __('Data in cui il libro torna disponibile'),
+            'data_fine'              => __('Data di fine del prestito'),
+            'data_inizio'            => __('Data di inizio del prestito'),
+            'data_prestito'          => __('Data del prestito'),
+            'data_recensione'        => __('Data della recensione'),
+            'data_registrazione'     => __('Data di registrazione dell\'utente'),
+            'data_restituzione'      => __('Data di restituzione del libro'),
+            'data_richiesta'         => __('Data della richiesta'),
+            'data_scadenza'          => __('Data di scadenza del prestito'),
+            'descrizione_recensione' => __('Testo della recensione'),
+            'email'                  => __('Indirizzo email dell\'utente'),
+            'giorni_prestito'        => __('Durata del prestito in giorni'),
+            'giorni_rimasti'         => __('Giorni rimanenti alla scadenza'),
+            'giorni_ritardo'         => __('Giorni di ritardo nella restituzione'),
+            'libro_autore'           => __('Autore del libro'),
+            'libro_isbn'             => __('ISBN del libro'),
+            'libro_titolo'           => __('Titolo del libro'),
+            'link_approvazione'      => __('Link per approvare la richiesta di prestito'),
+            'login_url'              => __('Link alla pagina di accesso'),
+            'motivo'                 => __('Motivo'),
+            'motivo_rifiuto'         => __('Motivo del rifiuto'),
+            'nome'                   => __('Nome dell\'utente'),
+            'pickup_deadline'        => __('Scadenza per il ritiro del libro'),
+            'pickup_instructions'    => __('Istruzioni per il ritiro del libro'),
+            'prestito_id'            => __('Identificativo del prestito'),
+            'profile_url'            => __('Link al profilo dell\'utente'),
+            'reset_url'              => __('Link per reimpostare la password'),
+            'scadenza_ritiro'        => __('Scadenza entro cui ritirare il libro'),
+            'sezione_verifica'       => __('Sezione di verifica dell\'account'),
+            'stelle'                 => __('Valutazione in stelle'),
+            'titolo_recensione'      => __('Titolo della recensione'),
+            'utente_email'           => __('Email dell\'utente'),
+            'utente_nome'            => __('Nome completo dell\'utente'),
+            'wishlist_url'           => __('Link alla lista dei desideri'),
+        ];
+    }
 }
