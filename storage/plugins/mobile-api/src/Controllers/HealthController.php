@@ -69,6 +69,7 @@ final class HealthController
             // hides loans, reservations and wishlist everywhere. The app must do
             // the same, so we gate those feature flags off and expose the mode.
             $catalogueMode = (bool) ConfigStore::isCatalogueMode();
+            $loanApprovalRequired = !(new \App\Models\SettingsRepository($this->db))->autoApproveLoanRequests();
 
             $data = [
                 'name'                 => $name,
@@ -88,6 +89,7 @@ final class HealthController
                     'reviews'       => !$catalogueMode,
                 ],
                 'catalogue_mode'       => $catalogueMode,
+                'loan_approval_required' => $loanApprovalRequired,
                 'app_access_enabled'   => $appAccessEnabled,
                 'registration_enabled' => $registrationEnabled,
                 // Lightweight registration summary (a convenience mirror). The

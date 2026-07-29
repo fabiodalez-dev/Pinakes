@@ -7,6 +7,45 @@
   <form action="<?= htmlspecialchars(url('/admin/settings/loans'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 
+    <!-- Automatic approval -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-check-double text-gray-500"></i>
+          <?= __("Approvazione automatica") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Approva automaticamente le richieste di prestito e passa subito allo stato in attesa di ritiro.") ?></p>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700">
+              <?= __("Le email per la nuova richiesta agli amministratori e per l'approvazione all'utente continueranno a essere inviate.") ?>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="auto_approve_requests_label" class="text-sm font-semibold text-gray-900"><?= __("Auto-approva le richieste") ?></span>
+            <p id="auto_approve_requests_desc" class="text-xs text-gray-600 mt-1"><?= __("Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.") ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="auto_approve_requests"
+                   name="auto_approve_requests"
+                   value="1"
+                   aria-labelledby="auto_approve_requests_label"
+                   aria-describedby="auto_approve_requests_desc"
+                   <?php echo !empty($loansSettings['auto_approve_requests']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- Loan duration -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">

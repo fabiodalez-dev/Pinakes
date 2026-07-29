@@ -214,6 +214,10 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('loans', 'max_loan_duration_days', '90', 'Durée maximale demandable pour un emprunt en jours')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'auto_approve_requests', '0', 'Approuver automatiquement les demandes de prêt')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 -- ============================================================================
 -- System Settings - Complete default configuration
 -- These replace the old storage/settings.json file

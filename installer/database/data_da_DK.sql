@@ -31,6 +31,10 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('loans', 'max_loan_duration_days', '90', 'Maksimal lånevarighed, der kan anmodes om, i dage')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'auto_approve_requests', '0', 'Godkend låneanmodninger automatisk')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 INSERT INTO `generi` VALUES (1,'Prosa',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (2,'Poesi',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (3,'Teater',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);

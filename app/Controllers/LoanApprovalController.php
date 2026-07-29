@@ -526,10 +526,13 @@ class LoanApprovalController
 
             $db->commit();
 
-            // Send appropriate notification to user
+            // Send appropriate notification to user. Issue #301 explicitly keeps
+            // the approval email in the auto-approval flow; manual immediate
+            // approvals retain the more specific pickup-ready notification.
             try {
                 $notificationService = new \App\Support\NotificationService($db);
-                if ($isFutureLoan) {
+                $automaticApproval = (bool) $request->getAttribute('automatic_loan_approval', false);
+                if ($isFutureLoan || $automaticApproval) {
                     // Future loan: send general approval notification
                     $notificationService->sendLoanApprovedNotification($loanId);
                 } else {

@@ -1857,7 +1857,9 @@ ob_start();
                 <div id="book-alerts">
                     <?php if (!empty($_GET['loan_request_success'])): ?>
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            <i class="fas fa-check-circle me-2"></i><?= __("Prestito richiesto con successo.") ?>
+                            <i class="fas fa-check-circle me-2"></i><?= !empty($_GET['auto_approved'])
+                              ? __("Prestito approvato. Il libro è in attesa di ritiro.")
+                              : __("Prestito richiesto con successo.") ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['loan_error'])): ?>

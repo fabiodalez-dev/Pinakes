@@ -177,7 +177,8 @@ final class ActionsController
      * rules. The body is `{ book_id, desired_date? }`.
      *
      *   - With NO desired_date AND a copy currently loanable → immediate loan
-     *     request (UserActionsController::loan), pending admin approval.
+     *     request (UserActionsController::loan), either pending admin approval
+     *     or immediately ready for pickup when auto-approval is enabled.
      *   - Otherwise (a future desired_date, or no copy free now) → reservation in
      *     the queue (UserActionsController::reserve).
      *
@@ -231,10 +232,19 @@ final class ActionsController
                 $outcome   = $this->redirectOutcome($result);
 
                 if (isset($outcome['loan_request_success'])) {
+                    $autoApproved = ($outcome['auto_approved'] ?? '0') === '1';
                     return ResponseEnvelope::success(
                         $response,
-                        ['type' => 'loan', 'book_id' => $bookId],
-                        ['message' => __('Richiesta di prestito inviata. In attesa di approvazione.')],
+                        [
+                            'type' => 'loan',
+                            'book_id' => $bookId,
+                            'loan_id' => isset($outcome['loan_id']) ? (int) $outcome['loan_id'] : null,
+                            'auto_approved' => $autoApproved,
+                            'status' => $autoApproved ? 'da_ritirare' : 'pendente',
+                        ],
+                        ['message' => $autoApproved
+                            ? __('Prestito approvato. Il libro è in attesa di ritiro.')
+                            : __('Richiesta di prestito inviata. In attesa di approvazione.')],
                         201
                     );
                 }

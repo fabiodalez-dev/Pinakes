@@ -622,7 +622,7 @@ final class OpenApiController
                 'post' => [
                     'tags'        => ['loans'],
                     'summary'     => 'Request a reservation / loan',
-                    'description' => 'Honors existing overlap, availability, and max-active-loans rules (same as the web form). Returns error codes for overlap, unavailable, or queue position.',
+                    'description' => 'Honors existing overlap, availability, max-active-loans, and automatic-approval settings (same as the web form). For immediate loans, data.auto_approved and data.status tell the client whether the request is pending or ready for pickup.',
                     'operationId' => 'postReservation',
                     'security'    => [['bearerAuth' => []]],
                     'requestBody' => [
@@ -630,7 +630,22 @@ final class OpenApiController
                         'content'  => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ReservationRequest']]],
                     ],
                     'responses' => [
-                        '201' => ['description' => 'Reservation created.', 'content' => $json],
+                        '201' => [
+                            'description' => 'Reservation or loan request created.',
+                            'content' => ['application/json' => ['schema' => [
+                                'allOf' => [['$ref' => '#/components/schemas/Envelope']],
+                                'properties' => ['data' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'type' => ['type' => 'string', 'enum' => ['loan', 'reservation']],
+                                        'book_id' => ['type' => 'integer'],
+                                        'loan_id' => ['type' => 'integer', 'nullable' => true],
+                                        'auto_approved' => ['type' => 'boolean', 'nullable' => true],
+                                        'status' => ['type' => 'string', 'nullable' => true, 'enum' => ['pendente', 'da_ritirare']],
+                                    ],
+                                ]],
+                            ]]],
+                        ],
                         '400' => ['$ref' => '#/components/responses/UnprocessableEntity'],
                         '401' => ['$ref' => '#/components/responses/Unauthorized'],
                         '409' => ['description' => 'Overlap or book unavailable.', 'content' => $json],
@@ -1485,6 +1500,10 @@ final class OpenApiController
                 'catalogue_mode'       => [
                     'type'        => 'boolean',
                     'description' => 'True when the instance is in catalogue-only mode (loans, reservations and wishlist disabled).',
+                ],
+                'loan_approval_required' => [
+                    'type' => 'boolean',
+                    'description' => 'False when immediate loan requests are automatically approved and move directly to da_ritirare.',
                 ],
                 'app_access_enabled'   => ['type' => 'boolean'],
                 'registration_enabled' => ['type' => 'boolean'],

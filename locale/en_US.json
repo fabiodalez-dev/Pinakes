@@ -6652,5 +6652,11 @@
   "Titolo della recensione": "Review title",
   "Email dell'utente": "User's email",
   "Nome completo dell'utente": "User's full name",
-  "Link alla lista dei desideri": "Link to the wishlist"
+  "Link alla lista dei desideri": "Link to the wishlist",
+  "Approvazione automatica": "Automatic approval",
+  "Approva automaticamente le richieste di prestito e passa subito allo stato in attesa di ritiro.": "Automatically approve loan requests and move them directly to awaiting pickup.",
+  "Le email per la nuova richiesta agli amministratori e per l'approvazione all'utente continueranno a essere inviate.": "The new request email to administrators and the approval email to the patron will still be sent.",
+  "Auto-approva le richieste": "Auto-approve requests",
+  "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.": "Skip manual approval for new loans requested by patrons.",
+  "Prestito approvato. Il libro è in attesa di ritiro.": "Loan approved. The book is awaiting pickup."
 }
