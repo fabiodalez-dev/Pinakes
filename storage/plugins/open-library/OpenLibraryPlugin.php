@@ -448,8 +448,12 @@ class OpenLibraryPlugin
             return null;
         }
         $url = 'https://www.goodreads.com/book/isbn/' . $isbn;
+        // Hardening (#303/rc.2 review): --proto =https and --max-redirs cap where a
+        // redirect can go (only Goodreads-controlled responses matter, but block
+        // scheme/host abuse if Goodreads ever redirected oddly); --max-filesize caps
+        // the buffered body (shell_exec reads all stdout into memory).
         $cmd = sprintf(
-            '%s -sL --max-time 8 -A %s %s 2>/dev/null',
+            '%s -sL --proto =https --max-time 8 --max-redirs 3 --max-filesize 5242880 -A %s %s 2>/dev/null',
             escapeshellarg($curl),
             escapeshellarg(self::USER_AGENT),
             escapeshellarg($url)
@@ -465,8 +469,8 @@ class OpenLibraryPlugin
 
     /**
      * Locate a usable system `curl` binary, or null when process execution is
-     * unavailable (shell_exec disabled — common on hardened shared hosting) or
-     * no curl is installed. Cached per instance.
+     * unavailable (shell_exec / escapeshellarg disabled — common on hardened
+     * shared hosting) or no curl is installed. Memoized per process.
      *
      * @return string|null Absolute path to curl, or null
      */
@@ -479,7 +483,10 @@ class OpenLibraryPlugin
         }
         $resolved = true;
 
-        if (!function_exists('shell_exec')) {
+        // Both are required by fetchGoodreadsHtml; function_exists() already
+        // returns false for a disable_functions-disabled function, so guarding
+        // here means the caller never reaches an uncaught "undefined function".
+        if (!function_exists('shell_exec') || !function_exists('escapeshellarg')) {
             return $path = null;
         }
         $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
