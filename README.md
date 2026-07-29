@@ -901,7 +901,7 @@ Pinakes v0.7.x introduced a full library-interoperability layer, delivered as op
 
 - Collane now support an optional umbrella group for related spin-offs, universes, or franchises, so separate series like `Fairy Tail`, `Fairy Tail: 100 Year Quest`, and `Fairy Tail: Happy` can remain distinct while sharing one parent group.
 - Collane also support an optional cycle/season label plus numeric ordering, matching LibraryThing-style series such as `The Worlds of Aldebaran` with `Cycle 1`, `Cycle 2`, and later arcs.
-- Book create/edit forms can set group, cycle/season, cycle order, series name, and series number in one flow; the Collane admin page exposes the same metadata and shows related series in the same group.
+- Book create/edit forms can set group, cycle/season, cycle order, series name, and number in series in one flow; the Collane admin page exposes the same metadata and shows related series in the same group.
 
 ### Archives plugin (ISAD(G) / ISAAR(CPF))
 
