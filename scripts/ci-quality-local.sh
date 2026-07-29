@@ -13,20 +13,25 @@
 # Exit 0 iff every BLOCKING check passes (npm audit + the soft-delete grep are
 # advisory, mirroring the CI's continue-on-error / warn-only behaviour).
 #
-# DB: the standalone unit tests need MySQL. Defaults below match the canonical
-# local dev DB (MySQL on the Homebrew socket). Override via the E2E_DB_* env.
+# DB: the standalone unit tests need MySQL. Credentials come from the gitignored
+# .env (same source the .unit.php tests use) — NEVER hardcode a password here.
+# Override any of them via the environment before invoking the script.
 
 set -uo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 
-export E2E_DB_SOCKET="${E2E_DB_SOCKET:-/opt/homebrew/var/mysql/mysql.sock}"
+# Load DB_* from .env (gitignored) unless already set in the environment.
+if [ -f .env ]; then
+  while IFS='=' read -r k v; do
+    v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"
+    [ -n "${!k:-}" ] || export "$k=$v"
+  done < <(grep -E '^(DB_HOST|DB_PORT|DB_USER|DB_PASS|DB_PASSWORD|DB_NAME|DB_SOCKET)=' .env 2>/dev/null)
+fi
+# Only non-secret fallbacks (socket path/host/port) — no password default.
+export E2E_DB_SOCKET="${E2E_DB_SOCKET:-${DB_SOCKET:-/opt/homebrew/var/mysql/mysql.sock}}"
 export DB_HOST="${DB_HOST:-127.0.0.1}"
 export DB_PORT="${DB_PORT:-3306}"
-export DB_USER="${DB_USER:-fabiodal_biblioteca_user}"
-export DB_PASSWORD="${DB_PASSWORD:-Zd10)uwziWlK}"
-export DB_NAME="${DB_NAME:-fabiodal_biblioteca}"
-# The .unit.php tests read DB_USER/DB_PASS/DB_NAME (and E2E_DB_*).
-export DB_PASS="${DB_PASS:-$DB_PASSWORD}"
+export DB_PASS="${DB_PASS:-${DB_PASSWORD:-}}"
 
 PHPSTAN="${PHPSTAN:-$HOME/.composer/vendor/bin/phpstan}"
 [ -x "$PHPSTAN" ] || PHPSTAN="phpstan"
