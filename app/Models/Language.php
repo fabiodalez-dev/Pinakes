@@ -24,9 +24,18 @@ class Language
 
     private mysqli $db;
 
-    public function __construct(mysqli $db)
+    /** Directory holding the per-locale JSON files. Injectable for tests. */
+    private string $localeDir;
+
+    /** @var array<string, true>|null Per-instance cache of the source key set. */
+    private ?array $sourceKeysCache = null;
+
+    public function __construct(mysqli $db, ?string $localeDir = null)
     {
         $this->db = $db;
+        // Default to the shipped locale/ directory; tests inject a temp dir so
+        // they never write fixtures into the real repository tree (#303 review).
+        $this->localeDir = $localeDir ?? (__DIR__ . '/../../locale');
     }
 
     /**
@@ -48,20 +57,19 @@ class Language
      */
     private function sourceKeys(): array
     {
-        static $keys = null;
-        if ($keys !== null) {
-            return $keys;
+        if ($this->sourceKeysCache !== null) {
+            return $this->sourceKeysCache;
         }
-        $path = __DIR__ . '/../../locale/' . self::SOURCE_LOCALE . '.json';
+        $path = $this->localeDir . '/' . self::SOURCE_LOCALE . '.json';
         $decoded = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
-        $keys = is_array($decoded) ? array_fill_keys(array_keys($decoded), true) : [];
-        return $keys;
+        $this->sourceKeysCache = is_array($decoded) ? array_fill_keys(array_keys($decoded), true) : [];
+        return $this->sourceKeysCache;
     }
 
     /**
-     * Count of non-empty translations actually present in a locale's file,
-     * capped at the source total (orphan keys never push completion past 100%).
-     * The source language is complete by definition.
+     * Count of non-empty translations actually present in a locale's file that
+     * correspond to a canonical source key. The source language is complete by
+     * definition. Returns 0 for a missing file, an invalid code, or malformed JSON.
      *
      * @param string $code        Locale code
      * @param int    $sourceTotal Source key count (denominator)
@@ -79,7 +87,7 @@ class Language
         if (!preg_match('/^[a-z]{2}_[A-Z]{2}$/', $code)) {
             return 0;
         }
-        $path = __DIR__ . '/../../locale/' . $code . '.json';
+        $path = $this->localeDir . '/' . $code . '.json';
         if (!is_file($path)) {
             return 0;
         }
@@ -87,12 +95,12 @@ class Language
         if (!is_array($decoded)) {
             return 0;
         }
-        // Only canonical source keys contribute to completion. Merely capping the
-        // number of locale entries would let orphan keys hide missing translations
-        // and could incorrectly report 100% completion.
+        // Only canonical source keys contribute to completion — intersecting with
+        // the source key set both excludes orphan keys (which would otherwise hide
+        // missing translations) and bounds the result to <= $sourceTotal, so no
+        // explicit cap is needed here.
         $canonicalEntries = array_intersect_key($decoded, $this->sourceKeys());
-        $translated = count(array_filter($canonicalEntries, static fn($value) => is_string($value) && $value !== ''));
-        return min($translated, $sourceTotal);
+        return count(array_filter($canonicalEntries, static fn($value) => is_string($value) && $value !== ''));
     }
 
     /**

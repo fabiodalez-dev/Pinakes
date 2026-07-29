@@ -85,7 +85,7 @@ echo "A. sourceKeyCount()\n";
 $src = $lang->sourceKeyCount();
 $check($src === $srcCount, "sourceKeyCount() == it_IT.json key count ({$srcCount})");
 $check($src > 6000, "source key count is in the expected range (>6000): {$src}");
-$check($lang->sourceKeyCount() === $src, 'sourceKeyCount() is stable across calls (static cache)');
+$check($lang->sourceKeyCount() === $src, 'sourceKeyCount() is stable across calls (per-instance cache)');
 
 echo "B. getAllWithDerivedStats() — total_keys linked to Italian for every locale\n";
 $rows = $lang->getAllWithDerivedStats();
@@ -116,40 +116,56 @@ if (isset($byCode[Language::SOURCE_LOCALE])) {
 
 echo "D. translatedKeyCount() unit behaviour\n";
 $check($translated(Language::SOURCE_LOCALE, $srcCount) === $srcCount, 'source locale counts as fully translated');
-$check($translated('en_US', $srcCount) <= $srcCount, 'en_US translated <= source total (capped)');
+$check($translated('en_US', $srcCount) <= $srcCount, 'en_US translated <= source total (bounded by source intersection)');
 $check($translated('en_US', $srcCount) > 6000, 'en_US is a well-covered locale (>6000)');
 $check($translated('zz_NONEXISTENT', $srcCount) === 0, 'missing locale file → 0 translated');
 
-echo "E. Temp locale: canonical coverage, empty values, and orphan keys\n";
-$tmpCode = 'zz_ZZ';
-$tmpPath = $root . '/locale/' . $tmpCode . '.json';
+echo "E. Injected-locale-dir edge cases (temp dir — never writes into repo locale/)\n";
+// A dedicated Language instance pointed at a throwaway directory under the OS
+// temp dir. Fixtures live there, so a hard kill can never leave an orphan file
+// in the real locale/ tree (#303 review, finding 5). The temp dir gets its own
+// source (it_IT.json) so sourceKeys()/sourceKeyCount() resolve against it.
+$tmpDir = sys_get_temp_dir() . '/pinakes-lang-' . getmypid() . '-' . bin2hex(random_bytes(4));
+mkdir($tmpDir, 0700, true);
+$rmTmp = static function (string $dir): void {
+    foreach (glob($dir . '/*') ?: [] as $f) { @unlink($f); }
+    @rmdir($dir);
+};
 try {
-    $canonicalKeys = array_slice(array_keys($sourceEntries), 0, 5);
+    // Temp source: 5 canonical keys → this instance's denominator is 5.
+    $canonicalKeys = ['k0', 'k1', 'k2', 'k3', 'k4'];
+    file_put_contents($tmpDir . '/it_IT.json', json_encode(array_fill_keys($canonicalKeys, 'src'), JSON_UNESCAPED_UNICODE));
+
+    $langTmp = new Language($db, $tmpDir);
+    $tmpTotal = $langTmp->sourceKeyCount();
+    $check($tmpTotal === 5, "injected source dir drives the denominator ({$tmpTotal} == 5)");
+
+    $refTmp = new ReflectionMethod(Language::class, 'translatedKeyCount');
+    $refTmp->setAccessible(true);
+    $tr = static fn (string $code): int => $refTmp->invoke($langTmp, $code, $tmpTotal);
+
     // 3 canonical translations + 2 empty canonical values → 3 translated.
-    file_put_contents($tmpPath, json_encode(
-        [
-            $canonicalKeys[0] => 'x',
-            $canonicalKeys[1] => 'y',
-            $canonicalKeys[2] => 'z',
-            $canonicalKeys[3] => '',
-            $canonicalKeys[4] => '',
-        ],
+    file_put_contents($tmpDir . '/zz_ZZ.json', json_encode(
+        [$canonicalKeys[0] => 'x', $canonicalKeys[1] => 'y', $canonicalKeys[2] => 'z', $canonicalKeys[3] => '', $canonicalKeys[4] => ''],
         JSON_UNESCAPED_UNICODE
     ));
-    $check($translated($tmpCode, $srcCount) === 3, 'only non-empty canonical values are counted (3 of 5)');
+    $check($tr('zz_ZZ') === 3, 'only non-empty canonical values are counted (3 of 5)');
+    $check(round($tr('zz_ZZ') / $tmpTotal * 100, 2) < 100.00, 'partial locale completion is below 100%');
 
-    // A partial translation is below 100%.
-    $partial = $translated($tmpCode, $srcCount);
-    $pct = round($partial / $srcCount * 100, 2);
-    $check($pct < 100.00, "partial locale completion is below 100% ({$pct}%)");
-
-    // Even more orphan entries than the source total contribute no coverage.
+    // Orphan-only keys (none in the source) contribute no coverage.
     $big = [];
-    for ($i = 0; $i < $srcCount + 50; $i++) { $big["k{$i}"] = 'v'; }
-    file_put_contents($tmpPath, json_encode($big, JSON_UNESCAPED_UNICODE));
-    $check($translated($tmpCode, $srcCount) === 0, 'orphan-only keys do not count as translated');
+    for ($i = 0; $i < $tmpTotal + 50; $i++) { $big["orphan{$i}"] = 'v'; }
+    file_put_contents($tmpDir . '/zz_YY.json', json_encode($big, JSON_UNESCAPED_UNICODE));
+    $check($tr('zz_YY') === 0, 'orphan-only keys do not count as translated');
+
+    // GAP 1: a file that exists but holds malformed JSON → 0 (not a crash).
+    file_put_contents($tmpDir . '/zz_XX.json', '{ this is not valid json ,,, ');
+    $check($tr('zz_XX') === 0, 'existing file with malformed JSON → 0 translated');
+
+    // A locale whose file is absent from the injected dir → 0.
+    $check($tr('zz_QQ') === 0, 'missing locale file in injected dir → 0 translated');
 } finally {
-    if (is_file($tmpPath)) { @unlink($tmpPath); }
+    $rmTmp($tmpDir);
 }
 
 $db->rollback();
