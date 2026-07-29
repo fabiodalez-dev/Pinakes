@@ -106,7 +106,7 @@ $additional_css = "
 
     .page-hero {
         padding: 5rem 0 4rem;
-        background: var(--light-bg);
+        background: var(--white);
         border-bottom: 1px solid var(--border-color);
         margin-bottom: 1.5rem;
     }
@@ -119,24 +119,25 @@ $additional_css = "
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
-        padding: 0.35rem 0.85rem;
-        border-radius: 999px;
-        background: var(--white);
-        border: 1px solid var(--border-color);
-        font-size: 0.85rem;
+        padding: 0;
+        border-radius: 0;
+        background: none;
+        border: none;
+        font-size: 0.8rem;
         font-weight: 600;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
         margin-bottom: 1rem;
-        color: var(--text-light);
+        color: var(--primary-color);
     }
 
     .page-hero__title {
-        font-size: clamp(2rem, 4vw, 3rem);
-        font-weight: 800;
+        font-family: var(--serif);
+        font-size: clamp(2rem, 4vw, 3.25rem);
+        font-weight: 460;
         color: var(--text-color);
         margin-bottom: 0.75rem;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.03em;
     }
 
     .page-hero__subtitle {
@@ -169,25 +170,28 @@ $additional_css = "
     }
 
     .event-card {
-        background: var(--white);
-        border: 1px solid var(--border-color);
-        border-radius: 16px;
-        overflow: hidden;
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        overflow: visible;
         display: flex;
         flex-direction: column;
         height: 100%;
-        transition: box-shadow 0.2s ease, transform 0.2s ease;
-    }
-
-    .event-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     }
 
     .event-card__thumb {
         display: block;
         height: 230px;
         background: var(--accent-color);
+        border-radius: 3px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px color-mix(in srgb, var(--text-color) 20%, transparent);
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+
+    .event-card:hover .event-card__thumb {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px color-mix(in srgb, var(--text-color) 24%, transparent);
     }
 
     .event-card__thumb img {
@@ -215,8 +219,10 @@ $additional_css = "
     }
 
     .event-card__title {
-        font-size: 1.15rem;
-        font-weight: 700;
+        font-family: var(--serif);
+        font-size: 1.35rem;
+        font-weight: 460;
+        letter-spacing: -0.01em;
         color: var(--text-color);
         margin: 0;
     }
@@ -231,9 +237,11 @@ $additional_css = "
     }
 
     .event-card__meta {
-        font-size: 0.95rem;
+        font-size: 0.78rem;
         font-weight: 600;
-        color: var(--text-light);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--primary-color);
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
@@ -250,7 +258,7 @@ $additional_css = "
         width: 100%;
         gap: 0.4rem;
         padding: 0.65rem 1rem;
-        border-radius: 999px;
+        border-radius: 2px;
         border: 1px solid var(--text-color);
         color: var(--text-color);
         font-weight: 600;
@@ -266,24 +274,25 @@ $additional_css = "
     .events-empty {
         max-width: 560px;
         margin: 2rem auto 0;
-        padding: 2.5rem 2rem;
-        border-radius: 20px;
-        border: 1px solid var(--border-color);
+        padding: 2.5rem 0 0;
+        border-radius: 0;
+        border: none;
+        border-top: 1px solid var(--border-color);
         text-align: center;
-        background: var(--light-bg);
+        background: none;
     }
 
     .events-empty__icon {
-        width: 64px;
-        height: 64px;
-        border-radius: 16px;
-        background: var(--white);
-        border: 1px solid var(--border-color);
+        width: auto;
+        height: auto;
+        border-radius: 0;
+        background: none;
+        border: none;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         color: var(--primary-color, #d70161);
-        font-size: 1.5rem;
+        font-size: 1.75rem;
         margin-bottom: 1rem;
     }
 
@@ -299,7 +308,7 @@ $additional_css = "
     .events-pagination span {
         min-width: 44px;
         padding: 0.6rem 0.9rem;
-        border-radius: 999px;
+        border-radius: 2px;
         border: 1px solid var(--border-color);
         text-align: center;
         font-weight: 600;

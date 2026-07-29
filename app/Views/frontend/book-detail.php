@@ -500,14 +500,14 @@ $additional_css = "
     .book-cover-large {
         max-width: clamp(200px, 40vw, 350px);
         width: 100%;
-        border-radius: 20px;
-        box-shadow: none;
+        border-radius: 3px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
         transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
     .book-cover-large:hover {
-        transform: translateY(-5px) scale(1.02);
-        box-shadow: none;
+        transform: translateY(-4px);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
     }
 
     /* Margine verticale copertina su desktop */
@@ -517,23 +517,31 @@ $additional_css = "
 
     /* Layout senza tab - sezioni info */
     .book-description-section {
-        background: var(--white);
-        padding: 3rem;
-        border-radius: 24px;
-        margin-bottom: 2rem;
+        background: transparent;
+        padding: 3rem 0;
+        border-radius: 0;
+        margin-bottom: 0;
         box-shadow: none;
-        border: 1px solid var(--border-color);
+        border: none;
         position: relative;
         z-index: 100;
     }
 
+    #book-title {
+        font-family: var(--serif);
+        font-weight: 460;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+    }
+
     .book-details-section {
-        background: var(--white);
-        padding: 3rem;
-        border-radius: 24px;
-        margin-bottom: 2rem;
+        background: transparent;
+        padding: 3rem 0;
+        border-radius: 0;
+        margin-bottom: 0;
         box-shadow: none;
-        border: 1px solid var(--border-color);
+        border: none;
+        border-top: 1px solid var(--border-color);
         position: relative;
         z-index: 90;
     }
@@ -552,12 +560,13 @@ $additional_css = "
     }
 
     .book-reviews-section {
-        background: var(--white);
-        padding: 3rem;
-        border-radius: 24px;
-        margin-bottom: 2rem;
+        background: transparent;
+        padding: 3rem 0;
+        border-radius: 0;
+        margin-bottom: 0;
         box-shadow: none;
-        border: 1px solid var(--border-color);
+        border: none;
+        border-top: 1px solid var(--border-color);
         position: relative;
         z-index: 80;
     }
@@ -565,6 +574,12 @@ $additional_css = "
     .review-summary-column {
         flex: 0 0 100%;
         max-width: 100%;
+    }
+
+    .average-rating .display-4 {
+        font-family: var(--serif);
+        font-weight: 460;
+        letter-spacing: -0.02em;
     }
 
     .review-distribution-column {
@@ -591,8 +606,10 @@ $additional_css = "
     }
 
     .section-title {
-        font-size: 1.5rem;
-        font-weight: 700;
+        font-family: var(--serif);
+        font-size: 1.85rem;
+        font-weight: 460;
+        letter-spacing: -0.02em;
         color: var(--primary-color);
         margin-bottom: 1.5rem;
         display: flex;
@@ -611,12 +628,13 @@ $additional_css = "
     }
 
     .book-title-hero {
+        font-family: var(--serif);
         font-size: clamp(1.75rem, 4vw, 2.5rem);
-        font-weight: 900;
-        letter-spacing: -0.02em;
-        line-height: 1.2;
+        font-weight: 460;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
         margin-bottom: 1.5rem;
-        text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        text-shadow: none;
         color: #1a1a1a;
     }
 
@@ -650,13 +668,12 @@ $additional_css = "
         padding: 0.4rem 1rem;
         background: rgba(255, 255, 255, 0.15);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 25px;
+        border-radius: 2px;
         font-size: 0.85rem;
         font-weight: 600;
         color: #1a1a1a;
         text-decoration: none;
         transition: all 0.3s ease;
-        backdrop-filter: blur(5px);
     }
 
     .genre-tag:hover {
@@ -686,15 +703,14 @@ $additional_css = "
         align-items: center;
         gap: 0.5rem;
         padding: 0.75rem 1.5rem;
-        border-radius: 50px;
+        border-radius: 2px;
         font-weight: 700;
         font-size: 0.95rem;
         margin-bottom: 2rem;
-        backdrop-filter: blur(10px);
         border: 2px solid transparent;
         transition: all 0.3s ease;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.12em;
     }
 
     .available {
@@ -724,14 +740,15 @@ $additional_css = "
     }
 
     .book-meta {
-        background: var(--white);
-        padding: 3rem;
-        border-radius: 24px;
+        background: transparent;
+        padding: 3rem 0;
+        border-radius: 0;
         margin-top: -4rem;
         position: relative;
         z-index: 200;
         box-shadow: none;
-        border: 1px solid var(--border-color);
+        border: none;
+        border-top: 1px solid var(--border-color);
     }
 
     .card {
@@ -755,12 +772,12 @@ $additional_css = "
     }
 
     .meta-label {
-        font-weight: 700;
+        font-weight: 600;
         color: var(--primary-color);
         margin-bottom: 0.5rem;
-        font-size: 0.95rem;
+        font-size: 0.75rem;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.14em;
     }
 
     .meta-value {
@@ -781,7 +798,7 @@ $additional_css = "
         align-items: center;
         background: rgba(59, 130, 246, 0.1);
         padding: 0.6rem 1.25rem;
-        border-radius: 50px;
+        border-radius: 2px;
         font-size: 0.95rem;
         font-weight: 600;
         transition: all 0.3s ease;
@@ -899,7 +916,7 @@ $additional_css = "
         color: var(--primary-color);
         border-bottom-color: rgba(0,0,0,0.2);
         background: var(--light-bg);
-        border-radius: 12px 12px 0 0;
+        border-radius: 2px 2px 0 0;
     }
 
     .nav-tabs .nav-link.active {
@@ -907,7 +924,7 @@ $additional_css = "
         border-bottom-color: var(--primary-color);
         background: var(--light-bg);
         font-weight: 700;
-        border-radius: 12px 12px 0 0;
+        border-radius: 2px 2px 0 0;
     }
 
     .nav-tabs .nav-link i {
@@ -918,7 +935,7 @@ $additional_css = "
     .related-books .book-card {
         margin-bottom: 2rem;
         transition: all 0.3s ease;
-        border-radius: 12px;
+        border-radius: 2px;
         overflow: hidden;
         box-shadow: none;
     }
@@ -942,7 +959,7 @@ $additional_css = "
     .action-buttons .btn {
         padding: 1rem 2.5rem;
         font-weight: 700;
-        border-radius: 50px;
+        border-radius: 2px;
         font-size: 1rem;
         transition: all 0.3s ease;
         border-width: 2px;
@@ -1003,11 +1020,11 @@ $additional_css = "
     .swal2-popup {
         width: min(720px, 95vw) !important;
         padding: 2.5rem 2.75rem 2.25rem !important;
-        border-radius: 18px !important;
+        border-radius: 2px !important;
         background: var(--white) !important;
         color: var(--text-color) !important;
         border: 1px solid rgba(17, 24, 39, 0.15) !important;
-        box-shadow: 0 35px 120px rgba(17, 24, 39, 0.28) !important;
+        box-shadow: none !important;
     }
 
     .swal2-popup .swal2-title,
@@ -1018,7 +1035,7 @@ $additional_css = "
     }
 
     .swal2-popup .swal2-actions .swal2-styled {
-        border-radius: 9999px;
+        border-radius: 2px;
         padding: 0.75rem 1.75rem;
         font-weight: 600;
         letter-spacing: -0.01em;
@@ -1068,30 +1085,33 @@ $additional_css = "
 
     /* Elegant Cards */
     .card {
-        border: 1px solid var(--border-color);
+        background: transparent;
+        border: none;
+        border-top: 1px solid var(--border-color);
         box-shadow: none;
         transition: all 0.3s ease;
-        border-radius: 20px;
+        border-radius: 0;
         overflow: hidden;
     }
 
     .card:hover {
         box-shadow: none;
-        transform: translateY(-2px);
+        transform: none;
     }
 
     .card-header {
-        background: var(--light-bg);
+        background: transparent;
         border-bottom: 1px solid var(--border-color);
-        padding: 1.5rem;
+        padding: 0 0 0.9rem;
     }
 
     .card-header h6 {
         color: var(--primary-color);
-        font-weight: 700;
-        font-size: 1rem;
+        font-weight: 600;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
         margin: 0;
-        letter-spacing: -0.01em;
     }
 
     .card-body {
@@ -1100,11 +1120,11 @@ $additional_css = "
 
     .badge {
         padding: 0.5rem 0.875rem;
-        border-radius: 50px;
+        border-radius: 2px;
         font-weight: 600;
         font-size: 0.8rem;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.12em;
     }
 
     .bg-success {
@@ -1229,7 +1249,7 @@ $additional_css = "
         .book-meta {
             margin-top: -1rem;
             padding: 1.5rem;
-            border-radius: 20px 20px 0 0;
+            border-radius: 0;
         }
 
         .action-buttons {
@@ -1543,11 +1563,11 @@ $additional_css = "
     }
 
     .related-book-card {
-        background: var(--white);
-        border-radius: 16px;
-        overflow: hidden;
-        transition: all 0.3s ease;
-        border: 1px solid var(--border-color);
+        background: none;
+        border-radius: 0;
+        overflow: visible;
+        transition: transform 0.5s cubic-bezier(.22,1,.36,1);
+        border: none;
         height: 100%;
         display: flex;
         flex-direction: column;
@@ -1562,8 +1582,8 @@ $additional_css = "
     }
 
     .related-book-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+        box-shadow: none;
     }
 
     .related-book-image-container {
@@ -1572,6 +1592,12 @@ $additional_css = "
         padding-top: 140%;
         overflow: hidden;
         background: var(--light-bg);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        transition: box-shadow 0.3s ease;
+    }
+
+    .related-book-card:hover .related-book-image-container {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
     }
 
     .related-book-image {
@@ -1595,7 +1621,7 @@ $additional_css = "
         min-width: 32px;
         height: 32px;
         padding: 0 9px;
-        border-radius: 16px;
+        border-radius: 2px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -1606,7 +1632,7 @@ $additional_css = "
         background: var(--success-color); /* fallback for browsers without color-mix() */
         background: color-mix(in srgb, var(--success-color) 95%, transparent);
         color: white;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        box-shadow: none;
     }
 
     /* When a digital icon (eBook/audio) is injected next to the availability
@@ -1660,23 +1686,26 @@ $additional_css = "
     .btn-related-view {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
-        width: 100%;
-        padding: 0.75rem 1.5rem;
-        background: #1f2937;
-        color: white;
+        justify-content: flex-start;
+        width: auto;
+        padding: 0;
+        background: none;
+        color: var(--primary-color);
         text-decoration: none;
-        border-radius: 8px;
+        border-radius: 0;
         font-weight: 600;
-        font-size: 0.9rem;
-        transition: all 0.3s ease;
+        font-size: 0.8rem;
+        letter-spacing: 0.02em;
+        gap: 0.4rem;
+        transition: gap 0.3s cubic-bezier(.22,1,.36,1);
         border: none;
     }
 
     .btn-related-view:hover {
-        background: #111827;
-        transform: translateY(-2px);
-        color: white;
+        background: none;
+        transform: none;
+        color: var(--primary-color);
+        gap: 0.6rem;
     }
 
     /* No mobile-only max-width override: a wider cap on mobile (≤768px) than on
@@ -1705,7 +1734,7 @@ $additional_css = "
         box-shadow: 0 0 0 0.25rem rgba(33, 37, 41, 0.5);
     }
     .card {
-    background-color: var(--white);
+    background-color: transparent;
     }
     div#book-cover-container {
     max-width: 400px;

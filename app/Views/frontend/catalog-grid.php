@@ -102,25 +102,34 @@ $getBookStatusBadge = static function ($book) {
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--bg-primary);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
+    background: none;
+    border-radius: 0;
+    overflow: visible;
     box-shadow: none;
-    border: 1px solid var(--border-color);
+    border: none;
     transition: var(--transition);
 }
 
 .book-card:hover {
-    transform: translateY(-4px);
+    transform: none;
     box-shadow: none;
 }
 
+/* The cover is the visual hero: the only element carrying elevation, lifting
+   subtly on hover instead of the whole card. */
 .book-image-container {
     position: relative;
     aspect-ratio: 3/4;
     overflow: hidden;
     background: var(--bg-tertiary);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    transition: var(--transition);
+}
+
+.book-card:hover .book-image-container {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
 }
 
 .book-image {
@@ -234,26 +243,42 @@ $getBookStatusBadge = static function ($book) {
     margin-top: auto;
     display: flex;
     gap: 0.5rem;
-    margin-top: auto;
-    padding-top: 1rem;
+    padding-top: 0.75rem;
 }
 
+/* Detail action = quiet text link, not a filled button (matches home). */
 .book-actions .btn-cta {
-    width: 100%;
-    justify-content: center;
+    width: auto;
+    justify-content: flex-start;
+    background: none !important;
+    color: var(--primary-color) !important;
+    border: none !important;
+    padding: 0 !important;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    box-shadow: none !important;
+    gap: 0.4rem;
+}
+.book-actions .btn-cta:hover {
+    background: none !important;
+    color: var(--primary-color) !important;
+    transform: none;
+    gap: 0.6rem;
+    transition: gap .3s cubic-bezier(.22,1,.36,1);
 }
 
 .book-status-badge {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-    padding: 0.375rem 0.75rem;
-    border-radius: var(--radius-md);
-    font-size: 0.75rem;
-    font-weight: 700;
+    top: 0.6rem;
+    right: 0.6rem;
+    padding: 0.28rem 0.55rem;
+    border-radius: 2px;
+    font-size: 0.65rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    backdrop-filter: blur(10px);
+    letter-spacing: 0.1em;
+    backdrop-filter: none;
     transition: transform 0.3s ease;
 }
 
@@ -320,9 +345,9 @@ $getBookStatusBadge = static function ($book) {
     top: 0.75rem;
     left: 0.75rem;
     background: rgba(255, 255, 255, 0.85);
-    border-radius: 9999px;
+    border-radius: 50%;
     padding: 0.375rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    box-shadow: none;
     line-height: 1;
     display: flex;
     align-items: center;

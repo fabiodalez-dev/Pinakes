@@ -77,6 +77,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/assets/fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <style>
         :root {
@@ -788,6 +789,34 @@ $htmlLang = substr($currentLocale, 0, 2);
                 flex: none;
             }
         }
+
+        /* ==========================================================
+           PINAKES EDITORIAL — bold restyle, user area (branch
+           design/modern-frontend). Same system as the public frontend.
+           Colours + theme variables untouched; self-hosted fonts.
+           ========================================================== */
+        :root{
+            --serif:'Fraunces', Georgia, 'Times New Roman', serif;
+            --sans:'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+        body{ font-family:var(--sans) !important; letter-spacing:-.008em; }
+        h1,h2,h3,h4,.page-title,.card-title,.dashboard-title,.section-title,.stat-title{
+            font-family:var(--serif) !important; font-weight:440 !important; letter-spacing:-.02em !important;
+        }
+        /* De-round everything (no pills) */
+        input,select,textarea,button,.btn,.card,.badge,.chip,.tag,.pill,
+        [class*="card"],[class*="badge"],[class*="btn"],[class*="tag"],[class*="pill"],
+        [class*="tile"],[class*="stat"],[class*="panel"],[class*="box"],.alert,.list-group,.list-group-item,
+        .dropdown-menu,.modal-content,.nav-pills .nav-link,.progress,.form-control,.form-select,.input-group,.avatar{
+            border-radius:2px !important;
+        }
+        /* Flatten: no shadows, no glass */
+        [class*="card"],[class*="panel"],[class*="box"],[class*="tile"],[class*="stat"],
+        .card,.dropdown-menu,.modal-content,.alert{
+            box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+        }
+        /* Micro-labels in the accent */
+        .text-uppercase.small,.stat-label,.card-subtitle{ letter-spacing:.1em; }
 
         <?= $additional_css ?? '' ?>
     </style>

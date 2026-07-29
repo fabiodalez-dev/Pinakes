@@ -52,12 +52,12 @@ $additional_css = "
         width: 80px;
         height: 80px;
         background: rgba(255, 255, 255, 0.1);
-        border-radius: 20px;
+        border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         margin: 0 auto 1.5rem;
-        backdrop-filter: blur(10px);
+        backdrop-filter: none;
     }
 
     .archive-icon i {
@@ -66,26 +66,30 @@ $additional_css = "
     }
 
     .archive-title {
-        font-size: clamp(2rem, 5vw, 3rem);
-        font-weight: 800;
+        font-family: var(--serif);
+        font-size: clamp(2rem, 5vw, 3.25rem);
+        font-weight: 420;
         margin-bottom: 1rem;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.03em;
     }
 
     .archive-subtitle {
-        font-size: 1.125rem;
+        font-size: 0.8125rem;
         opacity: 0.9;
-        font-weight: 400;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
     }
 
     .author-info {
-        background: var(--white);
-        border-radius: 16px;
-        padding: 2rem;
+        background: none;
+        border-radius: 0;
+        padding: 2rem 0 0;
         margin: 2rem auto 3rem;
         max-width: 900px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        border: 1px solid var(--border-color);
+        box-shadow: none;
+        border: none;
+        border-top: 1px solid var(--border-color);
     }
 
     .author-info-grid {
@@ -117,11 +121,11 @@ $additional_css = "
     }
 
     .info-label {
-        font-size: 0.8125rem;
-        color: var(--text-muted);
-        font-weight: 500;
+        font-size: 0.75rem;
+        color: var(--primary-color);
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.025em;
+        letter-spacing: 0.12em;
         margin-bottom: 0.25rem;
     }
 
@@ -158,8 +162,10 @@ $additional_css = "
     }
 
     .section-title {
-        font-size: 1.75rem;
-        font-weight: 700;
+        font-family: var(--serif);
+        font-size: 2rem;
+        font-weight: 420;
+        letter-spacing: -0.02em;
         color: var(--text-color);
         margin: 0;
     }
@@ -195,10 +201,10 @@ $additional_css = "
     }
 
     .book-card {
-        background: var(--white);
-        border-radius: 16px;
-        overflow: hidden;
-        border: 1px solid var(--border-color);
+        background: none;
+        border-radius: 0;
+        overflow: visible;
+        border: none;
         transition: all 0.3s ease;
         display: flex;
         flex-direction: column;
@@ -206,16 +212,25 @@ $additional_css = "
     }
 
     .book-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
-        border-color: #d1d5db;
+        transform: none;
+        box-shadow: none;
     }
 
+    /* The cover is the visual hero: the only element carrying elevation,
+       lifting subtly on hover instead of the whole card. */
     .book-image-container {
         position: relative;
         padding-top: 140%;
         background: var(--light-bg);
         overflow: hidden;
+        border-radius: 3px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        transition: all 0.3s ease;
+    }
+
+    .book-card:hover .book-image-container {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
     }
 
     .book-image-container img {
@@ -232,13 +247,13 @@ $additional_css = "
         top: 0.75rem;
         right: 0.75rem;
         padding: 0.375rem 0.75rem;
-        border-radius: 8px;
+        border-radius: 2px;
         font-size: 0.75rem;
         font-weight: 600;
         display: flex;
         align-items: center;
         gap: 0.25rem;
-        backdrop-filter: blur(8px);
+        backdrop-filter: none;
     }
 
     .status-available {
@@ -324,7 +339,7 @@ $additional_css = "
         padding: 0.75rem 1.5rem;
         background: #1f2937;
         color: white;
-        border-radius: 10px;
+        border-radius: 2px;
         text-decoration: none;
         font-weight: 500;
         transition: all 0.2s ease;
@@ -334,7 +349,7 @@ $additional_css = "
         background: #111827;
         color: white;
         transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        box-shadow: none;
     }
 
     .pagination-wrapper {
@@ -361,7 +376,7 @@ $additional_css = "
         padding: 0.625rem 1rem;
         background: var(--white);
         border: 1px solid var(--border-color);
-        border-radius: 8px;
+        border-radius: 2px;
         color: #374151;
         text-decoration: none;
         font-weight: 500;
@@ -383,9 +398,10 @@ $additional_css = "
     .empty-state {
         text-align: center;
         padding: 4rem 2rem;
-        background: var(--white);
-        border-radius: 16px;
-        border: 1px solid var(--border-color);
+        background: none;
+        border-radius: 0;
+        border: none;
+        border-top: 1px solid var(--border-color);
     }
 
     .empty-state i {
@@ -413,7 +429,7 @@ $additional_css = "
         padding: 1rem 2rem;
         background: #1f2937;
         color: white;
-        border-radius: 12px;
+        border-radius: 2px;
         text-decoration: none;
         font-weight: 600;
         transition: all 0.2s ease;
@@ -423,7 +439,7 @@ $additional_css = "
         background: #111827;
         color: white;
         transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: none;
     }
 </style>
 ";

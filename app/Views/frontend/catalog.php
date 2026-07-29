@@ -71,14 +71,14 @@ $additional_css = "
         --bg-tertiary: #f3f4f6;
         --border-color: #e5e7eb;
         --border-light: #f3f4f6;
-        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-        --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-        --radius-sm: 0.375rem;
-        --radius-md: 0.5rem;
-        --radius-lg: 0.75rem;
-        --radius-xl: 1rem;
+        --shadow-sm: none;
+        --shadow-md: none;
+        --shadow-lg: none;
+        --shadow-xl: none;
+        --radius-sm: 2px;
+        --radius-md: 2px;
+        --radius-lg: 2px;
+        --radius-xl: 3px;
         --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -106,9 +106,10 @@ $additional_css = "
     }
 
     .catalog-title {
+        font-family: var(--serif);
         font-size: 3.5rem;
-        font-weight: 800;
-        letter-spacing: -0.025em;
+        font-weight: 420;
+        letter-spacing: -0.03em;
         margin-bottom: 0.5rem;
         color: #fff;
     }
@@ -122,9 +123,10 @@ $additional_css = "
 
     /* Enhanced Filters */
     .filters-panel {
-        background: var(--bg-primary);
-        border-radius: var(--radius-xl);
-        border: 1px solid var(--border-color);
+        background: none;
+        border-radius: 0;
+        border: none;
+        border-top: 1px solid var(--border-color);
         box-shadow: none;
         position: sticky;
         top: 2rem;
@@ -134,16 +136,18 @@ $additional_css = "
     }
 
     .filters-header {
-        background: var(--bg-secondary);
-        padding: 1.5rem;
+        background: none;
+        padding: 1.25rem 0 1rem;
         border-bottom: 1px solid var(--border-light);
         flex-shrink: 0;
     }
 
     .filters-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--text-primary);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
         display: flex;
         align-items: center;
         gap: 0.5rem;
@@ -156,7 +160,7 @@ $additional_css = "
     }
 
     .filter-section {
-        padding: 1.5rem;
+        padding: 1.25rem 0;
         border-bottom: 1px solid var(--border-light);
     }
 
@@ -165,9 +169,11 @@ $additional_css = "
     }
 
     .filter-title {
-        font-size: 1rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        color: var(--text-primary);
+        color: var(--primary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
         margin-bottom: 1rem;
         display: flex;
         align-items: center;
@@ -636,10 +642,11 @@ $additional_css = "
 
     /* Results Header */
     .results-header {
-        background: var(--bg-primary);
-        padding: 1.5rem;
-        border-radius: var(--radius-xl);
-        border: 1px solid var(--border-color);
+        background: none;
+        padding: 0 0 1.25rem;
+        border-radius: 0;
+        border: none;
+        border-bottom: 1px solid var(--border-color);
         box-shadow: none;
         display: flex;
         align-items: center;
@@ -703,17 +710,20 @@ $additional_css = "
 
     /* Active Filters */
     .active-filters {
-        background: var(--bg-secondary);
-        padding: 1rem;
-        border-radius: var(--radius-lg);
-        border: 1px solid var(--border-color);
+        background: none;
+        padding: 0 0 1rem;
+        border-radius: 0;
+        border: none;
+        border-bottom: 1px solid var(--border-color);
         margin-bottom: 1.5rem;
     }
 
     .active-filters-title {
-        font-size: 0.875rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        color: var(--text-primary);
+        color: var(--primary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
         margin-bottom: 0.5rem;
     }
 
@@ -774,25 +784,35 @@ $additional_css = "
     }
 
     .book-card {
-        background: var(--bg-primary);
-        border-radius: var(--radius-xl);
-        overflow: hidden;
+        background: none;
+        border-radius: 0;
+        overflow: visible;
         box-shadow: none;
-        border: 1px solid var(--border-color);
+        border: none;
         transition: var(--transition);
         position: relative;
     }
 
     .book-card:hover {
-        transform: translateY(-4px);
+        transform: none;
         box-shadow: none;
     }
 
+    /* The cover is the visual hero: the only element allowed elevation, and it
+       lifts subtly on hover instead of the whole card. */
     .book-image-container {
         position: relative;
         aspect-ratio: 3/4;
         overflow: hidden;
         background: var(--bg-tertiary);
+        border-radius: 3px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        transition: var(--transition);
+    }
+
+    .book-card:hover .book-image-container {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
     }
 
     .book-image {
@@ -811,12 +831,12 @@ $additional_css = "
         top: 0.75rem;
         right: 0.75rem;
         padding: 0.375rem 0.75rem;
-        border-radius: var(--radius-md);
+        border-radius: 2px;
         font-size: 0.75rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        backdrop-filter: blur(10px);
+        backdrop-filter: none;
     }
 
     .status-available {
@@ -936,9 +956,10 @@ $additional_css = "
         justify-content: center;
         min-height: 400px;
         width: 100%;
-        background: var(--bg-primary);
-        border-radius: var(--radius-xl);
-        border: 1px solid var(--border-color);
+        background: none;
+        border-radius: 0;
+        border: none;
+        border-top: 1px solid var(--border-color);
         grid-column: 1 / -1;
     }
 

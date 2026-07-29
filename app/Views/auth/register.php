@@ -20,8 +20,17 @@ $registerRoute = route_path('register');
     
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/assets/fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
+
+        :root{ --serif:'Fraunces',Georgia,'Times New Roman',serif; --sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
+        body{ font-family:var(--sans); letter-spacing:-.008em; }
+        h1,h2,h3,.auth-title,.card-title,.login-title{ font-family:var(--serif); font-weight:440; letter-spacing:-.025em; }
+        /* de-round: every control/card 2px, no pills */
+        input,select,textarea,button,.btn,.card,.form-control,.form-select,.input-group,.input-group-text,.alert,.auth-card,.login-card{ border-radius:2px !important; }
+        /* flatten: no shadows, no glass */
+        .card,.auth-card,.login-card,.alert,[class*="card"]{ box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
     </style>
     <?php require __DIR__ . '/partials/custom-css.php'; ?>
 </head>

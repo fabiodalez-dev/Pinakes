@@ -111,25 +111,27 @@ $getBookStatusBadge = static function ($book) {
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--bg-primary);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
+    background: none;
+    border-radius: 0;
+    overflow: visible;
     box-shadow: none;
-    border: 1px solid var(--border-color);
-    transition: var(--transition);
+    border: none;
+    transition: transform .5s cubic-bezier(.22,1,.36,1);
     position: relative;
 }
 
 .book-card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-6px);
     box-shadow: none;
 }
 
 .book-image-container {
     position: relative;
-    aspect-ratio: 3/4;
+    aspect-ratio: 2/3;
     overflow: hidden;
-    background: var(--bg-tertiary);
+    background: var(--light-bg);
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(15,23,42,.12);
 }
 
 .book-image {
@@ -145,15 +147,15 @@ $getBookStatusBadge = static function ($book) {
 
 .book-status-badge {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-    padding: 0.375rem 0.75rem;
-    border-radius: var(--radius-md);
-    font-size: 0.75rem;
-    font-weight: 700;
+    top: 0.6rem;
+    right: 0.6rem;
+    padding: 0.28rem 0.55rem;
+    border-radius: 2px;
+    font-size: 0.65rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    backdrop-filter: blur(10px);
+    letter-spacing: 0.1em;
+    backdrop-filter: none;
 }
 
 .status-available {
@@ -176,18 +178,20 @@ $getBookStatusBadge = static function ($book) {
 
 .book-content {
     flex: 1;
-    padding: 1.5rem;
+    padding: 0.9rem 0 0;
     display: flex;
     flex-direction: column;
     flex: 1;
 }
 
 .book-title {
-    font-size: 1.125rem;
-    font-weight: 700;
-    line-height: 1.4;
-    margin-bottom: 0.5rem;
-    color: var(--text-primary);
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    font-weight: 460;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.3rem;
+    color: var(--text-color);
 }
 
 .book-title a {
@@ -232,13 +236,29 @@ $getBookStatusBadge = static function ($book) {
     margin-top: auto;
     display: flex;
     gap: 0.5rem;
-    margin-top: auto;
-    padding-top: 1rem;
+    padding-top: 0.75rem;
 }
 
+/* Detail action becomes a quiet text link, not a big filled button. */
 .book-actions .btn-cta {
-    width: 100%;
-    justify-content: center;
+    width: auto;
+    justify-content: flex-start;
+    background: none !important;
+    color: var(--primary-color) !important;
+    border: none !important;
+    padding: 0 !important;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    box-shadow: none !important;
+    gap: 0.4rem;
+}
+.book-actions .btn-cta:hover {
+    background: none !important;
+    color: var(--primary-color) !important;
+    transform: none;
+    gap: 0.6rem;
+    transition: gap .3s cubic-bezier(.22,1,.36,1);
 }
 
 /* Empty state styling */

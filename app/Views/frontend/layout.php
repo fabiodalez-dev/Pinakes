@@ -211,6 +211,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <link href="<?= htmlspecialchars(assetUrl('/flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/assets/fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <?php
     // Hook: Allow plugins to enqueue assets in the head (e.g., CSS, fonts, meta tags)
@@ -1259,57 +1260,113 @@ $htmlLang = substr($currentLocale, 0, 2);
             border-top: 1px solid var(--border-color);
         }
 
-        /* ============================================================
-           Modern refinement layer — design/modern-frontend
-           FORM only: typography, elevation, header. Theme COLOURS and
-           the --primary/--secondary/--button variables are untouched,
-           so every configured theme keeps its identity.
-           System font stacks only — no CDN webfonts.
-           ============================================================ */
-        :root {
-            --serif: 'Iowan Old Style', 'Palatino Linotype', 'URW Palladio L', P052, Palatino, 'Book Antiqua', Cambria, Georgia, serif;
-            /* crisper, tighter elevation than the previous soft clouds */
-            --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-            --card-shadow-hover: 0 12px 30px -16px rgba(15, 23, 42, 0.26);
+        /* ==========================================================
+           PINAKES EDITORIAL — bold restyle (branch design/modern-frontend)
+           Shared system across home, catalog, book. Colours + theme
+           variables untouched; --primary-color is used BOLDLY as a
+           committed surface. Self-hosted fonts. Crisp, minimal, few
+           borders. Scoped to .main-content / frontend body.
+           ========================================================== */
+        :root{
+            --serif:'Fraunces', Georgia, 'Times New Roman', serif;
+            --sans:'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            --radius-sm:2px; --radius-md:2px; --radius-lg:2px; --radius-xl:3px;
+            --card-shadow:none;
+            --card-shadow-hover:0 1px 2px rgba(15,23,42,.05);
+            --ink:var(--text-color);
+            --edge:var(--border-color);
+        }
+        body{ font-family:var(--sans); letter-spacing:-.008em; }
+        body, main, .main-content{ background:var(--white); }
+
+        /* Fraunces display voice — light, elegant, big. */
+        h1,h2,h3,h4,
+        .hero-title,.section-title,.page-title,.book-title,.book-title-hero,
+        .book-detail-title,.event-title,.cms-title,.page-hero__title,
+        .related-book-title,.feature-title,.cta-title,.genre-carousel-title,
+        .home-events__title{
+            font-family:var(--serif) !important;
+            font-weight:420 !important;
+            letter-spacing:-.025em !important;
+            line-height:1.05;
+        }
+        .header-brand,.header-brand .brand-text{ font-family:var(--serif) !important; font-weight:560 !important; letter-spacing:-.03em !important; }
+
+        /* Eyebrow / micro-label motif (uppercase, tracked, accent). */
+        .plabel, .eyebrow{ font:600 .72rem/1 var(--sans); letter-spacing:.16em; text-transform:uppercase; color:var(--primary-color); }
+
+        /* --- De-round EVERYTHING (no pills) + flatten + de-box --- */
+        .main-content input, .main-content select, .main-content textarea,
+        .search-input,.hero-search-input,.hero-search-input-group,
+        .btn-cta,.btn-cta-outline,.btn-cta-sm,.btn-cta-lg,.btn-header,.btn-search-mobile,
+        .btn,.btn-primary,.btn-outline-primary,.btn-view,.btn-related-view,.btn-catalog,
+        .book-card,.book-image-container,.book-status,.book-status-badge,.book-media-badge,
+        .genre-tag,.keyword-chip,.availability-badge,.author-item,.badge,.chip,
+        .filter-tag,.facet-collapsed,.feature-card,.feature-icon,.related-book-card,
+        .event-card,.event-cover,.related-card,.page-link,.user-dropdown-menu,
+        .cover-img,.book-cover-large,.hero-quick-link,.card{
+            border-radius:2px !important;
+        }
+        .main-content .book-card,.main-content .feature-card,.main-content .related-book-card,
+        .main-content .event-card,.main-content .card,.main-content .author-info,
+        .main-content .archive-icon,.book-description-section,.book-details-section,
+        .book-reviews-section,.book-meta{
+            box-shadow:none !important;
+            backdrop-filter:none !important;
+            -webkit-backdrop-filter:none !important;
+        }
+        /* covers get the only real elevation */
+        .book-card .book-image-container, .book-cover-large, .related-book-card .book-image-container{
+            box-shadow:0 1px 3px rgba(15,23,42,.10) !important;
         }
 
-        body {
-            letter-spacing: -0.006em;
+        /* Buttons: crisp, confident. */
+        .btn-cta,.btn-primary,.btn-outline-primary,.btn-view,.btn-catalog,.btn-related-view{
+            letter-spacing:.01em; font-weight:600; text-transform:none;
         }
 
-        /* Editorial serif display on every heading — the main modernisation.
-           Views don't set font-family on these, so this wins cleanly. */
-        h1, h2, h3,
-        .hero-title, .section-title, .page-title, .book-title,
-        .book-detail-title, .event-title, .cms-title {
-            font-family: var(--serif);
-            font-weight: 600;
-            letter-spacing: -0.015em;
+        /* ---- KILL THE "OLD" LOOK: no shadows, no gradients-as-decoration, no
+           glass, everywhere inside the frontend. This is what makes it modern. */
+        .main-content [class*="card"],
+        .main-content [class*="section"],
+        .main-content [class*="panel"],
+        .main-content [class*="box"],
+        .main-content [class*="feature"],
+        .main-content [class*="stat"],
+        .main-content [class*="badge"],
+        .main-content [class*="tag"],
+        .main-content [class*="tile"],
+        .main-content .card, .main-content .well{
+            box-shadow:none !important;
+            backdrop-filter:none !important;
+            -webkit-backdrop-filter:none !important;
+            text-shadow:none !important;
         }
+        /* covers are the only elevated objects */
+        .main-content .book-image-container,
+        .main-content .book-cover-large,
+        .main-content .cover-img{
+            box-shadow:0 1px 3px rgba(15,23,42,.12) !important;
+        }
+        /* generous editorial rhythm */
+        .main-content .section,
+        .main-content section[class*="section"]{ padding-top:clamp(3.5rem,8vw,6rem); padding-bottom:clamp(3.5rem,8vw,6rem); }
 
-        .hero-title {
-            font-weight: 600;
-            letter-spacing: -0.025em;
-            line-height: 1.05;
-        }
+        /* Header: clean, crisp hairline, no heavy blur. */
+        .header-container{ background:rgba(255,255,255,.94); backdrop-filter:saturate(1.03) blur(6px); -webkit-backdrop-filter:saturate(1.03) blur(6px); }
 
-        .header-brand .brand-text {
-            font-family: var(--serif);
-            font-weight: 700;
-            letter-spacing: -0.02em;
+        /* ---- Elegant motion: fade-up on scroll (opt-in via .reveal, added by
+           the observer below). Respects reduced-motion. ---- */
+        .reveal{ opacity:0; transform:translateY(18px); }
+        .reveal.is-in{ opacity:1; transform:none; transition:opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
+        @media (prefers-reduced-motion: reduce){
+            .reveal,.reveal.is-in{ opacity:1 !important; transform:none !important; transition:none !important; }
         }
-
-        /* Header: keep the frosted feel but lighter and crisper. */
-        .header-container {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: saturate(1.05) blur(8px);
-            -webkit-backdrop-filter: saturate(1.05) blur(8px);
-        }
-
-        /* Buttons: refined tracking (radius/colour untouched). */
-        .btn-cta {
-            letter-spacing: -0.01em;
-        }
+        /* elegant hover: cover lift + link underline reveal */
+        .main-content .book-card{ transition:transform .5s cubic-bezier(.22,1,.36,1); }
+        .main-content .book-card:hover{ transform:translateY(-6px); }
+        .main-content a.book-title-link, .main-content .book-title a{ background-image:linear-gradient(var(--primary-color),var(--primary-color)); background-size:0% 1px; background-position:0 100%; background-repeat:no-repeat; transition:background-size .4s cubic-bezier(.22,1,.36,1); }
+        .main-content a.book-title-link:hover, .main-content .book-title a:hover{ background-size:100% 1px; }
 
         <?= $additional_css ?? '' ?>
     </style>
@@ -2219,6 +2276,31 @@ $htmlLang = substr($currentLocale, 0, 2);
 
     <?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
     <?php require __DIR__ . '/../partials/scroll-to-top.php'; ?>
+
+    <script>
+    /* Editorial fade-up on scroll — adds .reveal to sections/cards at runtime
+       (no markup changed) and reveals them as they enter the viewport.
+       Fully skipped when the user prefers reduced motion. */
+    (function () {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        var sel = '.main-content .book-card, .main-content .feature-card, .main-content .event-card, ' +
+                  '.main-content .related-book-card, .main-content .book-details-section, ' +
+                  '.main-content .book-description-section, .main-content .book-reviews-section, ' +
+                  '.main-content .section-title, .main-content .genre-carousel';
+        var els = Array.prototype.slice.call(document.querySelectorAll(sel));
+        if (!els.length || !('IntersectionObserver' in window)) return;
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+                if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }
+            });
+        }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+        els.forEach(function (el, i) {
+            el.classList.add('reveal');
+            el.style.transitionDelay = Math.min(i % 6, 5) * 40 + 'ms';
+            io.observe(el);
+        });
+    })();
+    </script>
 </body>
 
 </html>

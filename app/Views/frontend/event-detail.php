@@ -98,7 +98,7 @@ $additional_css = "
     }
 
     .event-hero {
-        background: var(--light-bg);
+        background: var(--white);
         border-bottom: 1px solid var(--border-color);
         padding: 4.5rem 0 3.5rem;
         margin-bottom: 1.5rem;
@@ -123,22 +123,24 @@ $additional_css = "
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
-        padding: 0.4rem 0.9rem;
-        border-radius: 999px;
-        border: 1px solid var(--border-color);
-        background: var(--white);
-        font-size: 0.85rem;
+        padding: 0;
+        border-radius: 0;
+        border: none;
+        background: none;
+        font-size: 0.8rem;
         font-weight: 600;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
         margin-bottom: 1rem;
-        color: var(--text-light);
+        color: var(--primary-color);
     }
 
     .event-title {
-        font-size: clamp(2rem, 4vw, 3.25rem);
-        font-weight: 800;
+        font-family: var(--serif);
+        font-size: clamp(2rem, 4vw, 3.5rem);
+        font-weight: 460;
         color: var(--text-color);
-        letter-spacing: -0.02em;
+        letter-spacing: -0.03em;
         margin-bottom: 1.25rem;
     }
 
@@ -164,17 +166,18 @@ $additional_css = "
 
     .event-card {
         border: none;
-        border-radius: 24px;
+        border-radius: 0;
         padding: clamp(1.75rem, 4vw, 3rem);
         background: var(--white);
     }
 
     .event-cover {
-        border-radius: 20px;
+        border-radius: 3px;
         overflow: hidden;
         margin-bottom: 2rem;
-        border: 1px solid var(--accent-color);
-        background: var(--light-bg);
+        border: none;
+        background: none;
+        box-shadow: 0 1px 3px color-mix(in srgb, var(--text-color) 20%, transparent);
     }
 
     .event-cover img {
@@ -306,8 +309,10 @@ $additional_css = "
     }
 
     .related-heading h2 {
-        font-size: 2rem;
-        font-weight: 700;
+        font-family: var(--serif);
+        font-size: 2.25rem;
+        font-weight: 460;
+        letter-spacing: -0.02em;
         color: var(--text-color);
         margin-bottom: 0.5rem;
     }
@@ -331,22 +336,25 @@ $additional_css = "
     }
 
     .related-card {
-        background: var(--white);
-        border: 1px solid var(--border-color);
-        border-radius: 18px;
-        overflow: hidden;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .related-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 20px 30px rgba(15, 23, 42, 0.08);
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        overflow: visible;
     }
 
     .related-thumb {
         height: 170px;
         background: var(--accent-color);
+        border-radius: 3px;
+        overflow: hidden;
         display: block;
+        box-shadow: 0 1px 3px color-mix(in srgb, var(--text-color) 20%, transparent);
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+
+    .related-card:hover .related-thumb {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px color-mix(in srgb, var(--text-color) 24%, transparent);
     }
 
     .related-thumb img {
@@ -363,15 +371,19 @@ $additional_css = "
         display: flex;
         flex-wrap: wrap;
         gap: 0.4rem;
-        font-size: 0.9rem;
+        font-size: 0.78rem;
         font-weight: 600;
-        color: var(--text-light);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--primary-color);
         margin-bottom: 0.5rem;
     }
 
     .related-title {
-        font-size: 1.05rem;
-        font-weight: 700;
+        font-family: var(--serif);
+        font-size: 1.2rem;
+        font-weight: 460;
+        letter-spacing: -0.01em;
         margin-bottom: 0.75rem;
         color: var(--text-color);
     }

@@ -21,35 +21,38 @@ main {
 }
 
 .cookie-header h1 {
+    font-family: var(--serif);
     font-size: clamp(2rem, 4vw, 2.75rem);
-    font-weight: 800;
+    font-weight: 420;
     color: var(--text-color);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
     margin-bottom: 1rem;
 }
 
 .cookie-divider {
-    width: 80px;
-    height: 4px;
-    background: #1f2937;
+    width: 48px;
+    height: 1px;
+    background: var(--primary-color);
     margin: 0 auto 1.5rem;
-    border-radius: 999px;
+    border-radius: 0;
 }
 
 .cookie-content {
     max-width: 900px;
     margin: 0 auto;
     line-height: 1.8;
-    color: #374151;
+    color: var(--text-color);
     font-size: 1rem;
 }
 
 .cookie-content h2,
 .cookie-content h3,
 .cookie-content h4 {
+    font-family: var(--serif);
     color: var(--text-color);
+    letter-spacing: -0.02em;
     margin-top: 2rem;
-    font-weight: 700;
+    font-weight: 460;
 }
 
 .cookie-content p {

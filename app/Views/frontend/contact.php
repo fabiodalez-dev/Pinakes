@@ -19,25 +19,26 @@ $additional_css = "
     }
 
     .contact-title {
+        font-family: var(--serif);
         font-size: clamp(2rem, 4vw, 2.75rem);
-        font-weight: 800;
+        font-weight: 420;
         color: var(--text-color);
         margin-bottom: 1rem;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.03em;
     }
 
     .contact-divider {
-        width: 80px;
-        height: 4px;
-        background: #1f2937;
+        width: 48px;
+        height: 1px;
+        background: var(--primary-color);
         margin: 0 auto 1.5rem;
-        border-radius: 2px;
+        border-radius: 0;
     }
 
     .contact-content {
         font-size: 1.0625rem;
         line-height: 1.8;
-        color: #374151;
+        color: var(--text-color);
         text-align: center;
         max-width: 700px;
         margin: 0 auto;
@@ -59,16 +60,19 @@ $additional_css = "
     }
 
     .contact-info-section {
-        background: var(--light-bg);
-        border-radius: 16px;
-        padding: 2.5rem;
-        border: 1px solid var(--border-color);
+        background: none;
+        border-radius: 0;
+        padding: 2rem 0 0;
+        border: none;
+        border-top: 1px solid var(--border-color);
     }
 
     .contact-info-title {
+        font-family: var(--serif);
         font-size: 1.5rem;
-        font-weight: 700;
+        font-weight: 460;
         color: var(--text-color);
+        letter-spacing: -0.02em;
         margin-bottom: 1.5rem;
     }
 
@@ -82,9 +86,9 @@ $additional_css = "
     .contact-info-icon {
         width: 48px;
         height: 48px;
-        background: #1f2937;
-        color: white;
-        border-radius: 12px;
+        background: var(--text-color);
+        color: var(--white);
+        border-radius: 2px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -93,11 +97,11 @@ $additional_css = "
     }
 
     .contact-info-content h4 {
-        font-size: 0.875rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        color: var(--text-light);
+        color: var(--primary-color);
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.14em;
         margin: 0 0 0.5rem 0;
     }
 
@@ -115,11 +119,11 @@ $additional_css = "
     }
 
     .contact-info-content a:hover {
-        color: #3b82f6;
+        color: var(--primary-color);
     }
 
     .contact-map {
-        border-radius: 16px;
+        border-radius: 3px;
         overflow: hidden;
         border: 1px solid var(--border-color);
         height: 400px;
@@ -138,7 +142,7 @@ $additional_css = "
         align-items: center;
         justify-content: center;
         height: 100%;
-        background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
+        background: var(--light-bg);
         padding: 2rem;
         text-align: center;
     }
@@ -146,9 +150,9 @@ $additional_css = "
     .map-blocked-icon {
         width: 64px;
         height: 64px;
-        background: #1f2937;
-        color: white;
-        border-radius: 50%;
+        background: var(--text-color);
+        color: var(--white);
+        border-radius: 2px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -157,8 +161,9 @@ $additional_css = "
     }
 
     .map-blocked-title {
+        font-family: var(--serif);
         font-size: 1.25rem;
-        font-weight: 700;
+        font-weight: 460;
         color: var(--text-color);
         margin-bottom: 0.75rem;
     }
@@ -175,10 +180,10 @@ $additional_css = "
         align-items: center;
         gap: 0.5rem;
         padding: 0.75rem 1.5rem;
-        background: #1f2937;
-        color: white;
+        background: var(--text-color);
+        color: var(--white);
         border: none;
-        border-radius: 10px;
+        border-radius: 2px;
         font-size: 0.9375rem;
         font-weight: 600;
         cursor: pointer;
@@ -186,9 +191,9 @@ $additional_css = "
     }
 
     .map-blocked-button:hover {
-        background: #111827;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        background: var(--primary-color);
+        transform: translateY(-1px);
+        box-shadow: none;
     }
 
     .external-content-wrapper[data-consent-required='analytics'] iframe {
@@ -204,10 +209,11 @@ $additional_css = "
     }
 
     .contact-form-section {
-        background: var(--white);
-        border-radius: 16px;
-        padding: 2.5rem;
-        border: 1px solid var(--border-color);
+        background: none;
+        border-radius: 0;
+        padding: 2rem 0 0;
+        border: none;
+        border-top: 1px solid var(--border-color);
     }
 
     .form-row {
@@ -231,7 +237,7 @@ $additional_css = "
         display: block;
         font-size: 0.875rem;
         font-weight: 600;
-        color: #374151;
+        color: var(--text-color);
         margin-bottom: 0.5rem;
     }
 
@@ -245,7 +251,7 @@ $additional_css = "
         width: 100%;
         padding: 0.875rem 1rem;
         border: 1px solid var(--border-color);
-        border-radius: 10px;
+        border-radius: 2px;
         font-size: 1rem;
         color: var(--text-color);
         transition: all 0.2s;
@@ -255,8 +261,8 @@ $additional_css = "
     .form-input:focus,
     .form-textarea:focus {
         outline: none;
-        border-color: #1f2937;
-        box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.1);
+        border-color: var(--primary-color);
+        box-shadow: none;
     }
 
     .form-textarea {
@@ -281,7 +287,7 @@ $additional_css = "
 
     .checkbox-field label {
         font-size: 0.9375rem;
-        color: #374151;
+        color: var(--text-color);
         line-height: 1.6;
         cursor: pointer;
         flex: 1;
@@ -293,7 +299,7 @@ $additional_css = "
         background: var(--button-color, #d70262);
         color: var(--button-text-color, white);
         border: none;
-        border-radius: 12px;
+        border-radius: 2px;
         font-size: 1.0625rem;
         font-weight: 600;
         cursor: pointer;
@@ -318,7 +324,7 @@ $additional_css = "
 
     .alert {
         padding: 1rem 1.25rem;
-        border-radius: 12px;
+        border-radius: 2px;
         margin-bottom: 2rem;
         display: flex;
         align-items: center;
@@ -326,15 +332,15 @@ $additional_css = "
     }
 
     .alert-success {
-        background: #f0fdf4;
-        border: 1px solid #86efac;
-        color: #15803d;
+        background: color-mix(in srgb, var(--success-color) 10%, var(--white));
+        border: 1px solid color-mix(in srgb, var(--success-color) 40%, var(--white));
+        color: var(--success-color);
     }
 
     .alert-error {
-        background: #fef2f2;
-        border: 1px solid #fca5a5;
-        color: #991b1b;
+        background: color-mix(in srgb, var(--danger-color) 10%, var(--white));
+        border: 1px solid color-mix(in srgb, var(--danger-color) 40%, var(--white));
+        color: var(--danger-color);
     }
 
     .alert i {

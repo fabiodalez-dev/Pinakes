@@ -13,89 +13,107 @@ $homeEventsEnabled = $homeEventsEnabled ?? false;
 // SEO Variables are now passed from FrontendController::home()
 // No need to override them here - the controller handles all SEO logic with proper fallbacks
 $additional_css = "
+    /* Keep the configurable background photo (injected inline in hero.php).
+       Do NOT set a background here — that would erase the setting. */
     .hero-section {
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
         color: #ffffff;
         padding: 8rem 0 6rem;
         position: relative;
         min-height: 100vh;
         display: flex;
         align-items: center;
+        overflow: hidden;
+    }
+
+    /* Elegant legibility gradient over the configurable photo. Neutral-dark so
+       the display type reads; the theme colour lives in the accents below, not
+       as a heavy wash. Bottom-anchored so the search sits on the darkest area. */
+    .hero-section::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg,
+            rgba(9, 11, 18, 0.30) 0%,
+            rgba(9, 11, 18, 0.34) 42%,
+            rgba(9, 11, 18, 0.70) 100%);
+        z-index: 1;
+        pointer-events: none;
     }
 
     .hero-content {
         position: relative;
         z-index: 2;
+        text-align: center;
     }
 
+    @keyframes heroUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
     .hero-title {
-        font-family: var(--serif);
-        font-size: 3.6rem;
-        font-weight: 600;
-        letter-spacing: -0.025em;
-        line-height: 1.06;
+        font-family: var(--serif) !important;
+        font-size: clamp(2.8rem, 7vw, 5.6rem) !important;
+        font-weight: 370 !important;
+        letter-spacing: -0.035em !important;
+        line-height: 1.02;
         margin-bottom: 1.5rem;
         color: #ffffff !important;
-        text-shadow: 0 1px 12px rgba(0,0,0,0.35);
+        text-shadow: none;
+        animation: heroUp .9s cubic-bezier(.22, 1, .36, 1) both;
     }
 
     .hero-subtitle {
-        font-size: 1.4rem;
-        font-weight: 300;
-        opacity: 0.9;
-        margin-bottom: 3rem;
-        max-width: 600px;
-        margin-left: auto;
-        margin-right: auto;
-        line-height: 1.6;
-        color: #f8f9fa !important;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        font-size: clamp(1.1rem, 1.8vw, 1.45rem);
+        font-weight: 400;
+        opacity: 0.94;
+        margin: 0 auto 2.5rem;
+        max-width: 46ch;
+        line-height: 1.5;
+        color: #ffffff !important;
+        text-shadow: none;
+        animation: heroUp .9s cubic-bezier(.22, 1, .36, 1) .08s both;
     }
 
     .hero-stats {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: 2rem;
-        margin-top: 4rem;
+        display: flex;
+        gap: clamp(1.5rem, 4vw, 3.5rem);
+        margin-top: 3rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        animation: heroUp .9s cubic-bezier(.22, 1, .36, 1) .22s both;
     }
 
+    /* Stats: naked numbers, no boxes. A thin rule separates them. */
     .hero-stat {
         text-align: center;
-        padding: 1.5rem 1rem 0;
+        padding: 0 clamp(1rem, 2.5vw, 2rem);
         background: none;
         border: none;
-        border-top: 1px solid rgba(255, 255, 255, 0.22);
+        border-left: 1px solid rgba(255, 255, 255, 0.28);
         border-radius: 0;
         transition: none;
     }
-
-    .hero-stat:hover {
-        transform: none;
-        background: none;
-    }
+    .hero-stat:first-child { border-left: none; }
+    .hero-stat:hover { transform: none; background: none; }
 
     .hero-stat-number {
         font-family: var(--serif);
-        font-size: 2.6rem;
-        font-weight: 600;
+        font-size: clamp(2.2rem, 3.6vw, 3rem);
+        font-weight: 420;
         display: block;
-        margin-bottom: 0.35rem;
-        letter-spacing: -0.02em;
+        margin-bottom: 0.25rem;
+        letter-spacing: -0.03em;
         color: #ffffff !important;
-        text-shadow: 0 1px 10px rgba(0,0,0,0.3);
+        text-shadow: none;
+        font-variant-numeric: tabular-nums;
     }
 
     .hero-stat-label {
-        font-size: 0.9rem;
-        opacity: 0.9;
-        font-weight: 500;
+        font-size: 0.72rem;
+        opacity: 0.82;
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #f8f9fa !important;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        letter-spacing: 0.14em;
+        color: #ffffff !important;
+        text-shadow: none;
     }
 
     .section {
@@ -135,48 +153,51 @@ $additional_css = "
     .feature-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 3rem;
-        margin-top: 4rem;
+        gap: clamp(1.5rem, 3vw, 2.75rem);
+        margin-top: 3.5rem;
     }
 
+    /* Features: open editorial columns, left-aligned, one hairline on top.
+       No boxes, no filled circles. Icons kept (they're configurable) but shown
+       small in the theme accent, not as heavy filled squares. */
     .feature-card {
-        text-align: center;
-        padding: 3rem 2rem;
-        background: var(--white);
-        border-radius: 20px;
-        box-shadow: none;
-        transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-        border: 1px solid transparent;
+        text-align: left;
+        padding: 1.75rem 0 0;
+        background: none;
+        border: none;
+        border-top: 1px solid var(--border-color);
+        border-radius: 0;
+        box-shadow: none !important;
+        transition: none;
         position: relative;
-        overflow: hidden;
+        overflow: visible;
     }
 
     .feature-card:hover {
-        transform: translateY(-8px);
-        box-shadow: none;
-        border-color: var(--border-color);
+        transform: none;
+        box-shadow: none !important;
+        border-color: var(--primary-color);
     }
 
     .feature-icon {
-        width: 80px;
-        height: 80px;
-        margin: 0 auto 2rem;
-        background: var(--primary-color);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        color: white;
+        width: auto;
+        height: auto;
+        margin: 0 0 1.1rem;
+        background: none !important;
+        border-radius: 0;
+        display: block;
+        font-size: 1.5rem;
+        color: var(--primary-color) !important;
         box-shadow: none;
     }
 
     .feature-title {
-        font-size: 1.4rem;
-        font-weight: 700;
-        color: var(--primary-color);
-        margin-bottom: 1rem;
-        letter-spacing: -0.01em;
+        font-family: var(--serif);
+        font-size: 1.3rem;
+        font-weight: 460;
+        color: var(--text-color);
+        margin-bottom: 0.6rem;
+        letter-spacing: -0.02em;
     }
 
     .feature-description {
@@ -251,7 +272,7 @@ form.hero-search-form {
         display: flex;
         align-items: center;
         background: rgba(255, 255, 255, 0.95);
-        border-radius: 50px;
+        border-radius: 2px;
         padding: 0.75rem 1.5rem;
         box-shadow: none;
         backdrop-filter: blur(10px);
@@ -309,7 +330,7 @@ form.hero-search-form {
         color: white;
         border: none;
         padding: 0.75rem 1.5rem;
-        border-radius: 25px;
+        border-radius: 2px;
         font-weight: 600;
         font-size: 0.875rem;
         letter-spacing: 0.025em;
@@ -335,31 +356,36 @@ form.hero-search-form {
     .hero-quick-link {
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
-        color: #495057 !important;
+        gap: 0.55rem;
+        color: #ffffff !important;
         text-decoration: none;
-        font-weight: 500;
-        font-size: 0.875rem;
-        transition: all 0.3s ease;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(0, 0, 0, 0.1);
+        font-weight: 600;
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        transition: opacity 0.3s ease;
+        padding: 0.5rem 0;
+        border-radius: 0;
+        background: none;
+        backdrop-filter: none;
+        border: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+        opacity: 0.92;
     }
 
     .hero-quick-link:hover {
-        color: #2c3e50 !important;
-        background: rgba(255, 255, 255, 0.95);
-        transform: translateY(-1px);
+        color: #ffffff !important;
+        background: none;
+        transform: none;
         text-decoration: none;
-        border-color: #2c3e50;
+        border-color: #ffffff;
         box-shadow: none;
+        opacity: 1;
     }
 
     .hero-quick-link i {
-        font-size: 0.75rem;
-        opacity: 0.8;
+        font-size: 0.7rem;
+        opacity: 0.9;
     }
 
     .loading-placeholder {

@@ -20,19 +20,20 @@ $additional_css = "
 }
 
 .privacy-header h1 {
+    font-family: var(--serif);
     font-size: clamp(2rem, 4vw, 2.75rem);
-    font-weight: 800;
+    font-weight: 420;
     color: var(--text-color);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
     margin-bottom: 1rem;
 }
 
 .privacy-divider {
-    width: 80px;
-    height: 4px;
-    background: var(--text-color);
+    width: 48px;
+    height: 1px;
+    background: var(--primary-color);
     margin: 0 auto 1.5rem;
-    border-radius: 999px;
+    border-radius: 0;
 }
 
 .privacy-content {
@@ -46,9 +47,11 @@ $additional_css = "
 .privacy-content h2,
 .privacy-content h3,
 .privacy-content h4 {
+    font-family: var(--serif);
     color: var(--text-color);
+    letter-spacing: -0.02em;
     margin-top: 2rem;
-    font-weight: 700;
+    font-weight: 460;
 }
 
 .privacy-content p {

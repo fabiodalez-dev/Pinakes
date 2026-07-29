@@ -20,30 +20,37 @@ $additional_css = "
     }
 
     .cms-title {
+        font-family: var(--serif);
         font-size: clamp(2rem, 4vw, 2.75rem);
-        font-weight: 800;
+        font-weight: 420;
         color: var(--text-color);
         margin-bottom: 1rem;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.03em;
     }
 
     .cms-divider {
-        width: 80px;
-        height: 4px;
-        background: var(--text-color);
+        width: 48px;
+        height: 1px;
+        background: var(--primary-color);
         margin: 0 auto;
-        border-radius: 2px;
+        border-radius: 0;
     }
 
-    
+
 
     .cms-image {
         width: 100%;
         max-height: 500px;
         object-fit: cover;
-        border-radius: 16px;
+        border-radius: 3px;
         margin-bottom: 3rem;
-        box-shadow: var(--card-shadow);
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+        transition: box-shadow 0.3s ease, transform 0.3s ease;
+    }
+
+    .cms-image:hover {
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
+        transform: translateY(-2px);
     }
 
     .cms-content {
@@ -57,17 +64,21 @@ $additional_css = "
     }
 
     .cms-content h2 {
+        font-family: var(--serif);
         font-size: 1.75rem;
-        font-weight: 700;
+        font-weight: 460;
         color: var(--text-color);
+        letter-spacing: -0.02em;
         margin-top: 3rem;
         margin-bottom: 1.25rem;
     }
 
     .cms-content h3 {
+        font-family: var(--serif);
         font-size: 1.375rem;
-        font-weight: 600;
+        font-weight: 460;
         color: var(--text-color);
+        letter-spacing: -0.01em;
         margin-top: 2.5rem;
         margin-bottom: 1rem;
     }
@@ -83,24 +94,26 @@ $additional_css = "
 
     .cms-content a {
         color: var(--text-color);
-        text-decoration: underline;
+        text-decoration: none;
+        border-bottom: 1px solid var(--border-color);
         font-weight: 500;
-        transition: color 0.2s ease;
+        transition: color 0.2s ease, border-color 0.2s ease;
     }
 
     .cms-content a:hover {
         color: var(--primary-color);
+        border-color: var(--primary-color);
     }
 
     .cms-content img {
         max-width: 100%;
         height: auto;
-        border-radius: 12px;
+        border-radius: 3px;
         margin: 2rem 0;
     }
 
     .cms-content blockquote {
-        border-left: 4px solid var(--text-color);
+        border-left: 2px solid var(--primary-color);
         padding-left: 1.5rem;
         margin: 2rem 0;
         font-style: italic;
