@@ -218,7 +218,7 @@ Il backend usa una gerarchia unica: azione primaria scura e solida, secondaria s
 
 ### Book Identity
 
-La scheda libro presenta in ordine: breadcrumb, tipo/editore, titolo, sottotitolo, autore, genere, disponibilità e azioni. Autore e genere sono link testuali, non blocchi colorati. La disponibilità è una pillola compatta con icona e testo; il pannello informazioni usa superficie tonale senza bordi interni.
+La scheda libro presenta in ordine: breadcrumb, tipo/editore, titolo, sottotitolo, autore, genere, disponibilità e azioni. Autore e genere sono link testuali, non blocchi colorati. La disponibilità è una chip compatta ad angoli netti (2px) con icona e testo; il pannello informazioni usa superficie tonale senza bordi interni.
 
 ## Do's and Don'ts
 
