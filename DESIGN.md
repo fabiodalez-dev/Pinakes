@@ -47,11 +47,14 @@ typography:
     lineHeight: 1.3
     letterSpacing: "0.08em"
 rounded:
-  sm: "4px"
-  md: "8px"
-  lg: "12px"
-  xl: "16px"
-  pill: "999px"
+  # Editorial de-round system: crisp corners everywhere (2px), no pills.
+  # Only cover/image tiles get a hair more (3px). Kept as one scale so the
+  # component references below still resolve to the shipped CSS.
+  sm: "2px"
+  md: "2px"
+  lg: "2px"
+  xl: "3px"
+  pill: "2px"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -172,7 +175,7 @@ Il sistema è piatto per impostazione predefinita. La profondità nasce da super
 
 ### Buttons
 
-- **Shape:** angoli moderni e misurati (8px), altezza minima 44px.
+- **Shape:** angoli netti e crisp (2px), altezza minima 44px.
 - **Primary:** tinta piena configurabile, testo ad alto contrasto e padding orizzontale da 20px; nessun gradiente.
 - **Hover / Focus:** variazione solida di tono in 180–200ms, sollevamento massimo di 1px e focus ring visibile da 3px.
 - **Secondary / Ghost:** superficie neutra tinta o trasparente; niente bordo se il contrasto della superficie è sufficiente.
@@ -180,12 +183,12 @@ Il sistema è piatto per impostazione predefinita. La profondità nasce da super
 
 ### Chips
 
-- **Style:** pillola compatta o testo con punto di stato; sfondo con tinta semantica al 10–14%.
+- **Style:** chip compatta ad angoli netti (2px) o testo con punto di stato; sfondo con tinta semantica al 10–14%. Nessuna pillola.
 - **State:** colore e icona/testo comunicano insieme; lo stato non dipende mai dal solo colore.
 
 ### Cards / Containers
 
-- **Corner Style:** 12–16px solo per veri raggruppamenti funzionali.
+- **Corner Style:** angoli netti (2px); nessun raggruppamento con angoli morbidi. Solo le copertine/immagini arrivano a 3px.
 - **Background:** Carta o Carta Secondaria.
 - **Shadow Strategy:** piatta a riposo.
 - **Border:** assente per default; un pixel solo per separare elementi interattivi confinanti.
@@ -193,7 +196,7 @@ Il sistema è piatto per impostazione predefinita. La profondità nasce da super
 
 ### Inputs / Fields
 
-- **Style:** superficie Carta, bordo Divisore da 1px, raggio 8px e altezza minima 44px.
+- **Style:** superficie Carta, bordo Divisore da 1px, raggio 2px e altezza minima 44px.
 - **Focus:** bordo primario e ring visibile senza spostare il layout.
 - **Error / Disabled:** errore con testo esplicito; disabilitato con contrasto sufficiente e cursore coerente.
 
