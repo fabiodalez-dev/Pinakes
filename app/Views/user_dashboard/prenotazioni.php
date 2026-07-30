@@ -630,7 +630,6 @@ function accountLineIcon(string $name): string {
 
   <?php if (empty($activePrestiti)): ?>
     <div class="empty-state">
-      <span class="empty-state-icon"><?= accountLineIcon('book') ?></span>
       <h3><?= __("Nessun prestito attivo") ?></h3>
       <p><?= __("Non hai libri in prestito al momento") ?></p>
     </div>

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Support\DataIntegrity;
+use App\Support\SearchIndexBuilder;
 use Dotenv\Dotenv;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -210,6 +211,12 @@ foreach ($seededIds as $bookId) {
         exit(1);
     }
 }
+
+// The demo seed updates books and their author/publisher relations directly,
+// outside the normal controllers. Rebuild the denormalized index only once,
+// after the transaction, so title, subtitle, author and publisher autocomplete
+// all reflect the seeded records without one UPDATE per relation.
+SearchIndexBuilder::rebuildMany($db, $seededIds);
 
 echo sprintf("Catalogo demo aggiornato: %d libri con copertine locali reali.\n", count($seededIds));
 foreach ($seededIds as $bookId) {

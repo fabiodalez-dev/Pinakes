@@ -205,6 +205,14 @@ La richiesta prestito usa un solo popup scrollabile. Il calendario resta nel flu
 
 L'header usa Inter, icone locali e azioni ordinate per frequenza. Il menu attivo è indicato da tono o peso, non da linee decorative. Su desktop il burger è sempre nascosto; su mobile la ricerca e le azioni mantengono target da almeno 44px.
 
+### Email
+
+Le email non seguono i quattro temi del frontend: usano un unico sistema visivo editoriale e compatibile con i client di posta. Canvas grigio caldo, foglio bianco da 600px, testo `#111827`/`#374151`, divisori `#e5e7eb` e un solo accento `#d70262`. I pulsanti sono solidi, con raggio 8px e diventano a tutta larghezza su schermi stretti. Niente gradienti, font remoti, CDN, JavaScript, colori casuali o dipendenze da Tailwind; struttura a tabelle e stili critici inline. Contenuti, traduzioni, placeholder e link restano gestiti dai template del backend.
+
+### Backend Actions
+
+Il backend usa una gerarchia unica: azione primaria scura e solida, secondaria su carta con bordo visibile, distruttiva rosso profondo. I gruppi hanno almeno 10px di separazione e vanno a capo senza sovrapporsi; sotto 640px le azioni lunghe si espandono o si impilano. Le azioni a icona nelle tabelle hanno superficie, bordo e target minimo di 34px. Le sezioni Impostazioni usano una navigazione tab strutturata, a griglia su desktop e scorrevole orizzontalmente su mobile.
+
 ### Book Identity
 
 La scheda libro presenta in ordine: breadcrumb, tipo/editore, titolo, sottotitolo, autore, genere, disponibilità e azioni. Autore e genere sono link testuali, non blocchi colorati. La disponibilità è una pillola compatta con icona e testo; il pannello informazioni usa superficie tonale senza bordi interni.

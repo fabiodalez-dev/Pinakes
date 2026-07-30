@@ -7,9 +7,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 use mysqli;
-use App\Support\Branding;
 use App\Support\ConfigStore;
-use App\Support\I18n;
 
 class EmailService {
     private const RAW_HTML_VARIABLES = ['sezione_verifica'];
@@ -190,6 +188,7 @@ class EmailService {
             $this->mailer->addAddress($to, $toName);
             $this->mailer->Subject = $subject;
             $this->mailer->Body = $this->wrapInBaseTemplate($body, $subject, $locale);
+            $this->mailer->AltBody = EmailLayout::plainText($body);
 
             return $this->mailer->send();
 
@@ -365,63 +364,7 @@ class EmailService {
      * Wrap content in base HTML template
      */
     private function wrapInBaseTemplate(string $content, string $subject, ?string $locale = null): string {
-        $appName = ConfigStore::get('app.name', 'Biblioteca');
-        $appLogo = Branding::logo();
-
-        // Determine locale for translations
-        if ($locale === null) {
-            $locale = I18n::getLocale();
-        }
-
-        // Set locale temporarily for translations
-        $previousLocale = I18n::getLocale();
-        I18n::setLocale($locale);
-
-        // Translated footer messages
-        $footerLine1 = __('Questa email è stata generata automaticamente da %s.', $appName);
-        $footerLine2 = __('Per assistenza, contatta l\'amministrazione della biblioteca.');
-
-        // Restore previous locale
-        I18n::setLocale($previousLocale);
-
-        $logoHtml = '';
-        if ($appLogo !== '') {
-            $logoSrc = absoluteUrl($appLogo);
-            $logoHtml = "<img src='" . htmlspecialchars($logoSrc, ENT_QUOTES, 'UTF-8') . "' alt='" . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') . "' style='max-height:60px; margin-bottom: 10px;'>";
-        } else {
-            $logoHtml = "<h1 style='color: #1f2937; margin: 0;'>" . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') . "</h1>";
-        }
-
-        $langCode = substr($locale, 0, 2); // it_IT -> it, en_US -> en
-
-        // Il subject arriva NON escapato (L3: come header MIME non deve
-        // contenere entità HTML), ma qui viene interpolato nel markup del
-        // corpo: l'escaping va fatto a questo sink, altrimenti una variabile
-        // con metacaratteri HTML (es. {{libro_titolo}}) inietterebbe markup
-        // nel documento dell'email.
-        $titleHtml = htmlspecialchars($subject, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-        return "
-        <!DOCTYPE html>
-        <html lang='{$langCode}'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>{$titleHtml}</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #f8fafc; border-radius: 10px; padding: 30px; margin-bottom: 20px;'>
-                <div style='text-align: center; margin-bottom: 30px;'>
-                    {$logoHtml}
-                </div>
-                {$content}
-            </div>
-            <div style='text-align: center; font-size: 12px; color: #6b7280; margin-top: 20px;'>
-                <p>{$footerLine1}</p>
-                <p>{$footerLine2}</p>
-            </div>
-        </body>
-        </html>";
+        return EmailLayout::render($content, $subject, $locale);
     }
 
     /**

@@ -806,7 +806,7 @@ $additional_css = "
        lifts subtly on hover instead of the whole card. */
     .book-image-container {
         position: relative;
-        aspect-ratio: 3/4;
+        aspect-ratio: 2/3;
         overflow: hidden;
         background: var(--bg-tertiary);
         border-radius: 3px;
@@ -823,11 +823,12 @@ $additional_css = "
         width: 100%;
         height: 100%;
         object-fit: contain;
+        object-position: center;
         transition: var(--transition);
     }
 
     .book-card:hover .book-image {
-        transform: scale(1.05);
+        transform: scale(1.012);
     }
 
     .book-status-badge {
@@ -1309,9 +1310,17 @@ ob_start();
                             <i class="fas fa-filter"></i>
                             <?= __("Filtri") ?>
                         </h5>
+                        <button type="button"
+                                class="filters-mobile-toggle"
+                                id="catalog-filters-toggle"
+                                aria-controls="catalog-filters-content"
+                                aria-expanded="true"
+                                aria-label="<?= htmlspecialchars(__("Filtri"), ENT_QUOTES, 'UTF-8') ?>">
+                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                        </button>
                     </div>
 
-                    <div class="filters-content">
+                    <div class="filters-content" id="catalog-filters-content">
                         <!-- Search -->
                         <div class="filter-section">
                         <div class="filter-title">
@@ -1746,6 +1755,39 @@ const facetExpanded = {};       // key -> true when user clicked "Cambia" on a c
 const facetOptionsRender = {};  // key -> options content (HTML string or render function)
 
 document.addEventListener('DOMContentLoaded', () => {
+    const filtersToggle = document.getElementById('catalog-filters-toggle');
+    const filtersContent = document.getElementById('catalog-filters-content');
+    const mobileFilters = window.matchMedia('(max-width: 768px)');
+
+    const syncMobileFilters = () => {
+        if (!filtersToggle || !filtersContent) {
+            return;
+        }
+        if (mobileFilters.matches) {
+            filtersContent.hidden = filtersToggle.getAttribute('aria-expanded') !== 'true';
+        } else {
+            filtersContent.hidden = false;
+            filtersToggle.setAttribute('aria-expanded', 'true');
+        }
+    };
+
+    if (filtersToggle && filtersContent) {
+        if (mobileFilters.matches) {
+            filtersToggle.setAttribute('aria-expanded', 'false');
+        }
+        filtersToggle.addEventListener('click', () => {
+            const expanded = filtersToggle.getAttribute('aria-expanded') === 'true';
+            filtersToggle.setAttribute('aria-expanded', String(!expanded));
+            filtersContent.hidden = expanded;
+        });
+        if (typeof mobileFilters.addEventListener === 'function') {
+            mobileFilters.addEventListener('change', syncMobileFilters);
+        } else {
+            mobileFilters.addListener(syncMobileFilters);
+        }
+        syncMobileFilters();
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.forEach((value, key) => {
         if (!value) {
@@ -2034,7 +2076,7 @@ function updatePagination(pagination) {
 
     for (let i = startPage; i <= endPage; i += 1) {
         const activeClass = i === current ? ' active' : '';
-        html += '<li class="page-item' + activeClass '"><a class="page-link" href="#" onclick="goToPage(' + i + ')">' + i + '</a></li>';
+        html += '<li class="page-item' + activeClass + '"><a class="page-link" href="#" onclick="goToPage(' + i + ')">' + i + '</a></li>';
     }
 
     if (endPage < total) {
@@ -2096,7 +2138,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 // Sanitize title attribute to prevent XSS
                 const safeTitle = escapeHtml(gen.nome);
 
-                html += '<a href="#" class="filter-option count ' + isActive" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;" title="' + safeTitle + '">';
+                html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;" title="' + safeTitle + '">';
                 html += '<span>' + escapeHtml(displayName) + '</span>';
                 html += '<span class="count-badge">' + gen.cnt + '</span>';
                 html += '</a>';
@@ -2111,7 +2153,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             filterOptions.generi.forEach(gen => {
                 if ((gen.cnt ?? 0) > 0) {
                     const isActive = parseInt(currentFilters.genere_id) === gen.id ? 'active' : '';
-                    html += '<a href="#" class="filter-option count ' + isActive" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;">';
+                    html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;">';
                     html += '<span>' + escapeHtml(gen.nome) + '</span>';
                     html += '<span class="count-badge">' + gen.cnt + '</span>';
                     html += '</a>';
@@ -2121,7 +2163,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                         gen.children.forEach(subgen => {
                             if ((subgen.cnt ?? 0) > 0) {
                                 const isSubActive = parseInt(currentFilters.genere_id) === subgen.id ? 'active' : '';
-                                html += '<a href="#" class="filter-option subgenre count ' + isSubActive" onclick="updateFilter(\'genere_id\', ' + subgen.id + '); return false;">';
+                                html += '<a href="#" class="filter-option subgenre count ' + isSubActive + '" onclick="updateFilter(\'genere_id\', ' + subgen.id + '); return false;">';
                                 html += '<span>' + escapeHtml(subgen.nome) + '</span>';
                                 html += '<span class="count-badge">' + subgen.cnt + '</span>';
                                 html += '</a>';

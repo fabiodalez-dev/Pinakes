@@ -453,7 +453,7 @@ class SettingsController
         if ($subject === '') {
             $subject = $definition['subject'];
         }
-        $body = (string) ($data['body'] ?? $definition['body']);
+        $body = \App\Support\EmailLayout::normalizeContent((string) ($data['body'] ?? $definition['body']));
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
@@ -544,7 +544,9 @@ class SettingsController
                 'label' => $meta['label'],
                 'description' => $meta['description'],
                 'subject' => $stored['subject'] ?? $meta['subject'],
-                'body' => $stored['body'] ?? $meta['body'],
+                // Show the same cleaned visual language in the editor that the
+                // recipient gets, including templates saved before the restyle.
+                'body' => \App\Support\EmailLayout::normalizeContent((string) ($stored['body'] ?? $meta['body'])),
                 'placeholders' => $meta['placeholders'] ?? [],
             ];
         }
@@ -561,7 +563,7 @@ class SettingsController
         foreach (SettingsMailTemplates::all() as $name => $meta) {
             $defaults[$name] = [
                 'subject' => $meta['subject'],
-                'body' => $meta['body'],
+                'body' => \App\Support\EmailLayout::normalizeContent((string) $meta['body']),
                 'description' => $meta['description'] ?? null,
             ];
         }

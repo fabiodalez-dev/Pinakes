@@ -21,10 +21,12 @@ $featuresData = $section ?? [];
                 $desc = $feature['subtitle'] ?? '';
             ?>
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="<?php echo htmlspecialchars($icon, ENT_QUOTES, 'UTF-8'); ?>"></i>
+                <div class="feature-heading">
+                    <div class="feature-icon">
+                        <i class="<?php echo htmlspecialchars($icon, ENT_QUOTES, 'UTF-8'); ?>"></i>
+                    </div>
+                    <h3 class="feature-title"><?php echo htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?></h3>
                 </div>
-                <h3 class="feature-title"><?php echo htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?></h3>
                 <p class="feature-description">
                     <?php echo htmlspecialchars($desc, ENT_QUOTES, 'UTF-8'); ?>
                 </p>

@@ -43,6 +43,8 @@ final class Mailer
         $fromEmail = (string)ConfigStore::get('mail.from_email', 'no-reply@localhost');
         $fromName  = (string)ConfigStore::get('mail.from_name', 'Biblioteca');
         $driver    = (string)ConfigStore::get('mail.driver', 'mail');
+        $textBody ??= EmailLayout::plainText($htmlBody);
+        $htmlBody = EmailLayout::render($htmlBody, $subject);
 
         // Both 'smtp' and 'phpmailer' go through PHPMailer. It verifies the SMTP
         // handshake, AUTH and recipient and fails loudly — unlike the old hand-
@@ -52,10 +54,10 @@ final class Mailer
         if ($driver === 'smtp' || $driver === 'phpmailer') {
             return self::sendPHPMailer($to, $subject, $htmlBody, $textBody, $fromEmail, $fromName);
         }
-        return self::sendMail($to, $subject, $htmlBody, $fromEmail, $fromName);
+        return self::sendMail($to, $subject, $htmlBody, $textBody, $fromEmail, $fromName);
     }
 
-    private static function sendMail(string $to, string $subject, string $htmlBody, string $fromEmail, string $fromName): bool
+    private static function sendMail(string $to, string $subject, string $htmlBody, string $textBody, string $fromEmail, string $fromName): bool
     {
         // Use more secure boundary generation
         $boundary = uniqid('mail_boundary_', true);
@@ -64,9 +66,8 @@ final class Mailer
         $headers[] = 'MIME-Version: 1.0';
         $headers[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
 
-        $textPart = strip_tags($htmlBody);
         $body = "--{$boundary}\r\n";
-        $body .= "Content-Type: text/plain; charset=utf-8\r\n\r\n{$textPart}\r\n";
+        $body .= "Content-Type: text/plain; charset=utf-8\r\n\r\n{$textBody}\r\n";
         $body .= "--{$boundary}\r\n";
         $body .= "Content-Type: text/html; charset=utf-8\r\n\r\n{$htmlBody}\r\n";
         $body .= "--{$boundary}--\r\n";
@@ -115,7 +116,7 @@ final class Mailer
     {
         if (!class_exists('PHPMailer\\PHPMailer\\PHPMailer')) {
             // Fallback to mail()
-            return self::sendMail($to, $subject, $htmlBody, $fromEmail, $fromName);
+            return self::sendMail($to, $subject, $htmlBody, $textBody ?: EmailLayout::plainText($htmlBody), $fromEmail, $fromName);
         }
         $result = self::dispatchPHPMailer($to, $subject, $htmlBody, $textBody, $fromEmail, $fromName);
         if (!$result['ok']) {
@@ -168,15 +169,17 @@ final class Mailer
 
         $subject = __('Email di prova da Pinakes');
         $html = '<p>' . __('Questa è un\'email di prova inviata dalle impostazioni di Pinakes. Se la ricevi, la configurazione email funziona.') . '</p>';
+        $text = EmailLayout::plainText($html);
+        $html = EmailLayout::render($html, $subject);
 
         // SMTP / PHPMailer path: reuse the exact real send path so the test is a
         // faithful diagnostic, and capture its real handshake/auth/recipient error.
         if (($driver === 'smtp' || $driver === 'phpmailer') && class_exists('PHPMailer\\PHPMailer\\PHPMailer')) {
-            return self::dispatchPHPMailer($to, $subject, $html, null, $fromEmail, $fromName);
+            return self::dispatchPHPMailer($to, $subject, $html, $text, $fromEmail, $fromName);
         }
 
         // Plain mail() path: no detailed error is available, only success/failure.
-        $ok = self::send($to, $subject, $html);
+        $ok = self::send($to, $subject, $html, $text);
         return $ok
             ? ['ok' => true, 'error' => '']
             : ['ok' => false, 'error' => __('La funzione mail() di PHP ha restituito un errore. Verifica la configurazione del server di posta.')];

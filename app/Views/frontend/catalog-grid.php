@@ -73,7 +73,7 @@ $getBookStatusBadge = static function ($book) {
                         <?= htmlspecialchars(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>
                     </p>
                 <?php else: ?>
-                    <p class="book-meta" style="visibility: hidden;">&nbsp;</p>
+                    <p class="book-meta book-meta-empty" aria-hidden="true">&nbsp;</p>
                 <?php endif; ?>
                 <div class="book-actions">
                     <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>" class="btn-cta btn-cta-sm">
@@ -119,7 +119,7 @@ $getBookStatusBadge = static function ($book) {
    subtly on hover instead of the whole card. */
 .book-image-container {
     position: relative;
-    aspect-ratio: 3/4;
+    aspect-ratio: 2/3;
     overflow: hidden;
     background: var(--bg-tertiary);
     border-radius: 3px;
@@ -136,12 +136,13 @@ $getBookStatusBadge = static function ($book) {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    object-position: center;
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s ease;
     will-change: transform;
 }
 
 .book-card:hover .book-image {
-    transform: scale(1.08) translateZ(0);
+    transform: scale(1.012) translateZ(0);
     filter: brightness(1.05);
 }
 
@@ -320,7 +321,7 @@ $getBookStatusBadge = static function ($book) {
 
 /* Hide empty elements but maintain spacing */
 .book-author[style*="visibility: hidden"],
-.book-meta[style*="visibility: hidden"] {
+.book-meta-empty {
     visibility: hidden !important;
 }
 

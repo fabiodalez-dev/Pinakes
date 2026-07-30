@@ -491,11 +491,42 @@ $htmlLang = substr($currentLocale, 0, 2);
             max-height: 0;
             transition: max-height 0.3s ease-in-out;
             width: 100%;
+            padding-top: 0.75rem;
         }
 
         .mobile-search-container.active {
-            display: block;
-            max-height: 60px;
+            display: flex;
+            justify-content: center;
+            max-height: 76px;
+        }
+
+        .mobile-search-form {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: min(100%, 42rem);
+            max-width: none;
+            margin-inline: auto;
+        }
+
+        .mobile-search-input {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .mobile-search-input:focus {
+            border-color: transparent;
+            outline: 2px solid var(--primary-color);
+            outline-offset: 0;
+            transform: none;
+        }
+
+        .hero-search-input.search-input {
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent;
+            transform: none;
         }
 
         .btn-search-mobile {
@@ -517,6 +548,34 @@ $htmlLang = substr($currentLocale, 0, 2);
         .btn-search-mobile:hover {
             background: var(--primary-hover);
             transform: translateY(-1px);
+        }
+
+        .search-form {
+            position: relative;
+        }
+
+        .search-results {
+            position: absolute;
+            top: calc(100% + 0.625rem);
+            left: 0;
+            right: 0;
+            z-index: 99999;
+            display: none;
+            width: 100%;
+            min-width: 0;
+            max-height: min(70vh, 38rem);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            background: var(--white);
+            box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+            color: var(--text-color);
+            pointer-events: auto;
+        }
+
+        .search-results.is-visible {
+            display: block;
         }
 
         .btn-header {
@@ -1673,9 +1732,9 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                     <!-- Mobile search container with animation -->
                     <div class="mobile-search-container md:hidden" id="mobileSearchContainer">
-                        <form class="search-form w-full" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get" style="display: flex; gap: 0.5rem;">
-                            <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri...') ?>"
-                                aria-label="<?= __('Search') ?>" style="flex: 1;">
+                        <form class="search-form mobile-search-form" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
+                            <input class="search-input mobile-search-input" type="search" name="q" placeholder="<?= __('Cerca libri, autori, ISBN...') ?>"
+                                aria-label="<?= __('Search') ?>" autocomplete="off">
                             <button type="submit" class="btn-search-mobile" aria-label="<?= __('Cerca') ?>">
                                 <i class="fas fa-search"></i>
                                 <span class="hidden sm:inline"><?= __('Cerca') ?></span>
@@ -1901,8 +1960,10 @@ $htmlLang = substr($currentLocale, 0, 2);
         // Search functionality with preview - wrapped in DOMContentLoaded for reliability
         document.addEventListener('DOMContentLoaded', function () {
             const searchInputs = document.querySelectorAll('.search-input');
-            let searchTimeout;
-            let currentSearchInput = null;
+            const searchTimers = new WeakMap();
+            const activeRequests = new WeakMap();
+            const searchCache = new Map();
+            const SEARCH_CACHE_LIMIT = 30;
             const searchViewAllLabel = <?= json_encode(__('Vedi tutti i risultati'), JSON_HEX_TAG) ?>;
 
             searchInputs.forEach(input => {
@@ -1910,31 +1971,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                 const searchContainer = input.closest('.search-form');
                 if (!searchContainer) return;
 
-                // Set parent to relative for absolute positioning
-                searchContainer.style.position = 'relative';
-
                 const resultsContainer = document.createElement('div');
                 resultsContainer.className = 'search-results';
                 resultsContainer.dataset.inputId = 'search-' + Math.random().toString(36).substr(2, 9);
-
-                // Use simple absolute positioning inside parent
-                const isMobile = window.innerWidth <= 768;
-                resultsContainer.style.cssText =
-                    'position: absolute;' +
-                    'top: calc(100% + 15px);' +
-                    'left: -20px;' +
-                    'right: -20px;' +
-                    'background: var(--white);' +
-                    'border: 1px solid var(--border-color);' +
-                    'border-radius: 0.75rem;' +
-                    'box-shadow: 0 10px 40px rgba(0,0,0,0.15);' +
-                    (isMobile ? 'max-height: 70vh;' : 'max-height: 600px;') +
-                    'overflow-y: auto;' +
-                    'overscroll-behavior: contain;' +
-                    'z-index: 99999;' +
-                    'display: none;' +
-                    (isMobile ? 'min-width: 300px;' : 'min-width: 500px;') +
-                    'pointer-events: auto;';
+                resultsContainer.setAttribute('role', 'listbox');
 
                 // Append to parent
                 searchContainer.appendChild(resultsContainer);
@@ -1942,29 +1982,38 @@ $htmlLang = substr($currentLocale, 0, 2);
                 // Search input event
                 input.addEventListener('input', function (e) {
                     const query = e.target.value.trim();
-                    currentSearchInput = input;
-
-                    clearTimeout(searchTimeout);
+                    clearTimeout(searchTimers.get(input));
+                    const previousRequest = activeRequests.get(input);
+                    if (previousRequest) {
+                        previousRequest.abort();
+                    }
 
                     if (query.length < 2) {
-                        hideSearchResults();
+                        hideSearchResults(resultsContainer);
                         return;
                     }
 
-                    searchTimeout = setTimeout(() => {
-                        performSearch(query, resultsContainer);
-                    }, 300);
+                    const timer = setTimeout(() => {
+                        performSearch(query, resultsContainer, input);
+                    }, 180);
+                    searchTimers.set(input, timer);
                 });
 
                 // Handle form submission - allow normal submission to catalogo
                 input.closest('form').addEventListener('submit', function (e) {
-                    hideSearchResults();
+                    hideSearchResults(resultsContainer);
                 });
 
                 // Hide results when clicking outside
                 document.addEventListener('click', function (e) {
                     if (!input.contains(e.target) && !resultsContainer.contains(e.target)) {
-                        hideSearchResults();
+                        hideSearchResults(resultsContainer);
+                    }
+                });
+
+                input.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape') {
+                        hideSearchResults(resultsContainer);
                     }
                 });
             });
@@ -2002,23 +2051,49 @@ $htmlLang = substr($currentLocale, 0, 2);
                 return '#';
             };
 
-            function performSearch(query, resultsContainer) {
+            async function performSearch(query, resultsContainer, input) {
+                const cacheKey = query.toLocaleLowerCase();
+                if (searchCache.has(cacheKey)) {
+                    displaySearchResults(searchCache.get(cacheKey), resultsContainer, query);
+                    return;
+                }
+
+                const controller = new AbortController();
+                activeRequests.set(input, controller);
                 const url = <?= json_encode(absoluteUrl('/api/search/preview'), JSON_HEX_TAG | JSON_HEX_AMP) ?> + '?q=' + encodeURIComponent(query);
-                fetch(url)
-                    .then(response => response.json())
-                    .then(data => {
-                        displaySearchResults(data, resultsContainer);
-                    })
-                    .catch(error => {
-                        console.error('Search error:', error);
-                        hideSearchResults();
+                try {
+                    const response = await fetch(url, {
+                        signal: controller.signal,
+                        headers: { 'Accept': 'application/json' }
                     });
+                    if (!response.ok) {
+                        throw new Error('Search request failed: ' + response.status);
+                    }
+                    const data = await response.json();
+                    if (input.value.trim().toLocaleLowerCase() !== cacheKey) {
+                        return;
+                    }
+                    searchCache.set(cacheKey, data);
+                    if (searchCache.size > SEARCH_CACHE_LIMIT) {
+                        searchCache.delete(searchCache.keys().next().value);
+                    }
+                    displaySearchResults(data, resultsContainer, query);
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('Search error:', error);
+                        hideSearchResults(resultsContainer);
+                    }
+                } finally {
+                    if (activeRequests.get(input) === controller) {
+                        activeRequests.delete(input);
+                    }
+                }
             }
 
-            function displaySearchResults(results, container) {
+            function displaySearchResults(results, container, query) {
                 if (!Array.isArray(results) || results.length === 0) {
                     container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: var(--text-muted);">' + __('Nessun risultato trovato') + '</div>';
-                    container.style.display = 'block';
+                    container.classList.add('is-visible');
                     return;
                 }
 
@@ -2116,43 +2191,22 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                 // Add "View all results" link
                 html += '<div class="search-section" style="padding: 0.75rem 1rem;">' +
-                    '<a href="' + <?= json_encode(absoluteUrl($catalogRoute), JSON_HEX_TAG | JSON_HEX_AMP) ?> + '?search=' + encodeURIComponent(currentSearchInput.value) + '"' +
+                    '<a href="' + <?= json_encode(absoluteUrl($catalogRoute), JSON_HEX_TAG | JSON_HEX_AMP) ?> + '?q=' + encodeURIComponent(query) + '"' +
                     ' class="search-view-all" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem; background: var(--accent-color); border-radius: 0.375rem; text-decoration: none; color: var(--text-color); font-weight: 500; font-size: 0.875rem; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--border-color)\'" onmouseout="this.style.backgroundColor=\'var(--accent-color)\'">' +
                     searchViewAllLabel + ' <i class="fas fa-arrow-right" style="margin-left: 0.5rem; font-size: 0.75rem;"></i>' +
                     '</a>' +
                     '</div>';
 
                 container.innerHTML = html;
-                container.style.display = 'block';
+                container.classList.add('is-visible');
             }
 
-            function hideSearchResults() {
-                document.querySelectorAll('.search-results').forEach(container => {
-                    container.style.display = 'none';
+            function hideSearchResults(container = null) {
+                const containers = container ? [container] : document.querySelectorAll('.search-results');
+                containers.forEach(resultContainer => {
+                    resultContainer.classList.remove('is-visible');
                 });
             }
-
-            // Update search results sizing on window resize
-            function updateSearchResultsSize() {
-                const isMobile = window.innerWidth <= 768;
-                document.querySelectorAll('.search-results').forEach(container => {
-                    const leftRight = isMobile ? 'left: -10px; right: -10px;' : 'left: -20px; right: -20px;';
-                    const maxHeight = isMobile ? 'max-height: 70vh;' : 'max-height: 600px;';
-                    const minWidth = isMobile ? '' : 'min-width: 500px;';
-
-                    // Update only the relevant styles
-                    container.style.left = isMobile ? '-10px' : '-20px';
-                    container.style.right = isMobile ? '-10px' : '-20px';
-                    container.style.maxHeight = isMobile ? '70vh' : '600px';
-                    if (!isMobile) {
-                        container.style.minWidth = '500px';
-                    } else {
-                        container.style.minWidth = '';
-                    }
-                });
-            }
-
-            window.addEventListener('resize', updateSearchResultsSize);
         }); // End of DOMContentLoaded
     </script>
 

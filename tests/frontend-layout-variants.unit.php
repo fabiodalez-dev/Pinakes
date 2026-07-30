@@ -30,11 +30,19 @@ $digitalLibraryViewer = file_get_contents($root . '/storage/plugins/digital-libr
 $digitalLibraryPlayer = file_get_contents($root . '/storage/plugins/digital-library/views/frontend-player.php');
 $digitalLibraryCss = file_get_contents($root . '/storage/plugins/digital-library/assets/css/digital-library.css');
 $homeHero = file_get_contents($root . '/app/Views/frontend/home-sections/hero.php');
+$homeFeatures = file_get_contents($root . '/app/Views/frontend/home-sections/features_title.php');
+$homeBooksGrid = file_get_contents($root . '/app/Views/frontend/home-books-grid.php');
+$catalogGrid = file_get_contents($root . '/app/Views/frontend/catalog-grid.php');
 $home = file_get_contents($root . '/app/Views/frontend/home.php');
 $accountCss = file_get_contents($root . '/public/assets/account-pages.css');
 $dashboardReservations = file_get_contents($root . '/app/Views/user_dashboard/prenotazioni.php');
+$demoCatalogSeed = file_get_contents($root . '/scripts/seed-demo-catalog.php');
 $profileReservations = file_get_contents($root . '/app/Views/profile/reservations.php');
 $wishlist = file_get_contents($root . '/app/Views/profile/wishlist.php');
+$adminBooks = file_get_contents($root . '/app/Views/libri/index.php');
+$adminLayout = file_get_contents($root . '/app/Views/layout.php');
+$adminSettings = file_get_contents($root . '/app/Views/settings/index.php');
+$adminUiCss = file_get_contents($root . '/public/assets/admin-ui.css');
 $vendorSource = file_get_contents($root . '/frontend/js/vendor.js');
 $mainSource = file_get_contents($root . '/frontend/js/index.js');
 $tailwindSource = file_get_contents($root . '/frontend/css/input.css');
@@ -146,15 +154,33 @@ $checks = [
     'catalog does not duplicate the active-theme query' => !str_contains($catalog, 'getActiveTheme()'),
     'catalog filter sidebar widens responsively on laptops' => str_contains($catalog, 'catalog-filters-column w-full lg:w-1/3') && str_contains($catalog, 'catalog-results-column w-full lg:w-2/3'),
     'catalog filter controls retain touch-safe spacing' => str_contains($catalog, 'min-height: 44px;') && str_contains($catalog, 'padding: 0.7rem 0.75rem;'),
+    'catalog filters collapse behind an accessible mobile control' => str_contains($catalog, 'id="catalog-filters-toggle"') && str_contains($catalog, 'aria-controls="catalog-filters-content"') && str_contains($catalog, 'mobileFilters.matches'),
+    'catalog pagination emits a syntactically complete active class' => str_contains($catalog, "' + activeClass + '\"><a class=\"page-link\""),
     'related-book fallback uses one ranked query' => str_contains($frontendController, 'Priorities 1-3 in one ranked query') && str_contains($frontendController, 'ORDER BY {$priorityOrder}'),
     'all homepage variants share a centered hero' => str_contains($css, 'body[class*="layout-"].home .hero-content') && str_contains($css, 'text-align: center;') && str_contains($css, 'justify-content: center;'),
     'homepage async states contain no bootstrap compatibility markup' => !preg_match('/spinner-border|visually-hidden|\\bcol-12\\b|alert-danger/', $home),
     'homepage hero starts beneath the fixed header without a spacer' => str_contains($css, 'body[class*="layout-"].home main') && str_contains($css, 'padding-top: 0 !important;'),
     'seeded hero action text and link are rendered' => str_contains($homeHero, "\$heroData['button_text']") && str_contains($homeHero, "\$heroData['button_link']") && str_contains($homeHero, '$heroButtonLink'),
     'latest-books hero link reuses seeded section title' => str_contains($homeHero, "\$homeContent['latest_books_title']['title']"),
+    'mobile home stats use an aligned two-column grid' => str_contains($home, 'grid-template-columns: repeat(2, minmax(0, 1fr))') && str_contains($home, '.hero-stat:nth-child(even)'),
+    'mobile feature icons share one heading row with their title' => str_contains($homeFeatures, 'class="feature-heading"') && str_contains($home, '.feature-heading .feature-icon') && str_contains($home, '.feature-heading .feature-title'),
+    'empty publisher metadata collapses only on mobile' => str_contains($homeBooksGrid, 'book-meta book-meta-empty') && str_contains($catalogGrid, 'book-meta book-meta-empty') && str_contains($css, '.book-meta-empty') && str_contains($css, 'display: none !important;'),
+    'catalog detail actions have a visible themed border' => str_contains($css, '.book-actions .btn-cta') && str_contains($css, 'border: 1px solid color-mix'),
+    'catalog covers preserve the full artwork with only a minimal hover crop' => str_contains($catalogGrid, 'aspect-ratio: 2/3;') && str_contains($catalogGrid, 'object-fit: contain;') && str_contains($catalogGrid, 'scale(1.012)') && str_contains($homeBooksGrid, 'scale(1.012)'),
+    'admin books media icon keeps a syntactically complete class concatenation' => str_contains($adminBooks, "(icons[data] || 'fa-book') + ' text-gray-400\"") && !str_contains($adminBooks, "(icons[data] || 'fa-book') text-gray-400\""),
+    'admin shell loads one cache-busted shared action stylesheet' => str_contains($adminLayout, "assetUrl('admin-ui.css')") && str_contains($adminLayout, 'adminUiVersion') && str_contains($adminLayout, 'class="admin-shell '),
+    'backend action groups wrap with visible primary and secondary controls' => str_contains($adminUiCss, '--admin-action-border: #cbd0d8') && str_contains($adminUiCss, ":has(\n  > :is(a, button") && str_contains($adminUiCss, "[class~='bg-gray-900']"),
+    'datatable icon actions have a visible 34px surface' => str_contains($adminUiCss, 'width: 34px !important;') && str_contains($adminUiCss, 'border: 1px solid var(--admin-action-border);'),
+    'settings tabs form an accessible responsive navigation system' => str_contains($adminSettings, 'class="settings-tabs" role="tablist"') && str_contains($adminSettings, "setAttribute('aria-selected'") && str_contains($adminSettings, "'ArrowLeft', 'ArrowRight', 'Home', 'End'") && str_contains($adminUiCss, 'scroll-snap-type: x proximity;'),
+    'mobile book kicker and action groups are centered or stacked' => str_contains($css, '.book-kicker {') && str_contains($css, 'justify-content: center;') && str_contains($css, ':is(#book-action-buttons, .event-card__actions, .archive-actions)'),
+    'mobile share card uses symmetric vertical spacing' => str_contains($css, '#book-share-card .card-header') && str_contains($css, 'padding-block: 1rem;'),
     'account pages share one cache-busted stylesheet' => str_contains($dashboardReservations, "assetUrl('account-pages.css')") && str_contains($profileReservations, "assetUrl('account-pages.css')") && str_contains($wishlist, "assetUrl('account-pages.css')") && str_contains($dashboardReservations, 'filemtime'),
     'account stylesheet adapts to all four layouts' => str_contains($accountCss, 'body.layout-editorial') && str_contains($accountCss, 'body.layout-workspace') && str_contains($accountCss, 'body.layout-command') && str_contains($accountCss, 'body.layout-soft'),
     'reservation headings use dependency-free line icons' => str_contains($dashboardReservations, 'function accountLineIcon') && str_contains($dashboardReservations, 'account-line-icon') && str_contains($accountCss, 'stroke: currentColor'),
+    'active loans empty state does not repeat its section icon' => !preg_match('/empty\(\$activePrestiti\).*?empty-state-icon.*?Nessun prestito attivo/s', $dashboardReservations),
+    'demo catalog seed rebuilds the denormalized search index in one batch' => str_contains($demoCatalogSeed, 'SearchIndexBuilder::rebuildMany($db, $seededIds)'),
+    'autocomplete cancels stale requests and caches recent results' => str_contains($layout, 'new AbortController()') && str_contains($layout, 'const searchCache = new Map()') && str_contains($layout, 'SEARCH_CACHE_LIMIT'),
+    'mobile autocomplete is CSS-sized without fixed inline widths' => str_contains($layout, 'class="search-form mobile-search-form"') && str_contains($layout, '.search-results {') && !str_contains($layout, "'min-width: 500px;'"),
     'font awesome is bundled from the local npm package' => str_contains($vendorSource, "import '@fortawesome/fontawesome-free/css/all.min.css';"),
     'no frontend source loads font awesome from a CDN' => !$remoteFontAwesomeReference,
     'bootstrap is absent from frontend dependencies' => !isset($frontendPackage['dependencies']['bootstrap']) && !isset($frontendPackage['devDependencies']['bootstrap']),

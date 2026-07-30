@@ -30,6 +30,8 @@ $htmlLang = substr($currentLocale, 0, 2);
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
+  <?php $adminUiVersion = (string) (@filemtime(__DIR__ . '/../../public/assets/admin-ui.css') ?: $appVersion); ?>
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('admin-ui.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($adminUiVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <script>
     (function () {
@@ -100,7 +102,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   ?>
 </head>
 
-<body class="bg-gray-50 text-gray-900 antialiased">
+<body class="admin-shell bg-gray-50 text-gray-900 antialiased">
   <!-- Mobile Menu Overlay -->
   <div id="mobile-menu-overlay"
     class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden hidden transition-opacity duration-300"></div>

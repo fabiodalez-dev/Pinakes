@@ -20,7 +20,7 @@ $activeTab = $activeTab ?? 'general';
   </div>
 
   <div class="bg-white rounded-3xl shadow-xl border border-gray-200 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
-    <div class="border-b border-gray-200 px-6 py-4 flex flex-wrap gap-3">
+    <div class="settings-tabs" role="tablist" aria-label="<?= htmlspecialchars(__("Impostazioni"), ENT_QUOTES, 'UTF-8') ?>">
       <button type="button" data-settings-tab="general" class="settings-tab <?php echo $activeTab === 'general' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-building text-sm mr-2"></i>
         <?= __("Identità") ?>
@@ -901,11 +901,11 @@ $activeTab = $activeTab ?? 'general';
     display: inline-flex;
     align-items: center;
     padding: 0.5rem 1rem;
-    border-radius: 0.75rem;
+    border-radius: 0.5rem;
     font-size: 0.875rem;
     font-weight: 600;
     color: #4b5563;
-    background-color: #f3f4f6;
+    background-color: transparent;
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
@@ -937,12 +937,27 @@ $activeTab = $activeTab ?? 'general';
     const tabs = document.querySelectorAll('[data-settings-tab]');
     const panels = document.querySelectorAll('[data-settings-panel]');
 
+    tabs.forEach(tab => {
+      const name = tab.getAttribute('data-settings-tab');
+      tab.id = `settings-tab-${name}`;
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-controls', `settings-panel-${name}`);
+    });
+    panels.forEach(panel => {
+      const name = panel.getAttribute('data-settings-panel');
+      panel.id = `settings-panel-${name}`;
+      panel.setAttribute('role', 'tabpanel');
+      panel.setAttribute('aria-labelledby', `settings-tab-${name}`);
+    });
+
     function activateTab(tabName) {
-      tabs.forEach(t => t.classList.remove('settings-tab-active'));
+      tabs.forEach(t => {
+        const active = t.getAttribute('data-settings-tab') === tabName;
+        t.classList.toggle('settings-tab-active', active);
+        t.setAttribute('aria-selected', String(active));
+        t.tabIndex = active ? 0 : -1;
+      });
       const targetTab = document.querySelector(`[data-settings-tab="${tabName}"]`);
-      if (targetTab) {
-        targetTab.classList.add('settings-tab-active');
-      }
       panels.forEach(panel => {
         const isActive = panel.getAttribute('data-settings-panel') === tabName;
         panel.classList.toggle('hidden', !isActive);
@@ -959,6 +974,20 @@ $activeTab = $activeTab ?? 'general';
         url.searchParams.set('tab', target);
         url.hash = target;
         window.history.pushState({}, '', url.toString());
+      });
+      tab.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const items = Array.from(tabs);
+        const current = items.indexOf(tab);
+        const next = event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? items.length - 1
+            : (current + (event.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length;
+        const nextTab = items[next];
+        activateTab(nextTab.getAttribute('data-settings-tab'));
+        nextTab.focus();
       });
     });
 

@@ -1,0 +1,226 @@
+/*
+ * Shared admin action language.
+ * Loaded after Tailwind's compiled utilities so native and plugin-backed admin
+ * views receive the same contrast, spacing and responsive behaviour without
+ * duplicating long class lists in every template.
+ */
+
+.admin-shell {
+  --admin-action-ink: #111827;
+  --admin-action-hover: #1f2937;
+  --admin-action-text: #273244;
+  --admin-action-muted: #667085;
+  --admin-action-surface: #fdfcfd;
+  --admin-action-soft: #f5f4f6;
+  --admin-action-border: #cbd0d8;
+  --admin-action-danger: #b4232f;
+  --admin-action-danger-soft: #fff1f2;
+  --admin-action-focus: rgb(17 24 39 / 0.22);
+}
+
+/* Every visible text action needs a stable hit area and a crisp focus state. */
+.admin-shell main :is(a, button, input[type='submit'], input[type='button'])[class*='px-'][class*='py-'] {
+  min-height: 40px;
+  border-radius: 8px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.admin-shell main :is(a, button, input[type='submit'], input[type='button']):focus-visible {
+  outline: 3px solid var(--admin-action-focus) !important;
+  outline-offset: 2px;
+}
+
+/* Primary actions: solid, calm, unmistakable. */
+.admin-shell main :is(a, button, input[type='submit'], input[type='button']):is(
+  [class~='bg-gray-800'],
+  [class~='bg-gray-900'],
+  [class~='bg-black']
+) {
+  background: var(--admin-action-ink) !important;
+  border: 1px solid var(--admin-action-ink) !important;
+  color: #fdfcfd !important;
+  box-shadow: 0 1px 2px rgb(17 24 39 / 0.12);
+}
+
+.admin-shell main :is(a, button, input[type='submit'], input[type='button']):is(
+  [class~='bg-gray-800'],
+  [class~='bg-gray-900'],
+  [class~='bg-black']
+):hover {
+  background: var(--admin-action-hover) !important;
+  border-color: var(--admin-action-hover) !important;
+}
+
+/* Secondary actions no longer disappear into gray cards and toolbars. */
+.admin-shell main :is(a, button, input[type='submit'], input[type='button']):is(
+  [class~='bg-gray-100'],
+  [class~='bg-gray-50'],
+  [class~='bg-white'][class*='border']
+) {
+  background: var(--admin-action-surface) !important;
+  border: 1px solid var(--admin-action-border) !important;
+  color: var(--admin-action-text) !important;
+  box-shadow: 0 1px 1px rgb(17 24 39 / 0.04);
+}
+
+.admin-shell main :is(a, button, input[type='submit'], input[type='button']):is(
+  [class~='bg-gray-100'],
+  [class~='bg-gray-50'],
+  [class~='bg-white'][class*='border']
+):hover {
+  background: var(--admin-action-soft) !important;
+  border-color: #aeb5c0 !important;
+  color: var(--admin-action-ink) !important;
+}
+
+/* Destructive actions remain semantic but use a quieter, more legible red. */
+.admin-shell main :is(a, button, input[type='submit'], input[type='button']):is(
+  [class~='bg-red-500'],
+  [class~='bg-red-600'],
+  [class~='bg-red-700']
+) {
+  background: var(--admin-action-danger) !important;
+  border: 1px solid var(--admin-action-danger) !important;
+  color: #fdfcfd !important;
+}
+
+/* Normalize adjacent action groups, including legacy space-x utilities. */
+.admin-shell main :is(.flex, .inline-flex):has(
+  > :is(a, button, input[type='submit'], input[type='button'])
+  ~ :is(a, button, input[type='submit'], input[type='button'])
+) {
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+.admin-shell main :is(.flex, .inline-flex):has(
+  > :is(a, button, input[type='submit'], input[type='button'])
+  ~ :is(a, button, input[type='submit'], input[type='button'])
+) > :is(a, button, input[type='submit'], input[type='button']) {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Compact row actions were 28px and almost invisible. Keep them grouped, but
+ * give every icon a visible surface and an accessible target. */
+.admin-shell main :is(.dt-container, .dataTables_wrapper, table) tbody td:last-child > :is(.flex, .inline-flex) {
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+}
+
+.admin-shell main :is(.dt-container, .dataTables_wrapper, table) tbody td:last-child :is(a, button)[class*='w-7'][class*='h-7'] {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid var(--admin-action-border);
+  border-radius: 8px;
+  background: var(--admin-action-surface);
+  color: var(--admin-action-text);
+}
+
+.admin-shell main :is(.dt-container, .dataTables_wrapper, table) tbody td:last-child :is(a, button)[class*='w-7'][class*='h-7']:hover {
+  border-color: #aeb5c0;
+  background: var(--admin-action-soft);
+  color: var(--admin-action-ink);
+}
+
+.admin-shell main :is(.dt-container, .dataTables_wrapper, table) tbody td:last-child button[class*='hover:text-red']:hover {
+  border-color: #fecdd3;
+  background: var(--admin-action-danger-soft) !important;
+  color: var(--admin-action-danger) !important;
+}
+
+/* Settings is a dense control surface: tabs behave as one navigation system,
+ * not as a loose pile of gray pills. */
+.admin-shell .settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  background: #f8f7f9;
+  border-bottom: 1px solid #e1e3e7;
+}
+
+.admin-shell .settings-tab {
+  justify-content: flex-start;
+  min-height: 44px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #4b5565;
+  white-space: nowrap;
+}
+
+.admin-shell .settings-tab:hover {
+  background: #efedf1;
+  border-color: #dadce1;
+  color: var(--admin-action-ink);
+}
+
+.admin-shell .settings-tab.settings-tab-active {
+  background: var(--admin-action-ink);
+  border-color: var(--admin-action-ink);
+  color: #fdfcfd;
+  box-shadow: 0 1px 2px rgb(17 24 39 / 0.14);
+}
+
+.admin-shell .settings-panel form > .flex.justify-end,
+.admin-shell .settings-actions {
+  padding-top: 1rem;
+  border-top: 1px solid #e1e3e7;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .admin-shell .settings-tabs {
+    display: flex;
+    grid-template-columns: none;
+    gap: 0.45rem;
+    overflow-x: auto;
+    padding: 0.75rem 1rem;
+    scroll-padding-inline: 1rem;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .admin-shell .settings-tab {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .admin-shell main :is(.flex, .inline-flex):not(.settings-tabs):not([class*='p-1']):has(
+    > :is(a, button, input[type='submit'], input[type='button'])
+    ~ :is(a, button, input[type='submit'], input[type='button'])
+  ) > :is(a, button, input[type='submit'], input[type='button']) {
+    flex: 1 1 min(100%, 10rem);
+    justify-content: center;
+    text-align: center;
+  }
+
+  .admin-shell main :is(.flex, .inline-flex):not(.settings-tabs):not([class*='p-1']):has(
+    > :is(a, button, input[type='submit'], input[type='button']):nth-of-type(3)
+  ) > :is(a, button, input[type='submit'], input[type='button']) {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .admin-shell .settings-panel form > .flex.justify-end,
+  .admin-shell .settings-actions {
+    align-items: stretch;
+  }
+
+  .admin-shell .settings-panel form > .flex.justify-end > :is(a, button, input[type='submit'], input[type='button']),
+  .admin-shell .settings-actions > :is(a, button, input[type='submit'], input[type='button']) {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-shell main :is(a, button, input[type='submit'], input[type='button']) {
+    transition: none !important;
+  }
+}

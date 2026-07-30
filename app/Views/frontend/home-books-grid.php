@@ -63,7 +63,7 @@ $getBookStatusBadge = static function ($book) {
                         <?= htmlspecialchars(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>
                     </p>
                 <?php else: ?>
-                    <p class="book-meta" style="visibility: hidden;">&nbsp;</p>
+                    <p class="book-meta book-meta-empty" aria-hidden="true">&nbsp;</p>
                 <?php endif; ?>
                 <div class="book-actions">
                     <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>" class="btn-cta btn-cta-sm">
@@ -138,11 +138,12 @@ $getBookStatusBadge = static function ($book) {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    object-position: center;
     transition: var(--transition);
 }
 
 .book-card:hover .book-image {
-    transform: scale(1.05);
+    transform: scale(1.012);
 }
 
 .book-status-badge {

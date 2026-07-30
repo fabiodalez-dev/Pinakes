@@ -191,6 +191,10 @@ $additional_css = "
         box-shadow: none;
     }
 
+    .feature-heading {
+        display: block;
+    }
+
     .feature-title {
         font-family: var(--serif);
         font-size: 1.3rem;
@@ -445,8 +449,38 @@ form.hero-search-form {
         }
 
         .hero-stats {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1.5rem 0;
+            width: 100%;
+        }
+
+        .hero-stat {
+            min-width: 0;
+            padding: 0 0.75rem;
+            border-left: 0;
+        }
+
+        .hero-stat:nth-child(even) {
+            border-left: 1px solid rgba(255, 255, 255, 0.28);
+        }
+
+        .feature-heading {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.65rem;
+        }
+
+        .feature-heading .feature-icon {
+            flex: 0 0 auto;
+            margin: 0;
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+
+        .feature-heading .feature-title {
+            margin: 0;
         }
     }
 
@@ -464,8 +498,8 @@ form.hero-search-form {
         }
 
         .hero-stats {
-            grid-template-columns: 1fr;
-            gap: 1rem;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1.25rem 0;
         }
 
         .hero-search-container {
