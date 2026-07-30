@@ -751,6 +751,14 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
             text-decoration: none;
         }
 
+        /* Bootstrap's .list-unstyled reset is gone with the CSS bundle;
+           restore it here so footer link lists don't show bullet markers. */
+        .footer .list-unstyled {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
         .footer .list-unstyled li {
             margin-bottom: 0.5rem;
         }

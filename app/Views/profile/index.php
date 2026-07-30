@@ -629,13 +629,13 @@
             div.textContent = str || '';
             return div.innerHTML;
           };
-          html += '<div class="session-item' + (isCurrent ? ' current' : '')">';
+          html += '<div class="session-item' + (isCurrent ? ' current' : '') + '">';
           html += '<div class="session-info">';
           html += '<span class="session-device">';
           // Check for mobile OS (Android/iOS) since parseDeviceInfo returns "Browser / OS" format
           const deviceInfo = session.device_info || '';
           const isMobile = deviceInfo.includes('Android') || deviceInfo.includes('iOS');
-          html += '<i class="fas fa-' + (isMobile ? 'mobile-alt' : 'desktop') '"></i> ';
+          html += '<i class="fas fa-' + (isMobile ? 'mobile-alt' : 'desktop') + '"></i> ';
           html += escapeHtml(session.device_info || translations.unknown);
           if (isCurrent) {
             html += '<span class="session-badge">' + translations.currentSession + '</span>';

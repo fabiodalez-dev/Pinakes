@@ -177,6 +177,12 @@ class ThemeController
      */
     public function saveLayout(Request $request, Response $response, array $args): Response
     {
+        // Check authorization — AdminAuthMiddleware also admits 'staff', but
+        // changing the site-wide public layout is admin-only (matches index()/customize()).
+        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+            return $response->withStatus(403)->withHeader('Location', url('/admin/dashboard'));
+        }
+
         $themeId = (int) ($args['id'] ?? 0);
         $theme = $this->themeManager->getThemeById($themeId);
         $parsedBody = (array) $request->getParsedBody();

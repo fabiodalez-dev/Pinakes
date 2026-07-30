@@ -567,7 +567,7 @@ $isItalian = str_starts_with($currentLocale, 'it');
                 : '';
               return '<div class="suggestion-item" data-id="' + itemId + '" data-copies="' + copieDisponibili + '" data-total="' + copieTotali + '">' +
                 '<div style="display: flex; align-items: center; gap: 0.5rem;">' +
-                '<i class="fas ' + statusIcon" style="color: ' + iconColor + ';"></i>' +
+                '<i class="fas ' + statusIcon + '" style="color: ' + iconColor + ';"></i>' +
                 '<span style="flex: 1;">' + escapeHtml(item.label) + '</span>' +
                 '<span style="font-size: 0.75rem; font-weight: 600; color: ' + countColor + ';">' + copieDisponibili + '/' + copieTotali + '</span>' +
                 '</div>' +

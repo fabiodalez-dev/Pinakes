@@ -33,7 +33,7 @@ $tiles = [
 
   <div class="flex flex-wrap -mx-3 gap-y-3">
     <?php foreach ($tiles as [$label, $value, $icon]): ?>
-      <div class="w-full w-1/2 px-3 md:w-1/4">
+      <div class="w-1/2 px-3 md:w-1/4">
         <div class="border rounded-md px-2 py-3 text-center h-full">
           <div class="text-3xl font-bold"><?= (int) $value ?></div>
           <div class="bc-muted mt-1"><i class="fas <?= $e($icon) ?> mr-1"></i><?= $e($label) ?></div>

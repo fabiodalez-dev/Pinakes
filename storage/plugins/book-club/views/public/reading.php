@@ -245,7 +245,7 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
           <input type="text" name="title" maxlength="190" required placeholder="<?= $e(__('Es. Capitoli 1–5')) ?>"
                  class="form-input">
         </div>
-        <div class="w-full w-1/2 px-3 sm:w-1/4 lg:w-1/6">
+        <div class="w-1/2 px-3 sm:w-1/4 lg:w-1/6">
           <label class="form-label text-sm"><?= $e(__('Tipo')) ?></label>
           <select name="unit" class="form-input">
             <?php foreach ($unitLabels as $unitKey => $unitLabel): ?>
@@ -253,15 +253,15 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="w-full w-1/2 px-3 sm:w-1/4 lg:w-1/6">
+        <div class="w-1/2 px-3 sm:w-1/4 lg:w-1/6">
           <label class="form-label text-sm"><?= $e(__('Da')) ?></label>
           <input type="number" name="range_from" min="0" class="form-input">
         </div>
-        <div class="w-full w-1/2 px-3 sm:w-1/4 lg:w-1/6">
+        <div class="w-1/2 px-3 sm:w-1/4 lg:w-1/6">
           <label class="form-label text-sm"><?= $e(__('A')) ?></label>
           <input type="number" name="range_to" min="0" class="form-input">
         </div>
-        <div class="w-full w-1/2 px-3 sm:w-1/4 lg:w-1/6">
+        <div class="w-1/2 px-3 sm:w-1/4 lg:w-1/6">
           <label class="form-label text-sm"><?= $e(__('Discussione dal')) ?></label>
           <input type="date" name="discuss_from" class="form-input">
         </div>

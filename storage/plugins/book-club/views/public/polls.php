@@ -196,25 +196,25 @@ $modeHelp = [
                     class="form-input"></textarea>
 
           <div class="flex flex-wrap -mx-3 gap-y-3">
-            <div class="w-full w-1/2 px-3 md:w-1/4">
+            <div class="w-1/2 px-3 md:w-1/4">
               <select name="mode" class="form-input" title="<?= $e(__('Modalità di voto')) ?>">
                 <?php foreach ($modeLabels as $value => $label): ?>
                   <option value="<?= $e($value) ?>"><?= $e($label) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
-            <div class="w-full w-1/2 px-3 md:w-1/4">
+            <div class="w-1/2 px-3 md:w-1/4">
               <input type="number" name="votes_per_member" min="1" max="20" value="3"
                      title="<?= $e(__('Voti per membro (preferenza multipla e voto ponderato)')) ?>"
                      class="form-input">
             </div>
-            <div class="w-full w-1/2 px-3 md:w-1/4">
+            <div class="w-1/2 px-3 md:w-1/4">
               <select name="anonymity" class="form-input">
                 <option value="public"><?= $e(__('Voto pubblico')) ?></option>
                 <option value="secret"><?= $e(__('Voto segreto')) ?></option>
               </select>
             </div>
-            <div class="w-full w-1/2 px-3 md:w-1/4">
+            <div class="w-1/2 px-3 md:w-1/4">
               <input type="datetime-local" name="closes_at" class="form-input"
                      title="<?= $e(__('Scadenza (facoltativa)')) ?>">
             </div>

@@ -169,7 +169,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
           <label class="form-label text-sm"><?= $e(__('Titolo')) ?></label>
           <input type="text" name="title" required maxlength="190" class="form-input">
         </div>
-        <div class="w-full w-1/2 px-3 md:w-1/4">
+        <div class="w-1/2 px-3 md:w-1/4">
           <label class="form-label text-sm"><?= $e(__('Metrica')) ?></label>
           <select name="metric" class="form-input">
             <?php foreach ($metricLabels as $key => $label): ?>
@@ -177,7 +177,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="w-full w-1/2 px-3 md:w-1/4">
+        <div class="w-1/2 px-3 md:w-1/4">
           <label class="form-label text-sm"><?= $e(__('Obiettivo annuale')) ?></label>
           <input type="number" name="target" min="1" max="1000000" required class="form-input">
         </div>
@@ -253,7 +253,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
           <label class="form-label text-sm"><?= $e(__('Titolo')) ?></label>
           <input type="text" name="title" required maxlength="190" placeholder="<?= $e(__('Es. 12 libri in un anno')) ?>" class="form-input">
         </div>
-        <div class="w-full w-1/2 px-3 md:w-1/4">
+        <div class="w-1/2 px-3 md:w-1/4">
           <label class="form-label text-sm"><?= $e(__('Metrica')) ?></label>
           <select name="metric" class="form-input">
             <?php foreach ($metricLabels as $key => $label): ?>
@@ -261,7 +261,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="w-full w-1/2 px-3 md:w-1/4">
+        <div class="w-1/2 px-3 md:w-1/4">
           <label class="form-label text-sm"><?= $e(__('Obiettivo annuale')) ?></label>
           <input type="number" name="target" min="1" max="1000000" required class="form-input">
         </div>

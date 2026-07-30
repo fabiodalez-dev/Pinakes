@@ -136,11 +136,11 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
               <?php endforeach; ?>
             </select>
           </div>
-          <div class="w-full w-1/2 px-3 md:w-1/6">
+          <div class="w-1/2 px-3 md:w-1/6">
             <label class="form-label text-sm"><?= $e(__('Pagina')) ?></label>
             <input type="number" name="page" min="0" class="form-input">
           </div>
-          <div class="w-full w-1/2 px-3 md:w-1/4">
+          <div class="w-1/2 px-3 md:w-1/4">
             <label class="form-label text-sm"><?= $e(__('Visibilità')) ?></label>
             <select name="visibility" class="form-input">
               <?php foreach ($quoteVisibilityLabels as $vKey => $vLabel): ?>

@@ -83,25 +83,25 @@ foreach ($topProposers as $proposer) {
 
   <!-- Headline tiles -->
   <div class="flex flex-wrap -mx-3 gap-y-3 mb-4">
-    <div class="w-full w-1/2 px-3 md:w-1/4">
+    <div class="w-1/2 px-3 md:w-1/4">
       <div class="bc-card text-center mb-0 h-full">
         <div class="text-3xl font-bold"><?= (int) $finished ?></div>
         <div class="bc-muted text-sm mt-1"><i class="fas fa-flag-checkered mr-1"></i><?= $e(__('Libri conclusi')) ?></div>
       </div>
     </div>
-    <div class="w-full w-1/2 px-3 md:w-1/4">
+    <div class="w-1/2 px-3 md:w-1/4">
       <div class="bc-card text-center mb-0 h-full">
         <div class="text-3xl font-bold"><?= (int) $meetingsDone ?></div>
         <div class="bc-muted text-sm mt-1"><i class="fas fa-calendar-check mr-1"></i><?= $e(__('Incontri svolti')) ?></div>
       </div>
     </div>
-    <div class="w-full w-1/2 px-3 md:w-1/4">
+    <div class="w-1/2 px-3 md:w-1/4">
       <div class="bc-card text-center mb-0 h-full">
         <div class="text-3xl font-bold"><?= (int) $membersActive ?></div>
         <div class="bc-muted text-sm mt-1"><i class="fas fa-users mr-1"></i><?= $e(__('Membri attivi')) ?></div>
       </div>
     </div>
-    <div class="w-full w-1/2 px-3 md:w-1/4">
+    <div class="w-1/2 px-3 md:w-1/4">
       <div class="bc-card text-center mb-0 h-full">
         <div class="text-3xl font-bold">
           <?= $avgStars !== null ? $e(number_format($avgStars, 1)) . ' <i class="fas fa-star text-xl" style="color: var(--warning-color)"></i>' : '—' ?>
@@ -119,7 +119,7 @@ foreach ($topProposers as $proposer) {
     </div>
     <?php foreach ($stateRows as $row): ?>
       <div class="flex flex-wrap -mx-3 gap-y-2 items-center mb-2">
-        <div class="w-full w-5/12 px-3 md:w-1/4 flex items-center text-sm">
+        <div class="w-5/12 px-3 md:w-1/4 flex items-center text-sm">
           <span class="bc-chip mr-2" style="background: <?= $e($row['color']) ?>"></span>
           <span class="truncate"><?= $e($row['label']) ?></span>
         </div>
@@ -147,7 +147,7 @@ foreach ($topProposers as $proposer) {
     <?php endif; ?>
     <?php foreach ($topProposers as $proposer): ?>
       <div class="flex flex-wrap -mx-3 gap-y-2 items-center mb-2">
-        <div class="w-full w-5/12 px-3 md:w-1/4 text-sm truncate"><?= $e($proposer['name']) ?></div>
+        <div class="w-5/12 px-3 md:w-1/4 text-sm truncate"><?= $e($proposer['name']) ?></div>
         <div class="flex-1 px-3">
           <div class="bc-progress">
             <span style="width: <?= number_format((int) $proposer['n'] / $maxProposer * 100, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></span>

@@ -122,11 +122,11 @@ $now = time();
           <label class="form-label text-sm font-semibold"><?= $e(__('Inizio')) ?></label>
           <input type="datetime-local" name="starts_at" required class="form-input">
         </div>
-        <div class="w-full w-1/2 px-3 md:w-1/3">
+        <div class="w-1/2 px-3 md:w-1/3">
           <label class="form-label text-sm font-semibold"><?= $e(__('Durata (minuti)')) ?></label>
           <input type="number" name="duration_min" required min="5" max="480" value="30" class="form-input">
         </div>
-        <div class="w-full w-1/2 px-3 md:w-1/3">
+        <div class="w-1/2 px-3 md:w-1/3">
           <button type="submit" class="bc-btn w-full">
             <i class="fas fa-plus"></i><?= $e(__('Crea sprint')) ?>
           </button>

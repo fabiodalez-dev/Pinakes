@@ -322,8 +322,8 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
               <input type="text" name="ext_titolo" required maxlength="500" placeholder="<?= $e(__('Titolo')) ?>" class="form-input mb-2">
               <div class="flex flex-wrap -mx-3 gap-y-2 mb-2">
                 <div class="w-full px-3 md:w-1/2"><input type="text" name="ext_autori" maxlength="500" placeholder="<?= $e(__('Autore/i')) ?>" class="form-input"></div>
-                <div class="w-full w-1/2 px-3 md:w-1/4"><input type="text" name="ext_isbn" maxlength="20" placeholder="<?= $e(__('ISBN')) ?>" class="form-input"></div>
-                <div class="w-full w-1/2 px-3 md:w-1/4"><input type="text" name="ext_anno" maxlength="10" placeholder="<?= $e(__('Anno')) ?>" class="form-input"></div>
+                <div class="w-1/2 px-3 md:w-1/4"><input type="text" name="ext_isbn" maxlength="20" placeholder="<?= $e(__('ISBN')) ?>" class="form-input"></div>
+                <div class="w-1/2 px-3 md:w-1/4"><input type="text" name="ext_anno" maxlength="10" placeholder="<?= $e(__('Anno')) ?>" class="form-input"></div>
               </div>
               <input type="text" name="ext_editore" maxlength="255" placeholder="<?= $e(__('Editore (facoltativo)')) ?>" class="form-input mb-2">
               <textarea name="motivation" rows="2" maxlength="3000" placeholder="<?= $e(__('Perché proponi questo libro? (facoltativo)')) ?>" class="form-input mb-3"></textarea>
@@ -440,24 +440,24 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                 <input type="text" name="title" maxlength="190" placeholder="<?= $e(__('Titolo (es. Votazione autunno 2026)')) ?>"
                        class="form-input mb-3">
                 <div class="flex flex-wrap -mx-3 gap-y-2 mb-3">
-                  <div class="w-full w-1/2 px-3 md:w-1/4">
+                  <div class="w-1/2 px-3 md:w-1/4">
                     <select name="mode" class="form-input px-3 py-2 text-sm" id="bc-poll-mode">
                       <option value="simple"><?= $e(__('Voto singolo')) ?></option>
                       <option value="multi"><?= $e(__('Preferenza multipla')) ?></option>
                     </select>
                   </div>
-                  <div class="w-full w-1/2 px-3 md:w-1/4">
+                  <div class="w-1/2 px-3 md:w-1/4">
                     <input type="number" name="votes_per_member" min="1" max="20" value="3"
                            title="<?= $e(__('Voti per membro (solo preferenza multipla)')) ?>"
                            class="form-input px-3 py-2 text-sm">
                   </div>
-                  <div class="w-full w-1/2 px-3 md:w-1/4">
+                  <div class="w-1/2 px-3 md:w-1/4">
                     <select name="anonymity" class="form-input px-3 py-2 text-sm">
                       <option value="public"><?= $e(__('Voto pubblico')) ?></option>
                       <option value="secret"><?= $e(__('Voto segreto')) ?></option>
                     </select>
                   </div>
-                  <div class="w-full w-1/2 px-3 md:w-1/4">
+                  <div class="w-1/2 px-3 md:w-1/4">
                     <input type="datetime-local" name="closes_at" class="form-input px-3 py-2 text-sm"
                            title="<?= $e(__('Scadenza (facoltativa)')) ?>">
                   </div>
@@ -544,20 +544,20 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                   <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                   <input type="text" name="title" required maxlength="190" value="<?= $e((string) $meeting['title']) ?>" class="form-input mb-3">
                   <div class="flex flex-wrap -mx-3 gap-y-2 mb-3">
-                    <div class="w-full w-1/2 px-3 md:w-1/4">
+                    <div class="w-1/2 px-3 md:w-1/4">
                       <input type="datetime-local" name="starts_at" required value="<?= $e(date('Y-m-d\TH:i', (int) strtotime((string) $meeting['starts_at']))) ?>" class="form-input px-3 py-2 text-sm" title="<?= $e(__('Inizio')) ?>">
                     </div>
-                    <div class="w-full w-1/2 px-3 md:w-1/4">
+                    <div class="w-1/2 px-3 md:w-1/4">
                       <input type="datetime-local" name="ends_at" value="<?= !empty($meeting['ends_at']) ? $e(date('Y-m-d\TH:i', (int) strtotime((string) $meeting['ends_at']))) : '' ?>" class="form-input px-3 py-2 text-sm" title="<?= $e(__('Fine (facoltativa)')) ?>">
                     </div>
-                    <div class="w-full w-1/2 px-3 md:w-1/4">
+                    <div class="w-1/2 px-3 md:w-1/4">
                       <select name="kind" class="form-input px-3 py-2 text-sm">
                         <?php foreach ($kindLabels as $value => $label): ?>
                           <option value="<?= $e($value) ?>" <?= $meeting['kind'] === $value ? 'selected' : '' ?>><?= $e($label) ?></option>
                         <?php endforeach; ?>
                       </select>
                     </div>
-                    <div class="w-full w-1/2 px-3 md:w-1/4">
+                    <div class="w-1/2 px-3 md:w-1/4">
                       <input type="number" name="seats" min="1" value="<?= $meeting['seats'] !== null ? (int) $meeting['seats'] : '' ?>" placeholder="<?= $e(__('Posti (illimitati)')) ?>" class="form-input px-3 py-2 text-sm">
                     </div>
                   </div>
@@ -592,20 +592,20 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
               <input type="text" name="title" required maxlength="190" placeholder="<?= $e(__('Titolo dell\'incontro')) ?>"
                      class="form-input mb-3">
               <div class="flex flex-wrap -mx-3 gap-y-2 mb-3">
-                <div class="w-full w-1/2 px-3 md:w-1/4">
+                <div class="w-1/2 px-3 md:w-1/4">
                   <input type="datetime-local" name="starts_at" required class="form-input px-3 py-2 text-sm" title="<?= $e(__('Inizio')) ?>">
                 </div>
-                <div class="w-full w-1/2 px-3 md:w-1/4">
+                <div class="w-1/2 px-3 md:w-1/4">
                   <input type="datetime-local" name="ends_at" class="form-input px-3 py-2 text-sm" title="<?= $e(__('Fine (facoltativa)')) ?>">
                 </div>
-                <div class="w-full w-1/2 px-3 md:w-1/4">
+                <div class="w-1/2 px-3 md:w-1/4">
                   <select name="kind" class="form-input px-3 py-2 text-sm">
                     <?php foreach ($kindLabels as $value => $label): ?>
                       <option value="<?= $e($value) ?>"><?= $e($label) ?></option>
                     <?php endforeach; ?>
                   </select>
                 </div>
-                <div class="w-full w-1/2 px-3 md:w-1/4">
+                <div class="w-1/2 px-3 md:w-1/4">
                   <input type="number" name="seats" min="1" placeholder="<?= $e(__('Posti (illimitati)')) ?>" class="form-input px-3 py-2 text-sm">
                 </div>
               </div>

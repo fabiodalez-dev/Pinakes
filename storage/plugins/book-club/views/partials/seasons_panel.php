@@ -95,20 +95,20 @@ foreach ($archivedBooks as $book) {
               <input type="text" name="name" required maxlength="190" value="<?= $e($season['name']) ?>"
                      title="<?= $e(__('Nome')) ?>" class="form-input px-3 py-2 text-sm">
             </div>
-            <div class="w-full w-1/2 px-3 md:w-1/6">
+            <div class="w-1/2 px-3 md:w-1/6">
               <input type="date" name="starts_on" value="<?= $e($season['starts_on'] ?? '') ?>"
                      title="<?= $e(__('Inizio')) ?>" class="form-input px-3 py-2 text-sm">
             </div>
-            <div class="w-full w-1/2 px-3 md:w-1/6">
+            <div class="w-1/2 px-3 md:w-1/6">
               <input type="date" name="ends_on" value="<?= $e($season['ends_on'] ?? '') ?>"
                      title="<?= $e(__('Fine')) ?>" class="form-input px-3 py-2 text-sm">
             </div>
-            <div class="w-full w-1/2 px-3 md:w-1/6">
+            <div class="w-1/2 px-3 md:w-1/6">
               <input type="number" name="books_target" min="1" value="<?= $target !== null ? $target : '' ?>"
                      placeholder="<?= $e(__('Obiettivo libri')) ?>" title="<?= $e(__('Obiettivo libri')) ?>"
                      class="form-input px-3 py-2 text-sm">
             </div>
-            <div class="w-full w-1/2 px-3 md:w-1/4">
+            <div class="w-1/2 px-3 md:w-1/4">
               <button type="submit" class="bc-btn bc-btn-sm w-full"><?= $e(__('Salva')) ?></button>
             </div>
           </form>
@@ -126,10 +126,10 @@ foreach ($archivedBooks as $book) {
                placeholder="<?= $e(__('Nome della stagione (es. 2026 Primavera)')) ?>"
                class="form-input mb-3">
         <div class="flex flex-wrap -mx-3 gap-y-3 mb-3">
-          <div class="w-full w-1/2 px-3 md:w-1/3">
+          <div class="w-1/2 px-3 md:w-1/3">
             <input type="date" name="starts_on" title="<?= $e(__('Inizio')) ?>" class="form-input">
           </div>
-          <div class="w-full w-1/2 px-3 md:w-1/3">
+          <div class="w-1/2 px-3 md:w-1/3">
             <input type="date" name="ends_on" title="<?= $e(__('Fine')) ?>" class="form-input">
           </div>
           <div class="w-full px-3 md:w-1/3">

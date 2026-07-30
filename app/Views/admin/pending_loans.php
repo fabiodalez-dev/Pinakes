@@ -42,8 +42,8 @@
                 $cc = $colorClasses[$stat['color']];
             ?>
             <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
-                <div class="w-10 h-10 <?= $cc['bg'] ?> $cc['dark_bg'] rounded-lg flex items-center justify-center shrink-0">
-                    <i class="fas <?= $stat['icon'] ?> $cc['text'] $cc['dark_text']"></i>
+                <div class="w-10 h-10 <?= $cc['bg'] ?> <?= $cc['dark_bg'] ?> rounded-lg flex items-center justify-center shrink-0">
+                    <i class="fas <?= $stat['icon'] ?> <?= $cc['text'] ?> <?= $cc['dark_text'] ?>"></i>
                 </div>
                 <div>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white"><?= $stat['count'] ?></p>

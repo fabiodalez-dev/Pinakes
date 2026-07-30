@@ -2390,7 +2390,8 @@ function buildMediaTypeOptions(container) {
         const labelSpan = document.createElement('span');
         const icon = document.createElement('i');
         const iconName = /^fa-[a-z0-9-]+$/i.test(String(mt.icon || '')) ? String(mt.icon) : 'fa-circle';
-        icon.className = 'fas ' + iconName + ' me-1';
+        icon.className = 'fas ' + iconName;
+        icon.style.marginRight = '0.25rem';
         labelSpan.append(icon, document.createTextNode(String(mt.label ?? value)));
         const countSpan = document.createElement('span');
         countSpan.className = 'count-badge';

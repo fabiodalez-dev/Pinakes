@@ -1652,7 +1652,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </div>
 
                     <!-- Compact search toggle -->
-                    <button class="mobile-search-toggle" id="mobileSearchToggle"
+                    <button class="mobile-search-toggle md:hidden" id="mobileSearchToggle"
                         aria-label="<?= __('Toggle search') ?>">
                         <i class="fas fa-search"></i>
                     </button>
@@ -1663,7 +1663,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <i class="fas fa-bars"></i>
                     </button>
 
-                    <form class="search-form hidden" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
+                    <form class="search-form hidden md:block" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q"
                             placeholder="<?= __('Cerca libri, autori, ISBN...') ?>" aria-label="<?= __('Search') ?>">
                     </form>
@@ -1816,7 +1816,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <footer class="footer">
         <div class="container">
             <div class="flex flex-wrap -mx-3">
-                <div class="w-full lg:w-1/4 px-3 mb-lg-0" style="margin-bottom: 1.7rem;">
+                <div class="w-full lg:w-1/4 px-3" style="margin-bottom: 1.7rem;">
                     <?php if ($appLogo !== ''): ?>
                         <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>" class="footer-logo">
                     <?php else: ?>

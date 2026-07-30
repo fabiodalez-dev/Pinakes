@@ -8,6 +8,19 @@ use Dotenv\Dotenv;
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 Dotenv::createImmutable(dirname(__DIR__))->safeLoad();
+
+// Safety: this is a DESTRUCTIVE demo seed — it reuses/overwrites 'E2E %' rows
+// and unlinks their authors. Never let it run via the web or in production.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit("seed-demo-catalog.php is CLI-only.\n");
+}
+$appEnv = $_ENV['APP_ENV'] ?? getenv('APP_ENV') ?: '';
+if ($appEnv === 'production' || $appEnv === 'prod') {
+    fwrite(STDERR, "Refusing to run the destructive demo seed with APP_ENV={$appEnv}.\n");
+    exit(1);
+}
+
 $settings = require dirname(__DIR__) . '/config/settings.php';
 $dbConfig = $settings['db'];
 $db = new mysqli(
@@ -91,8 +104,8 @@ $findAuthor = $db->prepare('SELECT id FROM autori WHERE nome = ? ORDER BY id LIM
 $insertAuthor = $db->prepare('INSERT INTO autori (nome) VALUES (?)');
 $findPublisher = $db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id LIMIT 1');
 $insertPublisher = $db->prepare('INSERT INTO editori (nome) VALUES (?)');
-$findByIsbn = $db->prepare('SELECT id FROM libri WHERE isbn13 = ? LIMIT 1');
-$findDemoByTitle = $db->prepare("SELECT id FROM libri WHERE titolo = ? AND source = 'demo-restyling' LIMIT 1");
+$findByIsbn = $db->prepare('SELECT id FROM libri WHERE isbn13 = ? AND deleted_at IS NULL LIMIT 1');
+$findDemoByTitle = $db->prepare("SELECT id FROM libri WHERE titolo = ? AND source = 'demo-restyling' AND deleted_at IS NULL LIMIT 1");
 $findReusableE2e = $db->prepare("SELECT id FROM libri WHERE titolo LIKE 'E2E %' AND isbn13 IS NULL AND deleted_at IS NULL ORDER BY id LIMIT 1");
 $updateBook = $db->prepare(
     "UPDATE libri SET titolo=?, sottotitolo=?, isbn13=?, anno_pubblicazione=?, lingua=?, numero_pagine=?, " .
