@@ -245,10 +245,11 @@ $additional_css = "
         overflow-x: hidden;
         scrollbar-width: thin;
         scrollbar-color: var(--border-color) transparent;
-        /* Open list — no boxed frame. Lighter, taller, editorial. */
+        /* Open list — no boxed frame. Lighter, taller, editorial.
+           Small right inset so the scrollbar never overlaps the counts. */
         border: none;
         border-radius: 0;
-        padding: 0;
+        padding: 0 0.75rem 0 0;
     }
     .filter-options::-webkit-scrollbar { width: 6px; }
     .filter-options::-webkit-scrollbar-track { background: transparent; }
