@@ -1102,7 +1102,14 @@ $additional_css = "
     .card-header {
         background: transparent;
         border-bottom: 1px solid var(--border-color);
-        padding: 0 0 0.9rem;
+        /* Side MARGIN (not padding): padding would leave the border-bottom
+           full-width, since a border sits on the box perimeter outside the
+           padding. Margin shrinks the box itself, so this rule lines up
+           exactly with the .meta-item hairlines (which are inset 1.5rem by
+           .card-body's padding). Vertical padding gives the label air above
+           the line. */
+        margin: 0 1.5rem;
+        padding: 0.25rem 0 1rem;
     }
 
     .card-header h6 {
@@ -1111,11 +1118,20 @@ $additional_css = "
         font-size: 0.72rem;
         text-transform: uppercase;
         letter-spacing: 0.14em;
+        line-height: 1.3;
         margin: 0;
     }
 
     .card-body {
         padding: 1.5rem;
+    }
+
+    /* The share partial ships a Bootstrap `px-3` on its body; override it
+       (ID+class beats the utility) so the social buttons sit at the same
+       1.5rem inset as the header line and the meta rows above. */
+    #book-share-card .card-body.px-3 {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
     }
 
     .badge {

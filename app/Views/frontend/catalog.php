@@ -133,6 +133,15 @@ $additional_css = "
         max-height: calc(100vh - 4rem);
         display: flex;
         flex-direction: column;
+        /* Breathing room between the open sidebar and the results grid,
+           now that the boxed panel is gone. Removed on stacked mobile. */
+        padding-right: 2.5rem;
+    }
+
+    @media (max-width: 991.98px) {
+        .filters-panel {
+            padding-right: 0;
+        }
     }
 
     .filters-header {
@@ -160,7 +169,7 @@ $additional_css = "
     }
 
     .filter-section {
-        padding: 1.25rem 0;
+        padding: 1.85rem 0;
         border-bottom: 1px solid var(--border-light);
     }
 
@@ -231,14 +240,15 @@ $additional_css = "
         /* Long facet lists (authors, genres, publishers) scroll inside the
            section instead of stretching the whole sidebar. A light-grey border
            signals the area is scrollable. */
-        max-height: 16rem;
+        max-height: 24rem;
         overflow-y: auto;
         overflow-x: hidden;
         scrollbar-width: thin;
         scrollbar-color: var(--border-color) transparent;
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius-md, 0.5rem);
-        padding: 0.35rem;
+        /* Open list — no boxed frame. Lighter, taller, editorial. */
+        border: none;
+        border-radius: 0;
+        padding: 0;
     }
     .filter-options::-webkit-scrollbar { width: 6px; }
     .filter-options::-webkit-scrollbar-track { background: transparent; }
@@ -259,11 +269,11 @@ $additional_css = "
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0.5rem 0.75rem;
-        border-radius: var(--radius-md);
-        color: var(--text-secondary);
+        padding: 0.65rem 0.5rem;
+        border-radius: 2px;
+        color: var(--text-color, var(--text-primary));
         text-decoration: none;
-        font-size: 0.875rem;
+        font-size: 0.925rem;
         transition: var(--transition);
         cursor: pointer;
         gap: 0.5rem;
@@ -273,8 +283,8 @@ $additional_css = "
     }
 
     .filter-option:hover {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
+        background: color-mix(in srgb, var(--primary-color) 7%, transparent);
+        color: var(--primary-color);
         transform: translateX(2px);
     }
 

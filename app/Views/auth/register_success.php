@@ -19,7 +19,7 @@ $appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
     
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <link href="<?= htmlspecialchars(assetUrl('/assets/fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
 
@@ -30,7 +30,13 @@ $appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
         input,select,textarea,button,.btn,.card,.form-control,.form-select,.input-group,.input-group-text,.alert,.auth-card,.login-card{ border-radius:2px !important; }
         /* flatten: no shadows, no glass */
         .card,.auth-card,.login-card,.alert,[class*="card"]{ box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
-    </style>
+    
+        /* Beat Tailwind utilities (class specificity): crisp corners everywhere. */
+        [class*="rounded-"]{ border-radius:2px !important; }
+        .w-20.h-20.rounded-2xl{ border-radius:3px !important; }   /* logo tile */
+        /* Card: keep it airy, just a hairline — no heavy grey frame. */
+        .bg-white.border{ border-color:var(--border-color, #e5e7eb) !important; }
+</style>
     <?php require __DIR__ . '/partials/custom-css.php'; ?>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900">
