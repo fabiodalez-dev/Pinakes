@@ -227,3 +227,187 @@
   }
 }
 
+/* Loan request date picker -------------------------------------------------
+ * Flatpickr used to append an absolute calendar to <body>, which let it cover
+ * the second field and modal actions. The calendar now stays in the popup's
+ * flow; only the popup scrolls when the viewport is short. */
+html.swal2-shown,
+body.swal2-shown {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.loan-request-popup {
+  width: min(42rem, calc(100vw - 2rem)) !important;
+  max-height: calc(100vh - 2rem) !important;
+  max-height: calc(100dvh - 2rem) !important;
+  padding: 1.6rem !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.loan-request-popup .swal2-title {
+  padding: .2rem 0 1.25rem !important;
+  color: var(--text-color, #0f172a) !important;
+  font-family: var(--sans, Inter, system-ui, sans-serif) !important;
+  font-size: 1.45rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -.025em;
+  text-align: left !important;
+}
+
+.loan-request-content {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  color: var(--text-color, #0f172a) !important;
+}
+
+.loan-request-form,
+.loan-request-field {
+  display: grid;
+}
+
+.loan-request-form {
+  gap: 1.15rem;
+}
+
+.loan-request-field {
+  gap: .45rem;
+}
+
+.loan-request-label {
+  color: var(--text-color, #0f172a);
+  font-size: .84rem;
+  font-weight: 650;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.loan-request-popup .flatpickr-wrapper {
+  display: block;
+  width: 100%;
+}
+
+.loan-request-popup .loan-date-input,
+.loan-request-popup .flatpickr-wrapper > input.input {
+  width: 100% !important;
+  min-height: 44px !important;
+  margin: 0 !important;
+  padding: .7rem .8rem !important;
+  border: 1px solid var(--border-color, #e5e7eb) !important;
+  border-radius: 8px !important;
+  background: var(--white, #fdfcfd) !important;
+  color: var(--text-color, #0f172a) !important;
+  font-family: var(--sans, Inter, system-ui, sans-serif) !important;
+  font-size: .95rem !important;
+  box-shadow: none !important;
+}
+
+.loan-request-popup .flatpickr-wrapper > input.input:focus {
+  border-color: var(--primary-color, #d70161) !important;
+  outline: 3px solid color-mix(in srgb, var(--primary-color, #d70161) 18%, transparent) !important;
+  outline-offset: 1px !important;
+}
+
+.loan-request-popup .flatpickr-calendar.static {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 2 !important;
+  margin: .55rem auto .1rem !important;
+  transform: none !important;
+}
+
+.loan-request-popup .flatpickr-calendar.static::before,
+.loan-request-popup .flatpickr-calendar.static::after {
+  display: none !important;
+}
+
+.loan-request-note {
+  display: flex;
+  align-items: flex-start;
+  gap: .4rem;
+  margin: 0;
+  color: color-mix(in srgb, var(--text-color, #0f172a) 72%, var(--white, #fdfcfd));
+  font-size: .8rem;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.loan-request-note i {
+  margin-top: .18rem;
+  color: var(--primary-color, #d70161);
+}
+
+.loan-request-actions {
+  justify-content: flex-start !important;
+  gap: .65rem !important;
+  margin: 1.4rem 0 0 !important;
+}
+
+.loan-request-actions .swal2-confirm,
+.loan-request-actions .swal2-cancel {
+  min-height: 44px;
+  margin: 0 !important;
+  padding: .7rem 1rem !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  font-size: .875rem !important;
+  font-weight: 650 !important;
+  box-shadow: none !important;
+}
+
+.loan-request-actions .swal2-confirm {
+  background: var(--button-color, #d70262) !important;
+  color: var(--button-text-color, #fdfcfd) !important;
+}
+
+.loan-request-actions .swal2-confirm:hover {
+  background: color-mix(in srgb, var(--button-color, #d70262) 88%, #111827) !important;
+  transform: translateY(-1px) !important;
+}
+
+.loan-request-actions .swal2-cancel {
+  background: color-mix(in srgb, var(--text-color, #0f172a) 6%, var(--white, #fdfcfd)) !important;
+  color: var(--text-color, #0f172a) !important;
+}
+
+.loan-request-actions .swal2-cancel:hover {
+  background: color-mix(in srgb, var(--text-color, #0f172a) 10%, var(--white, #fdfcfd)) !important;
+  transform: none !important;
+}
+
+@media (max-width: 420px) {
+  .loan-request-popup {
+    width: calc(100vw - 1rem) !important;
+    max-height: calc(100vh - 1rem) !important;
+    max-height: calc(100dvh - 1rem) !important;
+    padding: 1rem !important;
+  }
+
+  .loan-request-popup .flatpickr-calendar.static,
+  .loan-request-popup .flatpickr-rContainer,
+  .loan-request-popup .flatpickr-days,
+  .loan-request-popup .dayContainer {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .loan-request-popup .flatpickr-day {
+    max-width: none !important;
+    flex-basis: 14.2857% !important;
+  }
+
+  .loan-request-actions {
+    display: grid !important;
+    grid-template-columns: 1fr;
+  }
+
+  .loan-request-actions .swal2-confirm,
+  .loan-request-actions .swal2-cancel {
+    width: 100%;
+  }
+}

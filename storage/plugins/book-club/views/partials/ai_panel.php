@@ -13,7 +13,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 $slug = (string) $club['slug'];
 ?>
 <section class="bc-card">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+  <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
       <div class="bc-section-header mb-1">
         <i class="fas fa-wand-magic-sparkles"></i>

@@ -349,7 +349,7 @@ $id = (int) $row['id'];
                                 </div>
                                 <form method="POST"
                                       action="<?= $e(url('/admin/archives/' . $id . '/files/' . (int) $uf['id'] . '/delete')) ?>"
-                                      class="inline flex-shrink-0"
+                                      class="inline shrink-0"
                                       data-swal-confirm="<?= $e(__("Rimuovere questo file?")) ?>">
                                     <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                                     <button type="submit" class="text-xs text-red-600 hover:underline">

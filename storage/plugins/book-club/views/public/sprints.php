@@ -77,12 +77,12 @@ $now = time();
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none d-inline-flex align-items-center gap-2 mb-3">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e(__('Torna al club')) ?>
   </a>
 
   <div class="bc-hero">
-    <h1 class="d-flex align-items-center gap-3">
+    <h1 class="flex items-center gap-3">
       <span class="bc-chip" style="background: <?= $e($club['color']) ?>"></span>
       <span><?= $e(__('Reading Sprint')) ?> — <?= $e($club['name']) ?></span>
     </h1>
@@ -102,32 +102,32 @@ $now = time();
         <i class="fas fa-stopwatch"></i>
         <h2><?= $e(__('Nuovo sprint')) ?></h2>
       </div>
-      <form method="post" action="<?= $e($base) ?>" class="row g-3 align-items-end">
+      <form method="post" action="<?= $e($base) ?>" class="flex flex-wrap -mx-3 gap-y-3 items-end">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-        <div class="col-12 col-md-6">
-          <label class="form-label small fw-semibold"><?= $e(__('Titolo')) ?></label>
+        <div class="w-full px-3 md:w-1/2">
+          <label class="form-label text-sm font-semibold"><?= $e(__('Titolo')) ?></label>
           <input type="text" name="title" required maxlength="190" placeholder="<?= $e(__('Es. Sprint del venerdì sera')) ?>"
-                 class="form-control">
+                 class="form-input">
         </div>
-        <div class="col-12 col-md-6">
-          <label class="form-label small fw-semibold"><?= $e(__('Libro (facoltativo)')) ?></label>
-          <select name="club_book_id" class="form-select">
+        <div class="w-full px-3 md:w-1/2">
+          <label class="form-label text-sm font-semibold"><?= $e(__('Libro (facoltativo)')) ?></label>
+          <select name="club_book_id" class="form-input">
             <option value=""><?= $e(__('Nessun libro specifico')) ?></option>
             <?php foreach ($currentBooks as $book): ?>
               <option value="<?= (int) $book['id'] ?>"><?= $e($book['titolo']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-12 col-md-4">
-          <label class="form-label small fw-semibold"><?= $e(__('Inizio')) ?></label>
-          <input type="datetime-local" name="starts_at" required class="form-control">
+        <div class="w-full px-3 md:w-1/3">
+          <label class="form-label text-sm font-semibold"><?= $e(__('Inizio')) ?></label>
+          <input type="datetime-local" name="starts_at" required class="form-input">
         </div>
-        <div class="col-6 col-md-4">
-          <label class="form-label small fw-semibold"><?= $e(__('Durata (minuti)')) ?></label>
-          <input type="number" name="duration_min" required min="5" max="480" value="30" class="form-control">
+        <div class="w-full w-1/2 px-3 md:w-1/3">
+          <label class="form-label text-sm font-semibold"><?= $e(__('Durata (minuti)')) ?></label>
+          <input type="number" name="duration_min" required min="5" max="480" value="30" class="form-input">
         </div>
-        <div class="col-6 col-md-4">
-          <button type="submit" class="bc-btn w-100">
+        <div class="w-full w-1/2 px-3 md:w-1/3">
+          <button type="submit" class="bc-btn w-full">
             <i class="fas fa-plus"></i><?= $e(__('Crea sprint')) ?>
           </button>
         </div>
@@ -155,22 +155,22 @@ $now = time();
         $participants = is_array($sprint['participants'] ?? null) ? $sprint['participants'] : [];
       ?>
       <article class="bc-card">
-        <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
-          <div class="flex-grow-1">
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-              <h2 class="h5 fw-bold mb-0"><?= $e($sprint['title']) ?></h2>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="grow">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="h5 font-bold mb-0"><?= $e($sprint['title']) ?></h2>
               <span class="bc-badge <?= $statusClass ?>"><?= $e($statusLabel) ?></span>
             </div>
-            <div class="bc-muted mt-1 d-flex flex-wrap column-gap-3 row-gap-1">
-              <span><i class="far fa-clock me-1"></i><?= $e(date('d/m/Y H:i', $startTs)) ?></span>
-              <span><i class="fas fa-hourglass-half me-1"></i><?= $e(sprintf(__('%d minuti'), (int) $sprint['duration_min'])) ?></span>
+            <div class="bc-muted mt-1 flex flex-wrap column-gap-3 row-gap-1">
+              <span><i class="far fa-clock mr-1"></i><?= $e(date('d/m/Y H:i', $startTs)) ?></span>
+              <span><i class="fas fa-hourglass-half mr-1"></i><?= $e(sprintf(__('%d minuti'), (int) $sprint['duration_min'])) ?></span>
               <?php if (!empty($sprint['book_title'])): ?>
-                <span><i class="fas fa-book me-1"></i><?= $e($sprint['book_title']) ?></span>
+                <span><i class="fas fa-book mr-1"></i><?= $e($sprint['book_title']) ?></span>
               <?php endif; ?>
               <?php if (!empty($sprint['creator_name'])): ?>
-                <span><i class="far fa-user me-1"></i><?= $e($sprint['creator_name']) ?></span>
+                <span><i class="far fa-user mr-1"></i><?= $e($sprint['creator_name']) ?></span>
               <?php endif; ?>
-              <span><i class="fas fa-users me-1"></i><?= $e(sprintf(__('%d partecipanti'), count($participants))) ?></span>
+              <span><i class="fas fa-users mr-1"></i><?= $e(sprintf(__('%d partecipanti'), count($participants))) ?></span>
             </div>
             <?php if ($status === 'scheduled'): ?>
               <p class="mt-2 mb-0"><span class="bc-badge bc-badge-warn"><i class="fas fa-play"></i><?= $e(sprintf(__('Inizia tra %s'), $countdown($startTs - $now))) ?></span></p>
@@ -179,7 +179,7 @@ $now = time();
             <?php endif; ?>
           </div>
 
-          <div class="d-flex align-items-center gap-2 flex-shrink-0">
+          <div class="flex items-center gap-2 shrink-0">
             <?php if ($isMember && $status === 'scheduled'): ?>
               <?php if (!$joined): ?>
                 <form method="post" action="<?= $e($base . '/' . $sprintId . '/join') ?>">
@@ -210,17 +210,17 @@ $now = time();
         </div>
 
         <?php if ($participants !== [] && $status !== 'cancelled'): ?>
-          <div class="mt-3 pt-3 border-top">
+          <div class="mt-3 pt-3 border-t">
             <?php if ($status === 'done'): ?>
-              <h3 class="h6 fw-bold mb-2">
-                <i class="fas fa-trophy me-1" style="color: var(--warning-color)"></i><?= $e(__('Risultati')) ?>
-                <span class="ms-2 fw-normal bc-muted"><?= $e(sprintf(__('%d pagine totali'), (int) $sprint['total_pages'])) ?></span>
+              <h3 class="mb-2 text-base font-bold">
+                <i class="fas fa-trophy mr-1" style="color: var(--warning-color)"></i><?= $e(__('Risultati')) ?>
+                <span class="ml-2 font-normal bc-muted"><?= $e(sprintf(__('%d pagine totali'), (int) $sprint['total_pages'])) ?></span>
               </h3>
-              <ul class="list-unstyled small mb-0">
+              <ul class="mb-0 list-none text-sm">
                 <?php foreach ($participants as $p): ?>
-                  <li class="d-flex align-items-center justify-content-between gap-3 py-1">
-                    <span class="text-truncate"><i class="far fa-user me-1 bc-muted"></i><?= $e($p['user_name']) ?></span>
-                    <span class="fw-semibold text-nowrap">
+                  <li class="flex items-center justify-between gap-3 py-1">
+                    <span class="truncate"><i class="far fa-user mr-1 bc-muted"></i><?= $e($p['user_name']) ?></span>
+                    <span class="font-semibold whitespace-nowrap">
                       <?= $p['pages_read'] !== null ? $e(sprintf(__('%d pagine'), (int) $p['pages_read'])) : $e(__('non registrate')) ?>
                     </span>
                   </li>
@@ -228,7 +228,7 @@ $now = time();
               </ul>
             <?php else: ?>
               <div class="bc-muted">
-                <i class="fas fa-users me-1"></i>
+                <i class="fas fa-users mr-1"></i>
                 <?= $e(implode(', ', array_map(static fn(array $p): string => (string) $p['user_name'], $participants))) ?>
               </div>
             <?php endif; ?>
@@ -236,15 +236,15 @@ $now = time();
         <?php endif; ?>
 
         <?php if ($status === 'done' && $joined): ?>
-          <form method="post" action="<?= $e($base . '/' . $sprintId . '/pages') ?>" class="row g-2 align-items-end mt-2">
+          <form method="post" action="<?= $e($base . '/' . $sprintId . '/pages') ?>" class="flex flex-wrap -mx-3 gap-y-2 items-end mt-2">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-            <div class="col-auto">
-              <label class="form-label small fw-semibold"><?= $e(__('Le tue pagine lette')) ?></label>
+            <div class="w-auto px-3">
+              <label class="form-label text-sm font-semibold"><?= $e(__('Le tue pagine lette')) ?></label>
               <input type="number" name="pages_read" min="0" max="10000" required
                      value="<?= $sprint['mine']['pages_read'] !== null ? (int) $sprint['mine']['pages_read'] : '' ?>"
-                     class="form-control form-control-sm">
+                     class="form-input px-3 py-2 text-sm">
             </div>
-            <div class="col-auto">
+            <div class="w-auto px-3">
               <button type="submit" class="bc-btn bc-btn-sm">
                 <i class="fas fa-check"></i><?= $e(__('Salva')) ?>
               </button>

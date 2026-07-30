@@ -1445,7 +1445,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $authorName = urldecode($authorName);
 
         // Query per trovare l'autore
-        $authorQuery = "SELECT id, nome, pseudonimo, biografia FROM autori WHERE nome = ? LIMIT 1";
+        // Keep the name-based route feature-equivalent to the ID route: both
+        // expose the public photo, website and authority/source links.
+        $authorQuery = "SELECT id, nome, pseudonimo, biografia, sito_web, foto, collegamenti FROM autori WHERE nome = ? LIMIT 1";
         $stmt = $db->prepare($authorQuery);
         $stmt->bind_param('s', $authorName);
         $stmt->execute();
@@ -2049,104 +2051,60 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             }
         }
 
-        // Priority 1: Same author(s)
-        if (count($related_books) < $limit && !empty($authors)) {
+        // Priorities 1-3 in one ranked query: same author, then same genre,
+        // then recent additions. This preserves the previous ordering while
+        // avoiding up to three sequential round-trips on every book page.
+        if (count($related_books) < $limit) {
             $remaining = $limit - count($related_books);
+            $exclude_ids = array_merge([$book_id], array_column($related_books, 'id'));
+            $excludePlaceholders = implode(',', array_fill(0, count($exclude_ids), '?'));
+
             $creatorAuthors = array_values(array_filter(
                 $authors,
                 static fn (array $author): bool => in_array((string) ($author['ruolo'] ?? ''), ['principale', 'co-autore'], true)
             ));
-            $author_ids = array_column($creatorAuthors, 'id');
-            if ($author_ids === []) {
-                $author_ids = [0];
-            }
-            $exclude_ids = array_merge([$book_id], array_column($related_books, 'id'));
-            $authorPlaceholders = implode(',', array_fill(0, count($author_ids), '?'));
-            $excludePlaceholders = implode(',', array_fill(0, count($exclude_ids), '?'));
+            $authorIds = array_values(array_filter(array_map('intval', array_column($creatorAuthors, 'id'))));
 
-            $query = "
-                SELECT l.*, {$allCreatorsSelect} AS autori,
-                       {$primaryCreatorNameSelect} AS autore_principale_nome
-                FROM libri l
-                WHERE EXISTS (
+            $priorityCases = [];
+            $priorityTypes = '';
+            $priorityParams = [];
+            if ($authorIds !== []) {
+                $authorPlaceholders = implode(',', array_fill(0, count($authorIds), '?'));
+                $priorityCases[] = "WHEN EXISTS (
                     SELECT 1
                       FROM libri_autori la_match
                      WHERE la_match.libro_id = l.id
                        AND la_match.autore_id IN ($authorPlaceholders)
                        AND la_match.ruolo IN ('principale', 'co-autore')
-                )
-                AND l.id NOT IN ($excludePlaceholders)
-                AND l.deleted_at IS NULL
-                ORDER BY l.created_at DESC
-                LIMIT ?
-            ";
-
-            $stmt = $db->prepare($query);
-            if ($stmt) {
-                $types = str_repeat('i', count($author_ids)) . str_repeat('i', count($exclude_ids)) . 'i';
-                $params = array_merge($author_ids, $exclude_ids, [$remaining]);
-                $stmt->bind_param($types, ...$params);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                while ($row = $result->fetch_assoc()) {
-                    $related_books[] = $row;
-                }
-                $stmt->close();
+                ) THEN 0";
+                $priorityTypes .= str_repeat('i', count($authorIds));
+                array_push($priorityParams, ...$authorIds);
             }
-        }
-
-        // Priority 2: Same genre - second most relevant
-        if (count($related_books) < $limit && !empty($book['genere_id'])) {
-            $remaining = $limit - count($related_books);
-            $exclude_ids = array_merge([$book_id], array_column($related_books, 'id'));
-            $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
+            if (!empty($book['genere_id'])) {
+                $priorityCases[] = 'WHEN l.genere_id = ? THEN 1';
+                $priorityTypes .= 'i';
+                $priorityParams[] = (int) $book['genere_id'];
+            }
+            $priorityOrder = $priorityCases === []
+                ? '2'
+                : 'CASE ' . implode(' ', $priorityCases) . ' ELSE 2 END';
 
             $query = "
                 SELECT l.*, {$allCreatorsSelect} AS autori,
                        {$primaryCreatorNameSelect} AS autore_principale_nome
                 FROM libri l
-                WHERE l.genere_id = ?
-                AND l.id NOT IN ($placeholders)
+                WHERE l.id NOT IN ($excludePlaceholders)
                 AND l.deleted_at IS NULL
-                ORDER BY l.created_at DESC
+                ORDER BY {$priorityOrder}, l.created_at DESC, l.id DESC
                 LIMIT ?
             ";
 
             $stmt = $db->prepare($query);
             if ($stmt) {
-                $types = 'i' . str_repeat('i', count($exclude_ids)) . 'i';
-                $params = array_merge([$book['genere_id']], $exclude_ids, [$remaining]);
-                $stmt->bind_param($types, ...$params);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                while ($row = $result->fetch_assoc()) {
-                    $related_books[] = $row;
-                }
-                $stmt->close();
-            }
-        }
-
-        // Priority 3: Recent additions (fallback)
-        // Show newest books instead of random for better discovery
-        if (count($related_books) < $limit) {
-            $remaining = $limit - count($related_books);
-            $exclude_ids = array_merge([$book_id], array_column($related_books, 'id'));
-            $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
-
-            $query = "
-                SELECT l.*, {$allCreatorsSelect} AS autori,
-                       {$primaryCreatorNameSelect} AS autore_principale_nome
-                FROM libri l
-                WHERE l.id NOT IN ($placeholders)
-                AND l.deleted_at IS NULL
-                ORDER BY l.created_at DESC
-                LIMIT ?
-            ";
-
-            $stmt = $db->prepare($query);
-            if ($stmt) {
-                $types = str_repeat('i', count($exclude_ids)) . 'i';
-                $params = array_merge($exclude_ids, [$remaining]);
+                // Placeholder order follows the SQL text: WHERE exclusions,
+                // ORDER BY ranking values, then LIMIT.
+                $types = str_repeat('i', count($exclude_ids)) . $priorityTypes . 'i';
+                $params = array_merge($exclude_ids, $priorityParams, [$remaining]);
                 $stmt->bind_param($types, ...$params);
                 $stmt->execute();
                 $result = $stmt->get_result();

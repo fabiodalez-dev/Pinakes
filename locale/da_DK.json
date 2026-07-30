@@ -6658,5 +6658,21 @@
   "Le email per la nuova richiesta agli amministratori e per l'approvazione all'utente continueranno a essere inviate.": "E-mails om den nye anmodning til administratorer og om godkendelsen til låneren sendes fortsat.",
   "Auto-approva le richieste": "Godkend anmodninger automatisk",
   "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.": "Spring manuel godkendelse over for nye lån, som brugerne anmoder om.",
-  "Prestito approvato. Il libro è in attesa di ritiro.": "Lånet er godkendt. Bogen afventer afhentning."
+  "Prestito approvato. Il libro è in attesa di ritiro.": "Lånet er godkendt. Bogen afventer afhentning.",
+  "Stile interfaccia": "Grænsefladestil",
+  "Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.": "Skift opbygningen af det offentlige websted. CMS-indhold, hero-baggrund, farver og funktioner forbliver uændrede.",
+  "Un solo frontend": "Én fælles grænseflade",
+  "Editoriale": "Redaktionel",
+  "Tipografia autorevole, copertine protagoniste e ritmo arioso.": "Tydelig typografi, fremtrædende forsider og luftig rytme.",
+  "Workspace": "Arbejdsområde",
+  "Più compatto e operativo, ideale per cataloghi ricchi di metadati.": "Mere kompakt og operationel, ideel til kataloger med mange metadata.",
+  "Command": "Kommando",
+  "Ricerca centrale, gerarchia netta e superfici ad alto contrasto.": "Central søgning, tydeligt hierarki og flader med høj kontrast.",
+  "Soft": "Blød",
+  "Accogliente e morbido, con angoli ampi e profondità discreta.": "Indbydende og blød, med rummelige hjørner og diskret dybde.",
+  "Stile interfaccia non valido": "Ugyldig grænsefladestil",
+  "Area personale": "Personligt område",
+  "Prestiti e prenotazioni": "Lån og reservationer",
+  "Controlla scadenze, richieste e storico dei libri associati al tuo account.": "Se afleveringsfrister, anmodninger og historikken for bøger, der er knyttet til din konto.",
+  "Collegamenti area personale": "Links til det personlige område"
 }

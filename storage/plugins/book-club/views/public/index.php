@@ -54,7 +54,7 @@ $privacyLabels = [
 </style>
 <div class="container py-4">
   <div class="bc-hero">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1><?= $e(__('Club di lettura')) ?></h1>
         <p><?= $e(__('Leggi insieme: proposte, votazioni e incontri.')) ?></p>
@@ -80,12 +80,12 @@ $privacyLabels = [
     </div>
   <?php endif; ?>
 
-  <div class="row g-4">
+  <div class="flex flex-wrap -mx-3 gap-y-4">
     <?php foreach ($clubs as $club): ?>
-      <div class="col-12 col-md-6 col-lg-4">
+      <div class="w-full px-3 md:w-1/2 lg:w-1/3">
         <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>" class="bc-card bc-club-card mb-0">
           <span class="bc-club-accent" style="background: <?= $e($club['color']) ?>"></span>
-          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <div class="flex items-center justify-between gap-2 mb-2">
             <h2><?= $e($club['name']) ?></h2>
             <?php if (isset($mine[(int) $club['id']])): ?>
               <span class="bc-badge <?= $mine[(int) $club['id']] === 'active' ? 'bc-badge-open' : 'bc-badge-warn' ?>">
@@ -94,9 +94,9 @@ $privacyLabels = [
             <?php endif; ?>
           </div>
           <p class="bc-muted"><?= $e(mb_substr((string) ($club['description'] ?? ''), 0, 180)) ?></p>
-          <div class="d-flex align-items-center gap-3 bc-muted small mt-3">
-            <span><i class="fas fa-users me-1"></i><?= (int) $club['member_count'] ?><?= $club['max_members'] !== null ? '/' . (int) $club['max_members'] : '' ?></span>
-            <span><i class="fas fa-lock me-1"></i><?= $e($privacyLabels[$club['privacy']] ?? $club['privacy']) ?></span>
+          <div class="flex items-center gap-3 bc-muted text-sm mt-3">
+            <span><i class="fas fa-users mr-1"></i><?= (int) $club['member_count'] ?><?= $club['max_members'] !== null ? '/' . (int) $club['max_members'] : '' ?></span>
+            <span><i class="fas fa-lock mr-1"></i><?= $e($privacyLabels[$club['privacy']] ?? $club['privacy']) ?></span>
           </div>
         </a>
       </div>

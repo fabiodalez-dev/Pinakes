@@ -47,7 +47,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-user text-primary"></i>
+            <i class="fas fa-user text-gray-900"></i>
             <?= __("Informazioni Base") ?>
           </h2>
         </div>
@@ -94,7 +94,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-book-open text-primary"></i>
+            <i class="fas fa-book-open text-gray-900"></i>
             <?= __("Biografia") ?>
           </h2>
         </div>
@@ -121,7 +121,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-image text-primary"></i>
+            <i class="fas fa-image text-gray-900"></i>
             <?= __("Foto e Collegamenti") ?>
           </h2>
         </div>
@@ -154,13 +154,13 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
             <div id="collegamenti-list" class="space-y-2">
               <?php foreach ($collegamentiArr as $c): if (!is_array($c)) { continue; } ?>
                 <div class="collegamento-row flex flex-col sm:flex-row gap-2">
-                  <input type="text" name="collegamenti_etichetta[]" value="<?= htmlspecialchars((string) ($c['etichetta'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="form-input sm:w-1/3" placeholder="<?= __('Etichetta (es. Wikipedia)') ?>">
+                  <input type="text" name="collegamenti_etichetta[]" value="<?= htmlspecialchars((string) ($c['etichetta'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="w-full form-input sm:w-1/3" placeholder="<?= __('Etichetta (es. Wikipedia)') ?>">
                   <input type="url" name="collegamenti_url[]" value="<?= htmlspecialchars((string) ($c['url'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="form-input sm:flex-1" placeholder="<?= __('https://...') ?>">
-                  <button type="button" class="btn btn-light collegamento-remove" title="<?= __('Rimuovi') ?>"><i class="fas fa-times"></i></button>
+                  <button type="button" class="ui-button btn-secondary collegamento-remove" title="<?= __('Rimuovi') ?>"><i class="fas fa-times"></i></button>
                 </div>
               <?php endforeach; ?>
             </div>
-            <button type="button" id="collegamento-add" class="btn btn-light mt-2"><i class="fas fa-plus mr-1"></i><?= __("Aggiungi collegamento") ?></button>
+            <button type="button" id="collegamento-add" class="ui-button btn-secondary mt-2"><i class="fas fa-plus mr-1"></i><?= __("Aggiungi collegamento") ?></button>
           </div>
         </div>
       </div>
@@ -303,9 +303,9 @@ function initializeCollegamenti() {
         const row = document.createElement('div');
         row.className = 'collegamento-row flex flex-col sm:flex-row gap-2';
         row.innerHTML =
-            '<input type="text" name="collegamenti_etichetta[]" class="form-input sm:w-1/3">' +
+            '<input type="text" name="collegamenti_etichetta[]" class="w-full form-input sm:w-1/3">' +
             '<input type="url" name="collegamenti_url[]" class="form-input sm:flex-1">' +
-            '<button type="button" class="btn btn-light collegamento-remove"><i class="fas fa-times"></i></button>';
+            '<button type="button" class="ui-button btn-secondary collegamento-remove"><i class="fas fa-times"></i></button>';
         row.querySelector('input[type="text"]').placeholder = labelPh;
         row.querySelector('input[type="url"]').placeholder = urlPh;
         list.appendChild(row);

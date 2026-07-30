@@ -58,7 +58,7 @@
     <div class="card mb-6">
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-plus text-primary"></i>
+          <i class="fas fa-plus text-gray-900"></i>
           <?= __("Aggiungi Genere Rapido") ?>
         </h2>
       </div>
@@ -171,7 +171,7 @@
                     </div>
                   </div>
                   <div class="flex items-center space-x-2">
-                    <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$genere['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline btn-sm">
+                    <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$genere['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline px-3 py-2 text-xs">
                       <i class="fas fa-eye mr-1"></i>
                       <?= __("Dettagli") ?>
                     </a>
@@ -190,7 +190,7 @@
                               <?php echo htmlspecialchars($sottogenere['nome']); ?>
                             </span>
                           </div>
-                          <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$sottogenere['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline btn-sm">
+                          <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$sottogenere['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline px-3 py-2 text-xs">
                             <i class="fas fa-external-link-alt mr-1"></i><?= __("Dettagli") ?>
                           </a>
                         </div>

@@ -23,7 +23,7 @@ $slug = (string) $club['slug'];
       <?= $e(__('Nessuna votazione aperta.')) ?>
     <?php endif; ?>
   </p>
-  <a href="<?= $e(url('/book-club/' . $slug . '/polls')) ?>" class="bc-btn w-100">
+  <a href="<?= $e(url('/book-club/' . $slug . '/polls')) ?>" class="bc-btn w-full">
     <?= $e(__('Tutte le votazioni')) ?>
   </a>
 </section>

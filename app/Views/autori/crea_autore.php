@@ -40,7 +40,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-user text-primary"></i>
+            <i class="fas fa-user text-gray-900"></i>
             <?= __("Informazioni Base") ?>
           </h2>
         </div>
@@ -87,7 +87,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-book-open text-primary"></i>
+            <i class="fas fa-book-open text-gray-900"></i>
             <?= __("Biografia") ?>
           </h2>
         </div>
@@ -104,7 +104,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-image text-primary"></i>
+            <i class="fas fa-image text-gray-900"></i>
             <?= __("Foto e Collegamenti") ?>
           </h2>
         </div>
@@ -125,7 +125,7 @@
             <label class="form-label"><?= __("Collegamenti e fonti") ?></label>
             <p class="text-xs text-gray-500 mb-2"><?= __("Link a fonti, voci enciclopediche o siti rilevanti per l'autore.") ?></p>
             <div id="collegamenti-list" class="space-y-2"></div>
-            <button type="button" id="collegamento-add" class="btn btn-light mt-2"><i class="fas fa-plus mr-1"></i><?= __("Aggiungi collegamento") ?></button>
+            <button type="button" id="collegamento-add" class="ui-button btn-secondary mt-2"><i class="fas fa-plus mr-1"></i><?= __("Aggiungi collegamento") ?></button>
           </div>
         </div>
       </div>
@@ -253,9 +253,9 @@ function initializeCollegamenti() {
         const row = document.createElement('div');
         row.className = 'collegamento-row flex flex-col sm:flex-row gap-2';
         row.innerHTML =
-            '<input type="text" name="collegamenti_etichetta[]" class="form-input sm:w-1/3">' +
+            '<input type="text" name="collegamenti_etichetta[]" class="w-full form-input sm:w-1/3">' +
             '<input type="url" name="collegamenti_url[]" class="form-input sm:flex-1">' +
-            '<button type="button" class="btn btn-light collegamento-remove"><i class="fas fa-times"></i></button>';
+            '<button type="button" class="ui-button btn-secondary collegamento-remove"><i class="fas fa-times"></i></button>';
         row.querySelector('input[type="text"]').placeholder = labelPh;
         row.querySelector('input[type="url"]').placeholder = 'https://...';
         list.appendChild(row);

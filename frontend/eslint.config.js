@@ -23,7 +23,6 @@ export default [
                 Swal: 'readonly',
                 Chart: 'readonly',
                 Sortable: 'readonly',
-                bootstrap: 'readonly',
             }
         },
         rules: {

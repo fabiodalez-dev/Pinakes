@@ -19,21 +19,21 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8
     <div class="card shadow-sm border-0" style="border-radius: 16px; overflow: hidden;">
         <div class="card-body p-4">
             <!-- Header -->
-            <div class="d-flex align-items-center justify-content-between mb-3">
-                <h5 class="card-title mb-0 d-flex align-items-center gap-2">
+            <div class="flex items-center justify-between mb-3">
+                <h5 class="card-title mb-0 flex items-center gap-2">
                     <i class="fas fa-play-circle" style="font-size: 1.5rem; color: #1e293b;"></i>
-                    <span class="fw-bold"><?= __("Audiobook") ?></span>
+                    <span class="font-bold"><?= __("Audiobook") ?></span>
                 </h5>
                 <button type="button"
                         onclick="document.getElementById('btn-toggle-audiobook')?.click()"
-                        class="btn btn-sm btn-outline-secondary rounded-pill">
+                        class="ui-button btn-outline plugin-player-action plugin-player-action--close">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
 
             <!-- Book Info -->
-            <p class="text-muted small mb-3">
-                <i class="fas fa-book me-1"></i>
+            <p class="text-gray-500 text-sm mb-3">
+                <i class="fas fa-book mr-1"></i>
                 <?= $bookTitle ?>
             </p>
 
@@ -46,25 +46,25 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8
             </div>
 
             <!-- Download Button -->
-            <div class="mt-3 text-end">
+            <div class="mt-3 text-right">
                 <a href="<?= $audioUrl ?>"
                    download
-                   class="btn btn-sm btn-success rounded-pill">
-                    <i class="fas fa-download me-1"></i>
+                   class="ui-button btn-outline plugin-player-action plugin-player-action--download">
+                    <i class="fas fa-download mr-1"></i>
                     <?= __("Scarica Audiobook") ?>
                 </a>
             </div>
 
             <!-- Info Panel -->
-            <div class="mt-3 p-3 bg-light rounded" style="font-size: 0.85rem;">
-                <div class="row g-2">
-                    <div class="col-md-6">
-                        <i class="fas fa-keyboard text-muted me-1"></i>
-                        <span class="text-muted"><?= __("Usa le frecce ← → per saltare") ?></span>
+            <div class="mt-3 p-3 bg-gray-100 rounded" style="font-size: 0.85rem;">
+                <div class="flex flex-wrap -mx-3 gap-y-2">
+                    <div class="w-full md:w-1/2 px-3">
+                        <i class="fas fa-keyboard text-gray-500 mr-1"></i>
+                        <span class="text-gray-500"><?= __("Usa le frecce ← → per saltare") ?></span>
                     </div>
-                    <div class="col-md-6">
-                        <i class="fas fa-volume-up text-muted me-1"></i>
-                        <span class="text-muted"><?= __("Frecce ↑ ↓ per il volume") ?></span>
+                    <div class="w-full md:w-1/2 px-3">
+                        <i class="fas fa-volume-up text-gray-500 mr-1"></i>
+                        <span class="text-gray-500"><?= __("Frecce ↑ ↓ per il volume") ?></span>
                     </div>
                 </div>
             </div>
@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
         padding: 1rem;
     }
 
-    #audiobook-player-container .row {
+    #audiobook-player-container .flex.flex-wrap {
         font-size: 0.75rem;
     }
 }

@@ -6658,5 +6658,21 @@
   "Le email per la nuova richiesta agli amministratori e per l'approvazione all'utente continueranno a essere inviate.": "The new request email to administrators and the approval email to the patron will still be sent.",
   "Auto-approva le richieste": "Auto-approve requests",
   "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.": "Skip manual approval for new loans requested by patrons.",
-  "Prestito approvato. Il libro è in attesa di ritiro.": "Loan approved. The book is awaiting pickup."
+  "Prestito approvato. Il libro è in attesa di ritiro.": "Loan approved. The book is awaiting pickup.",
+  "Stile interfaccia": "Interface style",
+  "Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.": "Change the public site's composition. CMS content, hero background, colors, and features remain unchanged.",
+  "Un solo frontend": "One shared frontend",
+  "Editoriale": "Editorial",
+  "Tipografia autorevole, copertine protagoniste e ritmo arioso.": "Authoritative typography, prominent covers, and spacious rhythm.",
+  "Workspace": "Workspace",
+  "Più compatto e operativo, ideale per cataloghi ricchi di metadati.": "More compact and operational, ideal for metadata-rich catalogs.",
+  "Command": "Command",
+  "Ricerca centrale, gerarchia netta e superfici ad alto contrasto.": "Central search, clear hierarchy, and high-contrast surfaces.",
+  "Soft": "Soft",
+  "Accogliente e morbido, con angoli ampi e profondità discreta.": "Warm and soft, with generous corners and subtle depth.",
+  "Stile interfaccia non valido": "Invalid interface style",
+  "Area personale": "Personal area",
+  "Prestiti e prenotazioni": "Loans and reservations",
+  "Controlla scadenze, richieste e storico dei libri associati al tuo account.": "Track due dates, requests, and the history of books linked to your account.",
+  "Collegamenti area personale": "Personal area links"
 }

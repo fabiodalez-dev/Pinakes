@@ -50,7 +50,7 @@ $bodyHtml = static function (array $post) use ($e, $mentionNames): string {
 /** Full post-body block: removal placeholder, spoiler gate or plain body. */
 $postBody = static function (array $post) use ($e, $bodyHtml, $hiddenPosts, $sectionTitles): string {
     if ($post['deleted_at'] !== null) {
-        return '<p class="bc-muted fst-italic mb-0">' . $e(__('[messaggio rimosso]')) . '</p>';
+        return '<p class="bc-muted mb-0 italic">' . $e(__('[messaggio rimosso]')) . '</p>';
     }
     $gated = !empty($hiddenPosts[(int) $post['id']]);
     if ($post['spoiler'] === 'none' || !$gated) {
@@ -59,7 +59,7 @@ $postBody = static function (array $post) use ($e, $bodyHtml, $hiddenPosts, $sec
             $badge = '<span class="bc-badge bc-badge-warn mb-1">'
                 . $e(__('Spoiler')) . '</span> ';
         }
-        return $badge . '<div class="small text-break">' . $bodyHtml($post) . '</div>';
+        return $badge . '<div class="text-sm break-words">' . $bodyHtml($post) . '</div>';
     }
     $sectionId = !empty($post['spoiler_section_id']) ? (int) $post['spoiler_section_id'] : null;
     $sectionTitle = $sectionId !== null ? ($sectionTitles[$sectionId] ?? null) : null;
@@ -70,13 +70,13 @@ $postBody = static function (array $post) use ($e, $bodyHtml, $hiddenPosts, $sec
     if ($post['spoiler'] === 'mild') {
         $plain = (string) $post['body'];
         $teaser = mb_substr($plain, 0, 80);
-        $out .= '<p class="small bc-muted text-break mb-1">' . $e($teaser) . (mb_strlen($plain) > 80 ? '…' : '') . '</p>';
+        $out .= '<p class="text-sm bc-muted break-words mb-1">' . $e($teaser) . (mb_strlen($plain) > 80 ? '…' : '') . '</p>';
     }
     $out .= '<details class="mt-1">'
         . '<summary class="bc-badge bc-badge-warn" style="cursor:pointer">'
         . '<i class="fas fa-eye-slash"></i>' . $e($label)
-        . ' <span class="fw-normal">(' . $e(__('clicca per rivelare')) . ')</span></summary>'
-        . '<div class="small text-break mt-2">' . $bodyHtml($post) . '</div>'
+        . ' <span class="font-normal">(' . $e(__('clicca per rivelare')) . ')</span></summary>'
+        . '<div class="text-sm break-words mt-2">' . $bodyHtml($post) . '</div>'
         . '</details>';
     return $out;
 };
@@ -119,22 +119,22 @@ foreach ($posts as $post) {
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug . '/discussions')) ?>" class="bc-muted text-decoration-none">
-    <i class="fas fa-arrow-left me-1"></i><?= $e(__('Discussioni')) ?> · <?= $e($club['name']) ?>
+  <a href="<?= $e(url('/book-club/' . $slug . '/discussions')) ?>" class="bc-muted no-underline">
+    <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Discussioni')) ?> · <?= $e($club['name']) ?>
   </a>
 
   <!-- Thread header -->
   <div class="bc-card mt-3">
-    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
       <div>
-        <h1 class="h3 fw-bold mb-0">
-          <?php if ((int) $thread['is_pinned'] === 1): ?><i class="fas fa-thumbtack small me-2" style="color: var(--warning-color)" title="<?= $e(__('In evidenza')) ?>"></i><?php endif; ?>
+        <h1 class="h3 font-bold mb-0">
+          <?php if ((int) $thread['is_pinned'] === 1): ?><i class="fas fa-thumbtack text-sm mr-2" style="color: var(--warning-color)" title="<?= $e(__('In evidenza')) ?>"></i><?php endif; ?>
           <?= $e($thread['title']) ?>
         </h1>
-        <div class="bc-muted mt-2 d-flex align-items-center gap-2 flex-wrap">
+        <div class="bc-muted mt-2 flex items-center gap-2 flex-wrap">
           <span class="bc-badge bc-badge-closed"><?= $e($kindLabels[$thread['kind']] ?? $thread['kind']) ?></span>
           <?php if (!empty($thread['book_title'])): ?>
-            <span>· <i class="fas fa-book me-1"></i><?= $e($thread['book_title']) ?></span>
+            <span>· <i class="fas fa-book mr-1"></i><?= $e($thread['book_title']) ?></span>
           <?php endif; ?>
           <?php if (!empty($thread['section_title'])): ?>
             <span>· <?= $e($thread['section_title']) ?></span>
@@ -151,7 +151,7 @@ foreach ($posts as $post) {
         <?php endif; ?>
       </div>
       <?php if ($canManage): ?>
-        <div class="d-flex align-items-center gap-2 text-nowrap">
+        <div class="flex items-center gap-2 whitespace-nowrap">
           <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/lock')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
@@ -186,11 +186,11 @@ foreach ($posts as $post) {
     <?php foreach ($topLevel as $post): ?>
       <?php $postId = (int) $post['id']; ?>
       <div class="bc-card" id="post-<?= $postId ?>">
-        <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="flex items-center justify-between mb-2">
           <div>
-            <span class="fw-semibold"><?= $post['deleted_at'] === null ? $e(trim((string) ($post['nome'] ?? '') . ' ' . (string) ($post['cognome'] ?? ''))) : $e(__('Utente')) ?></span>
-            <span class="bc-muted ms-2"><?= $e(date('d/m/Y H:i', (int) strtotime((string) $post['created_at']))) ?></span>
-            <?php if ($post['edited_at'] !== null): ?><span class="bc-muted ms-1"><?= $e(__('(modificato)')) ?></span><?php endif; ?>
+            <span class="font-semibold"><?= $post['deleted_at'] === null ? $e(trim((string) ($post['nome'] ?? '') . ' ' . (string) ($post['cognome'] ?? ''))) : $e(__('Utente')) ?></span>
+            <span class="bc-muted ml-2"><?= $e(date('d/m/Y H:i', (int) strtotime((string) $post['created_at']))) ?></span>
+            <?php if ($post['edited_at'] !== null): ?><span class="bc-muted ml-1"><?= $e(__('(modificato)')) ?></span><?php endif; ?>
           </div>
           <?php if ($canManage && $post['deleted_at'] === null): ?>
             <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $postId . '/delete')) ?>"
@@ -206,7 +206,7 @@ foreach ($posts as $post) {
         <!-- Reactions -->
         <?php $postReactions = $reactions[$postId] ?? []; ?>
         <?php if ($post['deleted_at'] === null && ($isMember || $canManage)): ?>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $postId . '/react')) ?>" class="d-flex flex-wrap align-items-center gap-2 mt-3">
+          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $postId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-3">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <?php foreach ($emojis as $emoji): ?>
               <?php
@@ -228,7 +228,7 @@ foreach ($posts as $post) {
             <?php endforeach; ?>
           </form>
         <?php elseif ($postReactions !== []): ?>
-          <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+          <div class="flex flex-wrap items-center gap-2 mt-3">
             <?php foreach ($postReactions as $r): ?>
               <span class="bc-badge bc-badge-closed"><?= $e($r['emoji']) ?> <span><?= (int) $r['n'] ?></span></span>
             <?php endforeach; ?>
@@ -238,11 +238,11 @@ foreach ($posts as $post) {
         <!-- Replies (one level) -->
         <?php foreach ($replies[$postId] ?? [] as $reply): ?>
           <?php $replyId = (int) $reply['id']; ?>
-          <div class="mt-3 ms-4 ps-3 border-start" id="post-<?= $replyId ?>">
-            <div class="d-flex align-items-center justify-content-between mb-1">
+          <div class="mt-3 ml-4 pl-3 border-l" id="post-<?= $replyId ?>">
+            <div class="flex items-center justify-between mb-1">
               <div>
-                <span class="fw-semibold"><?= $reply['deleted_at'] === null ? $e(trim((string) ($reply['nome'] ?? '') . ' ' . (string) ($reply['cognome'] ?? ''))) : $e(__('Utente')) ?></span>
-                <span class="bc-muted ms-2"><?= $e(date('d/m/Y H:i', (int) strtotime((string) $reply['created_at']))) ?></span>
+                <span class="font-semibold"><?= $reply['deleted_at'] === null ? $e(trim((string) ($reply['nome'] ?? '') . ' ' . (string) ($reply['cognome'] ?? ''))) : $e(__('Utente')) ?></span>
+                <span class="bc-muted ml-2"><?= $e(date('d/m/Y H:i', (int) strtotime((string) $reply['created_at']))) ?></span>
               </div>
               <?php if ($canManage && $reply['deleted_at'] === null): ?>
                 <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $replyId . '/delete')) ?>"
@@ -257,7 +257,7 @@ foreach ($posts as $post) {
 
             <?php $replyReactions = $reactions[$replyId] ?? []; ?>
             <?php if ($reply['deleted_at'] === null && ($isMember || $canManage)): ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $replyId . '/react')) ?>" class="d-flex flex-wrap align-items-center gap-2 mt-2">
+              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $replyId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-2">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <?php foreach ($emojis as $emoji): ?>
                   <?php
@@ -279,7 +279,7 @@ foreach ($posts as $post) {
                 <?php endforeach; ?>
               </form>
             <?php elseif ($replyReactions !== []): ?>
-              <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+              <div class="flex flex-wrap items-center gap-2 mt-2">
                 <?php foreach ($replyReactions as $r): ?>
                   <span class="bc-badge bc-badge-closed"><?= $e($r['emoji']) ?> <span><?= (int) $r['n'] ?></span></span>
                 <?php endforeach; ?>
@@ -291,21 +291,21 @@ foreach ($posts as $post) {
         <!-- Reply form -->
         <?php if ($canPost): ?>
           <details class="mt-3">
-            <summary class="small fw-semibold" style="cursor: pointer; color: var(--primary-color)"><?= $e(__('Rispondi')) ?></summary>
+            <summary class="text-sm font-semibold" style="cursor: pointer; color: var(--primary-color)"><?= $e(__('Rispondi')) ?></summary>
             <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/posts')) ?>" class="mt-2">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="hidden" name="parent_id" value="<?= $postId ?>">
               <textarea name="body" rows="2" required maxlength="20000"
                         placeholder="<?= $e(__('Scrivi una risposta…')) ?>"
-                        class="form-control mb-2"></textarea>
-              <div class="d-flex flex-wrap align-items-center gap-2">
-                <select name="spoiler" class="form-select form-select-sm w-auto">
+                        class="form-input mb-2"></textarea>
+              <div class="flex flex-wrap items-center gap-2">
+                <select name="spoiler" class="form-input px-3 py-2 text-sm w-auto">
                   <option value="none"><?= $e(__('Nessuno spoiler')) ?></option>
                   <option value="mild"><?= $e(__('Spoiler leggero')) ?></option>
                   <option value="full"><?= $e(__('Spoiler completo')) ?></option>
                 </select>
                 <?php if ($sections !== []): ?>
-                  <select name="spoiler_section_id" class="form-select form-select-sm w-auto">
+                  <select name="spoiler_section_id" class="form-input px-3 py-2 text-sm w-auto">
                     <option value=""><?= $e(__('Spoiler fino a… (facoltativo)')) ?></option>
                     <?php foreach ($sections as $section): ?>
                       <option value="<?= (int) $section['id'] ?>"><?= $e($section['book_title'] . ' — ' . $section['title']) ?></option>
@@ -332,16 +332,16 @@ foreach ($posts as $post) {
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <textarea name="body" rows="4" required maxlength="20000"
                   placeholder="<?= $e(__('Condividi le tue impressioni… usa @nome per menzionare un membro.')) ?>"
-                  class="form-control mb-3"></textarea>
-        <div class="d-flex flex-wrap align-items-center gap-3">
-          <label class="form-label small mb-0"><?= $e(__('Livello spoiler')) ?></label>
-          <select name="spoiler" class="form-select form-select-sm w-auto">
+                  class="form-input mb-3"></textarea>
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="form-label text-sm mb-0"><?= $e(__('Livello spoiler')) ?></label>
+          <select name="spoiler" class="form-input px-3 py-2 text-sm w-auto">
             <option value="none"><?= $e(__('Nessuno spoiler')) ?></option>
             <option value="mild"><?= $e(__('Spoiler leggero')) ?></option>
             <option value="full"><?= $e(__('Spoiler completo')) ?></option>
           </select>
           <?php if ($sections !== []): ?>
-            <select name="spoiler_section_id" class="form-select form-select-sm w-auto">
+            <select name="spoiler_section_id" class="form-input px-3 py-2 text-sm w-auto">
               <option value=""><?= $e(__('Spoiler fino a… (facoltativo)')) ?></option>
               <?php foreach ($sections as $section): ?>
                 <option value="<?= (int) $section['id'] ?>"><?= $e($section['book_title'] . ' — ' . $section['title']) ?></option>

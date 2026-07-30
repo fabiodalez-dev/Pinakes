@@ -54,11 +54,11 @@ $xpRules = [
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none">
-    <i class="fas fa-arrow-left me-1"></i><?= $e(__('Torna al club')) ?>
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline">
+    <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Torna al club')) ?>
   </a>
 
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mt-3 mb-4">
+  <div class="flex flex-wrap items-center justify-between gap-3 mt-3 mb-4">
     <div class="bc-section-header mb-0">
       <span class="bc-chip" style="background: <?= $e($club['color']) ?>"></span>
       <h1><?= $e(__('Classifica')) ?> — <?= $e($club['name']) ?></h1>
@@ -66,7 +66,7 @@ $xpRules = [
   </div>
 
   <?php if (!empty($flash)): ?>
-    <div class="alert <?= $flash['type'] === 'success' ? 'alert-success' : ($flash['type'] === 'warning' ? 'alert-warning' : 'alert-danger') ?>">
+    <div class="alert <?= $flash['type'] === 'success' ? 'alert-success' : ($flash['type'] === 'warning' ? 'alert-warning' : 'alert-error') ?>">
       <?= $e($flash['message']) ?>
     </div>
   <?php endif; ?>
@@ -78,17 +78,17 @@ $xpRules = [
         <i class="fas fa-user"></i>
         <h2><?= $e(__('La tua posizione')) ?></h2>
       </div>
-      <div class="d-flex flex-wrap align-items-center gap-3">
-        <div class="d-flex align-items-center justify-content-center flex-shrink-0 text-white fw-bold"
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex items-center justify-center shrink-0 text-white font-bold"
              style="width:56px;height:56px;border-radius:50%;font-size:1.25rem;background: <?= $e($club['color']) ?>">
           <?= (int) $me['level'] ?>
         </div>
         <div>
-          <div class="fw-bold" style="font-size:1.1rem">#<?= (int) $me['rank'] ?> — <?= $e($me['name']) ?></div>
+          <div class="font-bold" style="font-size:1.1rem">#<?= (int) $me['rank'] ?> — <?= $e($me['name']) ?></div>
           <div class="bc-muted"><?= $e(sprintf(__('Livello %d'), (int) $me['level'])) ?> · <?= (int) $me['xp'] ?> XP</div>
         </div>
         <?php if ($me['badges'] !== []): ?>
-          <div class="d-flex flex-wrap gap-2 ms-auto">
+          <div class="flex flex-wrap gap-2 ms-auto">
             <?php foreach ($me['badges'] as $badge): ?>
               <span class="bc-badge bc-badge-closed" title="<?= $e($badge['description']) ?>">
                 <i class="fas <?= $e($badge['icon']) ?>" style="color:var(--warning-color)"></i><?= $e($badge['name']) ?>
@@ -109,8 +109,8 @@ $xpRules = [
     <?php if ($ranking === []): ?>
       <p class="bc-muted mb-0"><?= $e(__('La classifica è ancora vuota: i punti vengono calcolati dalle attività del club.')) ?></p>
     <?php else: ?>
-      <div class="table-responsive">
-        <table class="table align-middle mb-0">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left align-middle mb-0">
           <tbody>
             <?php foreach ($ranking as $row): ?>
               <tr class="<?= $row['is_me'] ? 'table-active' : '' ?>">
@@ -118,26 +118,26 @@ $xpRules = [
                   <?php if ($row['rank'] <= 3): ?>
                     <i class="fas fa-medal" style="color:var(--warning-color)"></i>
                   <?php else: ?>
-                    <span class="bc-muted fw-semibold"><?= (int) $row['rank'] ?></span>
+                    <span class="bc-muted font-semibold"><?= (int) $row['rank'] ?></span>
                   <?php endif; ?>
                 </td>
                 <td>
-                  <span class="fw-medium">
+                  <span class="font-medium">
                     <?= $e($row['name']) ?>
                     <?php if ($row['is_me']): ?>
-                      <span class="bc-badge bc-badge-open ms-1"><?= $e(__('Tu')) ?></span>
+                      <span class="bc-badge bc-badge-open ml-1"><?= $e(__('Tu')) ?></span>
                     <?php endif; ?>
                   </span>
                   <?php if ($row['badges'] !== []): ?>
-                    <span class="ms-2 text-nowrap">
+                    <span class="ml-2 whitespace-nowrap">
                       <?php foreach ($row['badges'] as $badge): ?>
-                        <i class="fas <?= $e($badge['icon']) ?> me-1 small" style="color:var(--warning-color)" title="<?= $e($badge['name']) ?> — <?= $e($badge['description']) ?>"></i>
+                        <i class="fas <?= $e($badge['icon']) ?> mr-1 text-sm" style="color:var(--warning-color)" title="<?= $e($badge['name']) ?> — <?= $e($badge['description']) ?>"></i>
                       <?php endforeach; ?>
                     </span>
                   <?php endif; ?>
                 </td>
-                <td class="text-center text-nowrap bc-muted" style="width:6rem"><?= $e(sprintf(__('Livello %d'), (int) $row['level'])) ?></td>
-                <td class="text-end text-nowrap fw-semibold" style="width:6rem"><?= (int) $row['xp'] ?> XP</td>
+                <td class="text-center whitespace-nowrap bc-muted" style="width:6rem"><?= $e(sprintf(__('Livello %d'), (int) $row['level'])) ?></td>
+                <td class="text-right whitespace-nowrap font-semibold" style="width:6rem"><?= (int) $row['xp'] ?> XP</td>
               </tr>
             <?php endforeach; ?>
           </tbody>
@@ -152,18 +152,18 @@ $xpRules = [
       <i class="fas fa-calculator"></i>
       <h2><?= $e(__('Come si guadagnano i punti')) ?></h2>
     </div>
-    <div class="row g-2">
+    <div class="flex flex-wrap -mx-3 gap-y-2">
       <?php foreach ($xpRules as [$label, $xp, $icon]): ?>
-        <div class="col-12 col-md-6">
-          <div class="d-flex align-items-center gap-3 small">
+        <div class="w-full px-3 md:w-1/2">
+          <div class="flex items-center gap-3 text-sm">
             <i class="fas <?= $e($icon) ?> text-center" style="width:1.25rem;color:var(--text-muted)"></i>
-            <span class="flex-grow-1"><?= $e($label) ?></span>
-            <span class="fw-semibold text-nowrap">+<?= (int) $xp ?> XP</span>
+            <span class="grow"><?= $e($label) ?></span>
+            <span class="font-semibold whitespace-nowrap">+<?= (int) $xp ?> XP</span>
           </div>
         </div>
       <?php endforeach; ?>
     </div>
-    <p class="bc-muted mt-3 mb-0 small">
+    <p class="bc-muted mt-3 mb-0 text-sm">
       <?= $e(__('Il livello si calcola come 1 + parte intera della radice quadrata di XP/100: livello 2 a 100 XP, livello 3 a 400 XP, livello 4 a 900 XP.')) ?>
       <?= $e(__('I punti vengono ricalcolati automaticamente al massimo una volta all\'ora.')) ?>
     </p>
@@ -178,17 +178,17 @@ $xpRules = [
     <?php if ($allBadges === []): ?>
       <p class="bc-muted mb-0"><?= $e(__('Nessun badge configurato.')) ?></p>
     <?php endif; ?>
-    <div class="row g-3">
+    <div class="flex flex-wrap -mx-3 gap-y-3">
       <?php foreach ($allBadges as $badge): ?>
-        <div class="col-12 col-md-6">
-          <div class="d-flex align-items-start gap-3 border rounded-3 p-3 h-100">
-            <div class="d-flex align-items-center justify-content-center flex-shrink-0"
+        <div class="w-full px-3 md:w-1/2">
+          <div class="flex items-start gap-3 border rounded-md p-3 h-full">
+            <div class="flex items-center justify-center shrink-0"
                  style="width:2.25rem;height:2.25rem;border-radius:50%;background:var(--accent-color)">
               <i class="fas <?= $e($badge['icon']) ?>" style="color:var(--warning-color)"></i>
             </div>
             <div>
-              <div class="fw-semibold small"><?= $e($badge['name']) ?></div>
-              <div class="bc-muted small"><?= $e($badge['description']) ?></div>
+              <div class="font-semibold text-sm"><?= $e($badge['name']) ?></div>
+              <div class="bc-muted text-sm"><?= $e($badge['description']) ?></div>
             </div>
           </div>
         </div>

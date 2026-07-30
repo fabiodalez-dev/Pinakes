@@ -20,7 +20,7 @@ $metricLabels = [
 ];
 ?>
 <section class="bc-card">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
     <div class="bc-section-header mb-0">
       <i class="fas fa-bullseye"></i>
       <h2><?= $e(__('Le mie sfide di lettura')) ?> <?= (int) $year ?></h2>
@@ -39,22 +39,22 @@ $metricLabels = [
       $percent = min(100.0, max(0.0, $current / $target * 100));
     ?>
     <div class="mb-3">
-      <div class="d-flex align-items-center justify-content-between mb-1">
-        <span class="text-truncate">
+      <div class="flex items-center justify-between mb-1">
+        <span class="truncate">
           <?= $e($challenge['title']) ?>
           <?php if ($isClubWide): ?>
-            <span class="bc-badge bc-badge-closed ms-1"><?= $e(__('Sfida di club')) ?></span>
+            <span class="bc-badge bc-badge-closed ml-1"><?= $e(__('Sfida di club')) ?></span>
           <?php endif; ?>
         </span>
-        <span class="fw-semibold text-nowrap ms-3"><?= $current ?> / <?= (int) $challenge['target'] ?></span>
+        <span class="font-semibold whitespace-nowrap ml-3"><?= $current ?> / <?= (int) $challenge['target'] ?></span>
       </div>
       <div class="bc-progress">
         <span style="width: <?= number_format($percent, 1, '.', '') ?>%;<?= $isClubWide ? ' background: ' . $e($club['color']) . ';' : '' ?>"></span>
       </div>
-      <div class="d-flex align-items-center justify-content-between bc-muted small mt-1">
+      <div class="flex items-center justify-between bc-muted text-sm mt-1">
         <span><?= $e($metricLabels[(string) $challenge['metric']] ?? (string) $challenge['metric']) ?></span>
         <?php if ($current >= $target): ?>
-          <span class="text-success fw-semibold"><i class="fas fa-flag-checkered me-1"></i><?= $e(__('Sfida completata!')) ?></span>
+          <span class="text-green-600 font-semibold"><i class="fas fa-flag-checkered mr-1"></i><?= $e(__('Sfida completata!')) ?></span>
         <?php endif; ?>
       </div>
     </div>

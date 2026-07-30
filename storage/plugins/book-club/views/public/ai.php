@@ -52,18 +52,18 @@ $capReached = $recentCount >= $dailyCap;
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none d-inline-flex align-items-center gap-2 mb-3">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e(__('Torna al club')) ?>
   </a>
 
   <div class="bc-hero">
-    <h1 class="d-flex align-items-center gap-3<?= $configured ? '' : ' mb-0' ?>">
+    <h1 class="flex items-center gap-3<?= $configured ? '' : ' mb-0' ?>">
       <span class="bc-chip" style="background: <?= $e($club['color']) ?>"></span>
       <span><?= $e(__('Assistente IA')) ?> — <?= $e($club['name']) ?></span>
     </h1>
     <?php if ($configured): ?>
       <p>
-        <i class="fas fa-microchip me-1"></i><?= $e($model) ?>
+        <i class="fas fa-microchip mr-1"></i><?= $e($model) ?>
         · <?= $e(sprintf(__('%1$d/%2$d generazioni nelle ultime 24 ore'), (int) $recentCount, (int) $dailyCap)) ?>
       </p>
     <?php endif; ?>
@@ -94,14 +94,14 @@ $capReached = $recentCount >= $dailyCap;
 
     <?php if ($capReached): ?>
       <div class="alert alert-warning">
-        <i class="fas fa-hand me-1"></i><?= $e(sprintf(__('Limite di sicurezza raggiunto: massimo %d generazioni IA per club nelle ultime 24 ore. Riprova più tardi.'), (int) $dailyCap)) ?>
+        <i class="fas fa-hand mr-1"></i><?= $e(sprintf(__('Limite di sicurezza raggiunto: massimo %d generazioni IA per club nelle ultime 24 ore. Riprova più tardi.'), (int) $dailyCap)) ?>
       </div>
     <?php endif; ?>
 
-    <div class="row g-4 mb-2">
+    <div class="flex flex-wrap -mx-3 gap-y-4 mb-2">
       <!-- Discussion questions -->
-      <div class="col-12 col-md-6">
-        <section class="bc-card h-100">
+      <div class="w-full px-3 md:w-1/2">
+        <section class="bc-card h-full">
           <div class="bc-section-header mb-2">
             <i class="fas fa-comments"></i>
             <h2><?= $e(__('Domande di discussione')) ?></h2>
@@ -112,8 +112,8 @@ $capReached = $recentCount >= $dailyCap;
           <?php else: ?>
             <form method="post" action="<?= $e(url('/book-club/' . $slug . '/ai/questions')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <label class="form-label small fw-semibold" for="ai-book"><?= $e(__('Libro del club')) ?></label>
-              <select id="ai-book" name="club_book_id" required class="form-select mb-3">
+              <label class="form-label text-sm font-semibold" for="ai-book"><?= $e(__('Libro del club')) ?></label>
+              <select id="ai-book" name="club_book_id" required class="form-input mb-3">
                 <?php foreach ($books as $book): ?>
                   <option value="<?= (int) $book['id'] ?>">
                     <?= $e($book['titolo']) ?><?= (string) ($book['autori'] ?? '') !== '' ? ' — ' . $e($book['autori']) : '' ?>
@@ -129,8 +129,8 @@ $capReached = $recentCount >= $dailyCap;
       </div>
 
       <!-- Meeting minutes summary -->
-      <div class="col-12 col-md-6">
-        <section class="bc-card h-100">
+      <div class="w-full px-3 md:w-1/2">
+        <section class="bc-card h-full">
           <div class="bc-section-header mb-2">
             <i class="fas fa-file-lines"></i>
             <h2><?= $e(__('Riassunto del verbale')) ?></h2>
@@ -141,8 +141,8 @@ $capReached = $recentCount >= $dailyCap;
           <?php else: ?>
             <form method="post" action="<?= $e(url('/book-club/' . $slug . '/ai/minutes')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <label class="form-label small fw-semibold" for="ai-meeting"><?= $e(__('Incontro con verbale')) ?></label>
-              <select id="ai-meeting" name="meeting_id" required class="form-select mb-3">
+              <label class="form-label text-sm font-semibold" for="ai-meeting"><?= $e(__('Incontro con verbale')) ?></label>
+              <select id="ai-meeting" name="meeting_id" required class="form-input mb-3">
                 <?php foreach ($meetings as $meeting): ?>
                   <option value="<?= (int) $meeting['id'] ?>">
                     <?= $e($meeting['title']) ?> — <?= $e(date('d/m/Y', strtotime((string) $meeting['starts_at']) ?: 0)) ?>
@@ -176,21 +176,21 @@ $capReached = $recentCount >= $dailyCap;
           $creator = trim((string) ($output['creator_nome'] ?? '') . ' ' . (string) ($output['creator_cognome'] ?? ''));
           $domId = 'ai-output-' . (int) $output['id'];
         ?>
-        <div class="bc-list-item flex-column align-items-stretch">
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <div class="d-flex align-items-center flex-wrap gap-2">
+        <div class="bc-list-item flex-col items-stretch">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center flex-wrap gap-2">
               <span class="bc-badge bc-badge-closed">
                 <i class="fas <?= $isQuestions ? 'fa-comments' : 'fa-file-lines' ?>"></i>
                 <?= $e($isQuestions ? __('Domande di discussione') : __('Riassunto verbale')) ?>
               </span>
               <?php if ($sourceTitle !== ''): ?>
-                <span class="fw-semibold"><?= $e($sourceTitle) ?></span>
+                <span class="font-semibold"><?= $e($sourceTitle) ?></span>
               <?php endif; ?>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="flex items-center gap-2">
               <span class="bc-muted">
                 <?= $e(date('d/m/Y H:i', strtotime((string) $output['created_at']) ?: 0)) ?>
-                <?php if ($creator !== ''): ?> · <i class="far fa-user me-1"></i><?= $e($creator) ?><?php endif; ?>
+                <?php if ($creator !== ''): ?> · <i class="far fa-user mr-1"></i><?= $e($creator) ?><?php endif; ?>
                 <?php if ((string) $output['model'] !== ''): ?> · <?= $e($output['model']) ?><?php endif; ?>
               </span>
               <button type="button" data-copy-target="<?= $e($domId) ?>"
@@ -199,7 +199,7 @@ $capReached = $recentCount >= $dailyCap;
               </button>
             </div>
           </div>
-          <pre id="<?= $e($domId) ?>" class="small bg-light border rounded-3 p-3 mb-0" style="white-space: pre-wrap; font-family: inherit"><?= $e($output['content']) ?></pre>
+          <pre id="<?= $e($domId) ?>" class="text-sm bg-gray-100 border rounded-md p-3 mb-0" style="white-space: pre-wrap; font-family: inherit"><?= $e($output['content']) ?></pre>
         </div>
       <?php endforeach; ?>
     </section>

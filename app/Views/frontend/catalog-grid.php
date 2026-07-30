@@ -69,7 +69,7 @@ $getBookStatusBadge = static function ($book) {
                 <?php endif; ?>
                 <?php if (!empty($book['editore'])): ?>
                     <p class="book-meta">
-                        <span class="text-muted"><?= __("Editore:") ?></span>
+                        <span class="text-gray-500"><?= __("Editore:") ?></span>
                         <?= htmlspecialchars(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>
                     </p>
                 <?php else: ?>
@@ -90,7 +90,7 @@ $getBookStatusBadge = static function ($book) {
         <h4 class="empty-state-title"><?= __("Nessun libro trovato") ?></h4>
         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
         <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
-            <i class="fas fa-redo me-2"></i>
+            <i class="fas fa-redo mr-2"></i>
             <?= __("Pulisci filtri") ?>
         </button>
     </div>
@@ -313,7 +313,7 @@ $getBookStatusBadge = static function ($book) {
 /* Ensure consistent grid layout */
 .books-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
     gap: 1.5rem;
     align-items: stretch;
 }

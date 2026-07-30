@@ -357,9 +357,9 @@ $profileRoute = route_path('profile');
 </section>
 
 <section class="container">
-  <div class="row g-4">
+  <div class="flex flex-wrap -mx-3 gap-y-4">
     <!-- Ultimi Arrivi -->
-    <div class="col-lg-6">
+    <div class="w-full lg:w-1/2 px-3">
       <div class="section-card">
         <div class="section-header">
           <i class="fas fa-plus-circle"></i>
@@ -414,7 +414,7 @@ $profileRoute = route_path('profile');
 
     <!-- Prestiti Attivi (hidden in catalogue mode) -->
     <?php if (!$isCatalogueMode): ?>
-    <div class="col-lg-6">
+    <div class="w-full lg:w-1/2 px-3">
       <div class="section-card">
         <div class="section-header">
           <i class="fas fa-handshake"></i>

@@ -17,6 +17,46 @@ $pageTitle = __('Gestione Temi');
         </div>
     </div>
 
+    <?php if (isset($_SESSION['success'])): ?>
+        <div class="mb-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800" role="status">
+            <?= HtmlHelper::e($_SESSION['success']) ?>
+        </div>
+        <?php unset($_SESSION['success']); ?>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['error'])): ?>
+        <div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+            <?= HtmlHelper::e($_SESSION['error']) ?>
+        </div>
+        <?php unset($_SESSION['error']); ?>
+    <?php endif; ?>
+
+    <?php if (!empty($activeTheme)): ?>
+        <form method="POST"
+              action="<?= htmlspecialchars(url('/admin/themes/' . (int) $activeTheme['id'] . '/layout'), ENT_QUOTES, 'UTF-8') ?>"
+              class="mb-8 overflow-hidden rounded-xl border border-gray-200 bg-white"
+              aria-labelledby="layout-heading">
+            <input type="hidden" name="csrf_token" value="<?= Csrf::ensureToken() ?>">
+            <div class="flex flex-col gap-4 border-b border-gray-200 p-6 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 id="layout-heading" class="text-lg font-semibold text-gray-900"><?= __('Stile interfaccia') ?></h2>
+                    <p class="mt-1 max-w-3xl text-sm text-gray-600"><?= __('Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.') ?></p>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                    <a href="<?= htmlspecialchars(url('/admin/themes/' . (int) $activeTheme['id'] . '/customize'), ENT_QUOTES, 'UTF-8') ?>"
+                       class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">
+                        <?= __('Personalizza') ?>
+                    </a>
+                    <button type="submit" class="rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800">
+                        <i class="fas fa-save mr-1" aria-hidden="true"></i><?= __('Salva') ?>
+                    </button>
+                </div>
+            </div>
+            <?php $layoutVariant = $activeLayoutVariant ?? 'editorial'; ?>
+            <?php require __DIR__ . '/partials/layout-variant-selector.php'; ?>
+        </form>
+    <?php endif; ?>
+
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -97,7 +137,7 @@ $pageTitle = __('Gestione Temi');
                                 </p>
                             </div>
                             <?php if ($isActive): ?>
-                                <span class="flex-shrink-0 ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-md">
+                                <span class="shrink-0 ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-md">
                                     <i class="fas fa-check-circle mr-1"></i><?= __("Attivo") ?>
                                 </span>
                             <?php endif; ?>

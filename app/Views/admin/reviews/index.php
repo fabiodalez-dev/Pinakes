@@ -39,7 +39,7 @@ use App\Support\HtmlHelper;
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow" data-review-card>
                     <div class="p-6">
                         <div class="flex gap-4">
-                            <div class="flex-shrink-0">
+                            <div class="shrink-0">
                                 <?php if (!empty($review['libro_copertina'])): ?>
                                 <img src="<?php echo htmlspecialchars(url($review['libro_copertina']), ENT_QUOTES, 'UTF-8'); ?>"
                                      class="w-20 h-28 object-cover rounded-lg shadow-sm"
@@ -142,7 +142,7 @@ use App\Support\HtmlHelper;
                             <?php foreach ($approvedReviews as $review): ?>
                             <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3" data-review-card>
                                 <div class="flex items-start gap-3">
-                                    <div class="flex-shrink-0">
+                                    <div class="shrink-0">
                                         <?php if (!empty($review['libro_copertina'])): ?>
                                         <img src="<?php echo htmlspecialchars(url($review['libro_copertina']), ENT_QUOTES, 'UTF-8'); ?>"
                                              class="w-12 h-18 object-cover rounded-lg"
@@ -209,7 +209,7 @@ use App\Support\HtmlHelper;
                             <?php foreach ($rejectedReviews as $review): ?>
                             <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3" data-review-card>
                                 <div class="flex items-start gap-3">
-                                    <div class="flex-shrink-0">
+                                    <div class="shrink-0">
                                         <?php if (!empty($review['libro_copertina'])): ?>
                                         <img src="<?php echo htmlspecialchars(url($review['libro_copertina']), ENT_QUOTES, 'UTF-8'); ?>"
                                              class="w-12 h-18 object-cover rounded-lg"

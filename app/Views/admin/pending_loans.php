@@ -42,8 +42,8 @@
                 $cc = $colorClasses[$stat['color']];
             ?>
             <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
-                <div class="w-10 h-10 <?= $cc['bg'] ?> <?= $cc['dark_bg'] ?> rounded-lg flex items-center justify-center flex-shrink-0">
-                    <i class="fas <?= $stat['icon'] ?> <?= $cc['text'] ?> <?= $cc['dark_text'] ?>"></i>
+                <div class="w-10 h-10 <?= $cc['bg'] ?> $cc['dark_bg'] rounded-lg flex items-center justify-center shrink-0">
+                    <i class="fas <?= $stat['icon'] ?> $cc['text'] $cc['dark_text']"></i>
                 </div>
                 <div>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white"><?= $stat['count'] ?></p>
@@ -78,7 +78,7 @@
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-red-300 dark:border-red-700 overflow-hidden hover:shadow-md transition-shadow">
                         <div class="p-4">
                             <div class="flex gap-3">
-                                <div class="flex-shrink-0">
+                                <div class="shrink-0">
                                     <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
@@ -140,7 +140,7 @@
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border <?= $isExpired ? 'border-red-300 dark:border-red-700' : ($isExpiringSoon ? 'border-amber-300 dark:border-amber-700' : 'border-gray-200 dark:border-gray-700') ?> overflow-hidden hover:shadow-md transition-shadow" data-pickup-card>
                         <div class="p-4">
                             <div class="flex gap-3">
-                                <div class="flex-shrink-0">
+                                <div class="shrink-0">
                                     <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
@@ -212,7 +212,7 @@
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow" data-loan-card>
                         <div class="p-4">
                             <div class="flex gap-3">
-                                <div class="flex-shrink-0">
+                                <div class="shrink-0">
                                     <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
@@ -281,7 +281,7 @@
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow">
                         <div class="p-4">
                             <div class="flex gap-3">
-                                <div class="flex-shrink-0">
+                                <div class="shrink-0">
                                     <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
@@ -340,7 +340,7 @@
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border <?= $isExpiringSoon ? 'border-amber-300 dark:border-amber-700' : 'border-gray-200 dark:border-gray-700' ?> overflow-hidden hover:shadow-md transition-shadow">
                         <div class="p-4">
                             <div class="flex gap-3">
-                                <div class="flex-shrink-0">
+                                <div class="shrink-0">
                                     <img src="<?= htmlspecialchars(url($loan['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($loan['titolo']) ?>">
@@ -406,7 +406,7 @@
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow">
                         <div class="p-4">
                             <div class="flex gap-3">
-                                <div class="flex-shrink-0">
+                                <div class="shrink-0">
                                     <img src="<?= htmlspecialchars(url($reservation['copertina_url'] ?: '/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>"
                                          class="w-16 h-22 object-cover rounded-lg shadow-sm"
                                          alt="<?= htmlspecialchars($reservation['titolo']) ?>">

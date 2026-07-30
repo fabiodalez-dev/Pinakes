@@ -16,14 +16,14 @@ $legacyCatalogRoute = $legacyCatalogRoute ?? route_path('catalog_legacy');
         </p>
         <div id="latest-books-grid">
             <div class="loading-placeholder">
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden"><?= __("Caricamento...") ?></span>
+                <div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" role="status">
+                    <span class="sr-only"><?= __("Caricamento...") ?></span>
                 </div>
                 <p class="mt-3"><?= __("Caricamento libri...") ?></p>
             </div>
         </div>
         <div class="text-center mt-5">
-            <button id="load-more-latest" class="btn-cta me-3" style="display: none;" type="button">
+            <button id="load-more-latest" class="btn-cta mr-3" style="display: none;" type="button">
                 <i class="fas fa-plus"></i>
                 <?= __("Carica Altri") ?>
             </button>

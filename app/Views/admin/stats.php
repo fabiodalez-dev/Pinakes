@@ -110,7 +110,7 @@
     <div class="card">
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-chart-line text-primary"></i>
+          <i class="fas fa-chart-line text-gray-900"></i>
           <?= __("Prestiti per Mese (Ultimi 12 mesi)") ?>
         </h2>
       </div>
@@ -123,7 +123,7 @@
     <div class="card">
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-chart-pie text-primary"></i>
+          <i class="fas fa-chart-pie text-gray-900"></i>
           <?= __("Prestiti per Stato") ?>
         </h2>
       </div>

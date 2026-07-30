@@ -43,22 +43,22 @@ $statusMeta = [
       $partnerName = $iAmA ? (string) $pairing['name_b'] : (string) $pairing['name_a'];
       $iProposed = (int) $pairing['created_by'] === $userId;
     ?>
-    <div class="border rounded-3 px-3 py-3 mb-3">
-      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div class="border rounded-md px-3 py-3 mb-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="overflow-hidden">
-          <div class="d-flex flex-wrap align-items-center gap-2">
-            <span class="fw-semibold text-truncate"><i class="fas fa-book me-1 text-muted"></i><?= $e($pairing['book_title']) ?></span>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="font-semibold truncate"><i class="fas fa-book mr-1 text-gray-500"></i><?= $e($pairing['book_title']) ?></span>
             <span class="bc-badge <?= $statusClass ?>"><?= $e($statusLabel) ?></span>
           </div>
-          <div class="bc-muted small mt-1">
-            <i class="far fa-user me-1"></i><?= $e(sprintf(__('In coppia con %s'), $partnerName)) ?>
+          <div class="bc-muted text-sm mt-1">
+            <i class="far fa-user mr-1"></i><?= $e(sprintf(__('In coppia con %s'), $partnerName)) ?>
             <?php if ($status === 'proposed'): ?>
               · <?= $iProposed ? $e(__('proposta inviata')) : $e(__('ti ha invitato')) ?>
             <?php endif; ?>
           </div>
         </div>
 
-        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+        <div class="flex items-center gap-2 shrink-0">
           <?php if ($status === 'proposed' && !$iProposed): ?>
             <form method="post" action="<?= $e($base . '/' . $pairingId . '/accept') ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
@@ -95,33 +95,33 @@ $statusMeta = [
   <?php endforeach; ?>
 
   <?php if ($books !== [] && $partners !== []): ?>
-    <form method="post" action="<?= $e($base . '/propose') ?>" class="mt-4 pt-4 border-top">
+    <form method="post" action="<?= $e($base . '/propose') ?>" class="mt-4 pt-4 border-t">
       <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-      <div class="row g-3 align-items-end">
-        <div class="col-12 col-sm-5">
-          <label class="form-label bc-muted small fw-semibold mb-1"><?= $e(__('Libro in lettura')) ?></label>
-          <select name="club_book_id" required class="form-select">
+      <div class="flex flex-wrap -mx-3 gap-y-3 items-end">
+        <div class="w-full px-3 sm:w-5/12">
+          <label class="form-label bc-muted text-sm font-semibold mb-1"><?= $e(__('Libro in lettura')) ?></label>
+          <select name="club_book_id" required class="form-input">
             <?php foreach ($books as $book): ?>
               <option value="<?= (int) $book['id'] ?>"><?= $e($book['titolo']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-12 col-sm-5">
-          <label class="form-label bc-muted small fw-semibold mb-1"><?= $e(__('Compagno di lettura')) ?></label>
-          <select name="partner_id" required class="form-select">
+        <div class="w-full px-3 sm:w-5/12">
+          <label class="form-label bc-muted text-sm font-semibold mb-1"><?= $e(__('Compagno di lettura')) ?></label>
+          <select name="partner_id" required class="form-input">
             <?php foreach ($partners as $partner): ?>
               <option value="<?= (int) $partner['user_id'] ?>"><?= $e($partner['name']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-12 col-sm-2">
-          <button type="submit" class="bc-btn w-100">
+        <div class="w-full px-3 sm:w-1/6">
+          <button type="submit" class="bc-btn w-full">
             <i class="fas fa-paper-plane"></i><?= $e(__('Proponi')) ?>
           </button>
         </div>
       </div>
     </form>
   <?php elseif ($books === []): ?>
-    <p class="bc-muted small mt-2 mb-0"><?= $e(__('Nessun libro attualmente in lettura: la coppia si propone sui libri in corso.')) ?></p>
+    <p class="bc-muted text-sm mt-2 mb-0"><?= $e(__('Nessun libro attualmente in lettura: la coppia si propone sui libri in corso.')) ?></p>
   <?php endif; ?>
 </section>

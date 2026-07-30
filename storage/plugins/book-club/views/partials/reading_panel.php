@@ -28,40 +28,40 @@ $slug = (string) $club['slug'];
       $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $aggregate['avg_percent'])));
       $readingUrl = url('/book-club/' . $slug . '/reading/' . (int) $book['id']);
     ?>
-    <div class="border rounded-3 px-3 py-3 mb-3">
-      <div class="d-flex align-items-start gap-3">
+    <div class="border rounded-md px-3 py-3 mb-3">
+      <div class="flex items-start gap-3">
         <?php if (!empty($book['copertina_url'])): ?>
-          <img src="<?= $e($book['copertina_url']) ?>" alt="" class="bc-cover flex-shrink-0" loading="lazy">
+          <img src="<?= $e($book['copertina_url']) ?>" alt="" class="bc-cover shrink-0" loading="lazy">
         <?php endif; ?>
-        <div class="flex-grow-1 overflow-hidden">
-          <div class="fw-semibold"><?= $e($book['titolo']) ?></div>
+        <div class="grow overflow-hidden">
+          <div class="font-semibold"><?= $e($book['titolo']) ?></div>
           <?php if (!empty($book['autori'])): ?><div class="bc-muted"><?= $e($book['autori']) ?></div><?php endif; ?>
 
           <?php if ($isMember): ?>
-            <div class="d-flex align-items-center justify-content-between bc-muted small mt-2 mb-1">
+            <div class="flex items-center justify-between bc-muted text-sm mt-2 mb-1">
               <span><?= $e(__('Il mio progresso')) ?></span>
-              <span class="fw-semibold"><?= $myPercent ?>%</span>
+              <span class="font-semibold"><?= $myPercent ?>%</span>
             </div>
             <div class="bc-progress">
               <span style="width: <?= $myPercent ?>%"></span>
             </div>
           <?php endif; ?>
 
-          <div class="d-flex align-items-center justify-content-between bc-muted small mt-2 mb-1">
+          <div class="flex items-center justify-between bc-muted text-sm mt-2 mb-1">
             <span><?= $e(__('avanzamento medio del club')) ?></span>
-            <span class="fw-semibold"><?= number_format($avgPercent, 0) ?>%</span>
+            <span class="font-semibold"><?= number_format($avgPercent, 0) ?>%</span>
           </div>
           <div class="bc-progress">
             <span style="width: <?= number_format($avgPercent, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></span>
           </div>
 
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
-            <span class="bc-muted small">
+          <div class="flex flex-wrap items-center justify-between gap-2 mt-2">
+            <span class="bc-muted text-sm">
               <?= $e(sprintf(__('%1$d lettori su %2$d membri'), (int) ($aggregate['active_readers'] ?? 0), (int) ($aggregate['members'] ?? $memberCount))) ?>
               · <?= $e(sprintf(__('%1$d membri su %2$d hanno finito il libro'), (int) $aggregate['finished'], (int) $memberCount)) ?>
             </span>
-            <a href="<?= $e($readingUrl) ?>" class="small text-nowrap">
-              <?= $e(__('Apri il tracker di lettura')) ?> <i class="fas fa-arrow-right ms-1"></i>
+            <a href="<?= $e($readingUrl) ?>" class="text-sm whitespace-nowrap">
+              <?= $e(__('Apri il tracker di lettura')) ?> <i class="fas fa-arrow-right ml-1"></i>
             </a>
           </div>
         </div>

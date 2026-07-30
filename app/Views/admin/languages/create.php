@@ -192,10 +192,10 @@ use App\Support\HtmlHelper;
 
             <!-- Actions -->
             <div class="flex items-center justify-between gap-4">
-                <a href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-secondary">
+                <a href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>" class="ui-button btn-secondary">
                     <i class="fas fa-times"></i> <?= __("Annulla") ?>
                 </a>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="ui-button btn-primary">
                     <i class="fas fa-save"></i> <?= __("Salva Lingua") ?>
                 </button>
             </div>

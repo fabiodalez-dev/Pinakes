@@ -107,7 +107,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                             <div class="flex-1">
                                 <div class="flex items-start gap-4">
                                     <div
-                                        class="hidden lg:flex w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl items-center justify-center flex-shrink-0">
+                                        class="hidden lg:flex w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl items-center justify-center shrink-0">
                                         <i class="fas fa-puzzle-piece text-gray-600 text-xl"></i>
                                     </div>
                                     <div class="flex-1 min-w-0">
@@ -211,7 +211,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                             </div>
 
                             <!-- Actions -->
-                            <div class="flex flex-wrap items-center gap-2 flex-shrink-0 mt-3 md:mt-0">
+                            <div class="flex flex-wrap items-center gap-2 shrink-0 mt-3 md:mt-0">
                                 <?php if ($isOpenLibrary): ?>
                                     <?php if ($hasGoogleKey): ?>
                                         <button type="button"
@@ -415,7 +415,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
             <div id="pluginSettingsStatusBadge" class="hidden mb-4 rounded-xl border border-green-200 bg-green-50 p-4">
                 <div class="flex items-start gap-3">
                     <div
-                        class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white flex-shrink-0">
+                        class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white shrink-0">
                         <i class="fas fa-check"></i>
                     </div>
                     <div>
@@ -629,7 +629,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
             <div id="z39SbnNotice" class="hidden">
                 <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
                     <div class="flex items-start gap-3">
-                        <div class="flex-shrink-0">
+                        <div class="shrink-0">
                             <i class="fas fa-check-circle text-green-600 text-lg"></i>
                         </div>
                         <div>

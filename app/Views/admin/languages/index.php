@@ -18,7 +18,7 @@ use App\Support\HtmlHelper;
                     <i class="fas fa-globe text-blue-600"></i>
                     <?= __("Gestione Lingue") ?>
                 </h1>
-                <a href="<?= htmlspecialchars(url('/admin/languages/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-primary">
+                <a href="<?= htmlspecialchars(url('/admin/languages/create'), ENT_QUOTES, 'UTF-8') ?>" class="ui-button btn-primary">
                     <i class="fas fa-plus"></i> <?= __("Aggiungi Lingua") ?>
                 </a>
             </div>
@@ -86,7 +86,7 @@ use App\Support\HtmlHelper;
                 </h2>
                 <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/refresh-stats'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-                    <button type="submit" class="btn btn-secondary btn-sm">
+                    <button type="submit" class="ui-button btn-secondary px-3 py-2 text-xs">
                         <i class="fas fa-sync-alt"></i> <?= __("Aggiorna Statistiche") ?>
                     </button>
                 </form>
@@ -97,7 +97,7 @@ use App\Support\HtmlHelper;
                         <i class="fas fa-globe text-6xl mb-4 text-gray-300"></i>
                         <p class="text-lg mb-2"><?= __("Nessuna lingua configurata") ?></p>
                         <p class="text-sm"><?= __("Inizia aggiungendo la prima lingua.") ?></p>
-                        <a href="<?= htmlspecialchars(url('/admin/languages/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-primary mt-4">
+                        <a href="<?= htmlspecialchars(url('/admin/languages/create'), ENT_QUOTES, 'UTF-8') ?>" class="ui-button btn-primary mt-4">
                             <i class="fas fa-plus"></i> <?= __("Aggiungi Prima Lingua") ?>
                         </a>
                     </div>

@@ -42,17 +42,17 @@ foreach ($archivedBooks as $book) {
       $bookCount = (int) $season['book_count'];
       $target = $season['books_target'] !== null ? (int) $season['books_target'] : null;
     ?>
-    <div class="border rounded-3 px-3 py-3 mb-3"<?= $isCurrent ? ' style="border-color: ' . $e($club['color']) . ' !important"' : '' ?>>
-      <div class="d-flex align-items-start justify-content-between gap-3">
+    <div class="border rounded-md px-3 py-3 mb-3"<?= $isCurrent ? ' style="border-color: ' . $e($club['color']) . ' !important"' : '' ?>>
+      <div class="flex items-start justify-between gap-3">
         <div>
-          <div class="fw-semibold">
+          <div class="font-semibold">
             <?= $e($season['name']) ?>
             <?php if ($isCurrent): ?>
-              <span class="bc-badge bc-badge-open ms-2"><?= $e(__('Stagione corrente')) ?></span>
+              <span class="bc-badge bc-badge-open ml-2"><?= $e(__('Stagione corrente')) ?></span>
             <?php endif; ?>
           </div>
-          <div class="bc-muted small mt-1">
-            <i class="far fa-calendar me-1"></i><?= $e($fmtDate($season['starts_on'] !== null ? (string) $season['starts_on'] : null)) ?>
+          <div class="bc-muted text-sm mt-1">
+            <i class="far fa-calendar mr-1"></i><?= $e($fmtDate($season['starts_on'] !== null ? (string) $season['starts_on'] : null)) ?>
             → <?= $e($fmtDate($season['ends_on'] !== null ? (string) $season['ends_on'] : null)) ?>
             · <?= $e(sprintf(__('%d libri'), $bookCount)) ?>
             <?php if ($target !== null): ?>
@@ -67,7 +67,7 @@ foreach ($archivedBooks as $book) {
         </div>
 
         <?php if ($canManage): ?>
-          <div class="d-flex align-items-center gap-2 text-nowrap">
+          <div class="flex items-center gap-2 whitespace-nowrap">
             <?php if (!$isCurrent): ?>
               <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/' . $seasonId . '/current')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
@@ -87,29 +87,29 @@ foreach ($archivedBooks as $book) {
 
       <?php if ($canManage): ?>
         <details class="mt-2">
-          <summary class="small fw-semibold" style="cursor: pointer"><?= $e(__('Modifica')) ?></summary>
+          <summary class="text-sm font-semibold" style="cursor: pointer"><?= $e(__('Modifica')) ?></summary>
           <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/' . $seasonId . '/update')) ?>"
-                class="mt-2 row g-2 align-items-end">
+                class="mt-2 flex flex-wrap -mx-3 gap-y-2 items-end">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-            <div class="col-12 col-md-3">
+            <div class="w-full px-3 md:w-1/4">
               <input type="text" name="name" required maxlength="190" value="<?= $e($season['name']) ?>"
-                     title="<?= $e(__('Nome')) ?>" class="form-control form-control-sm">
+                     title="<?= $e(__('Nome')) ?>" class="form-input px-3 py-2 text-sm">
             </div>
-            <div class="col-6 col-md-2">
+            <div class="w-full w-1/2 px-3 md:w-1/6">
               <input type="date" name="starts_on" value="<?= $e($season['starts_on'] ?? '') ?>"
-                     title="<?= $e(__('Inizio')) ?>" class="form-control form-control-sm">
+                     title="<?= $e(__('Inizio')) ?>" class="form-input px-3 py-2 text-sm">
             </div>
-            <div class="col-6 col-md-2">
+            <div class="w-full w-1/2 px-3 md:w-1/6">
               <input type="date" name="ends_on" value="<?= $e($season['ends_on'] ?? '') ?>"
-                     title="<?= $e(__('Fine')) ?>" class="form-control form-control-sm">
+                     title="<?= $e(__('Fine')) ?>" class="form-input px-3 py-2 text-sm">
             </div>
-            <div class="col-6 col-md-2">
+            <div class="w-full w-1/2 px-3 md:w-1/6">
               <input type="number" name="books_target" min="1" value="<?= $target !== null ? $target : '' ?>"
                      placeholder="<?= $e(__('Obiettivo libri')) ?>" title="<?= $e(__('Obiettivo libri')) ?>"
-                     class="form-control form-control-sm">
+                     class="form-input px-3 py-2 text-sm">
             </div>
-            <div class="col-6 col-md-3">
-              <button type="submit" class="bc-btn bc-btn-sm w-100"><?= $e(__('Salva')) ?></button>
+            <div class="w-full w-1/2 px-3 md:w-1/4">
+              <button type="submit" class="bc-btn bc-btn-sm w-full"><?= $e(__('Salva')) ?></button>
             </div>
           </form>
         </details>
@@ -118,28 +118,28 @@ foreach ($archivedBooks as $book) {
   <?php endforeach; ?>
 
   <?php if ($canManage): ?>
-    <details class="mt-4 pt-4 border-top">
-      <summary class="fw-semibold" style="cursor: pointer"><?= $e(__('Nuova stagione')) ?></summary>
+    <details class="mt-4 pt-4 border-t">
+      <summary class="font-semibold" style="cursor: pointer"><?= $e(__('Nuova stagione')) ?></summary>
       <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/new')) ?>" class="mt-3">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <input type="text" name="name" required maxlength="190"
                placeholder="<?= $e(__('Nome della stagione (es. 2026 Primavera)')) ?>"
-               class="form-control mb-3">
-        <div class="row g-3 mb-3">
-          <div class="col-6 col-md-4">
-            <input type="date" name="starts_on" title="<?= $e(__('Inizio')) ?>" class="form-control">
+               class="form-input mb-3">
+        <div class="flex flex-wrap -mx-3 gap-y-3 mb-3">
+          <div class="w-full w-1/2 px-3 md:w-1/3">
+            <input type="date" name="starts_on" title="<?= $e(__('Inizio')) ?>" class="form-input">
           </div>
-          <div class="col-6 col-md-4">
-            <input type="date" name="ends_on" title="<?= $e(__('Fine')) ?>" class="form-control">
+          <div class="w-full w-1/2 px-3 md:w-1/3">
+            <input type="date" name="ends_on" title="<?= $e(__('Fine')) ?>" class="form-input">
           </div>
-          <div class="col-12 col-md-4">
+          <div class="w-full px-3 md:w-1/3">
             <input type="number" name="books_target" min="1" placeholder="<?= $e(__('Obiettivo libri')) ?>"
-                   class="form-control">
+                   class="form-input">
           </div>
         </div>
-        <div class="form-check mb-3">
-          <input type="checkbox" name="make_current" value="1" checked class="form-check-input" id="bc-season-make-current">
-          <label class="form-check-label" for="bc-season-make-current">
+        <div class="flex items-center gap-2 mb-3">
+          <input type="checkbox" name="make_current" value="1" checked class="h-4 w-4 rounded border-gray-300" id="bc-season-make-current">
+          <label class="text-sm text-gray-700" for="bc-season-make-current">
             <?= $e(__('Imposta come stagione corrente')) ?>
           </label>
         </div>
@@ -149,20 +149,20 @@ foreach ($archivedBooks as $book) {
   <?php endif; ?>
 
   <?php if ($canManage && !empty($assignBooks) && $seasons !== []): ?>
-    <details class="mt-4 pt-4 border-top">
-      <summary class="fw-semibold" style="cursor: pointer"><?= $e(__('Assegna i libri alle stagioni')) ?></summary>
-      <div class="mt-3 d-flex flex-column gap-2">
+    <details class="mt-4 pt-4 border-t">
+      <summary class="font-semibold" style="cursor: pointer"><?= $e(__('Assegna i libri alle stagioni')) ?></summary>
+      <div class="mt-3 flex flex-col gap-2">
         <?php foreach ($assignBooks as $assignBook): ?>
           <?php $currentSeasonId = $assignBook['season_id'] !== null ? (int) $assignBook['season_id'] : null; ?>
           <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/assign')) ?>"
-                class="d-flex flex-wrap align-items-center gap-2">
+                class="flex flex-wrap items-center gap-2">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <input type="hidden" name="club_book_id" value="<?= (int) $assignBook['id'] ?>">
-            <span class="flex-grow-1 overflow-hidden text-truncate">
-              <i class="fas fa-book me-1 text-muted"></i><?= $e($assignBook['titolo']) ?>
+            <span class="grow overflow-hidden truncate">
+              <i class="fas fa-book mr-1 text-gray-500"></i><?= $e($assignBook['titolo']) ?>
               <?php if (!empty($assignBook['autori'])): ?><span class="bc-muted"> — <?= $e($assignBook['autori']) ?></span><?php endif; ?>
             </span>
-            <select name="season_id" class="form-select form-select-sm w-auto">
+            <select name="season_id" class="form-input px-3 py-2 text-sm w-auto">
               <option value="" <?= $currentSeasonId === null ? 'selected' : '' ?>><?= $e(__('Nessuna stagione')) ?></option>
               <?php foreach ($seasons as $seasonOption): ?>
                 <option value="<?= (int) $seasonOption['id'] ?>" <?= $currentSeasonId === (int) $seasonOption['id'] ? 'selected' : '' ?>><?= $e($seasonOption['name']) ?></option>
@@ -176,18 +176,18 @@ foreach ($archivedBooks as $book) {
   <?php endif; ?>
 
   <?php if ($archivedBySeason !== []): ?>
-    <div class="mt-4 pt-4 border-top">
-      <h3 class="small fw-semibold text-uppercase text-muted mb-3"><?= $e(__('Storico letture')) ?></h3>
+    <div class="mt-4 pt-4 border-t">
+      <h3 class="text-sm font-semibold uppercase text-gray-500 mb-3"><?= $e(__('Storico letture')) ?></h3>
       <?php foreach ($archivedBySeason as $seasonLabel => $seasonBooks): ?>
         <div class="mb-4">
-          <div class="bc-muted small fw-semibold text-uppercase mb-1"><?= $e($seasonLabel) ?> <span class="fw-normal">(<?= count($seasonBooks) ?>)</span></div>
-          <ul class="list-unstyled mb-0">
+          <div class="bc-muted text-sm font-semibold uppercase mb-1"><?= $e($seasonLabel) ?> <span class="font-normal">(<?= count($seasonBooks) ?>)</span></div>
+          <ul class="mb-0 list-none">
             <?php foreach ($seasonBooks as $book): ?>
               <li class="mb-1">
-                <i class="fas fa-book me-1 text-muted"></i><?= $e($book['titolo']) ?>
+                <i class="fas fa-book mr-1 text-gray-500"></i><?= $e($book['titolo']) ?>
                 <?php if (!empty($book['autori'])): ?><span class="bc-muted"> — <?= $e($book['autori']) ?></span><?php endif; ?>
                 <?php if (!empty($book['reading_starts']) || !empty($book['reading_ends'])): ?>
-                  <span class="bc-muted small ms-1">
+                  <span class="bc-muted text-sm ml-1">
                     (<?= !empty($book['reading_starts']) ? $e(date('d/m/Y', (int) strtotime((string) $book['reading_starts']))) : '…' ?>
                     → <?= !empty($book['reading_ends']) ? $e(date('d/m/Y', (int) strtotime((string) $book['reading_ends']))) : '…' ?>)
                   </span>

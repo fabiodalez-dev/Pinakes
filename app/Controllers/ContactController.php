@@ -10,7 +10,7 @@ use ReCaptcha\ReCaptcha;
 
 class ContactController
 {
-    public function showPage(Request $request, Response $response): Response
+    public function showPage(Request $request, Response $response, mixed $container = null): Response
     {
         $config = ConfigStore::get('contacts', []);
 

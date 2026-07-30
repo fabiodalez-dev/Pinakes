@@ -310,7 +310,7 @@ $hasGithubToken ??= false;
                     </h3>
                     <div class="space-y-4 text-sm text-gray-600">
                         <div class="flex items-start gap-3">
-                            <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                                 <span class="text-xs font-medium text-gray-600">1</span>
                             </div>
                             <div>
@@ -319,7 +319,7 @@ $hasGithubToken ??= false;
                             </div>
                         </div>
                         <div class="flex items-start gap-3">
-                            <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                                 <span class="text-xs font-medium text-gray-600">2</span>
                             </div>
                             <div>
@@ -328,7 +328,7 @@ $hasGithubToken ??= false;
                             </div>
                         </div>
                         <div class="flex items-start gap-3">
-                            <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                                 <span class="text-xs font-medium text-gray-600">3</span>
                             </div>
                             <div>
@@ -383,7 +383,7 @@ $hasGithubToken ??= false;
             <?php foreach ($changelog as $release): ?>
             <div class="p-6">
                 <div class="flex items-start gap-4">
-                    <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center shrink-0">
                         <i class="fas fa-tag text-green-600"></i>
                     </div>
                     <div class="flex-1">

@@ -203,7 +203,7 @@ class DiscussionController extends BaseController
         if ($userId === null || $sectionId === null) {
             return false;
         }
-        $class = 'App\\Plugins\\BookClub\\ReadingRepo';
+        $class='App\\Plugins\\BookClub\\ReadingRepo';
         if (!class_exists($class, false)) {
             return false;
         }

@@ -92,7 +92,7 @@ $genereName = $genere['nome'] ?? 'Genere';
       <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/60 dark:border-gray-700/60">
         <div class="p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <i class="fas fa-sitemap text-primary"></i>
+            <i class="fas fa-sitemap text-gray-900"></i>
             <?= __("Sottogeneri") ?>
           </h2>
         </div>
@@ -118,7 +118,7 @@ $genereName = $genere['nome'] ?? 'Genere';
       <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/60 dark:border-gray-700/60">
         <div class="p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <i class="fas fa-plus text-primary"></i>
+            <i class="fas fa-plus text-gray-900"></i>
             <?= __("Aggiungi Sottogenere") ?>
           </h2>
         </div>

@@ -18,7 +18,7 @@ $slug = (string) $club['slug'];
 $base = url('/book-club/' . $slug . '/surveys');
 ?>
 <section class="bc-card">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
     <div class="bc-section-header mb-0">
       <i class="fas fa-clipboard-list"></i>
       <h2><?= $e(__('Questionari')) ?></h2>
@@ -37,19 +37,19 @@ $base = url('/book-club/' . $slug . '/surveys');
       $answered = in_array((int) $survey['id'], $answeredIds, true);
       $scheduled = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
     ?>
-    <div class="border rounded-3 px-3 py-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div class="border rounded-md px-3 py-3 mb-3 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <a href="<?= $e($base . '/' . (int) $survey['id']) ?>" class="fw-semibold"><?= $e($survey['title']) ?></a>
-        <div class="bc-muted small mt-1 d-flex flex-wrap gap-3">
-          <span><i class="fas fa-reply me-1"></i><?= $e(sprintf(__('%d risposte'), (int) $survey['answer_count'])) ?></span>
+        <a href="<?= $e($base . '/' . (int) $survey['id']) ?>" class="font-semibold"><?= $e($survey['title']) ?></a>
+        <div class="bc-muted text-sm mt-1 flex flex-wrap gap-3">
+          <span><i class="fas fa-reply mr-1"></i><?= $e(sprintf(__('%d risposte'), (int) $survey['answer_count'])) ?></span>
           <?php if ((int) $survey['anonymous'] === 1): ?>
-            <span><i class="fas fa-user-secret me-1"></i><?= $e(__('Anonimo')) ?></span>
+            <span><i class="fas fa-user-secret mr-1"></i><?= $e(__('Anonimo')) ?></span>
           <?php endif; ?>
           <?php if ($scheduled): ?>
-            <span><i class="far fa-clock me-1"></i><?= $e(__('Apre il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['opens_at']))) ?></span>
+            <span><i class="far fa-clock mr-1"></i><?= $e(__('Apre il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['opens_at']))) ?></span>
           <?php endif; ?>
           <?php if (!empty($survey['closes_at'])): ?>
-            <span><i class="far fa-clock me-1"></i><?= $e(__('Chiude il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['closes_at']))) ?></span>
+            <span><i class="far fa-clock mr-1"></i><?= $e(__('Chiude il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['closes_at']))) ?></span>
           <?php endif; ?>
         </div>
       </div>

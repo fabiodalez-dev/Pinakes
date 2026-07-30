@@ -6,7 +6,7 @@
 // Recupera il plugin
 $plugin = $pluginInstance ?? ($GLOBALS['plugins']['discogs'] ?? null);
 if (!$plugin) {
-    echo '<div class="alert alert-danger">Errore: Plugin non caricato correttamente.</div>';
+    echo '<div class="alert alert-error">Errore: Plugin non caricato correttamente.</div>';
     return;
 }
 

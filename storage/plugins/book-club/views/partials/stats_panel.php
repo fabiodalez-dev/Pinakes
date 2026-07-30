@@ -21,7 +21,7 @@ $tiles = [
 ];
 ?>
 <section class="bc-card">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
     <div class="bc-section-header mb-0">
       <i class="fas fa-chart-bar"></i>
       <h2><?= $e(__('Statistiche del club')) ?></h2>
@@ -31,25 +31,25 @@ $tiles = [
     </a>
   </div>
 
-  <div class="row g-3">
+  <div class="flex flex-wrap -mx-3 gap-y-3">
     <?php foreach ($tiles as [$label, $value, $icon]): ?>
-      <div class="col-6 col-md-3">
-        <div class="border rounded-3 px-2 py-3 text-center h-100">
-          <div class="fs-3 fw-bold"><?= (int) $value ?></div>
-          <div class="bc-muted mt-1"><i class="fas <?= $e($icon) ?> me-1"></i><?= $e($label) ?></div>
+      <div class="w-full w-1/2 px-3 md:w-1/4">
+        <div class="border rounded-md px-2 py-3 text-center h-full">
+          <div class="text-3xl font-bold"><?= (int) $value ?></div>
+          <div class="bc-muted mt-1"><i class="fas <?= $e($icon) ?> mr-1"></i><?= $e($label) ?></div>
         </div>
       </div>
     <?php endforeach; ?>
   </div>
 
   <?php if ($mine !== null): ?>
-    <div class="mt-4 pt-4 border-top">
-      <h3 class="small fw-semibold text-uppercase text-muted mb-2"><?= $e(__('La tua attività')) ?></h3>
-      <div class="d-flex flex-wrap gap-3 bc-muted">
-        <span><i class="fas fa-vote-yea me-1"></i><?= $e(__('Voti espressi')) ?>: <span class="fw-semibold"><?= (int) $mine['votes_cast'] ?></span></span>
-        <span><i class="fas fa-check-circle me-1"></i><?= $e(__('Presenze confermate')) ?>: <span class="fw-semibold"><?= (int) $mine['rsvp_yes'] ?></span></span>
+    <div class="mt-4 pt-4 border-t">
+      <h3 class="text-sm font-semibold uppercase text-gray-500 mb-2"><?= $e(__('La tua attività')) ?></h3>
+      <div class="flex flex-wrap gap-3 bc-muted">
+        <span><i class="fas fa-vote-yea mr-1"></i><?= $e(__('Voti espressi')) ?>: <span class="font-semibold"><?= (int) $mine['votes_cast'] ?></span></span>
+        <span><i class="fas fa-check-circle mr-1"></i><?= $e(__('Presenze confermate')) ?>: <span class="font-semibold"><?= (int) $mine['rsvp_yes'] ?></span></span>
         <?php if ($mine['posts_written'] !== null): ?>
-          <span><i class="fas fa-comments me-1"></i><?= $e(__('Post scritti')) ?>: <span class="fw-semibold"><?= (int) $mine['posts_written'] ?></span></span>
+          <span><i class="fas fa-comments mr-1"></i><?= $e(__('Post scritti')) ?>: <span class="font-semibold"><?= (int) $mine['posts_written'] ?></span></span>
         <?php endif; ?>
       </div>
     </div>

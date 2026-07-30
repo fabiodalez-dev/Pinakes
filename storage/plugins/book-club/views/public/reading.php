@@ -63,28 +63,28 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none">
-    <i class="fas fa-arrow-left me-1"></i><?= $e($club['name']) ?>
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline">
+    <i class="fas fa-arrow-left mr-1"></i><?= $e($club['name']) ?>
   </a>
 
   <!-- Book header -->
   <div class="bc-card mt-3" style="border-top: 6px solid <?= $e($club['color']) ?>">
-    <div class="d-flex align-items-start gap-3">
+    <div class="flex items-start gap-3">
       <?php if (!empty($book['copertina_url'])): ?>
         <img src="<?= $e($book['copertina_url']) ?>" alt="" class="bc-cover" loading="lazy">
       <?php endif; ?>
       <div>
-        <h1 class="h3 fw-bold mb-1"><?= $e($book['titolo']) ?></h1>
+        <h1 class="h3 font-bold mb-1"><?= $e($book['titolo']) ?></h1>
         <?php if (!empty($book['autori'])): ?>
           <p class="bc-muted mb-0"><?= $e($book['autori']) ?></p>
         <?php endif; ?>
-        <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+        <div class="flex flex-wrap items-center gap-2 mt-2">
           <?php if ($state !== null): ?>
             <span class="bc-badge" style="background: <?= $e($state['color']) ?>; color: #fff"><?= $e($state['label']) ?></span>
           <?php endif; ?>
           <?php if (!empty($book['reading_starts']) || !empty($book['reading_ends'])): ?>
             <span class="bc-muted">
-              <i class="far fa-calendar me-1"></i>
+              <i class="far fa-calendar mr-1"></i>
               <?= !empty($book['reading_starts']) ? $e(date('d/m/Y', (int) strtotime((string) $book['reading_starts']))) : '…' ?>
               →
               <?= !empty($book['reading_ends']) ? $e(date('d/m/Y', (int) strtotime((string) $book['reading_ends']))) : '…' ?>
@@ -107,9 +107,9 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
       <i class="fas fa-users"></i>
       <h2><?= $e(__('Il club sta leggendo')) ?></h2>
     </div>
-    <div class="d-flex align-items-center justify-content-between mb-1">
+    <div class="flex items-center justify-between mb-1">
       <span class="bc-muted"><?= $e(__('avanzamento medio del club')) ?></span>
-      <span class="fw-semibold"><?= number_format($avgPercent, 0) ?>%</span>
+      <span class="font-semibold"><?= number_format($avgPercent, 0) ?>%</span>
     </div>
     <div class="bc-progress">
       <span style="width: <?= number_format($avgPercent, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></span>
@@ -130,23 +130,23 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
       <?php if ($myFinished): ?>
         <p class="mb-3"><span class="bc-badge bc-badge-open"><i class="fas fa-check-circle"></i><?= $e(__('Hai finito questo libro!')) ?></span></p>
       <?php endif; ?>
-      <div class="d-flex align-items-center justify-content-between mb-1">
+      <div class="flex items-center justify-between mb-1">
         <span class="bc-muted"><?= $e(__('Dove sono arrivato')) ?></span>
-        <span class="fw-semibold"><?= $myPercent ?>%</span>
+        <span class="font-semibold"><?= $myPercent ?>%</span>
       </div>
       <div class="bc-progress mb-4">
         <span style="width: <?= $myPercent ?>%"></span>
       </div>
-      <form method="post" action="<?= $e($base . '/progress') ?>" class="row g-3 align-items-end">
+      <form method="post" action="<?= $e($base . '/progress') ?>" class="flex flex-wrap -mx-3 gap-y-3 items-end">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-        <div class="col-12 col-sm-6 col-md-3">
-          <label class="form-label small"><?= $e(__('Percentuale letta')) ?></label>
-          <input type="number" name="percent" min="0" max="100" value="<?= $myPercent ?>" class="form-control">
+        <div class="w-full px-3 sm:w-1/2 md:w-1/4">
+          <label class="form-label text-sm"><?= $e(__('Percentuale letta')) ?></label>
+          <input type="number" name="percent" min="0" max="100" value="<?= $myPercent ?>" class="form-input">
         </div>
         <?php if ($sections !== []): ?>
-          <div class="col-12 col-sm-6 col-md-3">
-            <label class="form-label small"><?= $e(__('Ultima sezione completata')) ?></label>
-            <select name="section_id" class="form-select">
+          <div class="w-full px-3 sm:w-1/2 md:w-1/4">
+            <label class="form-label text-sm"><?= $e(__('Ultima sezione completata')) ?></label>
+            <select name="section_id" class="form-input">
               <option value=""><?= $e(__('Nessuna')) ?></option>
               <?php foreach ($sections as $section): ?>
                 <option value="<?= (int) $section['id'] ?>" <?= $mySectionId === (int) $section['id'] ? 'selected' : '' ?>><?= $e($section['title']) ?></option>
@@ -154,14 +154,14 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
             </select>
           </div>
         <?php endif; ?>
-        <div class="col-12 col-sm-6 col-md-3">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="finished" value="1" id="bc-finished" <?= $myFinished ? 'checked' : '' ?>>
-            <label class="form-check-label small" for="bc-finished"><?= $e(__('Ho finito il libro')) ?></label>
+        <div class="w-full px-3 sm:w-1/2 md:w-1/4">
+          <div class="flex items-center gap-2">
+            <input class="h-4 w-4 rounded border-gray-300" type="checkbox" name="finished" value="1" id="bc-finished" <?= $myFinished ? 'checked' : '' ?>>
+            <label class="text-sm text-gray-700" for="bc-finished"><?= $e(__('Ho finito il libro')) ?></label>
           </div>
         </div>
-        <div class="col-12 col-sm-6 col-md-3">
-          <button type="submit" class="bc-btn w-100"><?= $e(__('Aggiorna progresso')) ?></button>
+        <div class="w-full px-3 sm:w-1/2 md:w-1/4">
+          <button type="submit" class="bc-btn w-full"><?= $e(__('Aggiorna progresso')) ?></button>
         </div>
       </form>
     </section>
@@ -190,39 +190,39 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
                 . '–' . ($section['range_to'] !== null ? (int) $section['range_to'] : '…');
         }
       ?>
-      <div class="border rounded-3 px-3 py-3 mb-3">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div class="border rounded-md px-3 py-3 mb-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <span class="fw-semibold"><?= $e($section['title']) ?></span>
-            <span class="bc-muted ms-2">
+            <span class="font-semibold"><?= $e($section['title']) ?></span>
+            <span class="bc-muted ml-2">
               <?= $e($unitLabels[(string) $section['unit']] ?? (string) $section['unit']) ?><?= $range !== '' ? ' ' . $e($range) : '' ?>
             </span>
           </div>
-          <div class="bc-muted text-end">
+          <div class="bc-muted text-right">
             <?php if (!empty($section['discuss_from'])): ?>
-              <div><i class="far fa-comments me-1"></i><?= $e(__('Discussione dal')) ?> <?= $e(date('d/m/Y', (int) strtotime((string) $section['discuss_from']))) ?></div>
+              <div><i class="far fa-comments mr-1"></i><?= $e(__('Discussione dal')) ?> <?= $e(date('d/m/Y', (int) strtotime((string) $section['discuss_from']))) ?></div>
             <?php endif; ?>
-            <div><i class="fas fa-user-check me-1"></i><?= $e(sprintf(__('%d membri l\'hanno superata'), $passed)) ?></div>
+            <div><i class="fas fa-user-check mr-1"></i><?= $e(sprintf(__('%d membri l\'hanno superata'), $passed)) ?></div>
           </div>
         </div>
         <?php if ($canManage): ?>
-          <div class="mt-3 pt-3 border-top d-flex flex-wrap align-items-end gap-2">
-            <form method="post" action="<?= $e($base . '/sections/' . $sid . '/update') ?>" class="d-flex flex-wrap align-items-end gap-2">
+          <div class="mt-3 pt-3 border-t flex flex-wrap items-end gap-2">
+            <form method="post" action="<?= $e($base . '/sections/' . $sid . '/update') ?>" class="flex flex-wrap items-end gap-2">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <div>
-                <label class="form-label small mb-1"><?= $e(__('Titolo')) ?></label>
+                <label class="form-label text-sm mb-1"><?= $e(__('Titolo')) ?></label>
                 <input type="text" name="title" value="<?= $e($section['title']) ?>" maxlength="190" required
-                       class="form-control form-control-sm">
+                       class="form-input px-3 py-2 text-sm">
               </div>
               <div>
-                <label class="form-label small mb-1"><?= $e(__('Ordine')) ?></label>
+                <label class="form-label text-sm mb-1"><?= $e(__('Ordine')) ?></label>
                 <input type="number" name="sort" value="<?= (int) $section['sort'] ?>"
-                       class="form-control form-control-sm">
+                       class="form-input px-3 py-2 text-sm">
               </div>
               <div>
-                <label class="form-label small mb-1"><?= $e(__('Discussione dal')) ?></label>
+                <label class="form-label text-sm mb-1"><?= $e(__('Discussione dal')) ?></label>
                 <input type="date" name="discuss_from" value="<?= $e($section['discuss_from'] ?? '') ?>"
-                       class="form-control form-control-sm">
+                       class="form-input px-3 py-2 text-sm">
               </div>
               <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('Salva')) ?></button>
             </form>
@@ -238,34 +238,34 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
 
     <?php if ($canManage): ?>
       <!-- Add section -->
-      <form method="post" action="<?= $e($base . '/sections') ?>" class="mt-4 border-top pt-4 row g-3 align-items-end">
+      <form method="post" action="<?= $e($base . '/sections') ?>" class="mt-4 border-t pt-4 flex flex-wrap -mx-3 gap-y-3 items-end">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-        <div class="col-12 col-sm-6 col-lg-4">
-          <label class="form-label small"><?= $e(__('Nuova sezione')) ?></label>
+        <div class="w-full px-3 sm:w-1/2 lg:w-1/3">
+          <label class="form-label text-sm"><?= $e(__('Nuova sezione')) ?></label>
           <input type="text" name="title" maxlength="190" required placeholder="<?= $e(__('Es. Capitoli 1–5')) ?>"
-                 class="form-control">
+                 class="form-input">
         </div>
-        <div class="col-6 col-sm-3 col-lg-2">
-          <label class="form-label small"><?= $e(__('Tipo')) ?></label>
-          <select name="unit" class="form-select">
+        <div class="w-full w-1/2 px-3 sm:w-1/4 lg:w-1/6">
+          <label class="form-label text-sm"><?= $e(__('Tipo')) ?></label>
+          <select name="unit" class="form-input">
             <?php foreach ($unitLabels as $unitKey => $unitLabel): ?>
               <option value="<?= $e($unitKey) ?>"><?= $e($unitLabel) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-6 col-sm-3 col-lg-2">
-          <label class="form-label small"><?= $e(__('Da')) ?></label>
-          <input type="number" name="range_from" min="0" class="form-control">
+        <div class="w-full w-1/2 px-3 sm:w-1/4 lg:w-1/6">
+          <label class="form-label text-sm"><?= $e(__('Da')) ?></label>
+          <input type="number" name="range_from" min="0" class="form-input">
         </div>
-        <div class="col-6 col-sm-3 col-lg-2">
-          <label class="form-label small"><?= $e(__('A')) ?></label>
-          <input type="number" name="range_to" min="0" class="form-control">
+        <div class="w-full w-1/2 px-3 sm:w-1/4 lg:w-1/6">
+          <label class="form-label text-sm"><?= $e(__('A')) ?></label>
+          <input type="number" name="range_to" min="0" class="form-input">
         </div>
-        <div class="col-6 col-sm-3 col-lg-2">
-          <label class="form-label small"><?= $e(__('Discussione dal')) ?></label>
-          <input type="date" name="discuss_from" class="form-control">
+        <div class="w-full w-1/2 px-3 sm:w-1/4 lg:w-1/6">
+          <label class="form-label text-sm"><?= $e(__('Discussione dal')) ?></label>
+          <input type="date" name="discuss_from" class="form-input">
         </div>
-        <div class="col-12">
+        <div class="w-full px-3">
           <button type="submit" class="bc-btn">
             <i class="fas fa-plus"></i><?= $e(__('Aggiungi sezione')) ?>
           </button>

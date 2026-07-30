@@ -22,22 +22,22 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'PDF', ENT_QUOTES, 'UTF-8');
     <div class="card shadow-sm border-0" style="border-radius: 16px; overflow: hidden;">
         <div class="card-body p-4">
             <!-- Header -->
-            <div class="d-flex align-items-center justify-content-between mb-3">
-                <h5 class="card-title mb-0 d-flex align-items-center gap-2">
+            <div class="flex items-center justify-between mb-3">
+                <h5 class="card-title mb-0 flex items-center gap-2">
                     <i class="fas fa-file-pdf" style="font-size: 1.5rem; color: #dc2626;"></i>
-                    <span class="fw-bold"><?= __("Visualizzatore PDF") ?></span>
+                    <span class="font-bold"><?= __("Visualizzatore PDF") ?></span>
                 </h5>
                 <button type="button"
                         onclick="document.getElementById('btn-toggle-pdf-viewer')?.click()"
-                        class="btn btn-sm btn-outline-secondary rounded-pill"
+                        class="ui-button btn-outline plugin-player-action plugin-player-action--close"
                         aria-label="<?= __("Chiudi Visualizzatore") ?>">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
 
             <!-- Book Info -->
-            <p class="text-muted small mb-3">
-                <i class="fas fa-book me-1"></i>
+            <p class="text-gray-500 text-sm mb-3">
+                <i class="fas fa-book mr-1"></i>
                 <?= $bookTitle ?>
             </p>
 
@@ -51,25 +51,25 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'PDF', ENT_QUOTES, 'UTF-8');
             </iframe>
 
             <!-- Download Button -->
-            <div class="mt-3 text-end">
+            <div class="mt-3 text-right">
                 <a href="<?= $pdfUrl ?>"
                    download
-                   class="btn btn-sm btn-danger rounded-pill">
-                    <i class="fas fa-download me-1"></i>
+                   class="ui-button btn-outline plugin-player-action plugin-player-action--download">
+                    <i class="fas fa-download mr-1"></i>
                     <?= __("Scarica PDF") ?>
                 </a>
             </div>
 
             <!-- Info Panel -->
-            <div class="mt-3 p-3 bg-light rounded" style="font-size: 0.85rem;">
-                <div class="row g-2">
-                    <div class="col-12">
-                        <i class="fas fa-search text-muted me-1"></i>
-                        <span class="text-muted"><?= __("Usa la funzione di ricerca del browser per trovare testo nel documento") ?></span>
+            <div class="mt-3 p-3 bg-gray-100 rounded" style="font-size: 0.85rem;">
+                <div class="flex flex-wrap -mx-3 gap-y-2">
+                    <div class="w-full px-3">
+                        <i class="fas fa-search text-gray-500 mr-1"></i>
+                        <span class="text-gray-500"><?= __("Usa la funzione di ricerca del browser per trovare testo nel documento") ?></span>
                     </div>
-                    <div class="col-12">
-                        <i class="fas fa-expand text-muted me-1"></i>
-                        <span class="text-muted"><?= __("Usa il controllo schermo intero del viewer o del browser") ?></span>
+                    <div class="w-full px-3">
+                        <i class="fas fa-expand text-gray-500 mr-1"></i>
+                        <span class="text-gray-500"><?= __("Usa il controllo schermo intero del viewer o del browser") ?></span>
                     </div>
                 </div>
             </div>

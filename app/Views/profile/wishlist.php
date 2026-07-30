@@ -230,13 +230,13 @@ $reservationsRoute = route_path('reservations');
     flex: 1;
   }
 
-  .wishlist-card .btn-outline-dark {
+  .wishlist-card .btn-outline {
     border-radius: 12px;
     font-weight: 600;
     padding: 0.6rem 1rem;
   }
 
-  .wishlist-card .btn-light {
+  .wishlist-card .btn-secondary {
     border-radius: 12px;
     border: 1px solid var(--border-color);
     padding: 0.6rem;
@@ -263,6 +263,8 @@ $reservationsRoute = route_path('reservations');
   }
 </style>
 
+<link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('account-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= (int)(@filemtime(dirname(__DIR__, 3) . '/public/assets/account-pages.css') ?: 1) ?>">
+
 <section class="wishlist-hero">
   <div class="container text-center">
     <h1 class="hero-title"><?= __("I tuoi preferiti") ?></h1>
@@ -272,20 +274,20 @@ $reservationsRoute = route_path('reservations');
 
 <section class="container">
   <div class="wishlist-info-card">
-    <div class="row g-4 align-items-center">
-      <div class="col-md-6">
-        <h2 class="h4 fw-bold mb-2"><?= __("Riepilogo wishlist") ?></h2>
-        <p class="text-muted mb-0"><?= __("Gestisci i tuoi titoli preferiti, scopri quando tornano disponibili e accedi rapidamente ai dettagli del libro.") ?></p>
+    <div class="flex flex-wrap -mx-3 gap-y-4 items-center">
+      <div class="w-full md:w-1/2 px-3">
+        <h2 class="h4 font-bold mb-2"><?= __("Riepilogo wishlist") ?></h2>
+        <p class="text-gray-500 mb-0"><?= __("Gestisci i tuoi titoli preferiti, scopri quando tornano disponibili e accedi rapidamente ai dettagli del libro.") ?></p>
         <div class="wishlist-stat-badges">
           <span class="wishlist-stat"><i class="fas fa-heart"></i> <span id="wishlist-total-count"><?= $totalItems; ?></span> <?= __("preferiti") ?></span>
           <span class="wishlist-stat"><i class="fas fa-bolt"></i> <span id="wishlist-available-count"><?= $availableCount; ?></span> <?= __("disponibili ora") ?></span>
           <span class="wishlist-stat"><i class="fas fa-clock"></i> <span id="wishlist-pending-count"><?= max($pendingCount, 0); ?></span> <?= __("in attesa") ?></span>
         </div>
       </div>
-      <div class="col-md-6 text-md-end">
-        <div class="wishlist-actions justify-content-md-end">
-          <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-search me-2"></i><?= __("Esplora catalogo") ?></a>
-          <a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?></a>
+      <div class="w-full md:w-1/2 px-3 md:text-right">
+        <div class="wishlist-actions md:justify-end">
+          <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-search mr-2"></i><?= __("Esplora catalogo") ?></a>
+          <a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-bookmark mr-2"></i><?= __("Prenotazioni") ?></a>
         </div>
       </div>
     </div>
@@ -293,12 +295,12 @@ $reservationsRoute = route_path('reservations');
 </section>
 
 <section class="container">
-  <div class="wishlist-filter-card d-flex flex-column flex-md-row align-items-md-center justify-content-md-between gap-3">
-    <div class="flex-grow-1">
+  <div class="wishlist-filter-card">
+    <div class="wishlist-filter-field">
       <label for="wishlist_search" class="mb-2"><?= __("Ricerca rapida") ?></label>
-      <input id="wishlist_search" type="search" class="form-control" placeholder="<?= __('Cerca per titolo o stato (es. disponibile)') ?>">
+      <input id="wishlist_search" type="search" class="form-input" placeholder="<?= __('Cerca per titolo o stato (es. disponibile)') ?>">
     </div>
-    <button id="clear-search" type="button" class="text-uppercase"><?= __("Pulisci filtro") ?></button>
+    <button id="clear-search" type="button" class="uppercase"><?= __("Pulisci filtro") ?></button>
   </div>
 </section>
 
@@ -306,22 +308,24 @@ $reservationsRoute = route_path('reservations');
   <section class="container">
     <div class="wishlist-empty">
       <div class="wishlist-empty-icon">
-        <i class="fas fa-heart-broken"></i>
+        <svg class="account-line-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M20.5 8.75c0 5-8.5 10-8.5 10s-8.5-5-8.5-10A4.25 4.25 0 0 1 12 7.7a4.25 4.25 0 0 1 8.5 1.05Z"></path>
+        </svg>
       </div>
-      <h2 class="h4 fw-bold mb-2"><?= __("La tua wishlist è vuota") ?></h2>
-      <p class="text-muted mb-4"><?= __("Aggiungi i libri che ti interessano dalla scheda di dettaglio per ricevere un promemoria quando tornano disponibili.") ?></p>
-      <div class="wishlist-actions justify-content-center">
-        <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-compass me-2"></i><?= __("Cerca titoli") ?></a>
-        <a href="<?= htmlspecialchars(url('/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-arrow-left me-2"></i><?= __("Torna alla dashboard") ?></a>
+      <h2 class="h4 font-bold mb-2"><?= __("La tua wishlist è vuota") ?></h2>
+      <p class="text-gray-500 mb-4"><?= __("Aggiungi i libri che ti interessano dalla scheda di dettaglio per ricevere un promemoria quando tornano disponibili.") ?></p>
+      <div class="wishlist-actions justify-center">
+        <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-compass mr-2"></i><?= __("Cerca titoli") ?></a>
+        <a href="<?= htmlspecialchars(url('/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-arrow-left mr-2"></i><?= __("Torna alla dashboard") ?></a>
       </div>
     </div>
   </section>
 <?php else: ?>
   <section class="container mb-5">
     <div id="wishlist-no-results" role="alert">
-      <i class="fas fa-info-circle me-2"></i><?= __("Nessun titolo corrisponde al filtro corrente.") ?>
+      <i class="fas fa-info-circle mr-2"></i><?= __("Nessun titolo corrisponde al filtro corrente.") ?>
     </div>
-    <div class="row g-4" id="wishlist-grid">
+    <div class="flex flex-wrap -mx-3 gap-y-4" id="wishlist-grid">
       <?php foreach ($items as $it):
         $cover = (string)($it['copertina_url'] ?? '');
         if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
@@ -339,7 +343,7 @@ $reservationsRoute = route_path('reservations');
         $dataTitle = HtmlHelper::e(mb_strtolower((string)($it['titolo'] ?? ''), 'UTF-8'));
         $statusLabel = $available ? 'disponibile' : 'attesa';
       ?>
-        <div class="col-xl-4 col-md-6">
+        <div class="w-full xl:w-1/3 px-3 md:w-1/2">
           <article class="wishlist-card" data-libro-id="<?= (int)$it['id']; ?>" data-title="<?= $dataTitle; ?>" data-status="<?= $statusLabel; ?>">
             <div class="wishlist-card-cover">
               <img src="<?= HtmlHelper::e($cover); ?>" alt="<?= __("Copertina") ?>" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
@@ -351,19 +355,19 @@ $reservationsRoute = route_path('reservations');
               </span>
               <h3 class="wishlist-card-title mb-0"><?= HtmlHelper::e($it['titolo'] ?? ''); ?></h3>
               <?php if ($available): ?>
-              <p class="text-muted small mb-0"><?= __("Copie disponibili:") ?> <?= (int)($it['copie_disponibili'] ?? 0); ?></p>
+              <p class="text-gray-500 text-sm mb-0"><?= __("Copie disponibili:") ?> <?= (int)($it['copie_disponibili'] ?? 0); ?></p>
               <?php elseif ($nextAvailable): ?>
-              <p class="text-muted small mb-0">
-                <i class="fas fa-calendar-alt me-1"></i>
+              <p class="text-gray-500 text-sm mb-0">
+                <i class="fas fa-calendar-alt mr-1"></i>
                 <?= __("Disponibile dal:") ?> <?= format_date($nextAvailable, false, '/'); ?>
               </p>
               <?php else: ?>
-              <p class="text-muted small mb-0"><?= __("Nessuna copia attualmente disponibile") ?></p>
+              <p class="text-gray-500 text-sm mb-0"><?= __("Nessuna copia attualmente disponibile") ?></p>
               <?php endif; ?>
               <?php $wishlistBookUrl = book_url($it); ?>
               <div class="wishlist-card-footer">
-                <a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-dark"><i class="fas fa-book-open me-2"></i><?= __("Dettagli") ?></a>
-                <button type="button" class="btn btn-light remove-fav-btn" title="<?= __("Rimuovi dalla wishlist") ?>">
+                <a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>" class="ui-button btn-outline"><i class="fas fa-book-open mr-2"></i><?= __("Dettagli") ?></a>
+                <button type="button" class="ui-button btn-secondary remove-fav-btn" title="<?= __("Rimuovi dalla wishlist") ?>">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
@@ -410,7 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const title = card.dataset.title || '';
       const status = card.dataset.status || '';
       const match = !term || title.includes(term) || status.includes(term);
-      card.parentElement.classList.toggle('d-none', !match);
+      card.parentElement.classList.toggle('hidden', !match);
       if (match) visibleCount++;
     });
 

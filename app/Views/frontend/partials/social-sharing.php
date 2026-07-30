@@ -21,10 +21,10 @@ $encodedTitle = rawurlencode($shareTitle);
 
 <div class="card" id="book-share-card">
   <div class="card-header">
-    <h6 class="mb-0"><i class="fas fa-share-alt me-2"></i><?= htmlspecialchars(__('Condividi'), ENT_QUOTES, 'UTF-8') ?></h6>
+    <h6 class="mb-0"><i class="fas fa-share-alt mr-2"></i><?= htmlspecialchars(__('Condividi'), ENT_QUOTES, 'UTF-8') ?></h6>
   </div>
   <div class="card-body py-2 px-3">
-    <div class="d-flex flex-wrap gap-2">
+    <div class="flex flex-wrap gap-2">
     <?php foreach ($sharingProviders as $slug): ?>
       <?php if (!isset($providers[$slug])) { continue; } ?>
       <?php $p = $providers[$slug]; ?>

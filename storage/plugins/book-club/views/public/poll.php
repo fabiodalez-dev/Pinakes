@@ -105,7 +105,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none d-inline-flex align-items-center gap-2 mb-3">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e($club['name']) ?>
   </a>
 
@@ -116,13 +116,13 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
   <?php endif; ?>
 
   <div class="bc-card">
-    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
       <div>
-        <h1 class="h3 fw-bold mb-1"><?= $e($poll['title']) ?></h1>
+        <h1 class="h3 font-bold mb-1"><?= $e($poll['title']) ?></h1>
         <?php if (!empty($poll['description'])): ?>
           <p class="bc-muted mb-2" style="white-space: pre-line"><?= $e($poll['description']) ?></p>
         <?php endif; ?>
-        <div class="bc-muted small">
+        <div class="bc-muted text-sm">
           <?= $e($modeLine) ?>
           · <?= $poll['anonymity'] === 'secret' ? $e(__('voto segreto')) : $e(__('voto pubblico')) ?>
           <?php if (!empty($poll['quorum_pct'])): ?>
@@ -142,8 +142,8 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
             $weightOwner = isset($poll['weight_owner']) && is_numeric($poll['weight_owner']) ? (float) $poll['weight_owner'] : 2.0;
             $weightModerator = isset($poll['weight_moderator']) && is_numeric($poll['weight_moderator']) ? (float) $poll['weight_moderator'] : 1.5;
           ?>
-          <div class="bc-muted small mt-1">
-            <i class="fas fa-balance-scale me-1"></i><?= $e(sprintf(__('Pesi: fondatore ×%s · moderatore ×%s · membro ×1,0.'), $fmtWeight($weightOwner), $fmtWeight($weightModerator))) ?>
+          <div class="bc-muted text-sm mt-1">
+            <i class="fas fa-balance-scale mr-1"></i><?= $e(sprintf(__('Pesi: fondatore ×%s · moderatore ×%s · membro ×1,0.'), $fmtWeight($weightOwner), $fmtWeight($weightModerator))) ?>
           </div>
         <?php endif; ?>
       </div>
@@ -160,7 +160,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
       <?php foreach ($options as $option): ?>
         <?php if ((int) $option['club_book_id'] === (int) $poll['winner_club_book_id']): ?>
           <div class="bc-card mt-4 mb-0" style="border-left: 4px solid var(--success-color)">
-            <i class="fas fa-trophy me-2" style="color: var(--success-color)"></i><?= $e(sprintf(__('Il club ha scelto: %s'), (string) $option['titolo'])) ?>
+            <i class="fas fa-trophy mr-2" style="color: var(--success-color)"></i><?= $e(sprintf(__('Il club ha scelto: %s'), (string) $option['titolo'])) ?>
           </div>
         <?php endif; ?>
       <?php endforeach; ?>
@@ -168,23 +168,23 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
 
     <?php if (!$isOpen && $quorumFailed): ?>
       <div class="alert alert-warning mt-4 mb-0">
-        <i class="fas fa-exclamation-triangle me-2"></i><strong><?= $e(__('Quorum non raggiunto')) ?></strong>
+        <i class="fas fa-exclamation-triangle mr-2"></i><strong><?= $e(__('Quorum non raggiunto')) ?></strong>
         — <?= $e(__('la votazione si è chiusa senza vincitore e le proposte tornano tra i libri proposti.')) ?>
       </div>
     <?php endif; ?>
 
     <?php if (!$isOpen && $adminTiedIds !== []): ?>
       <div class="bc-card mt-4 mb-0" style="border-left: 4px solid var(--warning-color)">
-        <i class="fas fa-gavel me-2" style="color: var(--warning-color)"></i><?= $e(__('Parità in testa: un moderatore deve proclamare il vincitore.')) ?>
+        <i class="fas fa-gavel mr-2" style="color: var(--warning-color)"></i><?= $e(__('Parità in testa: un moderatore deve proclamare il vincitore.')) ?>
         <?php if ($canClose): ?>
-          <div class="mt-3 d-flex flex-column gap-2">
+          <div class="mt-3 flex flex-col gap-2">
             <?php foreach ($options as $option): ?>
               <?php if (!in_array((int) $option['id'], $adminTiedIds, true)) { continue; } ?>
               <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/pick-winner/' . (int) $option['id'])) ?>"
-                    class="d-flex align-items-center justify-content-between gap-3"
+                    class="flex items-center justify-between gap-3"
                     onsubmit="return confirm('<?= $e(__('Proclamare questo libro vincitore? Avanzerà nel workflow.')) ?>');">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                <span class="fw-semibold"><?= $e($option['titolo']) ?></span>
+                <span class="font-semibold"><?= $e($option['titolo']) ?></span>
                 <button type="submit" class="bc-btn bc-btn-sm">
                   <?= $e(__('Proclama vincitore')) ?>
                 </button>
@@ -205,13 +205,13 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
           $isWinner = !$isOpen && $poll['winner_club_book_id'] !== null && (int) $option['club_book_id'] === (int) $poll['winner_club_book_id'];
           $canBallot = $isOpen && $isMember && !$isEliminated;
         ?>
-        <label class="d-block border rounded-3 p-3 mb-2 <?= $isEliminated ? 'opacity-50' : '' ?>"
+        <label class="block border rounded-md p-3 mb-2 <?= $isEliminated ? 'opacity-50' : '' ?>"
                <?= $isWinner ? 'style="border-color: var(--success-color)"' : '' ?>>
-          <div class="d-flex align-items-center justify-content-between gap-3">
-            <div class="d-flex align-items-center gap-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
               <?php if ($canBallot): ?>
                 <?php if ($mode === 'stars'): ?>
-                  <select name="stars[<?= $optId ?>]" class="form-select form-select-sm w-auto"
+                  <select name="stars[<?= $optId ?>]" class="form-input px-3 py-2 text-sm w-auto"
                           title="<?= $e(__('Stelle (0 = nessun voto)')) ?>">
                     <?php $mine = isset($myVoteValues[$optId]) ? (int) $myVoteValues[$optId] : 0; ?>
                     <option value="0">–</option>
@@ -220,7 +220,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
                     <?php endfor; ?>
                   </select>
                 <?php elseif ($mode === 'ranking'): ?>
-                  <select name="ranks[<?= $optId ?>]" required class="form-select form-select-sm w-auto"
+                  <select name="ranks[<?= $optId ?>]" required class="form-input px-3 py-2 text-sm w-auto"
                           title="<?= $e(__('Posizione in classifica (1 = preferito)')) ?>">
                     <?php $myRank = isset($myVoteValues[$optId]) ? $nOptions - (int) $myVoteValues[$optId] + 1 : 0; ?>
                     <option value=""><?= $e(__('Posizione')) ?></option>
@@ -230,25 +230,25 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
                   </select>
                 <?php elseif ($mode === 'elimination'): ?>
                   <input type="radio" name="options[]" value="<?= $optId ?>"
-                         <?= in_array($optId, $myVotes, true) ? 'checked' : '' ?> class="form-check-input mt-0 flex-shrink-0">
+                         <?= in_array($optId, $myVotes, true) ? 'checked' : '' ?> class="h-4 w-4 rounded border-gray-300 mt-0 shrink-0">
                 <?php else: ?>
                   <input type="<?= $maxVotes > 1 ? 'checkbox' : 'radio' ?>" name="options[]" value="<?= $optId ?>"
-                         <?= in_array($optId, $myVotes, true) ? 'checked' : '' ?> class="form-check-input mt-0 flex-shrink-0">
+                         <?= in_array($optId, $myVotes, true) ? 'checked' : '' ?> class="h-4 w-4 rounded border-gray-300 mt-0 shrink-0">
                 <?php endif; ?>
               <?php endif; ?>
               <?php if (!empty($option['copertina_url'])): ?>
-                <img src="<?= $e($option['copertina_url']) ?>" alt="" class="bc-cover flex-shrink-0" loading="lazy">
+                <img src="<?= $e($option['copertina_url']) ?>" alt="" class="bc-cover shrink-0" loading="lazy">
               <?php endif; ?>
               <div>
-                <div class="fw-semibold">
+                <div class="font-semibold">
                   <?= $e($option['titolo']) ?><?= $isWinner ? ' 🏆' : '' ?>
                   <?php if (!empty($option['is_external'])): ?>
-                    <span class="bc-badge bc-badge-warn ms-2" title="<?= $e(__('Questo libro non è ancora nel catalogo della biblioteca.')) ?>">
-                      <i class="fas fa-book-medical me-1"></i><?= $e(__('Proposta esterna')) ?>
+                    <span class="bc-badge bc-badge-warn ml-2" title="<?= $e(__('Questo libro non è ancora nel catalogo della biblioteca.')) ?>">
+                      <i class="fas fa-book-medical mr-1"></i><?= $e(__('Proposta esterna')) ?>
                     </span>
                   <?php endif; ?>
                   <?php if ($isEliminated): ?>
-                    <span class="bc-badge bc-badge-closed ms-2">
+                    <span class="bc-badge bc-badge-closed ml-2">
                       <?= $e(sprintf(__('Eliminato al turno %d'), (int) $eliminated[$optId])) ?>
                     </span>
                   <?php endif; ?>
@@ -256,9 +256,9 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
                 <?php if (!empty($option['autori'])): ?><div class="bc-muted"><?= $e($option['autori']) ?></div><?php endif; ?>
               </div>
             </div>
-            <div class="text-end bc-muted text-nowrap">
+            <div class="text-right bc-muted whitespace-nowrap">
               <?php if ($showScores): ?>
-                <div class="fw-semibold" style="color: var(--text-color)"><?= $e($fmtScore((float) $option['score'])) ?> <?= $e(__('punti')) ?></div>
+                <div class="font-semibold" style="color: var(--text-color)"><?= $e($fmtScore((float) $option['score'])) ?> <?= $e(__('punti')) ?></div>
               <?php endif; ?>
               <?= (int) $option['vote_count'] ?> <?= $e(__n('voto', 'voti', (int) $option['vote_count'])) ?>
             </div>
@@ -267,24 +267,24 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
             <span style="width: <?= number_format($pct, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></span>
           </div>
           <?php if (!empty($voters[$optId])): ?>
-            <div class="bc-muted small mt-1"><?= $e(implode(', ', $voters[$optId])) ?></div>
+            <div class="bc-muted text-sm mt-1"><?= $e(implode(', ', $voters[$optId])) ?></div>
           <?php endif; ?>
         </label>
       <?php endforeach; ?>
 
       <?php if ($isOpen && $isMember): ?>
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-2">
+        <div class="flex items-center justify-between flex-wrap gap-2 pt-2">
           <button type="submit" class="bc-btn">
             <?= $myVotes === [] ? $e(__('Vota')) : $e(__('Aggiorna il mio voto')) ?>
           </button>
           <?php if ($mode === 'stars'): ?>
-            <span class="bc-muted small"><?= $e(__('Valuta da 1 a 5 stelle solo i libri che ti interessano.')) ?></span>
+            <span class="bc-muted text-sm"><?= $e(__('Valuta da 1 a 5 stelle solo i libri che ti interessano.')) ?></span>
           <?php elseif ($mode === 'ranking'): ?>
-            <span class="bc-muted small"><?= $e(__('Assegna una posizione a ogni libro: 1 = preferito.')) ?></span>
+            <span class="bc-muted text-sm"><?= $e(__('Assegna una posizione a ogni libro: 1 = preferito.')) ?></span>
           <?php elseif ($mode === 'elimination'): ?>
-            <span class="bc-muted small"><?= $e(sprintf(__('Un voto per turno: siamo al turno %d.'), $round)) ?></span>
+            <span class="bc-muted text-sm"><?= $e(sprintf(__('Un voto per turno: siamo al turno %d.'), $round)) ?></span>
           <?php elseif ($maxVotes > 1): ?>
-            <span class="bc-muted small"><?= $e(sprintf(__('Puoi selezionare fino a %d libri.'), $maxVotes)) ?></span>
+            <span class="bc-muted text-sm"><?= $e(sprintf(__('Puoi selezionare fino a %d libri.'), $maxVotes)) ?></span>
           <?php endif; ?>
         </div>
       <?php elseif ($isOpen): ?>
@@ -299,7 +299,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
             ? __('Concludere il turno corrente? Il libro ultimo classificato sarà eliminato.')
             : __('Chiudere la votazione adesso? Il libro più votato avanzerà nel workflow.');
       ?>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/close')) ?>" class="mt-4 pt-3 border-top"
+      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/close')) ?>" class="mt-4 pt-3 border-t"
             onsubmit="return confirm('<?= $e($confirmMsg) ?>');">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">

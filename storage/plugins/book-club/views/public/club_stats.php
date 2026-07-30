@@ -56,17 +56,17 @@ foreach ($topProposers as $proposer) {
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none d-inline-flex align-items-center gap-2 mb-3">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e(__('Torna al club')) ?>
   </a>
 
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
-    <h1 class="h3 fw-bold d-flex align-items-center mb-0">
-      <span class="bc-chip me-2" style="background: <?= $e($club['color']) ?>"></span>
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <h1 class="h3 font-bold flex items-center mb-0">
+      <span class="bc-chip mr-2" style="background: <?= $e($club['color']) ?>"></span>
       <?= $e(__('Statistiche')) ?> — <?= $e($club['name']) ?>
     </h1>
     <?php if ($canManage): ?>
-      <div class="d-flex align-items-center gap-2">
+      <div class="flex items-center gap-2">
         <a href="<?= $e(url('/book-club/' . $slug . '/export.json')) ?>"
            class="bc-btn bc-btn-outline bc-btn-sm"><i class="fas fa-file-code"></i><?= $e(__('Esporta JSON')) ?></a>
         <a href="<?= $e(url('/book-club/' . $slug . '/export.csv')) ?>"
@@ -82,31 +82,31 @@ foreach ($topProposers as $proposer) {
   <?php endif; ?>
 
   <!-- Headline tiles -->
-  <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-      <div class="bc-card text-center mb-0 h-100">
-        <div class="fs-2 fw-bold"><?= (int) $finished ?></div>
-        <div class="bc-muted small mt-1"><i class="fas fa-flag-checkered me-1"></i><?= $e(__('Libri conclusi')) ?></div>
+  <div class="flex flex-wrap -mx-3 gap-y-3 mb-4">
+    <div class="w-full w-1/2 px-3 md:w-1/4">
+      <div class="bc-card text-center mb-0 h-full">
+        <div class="text-3xl font-bold"><?= (int) $finished ?></div>
+        <div class="bc-muted text-sm mt-1"><i class="fas fa-flag-checkered mr-1"></i><?= $e(__('Libri conclusi')) ?></div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="bc-card text-center mb-0 h-100">
-        <div class="fs-2 fw-bold"><?= (int) $meetingsDone ?></div>
-        <div class="bc-muted small mt-1"><i class="fas fa-calendar-check me-1"></i><?= $e(__('Incontri svolti')) ?></div>
+    <div class="w-full w-1/2 px-3 md:w-1/4">
+      <div class="bc-card text-center mb-0 h-full">
+        <div class="text-3xl font-bold"><?= (int) $meetingsDone ?></div>
+        <div class="bc-muted text-sm mt-1"><i class="fas fa-calendar-check mr-1"></i><?= $e(__('Incontri svolti')) ?></div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="bc-card text-center mb-0 h-100">
-        <div class="fs-2 fw-bold"><?= (int) $membersActive ?></div>
-        <div class="bc-muted small mt-1"><i class="fas fa-users me-1"></i><?= $e(__('Membri attivi')) ?></div>
+    <div class="w-full w-1/2 px-3 md:w-1/4">
+      <div class="bc-card text-center mb-0 h-full">
+        <div class="text-3xl font-bold"><?= (int) $membersActive ?></div>
+        <div class="bc-muted text-sm mt-1"><i class="fas fa-users mr-1"></i><?= $e(__('Membri attivi')) ?></div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="bc-card text-center mb-0 h-100">
-        <div class="fs-2 fw-bold">
-          <?= $avgStars !== null ? $e(number_format($avgStars, 1)) . ' <i class="fas fa-star fs-5" style="color: var(--warning-color)"></i>' : '—' ?>
+    <div class="w-full w-1/2 px-3 md:w-1/4">
+      <div class="bc-card text-center mb-0 h-full">
+        <div class="text-3xl font-bold">
+          <?= $avgStars !== null ? $e(number_format($avgStars, 1)) . ' <i class="fas fa-star text-xl" style="color: var(--warning-color)"></i>' : '—' ?>
         </div>
-        <div class="bc-muted small mt-1"><?= $e(__('Media stelle recensioni')) ?></div>
+        <div class="bc-muted text-sm mt-1"><?= $e(__('Media stelle recensioni')) ?></div>
       </div>
     </div>
   </div>
@@ -118,21 +118,21 @@ foreach ($topProposers as $proposer) {
       <h2><?= $e(__('Libri per stato')) ?></h2>
     </div>
     <?php foreach ($stateRows as $row): ?>
-      <div class="row g-2 align-items-center mb-2">
-        <div class="col-5 col-md-3 d-flex align-items-center small">
-          <span class="bc-chip me-2" style="background: <?= $e($row['color']) ?>"></span>
-          <span class="text-truncate"><?= $e($row['label']) ?></span>
+      <div class="flex flex-wrap -mx-3 gap-y-2 items-center mb-2">
+        <div class="w-full w-5/12 px-3 md:w-1/4 flex items-center text-sm">
+          <span class="bc-chip mr-2" style="background: <?= $e($row['color']) ?>"></span>
+          <span class="truncate"><?= $e($row['label']) ?></span>
         </div>
-        <div class="col">
+        <div class="flex-1 px-3">
           <div class="bc-progress">
             <span style="width: <?= number_format((int) $row['count'] / $maxCount * 100, 1, '.', '') ?>%; background: <?= $e($row['color']) ?>"></span>
           </div>
         </div>
-        <div class="col-auto small fw-semibold text-end"><?= (int) $row['count'] ?></div>
+        <div class="w-auto px-3 text-sm font-semibold text-right"><?= (int) $row['count'] ?></div>
       </div>
     <?php endforeach; ?>
     <?php if ($canManage && $pendingCount > 0): ?>
-      <p class="bc-muted small mt-3 mb-0"><?= $e(sprintf(__('%d proposte in attesa di moderazione'), (int) $pendingCount)) ?></p>
+      <p class="bc-muted text-sm mt-3 mb-0"><?= $e(sprintf(__('%d proposte in attesa di moderazione'), (int) $pendingCount)) ?></p>
     <?php endif; ?>
   </section>
 
@@ -146,14 +146,14 @@ foreach ($topProposers as $proposer) {
       <p class="bc-muted mb-0"><?= $e(__('Nessun libro proposto finora.')) ?></p>
     <?php endif; ?>
     <?php foreach ($topProposers as $proposer): ?>
-      <div class="row g-2 align-items-center mb-2">
-        <div class="col-5 col-md-3 small text-truncate"><?= $e($proposer['name']) ?></div>
-        <div class="col">
+      <div class="flex flex-wrap -mx-3 gap-y-2 items-center mb-2">
+        <div class="w-full w-5/12 px-3 md:w-1/4 text-sm truncate"><?= $e($proposer['name']) ?></div>
+        <div class="flex-1 px-3">
           <div class="bc-progress">
             <span style="width: <?= number_format((int) $proposer['n'] / $maxProposer * 100, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></span>
           </div>
         </div>
-        <div class="col-auto bc-muted small text-end"><?= $e(sprintf(__('%d proposte'), (int) $proposer['n'])) ?></div>
+        <div class="w-auto px-3 bc-muted text-sm text-right"><?= $e(sprintf(__('%d proposte'), (int) $proposer['n'])) ?></div>
       </div>
     <?php endforeach; ?>
   </section>

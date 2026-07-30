@@ -3357,6 +3357,7 @@ class ArchivesPlugin
             $response->getBody()->write($content);
             return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
         }
+        $db = $this->db;
         ob_start();
         include $layoutPath;
         $html = (string) ob_get_clean();

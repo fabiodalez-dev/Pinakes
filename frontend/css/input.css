@@ -47,10 +47,11 @@ pre, code, table {
 }
 
 /* Container with comfortable margins for frontend */
-.container,
-.container-fluid,
-.row {
+.container {
+  width: 100%;
   max-width: 92vw !important;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* Images and media - always responsive */
@@ -75,8 +76,7 @@ table {
   }
 
   /* Reduce padding on mobile */
-  .container,
-  .container-fluid {
+  .container {
     padding-left: 1rem;
     padding-right: 1rem;
   }
@@ -159,10 +159,16 @@ table {
 /* Custom Component Classes - Core Design System */
 @layer components {
   /* === CORE BUTTON COMPONENTS === */
+  .ui-button {
+    @apply inline-flex items-center justify-center gap-2 border border-transparent font-semibold no-underline cursor-pointer disabled:cursor-not-allowed disabled:opacity-50;
+    border-radius: var(--radius);
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  }
+
   /* Primary Button - Main action buttons */
   .btn-primary {
     @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white;
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    background-color: var(--color-primary);
     border-radius: var(--radius);
     box-shadow: var(--shadow-sm);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -170,7 +176,7 @@ table {
   }
   
   .btn-primary:hover {
-    background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+    background-color: var(--color-primary-dark);
     box-shadow: var(--shadow-md);
     transform: translateY(-1px);
   }
@@ -206,7 +212,7 @@ table {
   /* Danger Button - Missing class */
   .btn-danger {
     @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white;
-    background: linear-gradient(135deg, var(--color-danger) 0%, var(--color-danger-dark) 100%);
+    background-color: var(--color-danger);
     border-radius: var(--radius);
     box-shadow: var(--shadow-sm);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -214,7 +220,7 @@ table {
   }
   
   .btn-danger:hover {
-    background: linear-gradient(135deg, var(--color-danger-dark) 0%, #b91c1c 100%);
+    background-color: var(--color-danger-dark);
     box-shadow: var(--shadow-md);
     transform: translateY(-1px);
   }
@@ -227,6 +233,32 @@ table {
   .btn-danger:focus {
     outline: 2px solid var(--color-danger);
     outline-offset: 2px;
+  }
+
+  .btn-success {
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white;
+    background-color: var(--color-success);
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    transition: all 0.2s ease;
+  }
+
+  .btn-success:hover {
+    background-color: #059669;
+    transform: translateY(-1px);
+  }
+
+  .btn-danger-outline {
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold bg-transparent;
+    color: var(--color-danger);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius);
+    transition: all 0.2s ease;
+  }
+
+  .btn-danger-outline:hover {
+    @apply text-white;
+    background-color: var(--color-danger);
   }
   
   /* Outline Button - Missing fallback */
@@ -277,6 +309,10 @@ table {
     border-color: var(--color-gray-400);
   }
 
+  select.form-input {
+    @apply pr-10;
+  }
+
   /* Form Label */
   .form-label {
     @apply block text-sm font-medium mb-2;
@@ -316,6 +352,10 @@ table {
   .chip-remove {
     @apply w-4 h-4 rounded-full flex items-center justify-center text-xs cursor-pointer hover:bg-red-100 hover:text-red-600;
     transition: all 0.2s ease;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold leading-none rounded-full;
   }
   
   /* Upload Area */
@@ -379,6 +419,24 @@ table {
   .alert-info {
     @apply bg-blue-50 text-blue-800 border border-blue-200;
   }
+
+  .alert-dismiss {
+    @apply absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full text-current opacity-60 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-current;
+  }
+
+  .alert-dismiss::before,
+  .alert-dismiss::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.875rem;
+    height: 1px;
+    background: currentColor;
+  }
+
+  .alert-dismiss::before { transform: translate(-50%, -50%) rotate(45deg); }
+  .alert-dismiss::after { transform: translate(-50%, -50%) rotate(-45deg); }
 }
 
 /* Custom Choices.js Styling */
@@ -645,9 +703,9 @@ table {
 /* === COMPONENT DOCUMENTATION === */
 /*
  * CORE COMPONENTS:
- * .btn-primary - Primary actions (blue gradient)
+ * .btn-primary - Primary actions (solid configurable color)
  * .btn-secondary - Secondary actions (white with border)
- * .btn-danger - Destructive actions (red gradient)
+ * .btn-danger - Destructive actions (solid semantic red)
  * .btn-outline - Transparent with border
  * .card - Content containers
  * .form-input - Form input fields
@@ -745,7 +803,7 @@ table.dataTable thead td {
   }
 
   /* User dashboard - Reduce heading size and add top padding */
-  h1.display-4.fw-bold.mb-3 {
+  h1.display-4.font-bold.mb-3 {
     font-size: 1rem !important;
     padding: 4rem 0 0 !important;
   }

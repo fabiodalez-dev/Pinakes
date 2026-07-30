@@ -50,12 +50,12 @@ $csrf = \App\Support\Csrf::ensureToken();
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none d-inline-flex align-items-center gap-2 mb-3">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e(__('Torna al club')) ?>
   </a>
 
   <div class="bc-hero">
-    <h1 class="d-flex align-items-center gap-3 mb-0">
+    <h1 class="flex items-center gap-3 mb-0">
       <span class="bc-chip" style="background: <?= $e($club['color']) ?>"></span>
       <span><?= $e(__('Affinità e suggerimenti')) ?> — <?= $e($club['name']) ?></span>
     </h1>
@@ -69,7 +69,7 @@ $csrf = \App\Support\Csrf::ensureToken();
 
   <!-- Section 1: reader affinity (opt-in) -->
   <section class="bc-card">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="bc-section-header mb-0">
         <i class="fas fa-people-arrows"></i>
         <h2><?= $e(__('Affinità tra lettori')) ?></h2>
@@ -78,15 +78,15 @@ $csrf = \App\Support\Csrf::ensureToken();
     </div>
 
     <p class="bc-muted mt-3 mb-3">
-      <i class="fas fa-lock me-1"></i>
+      <i class="fas fa-lock mr-1"></i>
       <?= $e(__('Le affinità sono calcolate solo tra i membri che hanno attivato la condivisione: chi non aderisce non compare mai negli elenchi degli altri.')) ?>
     </p>
 
     <?php if ($isMember): ?>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/affinity/optin')) ?>" class="d-flex flex-wrap align-items-center gap-3 mb-4 border rounded-3 px-3 py-3">
+      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/affinity/optin')) ?>" class="flex flex-wrap items-center gap-3 mb-4 border rounded-md px-3 py-3">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-        <span class="small fw-semibold" style="color: <?= $optedIn ? 'var(--success-color)' : 'var(--text-light)' ?>">
-          <i class="fas <?= $optedIn ? 'fa-toggle-on' : 'fa-toggle-off' ?> me-1"></i>
+        <span class="text-sm font-semibold" style="color: <?= $optedIn ? 'var(--success-color)' : 'var(--text-light)' ?>">
+          <i class="fas <?= $optedIn ? 'fa-toggle-on' : 'fa-toggle-off' ?> mr-1"></i>
           <?= $e($optedIn ? __('Condivisione attiva') : __('Condivisione disattivata')) ?>
         </span>
         <button type="submit" class="bc-btn bc-btn-sm<?= $optedIn ? ' bc-btn-outline' : '' ?>">
@@ -100,18 +100,18 @@ $csrf = \App\Support\Csrf::ensureToken();
         <p class="bc-muted mb-0"><?= $e(__('Nessun altro membro ha attivato la condivisione, per ora.')) ?></p>
       <?php else: ?>
         <?php foreach ($myAffinities as $row): ?>
-          <div class="row align-items-center g-2 mb-2">
-            <div class="col-12 col-md-4 small text-truncate">
+          <div class="flex flex-wrap -mx-3 items-center gap-y-2 mb-2">
+            <div class="w-full px-3 md:w-1/3 text-sm truncate">
               <?= $e(sprintf(__('Affinità con %s'), (string) $row['name'])) ?>
             </div>
-            <div class="col">
+            <div class="flex-1 px-3">
               <div class="bc-progress">
                 <?php if ($row['score'] !== null): ?>
                   <span style="width: <?= (int) $row['score'] ?>%; background: <?= $e($club['color']) ?>"></span>
                 <?php endif; ?>
               </div>
             </div>
-            <div class="col-3 col-md-2 text-end small <?= $row['score'] !== null ? 'fw-semibold' : 'bc-muted' ?>">
+            <div class="w-1/4 px-3 text-right text-sm md:w-1/6 <?= $row['score'] !== null ? 'font-semibold' : 'bc-muted' ?>">
               <?= $row['score'] !== null ? (int) $row['score'] . '%' : $e(__('dati insufficienti')) ?>
             </div>
           </div>
@@ -132,8 +132,8 @@ $csrf = \App\Support\Csrf::ensureToken();
     <?php if ($topGenres === []): ?>
       <p class="bc-muted mb-0"><?= $e(__('Nessun suggerimento disponibile: il club non ha ancora concluso letture con un genere assegnato.')) ?></p>
     <?php else: ?>
-      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <span class="bc-muted text-uppercase"><?= $e(__('Generi più letti dal club')) ?>:</span>
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <span class="bc-muted uppercase"><?= $e(__('Generi più letti dal club')) ?>:</span>
         <?php foreach ($topGenres as $genre): ?>
           <span class="bc-badge" style="background: <?= $e($club['color']) ?>; color: #fff">
             <?= $e($genre['nome']) ?> · <?= (int) $genre['n'] ?>
@@ -144,24 +144,24 @@ $csrf = \App\Support\Csrf::ensureToken();
       <?php if ($suggestedBooks === []): ?>
         <p class="bc-muted mb-0"><?= $e(__('Il club ha già letto tutti i libri in catalogo per i suoi generi preferiti.')) ?></p>
       <?php else: ?>
-        <h3 class="h6 fw-bold text-uppercase mb-2"><?= $e(__('Libri dal catalogo che il club non ha ancora letto')) ?></h3>
+        <h3 class="mb-2 text-base font-bold uppercase"><?= $e(__('Libri dal catalogo che il club non ha ancora letto')) ?></h3>
         <div class="mb-3">
           <?php foreach ($suggestedBooks as $book): ?>
             <div class="bc-list-item">
               <?php if (!empty($book['copertina_url'])): ?>
-                <img src="<?= $e($book['copertina_url']) ?>" alt="" class="bc-cover flex-shrink-0" loading="lazy">
+                <img src="<?= $e($book['copertina_url']) ?>" alt="" class="bc-cover shrink-0" loading="lazy">
               <?php else: ?>
-                <div class="bc-cover flex-shrink-0 bg-light d-flex align-items-center justify-content-center"><i class="fas fa-book bc-muted"></i></div>
+                <div class="bc-cover shrink-0 bg-gray-100 flex items-center justify-center"><i class="fas fa-book bc-muted"></i></div>
               <?php endif; ?>
-              <div class="flex-grow-1">
-                <p class="mb-0 fw-semibold"><?= $e($book['titolo']) ?></p>
+              <div class="grow">
+                <p class="mb-0 font-semibold"><?= $e($book['titolo']) ?></p>
                 <p class="mb-0 bc-muted">
                   <?= $e((string) ($book['autori'] ?? '')) ?>
                   <?php if (!empty($book['anno_pubblicazione'])): ?> · <?= (int) $book['anno_pubblicazione'] ?><?php endif; ?>
                   · <?= $e($book['genere']) ?>
                 </p>
               </div>
-              <div class="bc-muted text-nowrap flex-shrink-0 pt-1">
+              <div class="bc-muted whitespace-nowrap shrink-0 pt-1">
                 <?php if ($book['rating'] !== null): ?>
                   <i class="fas fa-star" style="color: var(--warning-color)"></i> <?= (int) $book['rating'] ?>/5
                 <?php else: ?>
@@ -172,8 +172,8 @@ $csrf = \App\Support\Csrf::ensureToken();
           <?php endforeach; ?>
         </div>
         <p class="bc-muted mb-0">
-          <i class="fas fa-hand-point-right me-1"></i><?= $e(__('Ti piace un titolo? Proponilo al club dalla pagina principale.')) ?>
-          <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="fw-semibold"><?= $e(__('Vai alla pagina del club')) ?></a>
+          <i class="fas fa-hand-point-right mr-1"></i><?= $e(__('Ti piace un titolo? Proponilo al club dalla pagina principale.')) ?>
+          <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="font-semibold"><?= $e(__('Vai alla pagina del club')) ?></a>
         </p>
       <?php endif; ?>
     <?php endif; ?>
@@ -189,9 +189,9 @@ $csrf = \App\Support\Csrf::ensureToken();
       <p class="bc-muted mb-3"><?= $e(__('Autori dei libri conclusi con altri titoli in catalogo non ancora letti dal club.')) ?></p>
       <div>
         <?php foreach ($similarAuthors as $author): ?>
-          <div class="bc-list-item align-items-center">
-            <span class="small text-truncate"><?= $e($author['nome']) ?></span>
-            <span class="bc-muted text-nowrap flex-shrink-0">
+          <div class="bc-list-item items-center">
+            <span class="text-sm truncate"><?= $e($author['nome']) ?></span>
+            <span class="bc-muted whitespace-nowrap shrink-0">
               <?= $e(sprintf(__('%d libri non ancora letti dal club'), (int) $author['unread_count'])) ?>
             </span>
           </div>

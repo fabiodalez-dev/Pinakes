@@ -169,7 +169,7 @@ $profileReservationCoverUrl = static function (array $item): string {
     flex-wrap: wrap;
   }
 
-  .badge {
+  .status-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -328,6 +328,8 @@ $profileReservationCoverUrl = static function (array $item): string {
   }
 </style>
 
+<link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('account-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= (int)(@filemtime(dirname(__DIR__, 3) . '/public/assets/account-pages.css') ?: 1) ?>">
+
 <div class="loans-container">
   <?php
   // Check for overdue loans
@@ -377,15 +379,15 @@ $profileReservationCoverUrl = static function (array $item): string {
           <div class="item-info">
             <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
             <div class="item-badges">
-              <div class="badge" style="background: #fef3c7; color: #78350f; border: 1px solid #fcd34d;">
+              <div class="status-badge" style="background: #fef3c7; color: #78350f; border: 1px solid #fcd34d;">
                 <i class="fas fa-clock" style="color: #f59e0b;"></i>
                 <span><?= __('In attesa di approvazione') ?></span>
               </div>
-              <div class="badge badge-date">
+              <div class="status-badge badge-date">
                 <i class="fas fa-calendar-plus"></i>
                 <span><?= sprintf('%s %s %s %s', __('Dal'), format_date($p['data_prestito'], false, '/'), __('al'), format_date($p['data_scadenza'], false, '/')) ?></span>
               </div>
-              <div class="badge badge-date" style="font-size: 0.75rem; color: #999;">
+              <div class="status-badge badge-date" style="font-size: 0.75rem; color: #999;">
                 <i class="fas fa-history"></i>
                 <span><?= sprintf('%s %s', __('Richiesto il'), format_date($p['created_at'], true, '/')) ?></span>
               </div>
@@ -439,20 +441,20 @@ $profileReservationCoverUrl = static function (array $item): string {
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <?php if ($isScheduled): ?>
-                <div class="badge badge-scheduled">
+                <div class="status-badge badge-scheduled">
                   <i class="fas fa-calendar-check"></i>
                   <span><?= __('Programmato') ?></span>
                 </div>
-                <div class="badge badge-date">
+                <div class="status-badge badge-date">
                   <i class="fas fa-clock"></i>
                   <span><?= sprintf('%s %s %s %s', __('Dal'), format_date($dataPrestito, false, '/'), __('al'), format_date($scadenza, false, '/')) ?></span>
                 </div>
                 <?php else: ?>
-                <div class="badge <?php echo $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
+                <div class="status-badge <?php echo $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
                   <i class="fas fa-calendar"></i>
                   <span><?= sprintf('%s: %s', $isOverdue ? __('In ritardo') : __('Scadenza'), format_date($scadenza, false, '/')) ?></span>
                 </div>
-                <div class="badge badge-date">
+                <div class="status-badge badge-date">
                   <i class="fas fa-clock"></i>
                   <span><?= sprintf('%s %s', __('Dal'), format_date($dataPrestito, false, '/')) ?></span>
                 </div>
@@ -510,11 +512,11 @@ $profileReservationCoverUrl = static function (array $item): string {
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="badge badge-position">
+                <div class="status-badge badge-position">
                   <i class="fas fa-sort-numeric-up"></i>
                   <span><?= sprintf('%s: %d', __('Posizione'), (int)($p['queue_position'] ?? 0)) ?></span>
                 </div>
-                <div class="badge badge-date">
+                <div class="status-badge badge-date">
                   <i class="fas fa-calendar"></i>
                   <span><?= !empty($p['data_scadenza_prenotazione']) ? format_date($p['data_scadenza_prenotazione'], false, '/') : __('Non specificata') ?></span>
                 </div>
@@ -581,12 +583,12 @@ $profileReservationCoverUrl = static function (array $item): string {
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="badge badge-status">
+                <div class="status-badge badge-status">
                   <i class="fas fa-check-circle"></i>
                   <span><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
                 <?php if (!empty($p['data_restituzione'])): ?>
-                <div class="badge badge-date">
+                <div class="status-badge badge-date">
                   <i class="fas fa-calendar"></i>
                   <span><?= format_date($p['data_restituzione'], false, '/') ?></span>
                 </div>
@@ -658,11 +660,11 @@ $profileReservationCoverUrl = static function (array $item): string {
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($r['libro_titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="badge" style="<?php echo htmlspecialchars($statusColor, ENT_QUOTES, 'UTF-8'); ?>">
+                <div class="status-badge" style="<?php echo htmlspecialchars($statusColor, ENT_QUOTES, 'UTF-8'); ?>">
                   <i class="fas fa-info-circle"></i>
                   <span><?php echo htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8'); ?></span>
                 </div>
-                <div class="badge badge-date">
+                <div class="status-badge badge-date">
                   <i class="fas fa-calendar"></i>
                   <span><?php echo format_date($r['created_at'], false, '/'); ?></span>
                 </div>

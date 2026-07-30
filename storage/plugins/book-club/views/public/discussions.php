@@ -59,12 +59,12 @@ $kindBadges = [
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none">
-    <i class="fas fa-arrow-left me-1"></i><?= $e($club['name']) ?>
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline">
+    <i class="fas fa-arrow-left mr-1"></i><?= $e($club['name']) ?>
   </a>
 
-  <div class="d-flex align-items-center justify-content-between mt-3 mb-4">
-    <h1 class="h2 fw-bold mb-0"><?= $e(__('Discussioni')) ?></h1>
+  <div class="flex items-center justify-between mt-3 mb-4">
+    <h1 class="h2 font-bold mb-0"><?= $e(__('Discussioni')) ?></h1>
     <span class="bc-muted"><?= count($threads) ?> <?= $e(__n('discussione', 'discussioni', count($threads))) ?></span>
   </div>
 
@@ -85,18 +85,18 @@ $kindBadges = [
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <input type="text" name="title" required maxlength="190"
                placeholder="<?= $e(__('Titolo della discussione')) ?>"
-               class="form-control mb-3">
-        <div class="row g-3">
-          <div class="col-12 col-md-4">
-            <select name="kind" class="form-select">
+               class="form-input mb-3">
+        <div class="flex flex-wrap -mx-3 gap-y-3">
+          <div class="w-full px-3 md:w-1/3">
+            <select name="kind" class="form-input">
               <?php foreach ($kindLabels as $value => $label): ?>
                 <?php if ($value === 'announcement' && !$canManage) { continue; } ?>
                 <option value="<?= $e($value) ?>" <?= $value === 'free' ? 'selected' : '' ?>><?= $e($label) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
-          <div class="col-12 col-md-4">
-            <select name="club_book_id" class="form-select">
+          <div class="w-full px-3 md:w-1/3">
+            <select name="club_book_id" class="form-input">
               <option value=""><?= $e(__('Nessun libro collegato')) ?></option>
               <?php foreach ($books as $book): ?>
                 <option value="<?= (int) $book['id'] ?>"><?= $e($book['titolo']) ?></option>
@@ -104,8 +104,8 @@ $kindBadges = [
             </select>
           </div>
           <?php if ($sections !== []): ?>
-            <div class="col-12 col-md-4">
-              <select name="section_id" class="form-select">
+            <div class="w-full px-3 md:w-1/3">
+              <select name="section_id" class="form-input">
                 <option value=""><?= $e(__('Nessuna sezione collegata')) ?></option>
                 <?php foreach ($sections as $section): ?>
                   <option value="<?= (int) $section['id'] ?>"><?= $e($section['book_title'] . ' — ' . $section['title']) ?></option>
@@ -127,14 +127,14 @@ $kindBadges = [
     <?php foreach ($threads as $thread): ?>
       <div class="bc-list-item">
         <div style="min-width: 0">
-          <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div class="flex items-center gap-2 flex-wrap">
             <?php if ((int) $thread['is_pinned'] === 1): ?>
-              <i class="fas fa-thumbtack small" style="color: var(--warning-color)" title="<?= $e(__('In evidenza')) ?>"></i>
+              <i class="fas fa-thumbtack text-sm" style="color: var(--warning-color)" title="<?= $e(__('In evidenza')) ?>"></i>
             <?php endif; ?>
             <?php if ((int) $thread['is_locked'] === 1): ?>
-              <i class="fas fa-lock small bc-muted" title="<?= $e(__('Bloccata')) ?>"></i>
+              <i class="fas fa-lock text-sm bc-muted" title="<?= $e(__('Bloccata')) ?>"></i>
             <?php endif; ?>
-            <a class="fw-semibold text-decoration-none" style="color: var(--primary-color)"
+            <a class="font-semibold no-underline" style="color: var(--primary-color)"
                href="<?= $e(url('/book-club/' . $slug . '/discussions/' . (int) $thread['id'])) ?>"><?= $e($thread['title']) ?></a>
             <span class="<?= $e($kindBadges[$thread['kind']] ?? 'bc-badge bc-badge-closed') ?>">
               <?= $e($kindLabels[$thread['kind']] ?? $thread['kind']) ?>
@@ -142,7 +142,7 @@ $kindBadges = [
           </div>
           <div class="bc-muted mt-1">
             <?php if (!empty($thread['book_title'])): ?>
-              <i class="fas fa-book me-1"></i><?= $e($thread['book_title']) ?>
+              <i class="fas fa-book mr-1"></i><?= $e($thread['book_title']) ?>
               <?php if (!empty($thread['section_title'])): ?> · <?= $e($thread['section_title']) ?><?php endif; ?>
               ·
             <?php endif; ?>
@@ -152,7 +152,7 @@ $kindBadges = [
             <?= $e(__('ultima attività')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $thread['last_activity']))) ?>
           </div>
         </div>
-        <div class="bc-muted text-end text-nowrap ms-3">
+        <div class="bc-muted text-right whitespace-nowrap ml-3">
           <?= (int) $thread['post_count'] ?> <?= $e(__n('messaggio', 'messaggi', (int) $thread['post_count'])) ?>
         </div>
       </div>

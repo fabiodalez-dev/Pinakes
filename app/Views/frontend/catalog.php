@@ -49,13 +49,6 @@ $seoSchema = json_encode([
     ]
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
 
-// Load theme colors for catalog-specific styles
-$themeManager = $container->get('themeManager');
-$themeColorizer = $container->get('themeColorizer');
-$activeTheme = $themeManager->getActiveTheme();
-$themeColors = $themeManager->getThemeColors($activeTheme);
-$themePalette = $themeColorizer->generateColorPalette($themeColors);
-
 $additional_css = "
 <style>
     :root {
@@ -83,7 +76,7 @@ $additional_css = "
     }
 
     .catalog-header {
-        background: " . htmlspecialchars($themePalette['primary'], ENT_QUOTES, 'UTF-8') . ";
+        background: var(--primary-color);
         color: white;
         padding: 4rem 0 3rem;
         position: relative;
@@ -129,13 +122,11 @@ $additional_css = "
         border-top: 1px solid var(--border-color);
         box-shadow: none;
         position: sticky;
-        top: 2rem;
-        max-height: calc(100vh - 4rem);
+        top: 6.5rem;
+        max-height: calc(100vh - 8rem);
         display: flex;
         flex-direction: column;
-        /* Breathing room between the open sidebar and the results grid,
-           now that the boxed panel is gone. Removed on stacked mobile. */
-        padding-right: 2.5rem;
+        padding: 0;
     }
 
     @media (max-width: 991.98px) {
@@ -146,7 +137,7 @@ $additional_css = "
 
     .filters-header {
         background: none;
-        padding: 1.25rem 0 1rem;
+        padding: 1.25rem 1.125rem 1rem;
         border-bottom: 1px solid var(--border-light);
         flex-shrink: 0;
     }
@@ -166,10 +157,11 @@ $additional_css = "
         flex: 1;
         overflow-y: auto;
         overflow-x: hidden;
+        padding: 0 0.625rem 0.625rem;
     }
 
     .filter-section {
-        padding: 1.85rem 0;
+        padding: 1.5rem 0.625rem;
         border-bottom: 1px solid var(--border-light);
     }
 
@@ -249,7 +241,7 @@ $additional_css = "
            Small right inset so the scrollbar never overlaps the counts. */
         border: none;
         border-radius: 0;
-        padding: 0 0.75rem 0 0;
+        padding: 0 0.375rem 0 0;
     }
     .filter-options::-webkit-scrollbar { width: 6px; }
     .filter-options::-webkit-scrollbar-track { background: transparent; }
@@ -270,7 +262,8 @@ $additional_css = "
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0.65rem 0.5rem;
+        min-height: 44px;
+        padding: 0.7rem 0.75rem;
         border-radius: 2px;
         color: var(--text-color, var(--text-primary));
         text-decoration: none;
@@ -790,7 +783,7 @@ $additional_css = "
     /* Enhanced Book Cards */
     .books-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
         gap: 1.5rem;
     }
 
@@ -1002,9 +995,9 @@ $additional_css = "
         display: inline-flex;
         align-items: center;
         padding: 0.75rem 1.5rem;
-        background: " . htmlspecialchars($themePalette['button'], ENT_QUOTES, 'UTF-8') . ";
-        color: " . htmlspecialchars($themePalette['button_text'], ENT_QUOTES, 'UTF-8') . ";
-        border: 1px solid " . htmlspecialchars($themePalette['button'], ENT_QUOTES, 'UTF-8') . ";
+        background: var(--button-color);
+        color: var(--button-text-color);
+        border: 1px solid var(--button-color);
         border-radius: var(--radius-md);
         font-size: 0.875rem;
         font-weight: 600;
@@ -1013,8 +1006,8 @@ $additional_css = "
     }
 
     .btn-cta:hover {
-        background: " . htmlspecialchars($themePalette['button_hover'], ENT_QUOTES, 'UTF-8') . ";
-        border-color: " . htmlspecialchars($themePalette['button_hover'], ENT_QUOTES, 'UTF-8') . ";
+        background: var(--button-hover);
+        border-color: var(--button-hover);
         transform: translateY(-1px);
     }
 
@@ -1024,7 +1017,7 @@ $additional_css = "
     }
 
     /* Responsive Design */
-    @media (max-width: 1024px) {
+    @media (max-width: 991.98px) {
         .catalog-title {
             font-size: 2.5rem;
         }
@@ -1046,7 +1039,7 @@ $additional_css = "
         }
 
         .books-grid {
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr));
             gap: 1rem;
         }
 
@@ -1057,7 +1050,7 @@ $additional_css = "
         }
 
         .filter-section {
-            padding: 1rem;
+            padding: 1.25rem 0.75rem;
         }
 
         .clear-filters-text {
@@ -1291,7 +1284,7 @@ ob_start();
             <h1 class="catalog-title"><?= __("Catalogo Libri") ?></h1>
             <p class="catalog-subtitle"><?= __("Scopri migliaia di titoli nella nostra collezione digitale") ?></p>
             <nav aria-label="breadcrumb">
-                <ol class="breadcrumb justify-content-center bg-transparent p-0 mb-0">
+                <ol class="breadcrumb flex flex-wrap items-center gap-2 justify-center bg-transparent p-0 mb-0">
                     <li class="breadcrumb-item">
                         <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="text-white opacity-75"><?= __("Home") ?></a>
                     </li>
@@ -1307,9 +1300,9 @@ ob_start();
 <!-- Main Content -->
 <section class="py-5">
     <div class="container">
-        <div class="row">
+        <div class="flex flex-wrap -mx-3">
             <!-- Enhanced Filters Sidebar -->
-            <div class="col-lg-3 mb-4">
+            <div class="catalog-filters-column w-full lg:w-1/3 px-3 xl:w-1/4 mb-4">
                 <div class="filters-panel">
                     <div class="filters-header">
                         <h5 class="filters-title">
@@ -1518,7 +1511,7 @@ ob_start();
                                class="filter-option count <?= $isActive ? 'active' : '' ?>"
                                onclick="updateFilter('tipo_media', <?= htmlspecialchars(json_encode($mtValue, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;"
                                title="<?= htmlspecialchars($mtLabel, ENT_QUOTES, 'UTF-8') ?>">
-                              <span><i class="fas <?= htmlspecialchars($mtIcon, ENT_QUOTES, 'UTF-8') ?> me-1"></i><?= htmlspecialchars($mtLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                              <span><i class="fas <?= htmlspecialchars($mtIcon, ENT_QUOTES, 'UTF-8') ?> mr-1"></i><?= htmlspecialchars($mtLabel, ENT_QUOTES, 'UTF-8') ?></span>
                               <span class="count-badge"><?= $mtCnt ?></span>
                             </a>
                           <?php endforeach; ?>
@@ -1575,7 +1568,7 @@ ob_start();
             </div>
 
             <!-- Main Content -->
-            <div class="col-lg-9">
+            <div class="catalog-results-column w-full lg:w-2/3 px-3 xl:w-3/4">
                 <!-- Active Filters Display -->
                 <div id="active-filters" class="active-filters" style="display: none;">
                     <div class="active-filters-title"><?= __("Filtri attivi:") ?></div>
@@ -1612,8 +1605,8 @@ ob_start();
 
                     <!-- Loading State -->
                     <div id="loading-state" style="display: none;" class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden"><?= __("Caricamento...") ?></span>
+                        <div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent text-gray-900" role="status">
+                            <span class="sr-only"><?= __("Caricamento...") ?></span>
                         </div>
                     </div>
 
@@ -1623,7 +1616,7 @@ ob_start();
                         <h4 class="empty-state-title"><?= __("Nessun libro trovato") ?></h4>
                         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
                         <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
-                            <i class="fas fa-redo me-2"></i>
+                            <i class="fas fa-redo mr-2"></i>
                             <?= __("Pulisci filtri") ?>
                         </button>
                     </div>
@@ -1632,11 +1625,11 @@ ob_start();
                     <?php if (!empty($archiveResults) && empty($books)): ?>
                     <?php $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); ?>
                     <div class="mt-4 p-3 rounded border" style="background:var(--light-bg,#f8f9fa);border-color:var(--border-color,#e5e7eb)!important;">
-                        <p class="small fw-semibold text-muted mb-2">
-                            <i class="fas fa-archive me-1"></i>
+                        <p class="text-sm font-semibold text-gray-500 mb-2">
+                            <i class="fas fa-archive mr-1"></i>
                             <?= __("Trovato anche nell'archivio:") ?>
                         </p>
-                        <ul class="list-unstyled mb-0">
+                        <ul class="mb-0 list-none">
                             <?php foreach ($archiveResults as $ar): ?>
                             <li class="mb-1">
                                 <?php
@@ -1648,10 +1641,10 @@ ob_start();
                                     $rawHref = '#';
                                 }
                                 ?>
-                                <a href="<?= htmlspecialchars($rawHref, ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none">
+                                <a href="<?= htmlspecialchars($rawHref, ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
                                     <?= $e($ar['label']) ?>
                                     <?php if (($ar['reference_code'] ?? '') !== ''): ?>
-                                        <span class="text-muted small ms-1">(<?= $e($ar['reference_code']) ?>)</span>
+                                        <span class="text-gray-500 text-sm ml-1">(<?= $e($ar['reference_code']) ?>)</span>
                                     <?php endif; ?>
                                 </a>
                             </li>
@@ -1999,7 +1992,7 @@ function loadBooks() {
             console.error('Error loading books:', error);
             loading.style.display = 'none';
             container.style.display = 'grid';
-            container.innerHTML = '<div class="col-12"><div class="alert alert-danger">' + i18n.errore_caricamento + '</div></div>';
+            container.innerHTML = '<div class="w-full px-3"><div class="alert alert-error">' + i18n.errore_caricamento + '</div></div>';
         });
 }
 
@@ -2017,7 +2010,7 @@ function updatePagination(pagination) {
     const current = pagination.current_page;
     const total = pagination.total_pages;
 
-    let html = '<nav aria-label="' + escapeHtml(window.__('Page navigation')) + '"><ul class="pagination justify-content-center">';
+    let html = '<nav aria-label="' + escapeHtml(window.__('Page navigation')) + '"><ul class="pagination justify-center">';
 
     if (current > 1) {
         html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current - 1) + ')" title="' + i18n.pagina_precedente + '"><i class="fas fa-chevron-left"></i></a></li>';
@@ -2041,7 +2034,7 @@ function updatePagination(pagination) {
 
     for (let i = startPage; i <= endPage; i += 1) {
         const activeClass = i === current ? ' active' : '';
-        html += '<li class="page-item' + activeClass + '"><a class="page-link" href="#" onclick="goToPage(' + i + ')">' + i + '</a></li>';
+        html += '<li class="page-item' + activeClass '"><a class="page-link" href="#" onclick="goToPage(' + i + ')">' + i + '</a></li>';
     }
 
     if (endPage < total) {
@@ -2103,7 +2096,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 // Sanitize title attribute to prevent XSS
                 const safeTitle = escapeHtml(gen.nome);
 
-                html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;" title="' + safeTitle + '">';
+                html += '<a href="#" class="filter-option count ' + isActive" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;" title="' + safeTitle + '">';
                 html += '<span>' + escapeHtml(displayName) + '</span>';
                 html += '<span class="count-badge">' + gen.cnt + '</span>';
                 html += '</a>';
@@ -2118,7 +2111,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             filterOptions.generi.forEach(gen => {
                 if ((gen.cnt ?? 0) > 0) {
                     const isActive = parseInt(currentFilters.genere_id) === gen.id ? 'active' : '';
-                    html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;">';
+                    html += '<a href="#" class="filter-option count ' + isActive" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;">';
                     html += '<span>' + escapeHtml(gen.nome) + '</span>';
                     html += '<span class="count-badge">' + gen.cnt + '</span>';
                     html += '</a>';
@@ -2128,7 +2121,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                         gen.children.forEach(subgen => {
                             if ((subgen.cnt ?? 0) > 0) {
                                 const isSubActive = parseInt(currentFilters.genere_id) === subgen.id ? 'active' : '';
-                                html += '<a href="#" class="filter-option subgenre count ' + isSubActive + '" onclick="updateFilter(\'genere_id\', ' + subgen.id + '); return false;">';
+                                html += '<a href="#" class="filter-option subgenre count ' + isSubActive" onclick="updateFilter(\'genere_id\', ' + subgen.id + '); return false;">';
                                 html += '<span>' + escapeHtml(subgen.nome) + '</span>';
                                 html += '<span class="count-badge">' + subgen.cnt + '</span>';
                                 html += '</a>';

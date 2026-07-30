@@ -188,7 +188,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
               <div class="flex flex-col md:flex-row gap-6">
 
                 <!-- Event Image -->
-                <div class="flex-shrink-0">
+                <div class="shrink-0">
                   <?php if ($event['featured_image']): ?>
                     <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>" alt="<?= HtmlHelper::e($event['title']) ?>"
                       class="w-full md:w-48 h-48 object-cover rounded-xl">
@@ -219,7 +219,7 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
                         <?php endif; ?>
                       </div>
                     </div>
-                    <div class="flex-shrink-0">
+                    <div class="shrink-0">
                       <?php if ($event['is_active']): ?>
                         <span
                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-100 text-green-800 text-xs font-semibold">

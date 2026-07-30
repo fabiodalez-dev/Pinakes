@@ -125,7 +125,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
       <h1 class="mt-2 text-2xl font-bold text-gray-900"><?= $display($name, __("Utente senza nome")); ?></h1>
       <p class="text-sm text-gray-500"><?= __("Ruolo:") ?> <?= $display($roleLabels[$ruolo] ?? ucfirst($ruolo)); ?></p>
     </div>
-    <div class="flex items-center gap-3 flex-shrink-0">
+    <div class="flex items-center gap-3 shrink-0">
         <a href="<?= htmlspecialchars(url('/admin/loans/create?utente_id=' . $id), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
             <i class="fas fa-handshake mr-2"></i>
             <?= __("Nuovo Prestito") ?>

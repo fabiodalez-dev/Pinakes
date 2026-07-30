@@ -242,10 +242,10 @@ use App\Support\HtmlHelper;
 
             <!-- Actions -->
             <div class="flex items-center justify-between gap-4">
-                <a href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-secondary">
+                <a href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>" class="ui-button btn-secondary">
                     <i class="fas fa-times"></i> <?= __("Annulla") ?>
                 </a>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="ui-button btn-primary">
                     <i class="fas fa-save"></i> <?= __("Salva Modifiche") ?>
                 </button>
             </div>
@@ -268,7 +268,7 @@ use App\Support\HtmlHelper;
                           data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questa lingua? Tutti i dati associati e il file di traduzione verranno rimossi.'), ENT_QUOTES, 'UTF-8') ?>"
                           data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-                        <button type="submit" class="btn btn-danger">
+                        <button type="submit" class="ui-button btn-danger">
                             <i class="fas fa-trash"></i> <?= __("Elimina Lingua") ?>
                         </button>
                     </form>

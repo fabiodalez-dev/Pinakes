@@ -48,6 +48,19 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
         <form method="POST" action="<?= htmlspecialchars(url('/admin/themes/' . (int)$theme['id'] . '/save'), ENT_QUOTES, 'UTF-8') ?>" id="theme-form">
             <input type="hidden" name="csrf_token" value="<?= Csrf::ensureToken() ?>">
 
+            <section class="mb-6 bg-white rounded-xl border border-gray-200 overflow-hidden" aria-labelledby="layout-heading">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h2 id="layout-heading" class="text-lg font-semibold text-gray-900"><?= __("Stile interfaccia") ?></h2>
+                            <p class="mt-1 text-sm text-gray-600"><?= __("Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.") ?></p>
+                        </div>
+                        <span class="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600"><?= __("Un solo frontend") ?></span>
+                    </div>
+                </div>
+                <?php require __DIR__ . '/partials/layout-variant-selector.php'; ?>
+            </section>
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Left: Settings -->
                 <div class="lg:col-span-2 space-y-6">

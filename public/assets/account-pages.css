@@ -1,0 +1,663 @@
+/* Public account surfaces: loans, reservations and wishlist. */
+
+body[class*="layout-"] {
+  --account-radius: 8px;
+  --account-radius-lg: 12px;
+  --account-surface: color-mix(in srgb, var(--white) 98%, var(--primary-color) 2%);
+  --account-subtle: color-mix(in srgb, var(--light-bg) 94%, var(--primary-color) 6%);
+  --account-line: color-mix(in srgb, var(--border-color) 88%, transparent);
+  --account-muted: var(--text-muted, #667085);
+  --account-success: #16794a;
+  --account-warning: #946200;
+  --account-danger: #b42318;
+}
+
+body.layout-editorial {
+  --account-radius: 2px;
+  --account-radius-lg: 4px;
+}
+
+body.layout-workspace {
+  --account-radius: 7px;
+  --account-radius-lg: 10px;
+}
+
+body.layout-command {
+  --account-radius: 9px;
+  --account-radius-lg: 12px;
+}
+
+body.layout-soft {
+  --account-radius: 14px;
+  --account-radius-lg: 20px;
+}
+
+body[class*="layout-"] :where(.loans-container, .wishlist-hero, .wishlist-info-card, .wishlist-filter-card, .wishlist-empty, .wishlist-card) {
+  font-family: var(--font-family, Inter, system-ui, sans-serif);
+}
+
+/* Loans and reservations ------------------------------------------------- */
+
+body[class*="layout-"] .loans-container {
+  max-width: 1180px;
+  padding: clamp(2.25rem, 5vw, 4.5rem) clamp(1rem, 3vw, 2rem) 5rem;
+}
+
+.account-page-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: clamp(2.5rem, 5vw, 4rem);
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--account-line);
+}
+
+.account-page-heading__eyebrow {
+  margin: 0 0 .55rem;
+  color: var(--primary-color);
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.account-page-heading h1 {
+  margin: 0;
+  color: var(--text-color);
+  font-family: var(--font-family, Inter, system-ui, sans-serif);
+  font-size: 2rem;
+  font-weight: 720;
+  letter-spacing: -.035em;
+}
+
+body.layout-editorial .account-page-heading h1 {
+  font-family: var(--serif, Fraunces, Georgia, serif);
+  font-size: 2.4rem;
+  font-weight: 500;
+}
+
+.account-page-heading__subtitle {
+  max-width: 62ch;
+  margin: .65rem 0 0;
+  color: var(--account-muted);
+  font-size: .95rem;
+  line-height: 1.65;
+}
+
+.account-page-heading__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: .6rem;
+}
+
+.account-page-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: .65rem 1rem;
+  border: 1px solid var(--account-line);
+  border-radius: var(--account-radius);
+  background: var(--account-surface);
+  color: var(--text-color);
+  font-size: .86rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: border-color 180ms cubic-bezier(.25, 1, .5, 1), color 180ms ease, background-color 180ms ease;
+}
+
+.account-page-link:hover {
+  border-color: var(--primary-color);
+  background: var(--white);
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+body[class*="layout-"] .section-header {
+  gap: .8rem;
+  margin-bottom: 1rem;
+}
+
+body[class*="layout-"] .section-icon,
+body[class*="layout-"] .section-icon[style] {
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 18%, var(--account-line));
+  border-radius: var(--account-radius);
+  background: color-mix(in srgb, var(--primary-color) 7%, var(--white)) !important;
+  color: var(--primary-color);
+}
+
+body[class*="layout-"] .section-icon :where(i, svg),
+body[class*="layout-"] .section-icon i[style] {
+  width: 1rem;
+  height: 1rem;
+  color: currentColor !important;
+  fill: currentColor;
+  font-size: .9rem;
+}
+
+body[class*="layout-"] .account-line-icon {
+  width: 1rem;
+  height: 1rem;
+  fill: none !important;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body[class*="layout-"] .section-title h2 {
+  margin: 0 0 .1rem;
+  color: var(--text-color);
+  font-family: var(--font-family, Inter, system-ui, sans-serif);
+  font-size: 1.08rem;
+  font-weight: 700;
+  letter-spacing: -.015em;
+}
+
+body[class*="layout-"] .section-title p {
+  color: var(--account-muted);
+  font-size: .8rem;
+}
+
+body[class*="layout-"] .section-divider {
+  margin: 1.8rem 0;
+  border-top: 1px solid var(--account-line);
+}
+
+body[class*="layout-"] .items-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr));
+  gap: 1rem;
+}
+
+body[class*="layout-"] .item-card {
+  padding: 1.1rem;
+  border: 1px solid var(--account-line);
+  border-radius: var(--account-radius-lg);
+  background: var(--account-surface);
+  box-shadow: none;
+  transition: transform 190ms cubic-bezier(.25, 1, .5, 1), border-color 190ms ease, box-shadow 190ms ease;
+}
+
+body[class*="layout-"] .item-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary-color) 28%, var(--account-line));
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--secondary-color) 8%, transparent);
+}
+
+body[class*="layout-"] .item-inner {
+  gap: 1rem;
+}
+
+body[class*="layout-"] .item-cover {
+  width: 82px;
+  height: 112px;
+  border-radius: max(2px, calc(var(--account-radius) - 3px));
+  background: var(--account-subtle);
+  box-shadow: none;
+}
+
+body[class*="layout-"] .item-cover:hover {
+  transform: translateY(-2px);
+}
+
+body[class*="layout-"] .item-title,
+body[class*="layout-"] .item-title a {
+  color: var(--text-color);
+}
+
+body[class*="layout-"] .item-title {
+  margin-bottom: .75rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+body[class*="layout-"] .item-title a:hover {
+  color: var(--primary-color);
+}
+
+body[class*="layout-"] .badge,
+body[class*="layout-"] .badge[style] {
+  gap: .35rem;
+  padding: .38rem .55rem;
+  border: 0 !important;
+  border-radius: max(4px, calc(var(--account-radius) - 2px));
+  background: var(--account-subtle) !important;
+  color: var(--text-color) !important;
+  font-size: .75rem !important;
+  font-weight: 620;
+}
+
+body[class*="layout-"] .badge i,
+body[class*="layout-"] .badge i[style] {
+  color: currentColor !important;
+  font-size: .72rem;
+  opacity: .72;
+}
+
+body[class*="layout-"] :where(.badge-active, .badge-scheduled) {
+  background: color-mix(in srgb, var(--account-success) 10%, var(--white)) !important;
+  color: var(--account-success) !important;
+}
+
+body[class*="layout-"] .badge-overdue {
+  background: color-mix(in srgb, var(--account-danger) 9%, var(--white)) !important;
+  color: var(--account-danger) !important;
+}
+
+body[class*="layout-"] :where(.btn-cancel, .btn-review) {
+  width: auto;
+  min-height: 40px;
+  margin-top: .9rem;
+  padding: .55rem .8rem;
+  border-radius: var(--account-radius);
+  font-size: .8rem;
+  font-weight: 680;
+  transition: transform 180ms cubic-bezier(.25, 1, .5, 1), background-color 180ms ease, border-color 180ms ease;
+}
+
+body[class*="layout-"] .btn-cancel {
+  border: 1px solid color-mix(in srgb, var(--account-danger) 22%, var(--account-line));
+  background: color-mix(in srgb, var(--account-danger) 6%, var(--white));
+  color: var(--account-danger);
+}
+
+body[class*="layout-"] .btn-cancel:hover {
+  border-color: var(--account-danger);
+  background: color-mix(in srgb, var(--account-danger) 10%, var(--white));
+}
+
+body[class*="layout-"] .btn-review:hover {
+  transform: translateY(-1px);
+}
+
+body[class*="layout-"] .empty-state {
+  padding: 1.25rem 1rem 1.35rem;
+  border: 0;
+  border-top: 1px solid var(--account-line);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+body[class*="layout-"] .empty-state-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 .75rem;
+  border-radius: var(--account-radius);
+  background: var(--account-subtle);
+  color: var(--account-muted);
+  font-size: .9rem;
+}
+
+body[class*="layout-"] .empty-state h3 {
+  color: var(--text-color);
+  font-family: var(--font-family, Inter, system-ui, sans-serif);
+  font-size: .95rem;
+  font-weight: 680;
+}
+
+body[class*="layout-"] .empty-state p {
+  color: var(--account-muted);
+  font-size: .84rem;
+}
+
+body[class*="layout-"] :where(.alert-overdue, .alert-outcome) {
+  border-width: 1px;
+  border-radius: var(--account-radius);
+  box-shadow: none;
+}
+
+body[class*="layout-"] .alert-overdue-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--account-radius);
+  font-size: .9rem;
+}
+
+/* Wishlist --------------------------------------------------------------- */
+
+body[class*="layout-"] .wishlist-hero {
+  margin: 0;
+  padding: clamp(3rem, 6vw, 5rem) 0 2rem;
+  background: transparent;
+  color: var(--text-color);
+}
+
+body[class*="layout-"] .wishlist-hero .container {
+  max-width: 1180px;
+  padding-inline: 1rem;
+  text-align: left !important;
+}
+
+body[class*="layout-"] .wishlist-hero .hero-title {
+  margin: 0;
+  color: var(--text-color);
+  font-family: var(--font-family, Inter, system-ui, sans-serif);
+  font-size: 2rem;
+  font-weight: 720;
+  letter-spacing: -.035em;
+}
+
+body.layout-editorial .wishlist-hero .hero-title {
+  font-family: var(--serif, Fraunces, Georgia, serif);
+  font-size: 2.4rem;
+  font-weight: 500;
+}
+
+body[class*="layout-"] .wishlist-hero .hero-subtitle {
+  max-width: 64ch;
+  margin: .65rem 0 0 !important;
+  color: var(--account-muted);
+  font-size: .95rem;
+  line-height: 1.65;
+  opacity: 1;
+}
+
+body[class*="layout-"] .wishlist-info-card {
+  padding: 1.5rem 0 1.75rem;
+  border-top: 1px solid var(--account-line);
+  border-bottom: 1px solid var(--account-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[class*="layout-"] .wishlist-info-card h2 {
+  color: var(--text-color);
+  font-family: var(--font-family, Inter, system-ui, sans-serif);
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+body[class*="layout-"] .wishlist-info-card p {
+  max-width: 60ch;
+  color: var(--account-muted) !important;
+  font-size: .88rem;
+  line-height: 1.6;
+}
+
+body[class*="layout-"] .wishlist-stat-badges {
+  gap: 0;
+  margin-top: 1.25rem;
+}
+
+body[class*="layout-"] .wishlist-stat {
+  gap: .45rem;
+  padding: .15rem 1rem;
+  border-right: 1px solid var(--account-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-color);
+  font-size: .82rem;
+  font-weight: 620;
+}
+
+body[class*="layout-"] .wishlist-stat:first-child {
+  padding-left: 0;
+}
+
+body[class*="layout-"] .wishlist-stat:last-child {
+  border-right: 0;
+}
+
+body[class*="layout-"] .wishlist-stat i {
+  color: var(--primary-color);
+  font-size: .75rem;
+}
+
+body[class*="layout-"] .wishlist-actions {
+  gap: .6rem;
+}
+
+body[class*="layout-"] .wishlist-actions .btn-outline {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: .65rem 1rem;
+  border: 1px solid var(--account-line);
+  border-radius: var(--account-radius);
+  background: var(--account-surface);
+  color: var(--text-color);
+  font-size: .84rem;
+  font-weight: 650;
+  box-shadow: none;
+  transition: border-color 180ms ease, color 180ms ease, background-color 180ms ease;
+}
+
+body[class*="layout-"] .wishlist-actions .btn-outline:hover {
+  border-color: var(--primary-color);
+  background: var(--white);
+  color: var(--primary-color);
+  box-shadow: none;
+}
+
+body[class*="layout-"] .wishlist-actions i {
+  font-size: .76rem;
+}
+
+body[class*="layout-"] .wishlist-filter-card {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end !important;
+  gap: 1rem;
+  margin: 1.25rem 0 2rem;
+  padding: 0 0 1.25rem;
+  border-bottom: 1px solid var(--account-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[class*="layout-"] .wishlist-filter-card label {
+  margin-bottom: .45rem !important;
+  color: var(--account-muted);
+  font-size: .7rem;
+  letter-spacing: .1em;
+}
+
+body[class*="layout-"] .wishlist-filter-card input[type="search"] {
+  height: 48px;
+  min-height: 44px;
+  border: 1px solid var(--account-line);
+  border-radius: var(--account-radius);
+  background: var(--account-surface);
+  color: var(--text-color);
+}
+
+body[class*="layout-"] .wishlist-filter-card input[type="search"]:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 14%, transparent);
+}
+
+body[class*="layout-"] .wishlist-filter-card button {
+  height: 48px;
+  min-height: 44px;
+  padding: .5rem .75rem;
+  align-self: end;
+  border: 1px solid var(--account-line);
+  border-radius: var(--account-radius);
+  background: var(--account-surface);
+  color: var(--account-muted);
+  font-size: .72rem;
+}
+
+body[class*="layout-"] .wishlist-empty {
+  padding: 2.25rem 0 4rem;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+body[class*="layout-"] .wishlist-empty-icon {
+  width: 36px;
+  height: 36px;
+  margin: 0 0 1rem;
+  border-radius: var(--account-radius);
+  background: var(--account-subtle);
+  color: var(--account-muted);
+  font-size: 1rem;
+}
+
+body[class*="layout-"] .wishlist-empty-icon .account-line-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+body[class*="layout-"] .wishlist-empty h2 {
+  color: var(--text-color);
+  font-family: var(--font-family, Inter, system-ui, sans-serif);
+  font-size: 1.08rem;
+}
+
+body[class*="layout-"] .wishlist-empty p {
+  max-width: 62ch;
+  color: var(--account-muted) !important;
+  font-size: .88rem;
+  line-height: 1.6;
+}
+
+body[class*="layout-"] .wishlist-empty .wishlist-actions {
+  justify-content: flex-start !important;
+}
+
+body[class*="layout-"] .wishlist-card {
+  border: 1px solid var(--account-line);
+  border-radius: var(--account-radius-lg);
+  background: var(--account-surface);
+  box-shadow: none;
+  transition: transform 190ms cubic-bezier(.25, 1, .5, 1), border-color 190ms ease, box-shadow 190ms ease;
+}
+
+body[class*="layout-"] .wishlist-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary-color) 28%, var(--account-line));
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--secondary-color) 8%, transparent);
+}
+
+body[class*="layout-"] .wishlist-card-cover {
+  padding: 1.25rem;
+  background: var(--account-subtle);
+}
+
+body[class*="layout-"] .wishlist-card-cover img {
+  height: 220px;
+}
+
+body[class*="layout-"] .wishlist-card-body {
+  gap: .75rem;
+  padding: 1.15rem;
+}
+
+body[class*="layout-"] .wishlist-status {
+  align-self: flex-start;
+  padding: .35rem .55rem;
+  border-radius: max(4px, calc(var(--account-radius) - 2px));
+  font-size: .72rem;
+  letter-spacing: .02em;
+}
+
+body[class*="layout-"] .wishlist-status.available {
+  background: color-mix(in srgb, var(--account-success) 10%, var(--white));
+  color: var(--account-success);
+}
+
+body[class*="layout-"] .wishlist-status.pending {
+  background: color-mix(in srgb, var(--account-warning) 10%, var(--white));
+  color: var(--account-warning);
+}
+
+body[class*="layout-"] .wishlist-card-title {
+  color: var(--text-color);
+  font-size: 1rem;
+}
+
+body[class*="layout-"] .wishlist-card :where(.btn-outline-dark, .btn-light) {
+  min-height: 42px;
+  border-color: var(--account-line);
+  border-radius: var(--account-radius);
+  background: transparent;
+  color: var(--text-color);
+}
+
+body[class*="layout-"] .wishlist-card .remove-fav-btn {
+  width: 42px;
+  color: var(--account-danger);
+}
+
+body[class*="layout-"] #wishlist-no-results {
+  margin-bottom: 1rem;
+  border-radius: var(--account-radius);
+  background: var(--account-subtle);
+  color: var(--text-color);
+}
+
+@media (max-width: 767.98px) {
+  .account-page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .account-page-heading__actions,
+  .account-page-link {
+    width: 100%;
+  }
+
+  body[class*="layout-"] .wishlist-hero {
+    padding-top: 2.5rem;
+  }
+
+  body[class*="layout-"] .wishlist-hero .hero-title,
+  body.layout-editorial .wishlist-hero .hero-title {
+    font-size: 2rem;
+  }
+
+  body[class*="layout-"] .wishlist-stat-badges {
+    row-gap: .65rem;
+  }
+
+  body[class*="layout-"] .wishlist-stat {
+    width: 100%;
+    padding: 0;
+    border-right: 0;
+  }
+
+  body[class*="layout-"] .wishlist-filter-card {
+    grid-template-columns: 1fr;
+  }
+
+  body[class*="layout-"] .wishlist-filter-card button {
+    width: 100%;
+    border-color: var(--account-line);
+    border-radius: var(--account-radius);
+  }
+
+  body[class*="layout-"] .wishlist-actions,
+  body[class*="layout-"] .wishlist-actions .btn-outline {
+    width: 100%;
+  }
+
+  body[class*="layout-"] .item-inner {
+    align-items: flex-start;
+  }
+
+  body[class*="layout-"] .item-cover {
+    width: 70px;
+    height: 98px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[class*="layout-"] :where(.item-card, .wishlist-card, .account-page-link, .wishlist-actions .btn-outline) {
+    transition: none;
+  }
+}

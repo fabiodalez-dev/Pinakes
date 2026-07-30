@@ -97,18 +97,18 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
   <!-- Header -->
   <div class="bc-hero bc-hero-club">
     <div class="bc-hero-accent" style="background: <?= $e($club['color']) ?>"></div>
-    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+    <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h1><?= $e($club['name']) ?></h1>
         <p class="bc-preline"><?= $e($club['description'] ?? '') ?></p>
         <div class="bc-hero-meta">
-          <span><i class="fas fa-users me-1"></i><?= (int) $memberCount ?> <?= $e(__('membri')) ?><?= $club['max_members'] !== null ? ' / ' . (int) $club['max_members'] : '' ?></span>
+          <span><i class="fas fa-users mr-1"></i><?= (int) $memberCount ?> <?= $e(__('membri')) ?><?= $club['max_members'] !== null ? ' / ' . (int) $club['max_members'] : '' ?></span>
           <?php if ($isMember || $canManage): ?>
-            <a href="<?= htmlspecialchars($icsUrl, ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-calendar-alt me-1"></i><?= $e(__('Calendario iCal')) ?></a>
+            <a href="<?= htmlspecialchars($icsUrl, ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-calendar-alt mr-1"></i><?= $e(__('Calendario iCal')) ?></a>
           <?php endif; ?>
         </div>
       </div>
-      <div class="d-flex align-items-center gap-3">
+      <div class="flex items-center gap-3">
         <?php if (!$loggedIn): ?>
           <a href="<?= $e(\App\Support\RouteTranslator::route('login')) ?>" class="bc-btn"><?= $e(__('Accedi per partecipare')) ?></a>
         <?php elseif ($membership === null || !in_array($membership['status'], ['active', 'pending'], true)): ?>
@@ -143,8 +143,8 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
 
   <?php if (!empty($club['rules']) && ($isMember || $canManage)): ?>
     <div class="alert alert-warning">
-      <div class="fw-semibold mb-1"><i class="fas fa-scroll me-2"></i><?= $e(__('Regolamento del club')) ?></div>
-      <div class="bc-preline small"><?= $e($club['rules']) ?></div>
+      <div class="font-semibold mb-1"><i class="fas fa-scroll mr-2"></i><?= $e(__('Regolamento del club')) ?></div>
+      <div class="bc-preline text-sm"><?= $e($club['rules']) ?></div>
     </div>
   <?php endif; ?>
 
@@ -158,14 +158,14 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
       <?php foreach ($pendingProposals as $book): ?>
         <div class="bc-list-item">
           <div>
-            <span class="fw-semibold"><?= $e($book['titolo']) ?></span>
+            <span class="font-semibold"><?= $e($book['titolo']) ?></span>
             <?php if (!empty($book['autori'])): ?><span class="bc-muted"> — <?= $e($book['autori']) ?></span><?php endif; ?>
             <?php if (!empty($book['proposer_nome'])): ?>
-              <span class="bc-muted small ms-2"><?= $e(__('proposto da')) ?> <?= $e($book['proposer_nome'] . ' ' . $book['proposer_cognome']) ?></span>
+              <span class="bc-muted text-sm ml-2"><?= $e(__('proposto da')) ?> <?= $e($book['proposer_nome'] . ' ' . $book['proposer_cognome']) ?></span>
             <?php endif; ?>
-            <?php if (!empty($book['motivation'])): ?><p class="bc-muted small mt-1 mb-0"><?= $e($book['motivation']) ?></p><?php endif; ?>
+            <?php if (!empty($book['motivation'])): ?><p class="bc-muted text-sm mt-1 mb-0"><?= $e($book['motivation']) ?></p><?php endif; ?>
           </div>
-          <div class="d-flex align-items-center gap-2">
+          <div class="flex items-center gap-2">
             <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/state')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="hidden" name="state" value="<?= $e($states[0]['key'] ?? 'proposed') ?>">
@@ -182,17 +182,17 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
     </section>
   <?php endif; ?>
 
-  <div class="row g-4">
-    <div class="col-12 col-lg-8">
+  <div class="flex flex-wrap -mx-3 gap-y-4">
+    <div class="w-full px-3 lg:w-2/3">
 
       <!-- Workflow board -->
       <section class="bc-card">
-        <div class="bc-section-header d-flex align-items-center justify-content-between">
-          <span class="d-inline-flex align-items-center"><i class="fas fa-book"></i>
+        <div class="bc-section-header flex items-center justify-between">
+          <span class="inline-flex items-center"><i class="fas fa-book"></i>
             <h2 class="mb-0"><?= $e(__('I libri del club')) ?></h2>
           </span>
           <?php if ($isMember || $canManage): ?>
-            <a class="bc-btn bc-btn-outline bc-btn-sm" href="<?= $e(url('/book-club/' . $slug . '/books.pdf')) ?>" target="_blank" rel="noopener"><i class="fas fa-file-pdf me-1"></i><?= $e(__('Stampa PDF')) ?></a>
+            <a class="bc-btn bc-btn-outline bc-btn-sm" href="<?= $e(url('/book-club/' . $slug . '/books.pdf')) ?>" target="_blank" rel="noopener"><i class="fas fa-file-pdf mr-1"></i><?= $e(__('Stampa PDF')) ?></a>
           <?php endif; ?>
         </div>
         <?php $hasAny = false; ?>
@@ -200,44 +200,44 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           <?php $stateBooks = $booksByState[$state['key']] ?? []; ?>
           <?php if ($stateBooks === [] && empty($state['flags']['current'])) { continue; } $hasAny = $hasAny || $stateBooks !== []; ?>
           <div class="mb-4">
-            <div class="d-flex align-items-center gap-2 mb-2">
+            <div class="flex items-center gap-2 mb-2">
               <span class="bc-chip" style="background: <?= $e($state['color']) ?>"></span>
-              <h3 class="bc-state-title"><?= $e($state['label']) ?> <span class="fw-normal">(<?= count($stateBooks) ?>)</span></h3>
+              <h3 class="bc-state-title"><?= $e($state['label']) ?> <span class="font-normal">(<?= count($stateBooks) ?>)</span></h3>
             </div>
             <div>
               <?php foreach ($stateBooks as $book): ?>
                 <div class="bc-list-item">
-                  <div class="d-flex align-items-start gap-3">
+                  <div class="flex items-start gap-3">
                     <?php if (!empty($book['copertina_url'])): ?>
                       <img src="<?= $e($book['copertina_url']) ?>" alt="" class="bc-cover" loading="lazy">
                     <?php endif; ?>
                     <div>
-                      <div class="fw-semibold">
+                      <div class="font-semibold">
                         <?= $e($book['titolo']) ?>
                         <?php if (!empty($book['is_external'])): ?>
-                          <span class="bc-badge bc-badge-warn ms-1" title="<?= $e(__('Questo libro non è ancora nel catalogo della biblioteca.')) ?>"><i class="fas fa-book-medical me-1"></i><?= $e(__('Proposta esterna')) ?></span>
+                          <span class="bc-badge bc-badge-warn ml-1" title="<?= $e(__('Questo libro non è ancora nel catalogo della biblioteca.')) ?>"><i class="fas fa-book-medical mr-1"></i><?= $e(__('Proposta esterna')) ?></span>
                         <?php endif; ?>
                       </div>
                       <?php if (!empty($book['autori'])): ?><div class="bc-muted"><?= $e($book['autori']) ?></div><?php endif; ?>
                       <?php if (!empty($book['reading_starts']) || !empty($book['reading_ends'])): ?>
-                        <div class="bc-muted small mt-1">
-                          <i class="far fa-calendar me-1"></i>
+                        <div class="bc-muted text-sm mt-1">
+                          <i class="far fa-calendar mr-1"></i>
                           <?= !empty($book['reading_starts']) ? $e(date('d/m/Y', (int) strtotime((string) $book['reading_starts']))) : '…' ?>
                           →
                           <?= !empty($book['reading_ends']) ? $e(date('d/m/Y', (int) strtotime((string) $book['reading_ends']))) : '…' ?>
                         </div>
                       <?php endif; ?>
                       <?php if (!empty($book['motivation'])): ?>
-                        <p class="bc-muted small fst-italic mt-1 mb-0">«<?= $e(mb_substr((string) $book['motivation'], 0, 240)) ?>»
+                        <p class="bc-muted mb-0 mt-1 text-sm italic">«<?= $e(mb_substr((string) $book['motivation'], 0, 240)) ?>»
                           <?php if (!empty($book['proposer_nome'])): ?>— <?= $e($book['proposer_nome']) ?><?php endif; ?></p>
                       <?php endif; ?>
                     </div>
                   </div>
                   <?php if ($canManage): ?>
-                    <div class="d-flex flex-column align-items-end gap-2">
-                      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/state')) ?>" class="d-flex align-items-center gap-2">
+                    <div class="flex flex-col items-end gap-2">
+                      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/state')) ?>" class="flex items-center gap-2">
                         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                        <select name="state" class="form-select form-select-sm w-auto">
+                        <select name="state" class="form-input px-3 py-2 text-sm w-auto">
                           <?php foreach ($states as $target): ?>
                             <option value="<?= $e($target['key']) ?>" <?= $target['key'] === $book['state'] ? 'selected' : '' ?>><?= $e($target['label']) ?></option>
                           <?php endforeach; ?>
@@ -247,14 +247,14 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                       <?php if (!empty($book['is_external'])): ?>
                         <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/acquire')) ?>">
                           <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                          <button type="submit" class="bc-btn bc-btn-sm" title="<?= $e(__('Crea la voce di catalogo da questa proposta esterna.')) ?>"><i class="fas fa-plus me-1"></i><?= $e(__('Acquisisci in catalogo')) ?></button>
+                          <button type="submit" class="bc-btn bc-btn-sm" title="<?= $e(__('Crea la voce di catalogo da questa proposta esterna.')) ?>"><i class="fas fa-plus mr-1"></i><?= $e(__('Acquisisci in catalogo')) ?></button>
                         </form>
                       <?php endif; ?>
                       <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/remove')) ?>"
                             data-swal-confirm="<?= $e(__('Rimuovere questo libro dalla lista del club? L\'operazione non si può annullare.')) ?>"
                             data-swal-confirm-button="<?= $e(__('Rimuovi')) ?>">
                         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                        <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm" title="<?= $e(__('Rimuovi dal club')) ?>"><i class="fas fa-trash-alt me-1"></i><?= $e(__('Rimuovi')) ?></button>
+                        <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm" title="<?= $e(__('Rimuovi dal club')) ?>"><i class="fas fa-trash-alt mr-1"></i><?= $e(__('Rimuovi')) ?></button>
                       </form>
                     </div>
                   <?php endif; ?>
@@ -262,7 +262,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
               <?php endforeach; ?>
             </div>
             <?php if ($stateBooks === []): ?>
-              <p class="bc-muted small mb-0"><?= $e(__('Nessun libro in questo stato.')) ?></p>
+              <p class="bc-muted text-sm mb-0"><?= $e(__('Nessun libro in questo stato.')) ?></p>
             <?php endif; ?>
           </div>
         <?php endforeach; ?>
@@ -282,15 +282,15 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           <form method="post" action="<?= $e(url('/book-club/' . $slug . '/proposals')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <input type="hidden" name="libro_id" id="bc-libro-id">
-            <div class="position-relative mb-3">
+            <div class="relative mb-3">
               <input type="text" id="bc-book-search" autocomplete="off" required
                      placeholder="<?= $e(__('Cerca per titolo o ISBN…')) ?>"
-                     class="form-control">
+                     class="form-input">
               <div id="bc-book-results" class="bc-autocomplete hidden"></div>
             </div>
             <textarea name="motivation" rows="2" maxlength="3000"
                       placeholder="<?= $e(__('Perché proponi questo libro? (facoltativo)')) ?>"
-                      class="form-control mb-3"></textarea>
+                      class="form-input mb-3"></textarea>
             <?php
             // Manager-only "attribute this proposal to a member" dropdown, shared
             // by the catalogue and external forms (defined once, used in both).
@@ -299,8 +299,8 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                     return;
                 }
                 ?>
-                <label class="form-label small bc-muted mb-1"><?= $e(__('Proposto da')) ?></label>
-                <select name="proposed_by" class="form-select mb-3">
+                <label class="form-label text-sm bc-muted mb-1"><?= $e(__('Proposto da')) ?></label>
+                <select name="proposed_by" class="form-input mb-3">
                   <option value=""><?= $e(__('Me stesso')) ?></option>
                   <?php foreach ($members as $mbr): if (($mbr['status'] ?? '') !== 'active') continue; ?>
                     <option value="<?= (int) $mbr['user_id'] ?>"><?= $e(trim(($mbr['nome'] ?? '') . ' ' . ($mbr['cognome'] ?? ''))) ?></option>
@@ -313,20 +313,20 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
             <button type="submit" class="bc-btn"><?= $e(__('Invia proposta')) ?></button>
           </form>
 
-          <details class="mt-3 pt-3 border-top bc-external-propose">
+          <details class="mt-3 pt-3 border-t bc-external-propose">
             <summary class="bc-summary"><?= $e(__('Proponi un libro non ancora in catalogo')) ?></summary>
-            <p class="bc-muted small mt-2 mb-3"><?= $e(__('Proponi un libro non ancora presente in biblioteca. Non verrà aggiunto al catalogo finché il club non lo sceglie e un responsabile lo acquisisce.')) ?></p>
+            <p class="bc-muted text-sm mt-2 mb-3"><?= $e(__('Proponi un libro non ancora presente in biblioteca. Non verrà aggiunto al catalogo finché il club non lo sceglie e un responsabile lo acquisisce.')) ?></p>
             <form method="post" action="<?= $e(url('/book-club/' . $slug . '/proposals')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="hidden" name="source" value="external">
-              <input type="text" name="ext_titolo" required maxlength="500" placeholder="<?= $e(__('Titolo')) ?>" class="form-control mb-2">
-              <div class="row g-2 mb-2">
-                <div class="col-12 col-md-6"><input type="text" name="ext_autori" maxlength="500" placeholder="<?= $e(__('Autore/i')) ?>" class="form-control"></div>
-                <div class="col-6 col-md-3"><input type="text" name="ext_isbn" maxlength="20" placeholder="<?= $e(__('ISBN')) ?>" class="form-control"></div>
-                <div class="col-6 col-md-3"><input type="text" name="ext_anno" maxlength="10" placeholder="<?= $e(__('Anno')) ?>" class="form-control"></div>
+              <input type="text" name="ext_titolo" required maxlength="500" placeholder="<?= $e(__('Titolo')) ?>" class="form-input mb-2">
+              <div class="flex flex-wrap -mx-3 gap-y-2 mb-2">
+                <div class="w-full px-3 md:w-1/2"><input type="text" name="ext_autori" maxlength="500" placeholder="<?= $e(__('Autore/i')) ?>" class="form-input"></div>
+                <div class="w-full w-1/2 px-3 md:w-1/4"><input type="text" name="ext_isbn" maxlength="20" placeholder="<?= $e(__('ISBN')) ?>" class="form-input"></div>
+                <div class="w-full w-1/2 px-3 md:w-1/4"><input type="text" name="ext_anno" maxlength="10" placeholder="<?= $e(__('Anno')) ?>" class="form-input"></div>
               </div>
-              <input type="text" name="ext_editore" maxlength="255" placeholder="<?= $e(__('Editore (facoltativo)')) ?>" class="form-control mb-2">
-              <textarea name="motivation" rows="2" maxlength="3000" placeholder="<?= $e(__('Perché proponi questo libro? (facoltativo)')) ?>" class="form-control mb-3"></textarea>
+              <input type="text" name="ext_editore" maxlength="255" placeholder="<?= $e(__('Editore (facoltativo)')) ?>" class="form-input mb-2">
+              <textarea name="motivation" rows="2" maxlength="3000" placeholder="<?= $e(__('Perché proponi questo libro? (facoltativo)')) ?>" class="form-input mb-3"></textarea>
               <?php $proposedByDropdown(); ?>
               <button type="submit" class="bc-btn bc-btn-outline"><?= $e(__('Proponi libro esterno')) ?></button>
             </form>
@@ -381,10 +381,10 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           <p class="bc-muted mb-0"><?= $e(__('Nessuna votazione aperta.')) ?></p>
         <?php endif; ?>
         <?php foreach ($openPolls as $poll): ?>
-          <div class="bc-list-item align-items-center">
+          <div class="bc-list-item items-center">
             <div>
               <a class="bc-link" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
-              <div class="bc-muted small mt-1">
+              <div class="bc-muted text-sm mt-1">
                 <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
                 <?php if (!empty($poll['closes_at'])): ?>
                   · <?= empty($poll['deadline_passed']) ? $e(__('scade il')) : $e(__('scaduta il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
@@ -400,14 +400,14 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
         <?php endforeach; ?>
 
         <?php if ($closedPolls !== []): ?>
-          <details class="mt-4 pt-3 border-top">
+          <details class="mt-4 pt-3 border-t">
             <summary class="bc-summary"><?= $e(__('Votazioni chiuse')) ?> (<?= count($closedPolls) ?>)</summary>
             <div class="mt-2">
               <?php foreach ($closedPolls as $poll): ?>
-                <div class="bc-list-item align-items-center">
+                <div class="bc-list-item items-center">
                   <div>
                     <a class="bc-link" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
-                    <div class="bc-muted small mt-1">
+                    <div class="bc-muted text-sm mt-1">
                       <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
                       <?php if (!empty($poll['closed_at'])): ?>
                         · <?= $e(__('Chiusa')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closed_at']))) ?>
@@ -430,7 +430,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
             // controller via Repo::pollEligibleBooks).
             $eligible = $pollEligible ?? [];
           ?>
-          <details class="mt-4 pt-3 border-top">
+          <details class="mt-4 pt-3 border-t">
             <summary class="bc-summary"><?= $e(__('Apri una nuova votazione')) ?></summary>
             <?php if (count($eligible) < 2): ?>
               <p class="bc-muted mt-3 mb-0"><?= $e(__('Servono almeno due proposte per aprire una votazione.')) ?></p>
@@ -438,35 +438,35 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
               <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/new')) ?>" class="mt-3">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <input type="text" name="title" maxlength="190" placeholder="<?= $e(__('Titolo (es. Votazione autunno 2026)')) ?>"
-                       class="form-control mb-3">
-                <div class="row g-2 mb-3">
-                  <div class="col-6 col-md-3">
-                    <select name="mode" class="form-select form-select-sm" id="bc-poll-mode">
+                       class="form-input mb-3">
+                <div class="flex flex-wrap -mx-3 gap-y-2 mb-3">
+                  <div class="w-full w-1/2 px-3 md:w-1/4">
+                    <select name="mode" class="form-input px-3 py-2 text-sm" id="bc-poll-mode">
                       <option value="simple"><?= $e(__('Voto singolo')) ?></option>
                       <option value="multi"><?= $e(__('Preferenza multipla')) ?></option>
                     </select>
                   </div>
-                  <div class="col-6 col-md-3">
+                  <div class="w-full w-1/2 px-3 md:w-1/4">
                     <input type="number" name="votes_per_member" min="1" max="20" value="3"
                            title="<?= $e(__('Voti per membro (solo preferenza multipla)')) ?>"
-                           class="form-control form-control-sm">
+                           class="form-input px-3 py-2 text-sm">
                   </div>
-                  <div class="col-6 col-md-3">
-                    <select name="anonymity" class="form-select form-select-sm">
+                  <div class="w-full w-1/2 px-3 md:w-1/4">
+                    <select name="anonymity" class="form-input px-3 py-2 text-sm">
                       <option value="public"><?= $e(__('Voto pubblico')) ?></option>
                       <option value="secret"><?= $e(__('Voto segreto')) ?></option>
                     </select>
                   </div>
-                  <div class="col-6 col-md-3">
-                    <input type="datetime-local" name="closes_at" class="form-control form-control-sm"
+                  <div class="w-full w-1/2 px-3 md:w-1/4">
+                    <input type="datetime-local" name="closes_at" class="form-input px-3 py-2 text-sm"
                            title="<?= $e(__('Scadenza (facoltativa)')) ?>">
                   </div>
                 </div>
                 <div class="bc-scrollbox mb-3">
                   <?php foreach ($eligible as $book): ?>
-                    <div class="form-check">
-                      <input type="checkbox" name="options[]" value="<?= (int) $book['id'] ?>" class="form-check-input" id="bc-poll-opt-<?= (int) $book['id'] ?>">
-                      <label class="form-check-label small" for="bc-poll-opt-<?= (int) $book['id'] ?>">
+                    <div class="flex items-center gap-2">
+                      <input type="checkbox" name="options[]" value="<?= (int) $book['id'] ?>" class="h-4 w-4 rounded border-gray-300" id="bc-poll-opt-<?= (int) $book['id'] ?>">
+                      <label class="text-sm text-gray-700" for="bc-poll-opt-<?= (int) $book['id'] ?>">
                         <?= $e($book['titolo']) ?><?php if (!empty($book['autori'])): ?><span class="bc-muted"> — <?= $e($book['autori']) ?></span><?php endif; ?>
                       </label>
                     </div>
@@ -491,24 +491,24 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
         <?php foreach ($meetings as $meeting): ?>
           <?php $isPast = strtotime((string) $meeting['starts_at']) < time(); ?>
           <div id="bc-meeting-<?= (int) $meeting['id'] ?>" class="bc-row <?= $meeting['status'] === 'cancelled' ? 'bc-cancelled' : '' ?>">
-            <div class="d-flex align-items-start justify-content-between gap-3">
+            <div class="flex items-start justify-between gap-3">
               <div>
-                <div class="fw-semibold">
+                <div class="font-semibold">
                   <?= $e($meeting['title']) ?>
-                  <?php if ($meeting['status'] === 'cancelled'): ?><span class="bc-badge bc-badge-warn ms-2"><?= $e(__('Annullato')) ?></span><?php endif; ?>
-                  <?php if ($meeting['status'] === 'done'): ?><span class="bc-badge bc-badge-closed ms-2"><?= $e(__('Svolto')) ?></span><?php endif; ?>
+                  <?php if ($meeting['status'] === 'cancelled'): ?><span class="bc-badge bc-badge-warn ml-2"><?= $e(__('Annullato')) ?></span><?php endif; ?>
+                  <?php if ($meeting['status'] === 'done'): ?><span class="bc-badge bc-badge-closed ml-2"><?= $e(__('Svolto')) ?></span><?php endif; ?>
                 </div>
                 <div class="bc-muted mt-1">
-                  <i class="far fa-clock me-1"></i><?= $e(date('d/m/Y H:i', (int) strtotime((string) $meeting['starts_at']))) ?>
+                  <i class="far fa-clock mr-1"></i><?= $e(date('d/m/Y H:i', (int) strtotime((string) $meeting['starts_at']))) ?>
                   · <?= $e($kindLabels[$meeting['kind']] ?? $meeting['kind']) ?>
-                  <?php if (!empty($meeting['location'])): ?> · <i class="fas fa-map-marker-alt me-1"></i><?= $e($meeting['location']) ?><?php endif; ?>
+                  <?php if (!empty($meeting['location'])): ?> · <i class="fas fa-map-marker-alt mr-1"></i><?= $e($meeting['location']) ?><?php endif; ?>
                   <?php $bcMeetingVideoUrl = ($isMember || $canManage) ? \App\Support\HtmlHelper::sanitizePublicHttpUrl((string) ($meeting['video_url'] ?? '')) : ''; ?>
                   <?php if ($bcMeetingVideoUrl !== ''): ?>
                     · <a class="bc-link" href="<?= $e($bcMeetingVideoUrl) ?>" target="_blank" rel="noopener"><?= $e(__('Collegati')) ?></a>
                   <?php endif; ?>
                 </div>
                 <?php if (!empty($meeting['book_title'])): ?>
-                  <div class="bc-muted small mt-1"><i class="fas fa-book me-1"></i><?= $e($meeting['book_title']) ?></div>
+                  <div class="bc-muted text-sm mt-1"><i class="fas fa-book mr-1"></i><?= $e($meeting['book_title']) ?></div>
                 <?php endif; ?>
                 <?php if (!empty($meeting['agenda'])): ?>
                   <p class="bc-muted bc-preline mt-1 mb-0"><?= $e($meeting['agenda']) ?></p>
@@ -517,22 +517,22 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                   <details class="mt-1"><summary class="bc-summary"><?= $e(__('Verbale')) ?></summary><p class="bc-muted bc-preline mt-1 mb-0"><?= $e($meeting['minutes']) ?></p></details>
                 <?php endif; ?>
               </div>
-              <div class="text-end bc-muted small text-nowrap">
+              <div class="text-right bc-muted text-sm whitespace-nowrap">
                 <div><?= (int) $meeting['yes_count'] ?> <?= $e(__('sì')) ?><?= $meeting['seats'] !== null ? ' / ' . (int) $meeting['seats'] . ' ' . $e(__('posti')) : '' ?></div>
                 <?php if ((int) $meeting['maybe_count'] > 0): ?><div><?= (int) $meeting['maybe_count'] ?> <?= $e(__('forse')) ?></div><?php endif; ?>
               </div>
             </div>
             <?php if ($isMember && $meeting['status'] === 'scheduled' && !$isPast): ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/' . (int) $meeting['id'] . '/rsvp')) ?>" class="d-flex align-items-center gap-2 mt-2">
+              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/' . (int) $meeting['id'] . '/rsvp')) ?>" class="flex items-center gap-2 mt-2">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                <span class="bc-muted small me-1"><?= $e(__('Parteciperai?')) ?></span>
+                <span class="bc-muted text-sm mr-1"><?= $e(__('Parteciperai?')) ?></span>
                 <button name="response" value="yes" class="bc-btn bc-btn-sm"><?= $e(__('Sì')) ?></button>
                 <button name="response" value="maybe" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('Forse')) ?></button>
                 <button name="response" value="no" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('No')) ?></button>
               </form>
             <?php endif; ?>
             <?php if ($canManage && $meeting['status'] === 'scheduled'): ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/' . (int) $meeting['id'] . '/status')) ?>" class="d-flex align-items-center gap-2 mt-2">
+              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/' . (int) $meeting['id'] . '/status')) ?>" class="flex items-center gap-2 mt-2">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button name="status" value="done" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('Segna come svolto')) ?></button>
                 <button name="status" value="cancelled" class="bc-btn bc-btn-danger bc-btn-sm"
@@ -542,41 +542,41 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                 <summary class="bc-summary"><?= $e(__('Modifica incontro')) ?></summary>
                 <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/' . (int) $meeting['id'] . '/edit')) ?>" class="mt-3">
                   <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                  <input type="text" name="title" required maxlength="190" value="<?= $e((string) $meeting['title']) ?>" class="form-control mb-3">
-                  <div class="row g-2 mb-3">
-                    <div class="col-6 col-md-3">
-                      <input type="datetime-local" name="starts_at" required value="<?= $e(date('Y-m-d\TH:i', (int) strtotime((string) $meeting['starts_at']))) ?>" class="form-control form-control-sm" title="<?= $e(__('Inizio')) ?>">
+                  <input type="text" name="title" required maxlength="190" value="<?= $e((string) $meeting['title']) ?>" class="form-input mb-3">
+                  <div class="flex flex-wrap -mx-3 gap-y-2 mb-3">
+                    <div class="w-full w-1/2 px-3 md:w-1/4">
+                      <input type="datetime-local" name="starts_at" required value="<?= $e(date('Y-m-d\TH:i', (int) strtotime((string) $meeting['starts_at']))) ?>" class="form-input px-3 py-2 text-sm" title="<?= $e(__('Inizio')) ?>">
                     </div>
-                    <div class="col-6 col-md-3">
-                      <input type="datetime-local" name="ends_at" value="<?= !empty($meeting['ends_at']) ? $e(date('Y-m-d\TH:i', (int) strtotime((string) $meeting['ends_at']))) : '' ?>" class="form-control form-control-sm" title="<?= $e(__('Fine (facoltativa)')) ?>">
+                    <div class="w-full w-1/2 px-3 md:w-1/4">
+                      <input type="datetime-local" name="ends_at" value="<?= !empty($meeting['ends_at']) ? $e(date('Y-m-d\TH:i', (int) strtotime((string) $meeting['ends_at']))) : '' ?>" class="form-input px-3 py-2 text-sm" title="<?= $e(__('Fine (facoltativa)')) ?>">
                     </div>
-                    <div class="col-6 col-md-3">
-                      <select name="kind" class="form-select form-select-sm">
+                    <div class="w-full w-1/2 px-3 md:w-1/4">
+                      <select name="kind" class="form-input px-3 py-2 text-sm">
                         <?php foreach ($kindLabels as $value => $label): ?>
                           <option value="<?= $e($value) ?>" <?= $meeting['kind'] === $value ? 'selected' : '' ?>><?= $e($label) ?></option>
                         <?php endforeach; ?>
                       </select>
                     </div>
-                    <div class="col-6 col-md-3">
-                      <input type="number" name="seats" min="1" value="<?= $meeting['seats'] !== null ? (int) $meeting['seats'] : '' ?>" placeholder="<?= $e(__('Posti (illimitati)')) ?>" class="form-control form-control-sm">
+                    <div class="w-full w-1/2 px-3 md:w-1/4">
+                      <input type="number" name="seats" min="1" value="<?= $meeting['seats'] !== null ? (int) $meeting['seats'] : '' ?>" placeholder="<?= $e(__('Posti (illimitati)')) ?>" class="form-input px-3 py-2 text-sm">
                     </div>
                   </div>
-                  <div class="row g-2 mb-3">
-                    <div class="col-12 col-md-6">
-                      <input type="text" name="location" maxlength="255" value="<?= $e((string) ($meeting['location'] ?? '')) ?>" placeholder="<?= $e(__('Luogo')) ?>" class="form-control">
+                  <div class="flex flex-wrap -mx-3 gap-y-2 mb-3">
+                    <div class="w-full px-3 md:w-1/2">
+                      <input type="text" name="location" maxlength="255" value="<?= $e((string) ($meeting['location'] ?? '')) ?>" placeholder="<?= $e(__('Luogo')) ?>" class="form-input">
                     </div>
-                    <div class="col-12 col-md-6">
-                      <input type="url" name="video_url" maxlength="500" value="<?= $e((string) ($meeting['video_url'] ?? '')) ?>" placeholder="<?= $e(__('Link videoconferenza')) ?>" class="form-control">
+                    <div class="w-full px-3 md:w-1/2">
+                      <input type="url" name="video_url" maxlength="500" value="<?= $e((string) ($meeting['video_url'] ?? '')) ?>" placeholder="<?= $e(__('Link videoconferenza')) ?>" class="form-input">
                     </div>
                   </div>
-                  <select name="club_book_id" class="form-select mb-3">
+                  <select name="club_book_id" class="form-input mb-3">
                     <option value=""><?= $e(__('Nessun libro collegato')) ?></option>
                     <?php foreach ($books as $book): ?>
                       <?php if ($book['state'] === \App\Plugins\BookClub\BookClubPlugin::STATE_PENDING) { continue; } ?>
                       <option value="<?= (int) $book['id'] ?>" <?= (int) ($meeting['club_book_id'] ?? 0) === (int) $book['id'] ? 'selected' : '' ?>><?= $e($book['titolo']) ?></option>
                     <?php endforeach; ?>
                   </select>
-                  <textarea name="agenda" rows="2" maxlength="5000" placeholder="<?= $e(__('Ordine del giorno (facoltativo)')) ?>" class="form-control mb-3"><?= $e((string) ($meeting['agenda'] ?? '')) ?></textarea>
+                  <textarea name="agenda" rows="2" maxlength="5000" placeholder="<?= $e(__('Ordine del giorno (facoltativo)')) ?>" class="form-input mb-3"><?= $e((string) ($meeting['agenda'] ?? '')) ?></textarea>
                   <button type="submit" class="bc-btn bc-btn-sm"><?= $e(__('Salva modifiche')) ?></button>
                 </form>
               </details>
@@ -585,39 +585,39 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
         <?php endforeach; ?>
 
         <?php if ($canManage): ?>
-          <details class="mt-4 pt-3 border-top">
+          <details class="mt-4 pt-3 border-t">
             <summary class="bc-summary"><?= $e(__('Pianifica un incontro')) ?></summary>
             <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/new')) ?>" class="mt-3">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="text" name="title" required maxlength="190" placeholder="<?= $e(__('Titolo dell\'incontro')) ?>"
-                     class="form-control mb-3">
-              <div class="row g-2 mb-3">
-                <div class="col-6 col-md-3">
-                  <input type="datetime-local" name="starts_at" required class="form-control form-control-sm" title="<?= $e(__('Inizio')) ?>">
+                     class="form-input mb-3">
+              <div class="flex flex-wrap -mx-3 gap-y-2 mb-3">
+                <div class="w-full w-1/2 px-3 md:w-1/4">
+                  <input type="datetime-local" name="starts_at" required class="form-input px-3 py-2 text-sm" title="<?= $e(__('Inizio')) ?>">
                 </div>
-                <div class="col-6 col-md-3">
-                  <input type="datetime-local" name="ends_at" class="form-control form-control-sm" title="<?= $e(__('Fine (facoltativa)')) ?>">
+                <div class="w-full w-1/2 px-3 md:w-1/4">
+                  <input type="datetime-local" name="ends_at" class="form-input px-3 py-2 text-sm" title="<?= $e(__('Fine (facoltativa)')) ?>">
                 </div>
-                <div class="col-6 col-md-3">
-                  <select name="kind" class="form-select form-select-sm">
+                <div class="w-full w-1/2 px-3 md:w-1/4">
+                  <select name="kind" class="form-input px-3 py-2 text-sm">
                     <?php foreach ($kindLabels as $value => $label): ?>
                       <option value="<?= $e($value) ?>"><?= $e($label) ?></option>
                     <?php endforeach; ?>
                   </select>
                 </div>
-                <div class="col-6 col-md-3">
-                  <input type="number" name="seats" min="1" placeholder="<?= $e(__('Posti (illimitati)')) ?>" class="form-control form-control-sm">
+                <div class="w-full w-1/2 px-3 md:w-1/4">
+                  <input type="number" name="seats" min="1" placeholder="<?= $e(__('Posti (illimitati)')) ?>" class="form-input px-3 py-2 text-sm">
                 </div>
               </div>
-              <div class="row g-2 mb-3">
-                <div class="col-12 col-md-6">
-                  <input type="text" name="location" maxlength="255" placeholder="<?= $e(__('Luogo')) ?>" class="form-control">
+              <div class="flex flex-wrap -mx-3 gap-y-2 mb-3">
+                <div class="w-full px-3 md:w-1/2">
+                  <input type="text" name="location" maxlength="255" placeholder="<?= $e(__('Luogo')) ?>" class="form-input">
                 </div>
-                <div class="col-12 col-md-6">
-                  <input type="url" name="video_url" maxlength="500" placeholder="<?= $e(__('Link videoconferenza')) ?>" class="form-control">
+                <div class="w-full px-3 md:w-1/2">
+                  <input type="url" name="video_url" maxlength="500" placeholder="<?= $e(__('Link videoconferenza')) ?>" class="form-input">
                 </div>
               </div>
-              <select name="club_book_id" class="form-select mb-3">
+              <select name="club_book_id" class="form-input mb-3">
                 <option value=""><?= $e(__('Nessun libro collegato')) ?></option>
                 <?php foreach ($books as $book): ?>
                   <?php if ($book['state'] === \App\Plugins\BookClub\BookClubPlugin::STATE_PENDING) { continue; } ?>
@@ -625,7 +625,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                 <?php endforeach; ?>
               </select>
               <textarea name="agenda" rows="2" maxlength="5000" placeholder="<?= $e(__('Ordine del giorno (facoltativo)')) ?>"
-                        class="form-control mb-3"></textarea>
+                        class="form-input mb-3"></textarea>
               <button type="submit" class="bc-btn"><?= $e(__('Crea incontro')) ?></button>
             </form>
           </details>
@@ -638,32 +638,32 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
     </div>
 
     <!-- Sidebar -->
-    <div class="col-12 col-lg-4">
+    <div class="w-full px-3 lg:w-1/3">
       <?php if ($nextMeeting !== null): ?>
         <section class="bc-card">
           <div class="bc-section-header">
             <i class="far fa-calendar-alt"></i>
             <h2><?= $e(__('Prossimo incontro')) ?></h2>
           </div>
-          <div class="fw-semibold"><?= $e($nextMeeting['title']) ?></div>
-          <div class="bc-muted mt-1"><i class="far fa-clock me-1"></i><?= $e(date('d/m/Y H:i', (int) strtotime((string) $nextMeeting['starts_at']))) ?>
+          <div class="font-semibold"><?= $e($nextMeeting['title']) ?></div>
+          <div class="bc-muted mt-1"><i class="far fa-clock mr-1"></i><?= $e(date('d/m/Y H:i', (int) strtotime((string) $nextMeeting['starts_at']))) ?>
             <?php if (!empty($nextMeeting['ends_at'])): ?> – <?= $e(date('H:i', (int) strtotime((string) $nextMeeting['ends_at']))) ?><?php endif; ?>
           </div>
           <?php if (!empty($nextMeeting['book_title'])): ?>
-            <div class="bc-muted"><i class="fas fa-book me-1"></i><?= $e($nextMeeting['book_title']) ?></div>
+            <div class="bc-muted"><i class="fas fa-book mr-1"></i><?= $e($nextMeeting['book_title']) ?></div>
           <?php endif; ?>
           <?php if (!empty($nextMeeting['location'])): ?>
-            <div class="bc-muted"><i class="fas fa-map-marker-alt me-1"></i><?= $e($nextMeeting['location']) ?></div>
+            <div class="bc-muted"><i class="fas fa-map-marker-alt mr-1"></i><?= $e($nextMeeting['location']) ?></div>
           <?php endif; ?>
           <?php $bcVideoUrl = ($isMember || $canManage) ? \App\Support\HtmlHelper::sanitizePublicHttpUrl((string) ($nextMeeting['video_url'] ?? '')) : ''; ?>
           <?php if ($bcVideoUrl !== ''): ?>
-            <div class="bc-muted"><i class="fas fa-video me-1"></i><a href="<?= $e($bcVideoUrl) ?>" target="_blank" rel="noopener noreferrer"><?= $e(__('Partecipa online')) ?></a></div>
+            <div class="bc-muted"><i class="fas fa-video mr-1"></i><a href="<?= $e($bcVideoUrl) ?>" target="_blank" rel="noopener noreferrer"><?= $e(__('Partecipa online')) ?></a></div>
           <?php endif; ?>
           <?php if (!empty($nextMeeting['agenda'])): ?>
-            <div class="bc-muted small mt-2" style="white-space:pre-wrap;"><?= $e(mb_substr((string) $nextMeeting['agenda'], 0, 500)) ?></div>
+            <div class="bc-muted text-sm mt-2" style="white-space:pre-wrap;"><?= $e(mb_substr((string) $nextMeeting['agenda'], 0, 500)) ?></div>
           <?php endif; ?>
           <?php if ($canManage): ?>
-            <a class="bc-btn bc-btn-outline bc-btn-sm mt-2" href="<?= $e(url('/book-club/' . $slug)) ?>#bc-meeting-<?= (int) $nextMeeting['id'] ?>"><i class="fas fa-pen me-1"></i><?= $e(__('Modifica incontro')) ?></a>
+            <a class="bc-btn bc-btn-outline bc-btn-sm mt-2" href="<?= $e(url('/book-club/' . $slug)) ?>#bc-meeting-<?= (int) $nextMeeting['id'] ?>"><i class="fas fa-pen mr-1"></i><?= $e(__('Modifica incontro')) ?></a>
           <?php endif; ?>
         </section>
       <?php endif; ?>
@@ -677,8 +677,8 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           <form method="post" action="<?= $e(url('/book-club/' . $slug . '/invite')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <input type="email" name="email" required placeholder="email@esempio.it"
-                   class="form-control mb-2">
-            <button type="submit" class="bc-btn w-100"><?= $e(__('Invia invito')) ?></button>
+                   class="form-input mb-2">
+            <button type="submit" class="bc-btn w-full"><?= $e(__('Invia invito')) ?></button>
           </form>
         </section>
       <?php endif; ?>
@@ -689,17 +689,17 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
             <i class="fas fa-users"></i>
             <h2><?= $e(__('Membri')) ?></h2>
           </div>
-          <ul class="list-unstyled mb-0">
+          <ul class="mb-0 list-none">
             <?php foreach ($members as $member): ?>
               <?php if (!in_array($member['status'], ['active', 'pending'], true)) { continue; } ?>
-              <li class="d-flex align-items-center justify-content-between gap-2 py-1">
+              <li class="flex items-center justify-between gap-2 py-1">
                 <span><?= $e($member['nome'] . ' ' . $member['cognome']) ?></span>
-                <span class="d-flex align-items-center gap-2">
+                <span class="flex items-center gap-2">
                   <?php if (in_array($member['role_slug'], ['owner', 'moderator'], true)): ?>
-                    <span class="bc-muted small"><?= $e($member['role_name']) ?></span>
+                    <span class="bc-muted text-sm"><?= $e($member['role_name']) ?></span>
                   <?php endif; ?>
                   <?php if ($member['status'] === 'pending' && $canManage): ?>
-                    <form method="post" action="<?= $e(url('/book-club/' . $slug . '/members/' . (int) $member['id'] . '/approve')) ?>" class="d-inline-flex gap-1">
+                    <form method="post" action="<?= $e(url('/book-club/' . $slug . '/members/' . (int) $member['id'] . '/approve')) ?>" class="inline-flex gap-1">
                       <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                       <button name="action" value="approve" class="bc-btn bc-btn-sm"><?= $e(__('Approva')) ?></button>
                       <button name="action" value="reject" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Rifiuta')) ?></button>

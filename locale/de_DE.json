@@ -6658,5 +6658,21 @@
   "Le email per la nuova richiesta agli amministratori e per l'approvazione all'utente continueranno a essere inviate.": "Die E-Mails zur neuen Anfrage an die Verwaltung und zur Genehmigung an die ausleihende Person werden weiterhin versendet.",
   "Auto-approva le richieste": "Anfragen automatisch genehmigen",
   "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.": "Überspringt die manuelle Genehmigung neuer Ausleihanfragen.",
-  "Prestito approvato. Il libro è in attesa di ritiro.": "Ausleihe genehmigt. Das Buch wartet auf Abholung."
+  "Prestito approvato. Il libro è in attesa di ritiro.": "Ausleihe genehmigt. Das Buch wartet auf Abholung.",
+  "Stile interfaccia": "Oberflächenstil",
+  "Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.": "Ändert den Aufbau der öffentlichen Website. CMS-Inhalte, Hero-Hintergrund, Farben und Funktionen bleiben unverändert.",
+  "Un solo frontend": "Eine gemeinsame Oberfläche",
+  "Editoriale": "Redaktionell",
+  "Tipografia autorevole, copertine protagoniste e ritmo arioso.": "Prägnante Typografie, starke Buchcover und ein großzügiger Rhythmus.",
+  "Workspace": "Arbeitsbereich",
+  "Più compatto e operativo, ideale per cataloghi ricchi di metadati.": "Kompakter und funktionaler, ideal für metadatenreiche Kataloge.",
+  "Command": "Befehl",
+  "Ricerca centrale, gerarchia netta e superfici ad alto contrasto.": "Zentrale Suche, klare Hierarchie und kontrastreiche Flächen.",
+  "Soft": "Sanft",
+  "Accogliente e morbido, con angoli ampi e profondità discreta.": "Einladend und sanft, mit großzügigen Rundungen und dezenter Tiefe.",
+  "Stile interfaccia non valido": "Ungültiger Oberflächenstil",
+  "Area personale": "Persönlicher Bereich",
+  "Prestiti e prenotazioni": "Ausleihen und Vormerkungen",
+  "Controlla scadenze, richieste e storico dei libri associati al tuo account.": "Prüfen Sie Fristen, Anfragen und den Verlauf der mit Ihrem Konto verknüpften Bücher.",
+  "Collegamenti area personale": "Links zum persönlichen Bereich"
 }

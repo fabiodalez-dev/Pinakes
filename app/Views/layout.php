@@ -119,7 +119,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
       <!-- Sidebar Header: blocco logo centrato; il close mobile è in absolute
            così non sbilancia il centraggio (visibile solo < lg) -->
-      <div class="relative flex items-center justify-center px-6 flex-shrink-0">
+      <div class="relative flex items-center justify-center px-6 shrink-0">
         <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="flex flex-col items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer">
           <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center">
             <?php if ($appLogo !== ''): ?>
@@ -472,7 +472,7 @@ $htmlLang = substr($currentLocale, 0, 2);
       </nav>
 
       <!-- Sidebar Footer -->
-      <div class="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
+      <div class="shrink-0 p-4 border-t border-gray-200 bg-white">
         <div class="flex items-center space-x-3">
           <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
             <i class="fas fa-user text-gray-600 text-sm"></i>
@@ -1216,7 +1216,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                   }
 
                   html += `<a href="${safeUrl}" class="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg text-sm transition-colors">
-                      <div class="flex-shrink-0 w-5 flex items-center justify-center mt-1">
+                      <div class="shrink-0 w-5 flex items-center justify-center mt-1">
                         <i class="${iconClass} ${iconColor}"></i>
                       </div>
                       <div class="flex-1 min-w-0">
@@ -1315,7 +1315,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
             item.innerHTML = `
                 <div class="flex items-start gap-3">
-                  <div class="${iconBg} w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <div class="${iconBg} w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
                     <i class="${iconClass}"></i>
                   </div>
                   <div class="flex-1 min-w-0">

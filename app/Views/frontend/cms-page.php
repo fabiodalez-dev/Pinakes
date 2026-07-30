@@ -150,8 +150,8 @@ ob_start();
             <div class="cms-divider"></div>
         </div>
 
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
+        <div class="flex flex-wrap -mx-3 justify-center">
+            <div class="w-full lg:w-5/6 px-3">
                 <?php if (!empty($image)): ?>
                     <img src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
                          alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"

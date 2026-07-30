@@ -22,3 +22,15 @@ function initDarkMode() {
   }
 }
 document.addEventListener('DOMContentLoaded', initDarkMode);
+
+function initDismissibleAlerts() {
+  document.addEventListener('click', (event) => {
+    const dismissButton = event.target.closest('[data-dismiss-alert]');
+    if (!dismissButton) return;
+
+    const alert = dismissButton.closest('[role="alert"], .alert');
+    if (alert) alert.remove();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initDismissibleAlerts);

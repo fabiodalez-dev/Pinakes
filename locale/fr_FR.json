@@ -6658,5 +6658,21 @@
   "Le email per la nuova richiesta agli amministratori e per l'approvazione all'utente continueranno a essere inviate.": "Les e-mails de nouvelle demande aux administrateurs et d'approbation à l'usager continueront d'être envoyés.",
   "Auto-approva le richieste": "Approuver automatiquement",
   "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.": "Désactive l'approbation manuelle des nouveaux prêts demandés par les usagers.",
-  "Prestito approvato. Il libro è in attesa di ritiro.": "Prêt approuvé. Le livre est en attente de retrait."
+  "Prestito approvato. Il libro è in attesa di ritiro.": "Prêt approuvé. Le livre est en attente de retrait.",
+  "Stile interfaccia": "Style de l'interface",
+  "Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.": "Modifie la composition du site public. Les contenus CMS, l'arrière-plan principal, les couleurs et les fonctionnalités restent inchangés.",
+  "Un solo frontend": "Une interface partagée",
+  "Editoriale": "Éditorial",
+  "Tipografia autorevole, copertine protagoniste e ritmo arioso.": "Typographie affirmée, couvertures mises en valeur et rythme aéré.",
+  "Workspace": "Espace de travail",
+  "Più compatto e operativo, ideale per cataloghi ricchi di metadati.": "Plus compact et opérationnel, idéal pour les catalogues riches en métadonnées.",
+  "Command": "Commande",
+  "Ricerca centrale, gerarchia netta e superfici ad alto contrasto.": "Recherche centrale, hiérarchie claire et surfaces fortement contrastées.",
+  "Soft": "Doux",
+  "Accogliente e morbido, con angoli ampi e profondità discreta.": "Accueillant et doux, avec des angles généreux et une profondeur discrète.",
+  "Stile interfaccia non valido": "Style d'interface non valide",
+  "Area personale": "Espace personnel",
+  "Prestiti e prenotazioni": "Prêts et réservations",
+  "Controlla scadenze, richieste e storico dei libri associati al tuo account.": "Consultez les échéances, les demandes et l’historique des livres associés à votre compte.",
+  "Collegamenti area personale": "Liens de l’espace personnel"
 }

@@ -215,6 +215,10 @@ abstract class BaseController
             $response->getBody()->write($content);
             return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
         }
+        // The core public layout accepts the shared DB handle when a plugin
+        // controller has no DI container in scope. This keeps colors and the
+        // selected Editorial/Workspace/Command/Soft layout in sync.
+        $db = $this->db;
         ob_start();
         require $layoutPath;
         $html = (string) ob_get_clean();

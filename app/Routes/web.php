@@ -2562,9 +2562,10 @@ return function (App $app): void {
     foreach ($supportedLocales as $locale) {
         $contactRoute = RouteTranslator::getRouteForLocale('contact', $locale);
 
-        $registerRouteIfUnique('GET', $contactRoute, function ($request, $response) {
+        $registerRouteIfUnique('GET', $contactRoute, function ($request, $response) use ($app) {
+            $container = $app->getContainer();
             $controller = new \App\Controllers\ContactController();
-            return $controller->showPage($request, $response);
+            return $controller->showPage($request, $response, $container);
         });
 
         $contactSubmitRoute = RouteTranslator::getRouteForLocale('contact_submit', $locale);
@@ -3063,6 +3064,13 @@ return function (App $app): void {
         $themeColorizer = $app->getContainer()->get('themeColorizer');
         $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer);
         return $controller->save($request, $response, $args);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/themes/{id}/layout', function ($request, $response, $args) use ($app) {
+        $themeManager = $app->getContainer()->get('themeManager');
+        $themeColorizer = $app->getContainer()->get('themeColorizer');
+        $controller = new \App\Controllers\ThemeController($themeManager, $themeColorizer);
+        return $controller->saveLayout($request, $response, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/themes/{id}/activate', function ($request, $response, $args) use ($app) {

@@ -135,7 +135,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <div class="card mb-8">
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-barcode text-primary"></i>
+            <i class="fas fa-barcode text-gray-900"></i>
             <?= __("Importa da ISBN") ?>
           </h2>
           <p class="text-sm text-gray-600 mt-1"><?= __("Usa i servizi online per precompilare automaticamente i dati del libro") ?></p>
@@ -157,11 +157,11 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <div id="scrapeSourceInfo" class="hidden mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 text-sm">
-                <i class="fas fa-database text-primary"></i>
+                <i class="fas fa-database text-gray-900"></i>
                 <span class="text-gray-600"><?= __("Fonte dati:") ?></span>
                 <span id="scrapeSourceName" class="font-medium text-gray-900"></span>
               </div>
-              <button type="button" id="btnShowAlternatives" class="text-xs text-primary hover:text-primary-dark hover:underline hidden" aria-expanded="false" aria-controls="scrapeAlternativesPanel">
+              <button type="button" id="btnShowAlternatives" class="text-xs text-gray-900 hover:text-primary-dark hover:underline hidden" aria-expanded="false" aria-controls="scrapeAlternativesPanel">
                 <i class="fas fa-exchange-alt mr-1"></i>
                 <?= __("Vedi alternative") ?>
               </button>
@@ -194,7 +194,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-book text-primary"></i>
+            <i class="fas fa-book text-gray-900"></i>
             <?= __("Informazioni Base") ?>
           </h2>
         </div>
@@ -336,7 +336,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-tags text-primary"></i>
+            <i class="fas fa-tags text-gray-900"></i>
             <?= __("Classificazione Dewey") ?>
           </h2>
         </div>
@@ -360,7 +360,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <label for="dewey_manual_input" class="form-label"><?= __("Codice Dewey") ?></label>
             <div class="flex gap-2">
               <input type="text" id="dewey_manual_input" class="form-input" placeholder="<?= __('es. 599.9, 004.6782, 641.5945, 599.1') ?>" />
-              <button type="button" id="dewey_add_btn" class="btn btn-primary">
+              <button type="button" id="dewey_add_btn" class="ui-button btn-primary">
                 <i class="fas fa-plus"></i> <?= __("Aggiungi") ?>
               </button>
             </div>
@@ -425,7 +425,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-shopping-cart text-primary"></i>
+            <i class="fas fa-shopping-cart text-gray-900"></i>
             <?= __("Dettagli Acquisizione") ?>
           </h2>
         </div>
@@ -451,7 +451,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-ruler text-primary"></i>
+            <i class="fas fa-ruler text-gray-900"></i>
             <?= __("Dettagli Fisici") ?>
           </h2>
         </div>
@@ -504,7 +504,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-warehouse text-primary"></i>
+            <i class="fas fa-warehouse text-gray-900"></i>
             <?= __("Gestione Biblioteca") ?>
           </h2>
         </div>
@@ -523,7 +523,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                padre / serie principale. Sub-card heading is in Italian
                source ("Serie e collana"). -->
           <fieldset class="border border-gray-200 rounded-xl p-4 mt-4">
-            <legend class="px-2 text-sm font-semibold text-gray-700"><i class="fas fa-layer-group text-primary mr-1"></i><?= __("Serie e collana") ?></legend>
+            <legend class="px-2 text-sm font-semibold text-gray-700"><i class="fas fa-layer-group text-gray-900 mr-1"></i><?= __("Serie e collana") ?></legend>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label for="gruppo_serie_select" class="form-label"><?= __("Gruppo serie") ?></label>
@@ -624,7 +624,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-image text-primary"></i>
+            <i class="fas fa-image text-gray-900"></i>
             <?= __("Copertina del Libro") ?>
           </h2>
         </div>
@@ -663,7 +663,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-map-marker-alt text-primary"></i>
+            <i class="fas fa-map-marker-alt text-gray-900"></i>
             <?= __("Posizione Fisica nella Biblioteca") ?>
           </h2>
         </div>
@@ -936,7 +936,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <!-- Frontend Visibility Preferences -->
           <div class="pt-6 border-t border-gray-200">
             <h3 class="text-md font-semibold text-gray-700 mb-3">
-              <i class="fas fa-eye text-primary mr-2"></i>
+              <i class="fas fa-eye text-gray-900 mr-2"></i>
               <?= __("Visibilità nel Frontend") ?>
             </h3>
             <p class="text-sm text-gray-600 mb-4"><?= __("Seleziona quali campi LibraryThing mostrare nella pagina pubblica del libro") ?></p>

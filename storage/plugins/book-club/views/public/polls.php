@@ -74,7 +74,7 @@ $modeHelp = [
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none d-inline-flex align-items-center gap-2 mb-3">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e($club['name']) ?>
   </a>
 
@@ -93,10 +93,10 @@ $modeHelp = [
       <p class="bc-muted mb-0"><?= $e(__('Nessuna votazione aperta.')) ?></p>
     <?php endif; ?>
     <?php foreach ($openPolls as $poll): ?>
-      <div class="bc-list-item align-items-center">
+      <div class="bc-list-item items-center">
         <div>
-          <a class="fw-semibold text-decoration-none" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
-          <div class="bc-muted small mt-1">
+          <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+          <div class="bc-muted text-sm mt-1">
             <?= $e($modeLabels[(string) $poll['mode']] ?? (string) $poll['mode']) ?>
             <?php if ((string) $poll['mode'] === 'elimination'): ?>
               · <?= $e(sprintf(__('turno %d'), max(1, (int) ($poll['round'] ?? 1)))) ?>
@@ -119,14 +119,14 @@ $modeHelp = [
     <?php endforeach; ?>
 
     <?php if ($closedPolls !== []): ?>
-      <details class="mt-4 pt-3 border-top" open>
+      <details class="mt-4 pt-3 border-t" open>
         <summary class="bc-summary"><?= $e(__('Votazioni chiuse')) ?> (<?= count($closedPolls) ?>)</summary>
         <div class="mt-2">
           <?php foreach ($closedPolls as $poll): ?>
-            <div class="bc-list-item align-items-center">
+            <div class="bc-list-item items-center">
               <div>
-                <a class="fw-semibold text-decoration-none" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
-                <div class="bc-muted small mt-1">
+                <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+                <div class="bc-muted text-sm mt-1">
                   <?= $e($modeLabels[(string) $poll['mode']] ?? (string) $poll['mode']) ?>
                   · <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
                   <?php if (!empty($poll['closed_at'])): ?>
@@ -152,13 +152,13 @@ $modeHelp = [
       </div>
       <p class="bc-muted mb-4"><?= $e(__('Proposte ancora in attesa di essere scelte. La lista include i libri mai votati e quelli che non hanno mai vinto una votazione chiusa.')) ?></p>
       <?php foreach ($neverChosen as $prop): ?>
-        <div class="bc-list-item align-items-center">
+        <div class="bc-list-item items-center">
           <div>
-            <span class="fw-semibold"><?= $e((string) ($prop['titolo'] ?? '')) ?></span>
+            <span class="font-semibold"><?= $e((string) ($prop['titolo'] ?? '')) ?></span>
             <?php if (!empty($prop['autori'])): ?>
-              <span class="bc-muted small">· <?= $e((string) $prop['autori']) ?></span>
+              <span class="bc-muted text-sm">· <?= $e((string) $prop['autori']) ?></span>
             <?php endif; ?>
-            <div class="bc-muted small mt-1">
+            <div class="bc-muted text-sm mt-1">
               <?php if ((int) $prop['times_in_poll'] === 0): ?>
                 <?= $e(__('mai votata')) ?>
               <?php else: ?>
@@ -168,7 +168,7 @@ $modeHelp = [
                 · <?= $e(__('ultima')) ?> <?= $e(date('d/m/Y', (int) strtotime((string) $prop['last_poll_at']))) ?>
               <?php endif; ?>
               <?php if (!empty($prop['is_external'])): ?>
-                · <span class="bc-badge bc-badge-warn" title="<?= $e(__('Questo libro non è ancora nel catalogo della biblioteca.')) ?>"><i class="fas fa-book-medical me-1"></i><?= $e(__('Non in catalogo')) ?></span>
+                · <span class="bc-badge bc-badge-warn" title="<?= $e(__('Questo libro non è ancora nel catalogo della biblioteca.')) ?>"><i class="fas fa-book-medical mr-1"></i><?= $e(__('Non in catalogo')) ?></span>
               <?php endif; ?>
             </div>
           </div>
@@ -188,46 +188,46 @@ $modeHelp = [
       <?php if (count($eligible) < 2): ?>
         <p class="bc-muted mb-0"><?= $e(__('Servono almeno due proposte per aprire una votazione.')) ?></p>
       <?php else: ?>
-        <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/new')) ?>" class="d-flex flex-column gap-3">
+        <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/new')) ?>" class="flex flex-col gap-3">
           <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
           <input type="text" name="title" maxlength="190" placeholder="<?= $e(__('Titolo (es. Votazione autunno 2026)')) ?>"
-                 class="form-control">
+                 class="form-input">
           <textarea name="description" rows="2" maxlength="3000" placeholder="<?= $e(__('Descrizione (facoltativa)')) ?>"
-                    class="form-control"></textarea>
+                    class="form-input"></textarea>
 
-          <div class="row g-3">
-            <div class="col-6 col-md-3">
-              <select name="mode" class="form-select" title="<?= $e(__('Modalità di voto')) ?>">
+          <div class="flex flex-wrap -mx-3 gap-y-3">
+            <div class="w-full w-1/2 px-3 md:w-1/4">
+              <select name="mode" class="form-input" title="<?= $e(__('Modalità di voto')) ?>">
                 <?php foreach ($modeLabels as $value => $label): ?>
                   <option value="<?= $e($value) ?>"><?= $e($label) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="w-full w-1/2 px-3 md:w-1/4">
               <input type="number" name="votes_per_member" min="1" max="20" value="3"
                      title="<?= $e(__('Voti per membro (preferenza multipla e voto ponderato)')) ?>"
-                     class="form-control">
+                     class="form-input">
             </div>
-            <div class="col-6 col-md-3">
-              <select name="anonymity" class="form-select">
+            <div class="w-full w-1/2 px-3 md:w-1/4">
+              <select name="anonymity" class="form-input">
                 <option value="public"><?= $e(__('Voto pubblico')) ?></option>
                 <option value="secret"><?= $e(__('Voto segreto')) ?></option>
               </select>
             </div>
-            <div class="col-6 col-md-3">
-              <input type="datetime-local" name="closes_at" class="form-control"
+            <div class="w-full w-1/2 px-3 md:w-1/4">
+              <input type="datetime-local" name="closes_at" class="form-input"
                      title="<?= $e(__('Scadenza (facoltativa)')) ?>">
             </div>
           </div>
 
-          <div class="row g-3">
-            <div class="col-12 col-md-6">
+          <div class="flex flex-wrap -mx-3 gap-y-3">
+            <div class="w-full px-3 md:w-1/2">
               <input type="number" name="quorum_pct" min="1" max="100" placeholder="<?= $e(__('Quorum % (facoltativo)')) ?>"
                      title="<?= $e(__('Percentuale minima di membri attivi che devono votare perché ci sia un vincitore')) ?>"
-                     class="form-control">
+                     class="form-input">
             </div>
-            <div class="col-12 col-md-6">
-              <select name="tiebreak" class="form-select" title="<?= $e(__('Spareggio in caso di parità')) ?>">
+            <div class="w-full px-3 md:w-1/2">
+              <select name="tiebreak" class="form-input" title="<?= $e(__('Spareggio in caso di parità')) ?>">
                 <option value="oldest_proposal"><?= $e(__('Spareggio: vince la proposta più antica')) ?></option>
                 <option value="random"><?= $e(__('Spareggio: sorteggio deterministico')) ?></option>
                 <option value="admin"><?= $e(__('Spareggio: decide un moderatore')) ?></option>
@@ -235,31 +235,31 @@ $modeHelp = [
             </div>
           </div>
 
-          <div class="row g-3">
-            <div class="col-12 col-md-6">
-              <label class="d-block">
-                <span class="form-label bc-muted small"><?= $e(__('Peso del voto del fondatore')) ?></span>
+          <div class="flex flex-wrap -mx-3 gap-y-3">
+            <div class="w-full px-3 md:w-1/2">
+              <label class="block">
+                <span class="form-label bc-muted text-sm"><?= $e(__('Peso del voto del fondatore')) ?></span>
                 <input type="number" name="weight_owner" step="0.5" min="1" max="5" value="2.0"
                        title="<?= $e(__('Solo per il voto ponderato: quanto vale il voto del fondatore (da 1 a 5)')) ?>"
-                       class="form-control">
+                       class="form-input">
               </label>
             </div>
-            <div class="col-12 col-md-6">
-              <label class="d-block">
-                <span class="form-label bc-muted small"><?= $e(__('Peso del voto dei moderatori')) ?></span>
+            <div class="w-full px-3 md:w-1/2">
+              <label class="block">
+                <span class="form-label bc-muted text-sm"><?= $e(__('Peso del voto dei moderatori')) ?></span>
                 <input type="number" name="weight_moderator" step="0.5" min="1" max="5" value="1.5"
                        title="<?= $e(__('Solo per il voto ponderato: quanto vale il voto dei moderatori (da 1 a 5)')) ?>"
-                       class="form-control">
+                       class="form-input">
               </label>
             </div>
           </div>
-          <p class="bc-muted small mb-0"><?= $e(__('I pesi si applicano solo alla modalità «Voto ponderato»; gli altri membri valgono sempre 1,0.')) ?></p>
+          <p class="bc-muted text-sm mb-0"><?= $e(__('I pesi si applicano solo alla modalità «Voto ponderato»; gli altri membri valgono sempre 1,0.')) ?></p>
 
-          <div class="border rounded-3 p-3 overflow-auto" style="max-height: 12rem">
+          <div class="border rounded-md p-3 overflow-auto" style="max-height: 12rem">
             <?php foreach ($eligible as $book): ?>
-              <label class="form-check d-flex align-items-center gap-2 mb-1">
-                <input type="checkbox" name="options[]" value="<?= (int) $book['id'] ?>" class="form-check-input mt-0 flex-shrink-0">
-                <span class="small"><?= $e($book['titolo']) ?><?php if (!empty($book['autori'])): ?><span class="bc-muted"> — <?= $e($book['autori']) ?></span><?php endif; ?></span>
+              <label class="flex items-center gap-2 mb-1">
+                <input type="checkbox" name="options[]" value="<?= (int) $book['id'] ?>" class="h-4 w-4 rounded border-gray-300 mt-0 shrink-0">
+                <span class="text-sm"><?= $e($book['titolo']) ?><?php if (!empty($book['autori'])): ?><span class="bc-muted"> — <?= $e($book['autori']) ?></span><?php endif; ?></span>
               </label>
             <?php endforeach; ?>
           </div>
@@ -270,12 +270,12 @@ $modeHelp = [
         </form>
       <?php endif; ?>
 
-      <div class="mt-4 border-top pt-3 bc-muted small">
-        <div class="fw-semibold text-uppercase mb-2"><?= $e(__('Le modalità in breve')) ?></div>
+      <div class="mt-4 border-t pt-3 bc-muted text-sm">
+        <div class="font-semibold uppercase mb-2"><?= $e(__('Le modalità in breve')) ?></div>
         <?php foreach ($modeLabels as $value => $label): ?>
-          <p class="mb-1"><span class="fw-semibold" style="color: var(--text-color)"><?= $e($label) ?></span>: <?= $e($modeHelp[$value]) ?></p>
+          <p class="mb-1"><span class="font-semibold" style="color: var(--text-color)"><?= $e($label) ?></span>: <?= $e($modeHelp[$value]) ?></p>
         <?php endforeach; ?>
-        <p class="mb-0 pt-1"><span class="fw-semibold" style="color: var(--text-color)"><?= $e(__('Quorum')) ?></span>: <?= $e(__('se alla chiusura i votanti sono meno della percentuale indicata, non c\'è vincitore e le proposte tornano disponibili.')) ?></p>
+        <p class="mb-0 pt-1"><span class="font-semibold" style="color: var(--text-color)"><?= $e(__('Quorum')) ?></span>: <?= $e(__('se alla chiusura i votanti sono meno della percentuale indicata, non c\'è vincitore e le proposte tornano disponibili.')) ?></p>
       </div>
     </div>
   <?php endif; ?>

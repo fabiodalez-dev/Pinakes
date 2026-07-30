@@ -522,7 +522,7 @@ $activeTab = $activeTab ?? 'general';
                       </div>
                     <?php endif; ?>
                   </div>
-                  <div class="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
+                  <div class="flex items-center gap-2 text-xs text-gray-500 shrink-0">
                     <i class="fas fa-code text-gray-400"></i>
                     <span class="font-mono"><?php echo HtmlHelper::e($template['name']); ?></span>
                   </div>
@@ -759,7 +759,7 @@ $activeTab = $activeTab ?? 'general';
                              name="label_format"
                              value="<?php echo HtmlHelper::e($formatKey); ?>"
                              <?php echo $isSelected ? 'checked' : ''; ?>
-                             class="mt-1 w-4 h-4 aspect-square flex-shrink-0 text-gray-900 focus:ring-gray-500">
+                             class="mt-1 w-4 h-4 aspect-square shrink-0 text-gray-900 focus:ring-gray-500">
                       <div class="flex-1">
                         <div class="flex flex-col md:flex-row items-start md:items-center gap-2">
                           <span class="font-semibold text-gray-900"><?php echo HtmlHelper::e($format['name']); ?></span>

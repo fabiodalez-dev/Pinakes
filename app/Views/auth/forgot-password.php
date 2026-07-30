@@ -24,7 +24,7 @@ $forgotPasswordRoute = route_path('forgot_password');
         body{ font-family:var(--sans); letter-spacing:-.008em; }
         h1,h2,h3,.auth-title,.card-title,.login-title{ font-family:var(--serif); font-weight:440; letter-spacing:-.025em; }
         /* de-round: every control/card 2px, no pills */
-        input,select,textarea,button,.btn,.card,.form-control,.form-select,.input-group,.input-group-text,.alert,.auth-card,.login-card{ border-radius:2px !important; }
+        input,select,textarea,button,.ui-button,.card,.form-input,.form-input,.input-group,.input-group-text,.alert,.auth-card,.login-card{ border-radius:2px !important; }
         /* flatten: no shadows, no glass */
         .card,.auth-card,.login-card,.alert,[class*="card"]{ box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
     
@@ -77,7 +77,7 @@ $forgotPasswordRoute = route_path('forgot_password');
       <?php if (isset($_GET['sent'])): ?>
         <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-6" role="alert">
           <div class="flex">
-            <div class="flex-shrink-0">
+            <div class="shrink-0">
               <i class="fas fa-check-circle text-green-500 dark:text-green-400"></i>
             </div>
             <div class="ml-3">

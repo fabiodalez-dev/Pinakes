@@ -1,6 +1,4 @@
 // Vendor libraries bundle for modern library management system
-import 'bootstrap/dist/css/bootstrap.min.css';
-import '../css/bootstrap-overrides.css'; // Override Bootstrap primary color to gray-900
 import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 import { Italian } from 'flatpickr/dist/l10n/it.js';

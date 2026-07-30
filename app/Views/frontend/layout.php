@@ -36,6 +36,20 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
 $versionFile = __DIR__ . '/../../../version.json';
 $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
 $appVersion = $versionData['version'] ?? '0.1.0';
+$frontendLayoutsMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/frontend-layouts.css');
+$frontendLayoutsVersion = $frontendLayoutsMtime !== false ? (string)$frontendLayoutsMtime : $appVersion;
+$frontendMainMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/main.css');
+$frontendMainVersion = $frontendMainMtime !== false ? (string)$frontendMainMtime : $appVersion;
+$frontendVendorMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/vendor.css');
+$frontendVendorVersion = $frontendVendorMtime !== false ? (string)$frontendVendorMtime : $appVersion;
+$frontendBundleMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/main.bundle.js');
+$frontendBundleVersion = $frontendBundleMtime !== false ? (string)$frontendBundleMtime : $appVersion;
+$flatpickrCustomMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/flatpickr-custom.css');
+$flatpickrCustomVersion = $flatpickrCustomMtime !== false ? (string)$flatpickrCustomMtime : $appVersion;
+$swalThemeMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/css/swal-theme.css');
+$swalThemeVersion = $swalThemeMtime !== false ? (string)$swalThemeMtime : $appVersion;
+$archivePagesMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/archive-pages.css');
+$archivePagesVersion = $archivePagesMtime !== false ? (string)$archivePagesMtime : $appVersion;
 
 // Load theme colors
 if (isset($container)) {
@@ -44,6 +58,18 @@ if (isset($container)) {
     $activeTheme = $themeManager->getActiveTheme();
     $themeColors = $themeManager->getThemeColors($activeTheme);
     $themePalette = $themeColorizer->generateColorPalette($themeColors);
+    $layoutVariant = $themeManager->getLayoutVariant($activeTheme);
+} elseif (isset($db) && $db instanceof mysqli) {
+    // Public views rendered by standalone controllers or plugins do not always
+    // receive the DI container, but they do share the request's DB handle.
+    // Resolve the same active theme from that handle so CMS/contact/plugin
+    // pages never silently fall back to Editoriale.
+    $themeManager = new \App\Support\ThemeManager($db);
+    $themeColorizer = new \App\Support\ThemeColorizer();
+    $activeTheme = $themeManager->getActiveTheme();
+    $themeColors = $themeManager->getThemeColors($activeTheme);
+    $themePalette = $themeColorizer->generateColorPalette($themeColors);
+    $layoutVariant = $themeManager->getLayoutVariant($activeTheme);
 } else {
     // Fallback colors when container is not available
     $themePalette = [
@@ -60,6 +86,7 @@ if (isset($container)) {
         'primary_rgb' => '215, 1, 97',
         'button_rgb' => '215, 2, 98',
     ];
+    $layoutVariant = \App\Support\ThemeManager::DEFAULT_LAYOUT_VARIANT;
 }
 
 // Get events page status using ConfigStore (has its own DB connection)
@@ -207,10 +234,14 @@ $htmlLang = substr($currentLocale, 0, 2);
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
     <!-- CSS moderno e minimale -->
-    <link href="<?= htmlspecialchars(assetUrl('/vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <link href="<?= htmlspecialchars(assetUrl('/flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendVendorVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($flatpickrCustomVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendMainVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/frontend-layouts.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendLayoutsVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($swalThemeVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <?php if (!empty($archivePageStyles)): ?>
+        <link href="<?= htmlspecialchars(assetUrl('/archive-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($archivePagesVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <?php endif; ?>
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <?php
@@ -447,6 +478,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             width: 44px;
             height: 44px;
             transition: color 0.3s ease;
+            margin-left: auto;
         }
 
         .mobile-search-toggle:hover {
@@ -488,15 +520,16 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .btn-header {
-            padding: 0.75rem 1.5rem;
+            min-height: 38px;
+            padding: 0.5rem 0.8rem;
             border-radius: 50px;
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             transition: all 0.3s ease;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.4rem;
             letter-spacing: -0.01em;
             border: 1px solid transparent;
         }
@@ -680,7 +713,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             box-shadow: none;
         }
 
-        .btn.btn-primary,
+        .ui-button.btn-primary,
         .btn-primary {
             display: inline-flex;
             align-items: center;
@@ -698,8 +731,8 @@ $htmlLang = substr($currentLocale, 0, 2);
             text-decoration: none;
         }
 
-        .btn.btn-primary:hover,
-        .btn.btn-primary:focus,
+        .ui-button.btn-primary:hover,
+        .ui-button.btn-primary:focus,
         .btn-primary:hover,
         .btn-primary:focus {
             background: var(--secondary-hover);
@@ -710,7 +743,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             text-decoration: none;
         }
 
-        .btn.btn-outline-primary,
+        .ui-button.btn-outline-primary,
         .btn-outline-primary {
             display: inline-flex;
             align-items: center;
@@ -726,8 +759,8 @@ $htmlLang = substr($currentLocale, 0, 2);
             transition: all 0.2s ease;
         }
 
-        .btn.btn-outline-primary:hover,
-        .btn.btn-outline-primary:focus,
+        .ui-button.btn-outline-primary:hover,
+        .ui-button.btn-outline-primary:focus,
         .btn-outline-primary:hover,
         .btn-outline-primary:focus {
             background: var(--secondary-color);
@@ -736,8 +769,8 @@ $htmlLang = substr($currentLocale, 0, 2);
             text-decoration: none;
         }
 
-        .btn.btn-primary.btn-sm,
-        .btn.btn-outline-primary.btn-sm,
+        .ui-button.btn-primary.btn-sm,
+        .ui-button.btn-outline-primary.btn-sm,
         .btn-primary.btn-sm,
         .btn-outline-primary.btn-sm {
             padding: 0.55rem 1.5rem;
@@ -793,9 +826,9 @@ $htmlLang = substr($currentLocale, 0, 2);
         .header-content {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-start;
             flex-wrap: wrap;
-            gap: 1.5rem;
+            gap: 0.75rem;
         }
 
         /* Header left wrapper - groups brand + nav on large screens */
@@ -973,7 +1006,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             color: #111827;
         }
 
-        .footer .list-unstyled li {
+        .footer ul li {
             margin-bottom: 0.5rem;
         }
 
@@ -998,6 +1031,18 @@ $htmlLang = substr($currentLocale, 0, 2);
         @media (max-width: 1024px) {
             .nav-links {
                 gap: 2rem;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .mobile-menu-toggle,
+            .mobile-menu-overlay {
+                display: none !important;
+            }
+
+            .mobile-search-container {
+                order: 10;
+                flex-basis: 100%;
             }
         }
 
@@ -1060,8 +1105,8 @@ $htmlLang = substr($currentLocale, 0, 2);
             }
 
             .btn-header {
-                padding: 0.6rem 1.2rem;
-                font-size: 0.85rem;
+                padding: 0.45rem 0.65rem;
+                font-size: 0.8rem;
             }
         }
 
@@ -1083,7 +1128,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             }
 
             .btn-header {
-                padding: 0.5rem 1rem;
+                padding: 0.45rem 0.65rem;
                 font-size: 0.8rem;
             }
 
@@ -1123,15 +1168,15 @@ $htmlLang = substr($currentLocale, 0, 2);
             text-align: center;
         }
 
-        .d-flex {
+        .flex {
             display: flex;
         }
 
-        .align-items-center {
+        .items-center {
             align-items: center;
         }
 
-        .justify-content-between {
+        .justify-between {
             justify-content: space-between;
         }
 
@@ -1299,9 +1344,9 @@ $htmlLang = substr($currentLocale, 0, 2);
         .main-content input, .main-content select, .main-content textarea,
         .search-input,.hero-search-input,.hero-search-input-group,
         .btn-cta,.btn-cta-outline,.btn-cta-sm,.btn-cta-lg,.btn-header,.btn-search-mobile,
-        .btn,.btn-primary,.btn-outline-primary,.btn-view,.btn-related-view,.btn-catalog,
+        .ui-button,.btn-primary,.btn-outline-primary,.btn-view,.btn-related-view,.btn-catalog,
         .book-card,.book-image-container,.book-status,.book-status-badge,.book-media-badge,
-        .genre-tag,.keyword-chip,.availability-badge,.author-item,.badge,.chip,
+        .genre-tag,.keyword-chip,.availability-badge,.author-item,.status-badge,.chip,
         .filter-tag,.facet-collapsed,.feature-card,.feature-icon,.related-book-card,
         .event-card,.event-cover,.related-card,.page-link,.user-dropdown-menu,
         .cover-img,.book-cover-large,.hero-quick-link,.card{
@@ -1513,7 +1558,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
   $isHome = ($requestPath === ($basePath ?: '/') || $requestPath === $basePath . '/' || $requestPath === $basePath . '/index.php');
 ?>
-<body class="<?= $isHome ? 'home' : '' ?>">
+<body class="<?= $isHome ? 'home ' : '' ?>layout-<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>" data-layout="<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>">
     <!-- Minimalist Header -->
     <div class="header-container">
         <div class="header-main">
@@ -1530,7 +1575,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                             <?php endif; ?>
                         </a>
 
-                        <ul class="nav-links d-none d-md-flex">
+                        <ul class="nav-links hidden md:flex">
                             <li><a href="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>"
                                     class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __('Catalogo') ?></a>
                             </li>
@@ -1547,49 +1592,49 @@ $htmlLang = substr($currentLocale, 0, 2);
                         </ul>
                     </div>
 
-                    <!-- Mobile Search Toggle -->
-                    <button class="mobile-search-toggle d-md-none" id="mobileSearchToggle"
+                    <!-- Compact search toggle -->
+                    <button class="mobile-search-toggle" id="mobileSearchToggle"
                         aria-label="<?= __('Toggle search') ?>">
                         <i class="fas fa-search"></i>
                     </button>
 
                     <!-- Mobile Menu Toggle -->
-                    <button class="mobile-menu-toggle d-md-none" id="mobileMenuToggle"
+                    <button class="mobile-menu-toggle md:hidden" id="mobileMenuToggle"
                         aria-label="<?= __('Toggle menu') ?>">
                         <i class="fas fa-bars"></i>
                     </button>
 
-                    <form class="search-form d-none d-md-block" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
+                    <form class="search-form hidden" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q"
                             placeholder="<?= __('Cerca libri, autori, ISBN...') ?>" aria-label="<?= __('Search') ?>">
                     </form>
 
-                    <div class="user-menu d-none d-md-flex">
+                    <div class="user-menu hidden md:flex">
                         <?php $isLogged = !empty($_SESSION['user'] ?? null); ?>
 
                         <?php if ($isLogged): ?>
-                            <div class="d-flex align-items-center gap-2">
+                            <div class="flex items-center gap-2">
                                 <?php if (!$isCatalogueMode): ?>
-                                <a class="btn btn-outline-header" href="<?= htmlspecialchars(absoluteUrl($reservationsRoute), ENT_QUOTES, 'UTF-8') ?>">
+                                <a class="btn-header btn-outline-header" href="<?= htmlspecialchars(absoluteUrl($reservationsRoute), ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-bookmark"></i>
-                                    <span class="d-none d-sm-inline"><?= __('Prenotazioni') ?></span>
-                                    <span id="nav-res-count" class="badge-notification d-none">0</span>
+                                    <span class="hidden sm:inline"><?= __('Prenotazioni') ?></span>
+                                    <span id="nav-res-count" class="badge-notification hidden">0</span>
                                 </a>
-                                <a class="btn btn-outline-header" href="<?= htmlspecialchars(absoluteUrl($wishlistRoute), ENT_QUOTES, 'UTF-8') ?>">
+                                <a class="btn-header btn-outline-header" href="<?= htmlspecialchars(absoluteUrl($wishlistRoute), ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-heart"></i>
-                                    <span class="d-none d-sm-inline"><?= __('Preferiti') ?></span>
+                                    <span class="hidden sm:inline"><?= __('Preferiti') ?></span>
                                 </a>
                                 <?php endif; ?>
                                 <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
-                                    <a class="btn btn-primary-header" href="<?= htmlspecialchars(absoluteUrl('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>">
+                                    <a class="btn-header btn-primary-header" href="<?= htmlspecialchars(absoluteUrl('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-user-shield"></i>
-                                        <span class="d-none d-md-inline"><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __('Admin') : __('Staff') ?></span>
+                                        <span class="hidden md:inline"><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __('Admin') : __('Staff') ?></span>
                                     </a>
                                 <?php else: ?>
                                     <div class="user-dropdown" id="userDropdown">
-                                        <button class="btn btn-primary-header user-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">
+                                        <button class="btn-header btn-primary-header user-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">
                                             <i class="fas fa-user"></i>
-                                            <span class="d-none d-md-inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
+                                            <span class="hidden md:inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
                                         </button>
                                         <div class="user-dropdown-menu" role="menu">
                                             <a href="<?= htmlspecialchars(absoluteUrl('/user/dashboard'), ENT_QUOTES, 'UTF-8') ?>" role="menuitem">
@@ -1613,27 +1658,27 @@ $htmlLang = substr($currentLocale, 0, 2);
                                 <?php endif; ?>
                             </div>
                         <?php else: ?>
-                            <div class="d-flex align-items-center gap-2">
-                                <a class="btn btn-outline-header" href="<?= htmlspecialchars(absoluteUrl($loginRoute), ENT_QUOTES, 'UTF-8') ?>">
+                            <div class="flex items-center gap-2">
+                                <a class="btn-header btn-outline-header" href="<?= htmlspecialchars(absoluteUrl($loginRoute), ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-sign-in-alt"></i>
-                                    <span class="d-none d-sm-inline"><?= __('Accedi') ?></span>
+                                    <span class="hidden sm:inline"><?= __('Accedi') ?></span>
                                 </a>
-                                <a class="btn btn-primary-header" href="<?= htmlspecialchars(absoluteUrl($registerRoute), ENT_QUOTES, 'UTF-8') ?>">
+                                <a class="btn-header btn-primary-header" href="<?= htmlspecialchars(absoluteUrl($registerRoute), ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-user-plus"></i>
-                                    <span class="d-none d-sm-inline"><?= __('Registrati') ?></span>
+                                    <span class="hidden sm:inline"><?= __('Registrati') ?></span>
                                 </a>
                             </div>
                         <?php endif; ?>
                     </div>
 
                     <!-- Mobile search container with animation -->
-                    <div class="mobile-search-container d-md-none" id="mobileSearchContainer">
-                        <form class="search-form w-100" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get" style="display: flex; gap: 0.5rem;">
+                    <div class="mobile-search-container md:hidden" id="mobileSearchContainer">
+                        <form class="search-form w-full" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get" style="display: flex; gap: 0.5rem;">
                             <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri...') ?>"
                                 aria-label="<?= __('Search') ?>" style="flex: 1;">
                             <button type="submit" class="btn-search-mobile" aria-label="<?= __('Cerca') ?>">
                                 <i class="fas fa-search"></i>
-                                <span class="d-none d-sm-inline"><?= __('Cerca') ?></span>
+                                <span class="hidden sm:inline"><?= __('Cerca') ?></span>
                             </button>
                         </form>
                     </div>
@@ -1642,7 +1687,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         </div>
 
         <!-- Mobile Menu Overlay -->
-        <div class="mobile-menu-overlay d-md-none" id="mobileMenuOverlay">
+        <div class="mobile-menu-overlay md:hidden" id="mobileMenuOverlay">
             <div class="mobile-menu-content">
                 <div class="mobile-menu-header">
                     <span class="brand-text"><?= HtmlHelper::e($appName) ?></span>
@@ -1653,49 +1698,49 @@ $htmlLang = substr($currentLocale, 0, 2);
                 <nav class="mobile-nav">
                     <a href="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>"
                         class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
-                        <i class="fas fa-book me-2"></i><?= __('Catalogo') ?>
+                        <i class="fas fa-book mr-2"></i><?= __('Catalogo') ?>
                     </a>
                     <?php if ($archivesAvailable): ?>
                         <a href="<?= htmlspecialchars(absoluteUrl($archivesRoute), ENT_QUOTES, 'UTF-8') ?>"
                             class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $archivesRoute) !== false ? 'active' : '' ?>">
-                            <i class="fas fa-archive me-2"></i><?= __('Archivio') ?>
+                            <i class="fas fa-archive mr-2"></i><?= __('Archivio') ?>
                         </a>
                     <?php endif; ?>
                     <?php if ($eventsEnabled): ?>
                         <a href="<?= htmlspecialchars(absoluteUrl('/events'), ENT_QUOTES, 'UTF-8') ?>"
                             class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>">
-                            <i class="fas fa-calendar-alt me-2"></i><?= __('Eventi') ?>
+                            <i class="fas fa-calendar-alt mr-2"></i><?= __('Eventi') ?>
                         </a>
                     <?php endif; ?>
                     <?php if ($isLogged): ?>
                         <hr class="mobile-menu-divider">
                         <a href="<?= htmlspecialchars(absoluteUrl('/user/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
-                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
                         </a>
                         <?php if (!$isCatalogueMode): ?>
                         <a href="<?= htmlspecialchars(absoluteUrl($reservationsRoute), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
-                            <i class="fas fa-bookmark me-2"></i><?= __("Prenotazioni") ?>
+                            <i class="fas fa-bookmark mr-2"></i><?= __("Prenotazioni") ?>
                         </a>
                         <a href="<?= htmlspecialchars(absoluteUrl($wishlistRoute), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
-                            <i class="fas fa-heart me-2"></i><?= __("Preferiti") ?>
+                            <i class="fas fa-heart mr-2"></i><?= __("Preferiti") ?>
                         </a>
                         <?php endif; ?>
                         <?php if (isset($_SESSION['user']['tipo_utente']) && ($_SESSION['user']['tipo_utente'] === 'admin' || $_SESSION['user']['tipo_utente'] === 'staff')): ?>
                             <a href="<?= htmlspecialchars(absoluteUrl('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
-                                <i class="fas fa-user-shield me-2"></i><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __("Admin") : __("Staff") ?>
+                                <i class="fas fa-user-shield mr-2"></i><?= $_SESSION['user']['tipo_utente'] === 'admin' ? __("Admin") : __("Staff") ?>
                             </a>
                         <?php else: ?>
                             <a href="<?= htmlspecialchars(absoluteUrl($profileRoute), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
-                                <i class="fas fa-user me-2"></i><?= __("Profilo") ?>
+                                <i class="fas fa-user mr-2"></i><?= __("Profilo") ?>
                             </a>
                         <?php endif; ?>
                     <?php else: ?>
                         <hr class="mobile-menu-divider">
                         <a href="<?= htmlspecialchars(absoluteUrl($loginRoute), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
-                            <i class="fas fa-sign-in-alt me-2"></i><?= __("Accedi") ?>
+                            <i class="fas fa-sign-in-alt mr-2"></i><?= __("Accedi") ?>
                         </a>
                         <a href="<?= htmlspecialchars(absoluteUrl($registerRoute), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
-                            <i class="fas fa-user-plus me-2"></i><?= __("Registrati") ?>
+                            <i class="fas fa-user-plus mr-2"></i><?= __("Registrati") ?>
                         </a>
                     <?php endif; ?>
                 </nav>
@@ -1711,18 +1756,18 @@ $htmlLang = substr($currentLocale, 0, 2);
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
-            <div class="row">
-                <div class="col-lg-3 mb-lg-0" style="margin-bottom: 1.7rem;">
+            <div class="flex flex-wrap -mx-3">
+                <div class="w-full lg:w-1/4 px-3 mb-lg-0" style="margin-bottom: 1.7rem;">
                     <?php if ($appLogo !== ''): ?>
                         <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>" class="footer-logo">
                     <?php else: ?>
-                        <h5><i class="fas fa-book-open me-2"></i><?= HtmlHelper::e($appName) ?></h5>
+                        <h5><i class="fas fa-book-open mr-2"></i><?= HtmlHelper::e($appName) ?></h5>
                     <?php endif; ?>
                     <p><?= HtmlHelper::e($footerDescription) ?></p>
                 </div>
-                <div class="col-lg-3">
+                <div class="w-full lg:w-1/4 px-3">
                     <h5><?= __("Menu") ?></h5>
-                    <ul class="list-unstyled">
+                    <ul class="list-none">
                         <li><a
                                 href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('about')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Chi Siamo") ?></a>
                         </li>
@@ -1737,9 +1782,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                         </li>
                     </ul>
                 </div>
-                <div class="col-lg-3">
+                <div class="w-full lg:w-1/4 px-3">
                     <h5><?= __("Account") ?></h5>
-                    <ul class="list-unstyled">
+                    <ul class="list-none">
                         <li><a
                                 href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('user_dashboard')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Dashboard") ?></a>
                         </li>
@@ -1756,9 +1801,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <?php endif; ?>
                     </ul>
                 </div>
-                <div class="col-lg-3">
+                <div class="w-full lg:w-1/4 px-3">
                     <h5><?= __("Seguici") ?></h5>
-                    <div class="d-flex gap-3 social-links">
+                    <div class="flex gap-3 social-links">
                         <?php if ($socialFacebook !== ''): ?>
                             <a href="<?= htmlspecialchars($socialFacebook, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
                                     class="fab fa-facebook"></i></a>
@@ -1787,10 +1832,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                 </div>
             </div>
             <hr class="my-4">
-            <div class="d-flex justify-content-center align-items-center gap-2">
+            <div class="flex justify-center items-center gap-2">
                 <p class="mb-0"><?= date('Y') ?> • <?= HtmlHelper::e($appName) ?> • Powered by Pinakes
                     v<?= HtmlHelper::e($appVersion) ?></p>
-                <a href="<?= htmlspecialchars(url('/feed.xml'), ENT_QUOTES, 'UTF-8') ?>" title="<?= HtmlHelper::e(__('Feed RSS')) ?>" class="text-muted" aria-label="<?= HtmlHelper::e(__('Feed RSS')) ?>">
+                <a href="<?= htmlspecialchars(url('/feed.xml'), ENT_QUOTES, 'UTF-8') ?>" title="<?= HtmlHelper::e(__('Feed RSS')) ?>" class="text-gray-500" aria-label="<?= HtmlHelper::e(__('Feed RSS')) ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg>
                 </a>
             </div>
@@ -1800,7 +1845,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <!-- Scripts -->
     <script src="<?= htmlspecialchars(assetUrl('/vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(assetUrl('/flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-    <script src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script src="<?= htmlspecialchars(assetUrl('/js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script>
         // Smooth scrolling
@@ -1848,7 +1893,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 const c = parseInt(data.count || 0, 10);
                 if (c > 0) {
                     badge.textContent = String(c);
-                    badge.classList.remove('d-none');
+                    badge.classList.remove('hidden');
                 }
             } catch (_) { }
         })();

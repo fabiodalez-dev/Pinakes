@@ -225,7 +225,7 @@
     <div class="card">
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-table text-primary"></i>
+          <i class="fas fa-table text-gray-900"></i>
           <?= __("Elenco Utenti") ?>
           <span id="total-count" class="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"></span>
         </h2>

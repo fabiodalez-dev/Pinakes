@@ -16,7 +16,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 $slug = (string) $club['slug'];
 ?>
 <section class="bc-card">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
     <div class="bc-section-header mb-0">
       <i class="fas fa-hand-holding-heart"></i>
       <h2><?= $e(__('Prestito tra membri')) ?></h2>
@@ -27,13 +27,13 @@ $slug = (string) $club['slug'];
   </div>
 
   <p class="mb-0">
-    <i class="fas fa-book-open me-1 text-muted"></i>
+    <i class="fas fa-book-open mr-1 text-gray-500"></i>
     <?= $e(sprintf(__n('%d copia offerta dai membri', '%d copie offerte dai membri', $openCount), $openCount)) ?>
   </p>
 
   <?php if ($activeLoans !== []): ?>
     <div class="mt-3">
-      <div class="bc-muted fw-semibold mb-1"><?= $e(__('I miei prestiti attivi')) ?></div>
+      <div class="bc-muted font-semibold mb-1"><?= $e(__('I miei prestiti attivi')) ?></div>
       <div>
         <?php foreach ($activeLoans as $loan): ?>
           <?php
@@ -42,16 +42,16 @@ $slug = (string) $club['slug'];
                 ? trim((string) ($loan['borrower_nome'] ?? '') . ' ' . (string) ($loan['borrower_cognome'] ?? ''))
                 : trim((string) $loan['lender_nome'] . ' ' . (string) $loan['lender_cognome']);
           ?>
-          <div class="bc-list-item align-items-center flex-wrap">
+          <div class="bc-list-item items-center flex-wrap">
             <span class="overflow-hidden">
-              <span class="fw-semibold"><?= $e($loan['titolo']) ?></span>
-              <span class="bc-muted small">
+              <span class="font-semibold"><?= $e($loan['titolo']) ?></span>
+              <span class="bc-muted text-sm">
                 · <?= $e($iAmLender ? sprintf(__('Prestata a %s'), $otherName) : sprintf(__('Prestata da %s'), $otherName)) ?>
               </span>
             </span>
             <?php if (!empty($loan['due_on'])): ?>
-              <span class="bc-muted small text-nowrap">
-                <i class="far fa-calendar me-1"></i><?= $e(sprintf(__('Da restituire entro il %s'), date('d/m/Y', (int) strtotime((string) $loan['due_on'])))) ?>
+              <span class="bc-muted text-sm whitespace-nowrap">
+                <i class="far fa-calendar mr-1"></i><?= $e(sprintf(__('Da restituire entro il %s'), date('d/m/Y', (int) strtotime((string) $loan['due_on'])))) ?>
               </span>
             <?php endif; ?>
           </div>

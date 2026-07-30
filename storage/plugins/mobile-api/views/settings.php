@@ -143,16 +143,12 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
     <div class="border-b border-gray-200 dark:border-gray-700">
       <nav class="-mb-px flex space-x-6">
         <a href="<?= $tabSettingsUrl ?>"
-           class="pb-3 text-sm font-medium border-b-2 transition-colors <?= $activeTab === 'settings'
-             ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-             : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300' ?>">
+           class="pb-3 text-sm font-medium border-b-2 transition-colors <?= $activeTab === 'settings' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300' ?>">
           <i class="fas fa-sliders mr-1.5"></i>
           <?= htmlspecialchars(__('Impostazioni'), ENT_QUOTES, 'UTF-8') ?>
         </a>
         <a href="<?= $tabDevicesUrl ?>"
-           class="pb-3 text-sm font-medium border-b-2 transition-colors <?= $activeTab === 'devices'
-             ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-             : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300' ?>">
+           class="pb-3 text-sm font-medium border-b-2 transition-colors <?= $activeTab === 'devices' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300' ?>">
           <i class="fas fa-mobile-screen-button mr-1.5"></i>
           <?= htmlspecialchars(__('Dispositivi'), ENT_QUOTES, 'UTF-8') ?>
         </a>

@@ -508,7 +508,7 @@ ob_start();
         <div class="container">
             <div class="related-heading">
                 <h2><?= __("Altri eventi in programma") ?></h2>
-                <p class="text-muted"><?= __("Segna in agenda anche questi appuntamenti imminenti.") ?></p>
+                <p class="text-gray-500"><?= __("Segna in agenda anche questi appuntamenti imminenti.") ?></p>
             </div>
             <div class="related-grid">
                 <?php foreach ($relatedEvents as $relatedEvent): ?>

@@ -47,7 +47,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 </style>
 <div class="container py-4">
   <div class="bc-hero">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <h1 class="mb-0"><?= $e(__('I miei club di lettura')) ?></h1>
       <a href="<?= $e(url('/book-club')) ?>" class="bc-btn"><i class="fas fa-compass"></i><?= $e(__('Esplora i club')) ?></a>
     </div>
@@ -70,37 +70,37 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
   <div>
     <?php foreach ($cards as $card): ?>
       <?php $club = $card['club']; $snap = $card['snapshot']; ?>
-      <div class="bc-card position-relative overflow-hidden">
+      <div class="bc-card relative overflow-hidden">
         <span class="bc-club-accent" style="background: <?= $e($club['color']) ?>"></span>
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-          <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>" class="bc-link fs-5"><?= $e($club['name']) ?></a>
-          <span class="bc-muted small"><?= $e($club['role_name'] ?? '') ?><?= ($club['member_status'] ?? '') === 'pending' ? ' · ' . $e(__('adesione in attesa di approvazione')) : '' ?></span>
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>" class="bc-link text-xl"><?= $e($club['name']) ?></a>
+          <span class="bc-muted text-sm"><?= $e($club['role_name'] ?? '') ?><?= ($club['member_status'] ?? '') === 'pending' ? ' · ' . $e(__('adesione in attesa di approvazione')) : '' ?></span>
         </div>
-        <div class="row g-4">
-          <div class="col-12 col-md-4">
+        <div class="flex flex-wrap -mx-3 gap-y-4">
+          <div class="w-full px-3 md:w-1/3">
             <div class="bc-kicker"><?= $e(__('Lettura corrente')) ?></div>
             <?php if (empty($snap['current_books'])): ?>
               <p class="bc-muted mb-0"><?= $e(__('Nessun libro in lettura.')) ?></p>
             <?php endif; ?>
             <?php foreach ($snap['current_books'] as $book): ?>
               <div class="mb-1">
-                <span class="fw-semibold"><?= $e($book['titolo']) ?></span>
+                <span class="font-semibold"><?= $e($book['titolo']) ?></span>
                 <?php if (!empty($book['reading_ends'])): ?>
-                  <span class="bc-muted small ms-1"><?= $e(__('fino al')) ?> <?= $e(date('d/m/Y', (int) strtotime((string) $book['reading_ends']))) ?></span>
+                  <span class="bc-muted text-sm ml-1"><?= $e(__('fino al')) ?> <?= $e(date('d/m/Y', (int) strtotime((string) $book['reading_ends']))) ?></span>
                 <?php endif; ?>
               </div>
             <?php endforeach; ?>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="w-full px-3 md:w-1/3">
             <div class="bc-kicker"><?= $e(__('Prossimo incontro')) ?></div>
             <?php if ($snap['next_meeting'] !== null): ?>
-              <div class="fw-semibold"><?= $e($snap['next_meeting']['title']) ?></div>
-              <div class="bc-muted small"><?= $e(date('d/m/Y H:i', (int) strtotime((string) $snap['next_meeting']['starts_at']))) ?></div>
+              <div class="font-semibold"><?= $e($snap['next_meeting']['title']) ?></div>
+              <div class="bc-muted text-sm"><?= $e(date('d/m/Y H:i', (int) strtotime((string) $snap['next_meeting']['starts_at']))) ?></div>
             <?php else: ?>
               <p class="bc-muted mb-0"><?= $e(__('Nessun incontro in programma.')) ?></p>
             <?php endif; ?>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="w-full px-3 md:w-1/3">
             <div class="bc-kicker"><?= $e(__('Votazioni aperte')) ?></div>
             <?php if (empty($snap['open_polls'])): ?>
               <p class="bc-muted mb-0"><?= $e(__('Nessuna votazione aperta.')) ?></p>
@@ -109,7 +109,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
               <div class="mb-1">
                 <a class="bc-link" href="<?= $e(url('/book-club/' . $club['slug'] . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
                 <?php if (!empty($poll['closes_at'])): ?>
-                  <span class="bc-muted small ms-1"><?= $e(__('scade il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?></span>
+                  <span class="bc-muted text-sm ml-1"><?= $e(__('scade il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?></span>
                 <?php endif; ?>
               </div>
             <?php endforeach; ?>

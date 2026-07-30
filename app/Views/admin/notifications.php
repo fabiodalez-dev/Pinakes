@@ -31,7 +31,7 @@ use App\Support\HtmlHelper;
       <div class="notification-item bg-white border border-gray-200 rounded-2xl p-4 hover:shadow-md transition-shadow <?php echo !$notification['is_read'] ? 'border-l-4 border-l-blue-500' : ''; ?>" data-id="<?php echo (int)$notification['id']; ?>">
         <div class="flex items-start gap-4">
           <!-- Icon -->
-          <div class="flex-shrink-0">
+          <div class="shrink-0">
             <?php
             $iconClass = 'fas fa-bell';
             $iconBg = 'bg-gray-100 text-gray-600';

@@ -1,672 +1,254 @@
 <?php
 /** @var string $archive_type */
 /** @var array $archive_info */
+/** @var array $books */
 /** @var int $totalBooks */
-/** @var int $totalPages */
+/** @var int|float $totalPages */
 /** @var int $page */
 
-$catalogRoute = route_path('catalog');
+use App\Support\AuthorName;
+use App\Support\HtmlHelper;
 
-// #163 — author photo + relevant source/website links (only for the author archive).
+$catalogRoute = route_path('catalog');
+$authorRoute = route_path('author');
+$publisherRoute = route_path('publisher');
+$genreRoute = route_path('genre');
+$homeRoute = absoluteUrl('/');
+$archivePageStyles = true;
+
+$archiveDisplayName = $archive_type === 'autore'
+    ? AuthorName::display($archive_info)
+    : (string) ($archive_info['nome'] ?? '');
+
+$typeLabel = match ($archive_type) {
+    'autore' => __('Autore'),
+    'editore' => __('Casa Editrice'),
+    default => __('Genere'),
+};
+$sectionTitle = match ($archive_type) {
+    'autore' => __('Opere'),
+    'editore' => __('Pubblicazioni'),
+    default => __('Libri'),
+};
+$entityIcon = match ($archive_type) {
+    'autore' => 'fa-user',
+    'editore' => 'fa-building',
+    default => 'fa-tags',
+};
+
 $authorPhoto = '';
 $authorLinks = [];
 if ($archive_type === 'autore') {
-    $pf = trim((string)($archive_info['foto'] ?? ''));
-    if ($pf !== '') {
-        if (strpos($pf, '/uploads/') === 0) {
-            $authorPhoto = url($pf);
-        } elseif (filter_var($pf, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $pf) === 1) {
-            $authorPhoto = $pf;
-        }
+    $photo = trim((string) ($archive_info['foto'] ?? ''));
+    if (str_starts_with($photo, '/uploads/')) {
+        $authorPhoto = url($photo);
+    } elseif (filter_var($photo, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $photo) === 1) {
+        $authorPhoto = $photo;
     }
-    if (!empty($archive_info['collegamenti'])) {
-        $decodedLinks = json_decode((string)$archive_info['collegamenti'], true);
-        if (is_array($decodedLinks)) {
-            foreach ($decodedLinks as $c) {
-                if (!is_array($c)) { continue; }
-                $u = trim((string)($c['url'] ?? ''));
-                if ($u === '' || !filter_var($u, FILTER_VALIDATE_URL) || preg_match('#^https?://#i', $u) !== 1) { continue; }
-                $authorLinks[] = ['etichetta' => trim((string)($c['etichetta'] ?? '')), 'url' => $u];
+
+    $decodedLinks = json_decode((string) ($archive_info['collegamenti'] ?? ''), true);
+    if (is_array($decodedLinks)) {
+        foreach ($decodedLinks as $link) {
+            if (!is_array($link)) {
+                continue;
             }
+            $linkUrl = HtmlHelper::sanitizePublicHttpUrl((string) ($link['url'] ?? ''));
+            if ($linkUrl === '') {
+                continue;
+            }
+            $authorLinks[] = [
+                'label' => trim((string) ($link['etichetta'] ?? '')) ?: $linkUrl,
+                'url' => $linkUrl,
+            ];
         }
     }
 }
-$additional_css = "
-<style>
-    .archive-hero {
-        background: #1f2937;
-        color: white;
-        padding: 4rem 0;
-        position: relative;
-    }
 
-    .archive-hero-content {
-        position: relative;
-        z-index: 2;
-        max-width: 900px;
-        margin: 0 auto;
-        text-align: center;
-    }
+$authorWebsite = $archive_type === 'autore'
+    ? HtmlHelper::sanitizePublicHttpUrl((string) ($archive_info['sito_web'] ?? ''))
+    : '';
+$publisherWebsite = $archive_type === 'editore'
+    ? HtmlHelper::sanitizePublicHttpUrl((string) ($archive_info['sito_web'] ?? ''))
+    : '';
+$hasArchiveDetails = ($archive_type === 'autore' && (!empty($archive_info['biografia']) || $authorWebsite !== '' || $authorLinks !== []))
+    || ($archive_type === 'editore' && (!empty($archive_info['indirizzo']) || $publisherWebsite !== ''));
 
-    .archive-icon {
-        width: 80px;
-        height: 80px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 1.5rem;
-        backdrop-filter: none;
-    }
-
-    .archive-icon i {
-        font-size: 2.5rem;
-        color: white;
-    }
-
-    .archive-title {
-        font-family: var(--serif);
-        font-size: clamp(2rem, 5vw, 3.25rem);
-        font-weight: 420;
-        margin-bottom: 1rem;
-        letter-spacing: -0.03em;
-    }
-
-    .archive-subtitle {
-        font-size: 0.8125rem;
-        opacity: 0.9;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-    }
-
-    .author-info {
-        background: none;
-        border-radius: 0;
-        padding: 2rem 0 0;
-        margin: 2rem auto 3rem;
-        max-width: 900px;
-        box-shadow: none;
-        border: none;
-        border-top: 1px solid var(--border-color);
-    }
-
-    .author-info-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .info-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
-
-    .info-item i {
-        color: var(--text-light);
-        font-size: 1.125rem;
-        margin-top: 0.125rem;
-    }
-
-    .info-content {
-        flex: 1;
-    }
-    
-    .stats-row {
-    text-align: center;
-    padding: 20px 0;
-    }
-
-    .info-label {
-        font-size: 0.75rem;
-        color: var(--primary-color);
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        margin-bottom: 0.25rem;
-    }
-
-    .info-value {
-        font-size: 1rem;
-        color: var(--text-color);
-        font-weight: 500;
-    }
-
-    .info-value a {
-        color: #1f2937;
-        text-decoration: none;
-        transition: color 0.2s ease;
-    }
-
-    .info-value a:hover {
-        color: var(--primary-color);
-    }
-
-    .author-bio {
-        font-size: 1rem;
-        line-height: 1.7;
-        color: #4b5563;
-        padding-top: 1.5rem;
-        padding-bottom: 1.5rem;
-        border-top: 1px solid var(--border-color);
-    }
-
-    .books-section-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 2rem;
-    }
-
-    .section-title {
-        font-family: var(--serif);
-        font-size: 2rem;
-        font-weight: 420;
-        letter-spacing: -0.02em;
-        color: var(--text-color);
-        margin: 0;
-    }
-
-    .books-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 2rem;
-        margin-bottom: 3rem;
-    }
-
-    @media (max-width: 768px) {
-        .books-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1.5rem;
-        }
-
-        .author-info {
-            margin: 1.5rem 1rem 2rem;
-            padding: 1.5rem;
-        }
-
-        .author-info-grid {
-            grid-template-columns: 1fr;
-            gap: 1rem;
-        }
-    }
-
-    @media (max-width: 576px) {
-        .books-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .book-card {
-        background: none;
-        border-radius: 0;
-        overflow: visible;
-        border: none;
-        transition: all 0.3s ease;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-    }
-
-    .book-card:hover {
-        transform: none;
-        box-shadow: none;
-    }
-
-    /* The cover is the visual hero: the only element carrying elevation,
-       lifting subtly on hover instead of the whole card. */
-    .book-image-container {
-        position: relative;
-        padding-top: 140%;
-        background: var(--light-bg);
-        overflow: hidden;
-        border-radius: 3px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-        transition: all 0.3s ease;
-    }
-
-    .book-card:hover .book-image-container {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
-    }
-
-    .book-image-container img {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-    }
-
-    .book-status-badge {
-        position: absolute;
-        top: 0.75rem;
-        right: 0.75rem;
-        padding: 0.375rem 0.75rem;
-        border-radius: 2px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-        backdrop-filter: none;
-    }
-
-    .status-available {
-        background: var(--success-color); /* fallback for browsers without color-mix() */
-        background: color-mix(in srgb, var(--success-color) 90%, transparent);
-        color: white;
-    }
-
-    .status-borrowed {
-        background: var(--danger-color); /* fallback for browsers without color-mix() */
-        background: color-mix(in srgb, var(--danger-color) 90%, transparent);
-        color: white;
-    }
-
-    .status-reserved {
-        background: var(--warning-color); /* fallback for browsers without color-mix() */
-        background: color-mix(in srgb, var(--warning-color) 90%, transparent);
-        color: white;
-    }
-
-    .book-content {
-        padding: 1.25rem;
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .book-title {
-        font-size: 1.0625rem;
-        font-weight: 600;
-        color: var(--text-color);
-        margin-bottom: 0.5rem;
-        line-height: 1.4;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .book-title a {
-        color: inherit;
-        text-decoration: none;
-        transition: color 0.2s ease;
-    }
-
-    .book-title a:hover {
-        color: var(--primary-color);
-    }
-
-    .book-author {
-        font-size: 0.9375rem;
-        color: var(--text-light);
-        margin-bottom: 0.75rem;
-    }
-
-    .book-meta {
-        flex: 1;
-        font-size: 0.875rem;
-        color: var(--text-muted);
-        margin-bottom: 1rem;
-    }
-
-    .book-meta a {
-        color: inherit;
-        text-decoration: none;
-        transition: color 0.2s ease;
-    }
-
-    .book-meta a:hover {
-        color: #1f2937;
-    }
-
-    .book-actions {
-        margin-top: auto;
-    }
-
-    .btn-view {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        width: 100%;
-        padding: 0.75rem 1.5rem;
-        background: #1f2937;
-        color: white;
-        border-radius: 2px;
-        text-decoration: none;
-        font-weight: 500;
-        transition: all 0.2s ease;
-    }
-
-    .btn-view:hover {
-        background: #111827;
-        color: white;
-        transform: translateY(-1px);
-        box-shadow: none;
-    }
-
-    .pagination-wrapper {
-        display: flex;
-        justify-content: center;
-        margin-top: 3rem;
-    }
-
-    .pagination {
-        display: flex;
-        gap: 0.5rem;
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-
-    .page-item {
-        list-style: none;
-    }
-
-    .page-link {
-        display: flex;
-        align-items: center;
-        padding: 0.625rem 1rem;
-        background: var(--white);
-        border: 1px solid var(--border-color);
-        border-radius: 2px;
-        color: #374151;
-        text-decoration: none;
-        font-weight: 500;
-        transition: all 0.2s ease;
-    }
-
-    .page-link:hover {
-        background: var(--light-bg);
-        border-color: #1f2937;
-        color: var(--text-color);
-    }
-
-    .page-item.active .page-link {
-        background: #1f2937;
-        border-color: #1f2937;
-        color: white;
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: 4rem 2rem;
-        background: none;
-        border-radius: 0;
-        border: none;
-        border-top: 1px solid var(--border-color);
-    }
-
-    .empty-state i {
-        font-size: 4rem;
-        color: #d1d5db;
-        margin-bottom: 1.5rem;
-    }
-
-    .empty-state h5 {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: var(--text-color);
-        margin-bottom: 0.5rem;
-    }
-
-    .empty-state p {
-        color: var(--text-light);
-        margin-bottom: 2rem;
-    }
-
-    .btn-catalog {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 1rem 2rem;
-        background: #1f2937;
-        color: white;
-        border-radius: 2px;
-        text-decoration: none;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
-
-    .btn-catalog:hover {
-        background: #111827;
-        color: white;
-        transform: translateY(-2px);
-        box-shadow: none;
-    }
-</style>
-";
+$createBookUrl = static fn(array $book): string => book_url($book);
+$defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
 ob_start();
 ?>
 
-<!-- Archive Hero -->
-<?php
-// Author pages show the pseudonym-aware display name "Pseudonimo (Nome)" (#237),
-// consistent with how the author appears on book pages; publisher/genre archives
-// have no pseudonym so this collapses to the plain name.
-$archiveDisplayName = ($archive_type === 'autore')
-    ? \App\Support\AuthorName::display($archive_info)
-    : (string)($archive_info['nome'] ?? '');
-?>
-<section class="archive-hero">
-    <div class="container">
-        <div class="archive-hero-content">
-            <div class="archive-icon">
-                <?php if ($archive_type === 'autore' && $authorPhoto !== ''): ?>
-                    <img src="<?= htmlspecialchars($authorPhoto, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($archiveDisplayName, ENT_QUOTES, 'UTF-8') ?>" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
-                <?php elseif ($archive_type === 'autore'): ?>
-                    <i class="fas fa-user"></i>
-                <?php elseif ($archive_type === 'editore'): ?>
-                    <i class="fas fa-building"></i>
-                <?php else: ?>
-                    <i class="fas fa-tags"></i>
-                <?php endif; ?>
-            </div>
-            <h1 class="archive-title"><?= htmlspecialchars($archiveDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
-            <p class="archive-subtitle">
-                <?php if ($archive_type === 'autore'): ?>
-                    <?= __("Autore") ?>
-                <?php elseif ($archive_type === 'editore'): ?>
-                    <?= __("Casa Editrice") ?>
-                <?php else: ?>
-                    <?= __("Genere") ?>
-                <?php endif; ?>
-            </p>
-        </div>
-    </div>
-</section>
+<div class="archive-page archive-page-<?= htmlspecialchars($archive_type, ENT_QUOTES, 'UTF-8') ?>">
+    <section class="archive-hero" aria-labelledby="archive-title">
+        <div class="container archive-hero-inner">
+            <nav class="archive-breadcrumb" aria-label="<?= htmlspecialchars(__('Breadcrumb'), ENT_QUOTES, 'UTF-8') ?>">
+                <a href="<?= htmlspecialchars($homeRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Home') ?></a>
+                <span aria-hidden="true">›</span>
+                <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Catalogo') ?></a>
+                <span aria-hidden="true">›</span>
+                <span aria-current="page"><?= htmlspecialchars($archiveDisplayName, ENT_QUOTES, 'UTF-8') ?></span>
+            </nav>
 
-<!-- Archive Info -->
-<div class="container">
-    <div class="stats-row">
-            <span class="stat-badge">
-                <i class="fas fa-book"></i>
-                <span><?= $totalBooks ?> <?= __n('libro', 'libri', $totalBooks) ?></span>
-            </span>
-            <?php if ($totalPages > 1): ?>
-                <span class="stat-badge">
-                    <i class="fas fa-file-alt"></i>
-                    <span><?= $totalPages ?> <?= __n('pagina', 'pagine', $totalPages) ?></span>
-                </span>
-            <?php endif; ?>
-        </div>
-    <div class="archive-info-card">
-        <?php if ($archive_type === 'autore'): ?>
-            <?php if (!empty($archive_info['biografia'])): ?>
-                <div class="author-bio">
-                    <?= nl2br(htmlspecialchars($archive_info['biografia'], ENT_QUOTES, 'UTF-8')) ?>
-                </div>
-            <?php endif; ?>
-            <?php
-            // #163 — relevant source/website links (official site + collegamenti)
-            $sw = (string)($archive_info['sito_web'] ?? '');
-            $hasSite = $sw !== '' && filter_var($sw, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $sw) === 1;
-            ?>
-            <?php if ($hasSite || !empty($authorLinks)): ?>
-                <div class="author-links" style="margin-top:<?= !empty($archive_info['biografia']) ? '1rem' : '0' ?>;display:flex;flex-wrap:wrap;gap:0.5rem 1.25rem;">
-                    <?php if ($hasSite): ?>
-                        <a href="<?= htmlspecialchars($sw, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-globe mr-1"></i><?= __("Sito web") ?></a>
+            <div class="archive-identity">
+                <div class="archive-avatar" aria-hidden="true">
+                    <?php if ($archive_type === 'autore' && $authorPhoto !== ''): ?>
+                        <img src="<?= htmlspecialchars($authorPhoto, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy">
+                    <?php else: ?>
+                        <i class="fas <?= htmlspecialchars($entityIcon, ENT_QUOTES, 'UTF-8') ?>"></i>
                     <?php endif; ?>
-                    <?php foreach ($authorLinks as $c): ?>
-                        <a href="<?= htmlspecialchars($c['url'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt mr-1"></i><?= htmlspecialchars($c['etichetta'] !== '' ? $c['etichetta'] : $c['url'], ENT_QUOTES, 'UTF-8') ?></a>
+                </div>
+                <div class="archive-heading">
+                    <p class="archive-kicker"><?= htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                    <h1 class="archive-title" id="archive-title"><?= htmlspecialchars($archiveDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
+                    <p class="archive-count">
+                        <i class="fas fa-book" aria-hidden="true"></i>
+                        <span><?= (int) $totalBooks ?> <?= __n('libro', 'libri', (int) $totalBooks) ?></span>
+                        <?php if ((int) $totalPages > 1): ?>
+                            <span aria-hidden="true">·</span>
+                            <span><?= (int) $totalPages ?> <?= __n('pagina', 'pagine', (int) $totalPages) ?></span>
+                        <?php endif; ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="container archive-content">
+        <?php if ($hasArchiveDetails): ?>
+            <section class="archive-details" aria-label="<?= htmlspecialchars(__('Informazioni'), ENT_QUOTES, 'UTF-8') ?>">
+                <?php if ($archive_type === 'autore'): ?>
+                    <?php if (!empty($archive_info['biografia'])): ?>
+                        <div class="archive-biography">
+                            <?= nl2br(htmlspecialchars((string) $archive_info['biografia'], ENT_QUOTES, 'UTF-8')) ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($authorWebsite !== '' || $authorLinks !== []): ?>
+                        <div class="archive-links">
+                            <?php if ($authorWebsite !== ''): ?>
+                                <a href="<?= htmlspecialchars($authorWebsite, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer">
+                                    <i class="fas fa-globe" aria-hidden="true"></i><?= __('Sito web') ?>
+                                </a>
+                            <?php endif; ?>
+                            <?php foreach ($authorLinks as $link): ?>
+                                <a href="<?= htmlspecialchars($link['url'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer">
+                                    <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i><?= htmlspecialchars($link['label'], ENT_QUOTES, 'UTF-8') ?>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <div class="publisher-details">
+                        <?php if (!empty($archive_info['indirizzo'])): ?>
+                            <p><i class="fas fa-location-dot" aria-hidden="true"></i><span><?= htmlspecialchars((string) $archive_info['indirizzo'], ENT_QUOTES, 'UTF-8') ?></span></p>
+                        <?php endif; ?>
+                        <?php if ($publisherWebsite !== ''): ?>
+                            <a href="<?= htmlspecialchars($publisherWebsite, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer">
+                                <i class="fas fa-globe" aria-hidden="true"></i><span><?= htmlspecialchars($publisherWebsite, ENT_QUOTES, 'UTF-8') ?></span>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </section>
+        <?php endif; ?>
+
+        <section class="archive-books" aria-labelledby="archive-books-title">
+            <header class="archive-section-header">
+                <div>
+                    <p class="archive-section-kicker"><?= htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                    <h2 id="archive-books-title"><?= htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8') ?></h2>
+                </div>
+                <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="archive-catalog-link">
+                    <?= __('Esplora Catalogo') ?><i class="fas fa-arrow-right" aria-hidden="true"></i>
+                </a>
+            </header>
+
+            <?php if ($books !== []): ?>
+                <div class="archive-books-grid">
+                    <?php foreach ($books as $book): ?>
+                        <?php
+                        $bookUrl = $createBookUrl($book);
+                        $coverUrl = absoluteUrl(($book['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg');
+                        $available = (int) ($book['copie_disponibili'] ?? 0) > 0;
+                        $state = (string) ($book['stato'] ?? '');
+                        if ($available) {
+                            $statusClass = 'is-available';
+                            $statusIcon = 'fa-check';
+                            $statusLabel = __('Disponibile');
+                        } elseif ($state === 'prenotato') {
+                            $statusClass = 'is-reserved';
+                            $statusIcon = 'fa-bookmark';
+                            $statusLabel = __('Prenotato');
+                        } elseif ($state === 'prestato') {
+                            $statusClass = 'is-borrowed';
+                            $statusIcon = 'fa-clock';
+                            $statusLabel = __('In prestito');
+                        } else {
+                            $statusClass = 'is-unavailable';
+                            $statusIcon = 'fa-minus';
+                            $statusLabel = __('Non disponibile');
+                        }
+                        $authorName = trim(html_entity_decode((string) ($book['autore'] ?? ''), ENT_QUOTES, 'UTF-8'));
+                        $authorCanonicalName = trim(html_entity_decode((string) ($book['autore_principale_nome'] ?? ''), ENT_QUOTES, 'UTF-8'));
+                        ?>
+                        <article class="archive-book-card">
+                            <a href="<?= htmlspecialchars($bookUrl, ENT_QUOTES, 'UTF-8') ?>" class="archive-book-cover">
+                                <img src="<?= htmlspecialchars($coverUrl, ENT_QUOTES, 'UTF-8') ?>"
+                                     alt="<?= htmlspecialchars((string) ($book['titolo'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                     loading="lazy"
+                                     onerror="this.onerror=null;this.src=<?= htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8') ?>">
+                                <span class="archive-book-status <?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>">
+                                    <i class="fas <?= htmlspecialchars($statusIcon, ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?>
+                                    <?php do_action('book.badge.digital_icons', $book); ?>
+                                </span>
+                            </a>
+                            <div class="archive-book-copy">
+                                <h3><a href="<?= htmlspecialchars($bookUrl, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(html_entity_decode((string) ($book['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a></h3>
+                                <?php if ($authorName !== ''): ?>
+                                    <p class="archive-book-author">
+                                        <?php if ($authorCanonicalName !== ''): ?>
+                                            <a href="<?= htmlspecialchars($authorRoute . '/' . urlencode($authorCanonicalName), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($authorName, ENT_QUOTES, 'UTF-8') ?></a>
+                                        <?php else: ?>
+                                            <span><?= htmlspecialchars($authorName, ENT_QUOTES, 'UTF-8') ?></span>
+                                        <?php endif; ?>
+                                    </p>
+                                <?php endif; ?>
+                                <div class="archive-book-meta">
+                                    <?php if (!empty($book['genere']) && $archive_type !== 'genere'): ?>
+                                        <a href="<?= htmlspecialchars($genreRoute . '/' . urlencode(html_entity_decode((string) $book['genere'], ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(html_entity_decode((string) $book['genere'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a>
+                                    <?php endif; ?>
+                                    <?php if (!empty($book['editore']) && $archive_type !== 'editore'): ?>
+                                        <a href="<?= htmlspecialchars($publisherRoute . '/' . urlencode(html_entity_decode((string) $book['editore'], ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(html_entity_decode((string) $book['editore'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </article>
                     <?php endforeach; ?>
                 </div>
-            <?php endif; ?>
-        <?php elseif ($archive_type === 'editore'): ?>
-            <?php $publisherSite = \App\Support\HtmlHelper::sanitizePublicHttpUrl((string)($archive_info['sito_web'] ?? '')); ?>
-            <div class="publisher-details">
-                <?php if (!empty($archive_info['indirizzo'])): ?>
-                    <p><i class="fas fa-map-marker-alt"></i><?= htmlspecialchars($archive_info['indirizzo'], ENT_QUOTES, 'UTF-8') ?></p>
-                <?php endif; ?>
-                <?php if ($publisherSite !== ''): ?>
-                    <p><i class="fas fa-globe"></i><a href="<?= htmlspecialchars($publisherSite, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><?= htmlspecialchars($publisherSite, ENT_QUOTES, 'UTF-8') ?></a></p>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
 
-        
-    </div>
-
-    <!-- Books Section -->
-    <section class="books-section">
-        <div class="books-section-header">
-            <h2 class="section-title">
-                <?php if ($archive_type === 'autore'): ?>
-                    <?= __('Opere') ?>
-                <?php elseif ($archive_type === 'editore'): ?>
-                    <?= __('Pubblicazioni') ?>
-                <?php else: ?>
-                    <?= __('Libri') ?>
-                <?php endif; ?>
-            </h2>
-        </div>
-
-        <?php
-$createBookUrl = static function ($book) {
-    return book_url($book);
-};
-?>
-
-        <?php if (!empty($books)): ?>
-            <div class="books-grid">
-                <?php foreach($books as $book): ?>
-                    <div class="book-card">
-                        <div class="book-image-container">
-                            <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>">
-                                <?php $coverUrl = ($book['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg'; ?>
-                                <img src="<?= htmlspecialchars(url($coverUrl), ENT_QUOTES, 'UTF-8') ?>"
-                                     alt="<?= htmlspecialchars($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                            </a>
-                            <?php
-                            $bookAvailable = ($book['copie_disponibili'] ?? 0) > 0;
-                            $bookReserved = !$bookAvailable && ($book['stato'] ?? '') === 'prenotato';
-                            ?>
-                            <span class="book-status-badge <?= $bookAvailable ? 'status-available' : ($bookReserved ? 'status-reserved' : 'status-borrowed') ?>">
-                                <i class="fas fa-<?= $bookAvailable ? 'check-circle' : ($bookReserved ? 'bookmark' : 'times-circle') ?>"></i>
-                                <?= $bookAvailable ? __('Disponibile') : ($bookReserved ? __('Prenotato') : __('Prestato')) ?>
-                                <?php
-                                // Hook: Allow plugins to add icons to status badge (e.g., eBook/audio icons)
-                                do_action('book.badge.digital_icons', $book);
-                                ?>
-                            </span>
-                        </div>
-                        <div class="book-content">
-                            <h3 class="book-title">
-                                <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>">
-                                    <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
-                                </a>
-                            </h3>
-                            <?php if (!empty($book['autore']) && $archive_type !== 'autore'): ?>
-                                <p class="book-author">di <?= htmlspecialchars(html_entity_decode($book['autore'], ENT_QUOTES, 'UTF-8')) ?></p>
-                            <?php endif; ?>
-                            <div class="book-meta">
-                                <?php if (!empty($book['genere']) && $archive_type !== 'genere'): ?>
-                                    <div>
-                                        <i class="fas fa-tags me-1"></i>
-                                        <a href="<?= htmlspecialchars(route_path('genre'), ENT_QUOTES, 'UTF-8') ?>/<?= urlencode(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>">
-                                            <?= htmlspecialchars(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if (!empty($book['editore']) && $archive_type !== 'editore'): ?>
-                                    <div>
-                                        <i class="fas fa-building me-1"></i>
-                                        <a href="<?= htmlspecialchars(route_path('publisher'), ENT_QUOTES, 'UTF-8') ?>/<?= urlencode(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>">
-                                            <?= htmlspecialchars(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                            <div class="book-actions">
-                                <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>" class="btn-view">
-                                    <i class="fas fa-eye"></i>
-                                    <span><?= __('Vedi dettagli') ?></span>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-
-            <!-- Pagination -->
-            <?php if ($totalPages > 1): ?>
-                <div class="pagination-wrapper">
-                    <nav aria-label="<?= htmlspecialchars(__('Navigazione pagine'), ENT_QUOTES, 'UTF-8') ?>">
-                        <ul class="pagination">
-                            <?php if ($page > 1): ?>
-                                <li class="page-item">
-                                    <a class="page-link" href="?page=<?= $page - 1 ?>">
-                                        <i class="fas fa-chevron-left"></i>
-                                    </a>
-                                </li>
-                            <?php endif; ?>
-
-                            <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
-                                <li class="page-item <?= $i === $page ? 'active' : '' ?>">
-                                    <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
-                                </li>
-                            <?php endfor; ?>
-
-                            <?php if ($page < $totalPages): ?>
-                                <li class="page-item">
-                                    <a class="page-link" href="?page=<?= $page + 1 ?>">
-                                        <i class="fas fa-chevron-right"></i>
-                                    </a>
-                                </li>
-                            <?php endif; ?>
-                        </ul>
+                <?php if ((int) $totalPages > 1): ?>
+                    <nav class="archive-pagination" aria-label="<?= htmlspecialchars(__('Navigazione pagine'), ENT_QUOTES, 'UTF-8') ?>">
+                        <?php if ($page > 1): ?>
+                            <a href="?page=<?= $page - 1 ?>" aria-label="<?= htmlspecialchars(__('Pagina precedente'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
+                        <?php endif; ?>
+                        <?php for ($i = max(1, $page - 2); $i <= min((int) $totalPages, $page + 2); $i++): ?>
+                            <a href="?page=<?= $i ?>" <?= $i === $page ? 'aria-current="page"' : '' ?>><?= $i ?></a>
+                        <?php endfor; ?>
+                        <?php if ($page < (int) $totalPages): ?>
+                            <a href="?page=<?= $page + 1 ?>" aria-label="<?= htmlspecialchars(__('Pagina successiva'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+                        <?php endif; ?>
                     </nav>
+                <?php endif; ?>
+            <?php else: ?>
+                <div class="archive-empty">
+                    <i class="fas fa-book-open" aria-hidden="true"></i>
+                    <h3><?= __('Nessun libro trovato') ?></h3>
+                    <p><?= $archive_type === 'autore' ? __('Non sono stati trovati libri di questo autore.') : ($archive_type === 'editore' ? __('Non sono stati trovati libri di questo editore.') : __('Non sono stati trovati libri di questo genere.')) ?></p>
+                    <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Esplora Catalogo') ?></a>
                 </div>
             <?php endif; ?>
-
-        <?php else: ?>
-            <div class="empty-state">
-                <i class="fas fa-book-open"></i>
-                <h3><?= __("Nessun libro trovato") ?></h3>
-                <p>
-                    <?php if ($archive_type === 'autore'): ?>
-                        <?= __("Non sono stati trovati libri di questo autore.") ?>
-                    <?php elseif ($archive_type === 'editore'): ?>
-                        <?= __("Non sono stati trovati libri di questo editore.") ?>
-                    <?php else: ?>
-                        <?= __("Non sono stati trovati libri di questo genere.") ?>
-                    <?php endif; ?>
-                </p>
-                <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-catalog">
-                    <i class="fas fa-search"></i>
-                    <span><?= __('Esplora Catalogo') ?></span>
-                </a>
-            </div>
-        <?php endif; ?>
-    </section>
+        </section>
+    </div>
 </div>
 
 <?php

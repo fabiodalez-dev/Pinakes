@@ -44,12 +44,12 @@ $statusBadge = static function (string $status) use ($e, $statusLabels): string 
         'returned' => 'fa-check',
         default => 'fa-ban',
     };
-    return '<span class="bc-badge text-nowrap ' . $classes . '">'
+    return '<span class="bc-badge whitespace-nowrap ' . $classes . '">'
         . '<i class="fas ' . $icon . '"></i>' . $e($statusLabels[$status] ?? $status) . '</span>';
 };
 $formatDate = static fn(string $d): string => date('d/m/Y', (int) strtotime($d));
 $bookLine = static function (array $loan) use ($e): string {
-    $html = '<span class="fw-semibold">' . $e($loan['titolo']) . '</span>';
+    $html = '<span class="font-semibold">' . $e($loan['titolo']) . '</span>';
     if (!empty($loan['autori'])) {
         $html .= ' <span class="bc-muted">— ' . $e($loan['autori']) . '</span>';
     }
@@ -84,12 +84,12 @@ $bookLine = static function (array $loan) use ($e): string {
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none d-inline-flex align-items-center gap-2 mb-3">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e(__('Torna al club')) ?>
   </a>
 
   <div class="bc-hero">
-    <h1 class="d-flex align-items-center gap-3">
+    <h1 class="flex items-center gap-3">
       <span class="bc-chip" style="background: <?= $e($club['color']) ?>"></span>
       <span><?= $e(__('Prestito tra membri')) ?> — <?= $e($club['name']) ?></span>
     </h1>
@@ -111,11 +111,11 @@ $bookLine = static function (array $loan) use ($e): string {
     <?php if ($books === []): ?>
       <p class="bc-muted mb-0"><?= $e(__('Nessun libro nel club: aggiungi prima un libro per offrirne una copia.')) ?></p>
     <?php else: ?>
-      <form method="post" action="<?= $e($base . '/offer') ?>" class="row g-3">
+      <form method="post" action="<?= $e($base . '/offer') ?>" class="flex flex-wrap -mx-3 gap-y-3">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-        <div class="col-12">
-          <label class="form-label small fw-semibold"><?= $e(__('Libro')) ?></label>
-          <select name="club_book_id" required class="form-select">
+        <div class="w-full px-3">
+          <label class="form-label text-sm font-semibold"><?= $e(__('Libro')) ?></label>
+          <select name="club_book_id" required class="form-input">
             <?php foreach ($books as $book): ?>
               <option value="<?= (int) $book['id'] ?>">
                 <?= $e($book['titolo']) ?><?= !empty($book['autori']) ? ' — ' . $e($book['autori']) : '' ?>
@@ -123,13 +123,13 @@ $bookLine = static function (array $loan) use ($e): string {
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-12">
-          <label class="form-label small fw-semibold"><?= $e(__('Note sulla copia (facoltative)')) ?></label>
+        <div class="w-full px-3">
+          <label class="form-label text-sm font-semibold"><?= $e(__('Note sulla copia (facoltative)')) ?></label>
           <input type="text" name="notes" maxlength="500"
                  placeholder="<?= $e(__('Es. edizione tascabile, qualche sottolineatura a matita…')) ?>"
-                 class="form-control">
+                 class="form-input">
         </div>
-        <div class="col-12">
+        <div class="w-full px-3">
           <button type="submit" class="bc-btn">
             <i class="fas fa-plus"></i><?= $e(__('Offri la copia')) ?>
           </button>
@@ -153,20 +153,20 @@ $bookLine = static function (array $loan) use ($e): string {
         $isMine = (int) $offer['lender_id'] === $userId;
       ?>
       <div class="bc-list-item flex-wrap">
-        <div class="flex-grow-1">
+        <div class="grow">
           <div><?= $bookLine($offer) ?></div>
           <div class="bc-muted mt-1">
-            <i class="far fa-user me-1"></i><?= $e(sprintf(__('Offerta da %s'), $lenderName)) ?>
+            <i class="far fa-user mr-1"></i><?= $e(sprintf(__('Offerta da %s'), $lenderName)) ?>
             · <?= $e($formatDate((string) $offer['offered_at'])) ?>
           </div>
           <?php if ((string) ($offer['notes'] ?? '') !== ''): ?>
-            <p class="bc-muted mt-1 mb-0"><i class="far fa-sticky-note me-1"></i><?= $e($offer['notes']) ?></p>
+            <p class="bc-muted mt-1 mb-0"><i class="far fa-sticky-note mr-1"></i><?= $e($offer['notes']) ?></p>
           <?php endif; ?>
         </div>
         <?php if ($isMine): ?>
-          <span class="bc-muted flex-shrink-0"><?= $e(__('È una tua offerta')) ?></span>
+          <span class="bc-muted shrink-0"><?= $e(__('È una tua offerta')) ?></span>
         <?php else: ?>
-          <form method="post" action="<?= $e($base . '/' . (int) $offer['id'] . '/request') ?>" class="flex-shrink-0">
+          <form method="post" action="<?= $e($base . '/' . (int) $offer['id'] . '/request') ?>" class="shrink-0">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-sm">
               <i class="fas fa-hand-paper"></i><?= $e(__('Richiedi in prestito')) ?>
@@ -193,14 +193,14 @@ $bookLine = static function (array $loan) use ($e): string {
         $borrowerName = trim((string) ($loan['borrower_nome'] ?? '') . ' ' . (string) ($loan['borrower_cognome'] ?? ''));
       ?>
       <div class="bc-list-item flex-wrap">
-        <div class="flex-grow-1">
+        <div class="grow">
           <div><?= $bookLine($loan) ?></div>
           <div class="bc-muted mt-1">
             <?= $e($formatDate((string) $loan['offered_at'])) ?>
             <?php if ($status === 'requested' && $borrowerName !== ''): ?>
-              · <i class="far fa-user me-1"></i><?= $e(sprintf(__('Richiesta da %s'), $borrowerName)) ?>
+              · <i class="far fa-user mr-1"></i><?= $e(sprintf(__('Richiesta da %s'), $borrowerName)) ?>
             <?php elseif ($status === 'active' && $borrowerName !== ''): ?>
-              · <i class="far fa-user me-1"></i><?= $e(sprintf(__('Prestata a %s'), $borrowerName)) ?>
+              · <i class="far fa-user mr-1"></i><?= $e(sprintf(__('Prestata a %s'), $borrowerName)) ?>
               <?php if (!empty($loan['due_on'])): ?>
                 · <?= $e(sprintf(__('Da restituire entro il %s'), $formatDate((string) $loan['due_on']))) ?>
               <?php endif; ?>
@@ -209,16 +209,16 @@ $bookLine = static function (array $loan) use ($e): string {
             <?php endif; ?>
           </div>
           <?php if ((string) ($loan['notes'] ?? '') !== ''): ?>
-            <p class="bc-muted mt-1 mb-0"><i class="far fa-sticky-note me-1"></i><?= $e($loan['notes']) ?></p>
+            <p class="bc-muted mt-1 mb-0"><i class="far fa-sticky-note mr-1"></i><?= $e($loan['notes']) ?></p>
           <?php endif; ?>
 
           <?php if ($status === 'requested'): ?>
-            <div class="d-flex flex-wrap align-items-end gap-2 mt-3">
-              <form method="post" action="<?= $e($base . '/' . $lid . '/handover') ?>" class="d-flex flex-wrap align-items-end gap-2">
+            <div class="flex flex-wrap items-end gap-2 mt-3">
+              <form method="post" action="<?= $e($base . '/' . $lid . '/handover') ?>" class="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <div>
-                  <label class="form-label small fw-semibold"><?= $e(__('Data di riconsegna (facoltativa)')) ?></label>
-                  <input type="date" name="due_on" class="form-control form-control-sm">
+                  <label class="form-label text-sm font-semibold"><?= $e(__('Data di riconsegna (facoltativa)')) ?></label>
+                  <input type="date" name="due_on" class="form-input px-3 py-2 text-sm">
                 </div>
                 <button type="submit" class="bc-btn bc-btn-sm">
                   <i class="fas fa-handshake"></i><?= $e(__('Consegna la copia')) ?>
@@ -271,10 +271,10 @@ $bookLine = static function (array $loan) use ($e): string {
         $lenderName = trim((string) $loan['lender_nome'] . ' ' . (string) $loan['lender_cognome']);
       ?>
       <div class="bc-list-item flex-wrap">
-        <div class="flex-grow-1">
+        <div class="grow">
           <div><?= $bookLine($loan) ?></div>
           <div class="bc-muted mt-1">
-            <i class="far fa-user me-1"></i><?= $e(sprintf(__('Prestata da %s'), $lenderName)) ?>
+            <i class="far fa-user mr-1"></i><?= $e(sprintf(__('Prestata da %s'), $lenderName)) ?>
             <?php if ($status === 'requested'): ?>
               · <?= $e(__('In attesa della consegna')) ?>
             <?php elseif ($status === 'active' && !empty($loan['due_on'])): ?>

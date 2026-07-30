@@ -24,7 +24,7 @@ use App\Support\HtmlHelper;
                         <?= __("Lingua") ?>: <strong><?= HtmlHelper::e($language['native_name']) ?></strong> (<?= HtmlHelper::e($language['code']) ?>)
                     </p>
                 </div>
-                <a href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-secondary">
+                <a href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>" class="ui-button btn-secondary">
                     <i class="fas fa-arrow-left"></i> <?= __("Torna alle Lingue") ?>
                 </a>
             </div>
@@ -72,7 +72,7 @@ use App\Support\HtmlHelper;
                         <?= __("Route Tradotte") ?>
                         <span class="ml-2 text-sm font-normal text-gray-500">(<?= count($routes) ?>)</span>
                     </h2>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="ui-button btn-primary">
                         <i class="fas fa-save"></i> <?= __("Salva Route") ?>
                     </button>
                 </div>
@@ -126,11 +126,11 @@ use App\Support\HtmlHelper;
                         </table>
                     </div>
                 </div>
-                <div class="card-footer flex items-center justify-between">
-                    <a href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-secondary">
+                <div class="pt-4 border-t border-gray-200 flex items-center justify-between">
+                    <a href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>" class="ui-button btn-secondary">
                         <?= __("Annulla") ?>
                     </a>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="ui-button btn-primary">
                         <i class="fas fa-save"></i> <?= __("Salva Route") ?>
                     </button>
                 </div>

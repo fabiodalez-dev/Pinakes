@@ -34,6 +34,7 @@ class ThemeController
 
         $themes = $this->themeManager->getAllThemes();
         $activeTheme = $this->themeManager->getActiveTheme();
+        $activeLayoutVariant = $this->themeManager->getLayoutVariant($activeTheme);
         $pageTitle = __('Gestione Temi');
 
         // Render view
@@ -72,6 +73,7 @@ class ThemeController
         $settings = json_decode($theme['settings'], true) ?? [];
         $colors = $settings['colors'] ?? [];
         $advanced = $settings['advanced'] ?? [];
+        $layoutVariant = $this->themeManager->getLayoutVariant($theme);
         $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
 
         // Render view
@@ -133,8 +135,17 @@ class ThemeController
             }
         }
 
-        // Update theme colors
-        $success = $this->themeManager->updateThemeColors($themeId, $colors);
+        $layoutVariant = (string) ($parsedBody['layout_variant'] ?? ThemeManager::DEFAULT_LAYOUT_VARIANT);
+        if (!in_array($layoutVariant, ThemeManager::LAYOUT_VARIANTS, true)) {
+            $_SESSION['error'] = __('Stile interfaccia non valido');
+            return $response
+                ->withHeader('Location', url('/admin/themes/' . $themeId . '/customize'))
+                ->withStatus(302);
+        }
+
+        // Update theme colors only after every submitted presentation option
+        // has passed validation, avoiding partial saves on invalid requests.
+        $success = $this->themeManager->updateThemeColors($themeId, $colors, $layoutVariant);
 
         // Update advanced settings if provided
         if (isset($parsedBody['advanced'])) {
@@ -158,6 +169,31 @@ class ThemeController
 
         return $response
             ->withHeader('Location', url('/admin/themes/' . $themeId . '/customize'))
+            ->withStatus(302);
+    }
+
+    /**
+     * Save only the active theme's public layout from the themes overview.
+     */
+    public function saveLayout(Request $request, Response $response, array $args): Response
+    {
+        $themeId = (int) ($args['id'] ?? 0);
+        $theme = $this->themeManager->getThemeById($themeId);
+        $parsedBody = (array) $request->getParsedBody();
+        $layoutVariant = (string) ($parsedBody['layout_variant'] ?? '');
+
+        if (!$theme || empty($theme['active'])) {
+            $_SESSION['error'] = __('Tema non trovato');
+        } elseif (!in_array($layoutVariant, ThemeManager::LAYOUT_VARIANTS, true)) {
+            $_SESSION['error'] = __('Stile interfaccia non valido');
+        } elseif ($this->themeManager->updateLayoutVariant($themeId, $layoutVariant)) {
+            $_SESSION['success'] = __('Tema salvato con successo');
+        } else {
+            $_SESSION['error'] = __('Errore nel salvataggio del tema');
+        }
+
+        return $response
+            ->withHeader('Location', url('/admin/themes'))
             ->withStatus(302);
     }
 

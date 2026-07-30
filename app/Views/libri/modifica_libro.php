@@ -58,7 +58,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
     <div class="grid grid-cols-1 gap-4 mb-6">
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <h3 class="text-sm font-semibold text-gray-900 mb-2">
-          <i class="fas fa-image text-primary mr-2"></i>
+          <i class="fas fa-image text-gray-900 mr-2"></i>
           <?= __("Copertina Attuale") ?>
         </h3>
         <div class="flex items-center gap-3">

@@ -37,7 +37,7 @@ $countdown = static function (int $seconds): string {
 $now = time();
 ?>
 <section class="bc-card">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
     <div class="bc-section-header mb-0">
       <i class="fas fa-stopwatch"></i>
       <h2><?= $e(__('Reading Sprint')) ?></h2>
@@ -59,27 +59,27 @@ $now = time();
       $startTs = (int) strtotime((string) $next['starts_at']);
       $endTs = $startTs + (int) $next['duration_min'] * 60;
     ?>
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="overflow-hidden">
-        <div class="fw-semibold text-truncate"><?= $e($next['title']) ?></div>
-        <div class="bc-muted small mt-1">
-          <i class="far fa-clock me-1"></i><?= $e(date('d/m/Y H:i', $startTs)) ?>
+        <div class="font-semibold truncate"><?= $e($next['title']) ?></div>
+        <div class="bc-muted text-sm mt-1">
+          <i class="far fa-clock mr-1"></i><?= $e(date('d/m/Y H:i', $startTs)) ?>
           · <?= $e(sprintf(__('%d minuti'), (int) $next['duration_min'])) ?>
           <?php if (!empty($next['book_title'])): ?>
-            · <i class="fas fa-book me-1"></i><?= $e($next['book_title']) ?>
+            · <i class="fas fa-book mr-1"></i><?= $e($next['book_title']) ?>
           <?php endif; ?>
           · <?= $e(sprintf(__('%d partecipanti'), (int) $next['participant_count'])) ?>
         </div>
         <?php if ($nextStatus === 'running'): ?>
-          <p class="small text-success fw-semibold mt-1 mb-0"><i class="fas fa-book-open me-1"></i><?= $e(sprintf(__('In corso — termina tra %s'), $countdown($endTs - $now))) ?></p>
+          <p class="text-sm text-green-600 font-semibold mt-1 mb-0"><i class="fas fa-book-open mr-1"></i><?= $e(sprintf(__('In corso — termina tra %s'), $countdown($endTs - $now))) ?></p>
         <?php else: ?>
-          <p class="small fw-semibold mt-1 mb-0"><i class="fas fa-play me-1"></i><?= $e(sprintf(__('Inizia tra %s'), $countdown($startTs - $now))) ?></p>
+          <p class="text-sm font-semibold mt-1 mb-0"><i class="fas fa-play mr-1"></i><?= $e(sprintf(__('Inizia tra %s'), $countdown($startTs - $now))) ?></p>
         <?php endif; ?>
       </div>
 
       <?php if ($isMember && $nextStatus === 'scheduled'): ?>
         <?php if ($joined): ?>
-          <span class="bc-badge bc-badge-open text-nowrap">
+          <span class="bc-badge bc-badge-open whitespace-nowrap">
             <i class="fas fa-check"></i><?= $e(__('Sei iscritto')) ?>
           </span>
         <?php else: ?>

@@ -367,7 +367,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card">
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-info-circle text-primary"></i>
+            <i class="fas fa-info-circle text-gray-900"></i>
             <?= __("Dettagli Libro") ?>
           </h2>
         </div>
@@ -704,7 +704,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card">
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas <?= $isMusic ? 'fa-music' : 'fa-align-left' ?> text-primary"></i>
+            <i class="fas <?= $isMusic ? 'fa-music' : 'fa-align-left' ?> text-gray-900"></i>
             <?= \App\Support\MediaLabels::label('descrizione', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?>
           </h2>
         </div>
@@ -729,7 +729,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card">
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-sticky-note text-primary"></i>
+            <i class="fas fa-sticky-note text-gray-900"></i>
             <?= __("Note") ?>
           </h2>
         </div>
@@ -784,7 +784,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card">
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-cloud text-primary"></i>
+            <i class="fas fa-cloud text-gray-900"></i>
             <?= __("Informazioni LibraryThing") ?>
           </h2>
         </div>
@@ -846,7 +846,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <div class="card">
       <div class="card-header flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-calendar-check text-primary"></i>
+          <i class="fas fa-calendar-check text-gray-900"></i>
           <?= __("Prenotazioni attive (slot libro)") ?>
         </h2>
         <span class="text-sm text-gray-600"><?= count($activeReservations); ?> <?= __("prenotazioni") ?></span>
@@ -905,7 +905,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <div class="card">
       <div class="card-header flex items-center justify-between gap-4 flex-wrap">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-clone text-primary"></i>
+          <i class="fas fa-clone text-gray-900"></i>
           <?= __("Copie Fisiche") ?>
           <span class="ml-2 text-sm font-normal text-gray-500">
             (<?php echo count($copie); ?> <?= count($copie) > 1 ? __("copie") : __("copia") ?>)
@@ -1155,7 +1155,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <tr class="hover:bg-gray-50">
                 <td class="px-4 py-2 text-sm font-semibold text-gray-900"><?= (int) $vol['numero_volume'] ?></td>
                 <td class="px-4 py-2 text-sm">
-                  <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$vol['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-primary hover:underline">
+                  <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$vol['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:underline">
                     <?= App\Support\HtmlHelper::e($vol['titolo_volume'] ?: $vol['titolo']) ?>
                   </a>
                 </td>
@@ -1172,7 +1172,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </table>
         </div>
       </div>
-      <div class="card-footer p-3 text-center">
+      <div class="pt-4 border-t border-gray-200 p-3 text-center">
         <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
           <i class="fas fa-plus mr-1"></i> <?= __("Aggiungi volume") ?>
         </button>
@@ -1194,7 +1194,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <div class="card">
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-history text-primary"></i>
+          <i class="fas fa-history text-gray-900"></i>
           <?= __("Storico Prestiti") ?>
           <span class="ml-2 text-sm font-normal text-gray-500">(<?php echo count($loanHistory); ?> <?= __("prestiti totali") ?>)</span>
         </h2>
@@ -1348,7 +1348,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <div class="card">
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-calendar-alt text-primary"></i>
+          <i class="fas fa-calendar-alt text-gray-900"></i>
           <?= __("Calendario Disponibilità") ?>
           <span class="ml-2 text-sm font-normal text-gray-500">
             (<?= __("visualizzazione per copia") ?>)

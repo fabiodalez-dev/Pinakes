@@ -275,19 +275,19 @@ ob_start();
                     </h3>
                     <ol class="space-y-3 text-sm text-gray-700">
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">1</span>
+                            <span class="shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">1</span>
                             <span><?= __("Scarica il file CSV di esempio") ?></span>
                         </li>
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">2</span>
+                            <span class="shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">2</span>
                             <span><?= __("Compila con i dati dei tuoi libri") ?></span>
                         </li>
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">3</span>
+                            <span class="shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">3</span>
                             <span><?= __("Carica il file usando l'uploader") ?></span>
                         </li>
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">4</span>
+                            <span class="shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">4</span>
                             <span><?= __("Il sistema creerà automaticamente libri, autori ed editori") ?></span>
                         </li>
                     </ol>

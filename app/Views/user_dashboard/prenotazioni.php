@@ -7,6 +7,8 @@ use App\Support\Csrf;
 use App\Support\HtmlHelper;
 
 $csrfToken = Csrf::ensureToken();
+$catalogRoute = route_path('catalog');
+$wishlistRoute = route_path('wishlist');
 
 function reservationBookUrl(array $item): string {
     return book_url([
@@ -29,6 +31,20 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         return $cover;
     }
     return url($cover);
+}
+
+function accountLineIcon(string $name): string {
+    $paths = [
+        'clock' => '<circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5v5l3.25 2"></path>',
+        'book' => '<path d="M5 5.5c2.6-.7 4.65-.25 7 1.1v12c-2.35-1.35-4.4-1.8-7-1.1z"></path><path d="M19 5.5c-2.6-.7-4.65-.25-7 1.1v12c2.35-1.35 4.4-1.8 7-1.1z"></path>',
+        'bookmark' => '<path d="M7.5 4.5h9v15l-4.5-3-4.5 3z"></path>',
+        'history' => '<path d="M4.5 8.5V4.75M4.5 4.75h3.75"></path><path d="M5.25 5.5A8.5 8.5 0 1 1 3.8 14"></path><path d="M12 7.5v5l3 1.75"></path>',
+        'star' => '<path d="m12 3.75 2.45 4.95 5.46.8-3.95 3.84.93 5.43L12 16.2l-4.89 2.57.93-5.43L4.1 9.5l5.45-.8z"></path>',
+        'calendar-x' => '<rect x="4.5" y="6" width="15" height="13" rx="2"></rect><path d="M8 3.75V7m8-3.25V7M4.5 10h15m-9 3 3.5 3.5m0-3.5-3.5 3.5"></path>',
+    ];
+    $content = $paths[$name] ?? $paths['book'];
+
+    return '<svg class="account-line-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' . $content . '</svg>';
 }
 ?>
 
@@ -165,7 +181,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
     flex-wrap: wrap;
   }
 
-  .badge {
+  .status-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -468,7 +484,20 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
   }
 </style>
 
+<link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('account-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= (int)(@filemtime(dirname(__DIR__, 3) . '/public/assets/account-pages.css') ?: 1) ?>">
+
 <div class="loans-container">
+  <header class="account-page-heading">
+    <div>
+      <p class="account-page-heading__eyebrow"><?= __('Area personale') ?></p>
+      <h1><?= __('Prestiti e prenotazioni') ?></h1>
+      <p class="account-page-heading__subtitle"><?= __('Controlla scadenze, richieste e storico dei libri associati al tuo account.') ?></p>
+    </div>
+    <nav class="account-page-heading__actions" aria-label="<?= __('Collegamenti area personale') ?>">
+      <a class="account-page-link" href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Esplora catalogo') ?></a>
+      <a class="account-page-link" href="<?= htmlspecialchars($wishlistRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Preferiti') ?></a>
+    </nav>
+  </header>
   <?php
     // Esito delle azioni POST (M13): cancelLoan/cancelReservation/
     // changeReservationDate redirigono qui con l'esito in query string;
@@ -533,7 +562,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
   <?php if (!empty($pendingRequests)): ?>
     <div class="section-header">
       <div class="section-icon" style="background: #fbbf24;">
-        <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+        <?= accountLineIcon('clock') ?>
       </div>
       <div class="section-title">
         <h2><?= __("Richieste in sospeso") ?></h2>
@@ -555,17 +584,17 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($request['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="badge" style="background: #fef3c7; color: #78350f; border: 1px solid #fcd34d;">
+                <div class="status-badge" style="background: #fef3c7; color: #78350f; border: 1px solid #fcd34d;">
                   <i class="fas fa-clock" aria-hidden="true" style="color: #f59e0b;"></i>
                   <span><?= __("In attesa di approvazione") ?></span>
                 </div>
                 <?php if ($loanStart && $loanEnd): ?>
-                  <div class="badge badge-date">
+                  <div class="status-badge badge-date">
                     <i class="fas fa-calendar-plus" aria-hidden="true"></i>
                     <span><?= __("Dal %s al %s", format_date($loanStart, false, '/'), format_date($loanEnd, false, '/')) ?></span>
                   </div>
                 <?php endif; ?>
-                <div class="badge badge-date" style="font-size: 0.75rem; color: #6b7280;">
+                <div class="status-badge badge-date" style="font-size: 0.75rem; color: #6b7280;">
                   <i class="fas fa-history" aria-hidden="true"></i>
                   <span><?= __("Richiesto il %s", format_date($request['created_at'] ?? 'now', true, '/')) ?></span>
                 </div>
@@ -591,7 +620,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
   <div class="section-header">
     <div class="section-icon">
-      <i class="fas fa-book-reader" aria-hidden="true"></i>
+      <?= accountLineIcon('book') ?>
     </div>
     <div class="section-title">
       <h2><?= __("Prestiti attivi") ?></h2>
@@ -601,7 +630,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
   <?php if (empty($activePrestiti)): ?>
     <div class="empty-state">
-      <i class="fas fa-book-open empty-state-icon" aria-hidden="true"></i>
+      <span class="empty-state-icon"><?= accountLineIcon('book') ?></span>
       <h3><?= __("Nessun prestito attivo") ?></h3>
       <p><?= __("Non hai libri in prestito al momento") ?></p>
     </div>
@@ -629,18 +658,18 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
                     'prenotato' => ['icon' => 'fa-bookmark', 'label' => __('Prenotato'), 'style' => 'background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd;'],
                 ];
                 if (isset($statoBadges[$stato])): ?>
-                  <div class="badge" style="<?= $statoBadges[$stato]['style'] ?>">
+                  <div class="status-badge" style="<?= $statoBadges[$stato]['style'] ?>">
                     <i class="fas <?= $statoBadges[$stato]['icon'] ?>" aria-hidden="true"></i>
                     <span><?= $statoBadges[$stato]['label'] ?></span>
                   </div>
                 <?php else: ?>
-                  <div class="badge <?= $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
+                  <div class="status-badge <?= $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
                     <i class="fas fa-calendar" aria-hidden="true"></i>
                     <span><?= $isOverdue ? __('In ritardo') : __('Scadenza'); ?>: <?= $scadenza ? format_date($scadenza, false, '/') : __('N/D'); ?></span>
                   </div>
                 <?php endif; ?>
                 <?php if ($startDate): ?>
-                  <div class="badge badge-date">
+                  <div class="status-badge badge-date">
                     <i class="fas fa-clock" aria-hidden="true"></i>
                     <span><?= __('Dal') ?> <?= format_date($startDate, false, '/'); ?></span>
                   </div>
@@ -675,7 +704,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
   <div class="section-header">
     <div class="section-icon">
-      <i class="fas fa-bookmark" aria-hidden="true"></i>
+      <?= accountLineIcon('bookmark') ?>
     </div>
     <div class="section-title">
       <h2><?= __("Prenotazioni attive") ?></h2>
@@ -685,7 +714,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
   <?php if (empty($items)): ?>
     <div class="empty-state">
-      <i class="fas fa-calendar-times empty-state-icon" aria-hidden="true"></i>
+      <span class="empty-state-icon"><?= accountLineIcon('calendar-x') ?></span>
       <h3><?= __("Nessuna prenotazione") ?></h3>
       <p><?= __("Non hai prenotazioni attive al momento") ?></p>
     </div>
@@ -703,11 +732,11 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($reservation['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="badge badge-position">
+                <div class="status-badge badge-position">
                   <i class="fas fa-sort-numeric-up" aria-hidden="true"></i>
                   <span><?= __("Posizione: %d", (int)($reservation['queue_position'] ?? 0)) ?></span>
                 </div>
-                <div class="badge badge-date">
+                <div class="status-badge badge-date">
                   <i class="fas fa-calendar" aria-hidden="true"></i>
                   <span><?= $deadline ? format_date($deadline, false, '/') : __('Non specificata') ?></span>
                 </div>
@@ -733,7 +762,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
   <div class="section-header">
     <div class="section-icon">
-      <i class="fas fa-history" aria-hidden="true"></i>
+      <?= accountLineIcon('history') ?>
     </div>
     <div class="section-title">
       <h2><?= __("Prestiti passati") ?></h2>
@@ -743,7 +772,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
   <?php if (empty($pastPrestiti)): ?>
     <div class="empty-state">
-      <i class="fas fa-archive empty-state-icon" aria-hidden="true"></i>
+      <span class="empty-state-icon"><?= accountLineIcon('history') ?></span>
       <h3><?= __("Nessun prestito passato") ?></h3>
       <p><?= __("Non hai prestiti passati") ?></p>
     </div>
@@ -771,12 +800,12 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="badge badge-status">
+                <div class="status-badge badge-status">
                   <i class="fas fa-check-circle" aria-hidden="true"></i>
                   <span><?= HtmlHelper::e($statusLabel); ?></span>
                 </div>
                 <?php if ($returnDate): ?>
-                  <div class="badge badge-date">
+                  <div class="status-badge badge-date">
                     <i class="fas fa-calendar" aria-hidden="true"></i>
                     <span><?= format_date($returnDate, false, '/'); ?></span>
                   </div>
@@ -797,7 +826,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
   <div class="section-header">
     <div class="section-icon" style="background: #fbbf24;">
-      <i class="fas fa-star" aria-hidden="true"></i>
+      <?= accountLineIcon('star') ?>
     </div>
     <div class="section-title">
       <h2><?= __("Le tue recensioni") ?></h2>
@@ -807,7 +836,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
   <?php if (empty($myReviews)): ?>
     <div class="empty-state">
-      <i class="fas fa-star empty-state-icon" aria-hidden="true"></i>
+      <span class="empty-state-icon"><?= accountLineIcon('star') ?></span>
       <h3><?= __("Nessuna recensione") ?></h3>
       <p><?= __("Non hai ancora lasciato recensioni") ?></p>
     </div>
@@ -837,11 +866,11 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($review['libro_titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="badge" style="<?= $statusColor; ?>">
+                <div class="status-badge" style="<?= $statusColor; ?>">
                   <i class="fas fa-info-circle" aria-hidden="true"></i>
                   <span><?= HtmlHelper::e($statusLabel); ?></span>
                 </div>
-                <div class="badge badge-date">
+                <div class="status-badge badge-date">
                   <i class="fas fa-calendar" aria-hidden="true"></i>
                   <span><?= format_date($review['created_at'] ?? '', false, '/'); ?></span>
                 </div>

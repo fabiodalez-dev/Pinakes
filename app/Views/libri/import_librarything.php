@@ -299,19 +299,19 @@ $csrfToken = Csrf::ensureToken();
                     </h3>
                     <ol class="space-y-3 text-sm text-gray-700">
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">1</span>
+                            <span class="shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">1</span>
                             <span><?= __("Vai su <strong>LibraryThing.com</strong> → Your Library") ?></span>
                         </li>
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">2</span>
+                            <span class="shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">2</span>
                             <span><?= __("Clicca su <strong>More</strong> → <strong>Export your library</strong>") ?></span>
                         </li>
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">3</span>
+                            <span class="shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">3</span>
                             <span><?= __("Seleziona <strong>Tab-delimited text</strong> come formato") ?></span>
                         </li>
                         <li class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">4</span>
+                            <span class="shrink-0 w-6 h-6 bg-gray-800 text-white rounded-full flex items-center justify-center text-xs mr-3">4</span>
                             <span><?= __("Scarica il file .tsv e caricalo qui sopra") ?></span>
                         </li>
                     </ol>

@@ -265,7 +265,7 @@ span.flatpickr-weeknumber {
 
 /* Fix input alignment in SweetAlert2 modals */
 .swal2-input.flatpickr-input,
-.form-control.flatpickr-input {
+.form-input.flatpickr-input {
   margin: 0.5em auto !important;
   padding: 0.625em !important;
   text-align: left !important;

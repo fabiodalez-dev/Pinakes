@@ -15,7 +15,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 $slug = (string) $club['slug'];
 ?>
 <section class="bc-card">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
     <div class="bc-section-header mb-0">
       <i class="fas fa-comments"></i>
       <h2><?= $e(__('Discussioni')) ?></h2>
@@ -31,18 +31,18 @@ $slug = (string) $club['slug'];
 
   <div>
     <?php foreach ($threads as $thread): ?>
-      <div class="bc-list-item align-items-center">
-        <div class="d-flex align-items-center gap-2 overflow-hidden">
+      <div class="bc-list-item items-center">
+        <div class="flex items-center gap-2 overflow-hidden">
           <?php if ((int) $thread['is_pinned'] === 1): ?>
-            <i class="fas fa-thumbtack text-warning small" title="<?= $e(__('In evidenza')) ?>"></i>
+            <i class="fas fa-thumbtack text-amber-600 text-sm" title="<?= $e(__('In evidenza')) ?>"></i>
           <?php endif; ?>
           <?php if ((int) $thread['is_locked'] === 1): ?>
-            <i class="fas fa-lock text-muted small" title="<?= $e(__('Bloccata')) ?>"></i>
+            <i class="fas fa-lock text-gray-500 text-sm" title="<?= $e(__('Bloccata')) ?>"></i>
           <?php endif; ?>
-          <a class="fw-semibold text-truncate"
+          <a class="font-semibold truncate"
              href="<?= $e(url('/book-club/' . $slug . '/discussions/' . (int) $thread['id'])) ?>"><?= $e($thread['title']) ?></a>
         </div>
-        <div class="bc-muted small text-nowrap ms-3">
+        <div class="bc-muted text-sm whitespace-nowrap ml-3">
           <?= (int) $thread['post_count'] ?> <?= $e(__n('messaggio', 'messaggi', (int) $thread['post_count'])) ?>
           · <?= $e(date('d/m/Y', (int) strtotime((string) $thread['last_activity']))) ?>
         </div>
@@ -51,12 +51,12 @@ $slug = (string) $club['slug'];
   </div>
 
   <?php if ($isMember || $canManage): ?>
-    <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/new')) ?>" class="d-flex align-items-center gap-2 mt-4 pt-4 border-top">
+    <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/new')) ?>" class="flex items-center gap-2 mt-4 pt-4 border-t">
       <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
       <input type="hidden" name="kind" value="free">
       <input type="text" name="title" required maxlength="190"
              placeholder="<?= $e(__('Apri una nuova discussione…')) ?>"
-             class="form-control flex-grow-1">
+             class="form-input grow">
       <button type="submit" class="bc-btn"><?= $e(__('Apri')) ?></button>
     </form>
   <?php endif; ?>

@@ -394,11 +394,17 @@ form.hero-search-form {
         color: var(--text-muted);
     }
 
-    .loading-placeholder .spinner-border {
+    .loading-placeholder .loading-ring {
         width: 3rem;
         height: 3rem;
-        border-width: 3px;
+        border: 3px solid color-mix(in srgb, var(--primary-color) 20%, transparent);
+        border-top-color: var(--primary-color);
+        border-radius: 9999px;
+        margin-inline: auto;
+        animation: loadingRingSpin 0.75s linear infinite;
     }
+
+    @keyframes loadingRingSpin { to { transform: rotate(360deg); } }
 
     /* Responsive adjustments */
     /* Tablet: 2 columns */
@@ -966,7 +972,7 @@ function loadLatestBooks(page = 1) {
     if (!grid) return;
 
     if (page === 1) {
-        grid.innerHTML = '<div class=\"loading-placeholder\"><div class=\"spinner-border text-primary\" role=\"status\"><span class=\"visually-hidden\">' + i18n.loading + '</span></div><p class=\"mt-3\">' + i18n.loadingBooks + '</p></div>';
+        grid.innerHTML = '<div class=\"loading-placeholder\"><div class=\"loading-ring\" role=\"status\"><span class=\"sr-only\">' + i18n.loading + '</span></div><p class=\"mt-3\">' + i18n.loadingBooks + '</p></div>';
     }
 
     fetch((window.BASE_PATH || '') + '/api/home/latest?page=' + page)
@@ -992,7 +998,7 @@ function loadLatestBooks(page = 1) {
         })
         .catch(error => {
             console.error('Error loading latest books:', error);
-            grid.innerHTML = '<div class=\"col-12 text-center py-4\"><div class=\"alert alert-danger\">' + i18n.errorLoadingBooks + '</div></div>';
+            grid.innerHTML = '<div class=\"w-full py-4 text-center\"><div class=\"rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800\">' + i18n.errorLoadingBooks + '</div></div>';
         });
 }
 

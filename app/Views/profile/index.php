@@ -109,7 +109,7 @@
     margin-bottom: 0.5rem;
   }
 
-  .form-input, .form-select {
+  .form-input, .form-input {
     width: 100%;
     padding: 0.625rem 0.875rem;
     border: 1px solid #d1d5db;
@@ -118,7 +118,7 @@
     transition: all 0.2s ease;
   }
 
-  .form-input:focus, .form-select:focus {
+  .form-input:focus, .form-input:focus {
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
@@ -143,7 +143,7 @@
     margin-top: 1.5rem;
   }
 
-  .btn {
+  .ui-button {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -164,7 +164,7 @@
     background: #111827;
   }
 
-  .badge {
+  .status-badge {
     display: inline-flex;
     align-items: center;
     padding: 0.25rem 0.75rem;
@@ -376,7 +376,7 @@
             if ($stato === 'sospeso') $badgeClass = 'badge-suspended';
             if ($stato === 'scaduto') $badgeClass = 'badge-expired';
           ?>
-          <span class="badge <?php echo $badgeClass; ?>"><?php echo ucfirst($stato); ?></span>
+          <span class="status-badge <?php echo $badgeClass; ?>"><?php echo ucfirst($stato); ?></span>
         </dd>
       </div>
       <div class="info-item">
@@ -435,7 +435,7 @@
         </div>
         <div class="form-group">
           <label for="sesso" class="form-label"><?= __("Sesso") ?></label>
-          <select id="sesso" name="sesso" class="form-select">
+          <select id="sesso" name="sesso" class="form-input">
             <option value=""><?= __("Non specificato") ?></option>
             <option value="M" <?php echo ($user['sesso'] ?? '') === 'M' ? 'selected' : ''; ?>><?= __("Maschio") ?></option>
             <option value="F" <?php echo ($user['sesso'] ?? '') === 'F' ? 'selected' : ''; ?>><?= __("Femmina") ?></option>
@@ -490,7 +490,7 @@
       <div class="form-grid">
         <div class="form-group">
           <label for="locale" class="form-label"><?= __("Lingua") ?></label>
-          <select id="locale" name="locale" class="form-select">
+          <select id="locale" name="locale" class="form-input">
             <option value="" <?= $userLocale === '' ? 'selected' : '' ?>><?= __("Predefinita del sito") ?></option>
             <?php foreach ($availableLocales as $code => $name): ?>
               <option value="<?= htmlspecialchars($code, ENT_QUOTES, 'UTF-8') ?>"
@@ -504,7 +504,7 @@
       <?php endif; ?>
 
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="ui-button btn-primary">
           <i class="fas fa-save"></i>
           <?= __("Salva modifiche") ?>
         </button>
@@ -543,7 +543,7 @@
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="ui-button btn-primary">
           <i class="fas fa-key"></i>
           <?= __("Aggiorna password") ?>
         </button>
@@ -615,7 +615,7 @@
         let html = '<div class="sessions-header">';
         html += '<span style="font-size: 0.875rem; color: #6b7280;">' + data.sessions.length + ' ' + translations.activeSessions + '</span>';
         if (data.sessions.length > 1) {
-          html += '<button type="button" class="btn btn-danger btn-secondary" onclick="revokeAllSessions()">';
+          html += '<button type="button" class="ui-button btn-danger btn-secondary" onclick="revokeAllSessions()">';
           html += '<i class="fas fa-sign-out-alt"></i> ' + translations.revokeAll + '</button>';
         }
         html += '</div>';
@@ -629,13 +629,13 @@
             div.textContent = str || '';
             return div.innerHTML;
           };
-          html += '<div class="session-item' + (isCurrent ? ' current' : '') + '">';
+          html += '<div class="session-item' + (isCurrent ? ' current' : '')">';
           html += '<div class="session-info">';
           html += '<span class="session-device">';
           // Check for mobile OS (Android/iOS) since parseDeviceInfo returns "Browser / OS" format
           const deviceInfo = session.device_info || '';
           const isMobile = deviceInfo.includes('Android') || deviceInfo.includes('iOS');
-          html += '<i class="fas fa-' + (isMobile ? 'mobile-alt' : 'desktop') + '"></i> ';
+          html += '<i class="fas fa-' + (isMobile ? 'mobile-alt' : 'desktop') '"></i> ';
           html += escapeHtml(session.device_info || translations.unknown);
           if (isCurrent) {
             html += '<span class="session-badge">' + translations.currentSession + '</span>';

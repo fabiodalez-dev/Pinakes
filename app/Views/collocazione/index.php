@@ -95,15 +95,15 @@
             </h3>
             <ol class="space-y-2 text-sm text-gray-700">
               <li class="flex items-start">
-                <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold mr-2">1</span>
+                <span class="shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold mr-2">1</span>
                 <span><?= __("Crea gli scaffali (es: A, B, C)") ?></span>
               </li>
               <li class="flex items-start">
-                <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold mr-2">2</span>
+                <span class="shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold mr-2">2</span>
                 <span><?= __("Aggiungi le mensole (livelli) a ogni scaffale") ?></span>
               </li>
               <li class="flex items-start">
-                <span class="flex-shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold mr-2">3</span>
+                <span class="shrink-0 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-semibold mr-2">3</span>
                 <span><?= __("La posizione viene assegnata automaticamente") ?></span>
               </li>
             </ol>

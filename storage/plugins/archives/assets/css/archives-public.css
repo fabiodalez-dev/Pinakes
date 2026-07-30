@@ -24,8 +24,8 @@
     --archives-border-light:   var(--border-light,    var(--border-color,  #f1f5f9));
 }
 
-/* Remove ambient shadows inherited from the global theme / Bootstrap
-   card rules (e.g. `box-shadow: 0 4px 16px rgba(0,0,0,.07)` bundled
+/* Remove ambient shadows inherited from the global theme's card rules
+   (e.g. `box-shadow: 0 4px 16px rgba(0,0,0,.07)` bundled
    with the public shell). Archive pages stay flat by design. */
 .archive-hero .card,
 .archive-body .card,
@@ -43,14 +43,14 @@
     border-radius: .5rem;
     padding: 1rem 1.25rem;
 }
-.archive-search-form .form-control,
-.archive-search-form .form-select {
+.archive-search-form .form-input,
+.archive-search-form .form-input {
     border-color: var(--archives-border-color);
     background-color: var(--archives-bg-primary);
     color: var(--archives-text-primary);
 }
-.archive-search-form .form-control:focus,
-.archive-search-form .form-select:focus {
+.archive-search-form .form-input:focus,
+.archive-search-form .form-input:focus {
     border-color: var(--archives-color-primary);
     box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--archives-color-primary) 25%, transparent);
 }
@@ -63,7 +63,7 @@
     background-color: var(--archives-color-primary);
     border-color: var(--archives-color-primary);
 }
-.archive-search-form .btn-outline-secondary {
+.archive-search-form .btn-outline {
     color: var(--archives-text-secondary);
     border-color: var(--archives-border-color);
 }
@@ -393,7 +393,7 @@
     .archive-actions {
         flex-direction: column;
     }
-    .archive-actions .btn {
+    .archive-actions .ui-button {
         width: 100%;
     }
 }

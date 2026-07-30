@@ -194,7 +194,7 @@ $title = __("Storico Import");
                     </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full <?= $status['bg'] ?> <?= $status['text'] ?>">
+                    <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full <?= $status['bg'] ?> $status['text']">
                       <i class="fas <?= $status['icon'] ?> mr-1"></i>
                       <?= __(ucfirst($import['status'])) ?>
                     </span>

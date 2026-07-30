@@ -7,8 +7,8 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
 ?>
 <style>
 /* Fix Flatpickr input heights for events form */
-#event_date + input.form-control,
-#event_time + input.form-control,
+#event_date + input.form-input,
+#event_time + input.form-input,
 .flatpickr-date + input,
 .flatpickr-time + input {
   height: 46px !important;

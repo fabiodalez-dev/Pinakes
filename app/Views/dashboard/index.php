@@ -219,7 +219,7 @@ $applicationToday = \App\Support\DateHelper::today();
             <div class="flex flex-col <?= $cardBg ?> border rounded-xl overflow-hidden hover:shadow-md transition-shadow" data-pickup-card>
               <div class="p-5">
                 <div class="flex gap-4">
-                  <div class="flex-shrink-0">
+                  <div class="shrink-0">
                     <?php $cover = !empty($loan['copertina_url']) ? url($loan['copertina_url']) : url('/uploads/copertine/placeholder.jpg'); ?>
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
@@ -311,7 +311,7 @@ $applicationToday = \App\Support\DateHelper::today();
             <div class="flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow" data-loan-card>
               <div class="p-5">
                 <div class="flex gap-4">
-                  <div class="flex-shrink-0">
+                  <div class="shrink-0">
                     <?php $cover = !empty($loan['copertina_url']) ? url($loan['copertina_url']) : url('/uploads/copertine/placeholder.jpg'); ?>
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
@@ -409,7 +409,7 @@ $applicationToday = \App\Support\DateHelper::today();
             <div class="flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
               <div class="p-5">
                 <div class="flex gap-4">
-                  <div class="flex-shrink-0">
+                  <div class="shrink-0">
                     <?php $cover = !empty($loan['copertina_url']) ? url($loan['copertina_url']) : url('/uploads/copertine/placeholder.jpg'); ?>
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
@@ -489,7 +489,7 @@ $applicationToday = \App\Support\DateHelper::today();
             <div class="flex flex-col bg-red-50 border border-red-200 rounded-xl overflow-hidden">
               <div class="p-5">
                 <div class="flex items-start gap-4">
-                  <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center shrink-0">
                     <i class="fas fa-book text-red-600"></i>
                   </div>
                   <div class="flex-1 min-w-0">
@@ -547,7 +547,7 @@ $applicationToday = \App\Support\DateHelper::today();
             <div class="flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
               <div class="p-5">
                 <div class="flex gap-4">
-                  <div class="flex-shrink-0">
+                  <div class="shrink-0">
                     <?php $cover = !empty($res['copertina_url']) ? url($res['copertina_url']) : url('/uploads/copertine/placeholder.jpg'); ?>
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($res['titolo'] ?? 'Copertina libro'); ?>"

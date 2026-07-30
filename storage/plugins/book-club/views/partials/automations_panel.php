@@ -39,45 +39,45 @@ $channelLabels = [
 
   <form method="post" action="<?= $e(url('/book-club/' . $slug . '/automations')) ?>">
     <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-    <div class="d-flex flex-column gap-3">
+    <div class="flex flex-col gap-3">
       <?php foreach ($rows as $trigger => $meta): ?>
         <?php
           $auto = $automations[$trigger] ?? ['channel' => 'email', 'offset_hours' => 24, 'is_active' => 0];
           $offset = max(1, min(168, (int) ($auto['offset_hours'] ?? 24)));
         ?>
-        <div class="border rounded-3 px-3 py-3">
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <label class="d-flex align-items-center gap-2 fw-semibold mb-0" style="cursor: pointer">
-              <input type="checkbox" name="active[<?= $e($trigger) ?>]" value="1" class="form-check-input mt-0"
+        <div class="border rounded-md px-3 py-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <label class="flex items-center gap-2 font-semibold mb-0" style="cursor: pointer">
+              <input type="checkbox" name="active[<?= $e($trigger) ?>]" value="1" class="h-4 w-4 rounded border-gray-300 mt-0"
                      <?= (int) ($auto['is_active'] ?? 0) === 1 ? 'checked' : '' ?>>
-              <i class="fas <?= $e($meta['icon']) ?> text-muted"></i><?= $e($meta['label']) ?>
+              <i class="fas <?= $e($meta['icon']) ?> text-gray-500"></i><?= $e($meta['label']) ?>
             </label>
-            <div class="d-flex align-items-center gap-2">
-              <label class="form-label bc-muted small mb-0"><?= $e(__('Anticipo (ore)')) ?></label>
+            <div class="flex items-center gap-2">
+              <label class="form-label bc-muted text-sm mb-0"><?= $e(__('Anticipo (ore)')) ?></label>
               <input type="number" name="offset[<?= $e($trigger) ?>]" min="1" max="168" value="<?= $offset ?>"
-                     class="form-control form-control-sm" style="width: 5.5rem">
-              <select name="channel[<?= $e($trigger) ?>]" class="form-select form-select-sm w-auto">
+                     class="form-input px-3 py-2 text-sm" style="width: 5.5rem">
+              <select name="channel[<?= $e($trigger) ?>]" class="form-input px-3 py-2 text-sm w-auto">
                 <?php foreach ($channelLabels as $value => $label): ?>
                   <option value="<?= $e($value) ?>" <?= ($auto['channel'] ?? 'email') === $value ? 'selected' : '' ?>><?= $e($label) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
           </div>
-          <p class="bc-muted small mt-1 mb-0"><?= $e($meta['help']) ?></p>
+          <p class="bc-muted text-sm mt-1 mb-0"><?= $e($meta['help']) ?></p>
         </div>
       <?php endforeach; ?>
 
       <!-- Informational: handled by the plugin core, not editable -->
-      <div class="border rounded-3 px-3 py-3 bg-light">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-          <span class="d-flex align-items-center gap-2 fw-semibold text-muted">
+      <div class="border rounded-md px-3 py-3 bg-gray-100">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <span class="flex items-center gap-2 font-semibold text-gray-500">
             <i class="fas fa-calendar-check"></i><?= $e(__('Promemoria incontro')) ?>
           </span>
-          <span class="bc-muted small">
-            <i class="fas fa-lock me-1"></i><?= $e(__('24 ore prima · email · gestito dal sistema')) ?>
+          <span class="bc-muted text-sm">
+            <i class="fas fa-lock mr-1"></i><?= $e(__('24 ore prima · email · gestito dal sistema')) ?>
           </span>
         </div>
-        <p class="bc-muted small mt-1 mb-0"><?= $e(__('Il promemoria degli incontri è sempre attivo e viene inviato dal nucleo del plugin.')) ?></p>
+        <p class="bc-muted text-sm mt-1 mb-0"><?= $e(__('Il promemoria degli incontri è sempre attivo e viene inviato dal nucleo del plugin.')) ?></p>
       </div>
     </div>
 

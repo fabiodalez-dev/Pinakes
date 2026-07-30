@@ -56,7 +56,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
                    onchange="document.getElementById('file_url').value = this.value">
             <button type="button"
                     id="upload-ebook-btn"
-                    class="btn btn-primary flex items-center justify-center gap-2 w-full md:w-auto">
+                    class="ui-button btn-primary flex items-center justify-center gap-2 w-full md:w-auto">
                 <i class="fas fa-upload"></i>
                 <?= __("Carica") ?>
             </button>
@@ -106,7 +106,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
                    onchange="document.getElementById('audio_url').value = this.value">
             <button type="button"
                     id="upload-audio-btn"
-                    class="btn btn-primary flex items-center justify-center gap-2 w-full md:w-auto">
+                    class="ui-button btn-primary flex items-center justify-center gap-2 w-full md:w-auto">
                 <i class="fas fa-upload"></i>
                 <?= __("Carica") ?>
             </button>

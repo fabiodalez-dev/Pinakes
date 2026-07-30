@@ -38,34 +38,27 @@
    Action Buttons - Digital Content
    ========================================================================== */
 
-.action-buttons .btn-outline-danger {
-    color: #dc2626;
-    border-color: #dc2626;
-    background: transparent;
-    transition: all 0.3s ease;
+.action-buttons .plugin-book-action {
+    color: var(--text-color, #1e293b);
+    border-color: color-mix(in srgb, var(--text-color, #1e293b) 22%, transparent);
+    background: color-mix(in srgb, var(--light-bg, #f8fafc) 72%, transparent);
+    box-shadow: none;
 }
 
-.action-buttons .btn-outline-danger:hover {
-    background: #dc2626;
-    border-color: #dc2626;
-    color: #ffffff;
-    transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+.action-buttons .plugin-book-action:hover,
+.action-buttons .plugin-book-action:focus-visible {
+    color: var(--button-text-color, #fff);
+    border-color: var(--button-color, #1e293b);
+    background: var(--button-color, #1e293b);
+    box-shadow: none;
 }
 
-.action-buttons .btn-outline-dark {
-    color: #1e293b;
-    border-color: #1e293b;
-    background: transparent;
-    transition: all 0.3s ease;
-}
-
-.action-buttons .btn-outline-dark:hover {
-    background: #1e293b;
-    border-color: #1e293b;
-    color: #ffffff;
-    transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(30, 41, 59, 0.3);
+.plugin-player-action {
+    min-height: 40px;
+    padding: .55rem .8rem;
+    border-radius: 10px;
+    font-size: .8rem;
+    box-shadow: none;
 }
 
 /* ==========================================================================
@@ -245,10 +238,8 @@
    ========================================================================== */
 
 @media (max-width: 768px) {
-    .action-buttons .btn-outline-danger,
-    .action-buttons .btn-outline-dark {
+    .action-buttons .plugin-book-action {
         min-width: 100%;
-        margin-bottom: 0.5rem;
     }
 
     #audiobook-player-container .card-body {
@@ -315,7 +306,7 @@
         transition-duration: 0.01ms !important;
     }
 
-    .action-buttons .btn:hover {
+    .action-buttons .ui-button:hover {
         transform: none;
     }
 

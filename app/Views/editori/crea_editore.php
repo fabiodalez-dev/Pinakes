@@ -40,7 +40,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-building text-primary"></i>
+            <i class="fas fa-building text-gray-900"></i>
             <?= __("Informazioni Base") ?>
           </h2>
         </div>
@@ -81,7 +81,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="form-section-title flex items-center gap-2">
-            <i class="fas fa-user-tie text-primary"></i>
+            <i class="fas fa-user-tie text-gray-900"></i>
             <?= __("Referente") ?>
           </h2>
         </div>

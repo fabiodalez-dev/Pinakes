@@ -14,7 +14,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 $slug = (string) $club['slug'];
 ?>
 <section class="bc-card">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
     <div class="bc-section-header mb-0">
       <i class="fas fa-quote-left"></i>
       <h2><?= $e(__('Citazioni recenti')) ?></h2>
@@ -32,16 +32,16 @@ $slug = (string) $club['slug'];
     <?php foreach ($quotes as $quote): ?>
       <?php $memberName = trim((string) $quote['member_nome'] . ' ' . (string) $quote['member_cognome']); ?>
       <div class="bc-list-item">
-        <div class="flex-grow-1 overflow-hidden">
-          <blockquote class="fst-italic ps-3 border-start border-3 mb-1" style="border-color: <?= $e($club['color']) ?> !important">
+        <div class="grow overflow-hidden">
+          <blockquote class="mb-1 border-l border-[3px] pl-3 italic" style="border-color: <?= $e($club['color']) ?> !important">
             “<?= $e(mb_strlen((string) $quote['quote']) > 220 ? mb_substr((string) $quote['quote'], 0, 220) . '…' : (string) $quote['quote']) ?>”
           </blockquote>
-          <div class="bc-muted small mt-1">
-            <span class="fw-semibold"><?= $e($quote['titolo']) ?></span>
+          <div class="bc-muted text-sm mt-1">
+            <span class="font-semibold"><?= $e($quote['titolo']) ?></span>
             <?php if ($quote['page'] !== null): ?>
               · <?= $e(sprintf(__('pag. %d'), (int) $quote['page'])) ?>
             <?php endif; ?>
-            · <i class="far fa-user me-1"></i><?= $e($memberName) ?>
+            · <i class="far fa-user mr-1"></i><?= $e($memberName) ?>
           </div>
         </div>
       </div>

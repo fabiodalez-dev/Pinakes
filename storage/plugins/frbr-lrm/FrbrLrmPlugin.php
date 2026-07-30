@@ -493,6 +493,7 @@ class FrbrLrmPlugin
         // Wrap in the frontend layout for consistent public chrome.
         $layout = __DIR__ . '/../../../app/Views/frontend/layout.php';
         if (is_file($layout)) {
+            $db = $this->db;
             ob_start();
             require $layout;
             $html = (string) ob_get_clean();

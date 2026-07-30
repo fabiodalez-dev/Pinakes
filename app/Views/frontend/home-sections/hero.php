@@ -5,6 +5,12 @@
  */
 $heroData = $section ?? [];
 $catalogRoute = $catalogRoute ?? route_path('catalog');
+$heroButtonText = trim((string)($heroData['button_text'] ?? ''));
+$heroButtonText = $heroButtonText !== '' ? $heroButtonText : __('Sfoglia Catalogo');
+$heroButtonPath = trim((string)($heroData['button_link'] ?? ''));
+$heroButtonLink = $heroButtonPath !== '' ? url($heroButtonPath) : $catalogRoute;
+$latestBooksText = trim((string)($homeContent['latest_books_title']['title'] ?? ''));
+$latestBooksText = $latestBooksText !== '' ? $latestBooksText : __('Ultimi Arrivi');
 ?>
 
 <!-- Hero Section -->
@@ -40,27 +46,27 @@ $heroBgUrl = $heroBgImage !== '' ? url($heroBgImage) : assetUrl('books.jpg');
                 <div class="hero-quick-links">
                     <a href="#latest-books" class="hero-quick-link">
                         <i class="fas fa-book"></i>
-                        <?= __("Ultimi Arrivi") ?>
+                        <?= htmlspecialchars($latestBooksText, ENT_QUOTES, 'UTF-8') ?>
                     </a>
-                    <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="hero-quick-link">
+                    <a href="<?= htmlspecialchars($heroButtonLink, ENT_QUOTES, 'UTF-8') ?>" class="hero-quick-link">
                         <i class="fas fa-list"></i>
-                        <?= __("Sfoglia Catalogo") ?>
+                        <?= htmlspecialchars($heroButtonText, ENT_QUOTES, 'UTF-8') ?>
                     </a>
                 </div>
             </div>
             <div class="hero-stats">
                 <div class="hero-stat">
                     <span class="hero-stat-number" id="total-books">
-                        <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
-                            <span class="visually-hidden"><?= __("Caricamento...") ?></span>
+                        <div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" role="status" style="width: 2rem; height: 2rem;">
+                            <span class="sr-only"><?= __("Caricamento...") ?></span>
                         </div>
                     </span>
                     <span class="hero-stat-label"><?= __("Libri Totali") ?></span>
                 </div>
                 <div class="hero-stat">
                     <span class="hero-stat-number" id="available-books">
-                        <div class="spinner-border" role="status" style="width: 2rem; height: 2rem;">
-                            <span class="visually-hidden"><?= __("Caricamento...") ?></span>
+                        <div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" role="status" style="width: 2rem; height: 2rem;">
+                            <span class="sr-only"><?= __("Caricamento...") ?></span>
                         </div>
                     </span>
                     <span class="hero-stat-label"><?= __("Disponibili") ?></span>

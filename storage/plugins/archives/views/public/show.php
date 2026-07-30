@@ -24,10 +24,10 @@ $levelIcon = [
     'item'   => 'fa-file-alt',
 ];
 $levelBadgeClass = [
-    'fonds'  => 'text-bg-primary',
-    'series' => 'text-bg-info',
-    'file'   => 'text-bg-success',
-    'item'   => 'text-bg-secondary',
+    'fonds'  => 'bg-[var(--primary-color)] text-white',
+    'series' => 'bg-sky-100 text-sky-800',
+    'file'   => 'bg-emerald-100 text-emerald-800',
+    'item'   => 'bg-slate-100 text-slate-700',
 ];
 $typeLabel = [
     'person'    => __('Persona'),
@@ -62,7 +62,7 @@ $roleLabel = [
 $archiveBase = \App\Support\RouteTranslator::route('archives') ?: '/archive';
 $level = (string) $row['level'];
 $icon = $levelIcon[$level] ?? 'fa-archive';
-$badge = $levelBadgeClass[$level] ?? 'text-bg-secondary';
+$badge = $levelBadgeClass[$level] ?? 'bg-slate-100 text-slate-700';
 $dateRange = '';
 if (!empty($row['date_start'])) {
     $dateRange = (string) $row['date_start'];
@@ -165,8 +165,8 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
 
 <section class="archive-hero">
     <div class="container hero-content">
-        <div class="row align-items-center">
-            <div class="col-lg-4 mb-4 mb-lg-0 d-flex justify-content-center align-items-center">
+        <div class="flex flex-wrap -mx-3 items-center">
+            <div class="w-full lg:w-1/3 px-3 mb-4 mb-lg-0 flex justify-center items-center">
                 <?php if ($coverUrl !== ''): ?>
                     <img class="archive-cover-large"
                          src="<?= $e($coverUrl) ?>"
@@ -177,31 +177,31 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
                     </div>
                 <?php endif; ?>
             </div>
-            <div class="col-lg-8">
+            <div class="w-full lg:w-2/3 px-3">
                 <div class="hero-text">
-                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                        <span class="badge <?= $e($badge) ?> fs-6 px-3 py-2">
-                            <i class="fas <?= $e($icon) ?> me-1"></i><?= $e($levelLabel[$level] ?? $level) ?>
+                    <div class="flex flex-wrap items-center gap-2 mb-3">
+                        <span class="status-badge <?= $e($badge) ?> text-base px-3 py-2">
+                            <i class="fas <?= $e($icon) ?> mr-1"></i><?= $e($levelLabel[$level] ?? $level) ?>
                         </span>
                         <span class="ref-pill"><?= $e((string) $row['reference_code']) ?></span>
                         <?php if ($specific !== '' && $specific !== 'text'): ?>
-                            <span class="badge text-bg-light border">
+                            <span class="status-badge bg-gray-100 text-gray-800 border">
                                 <?= $e($materialLabels[$specific] ?? $specific) ?>
                             </span>
                         <?php endif; ?>
                     </div>
                     <h1><?= $e((string) $row['constructed_title']) ?></h1>
                     <?php if (!empty($row['formal_title']) && $row['formal_title'] !== $row['constructed_title']): ?>
-                        <p class="meta-line fst-italic"><?= $e((string) $row['formal_title']) ?></p>
+                        <p class="meta-line italic"><?= $e((string) $row['formal_title']) ?></p>
                     <?php endif; ?>
                     <?php if ($dateRange !== ''): ?>
                         <p class="meta-line">
-                            <i class="far fa-calendar-alt me-2"></i><?= $e($dateRange) ?>
+                            <i class="far fa-calendar-alt mr-2"></i><?= $e($dateRange) ?>
                         </p>
                     <?php endif; ?>
                     <?php if (!empty($row['extent'])): ?>
                         <p class="meta-line">
-                            <i class="fas fa-box-open me-2"></i><?= $e((string) $row['extent']) ?>
+                            <i class="fas fa-box-open mr-2"></i><?= $e((string) $row['extent']) ?>
                         </p>
                     <?php endif; ?>
 
@@ -250,23 +250,23 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
                                     }
                                 }
                                 ?>
-                                <div class="d-flex align-items-center gap-2 w-100">
+                                <div class="flex items-center gap-2 w-full">
                                     <?php if ($ufAudio): ?>
-                                        <div class="archive-player-wrap w-100">
+                                        <div class="archive-player-wrap w-full">
                                             <audio class="green-audio-player" controls preload="metadata"
                                                    src="<?= $e($ufUrl) ?>"></audio>
                                         </div>
                                     <?php else: ?>
-                                        <a class="btn btn-primary btn-sm" href="<?= $e($ufUrl) ?>"
+                                        <a class="ui-button btn-primary px-3 py-2 text-xs" href="<?= $e($ufUrl) ?>"
                                            download="<?= $e($ufName) ?>">
-                                            <i class="fas fa-download me-1"></i><?= $e($ufName) ?>
+                                            <i class="fas fa-download mr-1"></i><?= $e($ufName) ?>
                                         </a>
                                     <?php endif; ?>
                                     <?php if ($ufMime !== ''): ?>
-                                        <span class="text-muted small ref-mono"><?= $e($ufMime) ?></span>
+                                        <span class="text-gray-500 text-sm ref-mono"><?= $e($ufMime) ?></span>
                                     <?php endif; ?>
                                     <?php if ($ufSizeStr !== ''): ?>
-                                        <span class="text-muted small"><?= $e($ufSizeStr) ?></span>
+                                        <span class="text-gray-500 text-sm"><?= $e($ufSizeStr) ?></span>
                                     <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
@@ -275,24 +275,24 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
                         <!-- legacy fallback: document_path column -->
                         <div class="archive-actions" style="justify-content:flex-start;">
                             <?php if ($docIsAudio): ?>
-                                <div class="archive-player-wrap w-100">
+                                <div class="archive-player-wrap w-full">
                                     <audio class="green-audio-player" controls preload="metadata"
                                            src="<?= $e($docUrl) ?>"></audio>
                                 </div>
                             <?php else: ?>
-                                <a class="btn btn-primary" href="<?= $e($docUrl) ?>"
+                                <a class="ui-button btn-primary" href="<?= $e($docUrl) ?>"
                                    <?php if ($docName !== ''): ?>download="<?= $e($docName) ?>"<?php else: ?>download<?php endif; ?>>
-                                    <i class="fas fa-download me-2"></i><?= __("Scarica documento") ?>
+                                    <i class="fas fa-download mr-2"></i><?= __("Scarica documento") ?>
                                 </a>
                             <?php endif; ?>
                             <?php if ($docMime !== ''): ?>
-                                <span class="text-muted small align-self-center ref-mono"><?= $e($docMime) ?></span>
+                                <span class="text-gray-500 text-sm align-self-center ref-mono"><?= $e($docMime) ?></span>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>
 
                     <nav aria-label="breadcrumb" class="mt-4">
-                        <ol class="breadcrumb bg-transparent p-0 mb-0">
+                        <ol class="breadcrumb flex flex-wrap items-center gap-2 bg-transparent p-0 mb-0">
                             <li class="breadcrumb-item">
                                 <a href="<?= $e(url('/')) ?>"><?= __("Home") ?></a>
                             </li>
@@ -319,12 +319,12 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
 
 <section class="archive-body">
     <div class="container">
-        <div class="row g-4">
-            <div class="col-lg-8">
-                <div class="card rounded-3 mb-4">
+        <div class="flex flex-wrap -mx-3 gap-y-4">
+            <div class="w-full lg:w-2/3 px-3">
+                <div class="card rounded-md mb-4">
                     <div class="card-body p-4 p-lg-5">
-                        <h2 class="h5 mb-4 text-uppercase text-muted" style="letter-spacing:.05em;">
-                            <i class="fas fa-info-circle me-2"></i><?= __("Descrizione archivistica") ?>
+                        <h2 class="h5 mb-4 uppercase text-gray-500" style="letter-spacing:.05em;">
+                            <i class="fas fa-info-circle mr-2"></i><?= __("Descrizione archivistica") ?>
                         </h2>
                         <dl class="isad mb-0">
                             <?php if (!empty($row['scope_content'])): ?>
@@ -335,27 +335,27 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
                                 <dt><?= __("Storia archivistica") ?></dt>
                                 <dd class="pre-wrap"><?= $e((string) $row['archival_history']) ?></dd>
                             <?php endif; ?>
-                            <div class="row">
+                            <div class="flex flex-wrap -mx-3">
                                 <?php if (!empty($row['extent'])): ?>
-                                    <div class="col-sm-6">
+                                    <div class="w-full sm:w-1/2 px-3">
                                         <dt><?= __("Estensione e supporto") ?></dt>
                                         <dd><?= $e((string) $row['extent']) ?></dd>
                                     </div>
                                 <?php endif; ?>
                                 <?php if (!empty($row['photographer'])): ?>
-                                    <div class="col-sm-6">
+                                    <div class="w-full sm:w-1/2 px-3">
                                         <dt><?= __("Fotografo / autore primario") ?></dt>
                                         <dd><?= $e((string) $row['photographer']) ?></dd>
                                     </div>
                                 <?php endif; ?>
                                 <?php if (!empty($row['language_codes'])): ?>
-                                    <div class="col-sm-6">
+                                    <div class="w-full sm:w-1/2 px-3">
                                         <dt><?= __("Lingua") ?></dt>
                                         <dd class="ref-mono"><?= $e((string) $row['language_codes']) ?></dd>
                                     </div>
                                 <?php endif; ?>
                                 <?php if (!empty($row['access_conditions'])): ?>
-                                    <div class="col-12">
+                                    <div class="w-full px-3">
                                         <dt><?= __("Condizioni di accesso") ?></dt>
                                         <dd><?= $e((string) $row['access_conditions']) ?></dd>
                                     </div>
@@ -366,17 +366,17 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
                 </div>
 
                 <?php if (!empty($children)): ?>
-                    <div class="card rounded-3">
+                    <div class="card rounded-md">
                         <div class="card-header">
-                            <h2 class="h6 mb-0">
-                                <i class="fas fa-sitemap me-2"></i>
+                            <h2 class="mb-0 text-base font-semibold">
+                                <i class="fas fa-sitemap mr-2"></i>
                                 <?= sprintf(__("Unità discendenti (%d)"), count($children)) ?>
                             </h2>
                         </div>
-                        <ul class="list-group list-group-flush">
+                        <ul class="divide-y divide-gray-200">
                             <?php foreach ($children as $child):
                                 $cLevel = (string) $child['level'];
-                                $cBadge = $levelBadgeClass[$cLevel] ?? 'text-bg-secondary';
+                                $cBadge = $levelBadgeClass[$cLevel] ?? 'bg-slate-100 text-slate-700';
                                 $cIcon = $levelIcon[$cLevel] ?? 'fa-archive';
                                 $cDate = '';
                                 if (!empty($child['date_start'])) {
@@ -386,16 +386,16 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
                                     }
                                 }
                             ?>
-                                <li class="list-group-item child-item d-flex align-items-center gap-2 py-3">
-                                    <span class="badge <?= $e($cBadge) ?>">
-                                        <i class="fas <?= $e($cIcon) ?> me-1"></i><?= $e($levelLabel[$cLevel] ?? $cLevel) ?>
+                                <li class="py-3 child-item flex items-center gap-2">
+                                    <span class="status-badge <?= $e($cBadge) ?>">
+                                        <i class="fas <?= $e($cIcon) ?> mr-1"></i><?= $e($levelLabel[$cLevel] ?? $cLevel) ?>
                                     </span>
-                                    <a class="flex-fill fw-medium" href="<?= $e(url($archiveBase . '/' . slugify_text((string) $child['constructed_title']) . '-' . (int) $child['id'])) ?>">
+                                    <a class="flex-fill font-medium" href="<?= $e(url($archiveBase . '/' . slugify_text((string) $child['constructed_title']) . '-' . (int) $child['id'])) ?>">
                                         <?= $e((string) $child['constructed_title']) ?>
                                     </a>
-                                    <span class="ref-mono small d-none d-md-inline"><?= $e((string) $child['reference_code']) ?></span>
+                                    <span class="ref-mono text-sm hidden md:inline"><?= $e((string) $child['reference_code']) ?></span>
                                     <?php if ($cDate !== ''): ?>
-                                        <span class="text-muted small"><?= $e($cDate) ?></span>
+                                        <span class="text-gray-500 text-sm"><?= $e($cDate) ?></span>
                                     <?php endif; ?>
                                 </li>
                             <?php endforeach; ?>
@@ -404,28 +404,28 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
                 <?php endif; ?>
             </div>
 
-            <div class="col-lg-4">
+            <div class="w-full lg:w-1/3 px-3">
                 <?php if (!empty($authorities)): ?>
-                    <div class="card rounded-3 mb-4">
+                    <div class="card rounded-md mb-4">
                         <div class="card-header">
-                            <h2 class="h6 mb-0">
-                                <i class="fas fa-user-friends me-2"></i><?= __("Soggetti produttori e associati") ?>
+                            <h2 class="mb-0 text-base font-semibold">
+                                <i class="fas fa-user-friends mr-2"></i><?= __("Soggetti produttori e associati") ?>
                             </h2>
                         </div>
                         <div>
                             <?php foreach ($authorities as $auth): ?>
                                 <div class="authority-item">
-                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div class="flex justify-between items-start gap-2">
                                         <div class="flex-fill">
-                                            <div class="fw-semibold"><?= $e((string) $auth['authorised_form']) ?></div>
-                                            <div class="small text-muted">
+                                            <div class="font-semibold"><?= $e((string) $auth['authorised_form']) ?></div>
+                                            <div class="text-sm text-gray-500">
                                                 <?= $e($typeLabel[(string) $auth['type']] ?? (string) $auth['type']) ?>
                                                 <?php if (!empty($auth['dates_of_existence'])): ?>
                                                     · <?= $e((string) $auth['dates_of_existence']) ?>
                                                 <?php endif; ?>
                                             </div>
                                         </div>
-                                        <span class="badge text-bg-light text-uppercase small">
+                                        <span class="status-badge bg-gray-100 text-gray-800 uppercase text-sm">
                                             <?= $e($roleLabel[(string) $auth['role']] ?? (string) $auth['role']) ?>
                                         </span>
                                     </div>
@@ -435,14 +435,14 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
                     </div>
                 <?php endif; ?>
 
-                <div class="card rounded-3">
+                <div class="card rounded-md">
                     <div class="card-header">
-                        <h2 class="h6 mb-0">
-                            <i class="fas fa-fingerprint me-2"></i><?= __("Identificativi") ?>
+                        <h2 class="mb-0 text-base font-semibold">
+                            <i class="fas fa-fingerprint mr-2"></i><?= __("Identificativi") ?>
                         </h2>
                     </div>
                     <div class="card-body">
-                        <dl class="isad mb-0 small">
+                        <dl class="isad mb-0 text-sm">
                             <dt><?= __("Reference Code") ?></dt>
                             <dd class="ref-mono"><?= $e((string) $row['reference_code']) ?></dd>
                             <?php if (!empty($row['institution_code'])): ?>

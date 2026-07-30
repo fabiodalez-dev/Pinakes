@@ -476,7 +476,29 @@ $additional_css = "
         position: relative;
         z-index: 10;
         width: 100%;
-        margin: auto;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+        align-items: center;
+        gap: clamp(1.5rem, 4vw, 4rem);
+    }
+
+    #book-cover-container,
+    .book-info-column {
+        width: 100%;
+        min-width: 0;
+    }
+
+    #book-cover-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    @media (max-width: 767px) {
+        .book-hero-content {
+            grid-template-columns: minmax(0, 1fr);
+        }
     }
 
     .book-publisher {
@@ -511,7 +533,7 @@ $additional_css = "
     }
 
     /* Margine verticale copertina su desktop */
-    .row.align-items-center.book-hero-content img {
+    .book-hero-content img {
         margin: 38px 0;
     }
 
@@ -956,7 +978,7 @@ $additional_css = "
         padding: 0;
     }
 
-    .action-buttons .btn {
+    .action-buttons .ui-button {
         padding: 1rem 2.5rem;
         font-weight: 700;
         border-radius: 2px;
@@ -974,7 +996,7 @@ $additional_css = "
         z-index: 1001;
     }
 
-    .action-buttons .btn:hover {
+    .action-buttons .ui-button:hover {
         transform: translateY(-3px);
         box-shadow: none;
         text-decoration: none;
@@ -1005,13 +1027,13 @@ $additional_css = "
         color: #ffffff;
     }
 
-    .action-buttons .btn-outline-secondary {
+    .action-buttons .btn-outline {
         color: var(--text-light);
         border-color: var(--border-color);
         background: transparent;
     }
 
-    .action-buttons .btn-outline-secondary:hover {
+    .action-buttons .btn-outline:hover {
         background: var(--text-light);
         border-color: var(--text-light);
         color: #1a1a1a;
@@ -1126,15 +1148,15 @@ $additional_css = "
         padding: 1.5rem;
     }
 
-    /* The share partial ships a Bootstrap `px-3` on its body; override it
-       (ID+class beats the utility) so the social buttons sit at the same
+    /* Keep the share partial's horizontal padding aligned with this section;
+       ID+class beats the utility so the social buttons sit at the same
        1.5rem inset as the header line and the meta rows above. */
     #book-share-card .card-body.px-3 {
         padding-left: 1.5rem !important;
         padding-right: 1.5rem !important;
     }
 
-    .badge {
+    .status-badge {
         padding: 0.5rem 0.875rem;
         border-radius: 2px;
         font-weight: 600;
@@ -1246,7 +1268,7 @@ $additional_css = "
         }
 
         /* Rimuovi margine verticale su mobile */
-        .row.align-items-center.book-hero-content img {
+        .book-hero-content img {
             margin: 0 auto 1.5rem;
         }
 
@@ -1275,7 +1297,7 @@ $additional_css = "
             align-items: center;
         }
 
-        .action-buttons .btn {
+        .action-buttons .ui-button {
             margin: 0;
             width: 100%;
             max-width: 300px;
@@ -1377,7 +1399,7 @@ $additional_css = "
         }
 
         /* Rimuovi margine verticale su mobile */
-        .row.align-items-center.book-hero-content img {
+        .book-hero-content img {
             margin: 0 auto;
         }
 
@@ -1481,7 +1503,7 @@ $additional_css = "
         }
 
         /* Rimuovi margine verticale su mobile */
-        .row.align-items-center.book-hero-content img {
+        .book-hero-content img {
             margin: 0 auto;
         }
 
@@ -1511,8 +1533,7 @@ $additional_css = "
     /* Related Books Section */
     /* Keep the (max 3) related cards grouped and centred instead of spread
        across the theme's ultra-wide container. ~3 cards of 280px + gutters.
-       plain wrapper div (not the Bootstrap .row) so it doesn't fight .row's
-       negative gutter margins — no !important needed. */
+       plain wrapper div so it stays independent from the surrounding grid. */
     .related-books-wrap {
         /* Widened from the old ~3-card (960px) cap so wide screens can show up
            to 6 related books in one row; the grid below decides how many
@@ -1752,10 +1773,6 @@ $additional_css = "
     .card {
     background-color: transparent;
     }
-    div#book-cover-container {
-    max-width: 400px;
-    margin: auto;
-    }
 ";
 
 ob_start();
@@ -1764,14 +1781,14 @@ ob_start();
 <!-- Book Hero Section -->
 <section class="book-hero">
     <div class="container">
-        <div class="row align-items-center book-hero-content" id="book-hero-content">
-            <div class="col-lg-4 text-center mb-4 mb-lg-0" id="book-cover-container">
+        <div class="book-hero-content" id="book-hero-content">
+            <div class="book-cover-column text-center" id="book-cover-container">
                 <img src="<?= htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') ?>"
                      alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"
                      class="book-cover-large img-fluid"
                      id="book-cover-image">
             </div>
-            <div class="col-lg-8">
+            <div class="book-info-column">
                 <div class="hero-text">
                     <?php
                     // Multi-publisher (issue #143): link every publisher, fallback to primary.
@@ -1780,27 +1797,40 @@ ob_start();
                         $heroPublishers = [['nome' => $book['editore']]];
                     }
                     ?>
-                    <?php if ($heroPublishers !== []): ?>
-                        <p class="mb-2 opacity-75">
-                            <i class="fas fa-building me-2"></i>
-                            <?php foreach ($heroPublishers as $hpI => $hp):
-                                $hpName = html_entity_decode((string) ($hp['nome'] ?? ''), ENT_QUOTES, 'UTF-8');
-                                if ($hpName === '') { continue; }
-                            ?><?= $hpI > 0 ? ', ' : '' ?><a href="<?= htmlspecialchars(route_path('publisher') . '/' . urlencode($hpName), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none text-dark"><?= htmlspecialchars($hpName) ?></a><?php endforeach; ?>
-                        </p>
-                    <?php endif; ?>
+                    <nav class="book-breadcrumb" aria-label="<?= htmlspecialchars(__('Percorso di navigazione'), ENT_QUOTES, 'UTF-8') ?>">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Home") ?></a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <a href="<?= htmlspecialchars($legacyCatalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Catalogo") ?></a>
+                            </li>
+                            <li class="breadcrumb-item active" aria-current="page">
+                                <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
+                            </li>
+                        </ol>
+                    </nav>
 
-                    <div class="mb-1">
-                        <span class="badge bg-light text-secondary fw-normal" style="font-size: 0.7rem;">
-                            <i class="fas <?= htmlspecialchars(\App\Support\MediaLabels::icon($resolvedTipoMedia), ENT_QUOTES, 'UTF-8') ?> me-1" aria-hidden="true"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
+                    <div class="book-kicker">
+                        <span class="book-media-type">
+                            <i class="fas <?= htmlspecialchars(\App\Support\MediaLabels::icon($resolvedTipoMedia), ENT_QUOTES, 'UTF-8') ?> mr-1" aria-hidden="true"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
                         </span>
+                        <?php if ($heroPublishers !== []): ?>
+                            <span class="book-kicker-separator" aria-hidden="true">·</span>
+                            <span class="book-hero-publishers">
+                                <?php foreach ($heroPublishers as $hpI => $hp):
+                                    $hpName = html_entity_decode((string) ($hp['nome'] ?? ''), ENT_QUOTES, 'UTF-8');
+                                    if ($hpName === '') { continue; }
+                                ?><?= $hpI > 0 ? ', ' : '' ?><a href="<?= htmlspecialchars(route_path('publisher') . '/' . urlencode($hpName), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($hpName) ?></a><?php endforeach; ?>
+                            </span>
+                        <?php endif; ?>
                     </div>
-                    <h1 class="fw-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);">
+                    <h1 class="font-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);">
                         <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                     </h1>
 
                     <?php if (!empty($book['sottotitolo'])): ?>
-                    <p class="book-subtitle-hero mb-3" id="book-subtitle" style="font-size: clamp(1.05rem, 2vw, 1.35rem); color: var(--text-muted, #6b7280); font-weight: 500; line-height: 1.4;">
+                    <p class="book-subtitle-hero mb-3" id="book-subtitle">
                         <?= htmlspecialchars(html_entity_decode($book['sottotitolo'], ENT_QUOTES, 'UTF-8')) ?>
                     </p>
                     <?php endif; ?>
@@ -1815,7 +1845,7 @@ ob_start();
                                     'pseudonimo' => html_entity_decode($author['pseudonimo'] ?? '', ENT_QUOTES, 'UTF-8'),
                                 ]);
                             ?>
-                            <a href="<?= htmlspecialchars(route_path('author') . '/' . urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none">
+                            <a href="<?= htmlspecialchars(route_path('author') . '/' . urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
                                 <span class="author-item role-<?= htmlspecialchars($author['ruolo'], ENT_QUOTES, 'UTF-8') ?>">
                                     <?= htmlspecialchars($authorDisplay, ENT_QUOTES, 'UTF-8') ?><?php if ($author['ruolo'] !== 'principale'): ?> <span class="contributor-role-sep">·</span> <?= htmlspecialchars(\App\Support\ContributorRoles::label($author['ruolo']), ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
                                 </span>
@@ -1824,14 +1854,14 @@ ob_start();
                     </div>
 
                     <?php if (!empty($genreHierarchy)): ?>
-                    <div class="genre-tags">
-                        <i class="fas fa-tags me-1"></i><?php $genreLinkClass = 'genre-tag'; $genreSeparator = ' <span class="genre-separator">&gt;</span> '; include __DIR__ . '/partials/genre-breadcrumb.php'; ?>
+                    <div class="genre-tags" aria-label="<?= htmlspecialchars(__('Generi'), ENT_QUOTES, 'UTF-8') ?>">
+                        <i class="fas fa-tags" aria-hidden="true"></i><?php $genreLinkClass = 'genre-tag'; $genreSeparator = ' <span class="genre-separator" aria-hidden="true">›</span> '; include __DIR__ . '/partials/genre-breadcrumb.php'; ?>
                     </div>
                     <?php endif; ?>
 
                     <div class="mt-4">
                         <span class="availability-badge <?= ($book['copie_disponibili'] > 0) ? 'available' : 'unavailable' ?>">
-                            <i class="fas fa-<?= ($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle' ?> me-2" aria-hidden="true"></i>
+                            <i class="fas fa-<?= ($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle' ?> mr-2" aria-hidden="true"></i>
                             <?= ($book['copie_disponibili'] > 0)
                                 ? ($book['copie_totali'] > 1
                                     ? "{$book['copie_disponibili']}/{$book['copie_totali']} " . __("Disponibili")
@@ -1840,21 +1870,6 @@ ob_start();
                         </span>
                     </div>
 
-                    <div class="mt-3">
-                        <nav aria-label="breadcrumb">
-                            <ol class="breadcrumb bg-transparent p-0 mb-0">
-                                <li class="breadcrumb-item">
-                                    <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="text-dark"><?= __("Home") ?></a>
-                                </li>
-                                <li class="breadcrumb-item">
-                                    <a href="<?= htmlspecialchars($legacyCatalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="text-dark-50"><?= __("Catalogo") ?></a>
-                                </li>
-                                <li class="breadcrumb-item active text-dark" aria-current="page">
-                                    <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
-                                </li>
-                            </ol>
-                        </nav>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1864,25 +1879,25 @@ ob_start();
 <!-- Book Details Section -->
 <section class="py-5" style="margin-top: 3rem; position: relative; z-index: 50;">
     <div class="container">
-        <div class="row">
+        <div class="flex flex-wrap -mx-3">
             <!-- Main Content -->
-            <div class="col-lg-8">
+            <div class="w-full lg:w-2/3 px-3">
                 <!-- Action Buttons -->
                 <?php if (!$isCatalogueMode): ?>
                 <div class="action-buttons text-center mb-4" id="book-action-buttons">
                     <!-- Always show the calendar to choose dates -->
-                    <button id="btn-request-loan" type="button" class="btn <?= ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> btn-lg" data-libro-id="<?= (int)($book['id'] ?? 0) ?>">
-                        <i class="fas fa-<?= ($book['copie_disponibili'] ?? 0) > 0 ? 'book-reader' : 'calendar-alt' ?> me-2"></i>
+                    <button id="btn-request-loan" type="button" class="ui-button <?= ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>">
+                        <i class="fas fa-<?= ($book['copie_disponibili'] ?? 0) > 0 ? 'book-reader' : 'calendar-alt' ?> mr-2"></i>
                         <?= ($book['copie_disponibili'] ?? 0) > 0 ? __('Richiedi Prestito') : __('Prenota Quando Disponibile') ?>
                     </button>
                     <?php $isLogged = !empty($_SESSION['user'] ?? null); ?>
                     <?php if ($isLogged): ?>
-                      <button id="btn-fav" type="button" class="btn btn-light btn-lg btn-fav-custom" data-libro-id="<?= (int)($book['id'] ?? 0) ?>">
-                        <i class="fas fa-heart me-2"></i><span><?= __("Aggiungi ai Preferiti") ?></span>
+                      <button id="btn-fav" type="button" class="ui-button btn-secondary px-8 py-4 text-base btn-fav-custom" data-libro-id="<?= (int)($book['id'] ?? 0) ?>">
+                        <i class="fas fa-heart mr-2"></i><span><?= __("Aggiungi ai Preferiti") ?></span>
                       </button>
                     <?php else: ?>
-                      <a href="<?= htmlspecialchars($loginRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn btn-light btn-lg btn-fav-custom">
-                        <i class="fas fa-heart me-2"></i><?= __("Accedi per aggiungere ai Preferiti") ?>
+                      <a href="<?= htmlspecialchars($loginRoute, ENT_QUOTES, 'UTF-8') ?>" class="ui-button btn-secondary px-8 py-4 text-base btn-fav-custom">
+                        <i class="fas fa-heart mr-2"></i><?= __("Accedi per aggiungere ai Preferiti") ?>
                       </a>
                     <?php endif; ?>
 
@@ -1901,15 +1916,15 @@ ob_start();
                 <!-- Alerts Section -->
                 <div id="book-alerts">
                     <?php if (!empty($_GET['loan_request_success'])): ?>
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            <i class="fas fa-check-circle me-2"></i><?= !empty($_GET['auto_approved'])
+                        <div class="alert alert-success relative pr-12 fade show" role="alert">
+                            <i class="fas fa-check-circle mr-2"></i><?= !empty($_GET['auto_approved'])
                               ? __("Prestito approvato. Il libro è in attesa di ritiro.")
                               : __("Prestito richiesto con successo.") ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['loan_error'])): ?>
-                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
+                        <div class="alert alert-error relative pr-12 fade show" role="alert">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
                             <?php
                               // Guardia is_scalar come per reserve_error: con ?loan_error[]=x
                               // il cast diretto (string) genererebbe un warning in PHP 8.
@@ -1923,17 +1938,17 @@ ob_start();
                             <?php else: ?>
                               <?= __('Errore nella richiesta di prestito.') ?>
                             <?php endif; ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php endif; ?>
                     <?php if (!empty($_GET['reserve_success'])): ?>
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            <i class="fas fa-check-circle me-2"></i><?= __("Prenotazione effettuata con successo") ?><?php if(!empty($_GET['reserve_date'])): ?> <?= __("per il giorno") ?> <strong><?= htmlspecialchars($_GET['reserve_date'], ENT_QUOTES, 'UTF-8') ?></strong><?php endif; ?>.
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
+                        <div class="alert alert-success relative pr-12 fade show" role="alert">
+                            <i class="fas fa-check-circle mr-2"></i><?= __("Prenotazione effettuata con successo") ?><?php if(!empty($_GET['reserve_date'])): ?> <?= __("per il giorno") ?> <strong><?= htmlspecialchars($_GET['reserve_date'], ENT_QUOTES, 'UTF-8') ?></strong><?php endif; ?>.
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['reserve_error'])): ?>
-                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
+                        <div class="alert alert-error relative pr-12 fade show" role="alert">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
                             <?php
                               $reserveErrorMessages = [
                                   'duplicate' => __('Hai già una prenotazione attiva per questo libro.'),
@@ -1959,7 +1974,7 @@ ob_start();
                                   'UTF-8'
                               );
                             ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -1983,7 +1998,7 @@ ob_start();
                                 <div class="prose prose-sm max-w-none"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($book['descrizione'], false)) ?></div>
                             <?php endif; ?>
                         <?php else: ?>
-                            <p class="text-muted"><?= __("Nessuna descrizione disponibile per questo libro.") ?></p>
+                            <p class="text-gray-500"><?= __("Nessuna descrizione disponibile per questo libro.") ?></p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -2129,11 +2144,11 @@ ob_start();
                         <i class="fas fa-tags"></i>
                         <?= __("Parole Chiave") ?>
                     </h2>
-                    <div class="d-flex flex-wrap gap-2">
+                    <div class="flex flex-wrap gap-2">
                         <?php foreach ($keywords as $keyword): ?>
                         <a href="<?= htmlspecialchars($catalogRoute . '?q=' . urlencode($keyword), ENT_QUOTES, 'UTF-8') ?>"
-                           class="badge bg-light text-dark border px-3 py-2 text-decoration-none keyword-chip">
-                            <i class="fas fa-tag me-1 text-muted"></i><?= HtmlHelper::e($keyword) ?>
+                           class="status-badge bg-gray-100 text-gray-900 border px-3 py-2 no-underline keyword-chip">
+                            <i class="fas fa-tag mr-1 text-gray-500"></i><?= HtmlHelper::e($keyword) ?>
                         </a>
                         <?php endforeach; ?>
                     </div>
@@ -2201,9 +2216,9 @@ ob_start();
                                         $rating = (int)$field['value'];
                                         for ($i = 1; $i <= 5; $i++):
                                             if ($i <= $rating):
-                                                echo '<i class="fas fa-star text-warning"></i>';
+                                                echo '<i class="fas fa-star text-amber-600"></i>';
                                             else:
-                                                echo '<i class="far fa-star text-muted"></i>';
+                                                echo '<i class="far fa-star text-gray-500"></i>';
                                             endif;
                                         endfor;
                                         ?>
@@ -2235,9 +2250,9 @@ ob_start();
                                         $rating = (int)$field['value'];
                                         for ($i = 1; $i <= 5; $i++):
                                             if ($i <= $rating):
-                                                echo '<i class="fas fa-star text-warning"></i>';
+                                                echo '<i class="fas fa-star text-amber-600"></i>';
                                             else:
-                                                echo '<i class="far fa-star text-muted"></i>';
+                                                echo '<i class="far fa-star text-gray-500"></i>';
                                             endif;
                                         endfor;
                                         ?>
@@ -2269,34 +2284,34 @@ ob_start();
                     <h2 class="section-title">
                         <i class="fas fa-star"></i>
                         <?= __("Recensioni") ?>
-                        <span class="badge bg-primary rounded-pill"><?= count($reviews) ?></span>
+                        <span class="status-badge bg-gray-900 rounded-full"><?= count($reviews) ?></span>
                     </h2>
 
                     <!-- Review Statistics -->
                     <?php if ($reviewStats['total_reviews'] > 0): ?>
                         <div class="review-stats mb-4">
-                            <div class="row align-items-center">
-                                <div class="col-md-4 text-center mb-3 mb-md-0 review-summary-column">
+                            <div class="flex flex-wrap -mx-3 items-center">
+                                <div class="w-full md:w-1/3 px-3 text-center mb-3 mb-md-0 review-summary-column">
                                     <div class="average-rating">
-                                        <div class="display-4 fw-bold text-warning"><?= number_format($reviewStats['average_rating'], 1) ?></div>
+                                        <div class="display-4 font-bold text-amber-600"><?= number_format($reviewStats['average_rating'], 1) ?></div>
                                         <div class="stars mb-2">
                                             <?php
                                             $avgRating = $reviewStats['average_rating'];
                                             for ($i = 1; $i <= 5; $i++):
                                                 if ($i <= floor($avgRating)):
-                                                    echo '<i class="fas fa-star text-warning"></i>';
+                                                    echo '<i class="fas fa-star text-amber-600"></i>';
                                                 elseif ($i - 0.5 <= $avgRating):
-                                                    echo '<i class="fas fa-star-half-alt text-warning"></i>';
+                                                    echo '<i class="fas fa-star-half-alt text-amber-600"></i>';
                                                 else:
-                                                    echo '<i class="far fa-star text-warning"></i>';
+                                                    echo '<i class="far fa-star text-amber-600"></i>';
                                                 endif;
                                             endfor;
                                             ?>
                                         </div>
-                                        <div class="text-muted small"><?= $reviewStats['total_reviews'] ?> <?= __("recensioni") ?></div>
+                                        <div class="text-gray-500 text-sm"><?= $reviewStats['total_reviews'] ?> <?= __("recensioni") ?></div>
                                     </div>
                                 </div>
-                                <div class="col-md-8 review-distribution-column">
+                                <div class="w-full md:w-2/3 px-3 review-distribution-column">
                                     <div class="rating-bars">
                                         <?php
                                         $total = $reviewStats['total_reviews'];
@@ -2304,16 +2319,16 @@ ob_start();
                                             $count = $reviewStats[$stars === 1 ? 'one_star' : ($stars === 2 ? 'two_star' : ($stars === 3 ? 'three_star' : ($stars === 4 ? 'four_star' : 'five_star')))];
                                             $percentage = $total > 0 ? ($count / $total) * 100 : 0;
                                         ?>
-                                            <div class="rating-bar-row d-flex align-items-center">
-                                                <div class="stars-label me-2">
+                                            <div class="rating-bar-row flex items-center">
+                                                <div class="stars-label mr-2">
                                                     <?php for ($i = 0; $i < $stars; $i++): ?>
-                                                        <i class="fas fa-star text-warning small"></i>
+                                                        <i class="fas fa-star text-amber-600 text-sm"></i>
                                                     <?php endfor; ?>
                                                 </div>
-                                                <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                                                    <div class="progress-bar bg-warning" role="progressbar" style="width: <?= $percentage ?>%"></div>
+                                                <div class="progress grow mr-2" style="height: 8px;">
+                                                    <div class="progress-bar bg-amber-500" role="progressbar" style="width: <?= $percentage ?>%"></div>
                                                 </div>
-                                                <div class="count-label text-muted small" style="width: 40px;"><?= $count ?></div>
+                                                <div class="count-label text-gray-500 text-sm" style="width: 40px;"><?= $count ?></div>
                                             </div>
                                         <?php endfor; ?>
                                     </div>
@@ -2325,30 +2340,30 @@ ob_start();
                     <!-- Individual Reviews -->
                     <div class="reviews-list">
                         <?php foreach ($reviews as $review): ?>
-                            <div class="review-item border-bottom pb-4 mb-4">
-                                <div class="review-header d-flex justify-content-between align-items-start mb-2">
-                                    <div class="review-user-info d-flex align-items-center">
-                                        <div class="avatar-placeholder bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                            <div class="review-item border-b pb-4 mb-4">
+                                <div class="review-header flex justify-between items-start mb-2">
+                                    <div class="review-user-info flex items-center">
+                                        <div class="avatar-placeholder bg-gray-900 text-white rounded-full flex items-center justify-center mr-3"
                                              style="width: 40px; height: 40px;">
                                             <i class="fas fa-user"></i>
                                         </div>
                                         <div>
-                                            <div class="fw-bold"><?= htmlspecialchars($review['utente_nome'], ENT_QUOTES, 'UTF-8') ?></div>
-                                            <div class="text-muted small">
-                                                <i class="fas fa-calendar me-1"></i>
+                                            <div class="font-bold"><?= htmlspecialchars($review['utente_nome'], ENT_QUOTES, 'UTF-8') ?></div>
+                                            <div class="text-gray-500 text-sm">
+                                                <i class="fas fa-calendar mr-1"></i>
                                                 <?= format_date($review['approved_at'], false, '/') ?>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="review-stars">
                                         <?php for ($i = 0; $i < 5; $i++): ?>
-                                            <i class="<?= $i < $review['stelle'] ? 'fas' : 'far' ?> fa-star text-warning"></i>
+                                            <i class="<?= $i < $review['stelle'] ? 'fas' : 'far' ?> fa-star text-amber-600"></i>
                                         <?php endfor; ?>
                                     </div>
                                 </div>
 
                                 <?php if (!empty($review['titolo'])): ?>
-                                    <h5 class="review-title fw-bold mb-2"><?= htmlspecialchars($review['titolo'], ENT_QUOTES, 'UTF-8') ?></h5>
+                                    <h5 class="review-title font-bold mb-2"><?= htmlspecialchars($review['titolo'], ENT_QUOTES, 'UTF-8') ?></h5>
                                 <?php endif; ?>
 
                                 <?php if (!empty($review['descrizione'])): ?>
@@ -2367,11 +2382,11 @@ ob_start();
             </div>
 
             <!-- Sidebar -->
-            <div class="col-lg-4" id="book-sidebar">
+            <div class="w-full lg:w-1/3 px-3" id="book-sidebar">
                 <!-- Book Info Card -->
                 <div class="card mb-4" style="position: relative; z-index: 100;" id="book-info-card">
                     <div class="card-header">
-                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i><?= __("Informazioni Libro") ?></h6>
+                        <h6 class="mb-0"><i class="fas fa-info-circle mr-2"></i><?= __("Informazioni Libro") ?></h6>
                     </div>
                     <div class="card-body">
                         <?php
@@ -2391,7 +2406,7 @@ ob_start();
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
-                                <span class="badge <?= ($book['copie_disponibili'] > 0) ? 'bg-success' : 'bg-danger' ?>">
+                                <span class="book-status-inline <?= ($book['copie_disponibili'] > 0) ? 'is-available' : 'is-unavailable' ?>">
                                     <?= ($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non Disponibile") ?>
                                 </span>
                             </div>
@@ -2431,14 +2446,14 @@ ob_start();
             <i class="fas fa-layer-group" style="color: var(--primary-color);"></i>
             <?= __("Nella stessa collana") ?>: <em><?= htmlspecialchars($collana, ENT_QUOTES, 'UTF-8') ?></em>
         </h3>
-        <div class="d-flex flex-wrap justify-content-center gap-2">
+        <div class="flex flex-wrap justify-center gap-2">
             <?php foreach ($seriesBooks as $sb):
                 $sbPath = book_path($sb);
             ?>
-            <a href="<?= htmlspecialchars(url($sbPath), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none">
-                <div class="d-flex align-items-center gap-2 px-2 py-1 rounded-pill" style="background: color-mix(in srgb, var(--primary-color) 8%, transparent); border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent); transition: all .2s;">
+            <a href="<?= htmlspecialchars(url($sbPath), ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
+                <div class="flex items-center gap-2 px-2 py-1 rounded-full" style="background: color-mix(in srgb, var(--primary-color) 8%, transparent); border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent); transition: all .2s;">
                     <?php if (!empty($sb['numero_serie'])): ?>
-                    <span class="badge" style="background: var(--primary-color); color: #fff; font-size: 0.7rem;"><?= htmlspecialchars($sb['numero_serie'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="status-badge" style="background: var(--primary-color); color: #fff; font-size: 0.7rem;"><?= htmlspecialchars($sb['numero_serie'], ENT_QUOTES, 'UTF-8') ?></span>
                     <?php endif; ?>
                     <span style="color: var(--primary-color); font-weight: 500; font-size: 0.85rem;"><?= htmlspecialchars($sb['titolo'], ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
@@ -2470,13 +2485,28 @@ ob_start();
                         $relatedPublisher = html_entity_decode($related['editore'] ?? '', ENT_QUOTES, 'UTF-8');
                         $relatedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($related['formato'] ?? null, $related['tipo_media'] ?? null);
                         $relatedIsMusic = $relatedTipoMedia === 'disco';
+                        $relatedAuthorDisplay = trim($relatedAuthorsRaw);
+                        if ($relatedAuthorDisplay === '') {
+                            $relatedAuthorDisplay = trim(html_entity_decode(
+                                (string) ($related['autore_principale'] ?? $related['autore_principale_nome'] ?? ''),
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ));
+                        }
+                        if ($relatedAuthorDisplay === '') {
+                            $relatedAuthorDisplay = __($relatedIsMusic ? 'Artista sconosciuto' : 'Autore sconosciuto');
+                        }
+                        if ($relatedAuthorsList === []) {
+                            $relatedAuthorsList = [$relatedAuthorDisplay];
+                        }
                         $relatedAltParts = [];
                         if ($relatedTitle !== '') {
                             $relatedAltParts[] = sprintf(__('Copertina del libro "%s"'), $relatedTitle);
                         }
-                        if (!empty($relatedAuthorsList)) {
-                            $relatedAltParts[] = sprintf(__('di %s'), implode(', ', $relatedAuthorsList));
-                        }
+                        // $relatedAuthorsList is guaranteed non-empty here (the
+                        // guard above seeds it with $relatedAuthorDisplay, which
+                        // always falls back to "Autore/Artista sconosciuto").
+                        $relatedAltParts[] = sprintf(__('di %s'), implode(', ', $relatedAuthorsList));
                         if ($relatedPublisher !== '') {
                             $relatedAltParts[] = sprintf(__('Editore %s'), $relatedPublisher);
                         }
@@ -2509,12 +2539,12 @@ ob_start();
                             </a>
                         </h5>
                         <p class="related-book-author">
-                            <?= htmlspecialchars($related['autori'] ?? __($relatedIsMusic ? 'Artista sconosciuto' : 'Autore sconosciuto'), ENT_QUOTES, 'UTF-8') ?>
+                            <?= htmlspecialchars($relatedAuthorDisplay, ENT_QUOTES, 'UTF-8') ?>
                         </p>
                         <div class="related-book-actions">
                             <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>"
                                class="btn-related-view">
-                                <i class="fas fa-eye me-2"></i><?= __("Vedi Dettagli") ?>
+                                <i class="fas fa-eye mr-2"></i><?= __("Vedi Dettagli") ?>
                             </a>
                         </div>
                     </div>
@@ -2756,8 +2786,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!r.ok) return;
         const data = await r.json();
         const c = parseInt(data.count || 0, 10);
-        if (c > 0) { badge.textContent = String(c); badge.classList.remove('d-none'); }
-        else { badge.classList.add('d-none'); }
+        if (c > 0) { badge.textContent = String(c); badge.classList.remove('hidden'); }
+        else { badge.classList.add('hidden'); }
       } catch(_) {}
     }
 
@@ -2849,23 +2879,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const infoText = __('Le date rosse o arancioni non sono disponibili. La richiesta verrà valutata da un amministratore.');
 
+        let startPicker = null;
+        let endPicker = null;
+
         const { value: formValues } = await Swal.fire({
           title: __('Richiesta Prestito'),
           html:
-            `<div class="text-start">`+
-            `<label class="form-label">${__('Quando vuoi iniziare il prestito?')}</label>`+
-            `<input id="swal-date-start" type="text" class="swal2-input" style="display:block; width:100%; max-width:100%; box-sizing:border-box" placeholder="<?= __('Data inizio') ?>">`+
-            `<label class="form-label mt-3">${__('Fino a quando? (opzionale):')}</label>`+
-            `<input id="swal-date-end" type="text" class="swal2-input" style="display:block; width:100%; max-width:100%; box-sizing:border-box" placeholder="<?= __('Lascia vuoto per 1 mese') ?>">`+
-            `<div class="text-muted mt-2 small">`+
-            `<i class="fas fa-info-circle me-1"></i>`+
-            `${infoText}`+
+            `<div class="loan-request-form">`+
+            `<div class="loan-request-field">`+
+            `<label class="loan-request-label" data-for-picker="start">${__('Quando vuoi iniziare il prestito?')}</label>`+
+            `<input id="swal-date-start" type="text" class="loan-date-input" placeholder="<?= __('Data inizio') ?>">`+
             `</div>`+
+            `<div class="loan-request-field">`+
+            `<label class="loan-request-label" data-for-picker="end">${__('Fino a quando? (opzionale):')}</label>`+
+            `<input id="swal-date-end" type="text" class="loan-date-input" placeholder="<?= __('Lascia vuoto per 1 mese') ?>">`+
+            `</div>`+
+            `<p class="loan-request-note">`+
+            `<i class="fas fa-info-circle mr-1"></i>`+
+            `${infoText}`+
+            `</p>`+
             `</div>`,
           focusConfirm: false,
+          heightAuto: false,
+          scrollbarPadding: false,
           showCancelButton: true,
           confirmButtonText: __('Invia Richiesta'),
           cancelButtonText: __('Annulla'),
+          customClass: {
+            popup: 'loan-request-popup',
+            htmlContainer: 'loan-request-content',
+            actions: 'loan-request-actions'
+          },
           didOpen: () => {
             const startEl = document.getElementById('swal-date-start');
             const endEl = document.getElementById('swal-date-end');
@@ -2890,6 +2934,10 @@ document.addEventListener('DOMContentLoaded', function() {
               locale: forceEn ? 'en' : (fpLocale || 'default'),
               disable: disabledDates,
               showMonths: 1,
+              // Keep the calendar inside the modal's document flow. This
+              // prevents it from covering the next field and makes the popup,
+              // not the page underneath, the only scrollable surface.
+              static: true,
               onDayCreate: function(dObj, dStr, fp, dayElem) {
                 if (!dayElem || !dayElem.dateObj) return;
                 if (dayElem.classList.contains('prevMonthDay') || dayElem.classList.contains('nextMonthDay')) return;
@@ -2930,9 +2978,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
 
             if (window.flatpickr) {
-              let endPicker;
-
-              const startPicker = window.flatpickr(startEl, {
+              startPicker = window.flatpickr(startEl, {
                 ...baseOpts,
                 onChange: function(selectedDates, dateStr, instance) {
                   if (selectedDates.length > 0) {
@@ -2953,7 +2999,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 minDate: earliestAvailable,
                 maxDate: undefined // End date can extend beyond availability range
               });
+
+              if (startPicker.altInput) {
+                startPicker.altInput.id = 'swal-date-start-display';
+                document.querySelector('[data-for-picker="start"]')?.setAttribute('for', startPicker.altInput.id);
+              }
+              if (endPicker.altInput) {
+                endPicker.altInput.id = 'swal-date-end-display';
+                document.querySelector('[data-for-picker="end"]')?.setAttribute('for', endPicker.altInput.id);
+              }
             }
+          },
+          willClose: () => {
+            startPicker?.destroy();
+            endPicker?.destroy();
+            startPicker = null;
+            endPicker = null;
           },
           preConfirm: () => {
             const startDate = (document.getElementById('swal-date-start').value || '').trim();

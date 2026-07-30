@@ -38,11 +38,11 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
         </blockquote>
         <div class="bcq-meta">
           <?php if ($quote['page'] !== null): ?>
-            <span class="me-2"><?= $e(sprintf(__('pag. %d'), (int) $quote['page'])) ?></span>
+            <span class="mr-2"><?= $e(sprintf(__('pag. %d'), (int) $quote['page'])) ?></span>
           <?php endif; ?>
-          <i class="far fa-user me-1"></i><?= $e($quote['member_nome']) ?>
+          <i class="far fa-user mr-1"></i><?= $e($quote['member_nome']) ?>
           <span class="mx-1">·</span>
-          <i class="fas fa-book-reader me-1"></i><?= $e($quote['club_name']) ?>
+          <i class="fas fa-book-reader mr-1"></i><?= $e($quote['club_name']) ?>
         </div>
       </div>
     <?php endforeach; ?>

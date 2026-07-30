@@ -195,7 +195,7 @@
                     <!-- Info Note -->
                     <div class="bg-blue-50 rounded-2xl p-8 border-2 border-blue-200">
                         <div class="flex items-start space-x-6">
-                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-2">
+                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-2">
                                 <i class="fas fa-info-circle text-blue-600 text-xl"></i>
                             </div>
                             <div>

@@ -78,37 +78,37 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
   .bc-badge-club{background:var(--accent-color);color:var(--primary-color)}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none">
-    <i class="fas fa-arrow-left me-1"></i><?= $e(__('Torna al club')) ?>
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline">
+    <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Torna al club')) ?>
   </a>
 
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mt-3 mb-4">
+  <div class="flex flex-wrap items-center justify-between gap-3 mt-3 mb-4">
     <div class="bc-section-header mb-0">
       <span class="bc-chip" style="background: <?= $e($club['color']) ?>"></span>
       <h1><?= $e(__('Citazioni e annotazioni')) ?> — <?= $e($club['name']) ?></h1>
     </div>
-    <div class="d-flex align-items-center gap-2">
+    <div class="flex items-center gap-2">
       <a href="<?= $e($base . '/export.md') ?>" class="bc-btn bc-btn-outline bc-btn-sm"><i class="fab fa-markdown"></i><?= $e(__('Esporta i miei dati (Markdown)')) ?></a>
       <a href="<?= $e($base . '/export.csv') ?>" class="bc-btn bc-btn-outline bc-btn-sm"><i class="fas fa-file-csv"></i><?= $e(__('Esporta i miei dati (CSV)')) ?></a>
     </div>
   </div>
 
   <?php if (!empty($flash)): ?>
-    <div class="alert <?= $flash['type'] === 'success' ? 'alert-success' : ($flash['type'] === 'warning' ? 'alert-warning' : 'alert-danger') ?>">
+    <div class="alert <?= $flash['type'] === 'success' ? 'alert-success' : ($flash['type'] === 'warning' ? 'alert-warning' : 'alert-error') ?>">
       <?= $e($flash['message']) ?>
     </div>
   <?php endif; ?>
 
   <!-- Tabs -->
-  <ul class="nav nav-tabs mb-4">
+  <ul class="flex flex-wrap nav-tabs mb-4">
     <li class="nav-item">
       <a href="<?= $e($base) ?>" class="nav-link <?= $tab === 'quotes' ? 'active' : '' ?>">
-        <i class="fas fa-quote-left me-1"></i><?= $e(__('Citazioni')) ?>
+        <i class="fas fa-quote-left mr-1"></i><?= $e(__('Citazioni')) ?>
       </a>
     </li>
     <li class="nav-item">
       <a href="<?= $e($base . '?tab=notes') ?>" class="nav-link <?= $tab === 'notes' ? 'active' : '' ?>">
-        <i class="fas fa-pen-fancy me-1"></i><?= $e(__('Le mie annotazioni')) ?>
+        <i class="fas fa-pen-fancy mr-1"></i><?= $e(__('Le mie annotazioni')) ?>
       </a>
     </li>
   </ul>
@@ -124,11 +124,11 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
       <?php if ($books === []): ?>
         <p class="bc-muted mb-0"><?= $e(__('Nessun libro nel club: aggiungi prima un libro per citarlo.')) ?></p>
       <?php else: ?>
-        <form method="post" action="<?= $e($base) ?>" class="row g-3">
+        <form method="post" action="<?= $e($base) ?>" class="flex flex-wrap -mx-3 gap-y-3">
           <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-          <div class="col-12 col-md-7">
-            <label class="form-label small"><?= $e(__('Libro')) ?></label>
-            <select name="libro_id" required class="form-select">
+          <div class="w-full px-3 md:w-7/12">
+            <label class="form-label text-sm"><?= $e(__('Libro')) ?></label>
+            <select name="libro_id" required class="form-input">
               <?php foreach ($books as $book): ?>
                 <option value="<?= (int) $book['libro_id'] ?>">
                   <?= $e($book['titolo']) ?><?= !empty($book['autori']) ? ' — ' . $e($book['autori']) : '' ?>
@@ -136,28 +136,28 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
               <?php endforeach; ?>
             </select>
           </div>
-          <div class="col-6 col-md-2">
-            <label class="form-label small"><?= $e(__('Pagina')) ?></label>
-            <input type="number" name="page" min="0" class="form-control">
+          <div class="w-full w-1/2 px-3 md:w-1/6">
+            <label class="form-label text-sm"><?= $e(__('Pagina')) ?></label>
+            <input type="number" name="page" min="0" class="form-input">
           </div>
-          <div class="col-6 col-md-3">
-            <label class="form-label small"><?= $e(__('Visibilità')) ?></label>
-            <select name="visibility" class="form-select">
+          <div class="w-full w-1/2 px-3 md:w-1/4">
+            <label class="form-label text-sm"><?= $e(__('Visibilità')) ?></label>
+            <select name="visibility" class="form-input">
               <?php foreach ($quoteVisibilityLabels as $vKey => $vLabel): ?>
                 <option value="<?= $e($vKey) ?>" <?= $vKey === 'club' ? 'selected' : '' ?>><?= $e($vLabel) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
-          <div class="col-12">
-            <label class="form-label small"><?= $e(__('Citazione')) ?></label>
+          <div class="w-full px-3">
+            <label class="form-label text-sm"><?= $e(__('Citazione')) ?></label>
             <textarea name="quote" rows="3" required maxlength="5000"
-                      placeholder="<?= $e(__('Il testo della citazione…')) ?>" class="form-control"></textarea>
+                      placeholder="<?= $e(__('Il testo della citazione…')) ?>" class="form-input"></textarea>
           </div>
-          <div class="col-12">
-            <label class="form-label small"><?= $e(__('Nota personale (facoltativa)')) ?></label>
-            <textarea name="note" rows="2" maxlength="2000" class="form-control"></textarea>
+          <div class="w-full px-3">
+            <label class="form-label text-sm"><?= $e(__('Nota personale (facoltativa)')) ?></label>
+            <textarea name="note" rows="2" maxlength="2000" class="form-input"></textarea>
           </div>
-          <div class="col-12">
+          <div class="w-full px-3">
             <button type="submit" class="bc-btn">
               <i class="fas fa-plus"></i><?= $e(__('Salva citazione')) ?>
             </button>
@@ -181,31 +181,31 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
           $isOwner = (int) $quote['user_id'] === $userId;
           $memberName = trim((string) $quote['member_nome'] . ' ' . (string) $quote['member_cognome']);
         ?>
-        <article class="bc-list-item d-block">
+        <article class="bc-list-item block">
           <blockquote class="bc-quote" style="border-left-color: <?= $e($club['color']) ?>">
             “<?= nl2br($e($quote['quote'])) ?>”
           </blockquote>
-          <div class="d-flex flex-wrap align-items-center gap-2 mt-2 bc-muted small">
-            <span class="fw-medium"><i class="fas fa-book me-1"></i><?= $e($quote['titolo']) ?></span>
+          <div class="flex flex-wrap items-center gap-2 mt-2 bc-muted text-sm">
+            <span class="font-medium"><i class="fas fa-book mr-1"></i><?= $e($quote['titolo']) ?></span>
             <?php if (!empty($quote['autori'])): ?>
               <span><?= $e($quote['autori']) ?></span>
             <?php endif; ?>
             <?php if ($quote['page'] !== null): ?>
               <span><?= $e(sprintf(__('pag. %d'), (int) $quote['page'])) ?></span>
             <?php endif; ?>
-            <span><i class="far fa-user me-1"></i><?= $e($memberName) ?></span>
+            <span><i class="far fa-user mr-1"></i><?= $e($memberName) ?></span>
             <span><?= $e(date('d/m/Y', (int) strtotime((string) $quote['created_at']))) ?></span>
             <?= $visibilityBadge((string) $quote['visibility']) ?>
           </div>
           <?php if ((string) ($quote['note'] ?? '') !== '' && ($isOwner || (string) $quote['visibility'] !== 'private')): ?>
-            <p class="bc-muted mt-2 mb-0"><i class="far fa-sticky-note me-1"></i><?= nl2br($e($quote['note'])) ?></p>
+            <p class="bc-muted mt-2 mb-0"><i class="far fa-sticky-note mr-1"></i><?= nl2br($e($quote['note'])) ?></p>
           <?php endif; ?>
           <?php if ($isOwner || $canManage): ?>
-            <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+            <div class="flex flex-wrap items-center gap-2 mt-3">
               <?php if ($isOwner): ?>
-                <form method="post" action="<?= $e($base . '/' . $qid . '/visibility') ?>" class="d-flex align-items-center gap-2">
+                <form method="post" action="<?= $e($base . '/' . $qid . '/visibility') ?>" class="flex items-center gap-2">
                   <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                  <select name="visibility" class="form-select form-select-sm w-auto">
+                  <select name="visibility" class="form-input px-3 py-2 text-sm w-auto">
                     <?php foreach ($quoteVisibilityLabels as $vKey => $vLabel): ?>
                       <option value="<?= $e($vKey) ?>" <?= (string) $quote['visibility'] === $vKey ? 'selected' : '' ?>><?= $e($vLabel) ?></option>
                     <?php endforeach; ?>
@@ -235,11 +235,11 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
       <?php if ($books === []): ?>
         <p class="bc-muted mb-0"><?= $e(__('Nessun libro nel club: aggiungi prima un libro per annotarlo.')) ?></p>
       <?php else: ?>
-        <form method="post" action="<?= $e($base . '/notes') ?>" class="row g-3">
+        <form method="post" action="<?= $e($base . '/notes') ?>" class="flex flex-wrap -mx-3 gap-y-3">
           <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-          <div class="col-12 col-md-8">
-            <label class="form-label small"><?= $e(__('Libro')) ?></label>
-            <select name="club_book_id" required class="form-select">
+          <div class="w-full px-3 md:w-2/3">
+            <label class="form-label text-sm"><?= $e(__('Libro')) ?></label>
+            <select name="club_book_id" required class="form-input">
               <?php foreach ($books as $book): ?>
                 <option value="<?= (int) $book['id'] ?>">
                   <?= $e($book['titolo']) ?><?= !empty($book['autori']) ? ' — ' . $e($book['autori']) : '' ?>
@@ -247,20 +247,20 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
               <?php endforeach; ?>
             </select>
           </div>
-          <div class="col-12 col-md-4">
-            <label class="form-label small"><?= $e(__('Visibilità')) ?></label>
-            <select name="visibility" class="form-select">
+          <div class="w-full px-3 md:w-1/3">
+            <label class="form-label text-sm"><?= $e(__('Visibilità')) ?></label>
+            <select name="visibility" class="form-input">
               <?php foreach ($noteVisibilityLabels as $vKey => $vLabel): ?>
                 <option value="<?= $e($vKey) ?>"><?= $e($vLabel) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
-          <div class="col-12">
-            <label class="form-label small"><?= $e(__('Annotazione')) ?></label>
+          <div class="w-full px-3">
+            <label class="form-label text-sm"><?= $e(__('Annotazione')) ?></label>
             <textarea name="body" rows="4" required maxlength="20000"
-                      placeholder="<?= $e(__('Le tue riflessioni su questo libro…')) ?>" class="form-control"></textarea>
+                      placeholder="<?= $e(__('Le tue riflessioni su questo libro…')) ?>" class="form-input"></textarea>
           </div>
-          <div class="col-12">
+          <div class="w-full px-3">
             <button type="submit" class="bc-btn">
               <i class="fas fa-plus"></i><?= $e(__('Salva annotazione')) ?>
             </button>
@@ -280,27 +280,27 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
       <?php endif; ?>
       <?php foreach ($myNotes as $note): ?>
         <?php $nid = (int) $note['id']; ?>
-        <article class="border rounded-3 p-3 mb-3">
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-            <span class="fw-medium small"><i class="fas fa-book me-1" style="color:var(--text-muted)"></i><?= $e($note['titolo']) ?></span>
-            <span class="bc-muted small">
+        <article class="border rounded-md p-3 mb-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <span class="font-medium text-sm"><i class="fas fa-book mr-1" style="color:var(--text-muted)"></i><?= $e($note['titolo']) ?></span>
+            <span class="bc-muted text-sm">
               <?= $e($noteVisibilityLabels[(string) $note['visibility']] ?? (string) $note['visibility']) ?>
               · <?= $e(date('d/m/Y', (int) strtotime((string) $note['created_at']))) ?>
             </span>
           </div>
-          <form method="post" action="<?= $e($base . '/notes/' . $nid . '/update') ?>" class="row g-2">
+          <form method="post" action="<?= $e($base . '/notes/' . $nid . '/update') ?>" class="flex flex-wrap -mx-3 gap-y-2">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-            <div class="col-12">
-              <textarea name="body" rows="3" required maxlength="20000" class="form-control"><?= $e($note['body']) ?></textarea>
+            <div class="w-full px-3">
+              <textarea name="body" rows="3" required maxlength="20000" class="form-input"><?= $e($note['body']) ?></textarea>
             </div>
-            <div class="col-12 col-md-4">
-              <select name="visibility" class="form-select form-select-sm">
+            <div class="w-full px-3 md:w-1/3">
+              <select name="visibility" class="form-input px-3 py-2 text-sm">
                 <?php foreach ($noteVisibilityLabels as $vKey => $vLabel): ?>
                   <option value="<?= $e($vKey) ?>" <?= (string) $note['visibility'] === $vKey ? 'selected' : '' ?>><?= $e($vLabel) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
-            <div class="col-12 col-md-8 d-flex align-items-center gap-2">
+            <div class="w-full px-3 md:w-2/3 flex items-center gap-2">
               <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('Salva')) ?></button>
             </div>
           </form>
@@ -324,15 +324,15 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
       <?php endif; ?>
       <?php foreach ($clubNotes as $note): ?>
         <?php $memberName = trim((string) $note['member_nome'] . ' ' . (string) $note['member_cognome']); ?>
-        <article class="bc-list-item d-block">
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
-            <span class="fw-medium small"><i class="fas fa-book me-1" style="color:var(--text-muted)"></i><?= $e($note['titolo']) ?></span>
-            <span class="bc-muted small">
-              <i class="far fa-user me-1"></i><?= $e($memberName) ?>
+        <article class="bc-list-item block">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+            <span class="font-medium text-sm"><i class="fas fa-book mr-1" style="color:var(--text-muted)"></i><?= $e($note['titolo']) ?></span>
+            <span class="bc-muted text-sm">
+              <i class="far fa-user mr-1"></i><?= $e($memberName) ?>
               · <?= $e(date('d/m/Y', (int) strtotime((string) $note['created_at']))) ?>
             </span>
           </div>
-          <p class="small mb-0" style="color:var(--text-light)"><?= nl2br($e($note['body'])) ?></p>
+          <p class="text-sm mb-0" style="color:var(--text-light)"><?= nl2br($e($note['body'])) ?></p>
           <?php if ($canManage): ?>
             <form method="post" action="<?= $e($base . '/notes/' . (int) $note['id'] . '/delete') ?>" class="mt-2"
                   onsubmit="return confirm('<?= $e(__('Eliminare questa annotazione?')) ?>');">

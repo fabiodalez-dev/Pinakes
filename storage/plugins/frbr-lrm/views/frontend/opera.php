@@ -7,7 +7,7 @@
  */
 $placeholder = url('/uploads/copertine/placeholder.jpg');
 ?>
-<div class="max-w-5xl mx-auto px-4 py-8">
+<div class="frbr-opera-page max-w-5xl mx-auto px-4 py-8">
   <header class="mb-8">
     <p class="text-sm uppercase tracking-wide text-gray-400 mb-1"><?= __("Opera") ?></p>
     <h1 class="text-3xl font-bold text-gray-900"><?= htmlspecialchars((string) $opera['titolo_uniforme'], ENT_QUOTES, 'UTF-8') ?></h1>

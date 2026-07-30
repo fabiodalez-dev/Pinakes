@@ -11,6 +11,15 @@ namespace App\Support;
  */
 class ThemeManager
 {
+    public const DEFAULT_LAYOUT_VARIANT = 'editorial';
+
+    public const LAYOUT_VARIANTS = [
+        'editorial',
+        'workspace',
+        'command',
+        'soft',
+    ];
+
     private \mysqli $db;
 
     public function __construct(\mysqli $db)
@@ -125,10 +134,16 @@ class ThemeManager
      *
      * @param int $themeId Theme ID
      * @param array $colors Color configuration ['primary' => '#xxx', 'secondary' => '#xxx', ...]
+     * @param string|null $layoutVariant Validated public layout to persist in
+     *        the same JSON update, avoiding an additional admin-save query.
      * @return bool Success status
      */
-    public function updateThemeColors(int $themeId, array $colors): bool
+    public function updateThemeColors(int $themeId, array $colors, ?string $layoutVariant = null): bool
     {
+        if ($layoutVariant !== null && !in_array($layoutVariant, self::LAYOUT_VARIANTS, true)) {
+            return false;
+        }
+
         // Get current settings
         $stmt = $this->db->prepare("SELECT settings FROM themes WHERE id = ?");
         if (!$stmt) {
@@ -152,6 +167,9 @@ class ThemeManager
 
         // Update colors
         $settings['colors'] = $colors;
+        if ($layoutVariant !== null) {
+            $settings['layout_variant'] = $layoutVariant;
+        }
 
         // Encode back to JSON
         $settingsJson = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -219,6 +237,66 @@ class ThemeManager
         $stmt->close();
 
         return $success;
+    }
+
+    /**
+     * Persist the public layout independently from the color palette.
+     * Every variant keeps the same views, CMS fields and frontend behavior.
+     */
+    public function updateLayoutVariant(int $themeId, string $variant): bool
+    {
+        if (!in_array($variant, self::LAYOUT_VARIANTS, true)) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("SELECT settings FROM themes WHERE id = ?");
+        if (!$stmt) {
+            return false;
+        }
+
+        $stmt->bind_param('i', $themeId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $theme = $result->fetch_assoc();
+        $stmt->close();
+
+        if (!$theme) {
+            return false;
+        }
+
+        $settings = json_decode($theme['settings'], true) ?? [];
+        $settings['layout_variant'] = $variant;
+        $settingsJson = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($settingsJson === false) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("UPDATE themes SET settings = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        if (!$stmt) {
+            return false;
+        }
+
+        $stmt->bind_param('si', $settingsJson, $themeId);
+        $success = $stmt->execute();
+        $stmt->close();
+
+        return $success;
+    }
+
+    public function getLayoutVariant(?array $theme = null): string
+    {
+        if ($theme === null) {
+            $theme = $this->getActiveTheme();
+        }
+
+        $settings = $theme && !empty($theme['settings'])
+            ? (json_decode($theme['settings'], true) ?? [])
+            : [];
+        $variant = (string) ($settings['layout_variant'] ?? self::DEFAULT_LAYOUT_VARIANT);
+
+        return in_array($variant, self::LAYOUT_VARIANTS, true)
+            ? $variant
+            : self::DEFAULT_LAYOUT_VARIANT;
     }
 
     /**
