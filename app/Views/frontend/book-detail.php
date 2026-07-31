@@ -1472,6 +1472,15 @@ $additional_css = "
         .card-body {
             padding: 1rem;
         }
+
+        /* Match the header inset to the reduced .card-body padding (1rem) so the
+           section label lines up with the meta rows below it on mobile. Needs
+           !important to beat main.css .card-header { margin:0 !important } which
+           otherwise leaves the label flush-left of the inset meta rows. */
+        .card-header {
+            margin-left: 1rem !important;
+            margin-right: 1rem !important;
+        }
     }
 
     @media (max-width: 400px) {

@@ -58,7 +58,7 @@ body[class*="layout-"] .book-breadcrumb .breadcrumb-item {
    book page, white text on the coloured catalogue hero. */
 body[class*="layout-"] .breadcrumb .breadcrumb-item + .breadcrumb-item::before {
   margin-right: .4rem;
-  color: color-mix(in srgb, currentColor 55%, transparent);
+  color: color-mix(in srgb, currentcolor 55%, transparent);
   content: '›';
   font-size: 1rem;
   line-height: 1;
