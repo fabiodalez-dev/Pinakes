@@ -135,13 +135,18 @@ $renderBadges = static function (string $context): string {
     return (string) ob_get_clean();
 };
 
-// 14. Frontend wrapper is forced full-width so it wraps onto its own row.
-$check(strpos($renderBadges('frontend'), 'flex-basis:100%') !== false,
-    "badges.php frontend: wrapper has flex-basis:100% (own row)");
+// 14. Frontend wrapper carries the --frontend modifier that CSS makes full-width
+//     so the "Cerca su" block wraps onto its own row. The full-width styling moved
+//     from an inline style to the shared plugin-source-search contract
+//     (frontend-layouts.css: `.plugin-source-search--frontend { flex: 1 0 100%; width:100% }`).
+$check(strpos($renderBadges('frontend'), 'plugin-source-search--frontend') !== false,
+    "badges.php frontend: wrapper has the --frontend modifier (own row via CSS)");
 
-// 15. Admin context is unchanged (no forced break).
-$check(strpos($renderBadges('admin'), 'flex-basis:100%') === false,
-    "badges.php admin: no flex-basis (layout unchanged)");
+// 15. Admin context uses the --admin modifier (no forced full-width break).
+$adminOut = $renderBadges('admin');
+$check(strpos($adminOut, 'plugin-source-search--admin') !== false
+    && strpos($adminOut, 'plugin-source-search--frontend') === false,
+    "badges.php admin: --admin modifier, not the full-width frontend one");
 
 // ---------------------------------------------------------------------------
 echo "Static guards — CSS, rate limit, resilient fallback\n";
