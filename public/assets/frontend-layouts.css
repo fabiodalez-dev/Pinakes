@@ -52,9 +52,13 @@ body[class*="layout-"] .book-breadcrumb .breadcrumb-item {
   line-height: 1.4;
 }
 
-body[class*="layout-"] .book-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+/* Breadcrumb separator for EVERY breadcrumb (book detail, catalogue, CMS…):
+   the catalogue `<ol class="breadcrumb">` is not inside `.book-breadcrumb`, so
+   it had no divider. currentColor adapts to any background — dark text on the
+   book page, white text on the coloured catalogue hero. */
+body[class*="layout-"] .breadcrumb .breadcrumb-item + .breadcrumb-item::before {
   margin-right: .4rem;
-  color: color-mix(in srgb, var(--text-color) 38%, var(--light-bg));
+  color: color-mix(in srgb, currentColor 55%, transparent);
   content: '›';
   font-size: 1rem;
   line-height: 1;
@@ -2007,6 +2011,17 @@ body.layout-command .plugin-source-link {
 body.layout-soft #book-action-buttons .plugin-book-action,
 body.layout-soft .plugin-source-link {
   border-radius: 13px;
+}
+
+/* Mobile: the source links were ~300px wide and left-packed into a column that
+   looked narrower than — and misaligned with — the full-width Reserve/Favourite
+   buttons right above them. Stack them full width so the whole action area reads
+   as one consistent column of buttons. */
+@media (max-width: 767px) {
+  body[class*="layout-"] #book-action-buttons .plugin-source-link {
+    flex: 1 0 100%;
+    max-width: 100%;
+  }
 }
 
 body.layout-soft .plugin-source-search--frontend {

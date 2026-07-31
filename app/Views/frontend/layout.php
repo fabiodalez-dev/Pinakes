@@ -140,6 +140,9 @@ $htmlLang = substr($currentLocale, 0, 2);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Colour the mobile browser chrome (Android address bar / task switcher)
+         with the active theme's primary colour, resolved server-side. -->
+    <meta name="theme-color" content="<?= htmlspecialchars($themePalette['primary'] ?? '#d70161', ENT_QUOTES, 'UTF-8') ?>">
     <title><?= HtmlHelper::e($seoTitle ?? $title ?? $appName) ?></title>
 
     <!-- SEO Meta Tags -->

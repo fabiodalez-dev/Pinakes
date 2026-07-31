@@ -1095,6 +1095,24 @@ $additional_css = "
     }
 
     /* Pagination - keep in sync with global dark accent */
+    /* Horizontal row of page links. The .pagination/.page-item classes carry no
+       framework CSS anymore (Bootstrap was removed), so the list is laid out
+       here: a centered, wrapping flex row instead of stacked <li> blocks. */
+    .pagination {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 0.4rem;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .pagination .page-item {
+        margin: 0;
+    }
+
     .pagination .page-link {
         color: #111827;
         border-color: #111827;
@@ -1117,10 +1135,6 @@ $additional_css = "
         color: #ffffff;
         background-color: #000000;
         border-color: #000000;
-    }
-
-    ul.pagination.justify-content-center {
-        gap: 20px;
     }
 
     .page-item:first-child .page-link {
