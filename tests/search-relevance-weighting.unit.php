@@ -8,8 +8,8 @@ declare(strict_types=1);
  * authors, publisher, ISBN/EAN, keywords AND the description into one blob, so a
  * plain MATCH(search_index) ranks a term found only in the description exactly
  * like one found in the title. SearchIndexBuilder::buildRelevanceOrder() fixes
- * the ORDER: title (100) > author (60) > subtitle (40) > keywords (10) >
- * description (3).
+ * the ORDER: identifiers (120) > title (100) > author (60) > subtitle (40) >
+ * publisher (25) > keywords (10) > description (3).
  *
  * This seeds three books that all match the same term but in different fields,
  * rebuilds their search_index, runs the exact WHERE + ORDER the search
@@ -74,6 +74,11 @@ $cleanup = static function () use ($db, $prefix, $term): void {
     $stmt->bind_param('s', $authorName);
     $stmt->execute();
     $stmt->close();
+    $stmt = $db->prepare('DELETE FROM editori WHERE nome = ?');
+    $publisherName = 'Editore ' . $term;
+    $stmt->bind_param('s', $publisherName);
+    $stmt->execute();
+    $stmt->close();
 };
 
 $cleanup();
@@ -100,8 +105,35 @@ $makeBook = static function (string $suffix, string $titolo, string $descrizione
 $bookTitle = $makeBook('T', $term . ' Chronicles', 'An entirely ordinary description with nothing special.');
 // Book A — term only in the AUTHOR name.
 $bookAuthor = $makeBook('A', 'Ordinary Chronicles', 'An entirely ordinary description with nothing special.');
+// Book S — term only in the SUBTITLE.
+$bookSubtitle = $makeBook('S', 'Ordinary Chronicles', 'An entirely ordinary description with nothing special.');
+// Book P — term only in the PUBLISHER name.
+$bookPublisher = $makeBook('P', 'Ordinary Chronicles', 'An entirely ordinary description with nothing special.');
+// Book K — term only in KEYWORDS.
+$bookKeywords = $makeBook('K', 'Ordinary Chronicles', 'An entirely ordinary description with nothing special.');
 // Book D — term only in the DESCRIPTION.
 $bookDesc = $makeBook('D', 'Ordinary Chronicles', "A plain title but the {$term} shows up here in the body text.");
+
+$stmt = $db->prepare('UPDATE libri SET sottotitolo = ? WHERE id = ?');
+$stmt->bind_param('si', $term, $bookSubtitle);
+$stmt->execute();
+$stmt->close();
+
+$publisherName = 'Editore ' . $term;
+$stmt = $db->prepare('INSERT INTO editori (nome) VALUES (?)');
+$stmt->bind_param('s', $publisherName);
+$stmt->execute();
+$publisherId = (int) $db->insert_id;
+$stmt->close();
+$stmt = $db->prepare('UPDATE libri SET editore_id = ? WHERE id = ?');
+$stmt->bind_param('ii', $publisherId, $bookPublisher);
+$stmt->execute();
+$stmt->close();
+
+$stmt = $db->prepare('UPDATE libri SET parole_chiave = ? WHERE id = ?');
+$stmt->bind_param('si', $term, $bookKeywords);
+$stmt->execute();
+$stmt->close();
 
 // Link an author named after the term to Book A.
 $authorName = 'Autore ' . $term;
@@ -115,11 +147,16 @@ $stmt->bind_param('ii', $bookAuthor, $authorId);
 $stmt->execute();
 $stmt->close();
 
-// Rebuild the denormalized FULLTEXT index for all three so search_index folds
-// title / author / description in — exactly what the live search matches on.
-SearchIndexBuilder::rebuild($db, $bookTitle);
-SearchIndexBuilder::rebuild($db, $bookAuthor);
-SearchIndexBuilder::rebuild($db, $bookDesc);
+// Rebuild the denormalized FULLTEXT index so every source field participates in
+// the WHERE exactly as it does in production.
+SearchIndexBuilder::rebuildMany($db, [
+    $bookTitle,
+    $bookAuthor,
+    $bookSubtitle,
+    $bookPublisher,
+    $bookKeywords,
+    $bookDesc,
+]);
 
 // ── Run the exact WHERE + weighted ORDER the search controllers use ─────────
 $cond = SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $term);
@@ -138,25 +175,31 @@ while ($row = $res->fetch_row()) {
 }
 $stmt->close();
 
-// All three qualify (term is in search_index of each).
-$check(in_array($bookTitle, $order, true) && in_array($bookAuthor, $order, true) && in_array($bookDesc, $order, true),
-    "02 all three books match the FULLTEXT WHERE");
+// Every field-specific fixture qualifies through the same search_index.
+$check(count(array_intersect(
+    [$bookTitle, $bookAuthor, $bookSubtitle, $bookPublisher, $bookKeywords, $bookDesc],
+    $order
+)) === 6, "02 all field-specific books match the FULLTEXT WHERE");
 
 $posTitle  = array_search($bookTitle, $order, true);
 $posAuthor = array_search($bookAuthor, $order, true);
+$posSubtitle = array_search($bookSubtitle, $order, true);
+$posPublisher = array_search($bookPublisher, $order, true);
+$posKeywords = array_search($bookKeywords, $order, true);
 $posDesc   = array_search($bookDesc, $order, true);
 
 $check($posTitle !== false && $posAuthor !== false && $posTitle < $posAuthor,
     "03 title match ranks ABOVE author match");
-$check($posAuthor !== false && $posDesc !== false && $posAuthor < $posDesc,
-    "04 author match ranks ABOVE description-only match");
-$check($posTitle !== false && $posDesc !== false && $posTitle < $posDesc,
-    "05 title match ranks ABOVE description-only match (the reported bug)");
+$check($posAuthor !== false && $posSubtitle !== false && $posAuthor < $posSubtitle,
+    "04 author match ranks ABOVE subtitle match");
+$check($posSubtitle !== false && $posPublisher !== false && $posSubtitle < $posPublisher,
+    "05 subtitle match ranks ABOVE publisher match");
+$check($posPublisher !== false && $posKeywords !== false && $posPublisher < $posKeywords,
+    "06 publisher match ranks ABOVE keywords match");
+$check($posKeywords !== false && $posDesc !== false && $posKeywords < $posDesc,
+    "07 keywords match ranks ABOVE description-only match");
 
-// ── 06 · Trailing-'*' prefix query still ranks by field (F002) ──────────────
-// The FULLTEXT WHERE strips a trailing '*'; the ORDER BY must normalize the
-// same way, else 'term*' builds LIKE '%term*%' (literal asterisk), scores 0 on
-// every row and silently collapses relevance to titolo ASC.
+// ── 08 · Trailing-'*' prefix query still ranks by field (F002) ──────────────
 $condStar = SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $term . '*');
 $relStar  = SearchIndexBuilder::buildRelevanceOrder($db, $term . '*', 'l.');
 $sqlStar  = "SELECT l.id FROM libri l WHERE l.deleted_at IS NULL AND {$condStar['sql']} ORDER BY {$relStar['sql']}";
@@ -172,19 +215,91 @@ $stmt->close();
 $posTitleStar = array_search($bookTitle, $orderStar, true);
 $posDescStar  = array_search($bookDesc, $orderStar, true);
 $check($posTitleStar !== false && $posDescStar !== false && $posTitleStar < $posDescStar,
-    "06 trailing-'*' query still ranks title ABOVE description (no collapse to titolo ASC)");
+    "08 trailing-'*' query still ranks title ABOVE description (no collapse to titolo ASC)");
 
-// ── 07 · Per-word relevance subqueries are capped (F007) ────────────────────
-// Each query word adds one correlated author EXISTS subquery to the ORDER BY.
-// An unbounded word count on the public /api/search endpoints would let a
-// caller amplify sort cost; buildRelevanceOrder caps the words it weighs.
-$manyWords = trim(str_repeat($term . ' ', 40));           // 40 tokens
-$relMany   = SearchIndexBuilder::buildRelevanceOrder($db, $manyWords, 'l.');
-$existsCount = substr_count($relMany['sql'], 'EXISTS (');
-$check($existsCount > 0 && $existsCount <= 12,
-    "07 relevance ORDER BY caps author EXISTS subqueries at 12 (got {$existsCount})");
-$check(strlen($relMany['types']) === $existsCount * 6,
-    "07b param/type count stays aligned with the capped word count");
+// ── 09 · Catalog is uncapped; AJAX cap applies after normalization ─────────
+$manyWords = trim(str_repeat($term . ' ', 40));
+$relCatalog = SearchIndexBuilder::buildRelevanceOrder($db, $manyWords, 'l.');
+$relAjax = SearchIndexBuilder::buildRelevanceOrder($db, $manyWords, 'l.', 24);
+$catalogAuthorTerms = substr_count($relCatalog['sql'], 'JOIN autori a_rel');
+$ajaxAuthorTerms = substr_count($relAjax['sql'], 'JOIN autori a_rel');
+$check($catalogAuthorTerms === 40 && $ajaxAuthorTerms === 24,
+    "09 catalog weighs all 40 words while AJAX is capped at 24");
+
+$starPrefix = str_repeat('* ', 30) . $term;
+$relAfterStars = SearchIndexBuilder::buildRelevanceOrder($db, $starPrefix, 'l.', 24);
+$check($relAfterStars['score_sql'] !== '0'
+    && !str_contains($relAfterStars['sql'], '() DESC')
+    && substr_count($relAfterStars['sql'], 'JOIN autori a_rel') === 1,
+    "10 wildcard-only tokens do not consume the AJAX budget or produce invalid SQL");
+$check(count($relAjax['params']) === strlen($relAjax['types'])
+    && count($relAjax['params']) === substr_count($relAjax['score_sql'], '?'),
+    "11 parameter/type/placeholder counts stay aligned after the cap");
+
+// ── 12 · ISBN/EAN outrank description-only matches ────────────────────────
+$identifier = substr('979' . str_pad((string) abs(crc32($run)), 10, '0', STR_PAD_LEFT), 0, 13);
+$bookIdentifier = $makeBook('I', 'Ordinary Identifier', 'An ordinary description.');
+$bookIdentifierDesc = $makeBook('ID', 'Ordinary Description', "The code {$identifier} occurs only in this description.");
+$stmt = $db->prepare('UPDATE libri SET isbn13 = ? WHERE id = ?');
+$stmt->bind_param('si', $identifier, $bookIdentifier);
+$stmt->execute();
+$stmt->close();
+SearchIndexBuilder::rebuildMany($db, [$bookIdentifier, $bookIdentifierDesc]);
+$condIdentifier = SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $identifier);
+$relIdentifier = SearchIndexBuilder::buildRelevanceOrder($db, $identifier, 'l.');
+$stmt = $db->prepare("SELECT l.id FROM libri l WHERE l.deleted_at IS NULL AND {$condIdentifier['sql']} ORDER BY {$relIdentifier['sql']}");
+$stmt->bind_param($condIdentifier['types'] . $relIdentifier['types'], ...array_merge($condIdentifier['params'], $relIdentifier['params']));
+$stmt->execute();
+$identifierOrder = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'id'));
+$stmt->close();
+$posIdentifier = array_search($bookIdentifier, $identifierOrder, true);
+$posIdentifierDesc = array_search($bookIdentifierDesc, $identifierOrder, true);
+$check($posIdentifier !== false && $posIdentifierDesc !== false && $posIdentifier < $posIdentifierDesc,
+    "12 ISBN match ranks ABOVE description-only match");
+
+// ── 13 · Entity-decoded WHERE and ranking use the same value ───────────────
+$entityTerm = 'Q&A' . $run;
+$bookEntityTitle = $makeBook('E', 'Q&amp;A' . $run, 'An ordinary description.');
+$bookEntityDesc = $makeBook('ED', 'Ordinary Entity', "The token {$entityTerm} occurs only in this description.");
+SearchIndexBuilder::rebuildMany($db, [$bookEntityTitle, $bookEntityDesc]);
+$condEntity = SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $entityTerm);
+$relEntity = SearchIndexBuilder::buildRelevanceOrder($db, $entityTerm, 'l.');
+$stmt = $db->prepare("SELECT l.id FROM libri l WHERE l.deleted_at IS NULL AND {$condEntity['sql']} ORDER BY {$relEntity['sql']}");
+$stmt->bind_param($condEntity['types'] . $relEntity['types'], ...array_merge($condEntity['params'], $relEntity['params']));
+$stmt->execute();
+$entityOrder = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'id'));
+$stmt->close();
+$posEntityTitle = array_search($bookEntityTitle, $entityOrder, true);
+$posEntityDesc = array_search($bookEntityDesc, $entityOrder, true);
+$check($posEntityTitle !== false && $posEntityDesc !== false && $posEntityTitle < $posEntityDesc,
+    "13 entity-decoded title match keeps the title weight");
+
+// ── 14 · Real AJAX controller uses aligned params and ordering ──────────────
+$request = (new Slim\Psr7\Factory\ServerRequestFactory())
+    ->createServerRequest('GET', '/api/search/libri')
+    ->withQueryParams(['q' => $term]);
+$response = (new App\Controllers\SearchController())->books(
+    $request,
+    (new Slim\Psr7\Factory\ResponseFactory())->createResponse(),
+    $db
+);
+$ajaxRows = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+$check($response->getStatusCode() === 200
+    && is_array($ajaxRows)
+    && (int) ($ajaxRows[0]['id'] ?? 0) === $bookTitle
+    && count($ajaxRows) <= 50,
+    "14 AJAX books endpoint returns weighted results within the 50-row limit");
+
+// ── 15 · Pre-migration fallback shares wildcard normalization ──────────────
+$legacyMethod = new ReflectionMethod(SearchIndexBuilder::class, 'buildLegacyCondition');
+/** @var array{sql:string, params:array<int,string>, types:string}|null $legacy */
+$legacy = $legacyMethod->invoke(null, $db, 'l.search_index', $term . '*');
+$check($legacy !== null
+    && $legacy['params'] !== []
+    && count(array_filter($legacy['params'], static fn (string $param): bool => str_contains($param, '*'))) === 0,
+    "15 pre-migration WHERE strips trailing wildcards just like FULLTEXT relevance");
+$legacyEmpty = $legacyMethod->invoke(null, $db, 'l.search_index', '***');
+$check($legacyEmpty === null, "16 wildcard-only legacy query yields no invalid condition");
 
 $cleanup();
 $db->close();

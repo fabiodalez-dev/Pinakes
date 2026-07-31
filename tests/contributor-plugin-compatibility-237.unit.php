@@ -180,7 +180,12 @@ $challenge = $read('storage/plugins/book-club/src/ChallengeRepo.php');
 $check(str_contains($challenge, "la.ruolo IN (\\'principale\\', \\'co-autore\\')"), 'Book Club author challenges count creators only');
 
 $mobile = $read('storage/plugins/mobile-api/src/Controllers/CatalogController.php');
-$check(str_contains($mobile, 'canonical_name') && str_contains($mobile, "'pseudonym'") && str_contains($mobile, 'a_q.pseudonimo LIKE'), 'Mobile API returns both identities and searches pseudonyms');
+$searchIndexBuilder = $read('app/Support/SearchIndexBuilder.php');
+$check(str_contains($mobile, 'canonical_name')
+    && str_contains($mobile, "'pseudonym'")
+    && str_contains($mobile, 'SearchIndexBuilder::buildSearchCondition')
+    && str_contains($searchIndexBuilder, "CONCAT_WS(' ', a.nome, a.pseudonimo)"),
+    'Mobile API returns both identities and searches pseudonyms through the shared builder');
 $check(str_contains($mobile, '$creatorAuthors') && str_contains($mobile, "la.ruolo IN ('principale', 'co-autore')"), 'Mobile related-title logic uses creators only');
 $openApi = $read('storage/plugins/mobile-api/src/Controllers/OpenApiController.php');
 $check(str_contains($openApi, "'canonical_name'") && str_contains($openApi, "'colorista'"), 'Mobile OpenAPI documents identity fields and all roles');

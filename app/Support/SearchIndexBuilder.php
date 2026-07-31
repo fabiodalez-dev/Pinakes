@@ -30,8 +30,9 @@ final class SearchIndexBuilder
 
     /**
      * Rebuild one book's search_index from its current title, subtitle, author
-     * names, publisher name(s), ISBN/EAN and keywords. No-op if the column does
-     * not exist yet (e.g. code deployed but migration not yet run).
+     * names, publisher name(s), ISBN/EAN, keywords and plain-text description.
+     * No-op if the column does not exist yet (e.g. code deployed but migration
+     * not yet run).
      */
     public static function rebuild(\mysqli $db, int $bookId): void
     {
@@ -263,15 +264,6 @@ final class SearchIndexBuilder
     private const REBUILD_CHUNK = 500;
 
     /**
-     * Cap on the number of query words fed into the weighted relevance ORDER BY.
-     * Each word adds a per-row correlated author EXISTS subquery, so an
-     * unbounded word count on the public /api/search endpoints would let a
-     * caller amplify sort cost by (matched rows × words). Real searches never
-     * need more than a handful of words to rank; the cap bounds the cost.
-     */
-    private const MAX_RELEVANCE_WORDS = 12;
-
-    /**
      * Build the WHERE fragment for a user book search against a FULLTEXT
      * column (typically `l.search_index`).
      *
@@ -373,8 +365,14 @@ final class SearchIndexBuilder
         $params = [];
         $types = '';
 
+        $hasJunction = SchemaInfo::hasLibriEditori($db);
+
         foreach ($words as $word) {
-            $like = self::likePattern($word);
+            $wordBase = self::normalizeSearchWord($word);
+            if ($wordBase === '') {
+                continue;
+            }
+            $like = self::likePattern($wordBase);
             $bookIdExpr = $prefix . 'id';
             $publisherIdExpr = $prefix . 'editore_id';
             $parts[] = "({$prefix}titolo LIKE ? ESCAPE '\\\\'"
@@ -385,8 +383,13 @@ final class SearchIndexBuilder
                 . " OR {$prefix}isbn13 LIKE ? ESCAPE '\\\\'"
                 . " OR {$prefix}ean LIKE ? ESCAPE '\\\\'"
                 . " OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = {$bookIdExpr} AND CONCAT_WS(' ', a.nome, a.pseudonimo) LIKE ? ESCAPE '\\\\')"
-                . " OR EXISTS (SELECT 1 FROM editori e WHERE e.id = {$publisherIdExpr} AND e.nome LIKE ? ESCAPE '\\\\'))";
-            for ($i = 0; $i < 9; $i++) {
+                . " OR EXISTS (SELECT 1 FROM editori e WHERE e.id = {$publisherIdExpr} AND e.nome LIKE ? ESCAPE '\\\\')"
+                . ($hasJunction
+                    ? " OR EXISTS (SELECT 1 FROM libri_editori le JOIN editori e2 ON e2.id = le.editore_id WHERE le.libro_id = {$bookIdExpr} AND e2.nome LIKE ? ESCAPE '\\\\')"
+                    : '')
+                . ')';
+            $paramsPerWord = $hasJunction ? 10 : 9;
+            for ($i = 0; $i < $paramsPerWord; $i++) {
                 $params[] = $like;
                 $types .= 's';
             }
@@ -407,58 +410,101 @@ final class SearchIndexBuilder
      * Weighted relevance ORDER BY so a term that appears in the title or author
      * outranks one that only lives in the description. The FULLTEXT WHERE
      * (buildSearchCondition) decides WHICH rows qualify; this decides their
-     * order. Per query word a hit scores: title 100, author 60, subtitle 40,
-     * keywords 10, description 3 — summed across words — then rows are ordered
-     * by that score DESC with title ASC as the tie-break.
+     * order. Per query word a hit scores: ISBN/EAN 120, title 100, author 60,
+     * subtitle 40, publisher 25, keywords 10, description 3 — summed across
+     * words — then rows are ordered by that score DESC with title ASC as the
+     * tie-break.
      *
-     * The returned params must be appended to the statement AFTER the WHERE
-     * params (the ORDER BY placeholders come last) and the types concatenated
-     * after the WHERE types.
+     * When using `sql` directly in ORDER BY, append the returned params after
+     * the WHERE params. When selecting `score_sql AS relevance_score` (needed
+     * for cursor pagination), its placeholders occur in SELECT and these params
+     * must instead precede the WHERE params.
      *
-     * @return array{sql: string, params: list<string>, types: string}
+     * `$maxWords` is intentionally opt-in. Full catalog searches must be able to
+     * rank every query term; public AJAX callers pass their own defensive cap.
+     * Normalization/filtering happens before the cap so ignored wildcard-only
+     * tokens cannot consume the whole budget or produce an empty SQL expression.
+     *
+     * @return array{sql: string, score_sql: string, params: list<string>, types: string}
      */
-    public static function buildRelevanceOrder(\mysqli $db, string $searchQuery, string $prefix = 'l.'): array
+    public static function buildRelevanceOrder(
+        \mysqli $db,
+        string $searchQuery,
+        string $prefix = 'l.',
+        ?int $maxWords = null
+    ): array
     {
-        $words = preg_split('/\s+/', trim($searchQuery), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        // Bound the per-word correlated subqueries so a pathological (or
-        // malicious) many-word query cannot amplify sort cost unboundedly.
-        $words = array_slice($words, 0, self::MAX_RELEVANCE_WORDS);
+        $rawWords = preg_split('/\s+/', trim($searchQuery), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $words = [];
+        foreach ($rawWords as $word) {
+            $wordBase = self::normalizeSearchWord($word);
+            if ($wordBase !== '') {
+                $words[] = $wordBase;
+            }
+        }
+        if ($maxWords !== null) {
+            $words = array_slice($words, 0, max(0, $maxWords));
+        }
         if ($words === []) {
-            return ['sql' => "{$prefix}titolo ASC", 'params' => [], 'types' => ''];
+            return ['sql' => "{$prefix}titolo ASC", 'score_sql' => '0', 'params' => [], 'types' => ''];
         }
 
-        $descExpr = self::descriptionExpr($db, $prefix);
+        $titleExpr = self::decodedSearchExpr("{$prefix}titolo");
+        $subtitleExpr = self::decodedSearchExpr("{$prefix}sottotitolo");
+        $keywordsExpr = self::decodedSearchExpr("{$prefix}parole_chiave");
+        $descExpr = self::decodedSearchExpr(self::descriptionExpr($db, $prefix));
+        $hasJunction = SchemaInfo::hasLibriEditori($db);
         $terms = [];
         $params = [];
         $types = '';
 
         foreach ($words as $word) {
-            // Normalize each word the same way the FULLTEXT WHERE does
-            // (buildSearchCondition), so a trailing-'*' prefix query ('har*')
-            // scores against 'har' instead of the literal '%har*%' that would
-            // match nothing and silently collapse ranking to titolo ASC.
-            $wordBase = self::normalizeSearchWord($word);
-            if ($wordBase === '') {
-                continue;
-            }
-            $like = self::likePattern($wordBase);
-            $terms[] = "(CASE WHEN {$prefix}titolo LIKE ? ESCAPE '\\\\' THEN 100 ELSE 0 END)";
+            $like = self::likePattern($word);
+
+            $terms[] = "(CASE WHEN ({$prefix}isbn10 LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}isbn13 LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}ean LIKE ? ESCAPE '\\\\') THEN 120 ELSE 0 END)";
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+            $types .= 'sss';
+
+            $terms[] = "(CASE WHEN {$titleExpr} LIKE ? ESCAPE '\\\\' THEN 100 ELSE 0 END)";
             $params[] = $like;
             $types .= 's';
 
-            $terms[] = "(CASE WHEN {$prefix}sottotitolo LIKE ? ESCAPE '\\\\' THEN 40 ELSE 0 END)";
-            $params[] = $like;
-            $types .= 's';
-
+            $authorExpr = self::decodedSearchExpr("CONCAT_WS(' ', a_rel.nome, a_rel.pseudonimo)");
             $terms[] = "(CASE WHEN EXISTS (SELECT 1 FROM libri_autori la_rel"
                 . " JOIN autori a_rel ON a_rel.id = la_rel.autore_id"
                 . " WHERE la_rel.libro_id = {$prefix}id"
-                . " AND (a_rel.nome LIKE ? ESCAPE '\\\\' OR a_rel.pseudonimo LIKE ? ESCAPE '\\\\')) THEN 60 ELSE 0 END)";
+                . " AND {$authorExpr} LIKE ? ESCAPE '\\\\') THEN 60 ELSE 0 END)";
             $params[] = $like;
-            $params[] = $like;
-            $types .= 'ss';
+            $types .= 's';
 
-            $terms[] = "(CASE WHEN {$prefix}parole_chiave LIKE ? ESCAPE '\\\\' THEN 10 ELSE 0 END)";
+            $terms[] = "(CASE WHEN {$subtitleExpr} LIKE ? ESCAPE '\\\\' THEN 40 ELSE 0 END)";
+            $params[] = $like;
+            $types .= 's';
+
+            $publisherExpr = self::decodedSearchExpr('e_rel.nome');
+            $publisherMatch = "EXISTS (SELECT 1 FROM editori e_rel"
+                . " WHERE e_rel.id = {$prefix}editore_id"
+                . " AND {$publisherExpr} LIKE ? ESCAPE '\\\\')";
+            $publisherParams = 1;
+            if ($hasJunction) {
+                $publisher2Expr = self::decodedSearchExpr('e2_rel.nome');
+                $publisherMatch .= " OR EXISTS (SELECT 1 FROM libri_editori le_rel"
+                    . " JOIN editori e2_rel ON e2_rel.id = le_rel.editore_id"
+                    . " WHERE le_rel.libro_id = {$prefix}id"
+                    . " AND {$publisher2Expr} LIKE ? ESCAPE '\\\\')";
+                $publisherParams++;
+            }
+            $terms[] = "(CASE WHEN ({$publisherMatch}) THEN 25 ELSE 0 END)";
+            for ($i = 0; $i < $publisherParams; $i++) {
+                $params[] = $like;
+                $types .= 's';
+            }
+
+            $terms[] = "(CASE WHEN {$keywordsExpr} LIKE ? ESCAPE '\\\\' THEN 10 ELSE 0 END)";
             $params[] = $like;
             $types .= 's';
 
@@ -467,9 +513,10 @@ final class SearchIndexBuilder
             $types .= 's';
         }
 
-        $sql = '(' . implode(' + ', $terms) . ") DESC, {$prefix}titolo ASC";
+        $scoreSql = '(' . implode(' + ', $terms) . ')';
+        $sql = "{$scoreSql} DESC, {$prefix}titolo ASC";
 
-        return ['sql' => $sql, 'params' => $params, 'types' => $types];
+        return ['sql' => $sql, 'score_sql' => $scoreSql, 'params' => $params, 'types' => $types];
     }
 
     /**
@@ -529,6 +576,19 @@ final class SearchIndexBuilder
     private static function likePattern(string $term): string
     {
         return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+    }
+
+    /**
+     * Apply the same common HTML-entity decoding used while materializing
+     * `search_index`. Ranking compares the source fields directly, so without
+     * this expression a decoded WHERE match such as `Q&A` against stored
+     * `Q&amp;A` would receive no field weight.
+     */
+    private static function decodedSearchExpr(string $expression): string
+    {
+        return "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE("
+            . "{$expression}, '&#039;', CHAR(39)), '&#39;', CHAR(39)), '&quot;', CHAR(34)),"
+            . " '&lt;', '<'), '&gt;', '>'), '&nbsp;', ' '), '&amp;', '&')";
     }
 
     /**

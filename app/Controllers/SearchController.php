@@ -10,6 +10,10 @@ use App\Support\HtmlHelper;
 
 class SearchController
 {
+    /** Public AJAX safeguards; the paginated catalog search remains uncapped. */
+    private const AJAX_RELEVANCE_WORD_LIMIT = 24;
+    private const AJAX_BOOK_RESULT_LIMIT = 50;
+
     public function authors(Request $request, Response $response, mysqli $db): Response
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
@@ -126,9 +130,15 @@ class SearchController
         $cond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $q);
         if ($cond !== null) {
             // Denormalized FULLTEXT: search_index folds title, subtitle, authors,
-            // publisher, ISBN/EAN and keywords, so one MATCH replaces the OR-of-LIKE.
-            // Weighted ORDER BY so title/author hits outrank description-only hits.
-            $rel = \App\Support\SearchIndexBuilder::buildRelevanceOrder($db, $q, 'l.');
+            // publisher, ISBN/EAN, keywords and description, so one MATCH replaces
+            // the OR-of-LIKE. Weighted ORDER BY prioritizes identifiers, title,
+            // author, subtitle, publisher and keywords above description-only hits.
+            $rel = \App\Support\SearchIndexBuilder::buildRelevanceOrder(
+                $db,
+                $q,
+                'l.',
+                self::AJAX_RELEVANCE_WORD_LIMIT
+            );
             $stmt = $db->prepare("
                 SELECT l.id, l.titolo, l.sottotitolo, l.isbn10, l.isbn13, l.ean, l.stato,
                        (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
@@ -142,6 +152,7 @@ class SearchController
                 FROM libri l
                 WHERE l.deleted_at IS NULL AND {$cond['sql']}
                 ORDER BY {$rel['sql']}
+                LIMIT " . self::AJAX_BOOK_RESULT_LIMIT . "
             ");
             $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));
             $stmt->execute();
@@ -256,9 +267,16 @@ class SearchController
         }
 
         // Denormalized FULLTEXT: search_index folds ISBN/EAN, title, subtitle,
-        // authors, publisher and keywords, so one MATCH replaces the OR-of-LIKE.
-        // Weighted ORDER BY so title/author hits outrank description-only hits.
-        $rel = \App\Support\SearchIndexBuilder::buildRelevanceOrder($db, $query, 'l.');
+        // authors, publisher, keywords and description, so one MATCH replaces
+        // the OR-of-LIKE.
+        // Weighted ORDER BY prioritizes identifiers/title/author/publisher above
+        // description-only hits.
+        $rel = \App\Support\SearchIndexBuilder::buildRelevanceOrder(
+            $db,
+            $query,
+            'l.',
+            self::AJAX_RELEVANCE_WORD_LIMIT
+        );
         $stmt = $db->prepare("
             SELECT l.id, l.titolo AS label, l.sottotitolo, l.isbn10, l.isbn13, l.ean,
                    (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
@@ -385,7 +403,12 @@ class SearchController
         // Relevance: rank title/author hits above description-only hits (the
         // search_index folds the description in too, so a plain MATCH treats them
         // the same); the FULLTEXT still decides which rows qualify.
-        $rel = \App\Support\SearchIndexBuilder::buildRelevanceOrder($db, $query, 'l.');
+        $rel = \App\Support\SearchIndexBuilder::buildRelevanceOrder(
+            $db,
+            $query,
+            'l.',
+            self::AJAX_RELEVANCE_WORD_LIMIT
+        );
         $stmt = $db->prepare("
             SELECT l.id, l.titolo, l.sottotitolo, l.copertina_url, l.anno_pubblicazione,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
