@@ -6,6 +6,7 @@ namespace App\Plugins\MobileApi\Controllers;
 
 use App\Plugins\MobileApi\Support\CursorCodec;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
+use App\Support\SearchIndexBuilder;
 use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface;
@@ -61,12 +62,21 @@ final class CatalogController
         try {
             $params = $request->getQueryParams();
 
-            $limit  = $this->clampLimit($params['limit'] ?? null);
-
-            // Sort order — mirrors the web catalog's options. Keyset pagination
-            // stays stable by always tie-breaking on the unique id in the same
-            // direction as the chosen sort column.
-            $sort = $this->sortSpec(isset($params['sort']) ? (string) $params['sort'] : null);
+            $limit = $this->clampLimit($params['limit'] ?? null);
+            $query = isset($params['q']) ? trim((string) $params['q']) : '';
+            $requestedSort = isset($params['sort']) ? trim((string) $params['sort']) : null;
+            // Relevance is the default for a text query and can be selected
+            // explicitly by mobile clients. Facet-only browsing keeps the
+            // established newest/oldest/title/author keyset sorts.
+            $useRelevance = $query !== ''
+                && ($requestedSort === null || $requestedSort === '' || $requestedSort === 'relevance');
+            $sort = $useRelevance
+                ? ['key' => 'relevance', 'col' => 'relevance_score', 'dir' => 'DESC',
+                   'order' => 'relevance_score DESC, l.titolo ASC, l.id ASC', 'field' => 'relevance_score']
+                : $this->sortSpec($requestedSort);
+            $relevance = $useRelevance
+                ? SearchIndexBuilder::buildRelevanceOrder($this->db, $query, 'l.')
+                : null;
 
             $cursor = CursorCodec::decode(isset($params['cursor']) ? (string) $params['cursor'] : null);
             // The cursor is opaque to clients and only carries the last row's sort
@@ -77,9 +87,19 @@ final class CatalogController
             if (is_array($cursor)
                 && ($cursor['sort'] ?? null) === $sort['key']
                 && isset($cursor['last_id']) && is_numeric($cursor['last_id'])
-                && array_key_exists('last_val', $cursor)
             ) {
-                if (($sort['composite'] ?? false) === true) {
+                if ($useRelevance
+                    && isset($cursor['last_score']) && is_numeric($cursor['last_score'])
+                    && isset($cursor['last_title']) && is_string($cursor['last_title'])
+                ) {
+                    $anchor = [
+                        'id' => (int) $cursor['last_id'],
+                        'score' => (int) $cursor['last_score'],
+                        'title' => $cursor['last_title'],
+                    ];
+                } elseif (!$useRelevance && array_key_exists('last_val', $cursor)
+                    && ($sort['composite'] ?? false) === true
+                ) {
                     // Author sorts carry an extra null-group flag (`last_nf`) that
                     // drives the 3-term keyset comparator over (nf, surname, id). A
                     // pre-fix cursor minted without it cannot be paged safely, so it
@@ -91,49 +111,72 @@ final class CatalogController
                             'nf'  => (int) $cursor['last_nf'],
                         ];
                     }
-                } else {
+                } elseif (!$useRelevance && array_key_exists('last_val', $cursor)) {
                     $anchor = ['id' => (int) $cursor['last_id'], 'val' => $cursor['last_val']];
                 }
             }
 
             [$conditions, $bindParams, $bindTypes] = $this->buildFilters($params);
 
+            $having = '';
+            /** @var list<int|string> $havingParams */
+            $havingParams = [];
+            $havingTypes = '';
+
             // Keyset anchor in the chosen sort direction; id breaks ties so no row
             // is skipped or repeated across pages. Null anchor == first page.
             if ($anchor !== null) {
-                $cmp = $sort['dir'] === 'ASC' ? '>' : '<';
-                if (($sort['composite'] ?? false) === true) {
-                    // Author sorts order by (surname IS NULL) ASC, surname {dir},
-                    // id {dir} so authorless titles stay LAST in BOTH directions.
-                    // A single-column keyset comparator cannot express that, so
-                    // walk the 3-term lexicographic tuple (nf, scol, id):
-                    //   (nf > ?) OR (nf = ? AND scol {cmp} ?) OR (nf = ? AND scol = ? AND id {cmp} ?)
-                    // The null-group comparator is ALWAYS '>' (the leading
-                    // `(col IS NULL) ASC` term never flips with direction), while
-                    // scol and id follow the chosen direction.
-                    $col  = $sort['col'];
-                    $nf   = "({$col} IS NULL)";
-                    $scol = "COALESCE({$col}, '')";
-                    $nfVal = (int) ($anchor['nf'] ?? 0);
-                    $conditions[]  = "({$nf} > ? OR ({$nf} = ? AND {$scol} {$cmp} ?)"
-                        . " OR ({$nf} = ? AND {$scol} = ? AND l.id {$cmp} ?))";
-                    $bindParams[]  = $nfVal;
-                    $bindParams[]  = $nfVal;
-                    $bindParams[]  = (string) $anchor['val'];
-                    $bindParams[]  = $nfVal;
-                    $bindParams[]  = (string) $anchor['val'];
-                    $bindParams[]  = $anchor['id'];
-                    $bindTypes    .= 'iisisi';
-                } elseif ($sort['col'] === 'l.id') {
-                    $conditions[]  = "l.id {$cmp} ?";
-                    $bindParams[]  = $anchor['id'];
-                    $bindTypes    .= 'i';
+                if ($useRelevance) {
+                    // Relevance is a SELECT alias, so its three-term keyset
+                    // comparator belongs in HAVING after GROUP BY:
+                    // score DESC, title ASC, id ASC.
+                    $having = 'HAVING (relevance_score < ?'
+                        . ' OR (relevance_score = ? AND l.titolo > ?)'
+                        . ' OR (relevance_score = ? AND l.titolo = ? AND l.id > ?))';
+                    $havingParams = [
+                        (int) $anchor['score'],
+                        (int) $anchor['score'],
+                        (string) $anchor['title'],
+                        (int) $anchor['score'],
+                        (string) $anchor['title'],
+                        (int) $anchor['id'],
+                    ];
+                    $havingTypes = 'iisisi';
                 } else {
-                    $conditions[]  = "({$sort['col']} {$cmp} ? OR ({$sort['col']} = ? AND l.id {$cmp} ?))";
-                    $bindParams[]  = (string) $anchor['val'];
-                    $bindParams[]  = (string) $anchor['val'];
-                    $bindParams[]  = $anchor['id'];
-                    $bindTypes    .= 'ssi';
+                    $cmp = $sort['dir'] === 'ASC' ? '>' : '<';
+                    if (($sort['composite'] ?? false) === true) {
+                        // Author sorts order by (surname IS NULL) ASC, surname {dir},
+                        // id {dir} so authorless titles stay LAST in BOTH directions.
+                        // A single-column keyset comparator cannot express that, so
+                        // walk the 3-term lexicographic tuple (nf, scol, id):
+                        //   (nf > ?) OR (nf = ? AND scol {cmp} ?) OR (nf = ? AND scol = ? AND id {cmp} ?)
+                        // The null-group comparator is ALWAYS '>' (the leading
+                        // `(col IS NULL) ASC` term never flips with direction), while
+                        // scol and id follow the chosen direction.
+                        $col  = $sort['col'];
+                        $nf   = "({$col} IS NULL)";
+                        $scol = "COALESCE({$col}, '')";
+                        $nfVal = (int) ($anchor['nf'] ?? 0);
+                        $conditions[]  = "({$nf} > ? OR ({$nf} = ? AND {$scol} {$cmp} ?)"
+                            . " OR ({$nf} = ? AND {$scol} = ? AND l.id {$cmp} ?))";
+                        $bindParams[]  = $nfVal;
+                        $bindParams[]  = $nfVal;
+                        $bindParams[]  = (string) $anchor['val'];
+                        $bindParams[]  = $nfVal;
+                        $bindParams[]  = (string) $anchor['val'];
+                        $bindParams[]  = $anchor['id'];
+                        $bindTypes    .= 'iisisi';
+                    } elseif ($sort['col'] === 'l.id') {
+                        $conditions[]  = "l.id {$cmp} ?";
+                        $bindParams[]  = $anchor['id'];
+                        $bindTypes    .= 'i';
+                    } else {
+                        $conditions[]  = "({$sort['col']} {$cmp} ? OR ({$sort['col']} = ? AND l.id {$cmp} ?))";
+                        $bindParams[]  = (string) $anchor['val'];
+                        $bindParams[]  = (string) $anchor['val'];
+                        $bindParams[]  = $anchor['id'];
+                        $bindTypes    .= 'ssi';
+                    }
                 }
             }
 
@@ -151,6 +194,9 @@ final class CatalogController
             // sort; `autore` above stays the display name mapListItem returns, so the
             // two are never conflated. Distinct subquery aliases (la2) avoid clashes.
             $authorSurnameSql = \App\Support\AuthorName::preferredSql('a');
+            $relevanceSelect = $relevance !== null
+                ? ",\n                    {$relevance['score_sql']} AS relevance_score"
+                : '';
 
             $sql = "
                 SELECT
@@ -164,7 +210,7 @@ final class CatalogController
                      WHERE la2.libro_id = l.id AND la2.ruolo = 'principale'
                      ORDER BY la2.ordine_credito, la2.autore_id LIMIT 1) AS autore_cognome,
                     e.nome AS editore,
-                    g.nome AS genere
+                    g.nome AS genere{$relevanceSelect}
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
                 LEFT JOIN generi g  ON l.genere_id  = g.id
@@ -173,21 +219,26 @@ final class CatalogController
                 LEFT JOIN generi sg ON l.sottogenere_id = sg.id
                 WHERE {$where}
                 GROUP BY l.id
+                {$having}
                 ORDER BY {$sort['order']}
                 LIMIT ?
             ";
 
-            $bindTypes  .= 'i';
-            $bindParams[] = $fetch;
+            // Score placeholders live in SELECT and therefore precede WHERE,
+            // HAVING and LIMIT placeholders in the bind order.
+            $allParams = $relevance !== null ? $relevance['params'] : [];
+            $allTypes = $relevance !== null ? $relevance['types'] : '';
+            $allParams = array_merge($allParams, $bindParams, $havingParams, [$fetch]);
+            $allTypes .= $bindTypes . $havingTypes . 'i';
 
             $stmt = $this->db->prepare($sql);
             if ($stmt === false) {
                 SecureLogger::error('[MobileApi] catalog search prepare failed: ' . $this->db->error);
                 return ResponseEnvelope::error($response, 'internal_error', __('Ricerca non disponibile.'), 500);
             }
-            // $bindParams always contains at least the LIMIT placeholder bound
-            // above, so the bind is unconditional.
-            $stmt->bind_param($bindTypes, ...$bindParams);
+            // $allParams always contains at least the LIMIT placeholder bound
+            // above, so binding is unconditional.
+            $stmt->bind_param($allTypes, ...$allParams);
             $stmt->execute();
             $res = $stmt->get_result();
 
@@ -207,15 +258,24 @@ final class CatalogController
             $nextCursor = null;
             if ($hasMore && $rows !== []) {
                 $last    = $rows[count($rows) - 1];
-                $lastVal = $sort['col'] === 'l.id'
-                    ? (int) $last['id']
-                    : (string) ($last[$sort['field']] ?? '');
-                $payload = [
-                    'sort'     => $sort['key'],
-                    'last_id'  => (int) $last['id'],
-                    'last_val' => $lastVal,
-                ];
-                if (($sort['composite'] ?? false) === true) {
+                if ($useRelevance) {
+                    $payload = [
+                        'sort' => 'relevance',
+                        'last_id' => (int) $last['id'],
+                        'last_score' => (int) ($last['relevance_score'] ?? 0),
+                        'last_title' => (string) ($last['titolo'] ?? ''),
+                    ];
+                } else {
+                    $lastVal = $sort['col'] === 'l.id'
+                        ? (int) $last['id']
+                        : (string) ($last[$sort['field']] ?? '');
+                    $payload = [
+                        'sort'     => $sort['key'],
+                        'last_id'  => (int) $last['id'],
+                        'last_val' => $lastVal,
+                    ];
+                }
+                if (!$useRelevance && ($sort['composite'] ?? false) === true) {
                     // Mint the null-group flag alongside the surname so the next
                     // page resumes on the correct side of the authorless-last
                     // boundary (mirrors the `(surname IS NULL) ASC` ORDER BY term).
@@ -507,29 +567,20 @@ final class CatalogController
 
         $q = isset($params['q']) ? trim((string) $params['q']) : '';
         if ($q !== '') {
-            // Cross-field LIKE match (title, subtitle, description, identifiers,
-            // author, publisher). Prepared params make it injection-safe; the
-            // ESCAPE + wildcard escaping stop a user-supplied % or _ from
-            // silently broadening the match (same hardening as the author
-            // filter below and PublicApiController).
-            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
-            $conditions[] = "(
-                l.titolo LIKE ? ESCAPE '\\\\'
-                OR l.sottotitolo LIKE ? ESCAPE '\\\\'
-                OR l.descrizione LIKE ? ESCAPE '\\\\'
-                OR l.isbn13 LIKE ? ESCAPE '\\\\'
-                OR l.isbn10 LIKE ? ESCAPE '\\\\'
-                OR l.ean LIKE ? ESCAPE '\\\\'
-                OR EXISTS (SELECT 1 FROM libri_autori la_q JOIN autori a_q ON la_q.autore_id = a_q.id
-                           WHERE la_q.libro_id = l.id
-                             AND la_q.ruolo IN ('principale', 'co-autore')
-                             AND (a_q.nome LIKE ? ESCAPE '\\\\' OR a_q.pseudonimo LIKE ? ESCAPE '\\\\'))
-                OR e.nome LIKE ? ESCAPE '\\\\'
-            )";
-            for ($i = 0; $i < 9; $i++) {
-                $bind[]  = $like;
-                $types  .= 's';
+            // Reuse the web catalog's denormalized FULLTEXT condition so mobile
+            // and web agree on multi-word semantics, wildcard normalization,
+            // stopwords, secondary publishers and entity-decoded values.
+            $search = SearchIndexBuilder::buildSearchCondition($this->db, 'l.search_index', $q);
+            if ($search !== null) {
+                $conditions[] = $search['sql'];
+                $bind = array_merge($bind, $search['params']);
+                $types .= $search['types'];
             }
+            // A non-empty query with no usable FULLTEXT token (pure wildcards
+            // like '*') adds no condition and falls through to a full-catalogue
+            // browse — matching the web catalog page, which is this endpoint's
+            // analogue. (Stopwords like 'the' still match via the LIKE fallback
+            // inside buildSearchCondition, so they are unaffected.)
         }
 
         $author = isset($params['author']) ? trim((string) $params['author']) : '';
@@ -554,14 +605,28 @@ final class CatalogController
 
         $publisher = isset($params['publisher']) ? trim((string) $params['publisher']) : '';
         if ($publisher !== '') {
+            $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($this->db);
             if (is_numeric($publisher)) {
-                $conditions[] = 'l.editore_id = ?';
-                $bind[]  = (int) $publisher;
-                $types  .= 'i';
+                $conditions[] = $hasJunction
+                    ? '(l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le_p WHERE le_p.libro_id = l.id AND le_p.editore_id = ?))'
+                    : 'l.editore_id = ?';
+                $bind[] = (int) $publisher;
+                $types .= 'i';
+                if ($hasJunction) {
+                    $bind[] = (int) $publisher;
+                    $types .= 'i';
+                }
             } else {
-                $conditions[] = 'e.nome LIKE ?';
-                $bind[]  = '%' . $publisher . '%';
-                $types  .= 's';
+                $publisherLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $publisher) . '%';
+                $conditions[] = $hasJunction
+                    ? "(e.nome LIKE ? ESCAPE '\\\\' OR EXISTS (SELECT 1 FROM libri_editori le_p JOIN editori e_p ON e_p.id = le_p.editore_id WHERE le_p.libro_id = l.id AND e_p.nome LIKE ? ESCAPE '\\\\'))"
+                    : "e.nome LIKE ? ESCAPE '\\\\'";
+                $bind[] = $publisherLike;
+                $types .= 's';
+                if ($hasJunction) {
+                    $bind[] = $publisherLike;
+                    $types .= 's';
+                }
             }
         }
 
