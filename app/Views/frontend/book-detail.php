@@ -1123,15 +1123,14 @@ $additional_css = "
 
     .card-header {
         background: transparent;
-        border-bottom: 1px solid var(--border-color);
-        /* Side MARGIN (not padding): padding would leave the border-bottom
-           full-width, since a border sits on the box perimeter outside the
-           padding. Margin shrinks the box itself, so this rule lines up
-           exactly with the .meta-item hairlines (which are inset 1.5rem by
-           .card-body's padding). Vertical padding gives the label air above
-           the line. */
+        /* Explicit `none` (not just omitted) so it beats the global .card-header
+           border in main.css. The header is just a small section label above the
+           meta rows, not a boxed card head, so the hairline read as clutter.
+           Balanced vertical padding; margin keeps the label inset in line with
+           the .card-body content (1.5rem). */
+        border-bottom: none;
         margin: 0 1.5rem;
-        padding: 0.25rem 0 1rem;
+        padding: 0.5rem 0;
     }
 
     .card-header h6 {
@@ -1276,7 +1275,10 @@ $additional_css = "
         .book-description-section,
         .book-details-section,
         .book-reviews-section {
-            padding: 2rem;
+            /* Vertical padding only: horizontal spacing comes from the column
+               container (`px-3`), so the info spans the same width as the title
+               above instead of double-padding and looking narrow on mobile. */
+            padding: 2rem 0;
         }
 
         /* Card contenuti full-bleed su mobile */
@@ -1407,7 +1409,10 @@ $additional_css = "
         .book-description-section,
         .book-details-section,
         .book-reviews-section {
-            padding: 2rem;
+            /* Vertical padding only: horizontal spacing comes from the column
+               container (`px-3`), so the info spans the same width as the title
+               above instead of double-padding and looking narrow on mobile. */
+            padding: 2rem 0;
         }
 
         .breadcrumb {
@@ -1467,6 +1472,15 @@ $additional_css = "
         .card-body {
             padding: 1rem;
         }
+
+        /* Match the header inset to the reduced .card-body padding (1rem) so the
+           section label lines up with the meta rows below it on mobile. Needs
+           !important to beat main.css .card-header { margin:0 !important } which
+           otherwise leaves the label flush-left of the inset meta rows. */
+        .card-header {
+            margin-left: 1rem !important;
+            margin-right: 1rem !important;
+        }
     }
 
     @media (max-width: 400px) {
@@ -1511,7 +1525,9 @@ $additional_css = "
         .book-description-section,
         .book-details-section,
         .book-reviews-section {
-            padding: 1.5rem;
+            /* Vertical padding only — see the note above; keeps the info full
+               width (as wide as the title) on the smallest screens. */
+            padding: 1.5rem 0;
         }
 
         .hero-text {
@@ -1568,11 +1584,12 @@ $additional_css = "
         min-width: 0;
     }
 
-    /* Narrow phones (~360-390px): the grid collapses to a single visible column
-       so only one related book shows. Switch to a horizontal snap-scroll strip
-       instead, so all related books are reachable by swiping. The 80% flex-basis
-       leaves a ~20% peek of the next card as the scroll affordance (F003). */
-    @media (max-width: 480px) {
+    /* Phones and small tablets: the desktop grid packs 2+ partial, cut-off cards.
+       Switch to a horizontal snap-scroll strip that shows ONE whole book per view
+       and snaps book-by-book, so all related books are reachable by swiping.
+       Breakpoint raised to 767px so every phone (and small portrait tablet) gets
+       the one-book carousel instead of clipped grid cards. */
+    @media (max-width: 767px) {
         .related-books-grid {
             display: flex;
             flex-wrap: nowrap;
@@ -1580,6 +1597,12 @@ $additional_css = "
             overflow-y: hidden;
             scroll-snap-type: x mandatory;
             -webkit-overflow-scrolling: touch;
+            /* CRITICAL: the base grid rule sets justify-content:center for the
+               centred desktop grid. On an OVERFLOWING flex scroll strip that
+               centres the cells, pushing the first one off-screen left so two
+               half-cells show at scrollLeft:0. Reset to flex-start so the strip
+               starts on the first whole card. */
+            justify-content: flex-start;
             /* neutralize the desktop grid props so they don't interfere */
             grid-template-columns: none;
             grid-template-rows: none;
@@ -1594,8 +1617,16 @@ $additional_css = "
             display: none;
         }
         .related-book-cell {
-            flex: 0 0 80%;
+            /* One dominant whole book per view, with ~15% of the NEXT card
+               peeking on the right as the scroll affordance (otherwise a
+               full-width card gives no hint that the strip scrolls). start +
+               scroll-snap-stop:always still land each swipe on exactly one card.
+               The peek is one-sided (the base grid centering was reset to
+               flex-start above), so it reads as more-to-the-right, not as two
+               half-covers. */
+            flex: 0 0 85%;
             scroll-snap-align: start;
+            scroll-snap-stop: always;
         }
     }
 
