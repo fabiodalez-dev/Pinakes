@@ -1307,7 +1307,7 @@ class NcipServerPlugin
     private function findNcipLoan(int $bookId, ?int $userId): ?array
     {
         $sql  = "SELECT id, libro_id, utente_id FROM prestiti
-                  WHERE libro_id = ? AND origine = 'ncip' AND stato IN ('pendente','da_ritirare','in_corso')";
+                  WHERE libro_id = ? AND origine = 'ncip' AND stato IN ('pendente','da_ritirare','in_corso','in_ritardo')";
         $types = 'i';
         $params = [$bookId];
         if ($userId !== null) {

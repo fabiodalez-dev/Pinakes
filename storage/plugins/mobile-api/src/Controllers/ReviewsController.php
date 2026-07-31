@@ -28,7 +28,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *     reuse the web's canUserReview() as the write guard: it returns false
  *     once a review exists, which would break editing;
  *   - eligibility (`can_review` and the PUT 403 guard) is ONLY "has borrowed
- *     the title" (prestiti stato IN ('restituito','in_corso'));
+ *     the title" (prestiti stato IN ('restituito','in_corso','in_ritardo'));
  *   - DELETE is user-scoped by (utente_id, libro_id) and idempotent.
  *
  * Contract: app repo `_contract/openapi.json` — GET/PUT/DELETE
@@ -360,13 +360,14 @@ class ReviewsController
     /**
      * Eligibility = has (or had) the book on loan. Deliberately SEPARATE from
      * "has already reviewed": the latter must not block PUT-as-edit.
-     * Mirrors the web rule (prestiti stato IN ('restituito','in_corso')).
+     * Mirrors the web rule (prestiti stato IN ('restituito','in_corso','in_ritardo')):
+     * 'in_ritardo' (overdue) counts — the borrower still holds the book.
      */
     private function hasBorrowed(int $userId, int $bookId): bool
     {
         $stmt = $this->db->prepare(
             "SELECT 1 FROM prestiti
-             WHERE utente_id = ? AND libro_id = ? AND stato IN ('restituito', 'in_corso')
+             WHERE utente_id = ? AND libro_id = ? AND stato IN ('restituito', 'in_corso', 'in_ritardo')
              LIMIT 1"
         );
         $stmt->bind_param('ii', $userId, $bookId);
