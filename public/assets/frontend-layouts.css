@@ -1909,16 +1909,29 @@ body[class*="layout-"] #book-action-buttons {
 body[class*="layout-"] #book-action-buttons .plugin-book-action {
   min-width: 0;
   min-height: 44px;
-  padding: .75rem 1rem;
-  border-width: 1px;
-  font-size: .9rem;
-  font-weight: 650;
+  padding: .9rem 1.75rem;
+  border-width: 2px;
+  font-size: .95rem;
+  font-weight: 700;
   line-height: 1.2;
   transform: none;
 }
 
 body[class*="layout-"] #book-action-buttons .plugin-book-action:hover {
   transform: translateY(-1px);
+}
+
+/* The digital-library plugin actions (Read PDF / Download / Audiobook) wrap in
+   this container so the whole group drops onto its own row below the native
+   Reserve / Favourite buttons, mirroring the plugin-source-search block. */
+body[class*="layout-"] .plugin-book-actions--frontend {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: .75rem;
+  margin-top: .25rem;
 }
 
 body[class*="layout-"] .plugin-source-search--frontend {
@@ -1946,11 +1959,17 @@ body[class*="layout-"] .plugin-source-search--frontend .plugin-source-search__li
   justify-content: center;
 }
 
-body[class*="layout-"] .plugin-source-link {
+/* #book-action-buttons scope beats the book-detail inline `.action-buttons
+   .ui-button` 2px border (source order would otherwise win), so the source
+   links render as clean thin chips instead of a thick, mismatched box. */
+body[class*="layout-"] #book-action-buttons .plugin-source-link {
   min-width: 0;
   min-height: 40px;
   padding: .55rem .8rem;
   gap: .45rem;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 2px;
   border-color: color-mix(in srgb, var(--text-color) 16%, transparent);
   background: color-mix(in srgb, var(--light-bg) 72%, transparent);
   color: var(--text-color);
@@ -1959,8 +1978,8 @@ body[class*="layout-"] .plugin-source-link {
   box-shadow: none;
 }
 
-body[class*="layout-"] .plugin-source-link:hover,
-body[class*="layout-"] .plugin-source-link:focus-visible {
+body[class*="layout-"] #book-action-buttons .plugin-source-link:hover,
+body[class*="layout-"] #book-action-buttons .plugin-source-link:focus-visible {
   border-color: color-mix(in srgb, var(--primary-color) 45%, transparent);
   background: color-mix(in srgb, var(--primary-color) 8%, var(--white));
   color: var(--primary-color);
@@ -1974,12 +1993,9 @@ body[class*="layout-"] .plugin-source-link__external {
   opacity: .58;
 }
 
-body.layout-editorial #book-action-buttons .plugin-book-action,
-body.layout-editorial .plugin-source-link {
-  border-width: 0 0 1px;
-  border-radius: 0;
-  background: transparent;
-}
+/* Editorial: plugin actions + source links stay clean, de-rounded boxes/chips
+   (2px radius from the base) harmonised with the native Reserve/Favourite
+   buttons — the previous bottom-border-only "underline" read as a broken box. */
 
 body.layout-workspace #book-action-buttons .plugin-book-action,
 body.layout-workspace .plugin-source-link,

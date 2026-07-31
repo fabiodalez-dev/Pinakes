@@ -19,11 +19,12 @@ $ebookPath = parse_url($book['file_url'] ?? '', PHP_URL_PATH) ?: ($book['file_ur
 $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === 'pdf';
 ?>
 
+<div class="plugin-book-actions plugin-book-actions--frontend">
 <?php if ($hasEbook && $isPdf): ?>
 <!-- PDF: toggle button to open inline viewer -->
 <button type="button"
         id="btn-toggle-pdf-viewer"
-        class="ui-button btn-outline plugin-book-action plugin-book-action--reader"
+        class="ui-button btn-outline-primary plugin-book-action plugin-book-action--reader"
         aria-controls="pdf-viewer-container"
         aria-expanded="false"
         title="<?= __("Leggi PDF") ?>">
@@ -33,7 +34,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
 <!-- PDF: direct download link -->
 <a href="<?= htmlspecialchars(url($book['file_url']), ENT_QUOTES, 'UTF-8') ?>"
    download
-   class="ui-button btn-outline plugin-book-action plugin-book-action--download"
+   class="ui-button btn-outline-primary plugin-book-action plugin-book-action--download"
    title="<?= __("Scarica PDF") ?>">
     <i class="fas fa-download mr-2"></i>
     <?= __("Scarica PDF") ?>
@@ -43,7 +44,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
 <a href="<?= htmlspecialchars(url($book['file_url']), ENT_QUOTES, 'UTF-8') ?>"
    target="_blank"
    rel="noopener noreferrer"
-   class="ui-button btn-outline plugin-book-action plugin-book-action--reader"
+   class="ui-button btn-outline-primary plugin-book-action plugin-book-action--reader"
    title="<?= __("Scarica l'eBook in formato digitale") ?>">
     <i class="fas fa-book-open mr-2"></i>
     <?= __("Scarica eBook") ?>
@@ -53,7 +54,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
 <?php if ($hasAudiobook): ?>
 <button type="button"
         id="btn-toggle-audiobook"
-        class="ui-button btn-outline plugin-book-action plugin-book-action--audio"
+        class="ui-button btn-outline-primary plugin-book-action plugin-book-action--audio"
         aria-controls="audiobook-player-container"
         aria-expanded="false"
         title="<?= __("Ascolta l'audiobook") ?>">
@@ -61,6 +62,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
     <?= __("Ascolta Audiobook") ?>
 </button>
 <?php endif; ?>
+</div>
 
 <?php if ($isPdf): ?>
 <script>
