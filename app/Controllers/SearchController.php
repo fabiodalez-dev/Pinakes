@@ -127,6 +127,8 @@ class SearchController
         if ($cond !== null) {
             // Denormalized FULLTEXT: search_index folds title, subtitle, authors,
             // publisher, ISBN/EAN and keywords, so one MATCH replaces the OR-of-LIKE.
+            // Weighted ORDER BY so title/author hits outrank description-only hits.
+            $rel = \App\Support\SearchIndexBuilder::buildRelevanceOrder($db, $q, 'l.');
             $stmt = $db->prepare("
                 SELECT l.id, l.titolo, l.sottotitolo, l.isbn10, l.isbn13, l.ean, l.stato,
                        (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
@@ -139,9 +141,9 @@ class SearchController
                        l.copie_totali
                 FROM libri l
                 WHERE l.deleted_at IS NULL AND {$cond['sql']}
-                ORDER BY l.titolo
+                ORDER BY {$rel['sql']}
             ");
-            $stmt->bind_param($cond['types'], ...$cond['params']);
+            $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -255,6 +257,8 @@ class SearchController
 
         // Denormalized FULLTEXT: search_index folds ISBN/EAN, title, subtitle,
         // authors, publisher and keywords, so one MATCH replaces the OR-of-LIKE.
+        // Weighted ORDER BY so title/author hits outrank description-only hits.
+        $rel = \App\Support\SearchIndexBuilder::buildRelevanceOrder($db, $query, 'l.');
         $stmt = $db->prepare("
             SELECT l.id, l.titolo AS label, l.sottotitolo, l.isbn10, l.isbn13, l.ean,
                    (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
@@ -265,9 +269,9 @@ class SearchController
                     WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')) AS autori
             FROM libri l
             WHERE l.deleted_at IS NULL AND {$cond['sql']}
-            ORDER BY l.titolo LIMIT 10
+            ORDER BY {$rel['sql']} LIMIT 10
         ");
-        $stmt->bind_param($cond['types'], ...$cond['params']);
+        $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));
         $stmt->execute();
         $res = $stmt->get_result();
 
@@ -378,6 +382,10 @@ class SearchController
 
         // Denormalized FULLTEXT: search_index already folds in the author names,
         // so the libri_autori/autori LEFT JOIN (and its DISTINCT dedupe) are gone.
+        // Relevance: rank title/author hits above description-only hits (the
+        // search_index folds the description in too, so a plain MATCH treats them
+        // the same); the FULLTEXT still decides which rows qualify.
+        $rel = \App\Support\SearchIndexBuilder::buildRelevanceOrder($db, $query, 'l.');
         $stmt = $db->prepare("
             SELECT l.id, l.titolo, l.sottotitolo, l.copertina_url, l.anno_pubblicazione,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
@@ -386,9 +394,9 @@ class SearchController
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
             FROM libri l
             WHERE l.deleted_at IS NULL AND {$cond['sql']}
-            ORDER BY l.titolo LIMIT 8
+            ORDER BY {$rel['sql']} LIMIT 8
         ");
-        $stmt->bind_param($cond['types'], ...$cond['params']);
+        $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));
         $stmt->execute();
         $res = $stmt->get_result();
 

@@ -395,6 +395,64 @@ final class SearchIndexBuilder
     }
 
     /**
+     * Weighted relevance ORDER BY so a term that appears in the title or author
+     * outranks one that only lives in the description. The FULLTEXT WHERE
+     * (buildSearchCondition) decides WHICH rows qualify; this decides their
+     * order. Per query word a hit scores: title 100, author 60, subtitle 40,
+     * keywords 10, description 3 — summed across words — then rows are ordered
+     * by that score DESC with title ASC as the tie-break.
+     *
+     * The returned params must be appended to the statement AFTER the WHERE
+     * params (the ORDER BY placeholders come last) and the types concatenated
+     * after the WHERE types.
+     *
+     * @return array{sql: string, params: list<string>, types: string}
+     */
+    public static function buildRelevanceOrder(\mysqli $db, string $searchQuery, string $prefix = 'l.'): array
+    {
+        $words = preg_split('/\s+/', trim($searchQuery), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($words === []) {
+            return ['sql' => "{$prefix}titolo ASC", 'params' => [], 'types' => ''];
+        }
+
+        $descExpr = self::descriptionExpr($db, $prefix);
+        $terms = [];
+        $params = [];
+        $types = '';
+
+        foreach ($words as $word) {
+            $like = self::likePattern($word);
+            $terms[] = "(CASE WHEN {$prefix}titolo LIKE ? ESCAPE '\\\\' THEN 100 ELSE 0 END)";
+            $params[] = $like;
+            $types .= 's';
+
+            $terms[] = "(CASE WHEN {$prefix}sottotitolo LIKE ? ESCAPE '\\\\' THEN 40 ELSE 0 END)";
+            $params[] = $like;
+            $types .= 's';
+
+            $terms[] = "(CASE WHEN EXISTS (SELECT 1 FROM libri_autori la_rel"
+                . " JOIN autori a_rel ON a_rel.id = la_rel.autore_id"
+                . " WHERE la_rel.libro_id = {$prefix}id"
+                . " AND (a_rel.nome LIKE ? ESCAPE '\\\\' OR a_rel.pseudonimo LIKE ? ESCAPE '\\\\')) THEN 60 ELSE 0 END)";
+            $params[] = $like;
+            $params[] = $like;
+            $types .= 'ss';
+
+            $terms[] = "(CASE WHEN {$prefix}parole_chiave LIKE ? ESCAPE '\\\\' THEN 10 ELSE 0 END)";
+            $params[] = $like;
+            $types .= 's';
+
+            $terms[] = "(CASE WHEN {$descExpr} LIKE ? ESCAPE '\\\\' THEN 3 ELSE 0 END)";
+            $params[] = $like;
+            $types .= 's';
+        }
+
+        $sql = '(' . implode(' + ', $terms) . ") DESC, {$prefix}titolo ASC";
+
+        return ['sql' => $sql, 'params' => $params, 'types' => $types];
+    }
+
+    /**
      * Return a single safe FULLTEXT token for a raw user word, or null when
      * FULLTEXT would ignore/split it and the caller should use LIKE instead.
      */
