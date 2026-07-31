@@ -153,6 +153,39 @@ $check($posAuthor !== false && $posDesc !== false && $posAuthor < $posDesc,
 $check($posTitle !== false && $posDesc !== false && $posTitle < $posDesc,
     "05 title match ranks ABOVE description-only match (the reported bug)");
 
+// ── 06 · Trailing-'*' prefix query still ranks by field (F002) ──────────────
+// The FULLTEXT WHERE strips a trailing '*'; the ORDER BY must normalize the
+// same way, else 'term*' builds LIKE '%term*%' (literal asterisk), scores 0 on
+// every row and silently collapses relevance to titolo ASC.
+$condStar = SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $term . '*');
+$relStar  = SearchIndexBuilder::buildRelevanceOrder($db, $term . '*', 'l.');
+$sqlStar  = "SELECT l.id FROM libri l WHERE l.deleted_at IS NULL AND {$condStar['sql']} ORDER BY {$relStar['sql']}";
+$stmt = $db->prepare($sqlStar);
+$stmt->bind_param($condStar['types'] . $relStar['types'], ...array_merge($condStar['params'], $relStar['params']));
+$stmt->execute();
+$resStar = $stmt->get_result();
+$orderStar = [];
+while ($row = $resStar->fetch_row()) {
+    $orderStar[] = (int) $row[0];
+}
+$stmt->close();
+$posTitleStar = array_search($bookTitle, $orderStar, true);
+$posDescStar  = array_search($bookDesc, $orderStar, true);
+$check($posTitleStar !== false && $posDescStar !== false && $posTitleStar < $posDescStar,
+    "06 trailing-'*' query still ranks title ABOVE description (no collapse to titolo ASC)");
+
+// ── 07 · Per-word relevance subqueries are capped (F007) ────────────────────
+// Each query word adds one correlated author EXISTS subquery to the ORDER BY.
+// An unbounded word count on the public /api/search endpoints would let a
+// caller amplify sort cost; buildRelevanceOrder caps the words it weighs.
+$manyWords = trim(str_repeat($term . ' ', 40));           // 40 tokens
+$relMany   = SearchIndexBuilder::buildRelevanceOrder($db, $manyWords, 'l.');
+$existsCount = substr_count($relMany['sql'], 'EXISTS (');
+$check($existsCount > 0 && $existsCount <= 12,
+    "07 relevance ORDER BY caps author EXISTS subqueries at 12 (got {$existsCount})");
+$check(strlen($relMany['types']) === $existsCount * 6,
+    "07b param/type count stays aligned with the capped word count");
+
 $cleanup();
 $db->close();
 echo "\n{$pass} PASS, {$fail} FAIL\n";

@@ -263,6 +263,15 @@ final class SearchIndexBuilder
     private const REBUILD_CHUNK = 500;
 
     /**
+     * Cap on the number of query words fed into the weighted relevance ORDER BY.
+     * Each word adds a per-row correlated author EXISTS subquery, so an
+     * unbounded word count on the public /api/search endpoints would let a
+     * caller amplify sort cost by (matched rows × words). Real searches never
+     * need more than a handful of words to rank; the cap bounds the cost.
+     */
+    private const MAX_RELEVANCE_WORDS = 12;
+
+    /**
      * Build the WHERE fragment for a user book search against a FULLTEXT
      * column (typically `l.search_index`).
      *
@@ -308,7 +317,7 @@ final class SearchIndexBuilder
         $types = '';
 
         foreach ($words as $word) {
-            $wordBase = trim(rtrim($word, '*'));
+            $wordBase = self::normalizeSearchWord($word);
             if ($wordBase === '') {
                 continue;
             }
@@ -411,6 +420,9 @@ final class SearchIndexBuilder
     public static function buildRelevanceOrder(\mysqli $db, string $searchQuery, string $prefix = 'l.'): array
     {
         $words = preg_split('/\s+/', trim($searchQuery), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        // Bound the per-word correlated subqueries so a pathological (or
+        // malicious) many-word query cannot amplify sort cost unboundedly.
+        $words = array_slice($words, 0, self::MAX_RELEVANCE_WORDS);
         if ($words === []) {
             return ['sql' => "{$prefix}titolo ASC", 'params' => [], 'types' => ''];
         }
@@ -421,7 +433,15 @@ final class SearchIndexBuilder
         $types = '';
 
         foreach ($words as $word) {
-            $like = self::likePattern($word);
+            // Normalize each word the same way the FULLTEXT WHERE does
+            // (buildSearchCondition), so a trailing-'*' prefix query ('har*')
+            // scores against 'har' instead of the literal '%har*%' that would
+            // match nothing and silently collapse ranking to titolo ASC.
+            $wordBase = self::normalizeSearchWord($word);
+            if ($wordBase === '') {
+                continue;
+            }
+            $like = self::likePattern($wordBase);
             $terms[] = "(CASE WHEN {$prefix}titolo LIKE ? ESCAPE '\\\\' THEN 100 ELSE 0 END)";
             $params[] = $like;
             $types .= 's';
@@ -509,6 +529,18 @@ final class SearchIndexBuilder
     private static function likePattern(string $term): string
     {
         return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+    }
+
+    /**
+     * Normalize a raw user search word for LIKE/FULLTEXT matching: strip a
+     * trailing '*' (the wildcard the FULLTEXT boolean path adds itself) and
+     * surrounding whitespace. Shared by buildSearchCondition (the WHERE) and
+     * buildRelevanceOrder (the ORDER BY) so the two paths tokenize identically
+     * and ranking never diverges from the rows the WHERE admitted.
+     */
+    private static function normalizeSearchWord(string $word): string
+    {
+        return trim(rtrim($word, '*'));
     }
 
     private static ?bool $hasDescrizionePlain = null;
