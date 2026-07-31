@@ -512,7 +512,6 @@ comments.MD
 storage/settings.json
 
 # Verbose documentation (config examples are self-documenting)
-CHANGELOG.md
 SERVER_CONFIG.md
 NGINX_SETUP.md
 public/assets/tinymce/CHANGELOG.md
