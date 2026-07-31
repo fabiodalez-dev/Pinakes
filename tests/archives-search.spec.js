@@ -374,13 +374,16 @@ test.describe.serial('Archives search bar — admin + public (25 tests)', () => 
 
     test('27 · Autocomplete: record archivistico seedato nel dropdown', async () => {
         await page.goto(`${BASE}/catalogo`);
-        const input = page.locator('.search-form.d-none.d-md-block .search-input');
+        // Desktop header search form: Bootstrap's `d-none d-md-block` became the
+        // theme's `hidden md:block`. `[class~="md:block"]` matches that token
+        // (and never the `.mobile-search-form`) without escaping the colon.
+        const input = page.locator('.search-form[class~="md:block"] .search-input');
         const responsePromise = page.waitForResponse(r => r.url().includes('/api/search/preview'), { timeout: 5000 });
         await input.click();
         await input.pressSequentially('Fondo Alpha', { delay: 150 });
         await responsePromise;
         await page.waitForTimeout(200);
-        const container = page.locator('.search-form.d-none.d-md-block .search-results');
+        const container = page.locator('.search-form[class~="md:block"] .search-results');
         await expect(container).toBeVisible();
         await expect(container.locator('.archive-result', { hasText: 'E2E Fondo Alpha' })).toBeVisible();
         await expect(container.locator(`text=${FONDS_REF}`)).toBeVisible();
