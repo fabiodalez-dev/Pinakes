@@ -38,13 +38,16 @@ class RecensioniRepository
                 return false; // Già recensito
             }
 
-            // Verifica se l'utente ha completato almeno un prestito del libro
+            // Verifica se l'utente ha (o ha avuto) il libro in prestito.
+            // Include 'in_ritardo': un prestito in ritardo significa che l'utente
+            // ha ANCORA il libro fisicamente — deve poter recensire, non essere
+            // bloccato solo perché è in ritardo con la restituzione.
             $stmt = $this->db->prepare("
                 SELECT COUNT(*) as count
                 FROM prestiti
                 WHERE utente_id = ?
                   AND libro_id = ?
-                  AND stato IN ('restituito', 'in_corso')
+                  AND stato IN ('restituito', 'in_corso', 'in_ritardo')
             ");
             $stmt->bind_param('ii', $userId, $libroId);
             $stmt->execute();
