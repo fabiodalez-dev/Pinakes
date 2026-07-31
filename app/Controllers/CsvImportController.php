@@ -1099,7 +1099,7 @@ class CsvImportController
             'prezzo' => ['prezzo', 'price', 'precio', 'prix', 'preis', 'list price', 'purchase price'],
             'copie_totali' => ['copie_totali', 'copie', 'copies', 'quantity', 'quantità', 'cantidad'],
             'collana' => ['collana', 'series', 'collection', 'collections', 'colección', 'reihe'],
-            'numero_serie' => ['numero_serie', 'series number', 'número de serie', 'numéro de série'],
+            'numero_serie' => ['numero_serie', 'series number', 'number in series', 'número de serie', 'numéro de série'],
             'traduttore' => ['traduttore', 'translator', 'traductor', 'traducteur', 'übersetzer'],
             'illustratore' => ['illustratore', 'illustrator', 'ilustrador', 'illustrateur', 'zeichner'],
             'parole_chiave' => ['parole_chiave', 'parole chiave', 'keywords', 'tags', 'palabras clave', 'mots-clés', 'schlagwörter', 'subjects'],

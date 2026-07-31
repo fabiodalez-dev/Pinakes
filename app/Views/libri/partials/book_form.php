@@ -258,6 +258,16 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <p class="text-xs text-gray-500 mt-1"><?= __("Lingua originale del libro") ?></p>
             </div>
           </div>
+
+          <!-- Authors with Choices.js (grouped with the other authoring fields, PR #308) -->
+          <div>
+            <label for="autori_select" class="form-label"><?= __("Autori") ?></label>
+            <select id="autori_select" name="autori_select[]" multiple placeholder="<?= __('Cerca autori esistenti o aggiungine di nuovi...') ?>" data-initial-authors="<?php echo $initialAuthorsJson; ?>">
+              <!-- Options will be populated dynamically -->
+            </select>
+            <div id="autori_hidden"></div>
+            <p class="text-xs text-gray-500 mt-1"><?= __("Puoi selezionare più autori o aggiungerne di nuovi digitando il nome") ?></p>
+          </div>
           <?php
           // Contributor roles as entity pickers (issue #237). Same Choices.js +
           // /api/search/autori autocomplete as authors, so an illustrator/
@@ -298,16 +308,6 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             </select>
             <div id="editori_hidden"></div>
             <p class="text-xs text-gray-500 mt-1"><?= __("Puoi selezionare più editori o aggiungerne di nuovi digitando il nome") ?></p>
-          </div>
-
-          <!-- Authors with Choices.js -->
-          <div>
-            <label for="autori_select" class="form-label"><?= __("Autori") ?></label>
-            <select id="autori_select" name="autori_select[]" multiple placeholder="<?= __('Cerca autori esistenti o aggiungine di nuovi...') ?>" data-initial-authors="<?php echo $initialAuthorsJson; ?>">
-              <!-- Options will be populated dynamically -->
-            </select>
-            <div id="autori_hidden"></div>
-            <p class="text-xs text-gray-500 mt-1"><?= __("Puoi selezionare più autori o aggiungerne di nuovi digitando il nome") ?></p>
           </div>
 
           <!-- Book Status -->
