@@ -614,3 +614,4 @@ graphify-out/
 # graphify ingest folder (/graphify add <url>)
 /raw/
 public/sitemap.xml
+docs/prototypes/
