@@ -6,6 +6,10 @@ $layout = file_get_contents($root . '/app/Views/frontend/layout.php');
 $home = file_get_contents($root . '/app/Views/frontend/home.php');
 $detail = file_get_contents($root . '/app/Views/frontend/book-detail.php');
 $scroll = file_get_contents($root . '/app/Views/partials/scroll-to-top.php');
+$profile = file_get_contents($root . '/app/Views/profile/index.php');
+$createUser = file_get_contents($root . '/app/Views/utenti/crea_utente.php');
+$editUser = file_get_contents($root . '/app/Views/utenti/modifica_utente.php');
+$updates = file_get_contents($root . '/app/Views/admin/updates.php');
 
 $checks = [
     'related-book badge has a solid background fallback' => str_contains($detail, "background: var(--success-color); /* fallback for browsers without color-mix() */\n        background: color-mix(in srgb, var(--success-color) 95%, transparent);"),
@@ -14,6 +18,9 @@ $checks = [
     'mobile menu control has a 44px target' => preg_match('/\.mobile-menu-toggle\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/s', $layout) === 1,
     'hero search button has a 44px target' => preg_match('/\.hero-search-button\s*\{[^}]*min-height:\s*44px;/s', $home) === 1,
     'scroll-to-top control has a 44px target' => str_contains($scroll, 'width:44px;height:44px'),
+    'profile password form exposes its username to password managers' => str_contains($profile, 'name="username"') && str_contains($profile, 'autocomplete="username"'),
+    'admin user email fields identify the login username' => str_contains($createUser, 'name="email" autocomplete="username"') && str_contains($editUser, 'name="email" autocomplete="username"'),
+    'GitHub token field belongs to a non-navigating form' => str_contains($updates, 'id="github-token-form"') && str_contains($updates, 'onsubmit="event.preventDefault(); saveGitHubToken();"') && str_contains($updates, 'autocomplete="new-password"'),
 ];
 
 $failed = 0;

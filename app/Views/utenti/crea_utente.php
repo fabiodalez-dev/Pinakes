@@ -106,7 +106,7 @@ $errorKey = (string)($_GET['error'] ?? '');
         <div class="grid gap-4 md:grid-cols-2">
           <div>
             <label for="email" class="block text-sm font-medium text-gray-700"><?= __("Email") ?> *</label>
-            <input type="email" id="email" name="email" required aria-required="true" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("utente@example.com") ?>">
+            <input type="email" id="email" name="email" autocomplete="username" required aria-required="true" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("utente@example.com") ?>">
             <p class="text-xs text-gray-500 mt-1"><?= __("Usata per login e comunicazioni.") ?></p>
           </div>
           <div>

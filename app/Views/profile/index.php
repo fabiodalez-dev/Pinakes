@@ -520,6 +520,8 @@
     </h2>
     <form method="post" action="<?= htmlspecialchars(route_path('profile_password'), ENT_QUOTES, 'UTF-8') ?>">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+      <input type="email" name="username" value="<?= htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+             autocomplete="username" class="sr-only" tabindex="-1" aria-hidden="true">
 
       <div class="form-grid">
         <div class="form-group" style="grid-column: 1 / -1;">

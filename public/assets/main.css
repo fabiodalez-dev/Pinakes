@@ -3549,28 +3549,6 @@ select {
     background-color: #059669;
     transform: translateY(-1px);
   }
-.btn-danger-outline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 600;
-    color: var(--color-danger);
-    border: 1px solid var(--color-danger);
-    border-radius: var(--radius);
-    transition: all 0.2s ease;
-}
-.btn-danger-outline:hover {
-  --tw-text-opacity: 1;
-  color: rgb(255 255 255 / var(--tw-text-opacity, 1));
-    background-color: var(--color-danger);
-}
 /* Outline Button - Missing fallback */
 .btn-outline {
   display: inline-flex;
@@ -4081,9 +4059,6 @@ select.form-input {
 }
 .mb-8 {
   margin-bottom: 2rem;
-}
-.me-1 {
-  margin-inline-end: 0.25rem;
 }
 .ml-1 {
   margin-left: 0.25rem;
@@ -5712,9 +5687,6 @@ select.form-input {
   font-size: 3.75rem;
   line-height: 1;
 }
-.text-\[0\.6rem\] {
-  font-size: 0.6rem;
-}
 .text-\[10px\] {
   font-size: 10px;
 }
@@ -6652,9 +6624,9 @@ table {
 /* === COMPONENT DOCUMENTATION === */
 /*
  * CORE COMPONENTS:
- * .btn-primary - Primary actions (blue gradient)
+ * .btn-primary - Primary actions (solid configurable color)
  * .btn-secondary - Secondary actions (white with border)
- * .btn-danger - Destructive actions (red gradient)
+ * .btn-danger - Destructive actions (solid semantic red)
  * .btn-outline - Transparent with border
  * .card - Content containers
  * .form-input - Form input fields

@@ -141,21 +141,22 @@ $hasGithubToken ??= false;
                     <label for="github-token" class="block text-sm font-medium text-gray-700 mb-2">
                         <?= __("Personal Access Token (classic)") ?>
                     </label>
-                    <div class="flex gap-2">
+                    <form class="flex gap-2" id="github-token-form" onsubmit="event.preventDefault(); saveGitHubToken();">
                         <input type="<?= $hasGithubToken ? 'text' : 'password' ?>" id="github-token"
+                            name="github_token"
                             placeholder="<?= $hasGithubToken ? HtmlHelper::e($githubTokenMasked) : 'ghp_xxxxxxxxxxxxxxxxxxxx' ?>"
                             class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm font-mono"
-                            autocomplete="off"
+                            autocomplete="new-password"
                             <?= $hasGithubToken ? 'readonly onfocus="this.removeAttribute(\'readonly\');this.type=\'password\';this.value=\'\';this.placeholder=\'ghp_xxxxxxxxxxxxxxxxxxxx\';"' : '' ?>>
-                        <button onclick="saveGitHubToken()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
                             <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
                         </button>
                         <?php if ($hasGithubToken): ?>
-                        <button onclick="removeGitHubToken()" aria-label="<?= __("Rimuovi token GitHub") ?>" title="<?= __("Rimuovi token GitHub") ?>" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm">
+                        <button type="button" onclick="removeGitHubToken()" aria-label="<?= __("Rimuovi token GitHub") ?>" title="<?= __("Rimuovi token GitHub") ?>" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm">
                             <i class="fas fa-trash mr-1"></i>
                         </button>
                         <?php endif; ?>
-                    </div>
+                    </form>
                 </div>
                 <div class="text-sm text-gray-600 space-y-2">
                     <p><i class="fas fa-info-circle text-blue-500 mr-1"></i> <?= __("Come ottenere un token:") ?></p>
