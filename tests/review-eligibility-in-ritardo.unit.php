@@ -166,11 +166,17 @@ $hasBorrowedOk = (bool) preg_match(
 $check($hasBorrowedOk, "10 mobile-api ReviewsController::hasBorrowed includes 'in_ritardo'");
 
 $ncip = (string) file_get_contents($root . '/storage/plugins/ncip-server/NcipServerPlugin.php');
+// The NCIP active-loan lookup (findActiveLoan, used by CheckInItem/RenewItem)
+// is the mirror that must keep 'in_ritardo': an overdue NCIP loan still holds
+// the book. `[^)]*?` tolerates the `AND attivo = 1` that sits between the
+// origine filter and the stato IN(...) clause. (findNcipLoan is a DIFFERENT
+// method — it cancels a still-'pendente' request, so it correctly omits
+// 'in_ritardo'.)
 $ncipOk = (bool) preg_match(
-    "/origine\\s*=\\s*'ncip'\\s+AND\\s+stato\\s+IN\\s*\\([^)]*'in_ritardo'[^)]*\\)/",
+    "/origine\\s*=\\s*'ncip'[^)]*?stato\\s+IN\\s*\\([^)]*'in_ritardo'[^)]*\\)/",
     $ncip
 );
-$check($ncipOk, "11 ncip-server findNcipLoan includes 'in_ritardo'");
+$check($ncipOk, "11 ncip-server active-loan lookup (findActiveLoan) includes 'in_ritardo'");
 
 $db->close();
 echo "\n{$pass} PASS, {$fail} FAIL\n";

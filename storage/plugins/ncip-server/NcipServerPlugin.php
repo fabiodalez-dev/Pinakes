@@ -623,27 +623,31 @@ class NcipServerPlugin
         $loanDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
         $loanDays = $loanDays > 0 ? $loanDays : 30;
         $dueDate = (new \DateTimeImmutable($today))->modify("+{$loanDays} days")->format('Y-m-d');
-        $loanId  = $this->createLoanAtomic($itemId, $userId, $dueDate, (int) ($caller['id'] ?? 0));
+        $failureReason = null;
+        $loanId  = $this->createLoanAtomic($itemId, $userId, $dueDate, (int) ($caller['id'] ?? 0), $failureReason);
 
         if ($loanId === null) {
-            // Re-read availability to distinguish "no copies" from "DB error"
-            $book = $this->fetchBook($itemId);
-            if ($book === null) {
-                return $this->xmlResponse(
-                    $response,
-                    $this->buildProblem('Item not found', 'unknown-item')
-                );
+            // Map the atomic-checkout rejection to the correct NCIP ProblemType.
+            // A PERMANENT rejection (duplicate/ineligible/limit/no-copies) must
+            // not be reported as the retryable 'temporary-processing-failure',
+            // or a partner keeps resubmitting a request that can never succeed.
+            switch ($failureReason) {
+                case 'not_found':
+                    return $this->xmlResponse($response, $this->buildProblem('Item not found', 'unknown-item'));
+                case 'duplicate':
+                    return $this->xmlResponse($response, $this->buildProblem('User already has this item on loan or reserved', 'duplicate-request'));
+                case 'ineligible':
+                    return $this->xmlResponse($response, $this->buildProblem('User is not eligible to check out this item', 'user-ineligible-to-check-out'));
+                case 'max_loans':
+                    return $this->xmlResponse($response, $this->buildProblem('Maximum item checkouts reached for this user', 'user-loan-limit-reached'));
+                case 'no_capacity':
+                case 'no_copy':
+                    return $this->xmlResponse($response, $this->buildProblem('No copies available', 'item-not-checked-in'));
+                case 'invalid_due':
+                case 'db_error':
+                default:
+                    return $this->xmlResponse($response, $this->buildProblem('Failed to create loan', 'temporary-processing-failure'));
             }
-            if ((int) ($book['copie_disponibili'] ?? 0) <= 0) {
-                return $this->xmlResponse(
-                    $response,
-                    $this->buildProblem('No copies available', 'item-not-checked-in')
-                );
-            }
-            return $this->xmlResponse(
-                $response,
-                $this->buildProblem('Failed to create loan', 'temporary-processing-failure')
-            );
         }
 
         return $this->xmlResponse($response, $this->buildCheckOutItemResponse($itemId, $userId, $dueDate));
@@ -683,6 +687,14 @@ class NcipServerPlugin
         }
 
         if (!$this->closeLoan((int) $loan['id'])) {
+            // A concurrent CheckInItem may have returned this exact loan between
+            // findActiveLoan() and closeLoan(): LoanRepository::close()'s state
+            // guard then returns false. That is not a failure — the item IS
+            // checked in — so honour the F052 idempotency contract and report
+            // success instead of a retryable temporary-processing-failure.
+            if ($this->isLoanReturned((int) $loan['id'])) {
+                return $this->xmlResponse($response, $this->buildCheckInItemResponse($itemId));
+            }
             return $this->xmlResponse(
                 $response,
                 $this->buildProblem('Failed to check in item', 'temporary-processing-failure')
@@ -1240,14 +1252,21 @@ class NcipServerPlugin
 
     /**
      * Atomic checkout: locks the book row to prevent double-booking under concurrent requests.
-     * Returns the new loan ID, or null if no copies are available or an error occurred.
+     * Returns the new loan ID, or null on failure. On failure $failureReason is
+     * set to a stable code so the caller can emit the correct NCIP ProblemType:
+     * terminal — 'not_found' | 'duplicate' | 'ineligible' | 'max_loans' |
+     * 'no_capacity' | 'no_copy'; transient/retryable — 'invalid_due' | 'db_error'.
+     *
+     * @param-out string $failureReason
      */
-    private function createLoanAtomic(int $bookId, int $userId, string $dueDate, int $processedBy): ?int
+    private function createLoanAtomic(int $bookId, int $userId, string $dueDate, int $processedBy, ?string &$failureReason = null): ?int
     {
+        $failureReason = 'db_error';
         $this->db->begin_transaction();
         try {
             $today = \App\Support\DateHelper::today();
             if (!\App\Support\DateHelper::isISODateFormat($dueDate) || $dueDate < $today) {
+                $failureReason = 'invalid_due';
                 $this->db->rollback();
                 return null;
             }
@@ -1269,6 +1288,7 @@ class NcipServerPlugin
             $lock->close();
 
             if ($row === null) {
+                $failureReason = 'not_found';
                 $this->db->rollback();
                 return null;
             }
@@ -1295,6 +1315,7 @@ class NcipServerPlugin
             $hasReservation = (bool) $reservation->get_result()->fetch_row();
             $reservation->close();
             if ($hasDuplicate || $hasReservation) {
+                $failureReason = 'duplicate';
                 $this->db->rollback();
                 return null;
             }
@@ -1304,6 +1325,7 @@ class NcipServerPlugin
             $userLock->execute();
             $userLock->close();
             if (\App\Support\LoanEligibility::checkUser($this->db, $userId) !== null) {
+                $failureReason = 'ineligible';
                 $this->db->rollback();
                 return null;
             }
@@ -1320,6 +1342,7 @@ class NcipServerPlugin
                 $activeLoans = (int) ($count->get_result()->fetch_row()[0] ?? 0);
                 $count->close();
                 if ($activeLoans >= $maxLoans) {
+                    $failureReason = 'max_loans';
                     $this->db->rollback();
                     return null;
                 }
@@ -1327,6 +1350,7 @@ class NcipServerPlugin
 
             $capacity = new \App\Services\CapacityService($this->db);
             if (!$capacity->hasFreeCapacity($bookId, $today, $dueDate)) {
+                $failureReason = 'no_capacity';
                 $this->db->rollback();
                 return null;
             }
@@ -1351,6 +1375,7 @@ class NcipServerPlugin
             $copyRow = $copy->get_result()->fetch_assoc();
             $copy->close();
             if (!$copyRow) {
+                $failureReason = 'no_copy';
                 $this->db->rollback();
                 return null;
             }
@@ -1578,6 +1603,27 @@ class NcipServerPlugin
             SecureLogger::error('[NcipServer] closeLoan failed: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * True when the loan has already been returned (not active). Keeps NCIP
+     * CheckInItem idempotent: a concurrent/replayed check-in whose loan is
+     * already 'restituito' is a success, not a temporary-processing-failure.
+     */
+    private function isLoanReturned(int $loanId): bool
+    {
+        $stmt = $this->db->prepare('SELECT attivo, stato FROM prestiti WHERE id = ?');
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('i', $loanId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($row === null) {
+            return false;
+        }
+        return (int) $row['attivo'] === 0 || $row['stato'] === 'restituito';
     }
 
     private function extendLoan(int $loanId): ?string

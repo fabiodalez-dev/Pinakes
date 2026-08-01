@@ -775,11 +775,12 @@ class NotificationService {
     }
 
     /**
-     * Checks if a book has at least one actual physical copy available TODAY
-     * Considers:
-     * - Physical copy state ('disponibile' in copie table)
-     * - Active loans overlapping with today
-     * - Active reservations overlapping with today
+     * Checks if a book has at least one actual physical copy available TODAY.
+     * Delegates to CapacityService::hasFreeCapacity — the single authority used
+     * by loan creation, approval, renewal and promotion — so wishlist
+     * "now available" notifications apply the same rules: overdue loans still
+     * occupy today, and legacy titles with no rows in `copie` fall back to
+     * libri.copie_totali.
      */
     public function hasActualAvailableCopy(int $bookId): bool {
         // Use the same capacity authority as creation, approval, renewal and
