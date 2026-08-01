@@ -2,84 +2,6 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## What's New in v0.7.49
-
-A mobile-layout maintenance release for the redesigned public catalogue.
-
-### Fixes
-- **Catalogue pagination is horizontal, centred and wrapping on phones** instead of becoming a vertical stack after the Bootstrap removal ([#310](https://github.com/fabiodalez-dev/Pinakes/pull/310)).
-- **Book-detail actions and information sections fit narrow screens** — source links stack at full width, content padding is corrected, and headers align with metadata rows.
-- **Related books show one complete cover plus a preview of the next**, restoring the intended mobile scroll affordance.
-- **Mobile browser chrome follows the active theme**, and breadcrumb separators now work consistently throughout the public frontend.
-
-### Database Changes
-- None — views and compiled layout CSS only.
-
-### Upgrade Notes
-- Back up your database before updating (the in-app updater does this automatically).
-
----
-
-## What's New in v0.7.48
-
-A search-relevance release shared by the web catalogue and companion app.
-
-### Improvements
-- **Weighted catalogue ranking** ([#309](https://github.com/fabiodalez-dev/Pinakes/pull/309)) — exact identifiers and title matches rank above author, subtitle, publisher, keywords and description matches across header autocomplete, AJAX search and the Mobile API.
-- **Stable pagination and wildcard handling** — public search caps oversized queries/results, meaningless wildcard-only searches fall back to title order, and mobile browsing retains full cursor pagination.
-- **Consistent mobile results** — the Mobile API uses the same normalized, entity-decoded relevance model as the web catalogue.
-
-### Database Changes
-- None — ranking is generated from existing catalogue fields.
-
-### Upgrade Notes
-- Back up your database before updating (the in-app updater does this automatically).
-
----
-
-## What's New in v0.7.47
-
-A broad interface redesign plus circulation and cataloguing corrections.
-
-### Improvements
-- **Editorial-minimal frontend and account redesign** — public, authentication, patron and admin surfaces share a cleaner typography, spacing and action system, with self-hosted fonts and rebuilt assets.
-- **Configurable frontend layout variants** — theme settings can select the shipped public-layout treatment without custom CSS; the obsolete Bootstrap CSS dependency and override layer were removed.
-- **Plugin actions match native book actions** — Digital Library, GoodLib and other hook-injected buttons/links follow the same layout and responsive rules as core actions.
-- **Grouped authoring fields** ([#308](https://github.com/fabiodalez-dev/Pinakes/pull/308)) — contributor inputs on the book form are organized consistently; CSV import also accepts the added column alias from [#305](https://github.com/fabiodalez-dev/Pinakes/pull/305).
-
-### Fixes
-- **Overdue loans still prove reading eligibility** — `in_ritardo` is included wherever reviews and “has this book” checks evaluate current/previous borrowing, including Mobile API and NCIP mirrors.
-- **Frontend and plugin responsive polish** — catalog facets, archives, Book Club, digital-content actions and email layouts were reconciled with the new design system.
-
-### Database Changes
-- None — this release changes application code, views, locale catalogues and compiled assets.
-
-### Upgrade Notes
-- Rebuild custom frontend integrations that depended directly on Bootstrap classes; Bootstrap is no longer shipped by the frontend bundle.
-- Back up your database before updating (the in-app updater does this automatically).
-
----
-
-## What's New in v0.7.46
-
-A circulation-policy and catalogue-count correctness release.
-
-### Features
-- **Optional automatic loan approval** ([#301](https://github.com/fabiodalez-dev/Pinakes/issues/301)) — administrators can opt in under loan settings. Eligible immediate patron requests are promoted through the same lock-safe approval pipeline used by staff, receive a physical copy and enter `da_ritirare`; failures remain pending for manual review.
-- **Mobile API advertises and reports approval behavior** — health/OpenAPI responses expose whether approval is required, and request results return the actual pending or ready-for-pickup state.
-
-### Fixes
-- **Author, publisher and genre counts exclude soft-deleted books** ([#306](https://github.com/fabiodalez-dev/Pinakes/issues/306)), including list filters and bulk exports.
-
-### Database Changes
-- `migrate_0.7.46.sql` — adds the idempotent `loans.auto_approve_requests` setting, defaulting to off and preserving an existing operator choice.
-
-### Upgrade Notes
-- Automatic approval remains disabled after upgrade until an administrator explicitly enables it.
-- Back up your database before updating (the in-app updater does this automatically).
-
----
-
 ## What's New in v0.7.45
 
 A catalogue-consistency and scraper-maintenance release.
@@ -1186,3 +1108,4 @@ third-party overwrite can slip through unnoticed. Full post-mortem in
 </details>
 
 ---
+

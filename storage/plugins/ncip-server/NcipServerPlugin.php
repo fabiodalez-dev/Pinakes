@@ -736,16 +736,24 @@ class NcipServerPlugin
             );
         }
 
-        try {
-            $newDue = $this->extendLoan((int) $loan['id']);
-            if ($newDue === null) {
-                throw new \RuntimeException('Loan is not eligible for renewal or the extension conflicts');
-            }
-        } catch (\RuntimeException $e) {
-            SecureLogger::error('[NcipServer] extendLoan failed: ' . $e->getMessage());
+        $failureReason = 'db_error';
+        $newDue = $this->extendLoan((int) $loan['id'], $failureReason);
+        if ($newDue === null) {
+            // Map permanent rejections to stable NCIP ProblemTypes so the partner
+            // stops retrying a renewal that can never succeed. Only a genuine DB
+            // error stays retryable (temporary-processing-failure).
+            $problemType = match ($failureReason) {
+                'not_found'                => 'unknown-item',
+                'ineligible_state'         => 'item-not-renewable',
+                'user_ineligible'          => 'user-ineligible-to-renew',
+                'max_renewals'             => 'maximum-renewals-exceeded',
+                'no_capacity', 'overlap'   => 'item-not-renewable',
+                default                    => 'temporary-processing-failure',
+            };
+            SecureLogger::error('[NcipServer] extendLoan failed: ' . $failureReason);
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Failed to extend loan', 'temporary-processing-failure')
+                $this->buildProblem('Failed to extend loan', $problemType)
             );
         }
 
@@ -1623,11 +1631,24 @@ class NcipServerPlugin
         if ($row === null) {
             return false;
         }
-        return (int) $row['attivo'] === 0 || $row['stato'] === 'restituito';
+        // Only a genuine return counts. attivo=0 alone is too broad: a concurrent
+        // CancelRequestItem sets stato='annullato', attivo=0, and treating that as
+        // "returned" would answer a CheckInItem with success for an item that was
+        // never checked in. LoanRepository::close() sets stato='restituito'.
+        return $row['stato'] === 'restituito';
     }
 
-    private function extendLoan(int $loanId): ?string
+    /**
+     * Renew a loan, returning the new due date or null on failure. $failureReason
+     * distinguishes permanent rejections (the caller maps them to a stable NCIP
+     * ProblemType) from transient DB errors (retryable). Defaults to the
+     * transient case; each guard sets its own reason before returning.
+     *
+     * @param-out string $failureReason
+     */
+    private function extendLoan(int $loanId, ?string &$failureReason = null): ?string
     {
+        $failureReason = 'db_error';
         $lookup = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id = ?');
         if ($lookup === false) {
             return null;
@@ -1637,6 +1658,7 @@ class NcipServerPlugin
         $row = $lookup->get_result()->fetch_assoc();
         $lookup->close();
         if (!$row) {
+            $failureReason = 'not_found';
             return null;
         }
         $bookId = (int) $row['libro_id'];
@@ -1650,6 +1672,7 @@ class NcipServerPlugin
             $book->close();
             if (!$bookExists) {
                 $this->db->rollback();
+                $failureReason = 'not_found';
                 return null;
             }
 
@@ -1664,6 +1687,7 @@ class NcipServerPlugin
             if (!$loan || (int) $loan['libro_id'] !== $bookId
                 || (int) $loan['attivo'] !== 1 || $loan['stato'] !== 'in_corso') {
                 $this->db->rollback();
+                $failureReason = 'ineligible_state';
                 return null;
             }
 
@@ -1674,6 +1698,7 @@ class NcipServerPlugin
             $userLock->close();
             if (\App\Support\LoanEligibility::checkUser($this->db, $userId) !== null) {
                 $this->db->rollback();
+                $failureReason = 'user_ineligible';
                 return null;
             }
 
@@ -1682,6 +1707,7 @@ class NcipServerPlugin
             $maxRenewals = $maxRenewals >= 0 ? $maxRenewals : 3;
             if ((int) $loan['renewals'] >= $maxRenewals) {
                 $this->db->rollback();
+                $failureReason = 'max_renewals';
                 return null;
             }
             $renewDays = (int) ($settings->get('loans', 'loan_duration_days', '30') ?? 30);
@@ -1692,6 +1718,7 @@ class NcipServerPlugin
             $capacity = new \App\Services\CapacityService($this->db);
             if (!$capacity->hasFreeCapacity($bookId, $currentDue, $newDueDate, excludePrestitoId: $loanId)) {
                 $this->db->rollback();
+                $failureReason = 'no_capacity';
                 return null;
             }
 
@@ -1711,6 +1738,7 @@ class NcipServerPlugin
                 $overlap->close();
                 if ($hasOverlap) {
                     $this->db->rollback();
+                    $failureReason = 'overlap';
                     return null;
                 }
             }

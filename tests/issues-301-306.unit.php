@@ -45,9 +45,16 @@ $check(
         && str_contains($settingsView, 'class="toggle-checkbox sr-only"'),
     'loan settings persist an accessible toggle using the existing switch component'
 );
+$autoApproveCall = strpos($actions, 'autoApproveLoanRequest($request, $db, $newLoanId)');
+$autoApprovedGuard = strpos($actions, 'if (!$autoApproved)');
+$notifyCall = strpos($actions, 'notifyLoanRequest($newLoanId)');
 $check(
-    strpos($actions, 'autoApproveLoanRequest($request, $db, $newLoanId)') < strpos($actions, 'if (!$autoApproved)')
-        && strpos($actions, 'if (!$autoApproved)') < strpos($actions, 'notifyLoanRequest($newLoanId)'),
+    // Guard the markers before ordering: strpos() returns false when a marker is
+    // gone, and false < int is true in PHP, so a rename/removal would otherwise
+    // pass this silently.
+    $autoApproveCall !== false && $autoApprovedGuard !== false && $notifyCall !== false
+        && $autoApproveCall < $autoApprovedGuard
+        && $autoApprovedGuard < $notifyCall,
     'automatic approval runs before email I/O and suppresses the now-stale administrator action notification'
 );
 $check(

@@ -659,6 +659,7 @@ test.describe.serial('Email Notifications E2E', () => {
 
     const userId = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER_EMAIL}' LIMIT 1`);
     const bookId = dbQuery("SELECT id FROM libri WHERE deleted_at IS NULL LIMIT 1");
+    const bookTitle = dbQuery(`SELECT titolo FROM libri WHERE id = ${bookId}`);
 
     const overdueDate = dateOffset(-1);
     const startDate = dateOffset(-15);
@@ -678,11 +679,11 @@ test.describe.serial('Email Notifications E2E', () => {
     const userMsg = await getMessage(overdueMail.ID);
     expect(userMsg.Subject.toLowerCase()).toMatch(/scaduto|overdue|ritardo/);
 
-    // B.11: Admin also receives the overdue notification. Search once by
-    // recipient, then validate the localised subject; three sequential Mailpit
-    // searches could consume the whole per-test timeout before reaching the
-    // matching locale.
-    const adminOverdue = await waitForMail(`to:${ADMIN_EMAIL}`);
+    // B.11: Admin also receives the overdue notification. Scope the search to
+    // this book's title (locale-independent, present in subject/body) as well as
+    // the recipient — a bare to:ADMIN_EMAIL could match another admin mail the
+    // same maintenance run emits and return the wrong message.
+    const adminOverdue = await waitForMail(`to:${ADMIN_EMAIL} "${bookTitle}"`);
     expect(adminOverdue).toBeTruthy();
     const adminMsg = await getMessage(adminOverdue.ID);
     expect(adminMsg.Subject.toLowerCase()).toMatch(/scaduto|overdue|ritard/);
