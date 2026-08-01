@@ -173,11 +173,29 @@ if (file_exists($maintenanceFile)) {
     // MUST match the one the app configures below (storage/sessions) or the
     // probe reads an empty session from the default /tmp and the bypass never
     // fires — the very case this recovery path exists for.
-    if (!$isAllowed && session_status() === PHP_SESSION_NONE) {
+    // Only probe when a session cookie is actually present: an anonymous visitor
+    // (the vast majority of 503 traffic) must not have a session created for
+    // them here. For a request that DOES carry the cookie, the probe reads it
+    // read-only. It cannot disable cookies (PHP then wouldn't read the id from
+    // the cookie either, and the bypass would never see the admin's session), so
+    // instead it hardens what the probe might emit: strict mode rejects a
+    // client-supplied arbitrary id (no file created for it), and the app's
+    // cookie flags are applied up front so a stale/invalid incoming id can't
+    // produce an insecure Set-Cookie. The app's own secure session config still
+    // runs later for the real, writable session.
+    if (!$isAllowed && session_status() === PHP_SESSION_NONE
+        && isset($_COOKIE[session_name()])
+    ) {
         $maintenanceSessionPath = dirname(__DIR__) . '/storage/sessions';
         if (is_dir($maintenanceSessionPath) && is_readable($maintenanceSessionPath)) {
             ini_set('session.save_path', $maintenanceSessionPath);
         }
+        $probeHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+        ini_set('session.use_strict_mode', '1');
+        ini_set('session.cookie_httponly', '1');
+        ini_set('session.cookie_secure', $probeHttps ? '1' : '0');
+        ini_set('session.cookie_samesite', 'Lax');
         @session_start(['read_and_close' => true]);
         $maintenanceRole = $_SESSION['user']['tipo_utente'] ?? null;
         if (in_array($maintenanceRole, ['admin', 'staff'], true)) {

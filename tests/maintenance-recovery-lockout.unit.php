@@ -103,17 +103,22 @@ if (!$serverUp) {
                 json_encode(['time' => time(), 'message' => 'maintenance-recovery.unit self-test'])
             );
 
+            // Reachable = actually served (2xx/3xx), not merely "not 503": a 404
+            // or 500 must fail these, otherwise a route that isn't served would
+            // pass as "reachable".
+            $reachable = static fn (?int $c): bool => $c !== null && $c >= 200 && $c < 400;
+
             $login = $httpCode($baseUrl . $loginPath);
-            $check($login !== null && $login !== 503, "01 login page ({$loginPath}) reachable during maintenance (got " . var_export($login, true) . ", must not be 503)");
+            $check($reachable($login), "01 login page ({$loginPath}) served during maintenance, not error/503 (got " . var_export($login, true) . ")");
 
             $home = $httpCode($baseUrl . '/');
             $check($home === 503, "02 unauthenticated home returns 503 during maintenance (got " . var_export($home, true) . ")");
 
             $updates = $httpCode($baseUrl . '/admin/updates');
-            $check($updates !== null && $updates !== 503, "03 update endpoint (/admin/updates) reachable during maintenance (got " . var_export($updates, true) . ")");
+            $check($reachable($updates), "03 update endpoint (/admin/updates) served during maintenance, not 503 (got " . var_export($updates, true) . ")");
 
             $asset = $httpCode($baseUrl . '/assets/main.css');
-            $check($asset !== null && $asset !== 503, "04 static assets reachable during maintenance (got " . var_export($asset, true) . ")");
+            $check($reachable($asset), "04 static assets served during maintenance, not 503 (got " . var_export($asset, true) . ")");
         } finally {
             $cleanupMaintenance();
         }
@@ -148,15 +153,24 @@ $check(
     "12 index.php lets an authenticated admin/staff through (read_and_close session probe)"
 );
 
-// Layer 2: BOTH shutdown handlers must unlink the maintenance + lock files
-// UNCONDITIONALLY — not nested inside the fatal-error `if`. Verify by removing
-// each fatal-error block and confirming an unlink of $maintenanceFile still
-// remains in the handler afterwards.
+// Layer 1c: the probe must not run for anonymous visitors and must not emit a
+// cookie or accept an arbitrary client-supplied session id — it only reads an
+// already-present session (guards against session fixation / disk churn).
+$check(
+    str_contains($index, 'isset($_COOKIE[session_name()])')
+        && str_contains($index, "ini_set('session.use_strict_mode', '1')"),
+    "15 index.php probes only when a session cookie exists, in strict mode"
+);
+
+// Layer 2: BOTH shutdown handlers must (a) return early unless this request owns
+// the update lock, and (b) otherwise clear the maintenance + lock files
+// UNCONDITIONALLY (not nested inside the fatal-error `if`).
 $updater = (string) file_get_contents($root . '/app/Support/Updater.php');
 
-// Isolate each register_shutdown_function body.
+// Isolate each register_shutdown_function body (signature carries the ownership
+// flag by reference).
 preg_match_all(
-    '/register_shutdown_function\(function \(\) use \(\$maintenanceFile, \$lockFile\) \{(.*?)\}\);/s',
+    '/register_shutdown_function\(function \(\) use \(\$maintenanceFile, \$lockFile, &\$ownsUpdate\) \{(.*?)\}\);/s',
     $updater,
     $handlers
 );
@@ -164,17 +178,31 @@ $handlerBodies = $handlers[1] ?? [];
 $check(count($handlerBodies) >= 2, "13 found both updater shutdown handlers (got " . count($handlerBodies) . ")");
 
 $unconditional = 0;
+$ownershipGuarded = 0;
 foreach ($handlerBodies as $body) {
-    // Strip the fatal-error diagnostic `if (...) { ... }` block, then check an
-    // unlink of the maintenance file still survives at the handler's top level.
-    $withoutFatalBlock = preg_replace('/if \(\$error !== null.*?\}\s*/s', '', $body);
-    if (is_string($withoutFatalBlock)
-        && preg_match('/@unlink\(\$maintenanceFile\)/', $withoutFatalBlock)
-        && preg_match('/@unlink\(\$lockFile\)/', $withoutFatalBlock)) {
+    // Ownership guard: a request that didn't acquire the lock must bail before
+    // touching any state.
+    if (preg_match('/if \(!\$ownsUpdate\) \{\s*return;\s*\}/s', $body)) {
+        $ownershipGuarded++;
+    }
+    // Strip the ownership guard AND the fatal-error diagnostic block, then check
+    // an unlink of both files still survives at the handler's top level (i.e.
+    // it's unconditional for the owner, not gated by the fatal `if`).
+    $stripped = preg_replace('/if \(!\$ownsUpdate\) \{\s*return;\s*\}\s*/s', '', $body);
+    $stripped = is_string($stripped) ? preg_replace('/if \(\$error !== null.*?\}\s*/s', '', $stripped) : null;
+    if (is_string($stripped)
+        && preg_match('/@unlink\(\$maintenanceFile\)/', $stripped)
+        && preg_match('/@unlink\(\$lockFile\)/', $stripped)) {
         $unconditional++;
     }
 }
-$check($unconditional >= 2, "14 both shutdown handlers clear .maintenance + lock UNCONDITIONALLY (got {$unconditional}/2)");
+$check($ownershipGuarded >= 2, "14 both shutdown handlers bail unless this request owns the update lock (got {$ownershipGuarded}/2)");
+$check($unconditional >= 2, "16 the owner clears .maintenance + lock UNCONDITIONALLY (got {$unconditional}/2)");
+// The ownership flag is only raised after the lock is held and maintenance is on.
+$check(
+    substr_count($updater, '$ownsUpdate = true;') >= 2,
+    "17 both update paths raise the ownership flag after acquiring the lock"
+);
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

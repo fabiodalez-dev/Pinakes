@@ -1745,7 +1745,19 @@ class Updater
         ]);
 
         $maintenanceFile = $this->rootPath . '/storage/.maintenance';
-        register_shutdown_function(function () use ($maintenanceFile, $lockFile) {
+        // Ownership flag: only the request that actually acquires the update lock
+        // (and turns maintenance on) may tear the state down. Set true below,
+        // right after flock + enableMaintenanceMode succeed.
+        /** @var bool $ownsUpdate Raised to true below, after the lock is held; the handler reads it by reference at shutdown. */
+        $ownsUpdate = false;
+        register_shutdown_function(function () use ($maintenanceFile, $lockFile, &$ownsUpdate) {
+            // Guard: a request rejected because another update already holds the
+            // lock (flock failed) must NOT remove the active update's maintenance
+            // flag or lock file — that would lift maintenance mid-copy and free
+            // the lock for a parallel update. Only the owner cleans up.
+            if (!$ownsUpdate) {
+                return;
+            }
             // The update runs entirely within this request (set_time_limit(0) +
             // ignore_user_abort), so once it ends — success, handled failure or a
             // fatal — maintenance MUST be lifted. Clear the flag UNCONDITIONALLY
@@ -1814,6 +1826,9 @@ class Updater
         fflush($lockHandle);
 
         $this->enableMaintenanceMode();
+        // We hold the lock and maintenance is on: this request now owns the
+        // update state, so its shutdown handler is cleared to tear it down.
+        $ownsUpdate = true;
 
         $backupResult = ['path' => null, 'success' => false, 'error' => null];
         $result = null;
@@ -3976,7 +3991,15 @@ class Updater
         ]);
 
         $maintenanceFile = $this->rootPath . '/storage/.maintenance';
-        register_shutdown_function(function () use ($maintenanceFile, $lockFile) {
+        // Ownership flag — see performUpdateFromFile(): set true only after this
+        // request holds the lock and maintenance is on, so a request rejected at
+        // flock never tears down the active update's state.
+        /** @var bool $ownsUpdate Raised to true below, after the lock is held; the handler reads it by reference at shutdown. */
+        $ownsUpdate = false;
+        register_shutdown_function(function () use ($maintenanceFile, $lockFile, &$ownsUpdate) {
+            if (!$ownsUpdate) {
+                return;
+            }
             // See performUpdateFromFile(): the update is single-request, so lift
             // maintenance UNCONDITIONALLY when the request ends. Only a fatal is
             // logged; the flag is always cleared so a handled failure can't leave
@@ -4042,6 +4065,9 @@ class Updater
         fflush($lockHandle);
 
         $this->enableMaintenanceMode();
+        // We hold the lock and maintenance is on: this request now owns the
+        // update state, so its shutdown handler is cleared to tear it down.
+        $ownsUpdate = true;
 
         $backupResult = ['path' => null, 'success' => false, 'error' => null];
         $result = null;
