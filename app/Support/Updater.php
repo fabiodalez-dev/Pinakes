@@ -1746,19 +1746,24 @@ class Updater
 
         $maintenanceFile = $this->rootPath . '/storage/.maintenance';
         register_shutdown_function(function () use ($maintenanceFile, $lockFile) {
+            // The update runs entirely within this request (set_time_limit(0) +
+            // ignore_user_abort), so once it ends — success, handled failure or a
+            // fatal — maintenance MUST be lifted. Clear the flag UNCONDITIONALLY
+            // so a non-fatal early return (or a caught exception that skipped
+            // disableMaintenanceMode) can't leave the site stuck until the
+            // 30-minute stale sweep. An OS SIGKILL/OOM still bypasses shutdown
+            // handlers — the stale-file sweep is the last resort for that.
             $error = error_get_last();
             if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
                 error_log("[Updater DEBUG] FATAL ERROR during manual update: " . json_encode($error));
-
-                if (file_exists($maintenanceFile)) {
-                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
-                    @unlink($maintenanceFile);
-                }
-
-                if (file_exists($lockFile)) {
-                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
-                    @unlink($lockFile);
-                }
+            }
+            if (file_exists($maintenanceFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
+                @unlink($maintenanceFile);
+            }
+            if (file_exists($lockFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
+                @unlink($lockFile);
             }
         });
 
@@ -3972,19 +3977,21 @@ class Updater
 
         $maintenanceFile = $this->rootPath . '/storage/.maintenance';
         register_shutdown_function(function () use ($maintenanceFile, $lockFile) {
+            // See performUpdateFromFile(): the update is single-request, so lift
+            // maintenance UNCONDITIONALLY when the request ends. Only a fatal is
+            // logged; the flag is always cleared so a handled failure can't leave
+            // the site stuck. (OS SIGKILL/OOM still needs the stale-file sweep.)
             $error = error_get_last();
             if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
                 error_log("[Updater DEBUG] FATAL ERROR during update: " . json_encode($error));
-
-                if (file_exists($maintenanceFile)) {
-                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
-                    @unlink($maintenanceFile);
-                }
-
-                if (file_exists($lockFile)) {
-                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
-                    @unlink($lockFile);
-                }
+            }
+            if (file_exists($maintenanceFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
+                @unlink($maintenanceFile);
+            }
+            if (file_exists($lockFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
+                @unlink($lockFile);
             }
         });
 

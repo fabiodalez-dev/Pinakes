@@ -145,13 +145,43 @@ if (file_exists($maintenanceFile)) {
     ) {
         $requestUri = substr($requestUri, strlen($maintenanceBasePath)) ?: '/';
     }
-    // Allow update endpoints and static assets during maintenance
-    $allowedPaths = ['/admin/updates', '/assets/', '/favicon.ico'];
+    // Allow update endpoints and static assets during maintenance, plus the
+    // login/logout routes so an admin can ALWAYS authenticate while the site is
+    // locked and reach the recovery UI. Without this the update lock locks out
+    // the very account needed to clear it (the emergency clear-maintenance
+    // endpoint is admin-only). The localised slugs are added on top of the
+    // defaults so it works whatever install locale is active.
+    $allowedPaths = ['/admin/updates', '/assets/', '/favicon.ico', '/login', '/logout'];
+    try {
+        $allowedPaths[] = \App\Support\RouteTranslator::route('login');
+        $allowedPaths[] = \App\Support\RouteTranslator::route('logout');
+    } catch (\Throwable) {
+        // Defaults above already cover the fallback case.
+    }
     $isAllowed = false;
     foreach ($allowedPaths as $path) {
-        if (strpos($requestUri, $path) === 0) {
+        if ($path !== '' && strpos($requestUri, $path) === 0) {
             $isAllowed = true;
             break;
+        }
+    }
+
+    // Admin/staff bypass: an authenticated privileged user gets full access so
+    // they can drive or abort the update from the admin area. The session is
+    // read read-only (read_and_close) so it never interferes with the writable
+    // session_start() performed later during normal bootstrap. The save_path
+    // MUST match the one the app configures below (storage/sessions) or the
+    // probe reads an empty session from the default /tmp and the bypass never
+    // fires — the very case this recovery path exists for.
+    if (!$isAllowed && session_status() === PHP_SESSION_NONE) {
+        $maintenanceSessionPath = dirname(__DIR__) . '/storage/sessions';
+        if (is_dir($maintenanceSessionPath) && is_readable($maintenanceSessionPath)) {
+            ini_set('session.save_path', $maintenanceSessionPath);
+        }
+        @session_start(['read_and_close' => true]);
+        $maintenanceRole = $_SESSION['user']['tipo_utente'] ?? null;
+        if (in_array($maintenanceRole, ['admin', 'staff'], true)) {
+            $isAllowed = true;
         }
     }
 
