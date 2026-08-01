@@ -203,13 +203,51 @@ if (file_exists($maintenanceFile)) {
             // they don't (assets mid-swap during an update), the system-font
             // fallbacks keep the page legible.
             $assetBase = htmlspecialchars($maintenanceBasePath, ENT_QUOTES, 'UTF-8');
+
+            // Honour the operator's configured name and logo — the same branding
+            // the header uses — so the maintenance page isn't a stranger. This
+            // runs on every request while locked and an update may be touching
+            // the settings table, so read defensively and fall back to a neutral
+            // wordmark. A local logo is embedded as a data URI: a plain <img src>
+            // would trigger a second request that this very gate answers with the
+            // 503, so inlining is the only way it renders during maintenance.
+            $brandName = 'Pinakes';
+            $brandMarkup = '';
+            try {
+                $configuredName = trim((string) \App\Support\ConfigStore::get('app.name', ''));
+                if ($configuredName !== '') {
+                    $brandName = $configuredName;
+                }
+                $logoRel = \App\Support\Branding::logo();
+                if ($logoRel !== '' && preg_match('#^https?://#i', $logoRel)) {
+                    $brandMarkup = '<img class="logo" src="' . htmlspecialchars($logoRel, ENT_QUOTES, 'UTF-8') . '" alt="' . htmlspecialchars($brandName, ENT_QUOTES, 'UTF-8') . '">';
+                } elseif ($logoRel !== '') {
+                    $publicDir = realpath(__DIR__);
+                    $logoFile = realpath(__DIR__ . '/' . ltrim((string) (parse_url($logoRel, PHP_URL_PATH) ?: $logoRel), '/'));
+                    if ($publicDir !== false && $logoFile !== false && str_starts_with($logoFile, $publicDir . DIRECTORY_SEPARATOR) && is_file($logoFile) && filesize($logoFile) <= 524288) {
+                        $mime = [
+                            'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
+                            'gif' => 'image/gif', 'svg' => 'image/svg+xml', 'webp' => 'image/webp',
+                        ][strtolower(pathinfo($logoFile, PATHINFO_EXTENSION))] ?? '';
+                        $bytes = @file_get_contents($logoFile);
+                        if ($mime !== '' && $bytes !== false) {
+                            $brandMarkup = '<img class="logo" src="data:' . $mime . ';base64,' . base64_encode($bytes) . '" alt="' . htmlspecialchars($brandName, ENT_QUOTES, 'UTF-8') . '">';
+                        }
+                    }
+                }
+            } catch (\Throwable) {
+                // Keep the neutral wordmark fallback.
+            }
+            if ($brandMarkup === '') {
+                $brandMarkup = '<div class="brand">' . htmlspecialchars($brandName, ENT_QUOTES, 'UTF-8') . '</div>';
+            }
             echo '<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#d70161">
-    <title>Manutenzione in corso &middot; Pinakes</title>
+    <title>Manutenzione in corso &middot; ' . htmlspecialchars($brandName, ENT_QUOTES, 'UTF-8') . '</title>
     <style>
         @import url("' . $assetBase . '/assets/fonts/fonts.css");
         :root {
@@ -225,8 +263,9 @@ if (file_exists($maintenanceFile)) {
         * { box-sizing: border-box; }
         body { font-family: var(--sans); background: var(--paper); color: var(--ink); margin: 0; padding: 24px; display: flex; align-items: center; justify-content: center; min-height: 100vh; -webkit-font-smoothing: antialiased; }
         .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 20px 48px rgba(15,23,42,0.08); max-width: 480px; width: 100%; padding: 48px 44px; text-align: center; }
+        .rule { display: block; width: 40px; height: 3px; border-radius: 2px; background: var(--brand); margin: 0 auto 22px; }
         .brand { font-family: var(--serif); font-weight: 600; font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brand); margin: 0 0 28px 0; }
-        .brand::before { content: ""; display: block; width: 40px; height: 3px; border-radius: 2px; background: var(--brand); margin: 0 auto 22px; }
+        .logo { display: block; width: auto; max-width: 200px; max-height: 48px; margin: 0 auto 26px; }
         h1 { font-family: var(--serif); font-weight: 600; color: var(--ink); margin: 0 0 14px 0; font-size: 30px; line-height: 1.2; letter-spacing: -0.01em; }
         p { color: var(--muted); line-height: 1.65; margin: 0 auto; font-size: 16px; max-width: 34ch; }
         .status { margin-top: 34px; display: inline-flex; align-items: center; gap: 10px; padding: 11px 18px; background: color-mix(in srgb, var(--brand) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--brand) 18%, transparent); border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--brand); }
@@ -241,7 +280,8 @@ if (file_exists($maintenanceFile)) {
 </head>
 <body>
     <div class="card">
-        <div class="brand">Pinakes</div>
+        <span class="rule"></span>
+        ' . $brandMarkup . '
         <h1>Manutenzione in corso</h1>
         <p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>
         <div class="status">
