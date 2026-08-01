@@ -198,31 +198,55 @@ if (file_exists($maintenanceFile)) {
             http_response_code(503);
             header('Content-Type: text/html; charset=UTF-8');
             header('Retry-After: 300');
+            // Asset base for subfolder installs; /assets/ is allow-listed above
+            // so the self-hosted brand fonts still load during maintenance. If
+            // they don't (assets mid-swap during an update), the system-font
+            // fallbacks keep the page legible.
+            $assetBase = htmlspecialchars($maintenanceBasePath, ENT_QUOTES, 'UTF-8');
             echo '<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manutenzione in corso</title>
+    <meta name="theme-color" content="#d70161">
+    <title>Manutenzione in corso &middot; Pinakes</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; padding: 20px; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-        .container { background: white; border-radius: 16px; box-shadow: 0 25px 50px rgba(0,0,0,0.25); max-width: 500px; padding: 50px; text-align: center; }
-        .icon { font-size: 64px; margin-bottom: 20px; }
-        h1 { color: #1f2937; margin: 0 0 15px 0; font-size: 28px; }
-        p { color: #6b7280; line-height: 1.6; margin: 0; font-size: 16px; }
-        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #e5e7eb; border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px; vertical-align: middle; }
+        @import url("' . $assetBase . '/assets/fonts/fonts.css");
+        :root {
+            --brand: #d70161;
+            --ink: #0f172a;
+            --muted: #64748b;
+            --paper: #f8f9fa;
+            --card: #ffffff;
+            --line: rgba(15, 23, 42, 0.08);
+            --serif: "Fraunces", Georgia, "Times New Roman", serif;
+            --sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: var(--sans); background: var(--paper); color: var(--ink); margin: 0; padding: 24px; display: flex; align-items: center; justify-content: center; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 20px 48px rgba(15,23,42,0.08); max-width: 480px; width: 100%; padding: 48px 44px; text-align: center; }
+        .brand { font-family: var(--serif); font-weight: 600; font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brand); margin: 0 0 28px 0; }
+        .brand::before { content: ""; display: block; width: 40px; height: 3px; border-radius: 2px; background: var(--brand); margin: 0 auto 22px; }
+        h1 { font-family: var(--serif); font-weight: 600; color: var(--ink); margin: 0 0 14px 0; font-size: 30px; line-height: 1.2; letter-spacing: -0.01em; }
+        p { color: var(--muted); line-height: 1.65; margin: 0 auto; font-size: 16px; max-width: 34ch; }
+        .status { margin-top: 34px; display: inline-flex; align-items: center; gap: 10px; padding: 11px 18px; background: color-mix(in srgb, var(--brand) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--brand) 18%, transparent); border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--brand); }
+        .spinner { width: 15px; height: 15px; border: 2px solid color-mix(in srgb, var(--brand) 25%, transparent); border-top-color: var(--brand); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .status { margin-top: 30px; padding: 15px; background: #f3f4f6; border-radius: 8px; font-size: 14px; color: #4b5563; }
+        @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+        @media (prefers-color-scheme: dark) {
+            :root { --ink: #e2e8f0; --muted: #94a3b8; --paper: #0f172a; --card: #1e293b; --line: rgba(226, 232, 240, 0.10); --brand: #ff5a9d; }
+        }
+        @media (max-width: 480px) { .card { padding: 40px 26px; } h1 { font-size: 26px; } }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="icon">🔧</div>
+    <div class="card">
+        <div class="brand">Pinakes</div>
         <h1>Manutenzione in corso</h1>
         <p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>
         <div class="status">
-            <span class="spinner"></span>
-            Aggiornamento del sistema in corso...
+            <span class="spinner" aria-hidden="true"></span>
+            Aggiornamento del sistema in corso
         </div>
     </div>
 </body>
