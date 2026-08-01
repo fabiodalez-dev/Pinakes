@@ -718,7 +718,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               ?>
               <?= \App\Support\MediaLabels::formatTracklist($descText) ?>
             <?php else: ?>
-              <?php echo App\Support\HtmlHelper::sanitizeHtml(nl2br($libro['descrizione'], false)); ?>
+              <?php echo App\Support\HtmlHelper::richText($libro['descrizione']); ?>
             <?php endif; ?>
           </div>
         </div>
@@ -805,7 +805,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                       echo ' <span class="text-gray-600">(' . $rating . '/5)</span>';
                   } elseif ($fieldName === 'review' || $fieldName === 'comment') {
                       // Multi-line text
-                      echo '<div class="prose prose-sm max-w-none">' . App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) . '</div>';
+                      echo '<div class="prose prose-sm max-w-none">' . App\Support\HtmlHelper::richText($field['value']) . '</div>';
                   } elseif (in_array($fieldName, ['entry_date', 'date_started', 'date_read', 'lending_start', 'lending_end'])) {
                       // Date formatting
                       echo App\Support\HtmlHelper::e(format_date($field['value'], false, '/'));
