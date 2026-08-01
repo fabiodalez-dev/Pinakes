@@ -365,7 +365,7 @@ class UserActionsController
         // CSRF validated by CsrfMiddleware
         $rid = (int) ($data['reservation_id'] ?? 0);
         $date = trim((string) ($data['desired_date'] ?? ''));
-        if ($rid <= 0 || $date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        if ($rid <= 0 || !\App\Support\DateHelper::isISODateFormat($date)) {
             return $response->withStatus(422);
         }
         // "Today" via DateHelper (M9): see loan() — avoids the midnight
@@ -607,12 +607,16 @@ class UserActionsController
             // same copy. The canonical approval path re-checks every constraint.
             $autoApproved = $this->autoApproveLoanRequest($request, $db, $newLoanId);
 
-            // Notify admins about new loan request (outside transaction)
-            try {
-                $notificationService = new \App\Support\NotificationService($db);
-                $notificationService->notifyLoanRequest($newLoanId);
-            } catch (\Throwable $e) {
-                SecureLogger::warning(__('Notifica richiesta prestito fallita'), ['error' => $e->getMessage()]);
+            // A successfully auto-approved request no longer needs admin action.
+            // Emitting the old "new request" notification here left a stale
+            // approval link pointing at a loan that was already da_ritirare.
+            if (!$autoApproved) {
+                try {
+                    $notificationService = new \App\Support\NotificationService($db);
+                    $notificationService->notifyLoanRequest($newLoanId);
+                } catch (\Throwable $e) {
+                    SecureLogger::warning(__('Notifica richiesta prestito fallita'), ['error' => $e->getMessage()]);
+                }
             }
 
             return $this->back($response, [
@@ -641,7 +645,7 @@ class UserActionsController
             return $this->back($response, ['reserve_error' => 'invalid']);
         }
         $desired = trim((string) ($data['desired_date'] ?? ''));
-        if ($desired !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desired)) {
+        if ($desired !== '' && !\App\Support\DateHelper::isISODateFormat($desired)) {
             return $this->back($response, ['reserve_error' => 'invalid_date']);
         }
         // "Today" via DateHelper (M9): see loan() — avoids the midnight

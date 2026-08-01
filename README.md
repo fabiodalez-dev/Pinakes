@@ -5,7 +5,7 @@
 # Pinakes
 
 > **Open-Source Integrated Library System**
-> License: GPL-3  |  Languages: Italian, English, French, German
+> License: GPL-3  |  Languages: Italian, English, French, German, Danish
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
@@ -39,25 +39,22 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New
 
-Highlights of the latest release are below. The full version-by-version history (v0.7.44 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
+Highlights of the latest release are below. The full version-by-version history (v0.7.48 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.45 — latest
+### v0.7.49 — latest
 
+A mobile-layout maintenance release for the redesigned public catalogue.
 
-A catalogue-consistency and scraper-maintenance release.
-
-### Improvements
-- **Catalogue availability facets now reflect real circulation state** — reserved, on-loan, available and non-circulating records are shown and counted separately; records without physical copies remain visible under the complete catalogue without being mislabelled as loans ([#303](https://github.com/fabiodalez-dev/Pinakes/issues/303)).
-- **Catalogue card rows stay aligned** — a card with a subtitle no longer pushes its author, publisher and "Details" out of line with neighbouring cards; the subtitle space is reserved per row only where a row actually needs it, and the layout re-aligns after AJAX filtering, on resize, and once web fonts settle ([#298](https://github.com/fabiodalez-dev/Pinakes/issues/298)).
-- **Language completion statistics are derived from the Italian source catalogue** — every locale (list and edit views alike) now uses the same live denominator, so translation percentages cannot drift from the shipped keys.
-- **Open Library plugin 1.0.4** — replaces the retired third-party Goodreads-cover service with a direct, timeout-bounded lookup of the public Goodreads ISBN page. Because Goodreads sits behind Cloudflare (which serves an anti-bot page to PHP's HTTP client but not to the system `curl`), the cover lookup shells out to the `curl` binary when the host allows process execution, and degrades gracefully to no cover where it doesn't. Only HTTPS cover URLs from exact Goodreads/Amazon CDN domains or their subdomains are accepted; its manifest requires Pinakes 0.7.16+ and PHP 8.2+.
-- **Email templates: `{{pickup_deadline}}` now resolves**, and every placeholder token carries a localised description tooltip in the template editor ([#304](https://github.com/fabiodalez-dev/Pinakes/issues/304)).
+### Fixes
+- **Catalogue pagination is horizontal, centred and wrapping on phones** instead of becoming a vertical stack after the Bootstrap removal ([#310](https://github.com/fabiodalez-dev/Pinakes/pull/310)).
+- **Book-detail actions and information sections fit narrow screens** — source links stack at full width, content padding is corrected, and headers align with metadata rows.
+- **Related books show one complete cover plus a clear preview of the next**, restoring the intended mobile scroll affordance.
+- **Mobile browser chrome follows the active theme**, and breadcrumb separators now work consistently throughout the public frontend.
 
 ### Database Changes
-- None — catalogue availability is derived from existing circulation state and language statistics are computed from the shipped locale files.
+- None — this release changes public views and compiled layout CSS only.
 
 ### Upgrade Notes
-- The bundled Open Library plugin is replaced atomically by the updater and its database metadata advances from 1.0.1 to 1.0.2.
 - Back up your database before updating (the in-app updater does this automatically).
 
 > Older releases → **[CHANGELOG.md](CHANGELOG.md)**.
@@ -67,8 +64,8 @@ A catalogue-consistency and scraper-maintenance release.
 1. **Clone or download** this repository and upload all files to the root directory of your server.
 2. **Visit your site's root URL** in the browser — the guided installer starts automatically.
 3. **Provide database credentials** (database must be empty).
-4. **Select language** (Italian, English, French, or German).
-5. **Configure** organization name, logo, and email notifications.
+4. **Select language** (Italian, English, French, German, or Danish).
+5. **Configure** organization name, logo, canonical public URL (`APP_CANONICAL_URL`), and email notifications. Password-reset links are intentionally not sent until a trusted canonical URL is configured.
 6. **Create admin account** and start cataloging.
 
 **Email configuration**: Supports both PHP `mail()` and SMTP. Required for notifications to work (loan confirmations, due-date reminders, registration approvals, reservation alerts). Can be configured during installation or later from the admin panel.
@@ -161,14 +158,14 @@ Pinakes provides cataloging, circulation, a self-service public frontend, and RE
 - **Perfect for**: digital archives, reference-only collections, museum libraries
 
 ### Pickup Confirmation System
-- **New `ready_for_pickup` state** — Approved loans enter "Ready for Pickup" before becoming active
+- **Ready for Pickup (`da_ritirare`) state** — Approved loans wait for pickup before becoming active
 - **Two-step workflow** — Admin approves → Patron picks up → Admin confirms pickup
 - **Configurable pickup deadline** — Days allowed for pickup (Settings → Loans, default: 3 days)
 - **Cancel pickup** — Admin can cancel uncollected loans, freeing copy and advancing reservation queue
 - **Automatic queue advancement** — Next patron notified immediately when pickup is cancelled
 - **Works without cron** — Real-time queue processing, no maintenance service dependency
 - **Visual indicators** — Orange badge for "Ready for Pickup" in all loan views
-- **Calendar integration** — `ready_for_pickup` periods shown in orange, block availability for other reservations
+- **Calendar integration** — `da_ritirare` periods are shown in orange and block availability for other reservations
 - **Origin tracking** — System tracks whether loans originated from reservations or manual creation
 
 ### Calendar & ICS Integration
@@ -192,7 +189,7 @@ Automatic emails for:
 **WYSIWYG email template editor** with dynamic tags for record, user, and loan data.
 
 ### Public Catalog (OPAC)
-- **Responsive, multilingual frontend** (Italian, English, French, German)
+- **Responsive, multilingual frontend** (Italian, English, French, German, Danish)
 - **AJAX search** with instant results and relevance ranking
 - **AJAX filters**: genre, publisher, availability, publication year, format
 - **Patrons can leave reviews and ratings** (configurable)
@@ -311,10 +308,11 @@ Extend without modifying core files. Plugins can implement:
 
 Plugins support encrypted secrets and isolated configuration. Install via ZIP upload in admin panel.
 
-**Pre-installed plugins** (16 included — every one opt-in via Admin → Plugins; the only one auto-active is Open Library):
+**Pre-installed plugins** (20 included — every one opt-in via Admin → Plugins; the only one auto-active is Open Library):
 
 *Metadata scraping & enrichment*
 - **Open Library** — Metadata scraping from Open Library + Google Books API; the default scraper
+- **Scraping Pro** — Advanced enrichment through Ubik Libri, LibreriaUniversitaria and Feltrinelli
 - **API Book Scraper** — External ISBN enrichment via configurable REST endpoints
 - **Discogs / MusicBrainz / Deezer** — Music scrapers for CDs, LPs, vinyls, cassettes (barcode + title lookup, Cover Art Archive HD jackets, tracklists, label info)
 - **GoodLib** — One-click cross-search badges on the book detail page (Anna's Archive, Z-Library, Project Gutenberg)
@@ -327,10 +325,13 @@ Plugins support encrypted secrets and isolated configuration. Install via ZIP up
 - **BIBFRAME 2.0 Linked Data** — Exposes the book catalogue as BIBFRAME 2.0 JSON-LD / Turtle with content negotiation (Library of Congress transition path from MARC)
 - **OpenURL Resolver** — Z39.88-2004 resolver + COinS metadata embedded in book pages; works with Zotero, Mendeley, EndNote
 - **ResourceSync** — ANSI/NISO Z39.99-2014 dataset synchronisation for harvester partners
+- **Mobile API** — Versioned REST/JSON API for the companion Android app, including circulation and push notifications
 
 *Cataloging & specialised collections*
 - **Dewey Editor** — Visual tree editor for Dewey classification data with JSON import/export and auto-population from SBN/SRU scraping
 - **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with HTML5 streaming player
+- **Book Club** — Multi-club collaborative reading, proposals, voting, meetings, discussions and reading workflows
+- **FRBR / IFLA LRM** — Optional Work/Expression model for grouping editions, translations and adaptations
 - **Archives** — ISAD(G) hierarchical archival records + ISAAR(CPF) authority records. MARCXML / EAD3 / METS / UNIMARC / Dublin Core export, SRU 1.2 endpoint, OAI-PMH 2.0 data provider, **IIIF Presentation 3.0** manifests (v0.7.6), **RiC-O JSON-LD** export (v0.7.7), AtoM ISAD(G) area labels, ARK persistent identifiers, full-text + reference-code search bar (admin + public with date-range filter), photographic-material support (ABA billedmarc 15 codes), per-document cover + downloadable file uploads, and unified cross-entity search bridging books + archives
 
 ### CMS and Customization
@@ -371,14 +372,14 @@ Plugins support encrypted secrets and isolated configuration. Install via ZIP up
 
 All plugins are located in `storage/plugins/` and can be managed from **Admin → Plugins**.
 
-### 1. Open Library (`open-library-v1.0.2.zip`)
+### 1. Open Library (`open-library` 1.0.4)
 - **Metadata scraping** from Open Library API
 - **Fallback to Google Books** when Open Library lacks data
 - **Automatic cover lookup** from Open Library with a secure Goodreads/Amazon CDN fallback
 - **Subject mapping** and language normalization
 - **Configurable priority** and caching options
 
-### 2. Z39 Server (`z39-server-v1.2.3.zip`)
+### 2. Z39 Server (`z39-server` 1.3.0)
 
 Implements the **SRU (Search/Retrieve via URL)** protocol, the HTTP-based successor to Z39.50, enabling catalog interoperability with library systems worldwide.
 
@@ -420,21 +421,21 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=97888
 
 **Use cases**: Union catalogs, interlibrary loan systems, OPAC federation, copy cataloging workflows, automatic Dewey classification.
 
-### 3. API Book Scraper (`api-book-scraper-v1.1.1.zip`)
+### 3. API Book Scraper (`api-book-scraper` 1.1.1)
 - **External API integration** for ISBN enrichment
 - **Custom endpoint configuration** (URL, headers, auth)
 - **Response mapping** to Pinakes schema
 - **Retry logic** with exponential backoff
 - **Error logging** and debugging tools
 
-### 4. Digital Library (`digital-library-v1.3.0.zip`)
+### 4. Digital Library (`digital-library` 1.3.1)
 - **eBook support** (PDF, ePub) with download tracking
 - **Audiobook streaming** (MP3, M4A, OGG) with HTML5 player
 - **Per-item digital asset management** (unlimited files per book)
 - **Access control** (public, logged-in users only, specific roles)
 - **Usage statistics** and download history
 
-### 5. Dewey Editor (`dewey-editor-v1.0.1.zip`)
+### 5. Dewey Editor (`dewey-editor` 1.0.1)
 
 Complete Dewey Decimal Classification management system with multilingual support, automatic population, and data exchange capabilities.
 
@@ -500,7 +501,7 @@ OAI-PMH 2.0 data provider exposing the **book catalogue + archives** to national
 
 - **Endpoint**: `POST /ncip` (Content-Type: `application/xml`)
 - **Services supported**: `LookupItem`, `LookupUser`, `CheckOutItem`, `CheckInItem`, `RenewItem`, `RequestItem`, `CancelRequestItem`
-- **Authentication**: NCIP `InitiationHeader` with `FromAgencyAuthentication` shared-secret model
+- **Authentication**: HTTP Basic authentication backed by active Pinakes admin/staff accounts; all write services require a staff role
 - **Use cases**: self-service borrowing kiosks (3M / Bibliotheca SelfCheck), library-network reciprocal lending, partner ILS bridging
 
 ### 10. BIBFRAME 2.0 Linked Data (`bibframe-linked-data`)
@@ -563,13 +564,37 @@ Adds one-click cross-search badges to the public book detail page.
 - **Inspired by**: the GoodLib browser extension
 - **Activation**: opt-in — disabled by default since not every library wants to surface third-party shadow-library links
 
+### 17. Book Club (`book-club` 1.4.4)
+
+- Multiple clubs with member roles, proposals, configurable reading stages and historical archives
+- Single-choice or multiple-preference polls with deadlines and automatic closing
+- Meetings with RSVP and iCalendar feeds, discussions, quotes, challenges, sprints and personal dashboards
+
+### 18. FRBR / IFLA LRM (`frbr-lrm` 1.0.0)
+
+- Optional Work and Expression records group editions, translations, revisions and adaptations
+- Public work pages list every available manifestation; a deduplication assistant suggests likely matches
+- Fully optional: disabling the plugin leaves the core `libri` catalogue unchanged
+
+### 19. Mobile API (`mobile-api` 1.4.2)
+
+- Versioned `/api/v1` REST/JSON API for discovery, device-token authentication and catalogue search
+- Patron loans, reservations, renewals, wishlist, profile, messages and push notifications
+- Powers the companion Android app and is disabled until explicitly enabled
+
+### 20. Scraping Pro (`scraping-pro` 1.6.2)
+
+- Advanced ISBN enrichment from Ubik Libri, with LibreriaUniversitaria fallback
+- Feltrinelli cover lookup and automatic selection of the highest-resolution image
+- Imports richer metadata and author biographies when available
+
 ---
 
 ## Tech Stack
 
-**Backend**: Slim 4.13, PHP-DI, Slim PSR-7 + CSRF, Monolog 3, PHPMailer 6.10, TCPDF 6.10, Google reCAPTCHA, thepixeldeveloper/sitemap, emleons/sim-rating, vlucas/phpdotenv.
+**Backend**: Slim 4.15, PHP-DI 7.1, Slim PSR-7 1.8 + CSRF, Monolog 3.10, PHPMailer 6.12, TCPDF 6.11, Google reCAPTCHA, thepixeldeveloper/sitemap, emleons/sim-rating, vlucas/phpdotenv.
 
-**Frontend**: Webpack 5, Tailwind CSS 3.4.18, Bootstrap 5.3.8, jQuery 3.7.1, DataTables 2.3.x, Chart.js 4.5, SweetAlert2 11, Flatpickr 4.6, Sortable.js 1.15, Choices.js 11, TinyMCE 8, Uppy 4, jsPDF, JSZip, Font Awesome, Inter font (self-hosted).
+**Frontend**: Webpack 5, Tailwind CSS 3.4.18, jQuery 3.7.1, DataTables 2.3.x, Chart.js 4.5, SweetAlert2 11, Flatpickr 4.6, Sortable.js 1.15, Choices.js 11, TinyMCE 8, Uppy 4, jsPDF 4, JSZip 3, Font Awesome 7, Inter font (self-hosted).
 
 ---
 

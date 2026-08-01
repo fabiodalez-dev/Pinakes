@@ -109,6 +109,8 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
     let adminAuth = '';
     /** @type {number} */
     let checkoutItemId = 0;
+    /** @type {number} */
+    let checkoutLoanId = 0;
 
     test.beforeAll(async () => {
         bookId = parseInt(dbQuery(
@@ -426,6 +428,18 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
         // Capture item ID for subsequent check-in
         const match = body.match(/<ItemIdentifierValue>(\d+)<\/ItemIdentifierValue>/);
         if (match) checkoutItemId = parseInt(match[1]);
+
+        const loanRow = dbQuery(
+            `SELECT id, COALESCE(copia_id, 0), stato, attivo
+               FROM prestiti
+              WHERE libro_id = ${bookId} AND utente_id = ${userId} AND origine = 'ncip'
+              ORDER BY id DESC LIMIT 1`
+        ).split('\t');
+        checkoutLoanId = parseInt(loanRow[0] || '0');
+        expect(checkoutLoanId).toBeGreaterThan(0);
+        expect(parseInt(loanRow[1] || '0')).toBeGreaterThan(0);
+        expect(loanRow[2]).toBe('in_corso');
+        expect(loanRow[3]).toBe('1');
     });
 
     test('E.9 CheckInItem with staff auth → CheckInItemResponse', async ({ request }) => {
@@ -435,6 +449,8 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
         const body = await res.text();
         expect(body).toContain('CheckInItemResponse');
         expect(body).toContain('DateReturned');
+        expect(dbQuery(`SELECT stato, attivo FROM prestiti WHERE id = ${checkoutLoanId}`))
+            .toBe('restituito\t0');
     });
 
     test('E.10 RenewItem on non-existent loan → Problem response', async ({ request }) => {

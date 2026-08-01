@@ -46,7 +46,6 @@ $filesThatCountLoanableCopies = [
     'app/Controllers/PrestitiController.php',
     'app/Controllers/LoanApprovalController.php',
     'app/Models/CopyRepository.php',
-    'app/Support/NotificationService.php',
     'installer/database/triggers.sql',
 ];
 
@@ -96,6 +95,11 @@ $copyRepository = readFileOrFail($root . '/app/Models/CopyRepository.php');
 assertContainsText('getScheduleByBookId', $copyRepository, 'CopyRepository must keep calendar commitments separate from physical copy rows');
 
 $notificationService = readFileOrFail($root . '/app/Support/NotificationService.php');
+assertContainsText(
+    'new \App\Services\CapacityService($this->db)',
+    $notificationService,
+    'Wishlist availability must delegate to the canonical capacity authority'
+);
 assertContainsText("AND p.attivo = 1", $notificationService, 'Automatic loan notifications must ignore closed rows');
 assertContainsText("AND attivo = 1 AND stato = 'in_corso'", $notificationService, 'Expiration-warning claim must revalidate the loan lifecycle');
 

@@ -53,6 +53,7 @@ class EmailService {
         'approval_link' => 'link_approvazione',
 
         // Other fields
+        'reason' => 'motivo',
         'rejection_reason' => 'motivo_rifiuto',
         'verify_section' => 'sezione_verifica',
     ];

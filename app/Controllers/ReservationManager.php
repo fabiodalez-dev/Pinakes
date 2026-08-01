@@ -464,7 +464,9 @@ class ReservationManager
             if ($this->externalTransaction) {
                 throw $e;
             }
-            error_log("Failed to create loan from reservation: " . $e->getMessage());
+            \App\Support\SecureLogger::error('ReservationManager: failed to create loan from reservation', [
+                'error' => $e->getMessage(),
+            ]);
             return false;
         }
     }
@@ -570,7 +572,9 @@ class ReservationManager
             return $success;
 
         } catch (\Throwable $e) {
-            error_log("Failed to send reservation notification: " . $e->getMessage());
+            \App\Support\SecureLogger::error('ReservationManager: failed to send reservation notification', [
+                'error' => $e->getMessage(),
+            ]);
             return false;
         }
     }

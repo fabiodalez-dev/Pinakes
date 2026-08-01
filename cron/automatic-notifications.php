@@ -179,7 +179,7 @@ try {
     $db->close();
     logMessage("Cron job completed successfully");
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
     logMessage("ERROR: " . $e->getMessage());
     exit(1);
 }

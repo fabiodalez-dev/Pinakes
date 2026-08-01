@@ -46,8 +46,9 @@ $check(
     'loan settings persist an accessible toggle using the existing switch component'
 );
 $check(
-    strpos($actions, 'autoApproveLoanRequest($request, $db, $newLoanId)') < strpos($actions, 'notifyLoanRequest($newLoanId)'),
-    'automatic approval runs before slow email I/O while preserving the administrator notification'
+    strpos($actions, 'autoApproveLoanRequest($request, $db, $newLoanId)') < strpos($actions, 'if (!$autoApproved)')
+        && strpos($actions, 'if (!$autoApproved)') < strpos($actions, 'notifyLoanRequest($newLoanId)'),
+    'automatic approval runs before email I/O and suppresses the now-stale administrator action notification'
 );
 $check(
     str_contains($approval, "getAttribute('automatic_loan_approval'")

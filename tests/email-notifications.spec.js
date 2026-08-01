@@ -402,11 +402,13 @@ test.describe.serial('Email Notifications E2E', () => {
         cognome: 'TestUser',
         email: tempEmail,
         telefono: '1111111111',
+        indirizzo: 'Via Test 1',
         tipo_utente: 'standard',
         stato: 'attivo',
       },
     });
     expect(createRes.status()).toBeLessThan(400);
+    expect(createRes.headers().location || '').not.toContain('error=');
     await page.close();
 
     // User should receive password setup email
@@ -676,13 +678,14 @@ test.describe.serial('Email Notifications E2E', () => {
     const userMsg = await getMessage(overdueMail.ID);
     expect(userMsg.Subject.toLowerCase()).toMatch(/scaduto|overdue|ritardo/);
 
-    // B.11: Admin also receives overdue notification (optional — depends on template)
-    const adminOverdue = await waitForMail(`to:${ADMIN_EMAIL} subject:scadut`).catch(() => null)
-      || await waitForMail(`to:${ADMIN_EMAIL} subject:overdue`).catch(() => null)
-      || await waitForMail(`to:${ADMIN_EMAIL} subject:ritard`).catch(() => null);
-    if (adminOverdue) {
-      expect(adminOverdue).toBeTruthy();
-    }
+    // B.11: Admin also receives the overdue notification. Search once by
+    // recipient, then validate the localised subject; three sequential Mailpit
+    // searches could consume the whole per-test timeout before reaching the
+    // matching locale.
+    const adminOverdue = await waitForMail(`to:${ADMIN_EMAIL}`);
+    expect(adminOverdue).toBeTruthy();
+    const adminMsg = await getMessage(adminOverdue.ID);
+    expect(adminMsg.Subject.toLowerCase()).toMatch(/scaduto|overdue|ritard/);
 
     dbQuery(`DELETE FROM prestiti WHERE id = ${loanId}`);
   });
