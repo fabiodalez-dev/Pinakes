@@ -50,10 +50,16 @@ $httpCode = static function (string $url, string $cookie = ''): ?int {
         $cmd .= ' -H ' . escapeshellarg('Cookie: ' . $cookie);
     }
     $out = @shell_exec($cmd);
-    if ($out === null || !preg_match('/^\d{3}$/', trim((string) $out))) {
+    $code = $out === null ? '' : trim((string) $out);
+    // curl prints "000" when the connection never produced an HTTP response
+    // (refused / DNS / pre-response timeout) — that is "unreachable", not a
+    // status. Treating it as a real code made the behavioural block run against
+    // a dead server on CI (no :8081) and fail check 02. Return null so the
+    // caller skips the behavioural checks there instead.
+    if ($code === '' || !preg_match('/^\d{3}$/', $code) || (int) $code === 0) {
         return null;
     }
-    return (int) trim((string) $out);
+    return (int) $code;
 };
 
 // Resolve the install's login slug the same way the front controller does, so
