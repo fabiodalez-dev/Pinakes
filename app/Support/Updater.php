@@ -1750,11 +1750,11 @@ class Updater
         // right after flock + enableMaintenanceMode succeed.
         /** @var bool $ownsUpdate Raised to true below, after the lock is held; the handler reads it by reference at shutdown. */
         $ownsUpdate = false;
-        register_shutdown_function(function () use ($maintenanceFile, $lockFile, &$ownsUpdate) {
+        register_shutdown_function(function () use ($maintenanceFile, &$ownsUpdate) {
             // Guard: a request rejected because another update already holds the
             // lock (flock failed) must NOT remove the active update's maintenance
-            // flag or lock file — that would lift maintenance mid-copy and free
-            // the lock for a parallel update. Only the owner cleans up.
+            // flag — that would expose the site mid-copy. Only the owner cleans
+            // up; the persistent lock inode is governed solely by flock.
             if (!$ownsUpdate) {
                 return;
             }
@@ -1772,10 +1772,6 @@ class Updater
             if (file_exists($maintenanceFile)) {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                 @unlink($maintenanceFile);
-            }
-            if (file_exists($lockFile)) {
-                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
-                @unlink($lockFile);
             }
         });
 
@@ -1969,15 +1965,19 @@ class Updater
         } finally {
             $this->cleanup();
 
+            // Normal cleanup is complete while this request still owns the
+            // lock. Disarm the shutdown fallback before releasing it: once
+            // another request acquires the lock, this request must never remove
+            // that new owner's maintenance flag at shutdown.
+            $ownsUpdate = false;
+
             if (\is_resource($lockHandle)) {
                 flock($lockHandle, LOCK_UN);
                 fclose($lockHandle);
             }
 
-            if (file_exists($lockFile)) {
-                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
-                @unlink($lockFile);
-            }
+            // Keep the lock inode persistent. Its state is the flock, not file
+            // existence; unlinking a shared lock file creates an inode race.
         }
 
         return $result;
@@ -3996,7 +3996,7 @@ class Updater
         // flock never tears down the active update's state.
         /** @var bool $ownsUpdate Raised to true below, after the lock is held; the handler reads it by reference at shutdown. */
         $ownsUpdate = false;
-        register_shutdown_function(function () use ($maintenanceFile, $lockFile, &$ownsUpdate) {
+        register_shutdown_function(function () use ($maintenanceFile, &$ownsUpdate) {
             if (!$ownsUpdate) {
                 return;
             }
@@ -4011,10 +4011,6 @@ class Updater
             if (file_exists($maintenanceFile)) {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                 @unlink($maintenanceFile);
-            }
-            if (file_exists($lockFile)) {
-                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
-                @unlink($lockFile);
             }
         });
 
@@ -4161,15 +4157,18 @@ class Updater
         } finally {
             $this->cleanup();
 
+            // See performUpdateFromFile(): disarm the shutdown fallback before
+            // releasing the lock, otherwise it can erase a subsequent update's
+            // state during this request's shutdown phase.
+            $ownsUpdate = false;
+
             if (\is_resource($lockHandle)) {
                 flock($lockHandle, LOCK_UN);
                 fclose($lockHandle);
             }
 
-            if (file_exists($lockFile)) {
-                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
-                @unlink($lockFile);
-            }
+            // Keep the shared lock inode persistent; only flock ownership is
+            // authoritative and is released above.
         }
 
         return $result;

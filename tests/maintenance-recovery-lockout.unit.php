@@ -14,19 +14,18 @@ declare(strict_types=1);
  * biblioteca.casadelledonnealessandria.it, Aug 2026.
  *
  * The fix has three layers; this test guards all of them:
- *   Layer 1 (public/index.php) — the maintenance gate allow-lists the login /
- *     logout routes (localised + literal defaults) AND lets an authenticated
- *     admin/staff through, so recovery is always reachable.
+ *   Layer 1 (public/index.php) — the maintenance gate allow-lists only the
+ *     login/logout routes, update UI/API and static assets needed for recovery.
  *   Layer 2 (app/Support/Updater.php) — BOTH register_shutdown_function
- *     handlers clear .maintenance + the lock file UNCONDITIONALLY, not only on
- *     a fatal PHP error.
+ *     handlers clear .maintenance for the owning request, while the shared
+ *     lock inode remains persistent and flock is the sole ownership signal.
  *   Layer 3 — the existing 30-minute stale sweep stays as the last resort.
  *
  * A. Behavioural (needs the dev server on :8081): with .maintenance present,
  *    the login page is reachable, an unauthenticated visitor gets 503, and the
  *    update / asset allow-list still works. Skipped (not failed) if the server
  *    is unreachable. Always removes the flag via a finally-style guard.
- * B. Source guard (always runs): the Layer 1 bypass and the Layer 2
+ * B. Source guard (always runs): the Layer 1 allow-list and the Layer 2
  *    unconditional cleanup are present so the fix cannot silently regress.
  *
  * Run:  php tests/maintenance-recovery-lockout.unit.php   (exit 0 iff all pass)
@@ -133,9 +132,10 @@ if (!$serverUp) {
 }
 
 // ── B. Source guard — the fix cannot silently regress ───────────────────────
-echo "B. Source guard (Layer 1 bypass + Layer 2 unconditional cleanup)\n";
+echo "B. Source guard (scoped Layer 1 allow-list + safe Layer 2 cleanup)\n";
 
 $index = (string) file_get_contents($root . '/public/index.php');
+$routes = (string) file_get_contents($root . '/app/Routes/web.php');
 
 // Layer 1a: login/logout routes are allow-listed so an admin can authenticate.
 $check(
@@ -148,32 +148,33 @@ $check(
     "11 index.php allow-lists the literal /login and /logout defaults"
 );
 
-// Layer 1b: an authenticated admin/staff bypasses the block via a read-only
-// session read (read_and_close) that doesn't disturb the later writable start.
+// Layer 1b: maintenance access stays route-scoped. A privileged session must
+// not bypass the gate for arbitrary application routes while code/schema may be
+// only partially updated.
 $check(
-    str_contains($index, "read_and_close")
-        && (bool) preg_match("/tipo_utente.*\\[[^\\]]*'admin'[^\\]]*'staff'[^\\]]*\\]/s", $index),
-    "12 index.php lets an authenticated admin/staff through (read_and_close session probe)"
+    !str_contains($index, "read_and_close")
+        && !str_contains($index, '$maintenanceRole'),
+    "12 index.php has no global admin/staff maintenance bypass"
 );
 
-// Layer 1c: the probe must not run for anonymous visitors and must not emit a
-// cookie or accept an arbitrary client-supplied session id — it only reads an
-// already-present session (guards against session fixation / disk churn).
+// The recovery endpoint is contained beneath the only privileged route prefix
+// that remains reachable during maintenance.
 $check(
-    str_contains($index, 'isset($_COOKIE[session_name()])')
-        && str_contains($index, "ini_set('session.use_strict_mode', '1')"),
-    "15 index.php probes only when a session cookie exists, in strict mode"
+    str_contains($index, "'/admin/updates'")
+        && str_contains($routes, "'/admin/updates/maintenance/clear'"),
+    "15 emergency clear endpoint remains under the scoped /admin/updates allow-list"
 );
 
 // Layer 2: BOTH shutdown handlers must (a) return early unless this request owns
-// the update lock, and (b) otherwise clear the maintenance + lock files
-// UNCONDITIONALLY (not nested inside the fatal-error `if`).
+// the update lock, and (b) otherwise clear maintenance unconditionally. The
+// shared lock file itself remains persistent to avoid an inode race.
 $updater = (string) file_get_contents($root . '/app/Support/Updater.php');
+$backupManager = (string) file_get_contents($root . '/app/Support/BackupManager.php');
 
 // Isolate each register_shutdown_function body (signature carries the ownership
 // flag by reference).
 preg_match_all(
-    '/register_shutdown_function\(function \(\) use \(\$maintenanceFile, \$lockFile, &\$ownsUpdate\) \{(.*?)\}\);/s',
+    '/register_shutdown_function\(function \(\) use \(\$maintenanceFile, &\$ownsUpdate\) \{(.*?)\}\);/s',
     $updater,
     $handlers
 );
@@ -194,17 +195,33 @@ foreach ($handlerBodies as $body) {
     $stripped = preg_replace('/if \(!\$ownsUpdate\) \{\s*return;\s*\}\s*/s', '', $body);
     $stripped = is_string($stripped) ? preg_replace('/if \(\$error !== null.*?\}\s*/s', '', $stripped) : null;
     if (is_string($stripped)
-        && preg_match('/@unlink\(\$maintenanceFile\)/', $stripped)
-        && preg_match('/@unlink\(\$lockFile\)/', $stripped)) {
+        && preg_match('/@unlink\(\$maintenanceFile\)/', $stripped)) {
         $unconditional++;
     }
 }
 $check($ownershipGuarded >= 2, "14 both shutdown handlers bail unless this request owns the update lock (got {$ownershipGuarded}/2)");
-$check($unconditional >= 2, "16 the owner clears .maintenance + lock UNCONDITIONALLY (got {$unconditional}/2)");
+$check($unconditional >= 2, "16 the owner clears .maintenance UNCONDITIONALLY (got {$unconditional}/2)");
 // The ownership flag is only raised after the lock is held and maintenance is on.
 $check(
     substr_count($updater, '$ownsUpdate = true;') >= 2,
     "17 both update paths raise the ownership flag after acquiring the lock"
+);
+
+// Normal completion must disarm the shutdown fallback while the lock is still
+// held. Otherwise request A can release its lock, request B can acquire it, and
+// A's later shutdown handler can erase B's maintenance flag.
+$check(
+    preg_match_all(
+        '/\$this->cleanup\(\);(?:(?!flock).)*\$ownsUpdate = false;(?:(?!flock).)*flock\(\$lockHandle/s',
+        $updater
+    ) >= 2,
+    "18 both normal cleanup paths disarm shutdown ownership before releasing the lock"
+);
+
+$check(
+    !str_contains($updater, '@unlink($lockFile)')
+        && !str_contains($backupManager, '@unlink($lockFile)'),
+    "19 updater and restore keep the shared lock inode persistent"
 );
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";

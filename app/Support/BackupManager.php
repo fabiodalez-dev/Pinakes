@@ -324,16 +324,12 @@ class BackupManager
         // Safety net: a fatal error mid-restore must not leave the site locked
         // in maintenance (the front controller's 30-minute staleness fallback
         // remains the last resort). Mirrors Updater's shutdown handler.
-        register_shutdown_function(static function () use ($maintenanceFile, $lockFile): void {
+        register_shutdown_function(static function () use ($maintenanceFile): void {
             $error = error_get_last();
             if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
                 if (file_exists($maintenanceFile)) {
                     // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
                     @unlink($maintenanceFile);
-                }
-                if (file_exists($lockFile)) {
-                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal lock file under storage/cache, not user input
-                    @unlink($lockFile);
                 }
             }
         });
@@ -356,10 +352,8 @@ class BackupManager
             }
             flock($lockHandle, LOCK_UN);
             fclose($lockHandle);
-            if (file_exists($lockFile)) {
-                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal lock file under storage/cache, not user input
-                @unlink($lockFile);
-            }
+            // Keep the shared lock inode persistent. Unlinking after unlock can
+            // delete a subsequent updater/restore request's lock path.
         }
     }
 
