@@ -90,7 +90,7 @@ if ($seriesType === '') { $seriesType = 'serie'; }
       <?php endif; ?>
       <label for="descrizione" class="form-label"><?= __("Descrizione") ?></label>
       <textarea name="descrizione" rows="3" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 mb-3" placeholder="<?= HtmlHelper::e(__('Descrizione della collana...')) ?>"><?= HtmlHelper::e($collanaDesc ?? '') ?></textarea>
-      <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm">
+      <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm">
         <i class="fas fa-save mr-2"></i><?= __("Salva descrizione") ?>
       </button>
     </form>
@@ -218,7 +218,7 @@ if ($seriesType === '') { $seriesType = 'serie'; }
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
         <input type="hidden" name="old_name" value="<?= HtmlHelper::e($collana) ?>">
         <input type="text" name="new_name" value="<?= HtmlHelper::e($collana) ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 mb-3" required>
-        <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm">
+        <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm">
           <i class="fas fa-save mr-2"></i><?= __("Rinomina") ?>
         </button>
       </form>
@@ -234,7 +234,7 @@ if ($seriesType === '') { $seriesType = 'serie'; }
           <input type="text" name="target" id="merge-target" placeholder="<?= HtmlHelper::e(__('Nome collana di destinazione')) ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 mb-3" required autocomplete="off">
           <div id="merge-suggestions" class="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto"></div>
         </div>
-        <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm">
+        <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm">
           <i class="fas fa-compress-arrows-alt mr-2"></i><?= __("Unisci") ?>
         </button>
       </form>
@@ -250,7 +250,7 @@ if ($seriesType === '') { $seriesType = 'serie'; }
         <input type="hidden" name="collana" value="<?= HtmlHelper::e($collana) ?>">
         <div class="flex gap-2">
           <input type="text" name="parent_title" value="<?= HtmlHelper::e($collana) ?>" class="flex-1 rounded-lg border border-gray-300 px-4 py-2" placeholder="<?= HtmlHelper::e(__('Titolo dell\'opera completa')) ?>" required>
-          <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm whitespace-nowrap">
+          <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm whitespace-nowrap">
             <i class="fas fa-plus mr-2"></i><?= __("Crea opera") ?>
           </button>
         </div>
@@ -265,7 +265,7 @@ if ($seriesType === '') { $seriesType = 'serie'; }
       <form method="post" action="<?= htmlspecialchars(url('/admin/series/delete'), ENT_QUOTES, 'UTF-8') ?>" data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro? La collana verrà rimossa da tutti i libri.'), ENT_QUOTES, 'UTF-8') ?>">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
         <input type="hidden" name="nome" value="<?= HtmlHelper::e($collana) ?>">
-        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm">
+        <button type="submit" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm">
           <i class="fas fa-trash mr-2"></i><?= __("Elimina collana") ?>
         </button>
       </form>

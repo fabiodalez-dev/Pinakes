@@ -347,16 +347,16 @@ $libri = $data['libri'];
           </button>
         </div>
         <div class="flex items-center gap-2">
-          <button id="bulk-export" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
+          <button id="bulk-export" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
             <i class="fas fa-download mr-2"></i><?= __("Esporta selezionati") ?>
           </button>
-          <button id="bulk-assign-collana" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
+          <button id="bulk-assign-collana" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
             <i class="fas fa-layer-group mr-2"></i><?= __("Assegna collana") ?>
           </button>
-          <button id="bulk-fetch-covers" class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors text-sm">
+          <button id="bulk-fetch-covers" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors text-sm">
             <i class="fas fa-image mr-2"></i><?= __("Scarica copertine") ?>
           </button>
-          <button id="bulk-delete" class="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors text-sm">
+          <button id="bulk-delete" class="inline-flex items-center px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors text-sm">
             <i class="fas fa-trash mr-2"></i><?= __("Elimina") ?>
           </button>
         </div>

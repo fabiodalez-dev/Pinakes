@@ -212,7 +212,7 @@ $genereName = $genere['nome'] ?? 'Genere';
                   ?>
                 </select>
               </div>
-              <button type="submit" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm whitespace-nowrap">
+              <button type="submit" class="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm whitespace-nowrap">
                 <i class="fas fa-compress-arrows-alt mr-1"></i><?= __("Unisci") ?>
               </button>
             </div>
@@ -234,7 +234,7 @@ $genereName = $genere['nome'] ?? 'Genere';
                 data-swal-confirm-button="<?= htmlspecialchars(__('Elimina tutto'), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="cascade_delete" value="1">
-            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
               <i class="fas fa-trash-alt mr-1"></i><?= __("Elimina genere e sottogeneri") ?>
             </button>
           </form>
@@ -244,7 +244,7 @@ $genereName = $genere['nome'] ?? 'Genere';
                 data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questo genere?'), ENT_QUOTES, 'UTF-8') ?>"
                 data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
-            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
               <i class="fas fa-trash-alt mr-1"></i><?= __("Elimina") ?>
             </button>
           </form>

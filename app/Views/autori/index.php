@@ -70,7 +70,7 @@ $autori = $data['autori'];
           </div>
 
           <!-- Toggle Advanced Filters -->
-          <button id="toggle-advanced" class="px-3 py-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-200">
+          <button id="toggle-advanced" class="inline-flex items-center px-3 py-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-200">
             <i class="fas fa-sliders-h mr-1"></i>
             <span class="hidden sm:inline"><?= __("Altri filtri") ?></span>
             <i id="toggle-advanced-icon" class="fas fa-chevron-down text-xs ml-1 transition-transform"></i>
@@ -165,13 +165,13 @@ $autori = $data['autori'];
           </button>
         </div>
         <div class="flex items-center gap-2">
-          <button id="bulk-merge" class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors text-sm">
+          <button id="bulk-merge" class="inline-flex items-center px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors text-sm">
             <i class="fas fa-compress-arrows-alt mr-2"></i><?= __("Unisci") ?>
           </button>
-          <button id="bulk-export" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
+          <button id="bulk-export" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
             <i class="fas fa-download mr-2"></i><?= __("Esporta") ?>
           </button>
-          <button id="bulk-delete" class="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-colors text-sm">
+          <button id="bulk-delete" class="inline-flex items-center px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-colors text-sm">
             <i class="fas fa-trash mr-2"></i><?= __("Elimina") ?>
           </button>
         </div>

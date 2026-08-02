@@ -240,10 +240,10 @@ $applicationToday = \App\Support\DateHelper::today();
               </div>
             </div>
             <div class="mt-4 flex gap-3">
-              <button type="button" class="flex-1 bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors approve-btn shadow-sm" data-loan-id="<?= (int)$loan['id'] ?>">
+              <button type="button" class="inline-flex items-center justify-center flex-1 bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors approve-btn shadow-sm" data-loan-id="<?= (int)$loan['id'] ?>">
                 <i class="fas fa-check mr-2"></i><?= __("Approva") ?>
               </button>
-              <button type="button" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-4 rounded-lg transition-colors reject-btn shadow-sm" data-loan-id="<?= (int)$loan['id'] ?>">
+              <button type="button" class="inline-flex items-center justify-center flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-4 rounded-lg transition-colors reject-btn shadow-sm" data-loan-id="<?= (int)$loan['id'] ?>">
                 <i class="fas fa-times mr-2"></i><?= __("Rifiuta") ?>
               </button>
             </div>
@@ -413,7 +413,7 @@ $applicationToday = \App\Support\DateHelper::today();
              class="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center">
       <span class="text-sm text-gray-600"><?= __('giorni') ?></span>
       <button id="loans-bulk-extend" type="button"
-              class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors text-sm">
+              class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors text-sm">
         <i class="fas fa-calendar-plus mr-1"></i><?= __('Estendi prestiti selezionati') ?>
       </button>
       <button id="loans-bulk-clear" type="button"

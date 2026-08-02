@@ -125,11 +125,11 @@ $hasGithubToken ??= false;
                     <p class="text-sm text-gray-500 mt-1"><?= __("Configura un token per evitare i limiti di rate della GitHub API (60 req/ora → 5000 req/ora)") ?></p>
                 </div>
                 <?php if ($hasGithubToken): ?>
-                <span class="px-3 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
+                <span class="inline-flex items-center px-3 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
                     <i class="fas fa-check-circle mr-1"></i><?= __("Configurato") ?>
                 </span>
                 <?php else: ?>
-                <span class="px-3 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-lg">
+                <span class="inline-flex items-center px-3 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-lg">
                     <i class="fas fa-exclamation-circle mr-1"></i><?= __("Non configurato") ?>
                 </span>
                 <?php endif; ?>
@@ -148,7 +148,7 @@ $hasGithubToken ??= false;
                             class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm font-mono"
                             autocomplete="new-password"
                             <?= $hasGithubToken ? 'readonly onfocus="this.removeAttribute(\'readonly\');this.type=\'password\';this.value=\'\';this.placeholder=\'ghp_xxxxxxxxxxxxxxxxxxxx\';"' : '' ?>>
-                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
+                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
                             <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
                         </button>
                         <?php if ($hasGithubToken): ?>
@@ -179,11 +179,11 @@ $hasGithubToken ??= false;
                 <div class="flex items-center justify-between">
                     <h2 class="text-lg font-semibold text-gray-900"><?= __("Requisiti di Sistema") ?></h2>
                     <?php if ($requirements['met']): ?>
-                    <span class="px-3 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
+                    <span class="inline-flex items-center px-3 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
                         <i class="fas fa-check-circle mr-1"></i><?= __("Tutti soddisfatti") ?>
                     </span>
                     <?php else: ?>
-                    <span class="px-3 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-lg">
+                    <span class="inline-flex items-center px-3 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-lg">
                         <i class="fas fa-times-circle mr-1"></i><?= __("Alcuni mancanti") ?>
                     </span>
                     <?php endif; ?>
@@ -296,7 +296,7 @@ $hasGithubToken ??= false;
                     <div id="uppy-manual-update" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-400 transition-colors bg-gray-50"></div>
                     <div class="mt-4">
                         <button id="manual-update-submit-btn" onclick="submitManualUpdate()" disabled
-                            class="w-full px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600">
+                            class="inline-flex items-center justify-center w-full px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600">
                             <i class="fas fa-upload mr-2"></i>
                             <span id="manual-update-btn-text"><?= __("Avvia Aggiornamento") ?></span>
                         </button>
@@ -489,7 +489,7 @@ $hasGithubToken ??= false;
                                 default => $log['status']
                             };
                             ?>
-                            <span class="px-2 py-1 text-xs font-medium <?= $statusClass ?> rounded-lg">
+                            <span class="inline-flex items-center px-2 py-1 text-xs font-medium <?= $statusClass ?> rounded-lg">
                                 <i class="fas <?= $statusIcon ?> mr-1"></i>
                                 <?= HtmlHelper::e($statusText) ?>
                             </span>

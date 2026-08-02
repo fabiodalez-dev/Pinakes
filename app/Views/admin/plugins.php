@@ -119,11 +119,11 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                                 v<?= HtmlHelper::e($plugin['version']) ?>
                                             </span>
                                             <?php if ($plugin['is_active']): ?>
-                                                <span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
+                                                <span class="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
                                                     <i class="fas fa-check-circle mr-1"></i><?= __("Attivo") ?>
                                                 </span>
                                             <?php else: ?>
-                                                <span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 rounded-lg">
+                                                <span class="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 rounded-lg">
                                                     <i class="fas fa-pause-circle mr-1"></i><?= __("Inattivo") ?>
                                                 </span>
                                             <?php endif; ?>
@@ -315,13 +315,13 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                 <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
                                     <button onclick="deactivatePlugin(<?= (int)$plugin['id'] ?>)"
-                                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium">
+                                        class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium">
                                         <i class="fas fa-pause mr-1"></i>
                                         <?= __("Disattiva") ?>
                                     </button>
                                 <?php else: ?>
                                     <button onclick="activatePlugin(<?= (int)$plugin['id'] ?>)"
-                                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium">
+                                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium">
                                         <i class="fas fa-check mr-1"></i>
                                         <?= __("Attiva plugin") ?>
                                     </button>
@@ -389,7 +389,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                         <?= __("Annulla") ?>
                     </button>
                     <button type="button" id="uploadButton"
-                        class="px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="inline-flex items-center px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
                         <i class="fas fa-upload mr-2"></i>
                         <?= __("Installa Plugin") ?>
                     </button>
@@ -684,7 +684,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                             </optgroup>
                         </select>
                         <button type="button" onclick="addZ39ServerRow()"
-                            class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap w-full sm:w-auto">
+                            class="inline-flex items-center justify-center px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap w-full sm:w-auto">
                             <i class="fas fa-plus mr-1"></i> <?= __("Personalizzato") ?>
                         </button>
                     </div>
@@ -858,7 +858,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
             <button onclick="closeGoodLibModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                 <?= __("Annulla") ?>
             </button>
-            <button onclick="saveGoodLibSettings()" id="goodlibSaveBtn" class="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors">
+            <button onclick="saveGoodLibSettings()" id="goodlibSaveBtn" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors">
                 <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
             </button>
         </div>

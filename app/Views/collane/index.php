@@ -26,7 +26,7 @@ $seriesTypeLabels = SeriesLabels::types();
       </h1>
       <p class="text-sm text-gray-600 mt-1"><?= __("Gestisci collane, spin-off e cicli di serie") ?></p>
     </div>
-    <button type="button" onclick="createCollana()" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-900 rounded-lg transition-colors text-sm font-medium">
+    <button type="button" onclick="createCollana()" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-gray-900 rounded-lg transition-colors text-sm font-medium">
       <i class="fas fa-plus mr-2"></i><?= __("Nuova Collana") ?>
     </button>
   </div>

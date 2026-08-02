@@ -17,10 +17,10 @@
                     </div>
                 </div>
                 <div class="flex space-x-3">
-                    <button onclick="performMaintenance()" class="bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    <button onclick="performMaintenance()" class="inline-flex items-center bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded-lg transition-colors">
                         <i class="fas fa-tools mr-2"></i><?= __("Esegui Manutenzione") ?>
                     </button>
-                    <button onclick="location.reload()" class="bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300 font-medium py-2 px-4 rounded-lg transition-colors">
+                    <button onclick="location.reload()" class="inline-flex items-center bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300 font-medium py-2 px-4 rounded-lg transition-colors">
                         <i class="fas fa-sync-alt mr-2"></i><?= __("Aggiorna") ?>
                     </button>
                 </div>
