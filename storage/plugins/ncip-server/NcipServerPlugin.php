@@ -800,11 +800,26 @@ class NcipServerPlugin
         $loanDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
         $loanDays = $loanDays > 0 ? $loanDays : 30;
         $dueDate = (new \DateTimeImmutable($today))->modify("+{$loanDays} days")->format('Y-m-d');
-        $loanId    = $this->createLoanNcip($itemId, $userId, $dueDate, $requestId !== '' ? $requestId : null);
+        $failureReason = 'db_error';
+        $loanId = $this->createLoanNcip(
+            $itemId,
+            $userId,
+            $dueDate,
+            $requestId !== '' ? $requestId : null,
+            $failureReason
+        );
         if ($loanId === null) {
+            $problemType = match ($failureReason) {
+                'not_found'   => 'unknown-item',
+                'duplicate'   => 'duplicate-request',
+                'ineligible'  => 'user-ineligible-to-check-out',
+                'max_loans'   => 'user-loan-limit-reached',
+                default       => 'temporary-processing-failure',
+            };
+            SecureLogger::error('[NcipServer] createLoanNcip failed: ' . $failureReason);
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Failed to create ILL request', 'temporary-processing-failure')
+                $this->buildProblem('Failed to create ILL request', $problemType)
             );
         }
 
@@ -1434,10 +1449,21 @@ class NcipServerPlugin
         }
     }
 
-    private function createLoanNcip(int $bookId, int $userId, string $dueDate, ?string $requestId): ?int
+    /**
+     * @param-out string $failureReason Stable rejection reason for RequestItem.
+     */
+    private function createLoanNcip(
+        int $bookId,
+        int $userId,
+        string $dueDate,
+        ?string $requestId,
+        ?string &$failureReason = null
+    ): ?int
     {
+        $failureReason = 'db_error';
         $today = \App\Support\DateHelper::today();
         if (!\App\Support\DateHelper::isISODateFormat($dueDate) || $dueDate < $today) {
+            $failureReason = 'invalid_due';
             return null;
         }
 
@@ -1449,6 +1475,7 @@ class NcipServerPlugin
             $bookExists = (bool) $book->get_result()->fetch_row();
             $book->close();
             if (!$bookExists) {
+                $failureReason = 'not_found';
                 $this->db->rollback();
                 return null;
             }
@@ -1475,6 +1502,7 @@ class NcipServerPlugin
             $hasReservation = (bool) $reservation->get_result()->fetch_row();
             $reservation->close();
             if ($hasDuplicate || $hasReservation) {
+                $failureReason = 'duplicate';
                 $this->db->rollback();
                 return null;
             }
@@ -1484,6 +1512,7 @@ class NcipServerPlugin
             $userLock->execute();
             $userLock->close();
             if (\App\Support\LoanEligibility::checkUser($this->db, $userId) !== null) {
+                $failureReason = 'ineligible';
                 $this->db->rollback();
                 return null;
             }
@@ -1500,6 +1529,7 @@ class NcipServerPlugin
                 $activeLoans = (int) ($count->get_result()->fetch_row()[0] ?? 0);
                 $count->close();
                 if ($activeLoans >= $maxLoans) {
+                    $failureReason = 'max_loans';
                     $this->db->rollback();
                     return null;
                 }
