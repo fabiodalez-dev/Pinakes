@@ -2130,12 +2130,12 @@ body.layout-soft :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button
   }
 
   body[class*="layout-"] #book-share-card .card-header {
-    margin-inline: 1rem;
+    margin-inline: 0;
     padding-block: 1rem;
   }
 
   body[class*="layout-"] #book-share-card .card-body.px-3 {
-    padding: 1rem !important;
+    padding: 1rem 0 !important;
   }
 
   body[class*="layout-"] .book-meta-empty {

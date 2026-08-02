@@ -1472,17 +1472,19 @@ $additional_css = "
             padding: 0.3rem 0.7rem;
         }
 
+        /* On phones the card sits in a full-width column whose content edge is
+           already the page gutter, so any horizontal padding here pushes the
+           card's rows further in than the title, the description and every other
+           block on the page. Drop the horizontal padding (keep the vertical
+           rhythm) so the header label, meta rows and social buttons line up flush
+           with the rest of the sheet. */
         .card-body {
-            padding: 1rem;
+            padding: 1rem 0;
         }
 
-        /* Match the header inset to the reduced .card-body padding (1rem) so the
-           section label lines up with the meta rows below it on mobile. Padding
-           (not margin) keeps it aligned regardless of cascade order — see the
-           base .card-header rule. */
         .card-header {
-            padding-left: 1rem;
-            padding-right: 1rem;
+            padding-left: 0;
+            padding-right: 0;
         }
     }
 
