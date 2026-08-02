@@ -109,7 +109,10 @@ if (!$serverUp) {
             $reachable = static fn (?int $c): bool => $c !== null && $c >= 200 && $c < 400;
 
             $login = $httpCode($baseUrl . $loginPath);
-            $check($reachable($login), "01 login page ({$loginPath}) served during maintenance, not error/503 (got " . var_export($login, true) . ")");
+            $check(
+                $login !== null && $login >= 200 && $login < 300,
+                "01 login page ({$loginPath}) served during maintenance (got " . var_export($login, true) . ", expected 2xx)"
+            );
 
             $home = $httpCode($baseUrl . '/');
             $check($home === 503, "02 unauthenticated home returns 503 during maintenance (got " . var_export($home, true) . ")");
