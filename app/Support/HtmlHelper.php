@@ -81,19 +81,20 @@ class HtmlHelper
     }
 
     /**
-     * Render a rich-text field that may be EITHER editor HTML OR legacy plain
-     * text with newlines (imported records).
+     * Render `libri.descrizione`, which may be either editor HTML or legacy
+     * plain text with newlines (imported records).
      *
      * Plain text gets nl2br so its line breaks survive. Content that is already
      * block-structured HTML is left as-is: the editor (TinyMCE) separates its
      * <p> paragraphs with a literal "\n", and running nl2br over that injects a
      * stray <br> between every block, double-spacing the output (issue #313).
-     * The result is always sanitized.
+     * The result is always sanitized. This intentionally remains specific to
+     * the book-description field addressed by issue #313.
      *
      * @param string|null $value Raw stored value
      * @return string Sanitized HTML ready to echo
      */
-    public static function richText(?string $value): string
+    public static function bookDescription(?string $value): string
     {
         if ($value === null || $value === '') {
             return '';

@@ -2026,7 +2026,7 @@ ob_start();
                                         : \App\Support\MediaLabels::formatTracklist($musicDescription) ?>
                                 </div>
                             <?php else: ?>
-                                <div class="prose prose-sm max-w-none"><?= \App\Support\HtmlHelper::richText($book['descrizione']) ?></div>
+                                <div class="prose prose-sm max-w-none"><?= \App\Support\HtmlHelper::bookDescription($book['descrizione']) ?></div>
                             <?php endif; ?>
                         <?php else: ?>
                             <p class="text-gray-500"><?= __("Nessuna descrizione disponibile per questo libro.") ?></p>
@@ -2263,7 +2263,7 @@ ob_start();
                                     <?php elseif (in_array($fieldName, ['value'])): ?>
                                         € <?= number_format((float)$field['value'], 2) ?>
                                     <?php elseif (in_array($fieldName, ['review', 'comment'])): ?>
-                                        <div class="prose prose-sm max-w-none"><?= \App\Support\HtmlHelper::richText($field['value']) ?></div>
+                                        <div class="prose prose-sm max-w-none"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) ?></div>
                                     <?php else: ?>
                                         <?= htmlspecialchars($field['value'], ENT_QUOTES, 'UTF-8') ?>
                                     <?php endif; ?>
@@ -2297,7 +2297,7 @@ ob_start();
                                     <?php elseif (in_array($fieldName, ['value'])): ?>
                                         € <?= number_format((float)$field['value'], 2) ?>
                                     <?php elseif (in_array($fieldName, ['review', 'comment'])): ?>
-                                        <div class="prose prose-sm max-w-none"><?= \App\Support\HtmlHelper::richText($field['value']) ?></div>
+                                        <div class="prose prose-sm max-w-none"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) ?></div>
                                     <?php else: ?>
                                         <?= htmlspecialchars($field['value'], ENT_QUOTES, 'UTF-8') ?>
                                     <?php endif; ?>
