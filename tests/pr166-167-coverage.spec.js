@@ -17,7 +17,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync, spawn } = require('child_process');
+const { execFileSync, spawn, spawnSync } = require('child_process');
 
 // NB: no file-level serial mode — each group below is its own test.describe.serial,
 // so a failure inside one group does NOT cascade-skip the other groups (workers=1
@@ -581,9 +581,7 @@ test.describe.serial('G3 — Concurrency / lock', () => {
   // instead of racing the (fast) real restore.
   function holdLock(seconds) {
     const lf = LOCK_FILE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    // Release AND unlink on exit so the lock file disappears like the real
-    // BackupManager finally does (test 14 asserts the file is gone afterwards).
-    const code = `$f=fopen('${lf}','c'); if($f===false){exit(1);} flock($f,LOCK_EX); sleep(${seconds}); flock($f,LOCK_UN); fclose($f); @unlink('${lf}');`;
+    const code = `$f=fopen('${lf}','c'); if($f===false){exit(1);} flock($f,LOCK_EX); sleep(${seconds}); flock($f,LOCK_UN); fclose($f);`;
     const child = spawn('php', ['-r', code], { detached: true, stdio: 'ignore' });
     child.unref();
     return child;
@@ -610,21 +608,30 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     if (ok.json?.safety_backup) CREATED_BACKUPS.push(ok.json.safety_backup);
   });
 
-  test('14. Maintenance + lock files are cleaned up after a restore; lock visible while held', async () => {
-    // (a) A real restore leaves no residual maintenance flag nor lock file.
+  test('14. Maintenance clears after restore; persistent lock inode is released', async () => {
+    const canAcquireLock = () => {
+      const lf = LOCK_FILE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const code = `$f=fopen('${lf}','c'); if($f===false){exit(2);} if(!flock($f,LOCK_EX|LOCK_NB)){exit(1);} flock($f,LOCK_UN); fclose($f);`;
+      return spawnSync('php', ['-r', code], { stdio: 'ignore' }).status === 0;
+    };
+
+    // (a) A real restore leaves no maintenance flag and releases the flock.
     const backup = await createBackup(page, 'full');
     const res = await apiPost(page, '/admin/updates/backup/restore', { backup });
     expect(res.json?.success).toBe(true);
     if (res.json?.safety_backup) CREATED_BACKUPS.push(res.json.safety_backup);
     expect(fs.existsSync(MAINT_FILE)).toBe(false);
-    expect(fs.existsSync(LOCK_FILE)).toBe(false);
+    expect(fs.existsSync(LOCK_FILE)).toBe(true);
+    expect(canAcquireLock()).toBe(true);
 
-    // (b) While a holder owns the lock, the lock file exists; after, it's gone.
+    // (b) While a holder owns the lock acquisition fails; afterwards it works.
     holdLock(2);
     await new Promise((r) => setTimeout(r, 400));
     expect(fs.existsSync(LOCK_FILE)).toBe(true);
+    expect(canAcquireLock()).toBe(false);
     await new Promise((r) => setTimeout(r, 2200));
-    expect(fs.existsSync(LOCK_FILE)).toBe(false);
+    expect(fs.existsSync(LOCK_FILE)).toBe(true);
+    expect(canAcquireLock()).toBe(true);
   });
 
   test('15. A restore is rejected while an update-style lock is held', async () => {
