@@ -24,7 +24,7 @@
                         </div><?= __("Crea Nuova Prenotazione") ?></h1>
                     <p class="text-lg text-gray-600 ml-22"><?= __("Registra una prenotazione per permettere ad un utente di riservare un libro specifico") ?></p>
                 </div>
-                <a href="<?= htmlspecialchars(url('/admin/reservations'), ENT_QUOTES, 'UTF-8') ?>" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
+                <a href="<?= htmlspecialchars(url('/admin/reservations'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
                     <i class="fas fa-arrow-left mr-2"></i><?= __("Torna alle Prenotazioni") ?></a>
             </div>
         </div>
@@ -221,11 +221,11 @@
                     <!-- Buttons -->
                     <div class="flex items-center justify-between pt-12 border-t-2 border-gray-200">
                         <a href="<?= htmlspecialchars(url('/admin/reservations'), ENT_QUOTES, 'UTF-8') ?>"
-                           class="px-8 py-4 text-lg border-2 border-gray-300 text-gray-700 rounded-2xl hover:bg-gray-50 transition-colors font-semibold shadow-md">
+                           class="inline-flex items-center px-8 py-4 text-lg border-2 border-gray-300 text-gray-700 rounded-2xl hover:bg-gray-50 transition-colors font-semibold shadow-md">
                             <i class="fas fa-times mr-3"></i>Annulla
                         </a>
                         <button type="submit"
-                                class="px-12 py-4 text-lg bg-gray-900 text-white rounded-2xl hover:bg-gray-800 transition-colors font-semibold shadow-xl">
+                                class="inline-flex items-center px-12 py-4 text-lg bg-gray-900 text-white rounded-2xl hover:bg-gray-800 transition-colors font-semibold shadow-xl">
                             <i class="fas fa-save mr-3"></i><?= __("Crea Prenotazione") ?></button>
                     </div>
 

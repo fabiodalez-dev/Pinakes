@@ -153,7 +153,7 @@
           <?= __("Filtri di Ricerca") ?>
         </h2>
         <div class="flex items-center gap-2">
-          <button id="btn-pending-approvals" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
+          <button id="btn-pending-approvals" class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200">
             <i class="fas fa-user-clock mr-2"></i> <?= __("Solo sospesi") ?>
           </button>
           <button id="toggle-filters" class="text-sm text-gray-600 hover:text-gray-800">

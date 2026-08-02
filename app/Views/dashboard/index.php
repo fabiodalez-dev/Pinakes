@@ -143,11 +143,11 @@ $applicationToday = \App\Support\DateHelper::today();
           <?= __("Calendario Prestiti e Prenotazioni") ?>
         </h2>
         <div class="flex items-center gap-3">
-          <a href="<?= htmlspecialchars($icsUrl ?? url('/calendar/events.ics'), ENT_QUOTES, 'UTF-8') ?>" class="px-3 py-1.5 text-sm bg-purple-600 text-white hover:bg-purple-500 rounded-lg transition-colors duration-200 whitespace-nowrap">
+          <a href="<?= htmlspecialchars($icsUrl ?? url('/calendar/events.ics'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-3 py-1.5 text-sm bg-purple-600 text-white hover:bg-purple-500 rounded-lg transition-colors duration-200 whitespace-nowrap">
             <i class="fas fa-calendar-plus mr-1"></i>
             <?= __("Sincronizza (ICS)") ?>
           </a>
-          <button type="button" id="copy-ics-url" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 whitespace-nowrap">
+          <button type="button" id="copy-ics-url" class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 whitespace-nowrap">
             <i class="fas fa-copy mr-1"></i>
             <?= __("Copia Link") ?>
           </button>
@@ -203,7 +203,7 @@ $applicationToday = \App\Support\DateHelper::today();
         </div>
         <div class="flex items-center gap-3">
           <span class="bg-orange-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($pickupLoans) ?></span>
-          <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 text-sm bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
+          <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-orange-600 text-white hover:bg-orange-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-external-link-alt mr-1"></i>
             <?= __("Gestisci tutti") ?>
           </a>
@@ -261,15 +261,15 @@ $applicationToday = \App\Support\DateHelper::today();
               </div>
               <div class="px-5 pb-5">
                 <?php if ($isExpired): ?>
-                  <button type="button" class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors cancel-pickup-btn" data-loan-id="<?= (int)$loan['id']; ?>">
+                  <button type="button" class="inline-flex items-center justify-center w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors cancel-pickup-btn" data-loan-id="<?= (int)$loan['id']; ?>">
                     <i class="fas fa-times mr-2"></i><?= __("Annulla Prestito Scaduto") ?>
                   </button>
                 <?php else: ?>
                   <div class="flex gap-3">
-                    <button type="button" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors confirm-pickup-btn" data-loan-id="<?= (int)$loan['id']; ?>">
+                    <button type="button" class="inline-flex items-center justify-center flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors confirm-pickup-btn" data-loan-id="<?= (int)$loan['id']; ?>">
                       <i class="fas fa-check mr-2"></i><?= __("Conferma Ritiro") ?>
                     </button>
-                    <button type="button" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2.5 px-4 rounded-lg transition-colors cancel-pickup-btn" data-loan-id="<?= (int)$loan['id']; ?>">
+                    <button type="button" class="inline-flex items-center justify-center flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2.5 px-4 rounded-lg transition-colors cancel-pickup-btn" data-loan-id="<?= (int)$loan['id']; ?>">
                       <i class="fas fa-times mr-2"></i><?= __("Annulla") ?>
                     </button>
                   </div>
@@ -299,7 +299,7 @@ $applicationToday = \App\Support\DateHelper::today();
         </div>
         <div class="flex items-center gap-3">
           <span class="bg-blue-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($pending) ?></span>
-          <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
+          <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-external-link-alt mr-1"></i>
             <?= __("Gestisci tutte") ?>
           </a>
@@ -361,10 +361,10 @@ $applicationToday = \App\Support\DateHelper::today();
               </div>
               <div class="px-5 pb-5 mt-auto">
                 <div class="flex gap-3">
-                  <button type="button" class="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors approve-btn" data-loan-id="<?= (int)$loan['id']; ?>">
+                  <button type="button" class="inline-flex items-center justify-center flex-1 bg-gray-900 hover:bg-gray-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors approve-btn" data-loan-id="<?= (int)$loan['id']; ?>">
                     <i class="fas fa-check mr-2"></i><?= __("Approva") ?>
                   </button>
-                  <button type="button" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors reject-btn" data-loan-id="<?= (int)$loan['id']; ?>">
+                  <button type="button" class="inline-flex items-center justify-center flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors reject-btn" data-loan-id="<?= (int)$loan['id']; ?>">
                     <i class="fas fa-times mr-2"></i><?= __("Rifiuta") ?>
                   </button>
                 </div>
@@ -397,7 +397,7 @@ $applicationToday = \App\Support\DateHelper::today();
         </div>
         <div class="flex items-center gap-3">
           <span class="bg-cyan-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($scheduledLoans) ?></span>
-          <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 text-sm bg-cyan-600 text-white hover:bg-cyan-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
+          <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-cyan-600 text-white hover:bg-cyan-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-external-link-alt mr-1"></i>
             <?= __("Gestisci tutti") ?>
           </a>
@@ -477,7 +477,7 @@ $applicationToday = \App\Support\DateHelper::today();
         </div>
         <div class="flex items-center gap-3">
           <span class="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($overdue) ?></span>
-          <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 text-sm bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
+          <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-external-link-alt mr-1"></i>
             <?= __("Gestisci") ?>
           </a>
@@ -535,7 +535,7 @@ $applicationToday = \App\Support\DateHelper::today();
         </div>
         <div class="flex items-center gap-3">
           <span class="bg-purple-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($reservations) ?></span>
-          <a href="<?= htmlspecialchars(url('/admin/reservations'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 text-sm bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
+          <a href="<?= htmlspecialchars(url('/admin/reservations'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-external-link-alt mr-1"></i>
             <?= __("Gestisci tutte") ?>
           </a>
@@ -619,7 +619,7 @@ $applicationToday = \App\Support\DateHelper::today();
         </div>
         <div class="flex items-center gap-3">
           <span class="bg-green-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($active) ?></span>
-          <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 text-sm bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
+          <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-eye mr-1"></i>
             <?= __("Vedi tutti") ?>
           </a>
@@ -716,7 +716,7 @@ $applicationToday = \App\Support\DateHelper::today();
             <p class="text-sm text-gray-500"><?= __("Aggiunti di recente al catalogo") ?></p>
           </div>
         </div>
-        <a href="<?= htmlspecialchars(url('/admin/books'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 font-medium">
+        <a href="<?= htmlspecialchars(url('/admin/books'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 font-medium">
           <i class="fas fa-eye mr-1"></i>
           <?= __("Vedi tutti") ?>
         </a>

@@ -88,12 +88,12 @@ use App\Support\HtmlHelper;
 
                         <div class="mt-4 flex gap-3">
                             <button type="button"
-                                    class="flex-1 bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors approve-btn shadow-sm"
+                                    class="inline-flex items-center justify-center flex-1 bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors approve-btn shadow-sm"
                                     data-review-id="<?php echo (int)$review['id']; ?>">
                                 <i class="fas fa-check mr-2"></i><?= __("Approva") ?>
                             </button>
                             <button type="button"
-                                    class="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-4 rounded-lg transition-colors reject-btn shadow-sm"
+                                    class="inline-flex items-center justify-center flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-4 rounded-lg transition-colors reject-btn shadow-sm"
                                     data-review-id="<?php echo (int)$review['id']; ?>">
                                 <i class="fas fa-times mr-2"></i><?= __("Rifiuta") ?>
                             </button>

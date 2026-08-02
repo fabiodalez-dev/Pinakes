@@ -589,7 +589,7 @@ use App\Support\HtmlHelper;
               <?php endif; ?>
             <?php elseif ($sitemapExists && $sitemapFileModified): ?>
               <span class="text-gray-900 ml-2"><?php echo format_date(date('Y-m-d H:i:s', $sitemapFileModified), true, '/'); ?></span>
-              <span class="ml-2 text-xs bg-yellow-100 px-2 py-1 rounded-full text-yellow-800">
+              <span class="inline-flex items-center ml-2 text-xs bg-yellow-100 px-2 py-1 rounded-full text-yellow-800">
                 <i class="fas fa-info-circle"></i> File esistente (data modifica)
               </span>
             <?php else: ?>
