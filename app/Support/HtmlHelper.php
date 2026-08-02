@@ -81,6 +81,36 @@ class HtmlHelper
     }
 
     /**
+     * Render `libri.descrizione`, which may be either editor HTML or legacy
+     * plain text with newlines (imported records).
+     *
+     * Plain text gets nl2br so its line breaks survive. Content that is already
+     * block-structured HTML is left as-is: the editor (TinyMCE) separates its
+     * <p> paragraphs with a literal "\n", and running nl2br over that injects a
+     * stray <br> between every block, double-spacing the output (issue #313).
+     * The result is always sanitized. This intentionally remains specific to
+     * the book-description field addressed by issue #313.
+     *
+     * @param string|null $value Raw stored value
+     * @return string Sanitized HTML ready to echo
+     */
+    public static function bookDescription(?string $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        // If the value already carries block/line HTML, its line breaks are
+        // markup — nl2br would turn the newlines *between* blocks into <br>.
+        $hasBlockHtml = preg_match(
+            '/<(?:p|br|div|ul|ol|li|h[1-6]|blockquote|pre|table|hr)\b/i',
+            $value
+        ) === 1;
+
+        return self::sanitizeHtml($hasBlockHtml ? $value : nl2br($value, false));
+    }
+
+    /**
      * Return a public absolute HTTP(S) URL, or an empty string when unsafe.
      *
      * This is intentionally stricter than FILTER_VALIDATE_URL alone: values

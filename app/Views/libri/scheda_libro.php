@@ -718,7 +718,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               ?>
               <?= \App\Support\MediaLabels::formatTracklist($descText) ?>
             <?php else: ?>
-              <?php echo App\Support\HtmlHelper::sanitizeHtml(nl2br($libro['descrizione'], false)); ?>
+              <?php echo App\Support\HtmlHelper::bookDescription($libro['descrizione']); ?>
             <?php endif; ?>
           </div>
         </div>

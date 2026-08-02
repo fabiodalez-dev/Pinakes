@@ -2026,7 +2026,7 @@ ob_start();
                                         : \App\Support\MediaLabels::formatTracklist($musicDescription) ?>
                                 </div>
                             <?php else: ?>
-                                <div class="prose prose-sm max-w-none"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($book['descrizione'], false)) ?></div>
+                                <div class="prose prose-sm max-w-none"><?= \App\Support\HtmlHelper::bookDescription($book['descrizione']) ?></div>
                             <?php endif; ?>
                         <?php else: ?>
                             <p class="text-gray-500"><?= __("Nessuna descrizione disponibile per questo libro.") ?></p>
