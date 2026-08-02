@@ -305,7 +305,7 @@
                                 </div>
                             </div>
                             <div class="mt-3">
-                                <a href="<?= htmlspecialchars(url('/admin/loans/edit/' . $loan['id']), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center justify-center block w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
+                                <a href="<?= htmlspecialchars(url('/admin/loans/edit/' . $loan['id']), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center justify-center w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-edit mr-1"></i><?= __("Gestisci") ?>
                                 </a>
                             </div>
