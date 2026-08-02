@@ -657,6 +657,9 @@ $additional_css = "
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 1rem;
+        /* Clear the fixed site header (~82px desktop / ~77px mobile) when this
+           becomes the scroll anchor on pagination — see goToPage(). */
+        scroll-margin-top: 6.5rem;
         margin-bottom: 1.5rem;
     }
 
@@ -2143,6 +2146,17 @@ function goToPage(page) {
     currentFilters.page = page;
     updateURL();
     loadBooks();
+
+    // Scroll to the top of the results so that, after clicking a page number at
+    // the bottom of the list, the reader lands on the first book of the new page
+    // instead of staying scrolled down (mobile and desktop alike). The
+    // fixed-header offset is handled declaratively by
+    // `.results-header { scroll-margin-top }`.
+    const anchor = document.querySelector('.results-header') || document.getElementById('books-grid');
+    if (anchor) {
+        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        anchor.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
 }
 
 function updateFilterOptions(filterOptions, genreDisplay) {
