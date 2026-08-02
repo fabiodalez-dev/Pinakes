@@ -39,25 +39,24 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New
 
-Highlights of the latest release are below. The full version-by-version history (v0.7.44 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
+Highlights of the latest release are below. The full version-by-version history (v0.7.50 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.45 — latest
+### v0.7.50 — latest
 
-
-A catalogue-consistency and scraper-maintenance release.
+A circulation-correctness and update-operability release.
 
 ### Improvements
-- **Catalogue availability facets now reflect real circulation state** — reserved, on-loan, available and non-circulating records are shown and counted separately; records without physical copies remain visible under the complete catalogue without being mislabelled as loans ([#303](https://github.com/fabiodalez-dev/Pinakes/issues/303)).
-- **Catalogue card rows stay aligned** — a card with a subtitle no longer pushes its author, publisher and "Details" out of line with neighbouring cards; the subtitle space is reserved per row only where a row actually needs it, and the layout re-aligns after AJAX filtering, on resize, and once web fonts settle ([#298](https://github.com/fabiodalez-dev/Pinakes/issues/298)).
-- **Language completion statistics are derived from the Italian source catalogue** — every locale (list and edit views alike) now uses the same live denominator, so translation percentages cannot drift from the shipped keys.
-- **Open Library plugin 1.0.4** — replaces the retired third-party Goodreads-cover service with a direct, timeout-bounded lookup of the public Goodreads ISBN page. Because Goodreads sits behind Cloudflare (which serves an anti-bot page to PHP's HTTP client but not to the system `curl`), the cover lookup shells out to the `curl` binary when the host allows process execution, and degrades gracefully to no cover where it doesn't. Only HTTPS cover URLs from exact Goodreads/Amazon CDN domains or their subdomains are accepted; its manifest requires Pinakes 0.7.16+ and PHP 8.2+.
-- **Email templates: `{{pickup_deadline}}` now resolves**, and every placeholder token carries a localised description tooltip in the template editor ([#304](https://github.com/fabiodalez-dev/Pinakes/issues/304)).
+- **Interlibrary (NCIP) rejections are classified precisely** — CheckOut, Renew and RequestItem map permanent refusals (unknown item, duplicate request, ineligible patron, loan/renewal limit reached, no free copy, non-renewable loan) to stable NCIP ProblemTypes instead of a generic retryable failure, so a partner system stops retrying a request that can never succeed. Only genuine transient errors stay retryable, and a concurrently cancelled loan no longer reports a false check-in.
+- **Availability and notifications share the canonical circulation services** — reserved / on-loan / available state and the "has a free copy" checks are computed the same way everywhere (`CapacityService`), keeping the public catalogue, notifications and the NCIP server consistent.
+
+### Fixes
+- **Book descriptions no longer gain blank lines between paragraphs** ([#313](https://github.com/fabiodalez-dev/Pinakes/issues/313)) — editor HTML is rendered as authored instead of having a stray `<br>` inserted between every `<p>`; plain-text descriptions still keep their line breaks.
+- **An interrupted in-app update can no longer lock the site out of recovery** — the maintenance page keeps the login and update routes reachable so an administrator can always sign in and finish or abort the update; a concurrent update rejected at the lock never tears down the active one; and the maintenance flag is always lifted when the request ends. The 503 maintenance page was restyled to the Pinakes identity and now shows the operator's configured name and logo.
 
 ### Database Changes
-- None — catalogue availability is derived from existing circulation state and language statistics are computed from the shipped locale files.
+- None — application code, views and compiled assets only.
 
 ### Upgrade Notes
-- The bundled Open Library plugin is replaced atomically by the updater and its database metadata advances from 1.0.1 to 1.0.2.
 - Back up your database before updating (the in-app updater does this automatically).
 
 > Older releases → **[CHANGELOG.md](CHANGELOG.md)**.
