@@ -39,22 +39,17 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New
 
-Highlights of the latest release are below. The full version-by-version history (v0.7.51 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
+Highlights of the latest release are below. The full version-by-version history (v0.7.52 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.51 — latest
+### v0.7.52 — latest
 
-A public-catalogue and interface-polish release.
-
-### Improvements
-- **Catalogue search no longer flickers stale results** ([#317](https://github.com/fabiodalez-dev/Pinakes/pull/317)) — changing a filter or typing quickly cancels the previous in-flight request, so an earlier, slower response can't overwrite the newest results. Clicking a page number also scrolls back to the top of the book list, on mobile and desktop.
+A mobile alignment fix for the book page.
 
 ### Fixes
-- **Chip and button contents are vertically centred** ([#316](https://github.com/fabiodalez-dev/Pinakes/issues/316)) — icon-and-label pills across the admin and public interface, and the keyword chips on a book page, no longer leave extra space below their contents.
-- **The book info-card header lines up with its rows on mobile** — the "Informazioni Libro" label is inset with padding instead of a margin, so it stays aligned with the metadata rows regardless of stylesheet order.
-- **The "Curatore" book role reads "Editor" in English** (completes [#315](https://github.com/fabiodalez-dev/Pinakes/pull/315)) — the volume-editor relator is now labelled Editor, distinct from Publisher; the unrelated staff-role example stays "curator".
+- **The book info and share cards line up with the rest of the sheet on mobile** — their contents were inset by the cards' own horizontal padding, sitting further right than the title, the description and the section headings. On phones that padding is dropped so the metadata rows and the social buttons sit flush at the same edge as everything else.
 
 ### Database Changes
-- None — views, translations and compiled assets only.
+- None — a view and the compiled layout CSS only.
 
 ### Upgrade Notes
 - Back up your database before updating (the in-app updater does this automatically).

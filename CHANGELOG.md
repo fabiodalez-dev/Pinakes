@@ -2,6 +2,21 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## What's New in v0.7.52
+
+A mobile alignment fix for the book page.
+
+### Fixes
+- **The book info and share cards line up with the rest of the sheet on mobile** — their contents were inset by the cards' own horizontal padding, sitting further right than the title, the description and the section headings. On phones that padding is dropped so the metadata rows and the social buttons sit flush at the same edge as everything else.
+
+### Database Changes
+- None — a view and the compiled layout CSS only.
+
+### Upgrade Notes
+- Back up your database before updating (the in-app updater does this automatically).
+
+---
+
 ## What's New in v0.7.51
 
 A public-catalogue and interface-polish release.
