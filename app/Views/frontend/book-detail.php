@@ -1126,11 +1126,14 @@ $additional_css = "
         /* Explicit `none` (not just omitted) so it beats the global .card-header
            border in main.css. The header is just a small section label above the
            meta rows, not a boxed card head, so the hairline read as clutter.
-           Balanced vertical padding; margin keeps the label inset in line with
-           the .card-body content (1.5rem). */
+           Inset the label with PADDING (not margin) so it always lines up with
+           the .card-body content (1.5rem): main.css forces
+           `.card-header { margin: 0 !important }`, so a margin-based inset only
+           held while the inline styles happened to win the cascade. Padding is
+           not overridden, so the label stays aligned regardless of load order. */
         border-bottom: none;
-        margin: 0 1.5rem;
-        padding: 0.5rem 0;
+        margin: 0;
+        padding: 0.5rem 1.5rem;
     }
 
     .card-header h6 {
@@ -1474,12 +1477,12 @@ $additional_css = "
         }
 
         /* Match the header inset to the reduced .card-body padding (1rem) so the
-           section label lines up with the meta rows below it on mobile. Needs
-           !important to beat main.css .card-header { margin:0 !important } which
-           otherwise leaves the label flush-left of the inset meta rows. */
+           section label lines up with the meta rows below it on mobile. Padding
+           (not margin) keeps it aligned regardless of cascade order — see the
+           base .card-header rule. */
         .card-header {
-            margin-left: 1rem !important;
-            margin-right: 1rem !important;
+            padding-left: 1rem;
+            padding-right: 1rem;
         }
     }
 
