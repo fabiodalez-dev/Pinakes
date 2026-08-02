@@ -420,4 +420,65 @@ test.describe('Catalog facets', () => {
     await expect(page.locator('#books-grid .book-card').first()).not.toHaveClass(/fade-in/);
     page.off('request', countCatalogRequest);
   });
+
+  test('14. A newer catalog request aborts and supersedes the previous request', async () => {
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+    try {
+      await page.evaluate(() => {
+        window.__catalogFetchOriginal = window.fetch;
+        window.__catalogRequests = [];
+
+        window.fetch = (input, init = {}) => {
+          const requestUrl = input instanceof Request ? input.url : String(input);
+          const pathname = new URL(requestUrl, window.location.href).pathname;
+          if (!pathname.endsWith('/api/catalogo')) {
+            return window.__catalogFetchOriginal.call(window, input, init);
+          }
+
+          let resolveRequest;
+          const responsePromise = new Promise(resolve => {
+            resolveRequest = resolve;
+          });
+          window.__catalogRequests.push({
+            signal: init.signal ?? null,
+            resolve(marker) {
+              resolveRequest(new Response(JSON.stringify({
+                html: `<div class="book-card" data-catalog-response="${marker}">${marker}</div>`,
+                pagination: { current_page: 1, total_pages: 1, total_books: 1 },
+              }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+              }));
+            },
+          });
+          return responsePromise;
+        };
+
+        window.updateFilter('search', 'first request');
+        window.updateFilter('search', 'second request');
+      });
+
+      expect(await page.evaluate(() => window.__catalogRequests.length)).toBe(2);
+      expect(await page.evaluate(() => window.__catalogRequests[0].signal?.aborted)).toBe(true);
+
+      await page.evaluate(() => window.__catalogRequests[1].resolve('fresh'));
+      await expect(page.locator('[data-catalog-response="fresh"]')).toBeVisible();
+
+      // Simulate a transport that still resolves after abort. The identity guard
+      // must keep this stale payload from replacing the latest response.
+      await page.evaluate(() => window.__catalogRequests[0].resolve('stale'));
+      await page.waitForTimeout(50);
+      await expect(page.locator('[data-catalog-response="fresh"]')).toBeVisible();
+      await expect(page.locator('[data-catalog-response="stale"]')).toHaveCount(0);
+    } finally {
+      await page.evaluate(() => {
+        if (window.__catalogFetchOriginal) {
+          window.fetch = window.__catalogFetchOriginal;
+        }
+        delete window.__catalogFetchOriginal;
+        delete window.__catalogRequests;
+      }).catch(() => {});
+    }
+  });
 });

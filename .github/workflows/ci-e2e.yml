@@ -266,6 +266,11 @@ jobs:
           npx playwright test tests/release-0.7.37-integration.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
+      - name: "[required] catalog-facets.spec.js — request ordering + facet UI"
+        run: |
+          npx playwright test tests/catalog-facets.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
 
       # ── Orphan-spec backfill: tests that were authored against a fresh
       #    install but never wired into the CI workflow. Adding them as
