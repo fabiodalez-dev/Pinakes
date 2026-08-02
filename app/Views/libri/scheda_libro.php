@@ -608,7 +608,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     if (empty($keyword)) continue;
                 ?>
                   <a href="<?= htmlspecialchars(url('/admin/books?keywords=' . urlencode($keyword)), ENT_QUOTES, 'UTF-8') ?>"
-                     class="inline-block px-2 py-1 mr-2 mb-2 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full transition-colors">
+                     class="inline-flex items-center px-2 py-1 mr-2 mb-2 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full transition-colors">
                     <i class="fas fa-tag mr-1"></i><?php echo App\Support\HtmlHelper::e($keyword); ?>
                   </a>
                 <?php endforeach; ?>
