@@ -775,60 +775,22 @@ class NotificationService {
     }
 
     /**
-     * Checks if a book has at least one actual physical copy available TODAY
-     * Considers:
-     * - Physical copy state ('disponibile' in copie table)
-     * - Active loans overlapping with today
-     * - Active reservations overlapping with today
+     * Checks if a book has at least one actual physical copy available TODAY.
+     * Delegates to CapacityService::hasFreeCapacity — the single authority used
+     * by loan creation, approval, renewal and promotion — so wishlist
+     * "now available" notifications apply the same rules: overdue loans still
+     * occupy today, and legacy titles with no rows in `copie` fall back to
+     * libri.copie_totali.
      */
     public function hasActualAvailableCopy(int $bookId): bool {
-        // App-timezone "today" (M9): date() usa la timezone del processo (spesso UTC)
-        // e a cavallo della mezzanotte sbaglierebbe il giorno di confronto.
+        // Use the same capacity authority as creation, approval, renewal and
+        // promotion. The previous hand-written count treated an overdue loan as
+        // free once its contractual due date passed and rejected every legacy
+        // title without rows in `copie`, causing false wishlist notifications in
+        // the first case and suppressing valid ones in the second.
         $today = DateHelper::today();
-
-        // Count total loanable copies (exclude non-lendable states)
-        // This matches the logic in ReservationManager and other availability checks
-        $totalStmt = $this->db->prepare("
-            SELECT COUNT(*) as total FROM copie
-            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
-        ");
-        $totalStmt->bind_param('i', $bookId);
-        $totalStmt->execute();
-        $totalCopies = (int)($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
-        $totalStmt->close();
-
-        if ($totalCopies === 0) {
-            return false;
-        }
-
-        // Count active loans overlapping with today
-        $loanStmt = $this->db->prepare("
-            SELECT COUNT(*) as count FROM prestiti
-            WHERE libro_id = ? AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
-            AND data_prestito <= ? AND data_scadenza >= ?
-        ");
-        $loanStmt->bind_param('iss', $bookId, $today, $today);
-        $loanStmt->execute();
-        $activeLoans = (int)($loanStmt->get_result()->fetch_assoc()['count'] ?? 0);
-        $loanStmt->close();
-
-        // Count active reservations overlapping with today
-        $resStmt = $this->db->prepare("
-            SELECT COUNT(*) as count FROM prenotazioni
-            WHERE libro_id = ? AND stato = 'attiva'
-            AND data_inizio_richiesta IS NOT NULL
-            AND data_inizio_richiesta <= ?
-            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
-        ");
-        $resStmt->bind_param('iss', $bookId, $today, $today);
-        $resStmt->execute();
-        $activeReservations = (int)($resStmt->get_result()->fetch_assoc()['count'] ?? 0);
-        $resStmt->close();
-
-        // Available if total occupied < total copies
-        $totalOccupied = $activeLoans + $activeReservations;
-        return $totalOccupied < $totalCopies;
+        return (new \App\Services\CapacityService($this->db))
+            ->hasFreeCapacity($bookId, $today, $today);
     }
 
     /**
@@ -988,7 +950,7 @@ class NotificationService {
                 'pickup_instructions' => __('Recati in biblioteca durante gli orari di apertura per ritirare il libro.')
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_approved', $variables, \App\Support\I18n::getInstallationLocale());
+            return $this->sendWithRetry($loan['utente_email'], 'loan_approved', $variables);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan approved notification: " . $e->getMessage());
@@ -1025,7 +987,7 @@ class NotificationService {
                 'motivo_rifiuto' => $reason ?: __('Nessun motivo specificato')
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_rejected', $variables, \App\Support\I18n::getInstallationLocale());
+            return $this->sendWithRetry($loan['utente_email'], 'loan_rejected', $variables);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan rejected notification: " . $e->getMessage());
@@ -1055,7 +1017,7 @@ class NotificationService {
                 'motivo_rifiuto' => $reason ?: __('Nessun motivo specificato')
             ];
 
-            return $this->emailService->sendTemplate($userEmail, 'loan_rejected', $variables, \App\Support\I18n::getInstallationLocale());
+            return $this->sendWithRetry($userEmail, 'loan_rejected', $variables);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan rejected notification (direct): " . $e->getMessage());
@@ -1105,7 +1067,7 @@ class NotificationService {
                 'pickup_instructions' => __('Recati in biblioteca durante gli orari di apertura per ritirare il libro.')
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_ready', $variables, \App\Support\I18n::getInstallationLocale());
+            return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_ready', $variables);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send pickup ready notification: " . $e->getMessage());
@@ -1144,7 +1106,7 @@ class NotificationService {
                 'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : ''
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_expired', $variables, \App\Support\I18n::getInstallationLocale());
+            return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_expired', $variables);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send pickup expired notification: " . $e->getMessage());
@@ -1181,7 +1143,7 @@ class NotificationService {
                 'motivo' => $reason ?: __('Ritiro non effettuato entro la scadenza')
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_cancelled', $variables, \App\Support\I18n::getInstallationLocale());
+            return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_cancelled', $variables);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send pickup cancelled notification: " . $e->getMessage());
@@ -1193,7 +1155,7 @@ class NotificationService {
      * Send reservation book available notification
      */
     public function sendReservationBookAvailable(string $email, array $variables): bool {
-        return $this->emailService->sendTemplate($email, 'reservation_book_available', $variables, \App\Support\I18n::getInstallationLocale());
+        return $this->sendWithRetry($email, 'reservation_book_available', $variables);
     }
 
     /**
@@ -1228,7 +1190,7 @@ class NotificationService {
                 'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today()),
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_returned', $variables, \App\Support\I18n::getInstallationLocale());
+            return $this->sendWithRetry($loan['utente_email'], 'loan_returned', $variables);
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan returned notification: " . $e->getMessage());
             return false;
@@ -1269,7 +1231,7 @@ class NotificationService {
                 'data_scadenza' => $this->formatEmailDate($scadenza),
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'reservation_expired', $variables, \App\Support\I18n::getInstallationLocale());
+            return $this->sendWithRetry($loan['utente_email'], 'reservation_expired', $variables);
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send reservation expired notification: " . $e->getMessage());
             return false;
@@ -1283,7 +1245,7 @@ class NotificationService {
         if (empty($email)) {
             return false;
         }
-        return $this->emailService->sendTemplate($email, 'copy_unavailable_user', $variables, \App\Support\I18n::getInstallationLocale());
+        return $this->sendWithRetry($email, 'copy_unavailable_user', $variables);
     }
 
     /**
@@ -1299,7 +1261,7 @@ class NotificationService {
         if (!empty($variables['data_scadenza'])) {
             $variables['data_scadenza'] = $this->formatEmailDate((string)$variables['data_scadenza']);
         }
-        return $this->emailService->sendTemplate($email, 'reservation_expired', $variables, \App\Support\I18n::getInstallationLocale());
+        return $this->sendWithRetry($email, 'reservation_expired', $variables);
     }
 
     /**
@@ -1310,7 +1272,7 @@ class NotificationService {
         if (empty($email)) {
             return false;
         }
-        return $this->emailService->sendTemplate($email, 'reservation_cancelled', $variables, \App\Support\I18n::getInstallationLocale());
+        return $this->sendWithRetry($email, 'reservation_cancelled', $variables);
     }
 
     /**

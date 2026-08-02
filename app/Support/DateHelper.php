@@ -186,6 +186,16 @@ class DateHelper
             return false;
         }
 
-        return (bool)preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($date));
+        $date = trim($date);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return false;
+        }
+
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        $errors = \DateTimeImmutable::getLastErrors();
+
+        return $parsed !== false
+            && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))
+            && $parsed->format('Y-m-d') === $date;
     }
 }

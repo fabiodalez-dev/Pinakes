@@ -402,11 +402,13 @@ test.describe.serial('Email Notifications E2E', () => {
         cognome: 'TestUser',
         email: tempEmail,
         telefono: '1111111111',
+        indirizzo: 'Via Test 1',
         tipo_utente: 'standard',
         stato: 'attivo',
       },
     });
     expect(createRes.status()).toBeLessThan(400);
+    expect(createRes.headers().location || '').not.toContain('error=');
     await page.close();
 
     // User should receive password setup email
@@ -657,6 +659,7 @@ test.describe.serial('Email Notifications E2E', () => {
 
     const userId = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER_EMAIL}' LIMIT 1`);
     const bookId = dbQuery("SELECT id FROM libri WHERE deleted_at IS NULL LIMIT 1");
+    const bookTitle = dbQuery(`SELECT titolo FROM libri WHERE id = ${bookId}`);
 
     const overdueDate = dateOffset(-1);
     const startDate = dateOffset(-15);
@@ -676,13 +679,14 @@ test.describe.serial('Email Notifications E2E', () => {
     const userMsg = await getMessage(overdueMail.ID);
     expect(userMsg.Subject.toLowerCase()).toMatch(/scaduto|overdue|ritardo/);
 
-    // B.11: Admin also receives overdue notification (optional — depends on template)
-    const adminOverdue = await waitForMail(`to:${ADMIN_EMAIL} subject:scadut`).catch(() => null)
-      || await waitForMail(`to:${ADMIN_EMAIL} subject:overdue`).catch(() => null)
-      || await waitForMail(`to:${ADMIN_EMAIL} subject:ritard`).catch(() => null);
-    if (adminOverdue) {
-      expect(adminOverdue).toBeTruthy();
-    }
+    // B.11: Admin also receives the overdue notification. Scope the search to
+    // this book's title (locale-independent, present in subject/body) as well as
+    // the recipient — a bare to:ADMIN_EMAIL could match another admin mail the
+    // same maintenance run emits and return the wrong message.
+    const adminOverdue = await waitForMail(`to:${ADMIN_EMAIL} "${bookTitle}"`);
+    expect(adminOverdue).toBeTruthy();
+    const adminMsg = await getMessage(adminOverdue.ID);
+    expect(adminMsg.Subject.toLowerCase()).toMatch(/scaduto|overdue|ritard/);
 
     dbQuery(`DELETE FROM prestiti WHERE id = ${loanId}`);
   });

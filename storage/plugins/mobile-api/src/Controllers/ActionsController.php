@@ -200,7 +200,7 @@ final class ActionsController
         if ($bookId <= 0) {
             return ResponseEnvelope::error($response, 'invalid_book', __('Identificativo libro non valido.'), 422);
         }
-        if ($desired !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desired)) {
+        if ($desired !== '' && !DateHelper::isISODateFormat($desired)) {
             return ResponseEnvelope::error($response, 'invalid_date', __('Data richiesta non valida.'), 422);
         }
         // Domain "today" MUST come from DateHelper::today() (app timezone), not

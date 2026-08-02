@@ -500,7 +500,9 @@ class ReservationsController
             }
         } catch (\Throwable $e) {
             $this->db->rollback();
-            error_log("Error creating reservation: " . $e->getMessage());
+            \App\Support\SecureLogger::error('ReservationsController: error creating reservation', [
+                'error' => $e->getMessage(),
+            ]);
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore del server')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }

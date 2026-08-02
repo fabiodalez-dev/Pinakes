@@ -111,15 +111,14 @@ class ReservationsAdminController
         $dataInizioRichiesta = trim((string) ($data['data_inizio_richiesta'] ?? ''));
         $dataFineRichiesta = trim((string) ($data['data_fine_richiesta'] ?? ''));
 
-        // Validate date formats
-        if ($start !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start))
-            $start = '';
-        if ($end !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end))
-            $end = '';
-        if ($dataInizioRichiesta !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataInizioRichiesta))
-            $dataInizioRichiesta = '';
-        if ($dataFineRichiesta !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataFineRichiesta))
-            $dataFineRichiesta = '';
+        // Empty optional dates get the documented defaults below; a supplied but
+        // impossible date (for example 2026-02-30) is an input error and must not
+        // be silently normalized by DateTime/MySQL.
+        foreach ([$start, $end, $dataInizioRichiesta, $dataFineRichiesta] as $postedDate) {
+            if ($postedDate !== '' && !\App\Support\DateHelper::isISODateFormat($postedDate)) {
+                return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=invalid_date')->withStatus(302);
+            }
+        }
 
         $today = \App\Support\DateHelper::today();
         if ($start === '') {
@@ -168,6 +167,7 @@ class ReservationsAdminController
 
         $libroId = (int) $lookupResult['libro_id'];
 
+        $cancelNotification = null;
         $db->begin_transaction();
         try {
             $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
@@ -228,6 +228,18 @@ class ReservationsAdminController
                     return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=duplicate')->withStatus(302);
                 }
                 $dupLoanStmt->close();
+
+                // Keep the canonical book -> commitments -> user lock order used
+                // by the approval paths, then apply the shared patron gate.
+                $userLockStmt = $db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
+                $userLockStmt->bind_param('i', $utenteId);
+                $userLockStmt->execute();
+                $userLockStmt->close();
+                $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId);
+                if ($eligibilityError !== null) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=' . rawurlencode($eligibilityError))->withStatus(302);
+                }
             }
 
             // Capacity gate on edit (the decision): only an 'attiva' reservation
@@ -283,10 +295,43 @@ class ReservationsAdminController
                 }
             }
 
+            if ($oldStato === 'attiva' && $stato === 'annullata') {
+                $notificationStmt = $db->prepare(
+                    "SELECT CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email, l.titolo
+                     FROM utenti u
+                     JOIN libri l ON l.id = ? AND l.deleted_at IS NULL
+                     WHERE u.id = ?"
+                );
+                $notificationStmt->bind_param('ii', $libroId, $utenteId);
+                $notificationStmt->execute();
+                $cancelNotification = $notificationStmt->get_result()->fetch_assoc() ?: null;
+                $notificationStmt->close();
+            }
+
             $db->commit();
 
             if ($reservationManager !== null) {
                 $reservationManager->flushDeferredNotifications();
+            }
+            if ($cancelNotification !== null && !empty($cancelNotification['email'])) {
+                try {
+                    $sent = (new \App\Support\NotificationService($db))->sendReservationCancelledNotification(
+                        (string) $cancelNotification['email'],
+                        [
+                            'utente_nome' => (string) $cancelNotification['utente_nome'],
+                            'libro_titolo' => (string) $cancelNotification['titolo'],
+                            'motivo' => __('Annullata dalla biblioteca'),
+                        ]
+                    );
+                    if (!$sent) {
+                        \App\Support\SecureLogger::warning("ReservationsAdminController: cancellation email failed for reservation {$id}");
+                    }
+                } catch (\Throwable $notificationError) {
+                    \App\Support\SecureLogger::warning(
+                        "ReservationsAdminController: cancellation notification failed for reservation {$id}",
+                        ['error' => $notificationError->getMessage()]
+                    );
+                }
             }
             return $response->withHeader('Location', url('/admin/reservations') . '?updated=1')->withStatus(302);
 
@@ -351,12 +396,10 @@ class ReservationsAdminController
             return $response->withHeader('Location', url('/admin/reservations/create') . '?error=missing_data')->withStatus(302);
         }
 
-        // Validate date formats (reset to empty if invalid format)
-        if ($dataPrenotazione !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataPrenotazione)) {
-            $dataPrenotazione = '';
-        }
-        if ($dataScadenza !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataScadenza)) {
-            $dataScadenza = '';
+        foreach ([$dataPrenotazione, $dataScadenza, $dataInizioRichiesta, $dataFineRichiesta] as $postedDate) {
+            if ($postedDate !== '' && !\App\Support\DateHelper::isISODateFormat($postedDate)) {
+                return $response->withHeader('Location', url('/admin/reservations/create') . '?error=invalid_date')->withStatus(302);
+            }
         }
 
         // Set default dates in the application timezone.
@@ -396,12 +439,12 @@ class ReservationsAdminController
 
         // Derive data_inizio_richiesta from data_prenotazione if not explicitly provided
         // This ensures the loan period matches the reservation dates from the form
-        if (empty($dataInizioRichiesta) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataInizioRichiesta)) {
+        if (empty($dataInizioRichiesta)) {
             $dataInizioRichiesta = $dataPrenotazioneDate;
         }
 
         // Derive data_fine_richiesta from data_scadenza if not explicitly provided
-        if (empty($dataFineRichiesta) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataFineRichiesta)) {
+        if (empty($dataFineRichiesta)) {
             $dataFineRichiesta = $dataScadenzaDate;
         }
 
@@ -456,6 +499,16 @@ class ReservationsAdminController
                 return $response->withHeader('Location', url('/admin/reservations/create') . '?error=duplicate')->withStatus(302);
             }
             $dupLoanStmt->close();
+
+            $userLockStmt = $db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
+            $userLockStmt->bind_param('i', $utenteId);
+            $userLockStmt->execute();
+            $userLockStmt->close();
+            $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId);
+            if ($eligibilityError !== null) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/reservations/create') . '?error=' . rawurlencode($eligibilityError))->withStatus(302);
+            }
 
             // Capacity gate (the decision): a waitlist reservation occupies one
             // capacity unit for its promised period, so reject it when the book is

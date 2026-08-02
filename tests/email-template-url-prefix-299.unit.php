@@ -68,5 +68,15 @@ $out = $render(
 $check(strpos($out, '/admin/https://') === false && strpos($out, 'https://x.test/libro/1') !== false
     && strpos($out, 'https://x.test/wishlist') !== false, 'multiple corrupted links all heal');
 
+// Fresh EN/FR/DE installer seeds historically use {{reason}} while the
+// circulation service passes the canonical Italian key `motivo`.
+$out = $render('<p>Reason: {{reason}}</p>', ['motivo' => 'Shelf maintenance']);
+$check($out === '<p>Reason: Shelf maintenance</p>', '{{reason}} alias resolves from canonical motivo variable');
+
+// The inverse direction is supported too for operators passing English keys
+// to a template that uses the canonical token.
+$out = $render('<p>Motivo: {{motivo}}</p>', ['reason' => 'Inventory check']);
+$check($out === '<p>Motivo: Inventory check</p>', 'English reason variable resolves canonical {{motivo}} token');
+
 echo "\n{$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);
