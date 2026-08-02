@@ -39,22 +39,22 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New
 
-Highlights of the latest release are below. The full version-by-version history (v0.7.50 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
+Highlights of the latest release are below. The full version-by-version history (v0.7.51 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.50 — latest
+### v0.7.51 — latest
 
-A circulation-correctness and update-operability release.
+A public-catalogue and interface-polish release.
 
 ### Improvements
-- **Interlibrary (NCIP) rejections are classified precisely** — CheckOut, Renew and RequestItem map permanent refusals (unknown item, duplicate request, ineligible patron, loan/renewal limit reached, no free copy, non-renewable loan) to stable NCIP ProblemTypes instead of a generic retryable failure, so a partner system stops retrying a request that can never succeed. Only genuine transient errors stay retryable, and a concurrently cancelled loan no longer reports a false check-in.
-- **Availability and notifications share the canonical circulation services** — reserved / on-loan / available state and the "has a free copy" checks are computed the same way everywhere (`CapacityService`), keeping the public catalogue, notifications and the NCIP server consistent.
+- **Catalogue search no longer flickers stale results** ([#317](https://github.com/fabiodalez-dev/Pinakes/pull/317)) — changing a filter or typing quickly cancels the previous in-flight request, so an earlier, slower response can't overwrite the newest results. Clicking a page number also scrolls back to the top of the book list, on mobile and desktop.
 
 ### Fixes
-- **Book descriptions no longer gain blank lines between paragraphs** ([#313](https://github.com/fabiodalez-dev/Pinakes/issues/313)) — editor HTML is rendered as authored instead of having a stray `<br>` inserted between every `<p>`; plain-text descriptions still keep their line breaks.
-- **An interrupted in-app update can no longer lock the site out of recovery** — the maintenance page keeps the login and update routes reachable so an administrator can always sign in and finish or abort the update; a concurrent update rejected at the lock never tears down the active one; and the maintenance flag is always lifted when the request ends. The 503 maintenance page was restyled to the Pinakes identity and now shows the operator's configured name and logo.
+- **Chip and button contents are vertically centred** ([#316](https://github.com/fabiodalez-dev/Pinakes/issues/316)) — icon-and-label pills across the admin and public interface, and the keyword chips on a book page, no longer leave extra space below their contents.
+- **The book info-card header lines up with its rows on mobile** — the "Informazioni Libro" label is inset with padding instead of a margin, so it stays aligned with the metadata rows regardless of stylesheet order.
+- **The "Curatore" book role reads "Editor" in English** (completes [#315](https://github.com/fabiodalez-dev/Pinakes/pull/315)) — the volume-editor relator is now labelled Editor, distinct from Publisher; the unrelated staff-role example stays "curator".
 
 ### Database Changes
-- None — application code, views and compiled assets only.
+- None — views, translations and compiled assets only.
 
 ### Upgrade Notes
 - Back up your database before updating (the in-app updater does this automatically).

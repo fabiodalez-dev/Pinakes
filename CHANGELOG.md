@@ -2,6 +2,26 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## What's New in v0.7.51
+
+A public-catalogue and interface-polish release.
+
+### Improvements
+- **Catalogue search no longer flickers stale results** ([#317](https://github.com/fabiodalez-dev/Pinakes/pull/317)) — changing a filter or typing quickly cancels the previous in-flight request, so an earlier, slower response can't overwrite the newest results. Clicking a page number also scrolls back to the top of the book list, on mobile and desktop.
+
+### Fixes
+- **Chip and button contents are vertically centred** ([#316](https://github.com/fabiodalez-dev/Pinakes/issues/316)) — icon-and-label pills across the admin and public interface, and the keyword chips on a book page, no longer leave extra space below their contents.
+- **The book info-card header lines up with its rows on mobile** — the "Informazioni Libro" label is inset with padding instead of a margin, so it stays aligned with the metadata rows regardless of stylesheet order.
+- **The "Curatore" book role reads "Editor" in English** (completes [#315](https://github.com/fabiodalez-dev/Pinakes/pull/315)) — the volume-editor relator is now labelled Editor, distinct from Publisher; the unrelated staff-role example stays "curator".
+
+### Database Changes
+- None — views, translations and compiled assets only.
+
+### Upgrade Notes
+- Back up your database before updating (the in-app updater does this automatically).
+
+---
+
 ## What's New in v0.7.50
 
 A circulation-correctness and update-operability release.
