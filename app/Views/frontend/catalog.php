@@ -1560,14 +1560,18 @@ ob_start();
                                        min="<?= $yearMinBound ?>"
                                        max="<?= $yearMaxBound ?>"
                                        value="<?= $annoMinValue ?>"
-                                       oninput="updateYearRange()">
+                                       aria-label="<?= __("Anno minimo") ?>"
+                                       oninput="updateYearRange(false, this)"
+                                       onchange="updateYearRange(true, this)">
                                 <input type="range"
                                        id="year-max"
                                        class="year-slider"
                                        min="<?= $yearMinBound ?>"
                                        max="<?= $yearMaxBound ?>"
                                        value="<?= $annoMaxValue ?>"
-                                       oninput="updateYearRange()">
+                                       aria-label="<?= __("Anno massimo") ?>"
+                                       oninput="updateYearRange(false, this)"
+                                       onchange="updateYearRange(true, this)">
                             </div>
                             <div class="year-values">
                                 <span class="year-value" id="year-min-value"><?= $annoMinValue ?></span>
@@ -1755,6 +1759,7 @@ const API_CATALOG_ROUTE = {$apiCatalogRouteJs};
 let currentFilters = {};
 let searchTimeout;
 let loadingTimeout;
+let catalogRequestController = null;
 let currentGenreName = {$currentGenreNameJs};
 const CURRENT_YEAR = {$currentYear};
 
@@ -2002,15 +2007,30 @@ function loadBooks() {
         return;
     }
 
+    if (catalogRequestController) {
+        catalogRequestController.abort();
+    }
+    const requestController = new AbortController();
+    catalogRequestController = requestController;
+
+    container.classList.remove('fade-in');
     container.style.display = 'none';
     loading.style.display = 'block';
     empty.style.display = 'none';
 
     const params = new URLSearchParams(currentFilters);
 
-    fetch(API_CATALOG_ROUTE + '?' + params.toString())
-        .then((response) => response.json())
+    fetch(API_CATALOG_ROUTE + '?' + params.toString(), { signal: requestController.signal })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error('Catalog request failed with status ' + response.status);
+            }
+            return response.json();
+        })
         .then((data) => {
+            if (catalogRequestController !== requestController) {
+                return;
+            }
             loading.style.display = 'none';
 
             const hasNoResults = !data.html || data.html.trim() === '';
@@ -2022,7 +2042,6 @@ function loadBooks() {
                 container.style.display = 'grid';
                 container.innerHTML = data.html;
                 container.dispatchEvent(new Event('pinakes:catalog-grid-updated', { bubbles: true }));
-                container.classList.add('fade-in');
             }
 
             const totalCount = document.getElementById('total-count');
@@ -2045,10 +2064,18 @@ function loadBooks() {
             updatePagination(data.pagination);
         })
         .catch((error) => {
+            if (error.name === 'AbortError' || catalogRequestController !== requestController) {
+                return;
+            }
             console.error('Error loading books:', error);
             loading.style.display = 'none';
             container.style.display = 'grid';
             container.innerHTML = '<div class="w-full px-3"><div class="alert alert-error">' + i18n.errore_caricamento + '</div></div>';
+        })
+        .finally(() => {
+            if (catalogRequestController === requestController) {
+                catalogRequestController = null;
+            }
         });
 }
 
@@ -2513,7 +2540,7 @@ function decodeHtmlEntities(text) {
     return textarea.value;
 }
 
-function updateYearRange(updateFilters = true) {
+function updateYearRange(updateFilters = true, changedSlider = null) {
     const minSlider = document.getElementById('year-min');
     const maxSlider = document.getElementById('year-max');
     const minValue = document.getElementById('year-min-value');
@@ -2528,7 +2555,7 @@ function updateYearRange(updateFilters = true) {
     let max = parseInt(maxSlider.value, 10);
 
     if (min > max) {
-        if (typeof event !== 'undefined' && event.target === minSlider) {
+        if (changedSlider === minSlider) {
             max = min;
             maxSlider.value = max;
         } else {

@@ -375,4 +375,49 @@ test.describe('Catalog facets', () => {
     const badgeText = await firstBadge.textContent();
     expect(parseInt(badgeText ?? '0', 10)).toBeGreaterThan(0);
   });
+
+  test('13. Year slider reloads once on commit and does not animate refreshed books', async () => {
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+    let catalogRequests = 0;
+    const countCatalogRequest = request => {
+      if (new URL(request.url()).pathname.endsWith('/api/catalogo')) {
+        catalogRequests += 1;
+      }
+    };
+    page.on('request', countCatalogRequest);
+
+    const canMove = await page.evaluate(() => {
+      const slider = document.getElementById('year-max');
+      if (!slider || Number(slider.max) <= Number(slider.min)) return false;
+
+      const start = Number(slider.max);
+      [start - 1, start - 2, start - 3].forEach(value => {
+        slider.value = String(Math.max(Number(slider.min), value));
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      return true;
+    });
+
+    if (!canMove) {
+      page.off('request', countCatalogRequest);
+      test.skip(true, 'Catalog has no movable year range');
+    }
+
+    await page.waitForTimeout(250);
+    expect(catalogRequests).toBe(0);
+
+    await page.evaluate(() => {
+      document.getElementById('year-max').dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => {
+      const loading = document.getElementById('loading-state');
+      return loading && loading.style.display === 'none';
+    }, { timeout: 15000 });
+
+    expect(catalogRequests).toBe(1);
+    await expect(page.locator('#books-grid')).not.toHaveClass(/fade-in/);
+    await expect(page.locator('#books-grid .book-card').first()).not.toHaveClass(/fade-in/);
+    page.off('request', countCatalogRequest);
+  });
 });
