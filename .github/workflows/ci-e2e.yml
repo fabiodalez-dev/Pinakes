@@ -266,6 +266,15 @@ jobs:
           npx playwright test tests/release-0.7.37-integration.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
+      # The legacy facet scenarios assume a populated development catalog and
+      # are not isolated from the state left by the preceding E2E steps. Run
+      # the data-independent regression added by #317 as the required gate.
+      - name: "[required] catalog-facets.spec.js — request ordering regression"
+        run: |
+          npx playwright test tests/catalog-facets.spec.js \
+            --config=tests/playwright.config.js \
+            --grep "A newer catalog request aborts and supersedes" \
+            --workers=1
 
       # ── Orphan-spec backfill: tests that were authored against a fresh
       #    install but never wired into the CI workflow. Adding them as

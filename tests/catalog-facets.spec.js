@@ -375,4 +375,110 @@ test.describe('Catalog facets', () => {
     const badgeText = await firstBadge.textContent();
     expect(parseInt(badgeText ?? '0', 10)).toBeGreaterThan(0);
   });
+
+  test('13. Year slider reloads once on commit and does not animate refreshed books', async () => {
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+    let catalogRequests = 0;
+    const countCatalogRequest = request => {
+      if (new URL(request.url()).pathname.endsWith('/api/catalogo')) {
+        catalogRequests += 1;
+      }
+    };
+    page.on('request', countCatalogRequest);
+
+    const canMove = await page.evaluate(() => {
+      const slider = document.getElementById('year-max');
+      if (!slider || Number(slider.max) <= Number(slider.min)) return false;
+
+      const start = Number(slider.max);
+      [start - 1, start - 2, start - 3].forEach(value => {
+        slider.value = String(Math.max(Number(slider.min), value));
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      return true;
+    });
+
+    if (!canMove) {
+      page.off('request', countCatalogRequest);
+      test.skip(true, 'Catalog has no movable year range');
+    }
+
+    await page.waitForTimeout(250);
+    expect(catalogRequests).toBe(0);
+
+    await page.evaluate(() => {
+      document.getElementById('year-max').dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => {
+      const loading = document.getElementById('loading-state');
+      return loading && loading.style.display === 'none';
+    }, { timeout: 15000 });
+
+    expect(catalogRequests).toBe(1);
+    await expect(page.locator('#books-grid')).not.toHaveClass(/fade-in/);
+    await expect(page.locator('#books-grid .book-card').first()).not.toHaveClass(/fade-in/);
+    page.off('request', countCatalogRequest);
+  });
+
+  test('14. A newer catalog request aborts and supersedes the previous request', async () => {
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+    try {
+      await page.evaluate(() => {
+        window.__catalogFetchOriginal = window.fetch;
+        window.__catalogRequests = [];
+
+        window.fetch = (input, init = {}) => {
+          const requestUrl = input instanceof Request ? input.url : String(input);
+          const pathname = new URL(requestUrl, window.location.href).pathname;
+          if (!pathname.endsWith('/api/catalogo')) {
+            return window.__catalogFetchOriginal.call(window, input, init);
+          }
+
+          let resolveRequest;
+          const responsePromise = new Promise(resolve => {
+            resolveRequest = resolve;
+          });
+          window.__catalogRequests.push({
+            signal: init.signal ?? null,
+            resolve(marker) {
+              resolveRequest(new Response(JSON.stringify({
+                html: `<div class="book-card" data-catalog-response="${marker}">${marker}</div>`,
+                pagination: { current_page: 1, total_pages: 1, total_books: 1 },
+              }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+              }));
+            },
+          });
+          return responsePromise;
+        };
+
+        window.updateFilter('search', 'first request');
+        window.updateFilter('search', 'second request');
+      });
+
+      expect(await page.evaluate(() => window.__catalogRequests.length)).toBe(2);
+      expect(await page.evaluate(() => window.__catalogRequests[0].signal?.aborted)).toBe(true);
+
+      await page.evaluate(() => window.__catalogRequests[1].resolve('fresh'));
+      await expect(page.locator('[data-catalog-response="fresh"]')).toBeVisible();
+
+      // Simulate a transport that still resolves after abort. The identity guard
+      // must keep this stale payload from replacing the latest response.
+      await page.evaluate(() => window.__catalogRequests[0].resolve('stale'));
+      await page.waitForTimeout(50);
+      await expect(page.locator('[data-catalog-response="fresh"]')).toBeVisible();
+      await expect(page.locator('[data-catalog-response="stale"]')).toHaveCount(0);
+    } finally {
+      await page.evaluate(() => {
+        if (window.__catalogFetchOriginal) {
+          window.fetch = window.__catalogFetchOriginal;
+        }
+        delete window.__catalogFetchOriginal;
+        delete window.__catalogRequests;
+      }).catch(() => {});
+    }
+  });
 });

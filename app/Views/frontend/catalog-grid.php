@@ -30,7 +30,7 @@ $getBookStatusBadge = static function ($book) {
 <?php $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg'); ?>
 <?php if (!empty($books)): ?>
     <?php foreach($books as $book): ?>
-        <div class="book-card fade-in">
+        <div class="book-card">
             <div class="book-image-container">
                 <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>">
                     <?php
