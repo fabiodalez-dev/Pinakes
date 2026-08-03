@@ -23,7 +23,8 @@ use mysqli;
  *     OCC(b,[s,e]) := per-day MAX over [s,e] of (
  *           COUNT(HOLDING loans of b overlapping the day)
  *         + COUNT(active prenotazioni of b overlapping the day) )
- *     where the reservation interval end is
+ *     where the reservation interval bounds are
+ *       R_START(r) := COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione))
  *       R_END(r) := COALESCE(r.data_fine_richiesta, DATE(r.data_scadenza_prenotazione), r.data_inizio_richiesta)
  * Inclusive overlap: start_a <= end_b AND end_a >= start_b.
  *
@@ -32,7 +33,7 @@ use mysqli;
  *                   (NOT IN perso, danneggiato, manutenzione, in_restauro, in_trasferimento).
  *
  * THE DECISION: a prenotazioni row (stato='attiva') with period
- * [data_inizio_richiesta, R_END] occupies exactly one capacity unit for that
+ * [R_START, R_END] occupies exactly one capacity unit for that
  * period, counted in OCC up to copie_totali. It is *soft* (gates capacity,
  * blocks new commitments) but does not pin a physical copy. The bare prestiti
  * request (stato='pendente', copia_id IS NULL) is unbounded and does NOT occupy.

@@ -606,7 +606,7 @@ class ReservationManager
             JOIN utenti u ON r.utente_id = u.id
             WHERE r.stato = 'completata'
             AND r.notifica_inviata = 0
-            AND r.data_inizio_richiesta IS NOT NULL
+            AND COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione)) IS NOT NULL
             AND r.updated_at >= ?
             ORDER BY r.updated_at ASC
             LIMIT ?
@@ -641,9 +641,10 @@ class ReservationManager
                 continue;
             }
 
-            // Risolvi la data di fine con lo stesso coalesce canonico di
-            // processBookAvailability(): una riga legacy può avere
-            // data_fine_richiesta NULL ma data_scadenza_prenotazione valorizzata.
+            // Normalizza entrambi gli estremi come CapacityService: le righe
+            // legacy possono avere start/fine NULL ma una scadenza valida.
+            $reservation['data_inizio_richiesta'] = $reservation['data_inizio_richiesta']
+                ?: substr((string) $reservation['data_scadenza_prenotazione'], 0, 10);
             $reservation['data_fine_richiesta'] = $reservation['data_fine_richiesta']
                 ?: (!empty($reservation['data_scadenza_prenotazione'])
                     ? substr((string) $reservation['data_scadenza_prenotazione'], 0, 10)

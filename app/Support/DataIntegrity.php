@@ -840,15 +840,15 @@ class DataIntegrity {
         $stmt->close();
 
         // Active waitlist reservations occupy their promised period too (the
-        // decision): add them as occupancy events with the canonical 3-step
-        // coalesce chain for the interval end, same endExclusive conversion.
+        // decision): add them as occupancy events with the same legacy-start
+        // fallback and canonical 3-step end chain used by CapacityService.
         $stmt = $this->db->prepare("
             SELECT libro_id,
-                   DATE(data_inizio_richiesta) AS start_date,
+                   DATE(COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione))) AS start_date,
                    DATE(COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta)) AS end_date
             FROM prenotazioni
             WHERE stato = 'attiva'
-              AND data_inizio_richiesta IS NOT NULL
+              AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) IS NOT NULL
         ");
         $stmt->execute();
         $resResult = $stmt->get_result();

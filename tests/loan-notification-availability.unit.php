@@ -119,6 +119,14 @@ $stmt->bind_param('iissss', $reservedBook, $userId, $startAt, $endAt, $today, $n
 $stmt->execute(); $stmt->close();
 $check($service->hasActualAvailableCopy($reservedBook) === false, 'active reservation occupies today capacity');
 
+[$nullStartBook] = $makeBook(1);
+$legacyDeadline = $today . ' 23:59:59';
+$stmt = $db->prepare("INSERT INTO prenotazioni (libro_id,utente_id,data_prenotazione,data_scadenza_prenotazione,data_inizio_richiesta,data_fine_richiesta,queue_position,stato) VALUES (?,?,NOW(),?,NULL,NULL,1,'attiva')");
+$stmt->bind_param('iis', $nullStartBook, $userId, $legacyDeadline);
+$stmt->execute(); $stmt->close();
+$check($service->hasActualAvailableCopy($nullStartBook) === false, 'legacy NULL-start reservation falls back to its deadline for today capacity');
+$check($service->getNextAvailabilityDate($nullStartBook) === $tomorrow, 'next availability includes a legacy NULL-start reservation end');
+
 [$legacyBook] = $makeBook(1, false);
 $check($service->hasActualAvailableCopy($legacyBook) === true, 'legacy title without copy rows uses libri.copie_totali fallback');
 
