@@ -413,9 +413,9 @@ class LibraryThingImportController
                     // ruolo='principale' so a re-import re-writes the authors
                     // LibraryThing owns without wiping illustrator/translator/
                     // curator/colorist ENTITY links (#237). A blanket delete-all
-                    // silently lost every contributor entity on each re-import
-                    // (this importer only manages provenance-scoped translators
-                    // below).
+                    // silently lost every contributor entity on each re-import;
+                    // the role-aware synchronization below owns only links
+                    // explicitly represented by LibraryThing's role columns.
                     // Only rewrite the principal links when the row carries an
                     // author. An EMPTY author cell must NOT wipe the existing
                     // principal authors, which left the book permanently
@@ -451,16 +451,30 @@ class LibraryThingImportController
                         }
                     }
 
-                    // Secondary authors classified as translators must become
-                    // role links, not remain only in libri.traduttore. Keep this
-                    // in the import transaction so author entities and the book
-                    // row commit atomically.
-                    $importData['authors_created'] += \App\Support\ContributorSync::syncImportedLegacyValues(
-                        $db,
-                        $bookId,
-                        ['traduttore' => $parsedData['traduttore'] ?? null],
-                        'librarything'
-                    );
+                    // LibraryThing's parallel secondary-author/role columns map
+                    // back to the canonical relational roles. Only roles that
+                    // actually occur in the row are authoritative; unrelated
+                    // manually curated contributors remain untouched.
+                    $contributorValues = [];
+                    foreach ([
+                        'co-autore' => 'co_autori',
+                        'traduttore' => 'traduttore',
+                        'illustratore' => 'illustratore',
+                        'curatore' => 'curatore',
+                        'colorista' => 'colorista',
+                    ] as $role => $field) {
+                        if (array_key_exists($field, $parsedData)) {
+                            $contributorValues[$role] = $parsedData[$field];
+                        }
+                    }
+                    if ($contributorValues !== []) {
+                        $importData['authors_created'] += \App\Support\ContributorSync::syncImportedLegacyValues(
+                            $db,
+                            $bookId,
+                            $contributorValues,
+                            'librarything'
+                        );
+                    }
 
                     $db->commit();
 
@@ -806,12 +820,25 @@ class LibraryThingImportController
     }
 
     /**
-     * @return array{authors: list<string>, translators: list<string>}
+     * @return array{
+     *   authors: list<string>,
+     *   coauthors: list<string>,
+     *   translators: list<string>,
+     *   illustrators: list<string>,
+     *   curators: list<string>,
+     *   colorists: list<string>
+     * }
      */
     private function classifySecondaryAuthors(string $authorsValue, string $rolesValue): array
     {
-        $authors = [];
-        $translators = [];
+        $classified = [
+            'authors' => [],
+            'coauthors' => [],
+            'translators' => [],
+            'illustrators' => [],
+            'curators' => [],
+            'colorists' => [],
+        ];
         $secondaryAuthors = $this->splitContributorList($authorsValue);
         $secondaryRoles = preg_split('/\s*;\s*/u', trim($rolesValue)) ?: [];
 
@@ -822,22 +849,34 @@ class LibraryThingImportController
             }
 
             $secondaryRole = mb_strtolower(trim((string) ($secondaryRoles[$index] ?? '')), 'UTF-8');
-            if (str_contains($secondaryRole, 'translator') || str_contains($secondaryRole, 'traduttore')) {
-                if (!in_array($secondaryAuthor, $translators, true)) {
-                    $translators[] = $secondaryAuthor;
-                }
-                continue;
+            $bucket = 'authors';
+            if (str_contains($secondaryRole, 'co-author')
+                || str_contains($secondaryRole, 'coauthor')
+                || str_contains($secondaryRole, 'co-autore')
+            ) {
+                $bucket = 'coauthors';
+            } elseif (str_contains($secondaryRole, 'translator') || str_contains($secondaryRole, 'traduttore')) {
+                $bucket = 'translators';
+            } elseif (str_contains($secondaryRole, 'illustrator') || str_contains($secondaryRole, 'illustratore')) {
+                $bucket = 'illustrators';
+            } elseif (str_contains($secondaryRole, 'colorist')
+                || str_contains($secondaryRole, 'colourist')
+                || str_contains($secondaryRole, 'colorista')
+            ) {
+                $bucket = 'colorists';
+            } elseif (str_contains($secondaryRole, 'editor')
+                || str_contains($secondaryRole, 'curator')
+                || str_contains($secondaryRole, 'curatore')
+            ) {
+                $bucket = 'curators';
             }
 
-            if (!in_array($secondaryAuthor, $authors, true)) {
-                $authors[] = $secondaryAuthor;
+            if (!in_array($secondaryAuthor, $classified[$bucket], true)) {
+                $classified[$bucket][] = $secondaryAuthor;
             }
         }
 
-        return [
-            'authors' => $authors,
-            'translators' => $translators,
-        ];
+        return $classified;
     }
 
     private function normalizeContributorField(?string $value): ?string
@@ -896,8 +935,16 @@ class LibraryThingImportController
                     $authors[] = $secondaryAuthor;
                 }
             }
-            if ($secondaryContributors['translators'] !== []) {
-                $result['traduttore'] = implode('; ', $secondaryContributors['translators']);
+            foreach ([
+                'coauthors' => 'co_autori',
+                'translators' => 'traduttore',
+                'illustrators' => 'illustratore',
+                'curators' => 'curatore',
+                'colorists' => 'colorista',
+            ] as $bucket => $field) {
+                if ($secondaryContributors[$bucket] !== []) {
+                    $result[$field] = implode('; ', $secondaryContributors[$bucket]);
+                }
             }
         }
         $result['autori'] = !empty($authors) ? implode('|', $authors) : '';
@@ -2096,7 +2143,9 @@ class LibraryThingImportController
         }
 
         if ($autoreId > 0) {
-            $whereClauses[] = "la.autore_id = ?";
+            // Keep the aggregation join unrestricted so filtering by one
+            // author does not erase the book's other contributors from export.
+            $whereClauses[] = "EXISTS (SELECT 1 FROM libri_autori la_filter WHERE la_filter.libro_id = l.id AND la_filter.autore_id = ?)";
             $bindTypes .= 'i';
             $bindValues[] = $autoreId;
         }
@@ -2105,8 +2154,18 @@ class LibraryThingImportController
         $query = "
             SELECT
                 l.*,
-                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo IN ('principale', 'co-autore') THEN a.nome END
-                             ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'principale' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as autori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'co-autore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as coautori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'traduttore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as traduttori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'illustratore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as illustratori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'curatore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as curatori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'colorista' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as coloristi_nomi,
                 e.nome as editore_nome,
                 g.nome as genere_nome
             FROM libri l
@@ -2121,6 +2180,8 @@ class LibraryThingImportController
         $query .= " WHERE " . implode(' AND ', $whereClauses);
 
         $query .= " GROUP BY l.id ORDER BY l.id DESC";
+
+        $db->query("SET SESSION group_concat_max_len = 1000000");
 
         // Execute query
         if (!empty($bindValues)) {
@@ -2248,31 +2309,30 @@ class LibraryThingImportController
      */
     private function formatLibraryThingRow(array $libro): array
     {
-        // Parse authors
-        $autoriArray = $this->splitContributorList((string) ($libro['autori_nomi'] ?? ''));
-        $primaryAuthor = array_shift($autoriArray) ?? '';
-        $secondaryAuthors = array_values($autoriArray);
+        // Preserve creator and contributor roles in LibraryThing's parallel
+        // secondary-author/role columns. Multiple principal authors after the
+        // first remain unqualified authors; every relational non-primary role
+        // receives an explicit portable label.
+        $principalAuthors = $this->splitContributorList((string) ($libro['autori_nomi'] ?? ''));
+        $primaryAuthor = array_shift($principalAuthors) ?? '';
+        $secondaryAuthors = array_values($principalAuthors);
         $secondaryAuthorRoles = array_fill(0, count($secondaryAuthors), '');
 
-        foreach ($this->splitContributorList((string) ($libro['traduttore'] ?? ''), '/\s*[;|]\s*/u') as $rawTranslator) {
-            $translator = \App\Support\AuthorNormalizer::normalize($rawTranslator);
-            if ($translator === '') {
-                continue;
-            }
-
-            $matched = false;
-            foreach ($secondaryAuthors as $index => $secondaryAuthor) {
-                if (\App\Support\AuthorNormalizer::match($secondaryAuthor, $translator)) {
-                    $secondaryAuthors[$index] = $translator;
-                    $secondaryAuthorRoles[$index] = 'Translator';
-                    $matched = true;
-                    break;
+        $roleSources = [
+            'Co-author' => (string) ($libro['coautori_nomi'] ?? ''),
+            'Translator' => (string) (($libro['traduttori_nomi'] ?? '') !== '' ? $libro['traduttori_nomi'] : ($libro['traduttore'] ?? '')),
+            'Illustrator' => (string) (($libro['illustratori_nomi'] ?? '') !== '' ? $libro['illustratori_nomi'] : ($libro['illustratore'] ?? '')),
+            'Editor' => (string) (($libro['curatori_nomi'] ?? '') !== '' ? $libro['curatori_nomi'] : ($libro['curatore'] ?? '')),
+            'Colorist' => (string) ($libro['coloristi_nomi'] ?? ''),
+        ];
+        foreach ($roleSources as $role => $rawNames) {
+            foreach ($this->splitContributorList($rawNames, '/\s*[;|]\s*/u') as $name) {
+                $normalized = \App\Support\AuthorNormalizer::normalize($name);
+                if ($normalized === '') {
+                    continue;
                 }
-            }
-
-            if (!$matched) {
-                $secondaryAuthors[] = $translator;
-                $secondaryAuthorRoles[] = 'Translator';
+                $secondaryAuthors[] = $normalized;
+                $secondaryAuthorRoles[] = $role;
             }
         }
 

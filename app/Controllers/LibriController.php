@@ -3299,7 +3299,10 @@ class LibriController
 
         // Autore filter
         if ($autoreId > 0) {
-            $whereClauses[] = "la.autore_id = ?";
+            // Filter the book set without restricting the aggregate join: the
+            // exported row must still contain every creator/contributor, not
+            // only the author used to find the book.
+            $whereClauses[] = "EXISTS (SELECT 1 FROM libri_autori la_filter WHERE la_filter.libro_id = l.id AND la_filter.autore_id = ?)";
             $bindTypes .= 'i';
             $bindValues[] = $autoreId;
         }
@@ -3308,8 +3311,18 @@ class LibriController
         $query = "
             SELECT
                 l.*,
-                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo IN ('principale', 'co-autore') THEN a.nome END
-                             ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'principale' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as autori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'co-autore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as coautori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'traduttore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as traduttori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'illustratore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as illustratori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'curatore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as curatori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'colorista' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as coloristi_nomi,
                 e.nome as editore_nome,
                 " . ($hasJunction
                     ? "(SELECT GROUP_CONCAT(e2.nome ORDER BY le.ordine, e2.nome SEPARATOR ';')
@@ -3390,6 +3403,7 @@ class LibriController
                 'sottotitolo',
                 'descrizione',
                 'autori',
+                'co_autori',
                 'editore',
                 'anno_pubblicazione',
                 'lingua',
@@ -3405,6 +3419,7 @@ class LibriController
                 'traduttore',
                 'illustratore',
                 'curatore',
+                'colorista',
                 'classificazione_dewey',
                 'parole_chiave'
             ];
@@ -3443,6 +3458,7 @@ class LibriController
                     $libro['sottotitolo'] ?? '',
                     $descrizione,
                     $libro['autori_nomi'] ?? '',
+                    $libro['coautori_nomi'] ?? '',
                     ($libro['editori_nomi'] ?? '') !== '' ? $libro['editori_nomi'] : ($libro['editore_nome'] ?? ''),
                     $anno,
                     $libro['lingua'] ?? '',
@@ -3455,9 +3471,10 @@ class LibriController
                     $libro['copie_totali'] ?? '1',
                     $libro['collana'] ?? '',
                     $libro['numero_serie'] ?? '',
-                    $libro['traduttore'] ?? '',
-                    $libro['illustratore'] ?? '',
-                    $libro['curatore'] ?? '',
+                    ($libro['traduttori_nomi'] ?? '') !== '' ? $libro['traduttori_nomi'] : ($libro['traduttore'] ?? ''),
+                    ($libro['illustratori_nomi'] ?? '') !== '' ? $libro['illustratori_nomi'] : ($libro['illustratore'] ?? ''),
+                    ($libro['curatori_nomi'] ?? '') !== '' ? $libro['curatori_nomi'] : ($libro['curatore'] ?? ''),
+                    $libro['coloristi_nomi'] ?? '',
                     $libro['classificazione_dewey'] ?? '',
                     $libro['parole_chiave'] ?? ''
                 ];
@@ -3572,11 +3589,30 @@ class LibriController
      */
     private function formatLibraryThingRow(array $libro, string $anno): array
     {
-        // Parse authors (may be semicolon-separated)
-        $autori = $libro['autori_nomi'] ?? '';
-        $autoriArray = !empty($autori) ? explode(';', $autori) : [];
-        $primaryAuthor = $autoriArray[0] ?? '';
-        $secondaryAuthor = $autoriArray[1] ?? '';
+        // LibraryThing has one primary-author cell plus parallel secondary
+        // author/role lists. Keep every principal after the first as an
+        // unqualified secondary creator, and encode all other relational roles
+        // explicitly so an export/import cycle does not promote co-authors or
+        // discard contributors.
+        $principalAuthors = \App\Support\ContributorSync::splitNames((string) ($libro['autori_nomi'] ?? ''));
+        $primaryAuthor = array_shift($principalAuthors) ?? '';
+        $secondaryAuthors = $principalAuthors;
+        $secondaryAuthorRoles = array_fill(0, count($secondaryAuthors), '');
+        $roleSources = [
+            'Co-author' => (string) ($libro['coautori_nomi'] ?? ''),
+            'Translator' => (string) (($libro['traduttori_nomi'] ?? '') !== '' ? $libro['traduttori_nomi'] : ($libro['traduttore'] ?? '')),
+            'Illustrator' => (string) (($libro['illustratori_nomi'] ?? '') !== '' ? $libro['illustratori_nomi'] : ($libro['illustratore'] ?? '')),
+            'Editor' => (string) (($libro['curatori_nomi'] ?? '') !== '' ? $libro['curatori_nomi'] : ($libro['curatore'] ?? '')),
+            'Colorist' => (string) ($libro['coloristi_nomi'] ?? ''),
+        ];
+        foreach ($roleSources as $role => $rawNames) {
+            foreach (\App\Support\ContributorSync::splitNames($rawNames) as $name) {
+                $secondaryAuthors[] = $name;
+                $secondaryAuthorRoles[] = $role;
+            }
+        }
+        $secondaryAuthor = implode('; ', $secondaryAuthors);
+        $secondaryAuthorRole = implode('; ', $secondaryAuthorRoles);
 
         // Map formato to Media
         $formatoMap = [
@@ -3632,7 +3668,7 @@ class LibriController
             $primaryAuthor,                                        // Primary Author
             '',                                                    // Primary Author Role
             $secondaryAuthor,                                      // Secondary Author
-            '',                                                    // Secondary Author Roles
+            $secondaryAuthorRole,                                  // Secondary Author Roles
             $publication,                                          // Publication
             $anno,                                                 // Date
             $libro['review'] ?? '',                                // Review

@@ -1,6 +1,6 @@
 // @ts-check
 //
-// Data-integrity audit — 20 E2E tests, one per fixed point of the extreme
+// Data-integrity audit — 21 E2E tests, one per fixed point of the extreme
 // data-consistency review. Each test drives the REAL app on :8081 (browser UI
 // and/or HTTP endpoints) and asserts against the live DB, so a fix that "looks
 // right" but doesn't hold end-to-end fails here.
@@ -13,6 +13,7 @@
 //   #11 export illustratore + dewey            → "export includes illustratore + dewey"
 //   #12 export multi-publisher                 → "export joins co-publishers"
 //   #9  export curatore                        → "export includes curatore"
+//   #17 co-author/colorist role roundtrip      → "export/reimport preserves contributor roles"
 //   #11 reimport keeps illustratore + dewey    → import block
 //   #12 import splits publishers               → import block
 //   #14 formula unescape                       → import block
@@ -259,6 +260,58 @@ test.describe.serial('CSV export', () => {
     expect(csv).toContain(`DIPrimary_${RUN};DICo_${RUN}`.replace(';', ';')); // both names, ';'-joined
     expect(csv).toMatch(new RegExp(`DIPrimary_${RUN}[^\\n]*DICo_${RUN}`));
   });
+
+  test('#17 export/reimport preserves principal, co-author and colorist roles', async () => {
+    test.setTimeout(150000);
+    const page = await ctx.newPage();
+    const title = `DIroles_${RUN}`;
+    const id = seedBook({ titolo: title, copie_totali: 1, copie_disponibili: 1, stato: 'disponibile' });
+    const principalName = `DI Principal ${RUN}`;
+    const coauthorName = `DI Coauthor ${RUN}`;
+    const coloristName = `DI Colorist ${RUN}`;
+    const principalId = insertId(`INSERT INTO autori (nome, created_at) VALUES ('${esc(principalName)}', NOW())`);
+    const coauthorId = insertId(`INSERT INTO autori (nome, created_at) VALUES ('${esc(coauthorName)}', NOW())`);
+    const coloristId = insertId(`INSERT INTO autori (nome, created_at) VALUES ('${esc(coloristName)}', NOW())`);
+    created.autori.push(principalId, coauthorId, coloristId);
+    exec(`INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES
+      (${id}, ${principalId}, 'principale', 1),
+      (${id}, ${coauthorId}, 'co-autore', 2),
+      (${id}, ${coloristId}, 'colorista', 3)`);
+
+    const res = await page.request.get(`${BASE}/admin/books/export/csv?ids=${id}&autore_id=${principalId}`);
+    const csv = await res.text();
+    const lines = csv.replace(/^\uFEFF/, '').trim().split(/\r?\n/);
+    const headers = lines[0].split(';');
+    const cells = lines[1].split(';').map((cell) => {
+      if (cell.startsWith('"') && cell.endsWith('"')) {
+        return cell.slice(1, -1).replace(/""/g, '"');
+      }
+      return cell;
+    });
+    expect(cells[headers.indexOf('autori')]).toBe(principalName);
+    expect(cells[headers.indexOf('co_autori')]).toBe(coauthorName);
+    expect(cells[headers.indexOf('colorista')]).toBe(coloristName);
+
+    // Prove the exported role columns are authoritative on re-import, rather
+    // than merely present in the file: erase all three links and restore them
+    // only through the real chunked CSV import route.
+    exec(`DELETE FROM libri_autori WHERE libro_id=${id}`);
+    const csvPath = path.join(os.tmpdir(), `di-${RUN}-role-roundtrip.csv`);
+    fs.writeFileSync(csvPath, csv);
+    const summary = await importCsv(page, csvPath);
+    expect(summary.errors).toBe(0);
+
+    const roles = q(`SELECT CONCAT(a.nome, ':', la.ruolo)
+      FROM libri_autori la JOIN autori a ON a.id=la.autore_id
+      WHERE la.libro_id=${id}
+      ORDER BY FIELD(la.ruolo, 'principale', 'co-autore', 'colorista'), a.nome`).split('\n');
+    expect(roles).toEqual([
+      `${principalName}:principale`,
+      `${coauthorName}:co-autore`,
+      `${coloristName}:colorista`,
+    ]);
+    await page.close();
+  });
 });
 
 // ============================================================================
@@ -473,7 +526,7 @@ test.describe.serial('Counts, facets & API parity', () => {
     const id = seedBook({ titolo: `DIcount_${RUN}`, copie_totali: 1, copie_disponibili: 1, stato: 'disponibile' });
     // Same author on the SAME book in two roles → must still count as 1 book.
     exec(`INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (${id}, ${aid}, 'principale', 1), (${id}, ${aid}, 'curatore', 2)`);
-    const res = await page.request.get(`${BASE}/api/autori?search=DIcount_${RUN}`);
+    const res = await page.request.get(`${BASE}/api/autori?search_text=${encodeURIComponent(`DIcount_${RUN}`)}`);
     const body = await res.json();
     const list = Array.isArray(body) ? body : (body.data || body.autori || []);
     const mine = list.find((a) => (a.nome || '').includes(`DIcount_${RUN}`));

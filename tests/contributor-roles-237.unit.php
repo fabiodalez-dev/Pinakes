@@ -311,6 +311,23 @@ try {
         && str_contains((string)($relatedRow['autori'] ?? ''), $relatedCoauthorName),
         'related books display every creator, not only the matched author');
 
+    // Exercise the public controller below ApiKeyMiddleware: middleware policy
+    // is covered separately, while this verifies the real DB query and payload
+    // serializer without changing global API-key settings for the test run.
+    $apiCuratorName = "ZZ API Curator {$token}";
+    $apiCuratorId = $authors->create(['nome' => $apiCuratorName]);
+    $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$bookId}, {$apiCuratorId}, 'curatore')");
+    $findBooks = new ReflectionMethod(PublicApiController::class, 'findBooks');
+    $findBooks->setAccessible(true);
+    $apiContributorRows = $findBooks->invoke(new PublicApiController(), $db, null, null, null, $realName);
+    $apiContributorBook = array_values(array_filter(
+        is_array($apiContributorRows) ? $apiContributorRows : [],
+        static fn(array $row): bool => (int)($row['id'] ?? 0) === $bookId
+    ))[0] ?? [];
+    $apiRoles = array_column(is_array($apiContributorBook['autori'] ?? null) ? $apiContributorBook['autori'] : [], 'ruolo');
+    $check(in_array('illustratore', $apiRoles, true) && in_array('curatore', $apiRoles, true),
+        'public API payload exposes relational illustrator and curator roles');
+
     // Public API author filters must treat SQL wildcard characters literally.
     $literalAuthor = "ZZ Wild_Author {$token}";
     $wildcardTwin = "ZZ WildXAuthor {$token}";
@@ -318,8 +335,6 @@ try {
     $wildcardTwinId = $authors->create(['nome' => $wildcardTwin]);
     $literalBookId = $repo->createBasic(['titolo' => "ZZ literal wildcard {$token}", 'autori_ids' => [$literalId]]);
     $repo->createBasic(['titolo' => "ZZ wildcard twin {$token}", 'autori_ids' => [$wildcardTwinId]]);
-    $findBooks = new ReflectionMethod(PublicApiController::class, 'findBooks');
-    $findBooks->setAccessible(true);
     $apiRows = $findBooks->invoke(new PublicApiController(), $db, null, null, null, $literalAuthor);
     $apiIds = array_map('intval', array_column(is_array($apiRows) ? $apiRows : [], 'id'));
     $check(in_array($literalBookId, $apiIds, true) && count($apiIds) === 1,

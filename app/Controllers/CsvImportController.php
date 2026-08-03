@@ -379,11 +379,11 @@ class CsvImportController
 
                 // Remove old PRINCIPAL author links if updating — scoped to
                 // ruolo='principale' so a re-import re-writes the authors the CSV
-                // owns without wiping illustrator/translator/curator/colorist
-                // ENTITY links (#237): translator/illustrator are synchronized
-                // below with importer provenance, while colorist/curator aren't
-                // CSV columns at all. A blanket delete-all silently lost every
-                // contributor entity on each re-import.
+                // owns without wiping co-author/illustrator/translator/curator/
+                // colorist ENTITY links (#237): every explicit contributor
+                // column is synchronized below with importer provenance. A
+                // blanket delete-all silently lost every contributor entity on
+                // each re-import.
                 // Only rewrite the principal links when the row actually carries
                 // an author. An EMPTY author cell must NOT wipe the existing
                 // principal authors — a blanket delete-when-updated left the book
@@ -421,20 +421,31 @@ class CsvImportController
                     }
                 }
 
-                // Contributor roles are entities too (#237). This call replaces
-                // only links previously owned by the CSV importer; manually
-                // curated contributor links and roles absent from the CSV stay
-                // untouched. Provenance lives in libri_autori_import_sources.
-                $importData['authors_created'] += \App\Support\ContributorSync::syncImportedLegacyValues(
-                    $db,
-                    $bookId,
-                    [
-                        'traduttore' => $parsedData['traduttore'] ?? null,
-                        'illustratore' => $parsedData['illustratore'] ?? null,
-                        'curatore' => $parsedData['curatore'] ?? null,
-                    ],
-                    'csv'
-                );
+                // Contributor roles are entities too (#237). Replace only
+                // links owned by the CSV importer and only for columns that
+                // were actually present. This distinction matters for old
+                // exports: an absent column must preserve existing data, while
+                // an explicit empty cell clears this importer's stale links.
+                $contributorValues = [];
+                foreach ([
+                    'co-autore' => 'co_autori',
+                    'traduttore' => 'traduttore',
+                    'illustratore' => 'illustratore',
+                    'curatore' => 'curatore',
+                    'colorista' => 'colorista',
+                ] as $role => $field) {
+                    if (($parsedData[$field . '_provided'] ?? false) === true) {
+                        $contributorValues[$role] = $parsedData[$field] ?? null;
+                    }
+                }
+                if ($contributorValues !== []) {
+                    $importData['authors_created'] += \App\Support\ContributorSync::syncImportedLegacyValues(
+                        $db,
+                        $bookId,
+                        $contributorValues,
+                        'csv'
+                    );
+                }
 
                 $db->commit();
 
@@ -686,6 +697,7 @@ class CsvImportController
             'titolo',
             'sottotitolo',
             'autori',
+            'co_autori',
             'editore',
             'anno_pubblicazione',
             'lingua',
@@ -700,6 +712,8 @@ class CsvImportController
             'numero_serie',
             'traduttore',
             'illustratore',
+            'curatore',
+            'colorista',
             'parole_chiave',
             'classificazione_dewey'
         ];
@@ -713,6 +727,7 @@ class CsvImportController
                 'Il nome della rosa',
                 'Un romanzo storico',
                 'Umberto Eco',
+                '',
                 'Mondadori',
                 '1980',
                 'Italiano',
@@ -727,6 +742,8 @@ class CsvImportController
                 '1',
                 '',
                 '',
+                '',
+                '',
                 'medioevo, giallo, monastero',
                 '853'  // Dewey: Narrativa italiana
             ],
@@ -738,6 +755,7 @@ class CsvImportController
                 '1984',
                 '',
                 'George Orwell',
+                '',
                 'Einaudi',
                 '1949',
                 'Italiano',
@@ -752,6 +770,8 @@ class CsvImportController
                 '',
                 'Gabriele Baldini',
                 '',
+                '',
+                '',
                 'distopia, controllo, totalitarismo',
                 ''  // Dewey vuoto - verrà popolato dallo scraping se abilitato
             ],
@@ -763,6 +783,7 @@ class CsvImportController
                 'La Divina Commedia',
                 'Inferno, Purgatorio, Paradiso',
                 'Dante Alighieri',
+                '',
                 'Rizzoli',
                 '1321',
                 'Italiano',
@@ -774,6 +795,8 @@ class CsvImportController
                 '15.00',
                 '3',
                 'BUR Classici',
+                '',
+                '',
                 '',
                 '',
                 '',
@@ -923,9 +946,16 @@ class CsvImportController
             'copie_totali' => !empty($row['copie_totali']) ? (int)$row['copie_totali'] : 1,
             'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
             'numero_serie' => !empty($row['numero_serie']) ? trim($row['numero_serie']) : null,
+            'co_autori' => !empty($row['co_autori']) ? trim($row['co_autori']) : null,
+            'co_autori_provided' => array_key_exists('co_autori', $row),
             'traduttore' => !empty($row['traduttore']) ? trim($row['traduttore']) : null,
+            'traduttore_provided' => array_key_exists('traduttore', $row),
             'illustratore' => !empty($row['illustratore']) ? trim($row['illustratore']) : null,
+            'illustratore_provided' => array_key_exists('illustratore', $row),
             'curatore' => !empty($row['curatore']) ? trim($row['curatore']) : null,
+            'curatore_provided' => array_key_exists('curatore', $row),
+            'colorista' => !empty($row['colorista']) ? trim($row['colorista']) : null,
+            'colorista_provided' => array_key_exists('colorista', $row),
             'parole_chiave' => !empty($row['parole_chiave']) ? trim($row['parole_chiave']) : null,
             'classificazione_dewey' => !empty($row['classificazione_dewey']) ? trim($row['classificazione_dewey']) : null,
             'copertina_url' => !empty($row['copertina_url']) ? trim($row['copertina_url']) : null
@@ -1164,6 +1194,7 @@ class CsvImportController
             'secondary_author' => ['secondary author', 'secondary_author', 'other authors'],
             // Generic author field (removed primary/secondary to prevent overwrite)
             'autori' => ['autori', 'autore', 'author', 'authors', 'autor', 'auteur'],
+            'co_autori' => ['co_autori', 'co-autori', 'coautori', 'co-autore', 'co-authors', 'coauthors', 'co-author'],
             'editore' => ['editore', 'publisher', 'editorial', 'éditeur', 'verlag'],
             'anno_pubblicazione' => ['anno_pubblicazione', 'anno', 'year', 'date', 'publication year', 'año', 'année', 'jahr'],
             'lingua' => ['lingua', 'language', 'languages', 'idioma', 'langue', 'sprache'],
@@ -1180,6 +1211,7 @@ class CsvImportController
             'traduttore' => ['traduttore', 'translator', 'traductor', 'traducteur', 'übersetzer'],
             'illustratore' => ['illustratore', 'illustrator', 'ilustrador', 'illustrateur', 'zeichner'],
             'curatore' => ['curatore', 'editor', 'curator', 'edited by', 'herausgeber'],
+            'colorista' => ['colorista', 'colorist', 'colourist'],
             'parole_chiave' => ['parole_chiave', 'parole chiave', 'keywords', 'tags', 'palabras clave', 'mots-clés', 'schlagwörter', 'subjects'],
             'classificazione_dewey' => ['classificazione_dewey', 'dewey', 'dewey decimal', 'dewey classification', 'dewey wording', 'lc classification', 'call number', 'other call number']
         ];
