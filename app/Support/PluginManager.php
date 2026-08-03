@@ -969,6 +969,8 @@ class PluginManager
 
             SecureLogger::info("[PluginManager] Plugin installed successfully: {$pluginMeta['name']} (ID: $pluginId)");
 
+            self::clearPluginCache();
+
             return [
                 'success' => true,
                 'message' => 'Plugin installato con successo.',
@@ -1053,6 +1055,8 @@ class PluginManager
         // call in the same request sees the new state.
         self::clearIsActiveCache();
 
+        self::clearPluginCache();
+
         return ['success' => true, 'message' => __('Plugin attivato con successo.')];
     }
 
@@ -1099,6 +1103,8 @@ class PluginManager
         // Drop the per-process is_active cache so a follow-up isActive()
         // call in the same request sees the new state.
         self::clearIsActiveCache();
+
+        self::clearPluginCache();
 
         return ['success' => true, 'message' => __('Plugin disattivato con successo.')];
     }
@@ -1157,7 +1163,7 @@ class PluginManager
 
         // Drop the per-process is_active cache so a follow-up isActive()
         // call in the same request sees the row is gone.
-        self::clearIsActiveCache();
+        self::clearPluginCache();
 
         return ['success' => true, 'message' => __('Plugin disinstallato con successo.')];
     }
@@ -1589,22 +1595,51 @@ class PluginManager
      */
     public function loadActivePlugins(): void
     {
-        // Sync bundled plugin versions and register any new ones
-        $this->autoRegisterBundledPlugins();
+        // Bundled-plugin registration and orphan cleanup are maintenance
+        // operations: they scan the filesystem and issue several queries, yet
+        // their outcome only changes after an update or an admin plugin action.
+        // Run them at most once per interval (per app version) instead of on
+        // every request; plugin lifecycle methods clear the marker so admin
+        // actions re-trigger the sync immediately.
+        $maintenanceKey = 'plugins_maintenance_' . self::appVersionStamp();
+        if (QueryCache::get($maintenanceKey) === null) {
+            // Sync bundled plugin versions and register any new ones
+            $this->autoRegisterBundledPlugins();
 
-        // Clean up orphan plugins first
-        $this->cleanupOrphanPlugins();
+            // Clean up orphan plugins first
+            $this->cleanupOrphanPlugins();
 
-        // Get all active plugins
-        $activePlugins = $this->getActivePlugins();
+            QueryCache::set($maintenanceKey, 1, 900);
+        }
+
+        // Active plugins + their hook rows, cached across requests. One cache
+        // payload replaces 1 + N queries per request (plugin list + one hooks
+        // query per plugin).
+        $cached = QueryCache::get('plugins_active_with_hooks');
+        if (is_array($cached) && isset($cached['plugins'], $cached['hooks'])) {
+            $activePlugins = $cached['plugins'];
+            $hooksByPlugin = $cached['hooks'];
+        } else {
+            $activePlugins = $this->getActivePlugins();
+            $hooksByPlugin = $this->fetchHooksForPlugins(array_map(
+                static fn(array $p): int => (int) $p['id'],
+                $activePlugins
+            ));
+            QueryCache::set('plugins_active_with_hooks', [
+                'plugins' => $activePlugins,
+                'hooks' => $hooksByPlugin,
+            ], 300);
+        }
 
         if (empty($activePlugins)) {
+            // Prevent HookManager from loading hooks from database
+            $this->hookManager->setPluginsLoadedRuntime();
             return;
         }
 
         foreach ($activePlugins as $plugin) {
             try {
-                $this->loadPlugin($plugin);
+                $this->loadPlugin($plugin, $hooksByPlugin[(int) $plugin['id']] ?? null);
             } catch (\Throwable $e) {
                 SecureLogger::error("[PluginManager] Failed to load plugin '{$plugin['name']}'", ['error' => $e->getMessage()]);
                 // Continue loading other plugins even if one fails
@@ -1616,17 +1651,101 @@ class PluginManager
     }
 
     /**
+     * Invalidate the cross-request plugin caches. Must be called by every
+     * plugin lifecycle mutation (install/activate/deactivate/uninstall).
+     */
+    public static function clearPluginCache(): void
+    {
+        QueryCache::delete('plugins_active_with_hooks');
+        QueryCache::clearByPrefix('plugins_maintenance_');
+        self::$isActiveCache = [];
+    }
+
+    /**
+     * Version stamp used to scope the maintenance marker: a new release (new
+     * version.json) invalidates it so bundled plugins re-sync right away.
+     */
+    private static function appVersionStamp(): string
+    {
+        $versionFile = __DIR__ . '/../../version.json';
+        $mtime = @filemtime($versionFile);
+        return $mtime !== false ? (string) $mtime : '0';
+    }
+
+    /**
+     * Fetch hook rows for the given plugin ids in a single query.
+     *
+     * @param int[] $pluginIds
+     * @return array<int, array<int, array{hook_name:string, callback_method:string, priority:int}>>
+     */
+    private function fetchHooksForPlugins(array $pluginIds): array
+    {
+        if (empty($pluginIds)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($pluginIds), '?'));
+        $stmt = $this->db->prepare("
+            SELECT plugin_id, hook_name, callback_method, priority
+            FROM plugin_hooks
+            WHERE plugin_id IN ({$placeholders})
+            ORDER BY priority ASC
+        ");
+        if ($stmt === false) {
+            return [];
+        }
+        $stmt->bind_param(str_repeat('i', count($pluginIds)), ...$pluginIds);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $hooksByPlugin = [];
+        while ($row = $result->fetch_assoc()) {
+            $hooksByPlugin[(int) $row['plugin_id']][] = [
+                'hook_name' => (string) $row['hook_name'],
+                'callback_method' => (string) $row['callback_method'],
+                'priority' => (int) $row['priority'],
+            ];
+        }
+        $stmt->close();
+
+        return $hooksByPlugin;
+    }
+
+    /**
      * Load a single plugin and register its hooks
      *
      * @param array $plugin
+     * @param array<int, array{hook_name:string, callback_method:string, priority:int}>|null $hookRows
+     *        Prefetched hook rows; null falls back to a per-plugin query.
      * @return void
      */
-    private function loadPlugin(array $plugin): void
+    private function loadPlugin(array $plugin, ?array $hookRows = null): void
     {
         $instance = $this->instantiatePlugin($plugin);
 
         // Load and register hooks for this plugin
-        $this->registerPluginHooks((int) $plugin['id'], $instance);
+        if ($hookRows !== null) {
+            $this->registerPluginHookRows($instance, $hookRows);
+        } else {
+            $this->registerPluginHooks((int) $plugin['id'], $instance);
+        }
+    }
+
+    /**
+     * Register prefetched hook rows on a plugin instance.
+     *
+     * @param array<int, array{hook_name:string, callback_method:string, priority:int}> $hookRows
+     */
+    private function registerPluginHookRows(object $pluginInstance, array $hookRows): void
+    {
+        foreach ($hookRows as $row) {
+            $callbackMethod = $row['callback_method'];
+            if (method_exists($pluginInstance, $callbackMethod) || $this->hasMagicMethod($pluginInstance, $callbackMethod)) {
+                $this->hookManager->addHook($row['hook_name'], [$pluginInstance, $callbackMethod], $row['priority']);
+            } else {
+                SecureLogger::warning("[PluginManager] Method not found: {$callbackMethod} for hook {$row['hook_name']}");
+            }
+        }
     }
 
     private function instantiatePlugin(array $plugin): object

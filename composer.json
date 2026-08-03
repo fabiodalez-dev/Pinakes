@@ -25,7 +25,9 @@
   "config": {
     "platform": {
       "php": "8.2.0"
-    }
+    },
+    "optimize-autoloader": true,
+    "apcu-autoloader": true
   },
   "autoload": {
     "psr-4": {

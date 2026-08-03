@@ -28,6 +28,15 @@ final class SchemaInfo
     public static function hasTable(\mysqli $db, string $table): bool
     {
         if (!array_key_exists($table, self::$tableCache)) {
+            // Cross-request cache first: schema only changes on migrations
+            // (which call resetCache()), so a long TTL is safe and saves the
+            // INFORMATION_SCHEMA probe on every request.
+            $cached = QueryCache::get('schema_table_' . $table);
+            if (is_bool($cached)) {
+                self::$tableCache[$table] = $cached;
+                return $cached;
+            }
+
             // Exact match via INFORMATION_SCHEMA — `SHOW TABLES LIKE` would treat
             // `_` / `%` in the table name as wildcards and risk a false positive.
             $exists = false;
@@ -43,6 +52,13 @@ final class SchemaInfo
                 $stmt->close();
             }
             self::$tableCache[$table] = $exists;
+            // Only cache positive results across requests: nothing invalidates
+            // this key when a migration creates the table, and a stale `false`
+            // would hide the table for up to an hour after an update. A stale
+            // `true` cannot happen (tables are never dropped at runtime).
+            if ($exists) {
+                QueryCache::set('schema_table_' . $table, $exists, 3600);
+            }
         }
 
         return self::$tableCache[$table];
@@ -60,6 +76,7 @@ final class SchemaInfo
     public static function resetCache(): void
     {
         self::$tableCache = [];
+        QueryCache::clearByPrefix('schema_table_');
     }
 
     private function __construct()

@@ -5,8 +5,17 @@ namespace App\Support;
 
 final class ConfigStore
 {
+    /**
+     * Cross-request cache key for the raw system_settings rows (APCu/file via
+     * QueryCache). Values are cached exactly as stored in the DB — the SMTP
+     * password stays encrypted at rest and is only decrypted per request.
+     */
+    private const SETTINGS_CACHE_KEY = 'config_settings_raw';
+    private const SETTINGS_CACHE_TTL = 60;
+
     private static ?array $runtimeCache = null;
     private static ?array $dbSettingsCache = null;
+    private static ?\mysqli $sharedConnection = null;
 
     public static function all(): array
     {
@@ -159,33 +168,14 @@ final class ConfigStore
         $category = $keys[0];
         $key = implode('.', array_slice($keys, 1)); // Join remaining segments
 
-        // Save to database ONLY (no more JSON file)
-        $settingsPath = __DIR__ . '/../../config/settings.php';
-        if (!is_file($settingsPath)) {
-            return; // No database config available
-        }
-
-        $config = require $settingsPath;
-        $dbCfg = $config['db'] ?? null;
-        if (!is_array($dbCfg)) {
-            return;
-        }
-
-        $host = $dbCfg['hostname'] ?? 'localhost';
-        $user = $dbCfg['username'] ?? '';
-        $pass = $dbCfg['password'] ?? '';
-        $name = $dbCfg['database'] ?? '';
-        $port = (int) ($dbCfg['port'] ?? 3306);
-        $charset = $dbCfg['charset'] ?? 'utf8mb4';
-        $socket = $dbCfg['socket'] ?? null;
-
-        if ($name === '' || $user === '') {
-            return;
-        }
-
         try {
-            $mysqli = new \mysqli($host, $user, $pass, $name, $port, $socket);
-            $mysqli->set_charset($charset);
+            // Reuse the per-request shared connection: admin saves call set()
+            // many times in a row and used to open a fresh MySQL connection for
+            // every single key.
+            $mysqli = self::getConnection();
+            if ($mysqli === null) {
+                return;
+            }
 
             // Map ConfigStore paths to database schema
             $dbCategory = $category;
@@ -223,16 +213,62 @@ final class ConfigStore
             $stmt->bind_param('ssss', $dbCategory, $dbKey, $valueStr, $valueStr);
             $stmt->execute();
             $stmt->close();
-            $mysqli->close();
         } catch (\Throwable $e) {
             // Silently ignore DB issues
         }
+
+        // Invalidate the cross-request settings cache so the new value is
+        // visible to the next request immediately.
+        QueryCache::delete(self::SETTINGS_CACHE_KEY);
     }
 
     public static function clearCache(): void
     {
         self::$runtimeCache = null;
         self::$dbSettingsCache = null;
+        QueryCache::delete(self::SETTINGS_CACHE_KEY);
+    }
+
+    /**
+     * Lazily open (once per request) the standalone connection used by
+     * ConfigStore. Bootstrap code reads settings before the DI container is
+     * built, so ConfigStore cannot rely on the container's 'db' service.
+     */
+    private static function getConnection(): ?\mysqli
+    {
+        if (self::$sharedConnection instanceof \mysqli) {
+            return self::$sharedConnection;
+        }
+
+        $settingsPath = __DIR__ . '/../../config/settings.php';
+        if (!is_file($settingsPath)) {
+            return null;
+        }
+
+        $config = require $settingsPath;
+        $dbCfg = $config['db'] ?? null;
+        if (!is_array($dbCfg)) {
+            return null;
+        }
+
+        $host = $dbCfg['hostname'] ?? 'localhost';
+        $user = $dbCfg['username'] ?? '';
+        $pass = $dbCfg['password'] ?? '';
+        $name = $dbCfg['database'] ?? '';
+        $port = (int) ($dbCfg['port'] ?? 3306);
+        $charset = $dbCfg['charset'] ?? 'utf8mb4';
+        $socket = $dbCfg['socket'] ?? null;
+
+        if ($name === '' || $user === '') {
+            return null;
+        }
+
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        $mysqli = new \mysqli($host, $user, $pass, $name, $port, $socket);
+        $mysqli->set_charset($charset);
+        self::$sharedConnection = $mysqli;
+
+        return self::$sharedConnection;
     }
 
     /**
@@ -341,59 +377,8 @@ final class ConfigStore
 
         self::$dbSettingsCache = [];
 
-        $settingsPath = __DIR__ . '/../../config/settings.php';
-        if (!is_file($settingsPath)) {
-            return self::$dbSettingsCache;
-        }
-
-        $config = require $settingsPath;
-        $dbCfg = $config['db'] ?? null;
-        if (!is_array($dbCfg)) {
-            return self::$dbSettingsCache;
-        }
-
-        $host = $dbCfg['hostname'] ?? 'localhost';
-        $user = $dbCfg['username'] ?? '';
-        $pass = $dbCfg['password'] ?? '';
-        $name = $dbCfg['database'] ?? '';
-        $port = (int) ($dbCfg['port'] ?? 3306);
-        $charset = $dbCfg['charset'] ?? 'utf8mb4';
-        $socket = $dbCfg['socket'] ?? null;
-
-        if ($name === '' || $user === '') {
-            return self::$dbSettingsCache;
-        }
-
-        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-
         try {
-            $mysqli = new \mysqli($host, $user, $pass, $name, $port, $socket);
-            $mysqli->set_charset($charset);
-
-            // Ensure table exists
-            $tables = $mysqli->query("SHOW TABLES LIKE 'system_settings'");
-            if (!$tables || $tables->num_rows === 0) {
-                if ($tables instanceof \mysqli_result) {
-                    $tables->free();
-                }
-                $mysqli->close();
-                return self::$dbSettingsCache;
-            }
-            $tables->free();
-
-            $result = $mysqli->query("SELECT category, setting_key, setting_value FROM system_settings");
-            $raw = [];
-            while ($row = $result->fetch_assoc()) {
-                $category = (string) $row['category'];
-                $key = (string) $row['setting_key'];
-                $value = $row['setting_value'];
-                if (!isset($raw[$category])) {
-                    $raw[$category] = [];
-                }
-                $raw[$category][$key] = $value;
-            }
-            $result->free();
-            $mysqli->close();
+            $raw = self::loadRawSettings();
 
             // Map to ConfigStore structure
             if (!empty($raw['app'])) {
@@ -619,5 +604,45 @@ final class ConfigStore
         }
 
         return self::$dbSettingsCache;
+    }
+
+    /**
+     * Fetch the raw system_settings rows, going to the database only on cache
+     * miss. The short TTL (60s) is a safety net: every write path (set(),
+     * clearCache(), SettingsRepository::set()) invalidates the key explicitly,
+     * so admin changes are visible immediately while ordinary requests skip
+     * both the extra MySQL connection and the full-table read entirely.
+     *
+     * @return array<string, array<string, string|null>>
+     */
+    private static function loadRawSettings(): array
+    {
+        $cached = QueryCache::get(self::SETTINGS_CACHE_KEY);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $mysqli = self::getConnection();
+        if ($mysqli === null) {
+            return [];
+        }
+
+        // No SHOW TABLES pre-check: if the table is missing (mid-install) the
+        // query throws and the caller's try/catch falls back to defaults.
+        $result = $mysqli->query("SELECT category, setting_key, setting_value FROM system_settings");
+        $raw = [];
+        while ($row = $result->fetch_assoc()) {
+            $category = (string) $row['category'];
+            $key = (string) $row['setting_key'];
+            if (!isset($raw[$category])) {
+                $raw[$category] = [];
+            }
+            $raw[$category][$key] = $row['setting_value'];
+        }
+        $result->free();
+
+        QueryCache::set(self::SETTINGS_CACHE_KEY, $raw, self::SETTINGS_CACHE_TTL);
+
+        return $raw;
     }
 }

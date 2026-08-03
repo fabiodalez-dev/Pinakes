@@ -461,6 +461,8 @@ CREATE TABLE `libri` (
   KEY `idx_lt_work_id` (`work_id`),
   KEY `idx_lt_issn` (`issn`),
   KEY `idx_libri_updated_at` (`updated_at`),
+  KEY `idx_libri_deleted_created` (`deleted_at`,`created_at`),
+  KEY `idx_libri_genere_deleted_created` (`genere_id`,`deleted_at`,`created_at`),
   FULLTEXT KEY `ft_libri_search` (`titolo`,`sottotitolo`,`descrizione`,`parole_chiave`),
   FULLTEXT KEY `ft_libri_search_index` (`search_index`),
   CONSTRAINT `fk_libri_mensola` FOREIGN KEY (`mensola_id`) REFERENCES `mensole` (`id`) ON DELETE SET NULL,

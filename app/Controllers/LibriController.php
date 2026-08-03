@@ -1247,6 +1247,9 @@ class LibriController
             // all persisted and readable.
             \App\Support\SearchIndexBuilder::rebuild($db, (int) $id);
 
+            // Invalidate cached public pages (home dataset, catalog counts/facets)
+            \App\Support\ContentCache::booksChanged();
+
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiunto con successo!');
 
@@ -1960,6 +1963,8 @@ class LibriController
             \App\Support\SearchIndexBuilder::rebuild($db, (int) $id);
 
             // Set a success message in the session
+            \App\Support\ContentCache::booksChanged();
+
             $_SESSION['success_message'] = __('Libro aggiornato con successo!');
 
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
@@ -2430,6 +2435,7 @@ class LibriController
             $_SESSION['error_message'] = __('Errore durante l\'eliminazione del libro. Riprova.');
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
         }
+        \App\Support\ContentCache::booksChanged();
         return $response->withHeader('Location', url('/admin/books'))->withStatus(302);
     }
 

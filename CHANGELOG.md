@@ -2,6 +2,25 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## What's New in v0.7.53
+
+A performance release: the whole application answers faster, with a dramatically lighter database footprint per request.
+
+### Improvements
+- **Time-to-first-byte cut across every page** — the per-request bootstrap no longer opens a second MySQL connection for settings, re-scans bundled plugins, re-reads plugin hooks one query per plugin, or re-fetches the active theme and language list on every hit. All of it is served from a short-lived cache (APCu when available, files otherwise) that every admin write invalidates immediately. A warm home-page request dropped from ~90 database queries to under 20.
+- **The home page renders instantly** — the hero counters and the "latest books" grid are now rendered server-side from a cached dataset instead of arriving via JavaScript after two extra API round-trips, so the page is complete on first paint with no spinners. The hero background image is preloaded with high priority (it is the page's LCP element).
+- **Catalogue search and filters are much faster** — the total-count scan, the availability aggregate and the six sidebar-facet aggregations are cached per filter set for two minutes; book, loan and CMS changes clear them instantly.
+- **Two plugins no longer rewrite their hook rows on every request** — Digital Library and GoodLib re-registered their hooks (nine `INSERT`s) on every single page view; they now self-heal only when the rows are actually missing.
+
+### Database Changes
+- New composite indexes `idx_libri_deleted_created` and `idx_libri_genere_deleted_created` on `libri` — the "newest first" sorts used by the home page and the catalogue no longer filesort the whole table (migration `migrate_0.7.53.sql`, applied automatically by the updater).
+
+### Upgrade Notes
+- Back up your database before updating (the in-app updater does this automatically).
+- If your host offers APCu, enabling it gives the new caches their fastest backend; without it they transparently use `storage/cache` files.
+
+---
+
 ## What's New in v0.7.52
 
 A mobile alignment fix for the book page.

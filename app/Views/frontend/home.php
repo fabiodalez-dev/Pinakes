@@ -10,6 +10,22 @@ $registerRoute = route_path('register');
 $homeEvents = $homeEvents ?? [];
 $homeEventsEnabled = $homeEventsEnabled ?? false;
 
+// Preload the hero background: it's the LCP element of the home page and,
+// being a CSS background, the browser only discovers it after CSS parsing.
+// Only when the hero section is actually active.
+if (isset($homeContent['hero'])) {
+    $heroPreloadImage = ($homeContent['hero']['background_image'] ?? '') !== ''
+        ? url($homeContent['hero']['background_image'])
+        : assetUrl('books.jpg');
+    $headLinks = $headLinks ?? [];
+    $headLinks[] = [
+        'rel' => 'preload',
+        'as' => 'image',
+        'href' => $heroPreloadImage,
+        'fetchpriority' => 'high',
+    ];
+}
+
 // SEO Variables are now passed from FrontendController::home()
 // No need to override them here - the controller handles all SEO logic with proper fallbacks
 $additional_css = "
@@ -967,7 +983,16 @@ const API_CATALOG_ROUTE = {$apiCatalogRouteJs};
 // Load initial content
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
-    loadLatestBooks();
+    // Latest books are server-rendered when the controller prefetched them;
+    // fetch only as a fallback (e.g. cache write failure) and just wire up
+    // the pagination state otherwise.
+    const latestGrid = document.getElementById('latest-books-grid');
+    if (latestGrid && latestGrid.dataset.serverRendered === '1') {
+        currentLatestPage = 1;
+        hasMoreLatestBooks = latestGrid.dataset.hasMore === '1';
+    } else {
+        loadLatestBooks();
+    }
     initCarousels();
     initLoadMoreButton();
 });
@@ -978,6 +1003,9 @@ function loadStats() {
 
     // Only load stats if elements exist
     if (!totalBooksEl || !availableBooksEl) return;
+
+    // Values already rendered server-side: skip the aggregate API call.
+    if (totalBooksEl.dataset.serverRendered === '1' && availableBooksEl.dataset.serverRendered === '1') return;
 
     // Ask the catalog API for the available-books aggregate. The endpoint only
     // computes that extra COUNT when with_stats=1 is present, so the live

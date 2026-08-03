@@ -394,6 +394,12 @@ class DataIntegrity {
                 $this->db->commit();
             }
 
+            // Availability feeds the cached catalog facets / home dataset:
+            // invalidate them so badges and counters stay accurate.
+            if ($result) {
+                ContentCache::booksChanged();
+            }
+
             return $result;
         } catch (\Throwable $e) {
             error_log("[DataIntegrity] recalculateBookAvailability({$bookId}) error: " . $e->getMessage());

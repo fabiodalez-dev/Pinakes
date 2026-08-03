@@ -255,7 +255,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         foreach ($headLinks as $hl) {
             if (!is_array($hl)) { continue; }
             $out = '<link';
-            foreach (['rel', 'type', 'title', 'href'] as $attr) {
+            foreach (['rel', 'type', 'title', 'href', 'as', 'fetchpriority', 'crossorigin'] as $attr) {
                 if (!empty($hl[$attr])) {
                     $val = (string) $hl[$attr];
                     if ($attr === 'href') {

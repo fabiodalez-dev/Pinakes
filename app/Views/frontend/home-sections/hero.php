@@ -54,20 +54,35 @@ $heroBgUrl = $heroBgImage !== '' ? url($heroBgImage) : assetUrl('books.jpg');
                     </a>
                 </div>
             </div>
+            <?php
+            // Counters are precomputed (and cached) server-side by
+            // FrontendController::home(); render the real numbers immediately.
+            // The client-side loadStats() fetch only runs as a fallback when
+            // the values are missing (data-server-rendered absent).
+            $heroStatsServerRendered = isset($heroTotalBooks, $heroAvailableBooks);
+            ?>
             <div class="hero-stats">
                 <div class="hero-stat">
-                    <span class="hero-stat-number" id="total-books">
+                    <span class="hero-stat-number" id="total-books"<?= $heroStatsServerRendered ? ' data-server-rendered="1"' : '' ?>>
+                        <?php if ($heroStatsServerRendered): ?>
+                            <?= (int) $heroTotalBooks ?>
+                        <?php else: ?>
                         <div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" role="status" style="width: 2rem; height: 2rem;">
                             <span class="sr-only"><?= __("Caricamento...") ?></span>
                         </div>
+                        <?php endif; ?>
                     </span>
                     <span class="hero-stat-label"><?= __("Libri Totali") ?></span>
                 </div>
                 <div class="hero-stat">
-                    <span class="hero-stat-number" id="available-books">
+                    <span class="hero-stat-number" id="available-books"<?= $heroStatsServerRendered ? ' data-server-rendered="1"' : '' ?>>
+                        <?php if ($heroStatsServerRendered): ?>
+                            <?= (int) $heroAvailableBooks ?>
+                        <?php else: ?>
                         <div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" role="status" style="width: 2rem; height: 2rem;">
                             <span class="sr-only"><?= __("Caricamento...") ?></span>
                         </div>
+                        <?php endif; ?>
                     </span>
                     <span class="hero-stat-label"><?= __("Disponibili") ?></span>
                 </div>

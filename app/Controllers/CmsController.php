@@ -557,6 +557,8 @@ class CmsController
         if (!empty($errors)) {
             $_SESSION['error_message'] = implode('<br>', array_map(fn($e) => htmlspecialchars($e, ENT_QUOTES, 'UTF-8'), $errors));
         } else {
+            \App\Support\ContentCache::homeContentChanged();
+
             $_SESSION['success_message'] = __('Contenuti homepage aggiornati con successo!');
         }
 

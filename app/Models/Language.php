@@ -241,6 +241,7 @@ class Language
      */
     public function create(array $data): int
     {
+        \App\Support\QueryCache::delete('i18n_languages');
         // Validate required fields
         if (empty($data['code']) || empty($data['name']) || empty($data['native_name'])) {
             throw new \Exception("Required fields missing: code, name, native_name");
@@ -311,6 +312,7 @@ class Language
      */
     public function update(string $code, array $data): bool
     {
+        \App\Support\QueryCache::delete('i18n_languages');
         $code = $this->normalizeAndAssert($code);
 
         // Check if language exists
@@ -376,6 +378,7 @@ class Language
      */
     public function delete(string $code): bool
     {
+        \App\Support\QueryCache::delete('i18n_languages');
         $code = $this->normalizeAndAssert($code);
 
         $language = $this->getByCode($code);
@@ -417,6 +420,7 @@ class Language
      */
     public function setDefault(string $code): bool
     {
+        \App\Support\QueryCache::delete('i18n_languages');
         $code = $this->normalizeAndAssert($code);
 
         // Check if language exists
@@ -454,6 +458,7 @@ class Language
      */
     public function toggleActive(string $code): bool
     {
+        \App\Support\QueryCache::delete('i18n_languages');
         $code = $this->normalizeAndAssert($code);
 
         $language = $this->getByCode($code);

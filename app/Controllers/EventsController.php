@@ -82,8 +82,12 @@ class EventsController
         $repository->set('cms', 'events_page_enabled', $enabled);
 
         if ($enabled === '1') {
+            \App\Support\ContentCache::homeContentChanged();
+
             $_SESSION['success_message'] = __('Sezione Eventi abilitata! Il menu e le pagine sono ora visibili nel frontend.');
         } else {
+            \App\Support\ContentCache::homeContentChanged();
+
             $_SESSION['success_message'] = __('Sezione Eventi disabilitata. Il menu e le pagine sono ora nascosti nel frontend.');
         }
 
@@ -251,6 +255,8 @@ class EventsController
         );
 
         if ($stmt->execute()) {
+            \App\Support\ContentCache::homeContentChanged();
+
             $_SESSION['success_message'] = __('Evento creato con successo!');
         } else {
             $_SESSION['error_message'] = __('Errore durante la creazione dell\'evento.');
@@ -453,6 +459,8 @@ class EventsController
         }
 
         if ($stmt->execute()) {
+            \App\Support\ContentCache::homeContentChanged();
+
             $_SESSION['success_message'] = __('Evento aggiornato con successo!');
             // Cleanup orphan file on disk now that the DB row no longer
             // references it. Skipped when the old path matches the new
@@ -565,6 +573,8 @@ class EventsController
         $stmt->bind_param('i', $id);
 
         if ($stmt->execute()) {
+            \App\Support\ContentCache::homeContentChanged();
+
             $_SESSION['success_message'] = __('Evento eliminato con successo!');
             // Row is gone — unlink the now-orphaned image. Uses the
             // same path-traversal-safe helper as update().

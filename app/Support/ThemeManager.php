@@ -32,8 +32,24 @@ class ThemeManager
      *
      * @return array|null Theme data or null if no active theme
      */
+    /** Per-process memo of the active theme (row or null). */
+    private static array $activeThemeMemo = [];
+
     public function getActiveTheme(): ?array
     {
+        // The active theme is needed by every public page render; memoize it
+        // per request and cache it across requests (invalidated by every
+        // theme mutation below).
+        if (array_key_exists('theme', self::$activeThemeMemo)) {
+            return self::$activeThemeMemo['theme'];
+        }
+
+        $cached = QueryCache::get('active_theme_row');
+        if (is_array($cached) && array_key_exists('theme', $cached)) {
+            self::$activeThemeMemo['theme'] = $cached['theme'];
+            return $cached['theme'];
+        }
+
         $stmt = $this->db->prepare("SELECT * FROM themes WHERE active = 1 LIMIT 1");
         if (!$stmt) {
             error_log("ThemeManager: Failed to prepare statement - " . $this->db->error);
@@ -45,7 +61,20 @@ class ThemeManager
         $theme = $result->fetch_assoc();
         $stmt->close();
 
-        return $theme ?: null;
+        $theme = $theme ?: null;
+        self::$activeThemeMemo['theme'] = $theme;
+        QueryCache::set('active_theme_row', ['theme' => $theme], 300);
+
+        return $theme;
+    }
+
+    /**
+     * Invalidate the active-theme caches; called by every theme mutation.
+     */
+    public static function clearThemeCache(): void
+    {
+        self::$activeThemeMemo = [];
+        QueryCache::delete('active_theme_row');
     }
 
     /**
@@ -121,6 +150,7 @@ class ThemeManager
             }
 
             $this->db->commit();
+            self::clearThemeCache();
             return true;
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -187,6 +217,8 @@ class ThemeManager
 
         if (!$success) {
             error_log("ThemeManager: Failed to update theme colors - " . $this->db->error);
+        } else {
+            self::clearThemeCache();
         }
 
         return $success;
@@ -236,6 +268,10 @@ class ThemeManager
         $success = $stmt->execute();
         $stmt->close();
 
+        if ($success) {
+            self::clearThemeCache();
+        }
+
         return $success;
     }
 
@@ -279,6 +315,10 @@ class ThemeManager
         $stmt->bind_param('si', $settingsJson, $themeId);
         $success = $stmt->execute();
         $stmt->close();
+
+        if ($success) {
+            self::clearThemeCache();
+        }
 
         return $success;
     }

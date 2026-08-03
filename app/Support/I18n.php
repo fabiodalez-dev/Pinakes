@@ -120,22 +120,30 @@ final class I18n
         }
 
         try {
-            // Query active languages from database
-            $result = $db->query("
-                SELECT code, native_name, is_default
-                FROM languages
-                WHERE is_active = 1
-                ORDER BY is_default DESC, code ASC
-            ");
+            // Active languages barely ever change: serve them from the
+            // cross-request cache (invalidated by the languages admin) and hit
+            // the DB only on miss.
+            $rows = QueryCache::get('i18n_languages');
+            if (!is_array($rows)) {
+                $result = $db->query("
+                    SELECT code, native_name, is_default
+                    FROM languages
+                    WHERE is_active = 1
+                    ORDER BY is_default DESC, code ASC
+                ");
 
-            if (!$result) {
-                return false; // Query failed, use fallback
+                if (!$result) {
+                    return false; // Query failed, use fallback
+                }
+
+                $rows = $result->fetch_all(MYSQLI_ASSOC);
+                QueryCache::set('i18n_languages', $rows, 300);
             }
 
             $languages = [];
             $defaultLocale = null;
 
-            while ($row = $result->fetch_assoc()) {
+            foreach ($rows as $row) {
                 $code = self::normalizeLocaleCode((string)$row['code']);
 
                 if (!self::isValidLocaleCode($code)) {

@@ -26,207 +26,27 @@ class FrontendController
     {
         // Use provided container or fallback to instance container
         $container = $container ?? $this->container;
-        // Carica i contenuti CMS della home (inclusi campi SEO completi)
-        $homeContent = [];
-        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image,
-                              seo_title, seo_description, seo_keywords, og_image,
-                              og_title, og_description, og_type, og_url,
-                              twitter_card, twitter_title, twitter_description, twitter_image,
-                              is_active
-                       FROM home_content
-                       WHERE is_active = 1
-                       ORDER BY display_order ASC";
-        $stmt_home = $db->prepare($query_home);
-        $stmt_home->execute();
-        $result_home = $stmt_home->get_result();
 
-        if ($result_home) {
-            while ($row = $result_home->fetch_assoc()) {
-                $homeContent[$row['section_key']] = $row;
-            }
-        }
-        $stmt_home->close();
+        // The whole home dataset (CMS sections, latest books, genre carousels,
+        // events, hero counters) is identical for every visitor. Build it once
+        // and cache it across requests; content mutations (books, CMS home,
+        // events) clear the 'home_page' prefix, the TTL covers loan-driven
+        // availability drift.
+        $homeData = \App\Support\QueryCache::remember('home_page_data_v1', function () use ($db) {
+            return $this->buildHomePageData($db);
+        }, 300);
 
-        // Create ordered sections array for dynamic rendering
-        // This array maintains the display_order and includes all section data
-        $sectionsOrdered = [];
-        $query_sections_ordered = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image,
-                                          is_active, display_order
-                                   FROM home_content
-                                   ORDER BY display_order ASC, section_key ASC";
-        $stmt_ordered = $db->prepare($query_sections_ordered);
-        $stmt_ordered->execute();
-        $result_ordered = $stmt_ordered->get_result();
-        if ($result_ordered) {
-            while ($row = $result_ordered->fetch_assoc()) {
-                $sectionsOrdered[$row['section_key']] = $row;
-            }
-        }
-        $stmt_ordered->close();
+        $homeContent = $homeData['homeContent'];
+        $sectionsOrdered = $homeData['sectionsOrdered'];
+        $latest_books = $homeData['latest_books'];
+        $latestBooksTotal = $homeData['latestBooksTotal'];
+        $genres_with_books = $homeData['genres_with_books'];
+        $genreCarouselEnabled = $homeData['genreCarouselEnabled'];
+        $homeEvents = $homeData['homeEvents'];
+        $heroTotalBooks = $homeData['totalBooks'];
+        $heroAvailableBooks = $homeData['availableBooks'];
 
-        // Determine sort order for latest books section
-        $latestBooksSort = $this->getLatestBooksSort($db);
-
-        // Query per gli ultimi 10 libri inseriti
-        $query_slider = "
-            SELECT l.*,
-                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome,
-                   g.nome AS genere
-            FROM libri l
-            LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE l.deleted_at IS NULL
-            ORDER BY l.{$latestBooksSort} DESC
-            LIMIT 10
-        ";
-        $stmt_slider = $db->prepare($query_slider);
-        $stmt_slider->execute();
-        $result_slider = $stmt_slider->get_result();
-        $latest_books = [];
-
-        if ($result_slider) {
-            while ($book = $result_slider->fetch_assoc()) {
-                $latest_books[] = $book;
-            }
-        }
-        $stmt_slider->close();
-
-        // Costruisci i caroselli partendo dai generi radice (parent_id NULL)
-        $genres_with_books = [];
-        $allGenres = [];
-        $childrenByParent = [];
-
-        $stmt_genres = $db->prepare("SELECT id, nome, parent_id FROM generi");
-        $stmt_genres->execute();
-        $resultAllGenres = $stmt_genres->get_result();
-        if ($resultAllGenres) {
-            while ($genreRow = $resultAllGenres->fetch_assoc()) {
-                $genreRow['id'] = (int)$genreRow['id'];
-                $genreRow['parent_id'] = $genreRow['parent_id'] !== null ? (int)$genreRow['parent_id'] : null;
-                $allGenres[$genreRow['id']] = $genreRow;
-
-                if ($genreRow['parent_id'] !== null) {
-                    $parentId = $genreRow['parent_id'];
-                    if (!isset($childrenByParent[$parentId])) {
-                        $childrenByParent[$parentId] = [];
-                    }
-                    $childrenByParent[$parentId][] = $genreRow['id'];
-                }
-            }
-        }
-        $stmt_genres->close();
-
-        if (!empty($allGenres)) {
-            $rootGenres = array_filter($allGenres, static function ($genre) {
-                return $genre['parent_id'] === null;
-            });
-
-            usort($rootGenres, static function ($a, $b) {
-                return strcmp($a['nome'], $b['nome']);
-            });
-
-            foreach ($rootGenres as $rootGenre) {
-                $genreIds = $this->collectGenreTreeIds($childrenByParent, (int)$rootGenre['id']);
-
-                if (empty($genreIds)) {
-                    continue;
-                }
-
-                // Use proper prepared statements with dynamic placeholders
-                $uniqueGenreIds = array_unique(array_map('intval', $genreIds));
-                $inClause = '(' . implode(',', array_fill(0, count($uniqueGenreIds), '?')) . ')';
-                $query_genre_books = "
-                    SELECT l.*,
-                           (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
-                           (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
-                    FROM libri l
-                    WHERE l.genere_id IN " . $inClause . " AND l.deleted_at IS NULL
-                    ORDER BY l.created_at DESC
-                    LIMIT 12
-                ";
-                $stmt_genre_books = $db->prepare($query_genre_books);
-                if ($stmt_genre_books === false) {
-                    \App\Support\SecureLogger::error('Failed to prepare genre books query', ['db_error' => $db->error]);
-                    continue;
-                }
-                $types = str_repeat('i', count($uniqueGenreIds));
-                $stmt_genre_books->bind_param($types, ...$uniqueGenreIds);
-                $stmt_genre_books->execute();
-                $result_genre_books = $stmt_genre_books->get_result();
-
-                if ($result_genre_books && $result_genre_books->num_rows > 0) {
-                    $genre_books = [];
-                    while ($book = $result_genre_books->fetch_assoc()) {
-                        $genre_books[] = $book;
-                    }
-
-                    $genres_with_books[] = [
-                        'genre' => $rootGenre,
-                        'books' => $genre_books
-                    ];
-                }
-                $stmt_genre_books->close();
-            }
-        }
-
-        $genreCarouselEnabled = $this->isHomeSectionEnabled($db, 'genre_carousel');
-
-        // Home events preview (respect CMS visibility)
-        $homeEvents = [];
-        $homeEventsEnabled = false;
-        $eventsFeatureEnabled = false;
-
-        try {
-            $settingsRepository = new \App\Models\SettingsRepository($db);
-            $eventsFeatureEnabled = $settingsRepository->get('cms', 'events_page_enabled', '0') === '1';
-        } catch (\Throwable $e) {
-            $eventsFeatureEnabled = false;
-        }
-
-        if ($eventsFeatureEnabled) {
-            $eventsQuery = "
-                SELECT id, title, slug, event_date, event_time, featured_image
-                FROM events
-                WHERE is_active = 1 AND event_date >= CURDATE()
-                ORDER BY event_date ASC, event_time ASC, created_at DESC
-                LIMIT 3
-            ";
-            $stmt_events = $db->prepare($eventsQuery);
-            $stmt_events->execute();
-            $resultEvents = $stmt_events->get_result();
-            if ($resultEvents) {
-                while ($eventRow = $resultEvents->fetch_assoc()) {
-                    $homeEvents[] = $eventRow;
-                }
-            }
-            $stmt_events->close();
-
-            // Fallback: if no upcoming events, show latest active events
-            if (empty($homeEvents)) {
-                $fallbackQuery = "
-                    SELECT id, title, slug, event_date, event_time, featured_image
-                    FROM events
-                    WHERE is_active = 1
-                    ORDER BY event_date DESC, created_at DESC
-                    LIMIT 3
-                ";
-                $stmt_fallback = $db->prepare($fallbackQuery);
-                $stmt_fallback->execute();
-                $fallbackResult = $stmt_fallback->get_result();
-                if ($fallbackResult) {
-                    while ($eventRow = $fallbackResult->fetch_assoc()) {
-                        $homeEvents[] = $eventRow;
-                    }
-                }
-                $stmt_fallback->close();
-            }
-        }
-
-        $homeEventsEnabled = $eventsFeatureEnabled && !empty($homeEvents);
+        $homeEventsEnabled = $homeData['eventsFeatureEnabled'] && !empty($homeEvents);
 
         // Build dynamic SEO data from settings and CMS
         $hero = $homeContent['hero'] ?? [];
@@ -432,16 +252,21 @@ class FrontendController
             $base_query .= " AND " . implode(' AND ', $where_conditions['conditions']);
         }
 
-        // Query per il conteggio totale
+        // Cached total: the COUNT(DISTINCT) scan is identical for every page of
+        // the same filter set. Short TTL; book mutations clear the 'catalog_'
+        // prefix so admin edits show up immediately.
+        $catalogCacheSuffix = md5(serialize($this->normalizeFiltersForCache($filters)));
         $count_query = "SELECT COUNT(DISTINCT l.id) as total " . $base_query;
-        $stmt_count = $db->prepare($count_query);
-        if (!empty($query_params)) {
-            $stmt_count->bind_param($param_types, ...$query_params);
-        }
-        $stmt_count->execute();
-        $total_result = $stmt_count->get_result();
-        $total_row = $total_result->fetch_assoc();
-        $total_books = $total_row['total'] ?? 0;
+        $total_books = \App\Support\QueryCache::remember('catalog_count_' . $catalogCacheSuffix, function () use ($db, $count_query, $param_types, $query_params) {
+            $stmt_count = $db->prepare($count_query);
+            if (!empty($query_params)) {
+                $stmt_count->bind_param($param_types, ...$query_params);
+            }
+            $stmt_count->execute();
+            $total_row = $stmt_count->get_result()->fetch_assoc();
+            $stmt_count->close();
+            return (int) ($total_row['total'] ?? 0);
+        }, 120);
         $total_pages = ceil($total_books / $limit);
 
         // Query per i libri. Expose the principal author's surname as an
@@ -527,16 +352,21 @@ class FrontendController
             $base_query .= " AND " . implode(' AND ', $where_conditions['conditions']);
         }
 
-        // Query per il conteggio totale
+        // Cached total: the COUNT(DISTINCT) scan is identical for every page of
+        // the same filter set. Short TTL; book mutations clear the 'catalog_'
+        // prefix so admin edits show up immediately.
+        $catalogCacheSuffix = md5(serialize($this->normalizeFiltersForCache($filters)));
         $count_query = "SELECT COUNT(DISTINCT l.id) as total " . $base_query;
-        $stmt_count = $db->prepare($count_query);
-        if (!empty($query_params)) {
-            $stmt_count->bind_param($param_types, ...$query_params);
-        }
-        $stmt_count->execute();
-        $total_result = $stmt_count->get_result();
-        $total_row = $total_result->fetch_assoc();
-        $total_books = $total_row['total'] ?? 0;
+        $total_books = \App\Support\QueryCache::remember('catalog_count_' . $catalogCacheSuffix, function () use ($db, $count_query, $param_types, $query_params) {
+            $stmt_count = $db->prepare($count_query);
+            if (!empty($query_params)) {
+                $stmt_count->bind_param($param_types, ...$query_params);
+            }
+            $stmt_count->execute();
+            $total_row = $stmt_count->get_result()->fetch_assoc();
+            $stmt_count->close();
+            return (int) ($total_row['total'] ?? 0);
+        }, 120);
         $total_pages = ceil($total_books / $limit);
 
         // Query per i libri. Expose the principal author's surname as an
@@ -599,10 +429,13 @@ class FrontendController
         // the failure is logged instead of silently masked.
         $available_books = null;
         if (($params['with_stats'] ?? '') === '1') {
-            $available_stmt = $db->prepare("SELECT COUNT(DISTINCT l.id) as total " . $base_query . " AND l.copie_disponibili > 0");
-            if ($available_stmt === false) {
-                \App\Support\SecureLogger::error('Available-books count prepare failed', ['db_error' => $db->error]);
-            } else {
+            $available_books = \App\Support\QueryCache::remember('catalog_avail_' . $catalogCacheSuffix, function () use ($db, $base_query, $param_types, $query_params) {
+                $available_stmt = $db->prepare("SELECT COUNT(DISTINCT l.id) as total " . $base_query . " AND l.copie_disponibili > 0");
+                if ($available_stmt === false) {
+                    \App\Support\SecureLogger::error('Available-books count prepare failed', ['db_error' => $db->error]);
+                    return null;
+                }
+                $available_books = null;
                 if (!empty($query_params)) {
                     $available_stmt->bind_param($param_types, ...$query_params);
                 }
@@ -618,7 +451,8 @@ class FrontendController
                     }
                 }
                 $available_stmt->close();
-            }
+                return $available_books;
+            }, 120);
         }
 
         $data = [
@@ -1026,6 +860,30 @@ class FrontendController
 
 private function getFilterOptions(mysqli $db, array $filters = []): array
 {
+    // The sidebar facets require ~6 aggregate scans; for a given filter set
+    // (sort/page irrelevant) the result is deterministic, so cache it whole.
+    // Locale is part of the key (media-type labels are translated).
+    $cacheKey = 'catalog_facets_' . \App\Support\I18n::getLocale()
+        . '_' . md5(serialize($this->normalizeFiltersForCache($filters)));
+
+    return \App\Support\QueryCache::remember($cacheKey, function () use ($db, $filters) {
+        return $this->computeFilterOptions($db, $filters);
+    }, 120);
+}
+
+/**
+ * Drop cache-irrelevant keys (sort order does not change counts or facets)
+ * and normalize scalars so equivalent filter sets share one cache entry.
+ */
+private function normalizeFiltersForCache(array $filters): array
+{
+    unset($filters['sort']);
+    ksort($filters);
+    return array_map(static fn($v) => is_scalar($v) || $v === null ? (string) $v : serialize($v), $filters);
+}
+
+private function computeFilterOptions(mysqli $db, array $filters = []): array
+{
     $options = [];
     // ---------- Generi ----------
     // Build filter conditions excluding the current 'genere' filter
@@ -1398,24 +1256,29 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         include __DIR__ . '/../Views/frontend/home-books-grid.php';
         $html = ob_get_clean();
 
-        // Calculate pagination for total count
+        // Calculate pagination for total count (cached: identical for every
+        // page request of the same section; 'home_' prefix cleared on book saves)
+        $total = null;
         switch ($section) {
             case 'latest':
-                $countStmt = $db->prepare("SELECT COUNT(*) as total FROM libri WHERE deleted_at IS NULL");
-                $countStmt->execute();
-                $countResult = $countStmt->get_result();
+                $total = \App\Support\QueryCache::remember('home_api_count_latest', function () use ($db) {
+                    $row = $db->query("SELECT COUNT(*) as total FROM libri WHERE deleted_at IS NULL")->fetch_assoc();
+                    return (int) ($row['total'] ?? 0);
+                }, 120);
                 break;
             case 'genre':
-                $countStmt = $db->prepare("SELECT COUNT(*) as total FROM libri WHERE genere_id = ? AND deleted_at IS NULL");
-                $countStmt->bind_param("i", $genere_id);
-                $countStmt->execute();
-                $countResult = $countStmt->get_result();
+                $total = \App\Support\QueryCache::remember('home_api_count_genre_' . $genere_id, function () use ($db, $genere_id) {
+                    $countStmt = $db->prepare("SELECT COUNT(*) as total FROM libri WHERE genere_id = ? AND deleted_at IS NULL");
+                    $countStmt->bind_param("i", $genere_id);
+                    $countStmt->execute();
+                    $row = $countStmt->get_result()->fetch_assoc();
+                    $countStmt->close();
+                    return (int) ($row['total'] ?? 0);
+                }, 120);
                 break;
         }
 
-        if ($countResult) {
-            $totalRow = $countResult->fetch_assoc();
-            $total = $totalRow['total'];
+        if ($total !== null) {
             $pagination = [
                 'current_page' => $page,
                 'total_pages' => ceil($total / $limit),
@@ -1816,6 +1679,213 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         return $ids;
+    }
+
+    /**
+     * Build the cacheable, visitor-independent home page dataset.
+     *
+     * One home_content read serves both the active-sections map (with full SEO
+     * fields) and the ordered-sections list, plus the latest-books sort and the
+     * genre-carousel visibility flag — previously four separate queries.
+     *
+     * @return array{homeContent: array, sectionsOrdered: array, latest_books: array,
+     *               latestBooksTotal: int, genres_with_books: array, genreCarouselEnabled: bool,
+     *               eventsFeatureEnabled: bool, homeEvents: array, totalBooks: int, availableBooks: int}
+     */
+    private function buildHomePageData(mysqli $db): array
+    {
+        // Carica i contenuti CMS della home (inclusi campi SEO completi)
+        $homeContent = [];
+        $sectionsOrdered = [];
+        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image,
+                              seo_title, seo_description, seo_keywords, og_image,
+                              og_title, og_description, og_type, og_url,
+                              twitter_card, twitter_title, twitter_description, twitter_image,
+                              is_active, display_order
+                       FROM home_content
+                       ORDER BY display_order ASC, section_key ASC";
+        $result_home = $db->query($query_home);
+        if ($result_home) {
+            while ($row = $result_home->fetch_assoc()) {
+                $sectionsOrdered[$row['section_key']] = $row;
+                if ((int) $row['is_active'] === 1) {
+                    $homeContent[$row['section_key']] = $row;
+                }
+            }
+            $result_home->free();
+        }
+
+        // Sort preference for the latest-books section (was a dedicated query)
+        $latestSortRaw = $sectionsOrdered['latest_books_title']['content'] ?? 'created_at';
+        $latestBooksSort = in_array($latestSortRaw, ['created_at', 'updated_at'], true) ? $latestSortRaw : 'created_at';
+
+        // Ultimi 12 libri inseriti (12 = page size of /api/home/latest, so the
+        // server-rendered first page lines up with the load-more pagination)
+        $query_slider = "
+            SELECT l.*,
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome,
+                   g.nome AS genere
+            FROM libri l
+            LEFT JOIN generi g ON l.genere_id = g.id
+            WHERE l.deleted_at IS NULL
+            ORDER BY l.{$latestBooksSort} DESC
+            LIMIT 12
+        ";
+        $latest_books = [];
+        $result_slider = $db->query($query_slider);
+        if ($result_slider) {
+            $latest_books = $result_slider->fetch_all(MYSQLI_ASSOC);
+            $result_slider->free();
+        }
+
+        // Hero counters + latest pagination in one aggregate scan
+        $totalBooks = 0;
+        $availableBooks = 0;
+        $statsResult = $db->query("
+            SELECT COUNT(*) AS total_cnt,
+                   COUNT(CASE WHEN copie_disponibili > 0 THEN 1 END) AS available_cnt
+            FROM libri
+            WHERE deleted_at IS NULL
+        ");
+        if ($statsResult) {
+            $statsRow = $statsResult->fetch_assoc();
+            $totalBooks = (int) ($statsRow['total_cnt'] ?? 0);
+            $availableBooks = (int) ($statsRow['available_cnt'] ?? 0);
+            $statsResult->free();
+        }
+
+        // Costruisci i caroselli partendo dai generi radice (parent_id NULL)
+        $genres_with_books = [];
+        $allGenres = [];
+        $childrenByParent = [];
+
+        $resultAllGenres = $db->query("SELECT id, nome, parent_id FROM generi");
+        if ($resultAllGenres) {
+            while ($genreRow = $resultAllGenres->fetch_assoc()) {
+                $genreRow['id'] = (int)$genreRow['id'];
+                $genreRow['parent_id'] = $genreRow['parent_id'] !== null ? (int)$genreRow['parent_id'] : null;
+                $allGenres[$genreRow['id']] = $genreRow;
+
+                if ($genreRow['parent_id'] !== null) {
+                    $parentId = $genreRow['parent_id'];
+                    if (!isset($childrenByParent[$parentId])) {
+                        $childrenByParent[$parentId] = [];
+                    }
+                    $childrenByParent[$parentId][] = $genreRow['id'];
+                }
+            }
+            $resultAllGenres->free();
+        }
+
+        if (!empty($allGenres)) {
+            $rootGenres = array_filter($allGenres, static function ($genre) {
+                return $genre['parent_id'] === null;
+            });
+
+            usort($rootGenres, static function ($a, $b) {
+                return strcmp($a['nome'], $b['nome']);
+            });
+
+            foreach ($rootGenres as $rootGenre) {
+                $genreIds = $this->collectGenreTreeIds($childrenByParent, (int)$rootGenre['id']);
+
+                if (empty($genreIds)) {
+                    continue;
+                }
+
+                // Use proper prepared statements with dynamic placeholders
+                $uniqueGenreIds = array_unique(array_map('intval', $genreIds));
+                $inClause = '(' . implode(',', array_fill(0, count($uniqueGenreIds), '?')) . ')';
+                $query_genre_books = "
+                    SELECT l.*,
+                           (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                           (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
+                    FROM libri l
+                    WHERE l.genere_id IN " . $inClause . " AND l.deleted_at IS NULL
+                    ORDER BY l.created_at DESC
+                    LIMIT 12
+                ";
+                $stmt_genre_books = $db->prepare($query_genre_books);
+                if ($stmt_genre_books === false) {
+                    \App\Support\SecureLogger::error('Failed to prepare genre books query', ['db_error' => $db->error]);
+                    continue;
+                }
+                $types = str_repeat('i', count($uniqueGenreIds));
+                $stmt_genre_books->bind_param($types, ...$uniqueGenreIds);
+                $stmt_genre_books->execute();
+                $result_genre_books = $stmt_genre_books->get_result();
+
+                if ($result_genre_books && $result_genre_books->num_rows > 0) {
+                    $genres_with_books[] = [
+                        'genre' => $rootGenre,
+                        'books' => $result_genre_books->fetch_all(MYSQLI_ASSOC)
+                    ];
+                }
+                $stmt_genre_books->close();
+            }
+        }
+
+        // Genre carousel visibility from the already-loaded sections map
+        // (missing row = enabled, mirroring isHomeSectionEnabled()).
+        $genreCarouselRow = $sectionsOrdered['genre_carousel'] ?? null;
+        $genreCarouselEnabled = $genreCarouselRow === null || (int) $genreCarouselRow['is_active'] === 1;
+
+        // Home events preview (respect CMS visibility)
+        $homeEvents = [];
+        $eventsFeatureEnabled = false;
+        try {
+            $settingsRepository = new \App\Models\SettingsRepository($db);
+            $eventsFeatureEnabled = $settingsRepository->get('cms', 'events_page_enabled', '0') === '1';
+        } catch (\Throwable $e) {
+            $eventsFeatureEnabled = false;
+        }
+
+        if ($eventsFeatureEnabled) {
+            $eventsResult = $db->query("
+                SELECT id, title, slug, event_date, event_time, featured_image
+                FROM events
+                WHERE is_active = 1 AND event_date >= CURDATE()
+                ORDER BY event_date ASC, event_time ASC, created_at DESC
+                LIMIT 3
+            ");
+            if ($eventsResult) {
+                $homeEvents = $eventsResult->fetch_all(MYSQLI_ASSOC);
+                $eventsResult->free();
+            }
+
+            // Fallback: if no upcoming events, show latest active events
+            if (empty($homeEvents)) {
+                $fallbackResult = $db->query("
+                    SELECT id, title, slug, event_date, event_time, featured_image
+                    FROM events
+                    WHERE is_active = 1
+                    ORDER BY event_date DESC, created_at DESC
+                    LIMIT 3
+                ");
+                if ($fallbackResult) {
+                    $homeEvents = $fallbackResult->fetch_all(MYSQLI_ASSOC);
+                    $fallbackResult->free();
+                }
+            }
+        }
+
+        return [
+            'homeContent' => $homeContent,
+            'sectionsOrdered' => $sectionsOrdered,
+            'latest_books' => $latest_books,
+            'latestBooksTotal' => $totalBooks,
+            'genres_with_books' => $genres_with_books,
+            'genreCarouselEnabled' => $genreCarouselEnabled,
+            'eventsFeatureEnabled' => $eventsFeatureEnabled,
+            'homeEvents' => $homeEvents,
+            'totalBooks' => $totalBooks,
+            'availableBooks' => $availableBooks,
+        ];
     }
 
     private function isHomeSectionEnabled(mysqli $db, string $sectionKey): bool

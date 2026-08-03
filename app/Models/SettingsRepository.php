@@ -117,6 +117,10 @@ class SettingsRepository
         $stmt->bind_param('sss', $category, $key, $value);
         $stmt->execute();
         $stmt->close();
+
+        // ConfigStore caches system_settings across requests; writes that
+        // bypass ConfigStore::set() must invalidate it too.
+        \App\Support\ConfigStore::clearCache();
     }
 
     public function delete(string $category, string $key): void
@@ -125,6 +129,8 @@ class SettingsRepository
         $stmt->bind_param('ss', $category, $key);
         $stmt->execute();
         $stmt->close();
+
+        \App\Support\ConfigStore::clearCache();
     }
 
     /**

@@ -49,7 +49,36 @@ class GoodLibPlugin
     public function setPluginId(int $pluginId): void
     {
         $this->pluginId = $pluginId;
-        $this->registerHooks();
+        $this->ensureHooksRegistered();
+    }
+
+    /**
+     * Register hooks only when none are present for this plugin (self-heal).
+     * setPluginId() runs on EVERY request via PluginManager::instantiatePlugin,
+     * so the previous unconditional registerHooks() re-upserted every hook row
+     * on every page view. One cheap COUNT replaces those writes; onActivate()
+     * still forces a full re-sync.
+     */
+    private function ensureHooksRegistered(): void
+    {
+        if (!$this->db || $this->pluginId === 0) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM plugin_hooks WHERE plugin_id = ?");
+        if ($stmt === false) {
+            return;
+        }
+
+        $stmt->bind_param('i', $this->pluginId);
+        if ($stmt->execute()) {
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+            if ((int)($row['total'] ?? 0) === 0) {
+                $this->registerHooks();
+            }
+        }
+        $stmt->close();
     }
 
     public function onActivate(): void
