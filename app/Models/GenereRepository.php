@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use mysqli;
-use App\Support\QueryCache;
+use App\Support\ContentCache;
 
 class GenereRepository
 {
@@ -45,7 +45,7 @@ class GenereRepository
             throw new \RuntimeException('Errore nella creazione del genere');
         }
 
-        QueryCache::clearByPrefix('genre_tree_');
+        ContentCache::deferBooksChanged();
         return $this->db->insert_id;
     }
 
@@ -142,7 +142,9 @@ class GenereRepository
         }
 
         $result = $stmt->execute();
-        QueryCache::clearByPrefix('genre_tree_');
+        if ($result) {
+            ContentCache::deferBooksChanged();
+        }
         return $result;
     }
 
@@ -174,7 +176,9 @@ class GenereRepository
         $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
         $stmt->bind_param('i', $id);
         $result = $stmt->execute();
-        QueryCache::clearByPrefix('genre_tree_');
+        if ($result) {
+            ContentCache::deferBooksChanged();
+        }
         return $result;
     }
 
@@ -213,7 +217,7 @@ class GenereRepository
             $result = $stmt->execute();
 
             $this->db->commit();
-            QueryCache::clearByPrefix('genre_tree_');
+            ContentCache::booksChanged();
             return $result;
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -432,7 +436,7 @@ class GenereRepository
             }
 
             $this->db->commit();
-            QueryCache::clearByPrefix('genre_tree_');
+            ContentCache::booksChanged();
 
             return ['children_moved' => $childrenMoved, 'books_updated' => $booksUpdated];
         } catch (\Throwable $e) {

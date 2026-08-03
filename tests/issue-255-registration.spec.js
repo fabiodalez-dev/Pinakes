@@ -59,13 +59,21 @@ const TOKEN = Math.random().toString(16).slice(2, 8);
 const LBL = (name) => `ZZ255 ${name} ${TOKEN}`;
 const TYPES = ['text', 'textarea', 'email', 'url', 'number', 'checkbox'];
 
-/** Ensure the three toggle rows exist, then set them to the given combo. */
-function setToggles(cognome, telefono, indirizzo) {
+/**
+ * Persist the three toggles through the real admin endpoint. ConfigStore now
+ * caches system_settings across requests, so mutating the DB behind the
+ * application would deliberately bypass its invalidation contract.
+ */
+async function setToggles(adminPage, cognome, telefono, indirizzo) {
   const combo = { require_cognome: cognome, require_telefono: telefono, require_indirizzo: indirizzo };
+  await adminPage.goto(`${BASE}/admin/settings?tab=registration`);
   for (const [key, on] of Object.entries(combo)) {
-    const val = on ? '1' : '0';
-    dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('registration', '${key}', '${val}') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+    await adminPage.locator(`input[name="${key}"]`).setChecked(on);
   }
+  await Promise.all([
+    adminPage.waitForLoadState('domcontentloaded'),
+    adminPage.click('form[action*="/admin/settings/registration"] button[type="submit"]'),
+  ]);
 }
 
 function fieldId(label) {
@@ -144,9 +152,29 @@ test.describe.serial('Issue #255 — configurable registration fields (29 checks
     // this suite planted. Deleting also makes the run deterministic on a
     // DB dirtied by earlier manual testing.
     dbQuery("DELETE FROM system_settings WHERE category='registration' AND setting_key IN ('require_cognome','require_telefono','require_indirizzo')");
+    // Exercise the real writer once to invalidate any settings snapshot loaded
+    // during admin login. Deleting the rows again preserves the actual-default
+    // fixture, whose effective values are all true.
+    await setToggles(admin, true, true, true);
+    dbQuery("DELETE FROM system_settings WHERE category='registration' AND setting_key IN ('require_cognome','require_telefono','require_indirizzo')");
   });
 
   test.afterAll(async () => {
+    // First make the web cache agree with the original effective values via
+    // the production write path; the exact row-presence snapshot is restored
+    // immediately afterwards with SQL.
+    const originalEffective = (key) => {
+      if (!originalToggleSettings.has(key)) return true;
+      const raw = Buffer.from(originalToggleSettings.get(key) || '', 'hex').toString('utf8').toLowerCase();
+      return ['1', 'true', 'yes', 'on'].includes(raw);
+    };
+    await setToggles(
+      admin,
+      originalEffective('require_cognome'),
+      originalEffective('require_telefono'),
+      originalEffective('require_indirizzo'),
+    );
+
     // Restore the exact pre-suite toggle state, including row absence.
     dbQuery("DELETE FROM system_settings WHERE category='registration' AND setting_key IN ('require_cognome','require_telefono','require_indirizzo')");
     for (const [key, hex] of originalToggleSettings) {
@@ -254,7 +282,7 @@ test.describe.serial('Issue #255 — configurable registration fields (29 checks
   for (const c of [true, false]) for (const t of [true, false]) for (const i of [true, false]) matrix.push([c, t, i]);
   matrix.forEach(([c, t, i], idx) => {
     test(`${8 + idx}. toggle combo cognome=${c ? 1 : 0} telefono=${t ? 1 : 0} indirizzo=${i ? 1 : 0} maps to required attrs`, async ({ page }) => {
-      setToggles(c, t, i);
+      await setToggles(admin, c, t, i);
       await page.goto(`${BASE}/registrati`);
       const expectations = { cognome: c, telefono: t, indirizzo: i };
       for (const [field, required] of Object.entries(expectations)) {
@@ -268,7 +296,7 @@ test.describe.serial('Issue #255 — configurable registration fields (29 checks
   // ── 16-17: registrations storing every type / minimal data ────────────────
 
   test('16. full registration stores a value for every custom type', async ({ page }) => {
-    setToggles(true, true, true);
+    await setToggles(admin, true, true, true);
     const email = `zz-255-full-${TOKEN}@example.test`;
     const custom = {};
     custom[fieldId(LBL('text'))] = '@telegram_handle';
@@ -297,7 +325,7 @@ test.describe.serial('Issue #255 — configurable registration fields (29 checks
   });
 
   test('17. minimal registration: surname stored as empty, phone/address NULL', async ({ page }) => {
-    setToggles(false, false, false);
+    await setToggles(admin, false, false, false);
     const email = `zz-255-min-${TOKEN}@example.test`;
     await fillRegistration(page, {
       fields: { nome: 'Min255', email, password: 'Password255!ok', password_confirm: 'Password255!ok' },
@@ -319,7 +347,7 @@ test.describe.serial('Issue #255 — configurable registration fields (29 checks
   ];
   for (const [title, type, bad] of invalidCustom) {
     test(String(title), async ({ page }) => {
-      setToggles(false, false, false);
+      await setToggles(admin, false, false, false);
       const email = `zz-255-bad-${type}-${TOKEN}@example.test`;
       const id = fieldId(LBL(type));
       await fillRegistration(page, {
@@ -375,7 +403,7 @@ test.describe.serial('Issue #255 — configurable registration fields (29 checks
   });
 
   test('24. a script-carrying VALUE is escaped when rendered back (admin user detail)', async ({ page }) => {
-    setToggles(false, false, false);
+    await setToggles(admin, false, false, false);
     const email = `zz-255-xss-${TOKEN}@example.test`;
     const id = fieldId(LBL('text'));
     const payload = '<script>window.__pwned=1</script>';
@@ -414,7 +442,7 @@ test.describe.serial('Issue #255 — configurable registration fields (29 checks
   // ── review-round fixes (adamsreview) ───────────────────────────────────────
 
   test('26. a format-invalid custom value redirects to the distinct error code (not missing_fields)', async ({ page }) => {
-    setToggles(false, false, false);
+    await setToggles(admin, false, false, false);
     const email = `zz-255-fmt-${TOKEN}@example.test`;
     const id = fieldId(LBL('email'));
     await fillRegistration(page, {
@@ -432,7 +460,7 @@ test.describe.serial('Issue #255 — configurable registration fields (29 checks
   });
 
   test('27. a surname-less member renders with no trailing space in the admin user list', async ({ page }) => {
-    setToggles(false, false, false);
+    await setToggles(admin, false, false, false);
     const email = `zz-255-noln-${TOKEN}@example.test`;
     await fillRegistration(page, {
       fields: { nome: 'SoloNome27', email, password: 'Password255!ok', password_confirm: 'Password255!ok' },

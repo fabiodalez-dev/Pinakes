@@ -1626,8 +1626,33 @@ class PluginManager
         if (is_array($cached) && isset($cached['plugins'], $cached['hooks'])) {
             $activePlugins = $cached['plugins'];
             $hooksByPlugin = $cached['hooks'];
+            $hooksCacheHit = true;
         } else {
             $activePlugins = $this->getActivePlugins();
+            $hooksByPlugin = null;
+            $hooksCacheHit = false;
+        }
+
+        if (empty($activePlugins)) {
+            // Prevent HookManager from loading hooks from database
+            $this->hookManager->setPluginsLoadedRuntime();
+            return;
+        }
+
+        // Instantiate before a cache-miss prefetch. Bundled plugins perform
+        // hook self-healing from setPluginId(); fetching/caching first would
+        // preserve the pre-heal empty snapshot and register no hooks for the
+        // current request or the following five minutes.
+        $instances = [];
+        foreach ($activePlugins as $plugin) {
+            try {
+                $instances[(int) $plugin['id']] = $this->instantiatePlugin($plugin);
+            } catch (\Throwable $e) {
+                SecureLogger::error("[PluginManager] Failed to load plugin '{$plugin['name']}'", ['error' => $e->getMessage()]);
+            }
+        }
+
+        if (!$hooksCacheHit) {
             $hooksByPlugin = $this->fetchHooksForPlugins(array_map(
                 static fn(array $p): int => (int) $p['id'],
                 $activePlugins
@@ -1638,27 +1663,26 @@ class PluginManager
                     'hooks' => $hooksByPlugin,
                 ], 300);
             }
-            // On a failed hooks fetch, fall through with null: loadPlugin()
-            // then falls back to its own per-plugin query instead of us
-            // caching (and serving) an empty hook set for the whole TTL.
-        }
-
-        if (empty($activePlugins)) {
-            // Prevent HookManager from loading hooks from database
-            $this->hookManager->setPluginsLoadedRuntime();
-            return;
         }
 
         foreach ($activePlugins as $plugin) {
+            $pluginId = (int) $plugin['id'];
+            if (!isset($instances[$pluginId])) {
+                continue;
+            }
+
             try {
                 // With a healthy prefetch, a plugin without rows gets [] (no
                 // hooks); when the prefetch failed ($hooksByPlugin === null)
                 // every plugin falls back to its own per-plugin query.
-                $prefetchedHooks = $hooksByPlugin[(int) $plugin['id']] ?? ($hooksByPlugin === null ? null : []);
-                $this->loadPlugin($plugin, $prefetchedHooks);
+                $prefetchedHooks = $hooksByPlugin[$pluginId] ?? ($hooksByPlugin === null ? null : []);
+                if ($prefetchedHooks === null) {
+                    $this->registerPluginHooks($pluginId, $instances[$pluginId]);
+                } else {
+                    $this->registerPluginHookRows($instances[$pluginId], $prefetchedHooks);
+                }
             } catch (\Throwable $e) {
-                SecureLogger::error("[PluginManager] Failed to load plugin '{$plugin['name']}'", ['error' => $e->getMessage()]);
-                // Continue loading other plugins even if one fails
+                SecureLogger::error("[PluginManager] Failed to register hooks for '{$plugin['name']}'", ['error' => $e->getMessage()]);
             }
         }
 
@@ -1729,26 +1753,6 @@ class PluginManager
         $stmt->close();
 
         return $hooksByPlugin;
-    }
-
-    /**
-     * Load a single plugin and register its hooks
-     *
-     * @param array $plugin
-     * @param array<int, array{hook_name:string, callback_method:string, priority:int}>|null $hookRows
-     *        Prefetched hook rows; null falls back to a per-plugin query.
-     * @return void
-     */
-    private function loadPlugin(array $plugin, ?array $hookRows = null): void
-    {
-        $instance = $this->instantiatePlugin($plugin);
-
-        // Load and register hooks for this plugin
-        if ($hookRows !== null) {
-            $this->registerPluginHookRows($instance, $hookRows);
-        } else {
-            $this->registerPluginHooks((int) $plugin['id'], $instance);
-        }
     }
 
     /**

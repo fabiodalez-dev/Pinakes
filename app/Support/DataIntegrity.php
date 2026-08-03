@@ -150,6 +150,9 @@ class DataIntegrity {
 
             if (!$insideTransaction) {
                 $this->db->commit();
+                ContentCache::booksChanged();
+            } else {
+                ContentCache::deferBooksChanged();
             }
 
         } catch (\Throwable $e) {
@@ -395,9 +398,15 @@ class DataIntegrity {
             }
 
             // Availability feeds the cached catalog facets / home dataset:
-            // invalidate them so badges and counters stay accurate.
+            // invalidate only after our own commit. When the caller owns the
+            // transaction, defer until request shutdown so no concurrent read
+            // can repopulate the cache from pre-commit rows.
             if ($result) {
-                ContentCache::booksChanged();
+                if ($insideTransaction) {
+                    ContentCache::deferBooksChanged();
+                } else {
+                    ContentCache::booksChanged();
+                }
             }
 
             return $result;

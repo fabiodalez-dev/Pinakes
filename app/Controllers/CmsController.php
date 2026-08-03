@@ -600,6 +600,7 @@ class CmsController
 
             $stmt->close();
             $db->commit();
+            \App\Support\ContentCache::homeContentChanged();
 
             $response->getBody()->write(json_encode(['success' => true, 'message' => 'Order updated successfully']));
             return $response->withHeader('Content-Type', 'application/json');
@@ -638,6 +639,7 @@ class CmsController
             $stmt->close();
 
             if ($success) {
+                \App\Support\ContentCache::homeContentChanged();
                 $response->getBody()->write(json_encode(['success' => true, 'message' => 'Visibility updated']));
                 return $response->withHeader('Content-Type', 'application/json');
             } else {

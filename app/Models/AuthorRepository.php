@@ -175,7 +175,10 @@ class AuthorRepository
             $refs[] = &$values[$k];
         }
         call_user_func_array([$stmt, 'bind_param'], $refs);
-        $stmt->execute();
+        $created = $stmt->execute();
+        if ($created) {
+            \App\Support\ContentCache::deferBooksChanged();
+        }
         return (int)$this->db->insert_id;
     }
 
@@ -236,6 +239,7 @@ class AuthorRepository
         // unchanged by an edit, so querying the affected set here is safe.
         if ($result) {
             \App\Support\SearchIndexBuilder::rebuildForAuthor($this->db, $id);
+            \App\Support\ContentCache::deferBooksChanged();
         }
 
         // Plugin hook: After author save
@@ -485,6 +489,7 @@ class AuthorRepository
             // Rebuild search_index for the affected books now the surviving links
             // all point at the primary author.
             \App\Support\SearchIndexBuilder::rebuildMany($this->db, array_values($affectedBookIds));
+            \App\Support\ContentCache::booksChanged();
 
             return $primaryId;
         } catch (\Throwable $e) {
@@ -510,6 +515,7 @@ class AuthorRepository
 
         if ($result) {
             \App\Support\SearchIndexBuilder::rebuildMany($this->db, $affectedBookIds);
+            \App\Support\ContentCache::deferBooksChanged();
         }
 
         return $result;

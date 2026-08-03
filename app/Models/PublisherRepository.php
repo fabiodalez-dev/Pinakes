@@ -163,7 +163,10 @@ class PublisherRepository
             $nome, $sito_web, $indirizzo, $telefono, $email,
             $referente_nome, $referente_telefono, $referente_email, $codice_fiscale
         );
-        $stmt->execute();
+        $created = $stmt->execute();
+        if ($created) {
+            \App\Support\ContentCache::deferBooksChanged();
+        }
         return (int)$this->db->insert_id;
     }
 
@@ -206,6 +209,7 @@ class PublisherRepository
         // links are unchanged by an edit, so querying the affected set is safe.
         if ($result) {
             \App\Support\SearchIndexBuilder::rebuildForPublisher($this->db, $id);
+            \App\Support\ContentCache::deferBooksChanged();
         }
 
         return $result;
@@ -226,6 +230,7 @@ class PublisherRepository
 
         if ($result) {
             \App\Support\SearchIndexBuilder::rebuildMany($this->db, $affectedBookIds);
+            \App\Support\ContentCache::deferBooksChanged();
         }
 
         return $result;
@@ -382,6 +387,7 @@ class PublisherRepository
             // Rebuild search_index for the affected books now the surviving
             // links all point at the primary publisher.
             \App\Support\SearchIndexBuilder::rebuildMany($this->db, array_values($affectedBookIds));
+            \App\Support\ContentCache::booksChanged();
 
             return $primaryId;
         } catch (\Throwable $e) {

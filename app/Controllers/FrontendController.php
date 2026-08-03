@@ -258,7 +258,7 @@ class FrontendController
         // prefix so admin edits show up immediately.
         $catalogCacheSuffix = md5(serialize($this->normalizeFiltersForCache($filters)));
         $count_query = "SELECT COUNT(DISTINCT l.id) as total " . $base_query;
-        $total_books = \App\Support\QueryCache::remember('catalog_count_' . $catalogCacheSuffix, function () use ($db, $count_query, $param_types, $query_params) {
+        $countLoader = function () use ($db, $count_query, $param_types, $query_params) {
             $stmt_count = $db->prepare($count_query);
             if (!empty($query_params)) {
                 $stmt_count->bind_param($param_types, ...$query_params);
@@ -267,7 +267,12 @@ class FrontendController
             $total_row = $stmt_count->get_result()->fetch_assoc();
             $stmt_count->close();
             return (int) ($total_row['total'] ?? 0);
-        }, 120);
+        };
+        $total_books = $this->rememberCatalogValue(
+            'catalog_count_' . $catalogCacheSuffix,
+            $filters,
+            $countLoader
+        );
         $total_pages = ceil($total_books / $limit);
 
         // Query per i libri. Expose the principal author's surname as an
@@ -358,7 +363,7 @@ class FrontendController
         // prefix so admin edits show up immediately.
         $catalogCacheSuffix = md5(serialize($this->normalizeFiltersForCache($filters)));
         $count_query = "SELECT COUNT(DISTINCT l.id) as total " . $base_query;
-        $total_books = \App\Support\QueryCache::remember('catalog_count_' . $catalogCacheSuffix, function () use ($db, $count_query, $param_types, $query_params) {
+        $countLoader = function () use ($db, $count_query, $param_types, $query_params) {
             $stmt_count = $db->prepare($count_query);
             if (!empty($query_params)) {
                 $stmt_count->bind_param($param_types, ...$query_params);
@@ -367,7 +372,12 @@ class FrontendController
             $total_row = $stmt_count->get_result()->fetch_assoc();
             $stmt_count->close();
             return (int) ($total_row['total'] ?? 0);
-        }, 120);
+        };
+        $total_books = $this->rememberCatalogValue(
+            'catalog_count_' . $catalogCacheSuffix,
+            $filters,
+            $countLoader
+        );
         $total_pages = ceil($total_books / $limit);
 
         // Query per i libri. Expose the principal author's surname as an
@@ -430,7 +440,7 @@ class FrontendController
         // the failure is logged instead of silently masked.
         $available_books = null;
         if (($params['with_stats'] ?? '') === '1') {
-            $available_books = \App\Support\QueryCache::remember('catalog_avail_' . $catalogCacheSuffix, function () use ($db, $base_query, $param_types, $query_params) {
+            $availabilityLoader = function () use ($db, $base_query, $param_types, $query_params) {
                 $available_stmt = $db->prepare("SELECT COUNT(DISTINCT l.id) as total " . $base_query . " AND l.copie_disponibili > 0");
                 if ($available_stmt === false) {
                     \App\Support\SecureLogger::error('Available-books count prepare failed', ['db_error' => $db->error]);
@@ -453,7 +463,12 @@ class FrontendController
                 }
                 $available_stmt->close();
                 return $available_books;
-            }, 120);
+            };
+            $available_books = $this->rememberCatalogValue(
+                'catalog_avail_' . $catalogCacheSuffix,
+                $filters,
+                $availabilityLoader
+            );
         }
 
         $data = [
@@ -867,9 +882,11 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $cacheKey = 'catalog_facets_' . \App\Support\I18n::getLocale()
         . '_' . md5(serialize($this->normalizeFiltersForCache($filters)));
 
-    return \App\Support\QueryCache::remember($cacheKey, function () use ($db, $filters) {
+    $loader = function () use ($db, $filters) {
         return $this->computeFilterOptions($db, $filters);
-    }, 120);
+    };
+
+    return $this->rememberCatalogValue($cacheKey, $filters, $loader);
 }
 
 /**
@@ -881,6 +898,37 @@ private function normalizeFiltersForCache(array $filters): array
     unset($filters['sort']);
     ksort($filters);
     return array_map(static fn($v) => is_scalar($v) || $v === null ? (string) $v : serialize($v), $filters);
+}
+
+/**
+ * Cache only the finite, high-traffic catalogue states. Free text, publisher
+ * names, ids and year bounds are request-controlled and have effectively
+ * unbounded cardinality; persisting one file per combination would let normal
+ * search traffic (or a hostile client) grow storage/cache without limit.
+ *
+ * @param callable(): mixed $loader
+ */
+private function rememberCatalogValue(string $key, array $filters, callable $loader): mixed
+{
+    if (!$this->hasBoundedCatalogCacheKey($filters)) {
+        return $loader();
+    }
+
+    return \App\Support\QueryCache::remember($key, $loader, 120);
+}
+
+private function hasBoundedCatalogCacheKey(array $filters): bool
+{
+    $availability = (string) ($filters['disponibilita'] ?? '');
+
+    return trim((string) ($filters['search'] ?? '')) === ''
+        && (int) ($filters['genere_id'] ?? 0) === 0
+        && trim((string) ($filters['editore'] ?? '')) === ''
+        && trim((string) ($filters['anno_min'] ?? '')) === ''
+        && trim((string) ($filters['anno_max'] ?? '')) === ''
+        && trim((string) ($filters['tipo_media'] ?? '')) === ''
+        && (int) ($filters['autore_id'] ?? 0) === 0
+        && in_array($availability, ['', 'disponibile', 'prenotato', 'prestato'], true);
 }
 
 private function computeFilterOptions(mysqli $db, array $filters = []): array
@@ -942,8 +990,10 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         ORDER BY g.parent_id, g.nome
     ";
 
-    $cacheKeyGeneri = 'genre_tree_' . md5($queryGeneri . serialize($paramsGen));
-    $generi_flat = \App\Support\QueryCache::remember($cacheKeyGeneri, function() use ($db, $queryGeneri, $typesGen, $paramsGen) {
+    // The complete facets payload is already cached by getFilterOptions() for
+    // bounded filter states. A second per-query cache here would recreate the
+    // unbounded file-key problem for free-text searches.
+    $loadGenres = function() use ($db, $queryGeneri, $typesGen, $paramsGen) {
         $stmt = $db->prepare($queryGeneri);
         if ($stmt === false) {
             \App\Support\SecureLogger::error('FrontendController::getFilterOptions prepare failed', ['db_error' => $db->error]);
@@ -957,7 +1007,8 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
         return $rows;
-    }, 300);
+    };
+    $generi_flat = $loadGenres();
     $options['generi'] = $this->buildGenreHierarchy($generi_flat);
 
     // ---------- Editori ----------
@@ -1831,8 +1882,8 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             }
         }
 
-        // Genre carousel visibility from the already-loaded sections map
-        // (missing row = enabled, mirroring isHomeSectionEnabled()).
+        // Genre carousel visibility from the already-loaded sections map.
+        // A missing row keeps the historical default: enabled.
         $genreCarouselRow = $sectionsOrdered['genre_carousel'] ?? null;
         $genreCarouselEnabled = $genreCarouselRow === null || (int) $genreCarouselRow['is_active'] === 1;
 
@@ -1887,22 +1938,6 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             'totalBooks' => $totalBooks,
             'availableBooks' => $availableBooks,
         ];
-    }
-
-    private function isHomeSectionEnabled(mysqli $db, string $sectionKey): bool
-    {
-        $stmt = $db->prepare("SELECT is_active FROM home_content WHERE section_key = ? LIMIT 1");
-        $stmt->bind_param('s', $sectionKey);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
-        $stmt->close();
-
-        if (!$row) {
-            return true;
-        }
-
-        return (int)$row['is_active'] === 1;
     }
 
     /**

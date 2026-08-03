@@ -458,6 +458,7 @@ class BulkEnrichmentService
             // enriched content (committed above) and any added authors are
             // persisted.
             \App\Support\SearchIndexBuilder::rebuild($this->db, (int) $bookId);
+            \App\Support\ContentCache::booksChanged();
 
             $result['status'] = 'enriched';
             $result['fields_updated'] = $fieldsUpdated;
