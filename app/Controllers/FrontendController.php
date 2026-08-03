@@ -30,8 +30,9 @@ class FrontendController
         // The whole home dataset (CMS sections, latest books, genre carousels,
         // events, hero counters) is identical for every visitor. Build it once
         // and cache it across requests; content mutations (books, CMS home,
-        // events) clear the 'home_page' prefix, the TTL covers loan-driven
-        // availability drift.
+        // events) clear the 'home_' prefix via ContentCache — which also
+        // covers the home_api_count_* keys below — while the TTL covers
+        // loan-driven availability drift.
         $homeData = \App\Support\QueryCache::remember('home_page_data_v1', function () use ($db) {
             return $this->buildHomePageData($db);
         }, 300);

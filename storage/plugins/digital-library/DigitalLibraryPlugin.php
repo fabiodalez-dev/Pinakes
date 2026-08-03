@@ -224,37 +224,49 @@ class DigitalLibraryPlugin
             ]
         ];
 
-        foreach ($hooks as $hook) {
-            // Atomic upsert — relies on UNIQUE KEY uk_plugin_hook_callback
-            // (plugin_id, hook_name, callback_class, callback_method)
-            $stmt = $this->db->prepare("
-                INSERT INTO plugin_hooks
-                (plugin_id, hook_name, callback_class, callback_method, priority, is_active)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    priority  = VALUES(priority),
-                    is_active = VALUES(is_active)
-            ");
-            if (!$stmt) {
-                \App\Support\SecureLogger::error('DigitalLibraryPlugin: prepare() failed for hook upsert', ['hook' => $hook['hook_name']]);
-                continue;
+        // All-or-nothing: a partial hook set would look "healthy" to
+        // ensureHooksRegistered() (count > 0) and never self-repair, so the
+        // upserts run in one transaction and any failure rolls back and
+        // rethrows (per storage/plugins hook-registration guidelines).
+        $this->db->begin_transaction();
+        try {
+            foreach ($hooks as $hook) {
+                // Atomic upsert — relies on UNIQUE KEY uk_plugin_hook_callback
+                // (plugin_id, hook_name, callback_class, callback_method)
+                $stmt = $this->db->prepare("
+                    INSERT INTO plugin_hooks
+                    (plugin_id, hook_name, callback_class, callback_method, priority, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
+                        priority  = VALUES(priority),
+                        is_active = VALUES(is_active)
+                ");
+                if (!$stmt) {
+                    throw new \RuntimeException("Hook upsert prepare failed for {$hook['hook_name']}: {$this->db->error}");
+                }
+                $stmt->bind_param(
+                    "isssii",
+                    $this->pluginId,
+                    $hook['hook_name'],
+                    $hook['callback_class'],
+                    $hook['callback_method'],
+                    $hook['priority'],
+                    $hook['is_active']
+                );
+                if (!$stmt->execute()) {
+                    $error = $stmt->error;
+                    $stmt->close();
+                    throw new \RuntimeException("Hook upsert failed for {$hook['hook_name']}: {$error}");
+                }
+                $stmt->close();
             }
-            $stmt->bind_param(
-                "isssii",
-                $this->pluginId,
-                $hook['hook_name'],
-                $hook['callback_class'],
-                $hook['callback_method'],
-                $hook['priority'],
-                $hook['is_active']
-            );
-            if (!$stmt->execute()) {
-                \App\Support\SecureLogger::error('[Digital Library] Hook upsert failed', [
-                    'hook' => $hook['hook_name'],
-                    'error' => $stmt->error,
-                ]);
-            }
-            $stmt->close();
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            \App\Support\SecureLogger::error('[Digital Library] Hook registration failed, rolled back', [
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
         }
     }
 

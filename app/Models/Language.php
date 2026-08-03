@@ -241,7 +241,6 @@ class Language
      */
     public function create(array $data): int
     {
-        \App\Support\QueryCache::delete('i18n_languages');
         // Validate required fields
         if (empty($data['code']) || empty($data['name']) || empty($data['native_name'])) {
             throw new \Exception("Required fields missing: code, name, native_name");
@@ -294,6 +293,11 @@ class Language
             throw new \Exception("Failed to create language: " . $this->db->error);
         }
 
+        // Invalidate AFTER the successful write: clearing the cache first
+        // opens a window where a concurrent request re-caches the pre-write
+        // language list for the full TTL.
+        \App\Support\QueryCache::delete('i18n_languages');
+
         // If this is set as default, unset other defaults
         if ($isDefault) {
             $this->setDefault($code);
@@ -312,7 +316,6 @@ class Language
      */
     public function update(string $code, array $data): bool
     {
-        \App\Support\QueryCache::delete('i18n_languages');
         $code = $this->normalizeAndAssert($code);
 
         // Check if language exists
@@ -361,6 +364,8 @@ class Language
             throw new \Exception("Failed to update language: " . $this->db->error);
         }
 
+        \App\Support\QueryCache::delete('i18n_languages');
+
         // If is_default was set to 1, unset other defaults
         if (!empty($data['is_default']) && $data['is_default'] == 1) {
             $this->setDefault($code);
@@ -378,7 +383,6 @@ class Language
      */
     public function delete(string $code): bool
     {
-        \App\Support\QueryCache::delete('i18n_languages');
         $code = $this->normalizeAndAssert($code);
 
         $language = $this->getByCode($code);
@@ -401,6 +405,8 @@ class Language
             throw new \Exception("Failed to delete language: " . $this->db->error);
         }
 
+        \App\Support\QueryCache::delete('i18n_languages');
+
         return true;
     }
 
@@ -420,7 +426,6 @@ class Language
      */
     public function setDefault(string $code): bool
     {
-        \App\Support\QueryCache::delete('i18n_languages');
         $code = $this->normalizeAndAssert($code);
 
         // Check if language exists
@@ -442,6 +447,7 @@ class Language
             $stmt->close();
 
             $this->db->commit();
+            \App\Support\QueryCache::delete('i18n_languages');
             return true;
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -458,7 +464,6 @@ class Language
      */
     public function toggleActive(string $code): bool
     {
-        \App\Support\QueryCache::delete('i18n_languages');
         $code = $this->normalizeAndAssert($code);
 
         $language = $this->getByCode($code);
@@ -482,6 +487,8 @@ class Language
         if (!$success) {
             throw new \Exception("Failed to toggle language status: " . $this->db->error);
         }
+
+        \App\Support\QueryCache::delete('i18n_languages');
 
         return (bool)$newStatus;
     }

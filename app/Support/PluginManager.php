@@ -1609,6 +1609,13 @@ class PluginManager
             // Clean up orphan plugins first
             $this->cleanupOrphanPlugins();
 
+            // The sync above may have registered, upgraded or deactivated
+            // plugins: drop the cached plugin/hook payload so this very
+            // request (and the next ones) reads the fresh state instead of a
+            // pre-maintenance snapshot.
+            QueryCache::delete('plugins_active_with_hooks');
+            self::$isActiveCache = [];
+
             QueryCache::set($maintenanceKey, 1, 900);
         }
 
@@ -1625,10 +1632,15 @@ class PluginManager
                 static fn(array $p): int => (int) $p['id'],
                 $activePlugins
             ));
-            QueryCache::set('plugins_active_with_hooks', [
-                'plugins' => $activePlugins,
-                'hooks' => $hooksByPlugin,
-            ], 300);
+            if ($hooksByPlugin !== null) {
+                QueryCache::set('plugins_active_with_hooks', [
+                    'plugins' => $activePlugins,
+                    'hooks' => $hooksByPlugin,
+                ], 300);
+            }
+            // On a failed hooks fetch, fall through with null: loadPlugin()
+            // then falls back to its own per-plugin query instead of us
+            // caching (and serving) an empty hook set for the whole TTL.
         }
 
         if (empty($activePlugins)) {
@@ -1639,7 +1651,11 @@ class PluginManager
 
         foreach ($activePlugins as $plugin) {
             try {
-                $this->loadPlugin($plugin, $hooksByPlugin[(int) $plugin['id']] ?? null);
+                // With a healthy prefetch, a plugin without rows gets [] (no
+                // hooks); when the prefetch failed ($hooksByPlugin === null)
+                // every plugin falls back to its own per-plugin query.
+                $prefetchedHooks = $hooksByPlugin[(int) $plugin['id']] ?? ($hooksByPlugin === null ? null : []);
+                $this->loadPlugin($plugin, $prefetchedHooks);
             } catch (\Throwable $e) {
                 SecureLogger::error("[PluginManager] Failed to load plugin '{$plugin['name']}'", ['error' => $e->getMessage()]);
                 // Continue loading other plugins even if one fails
@@ -1676,9 +1692,12 @@ class PluginManager
      * Fetch hook rows for the given plugin ids in a single query.
      *
      * @param int[] $pluginIds
-     * @return array<int, array<int, array{hook_name:string, callback_method:string, priority:int}>>
+     * @return array<int, array<int, array{hook_name:string, callback_method:string, priority:int}>>|null
+     *         Hook rows grouped by plugin id, or null when the query could not
+     *         run (callers must NOT cache and should fall back to per-plugin
+     *         queries).
      */
-    private function fetchHooksForPlugins(array $pluginIds): array
+    private function fetchHooksForPlugins(array $pluginIds): ?array
     {
         if (empty($pluginIds)) {
             return [];
@@ -1692,7 +1711,8 @@ class PluginManager
             ORDER BY priority ASC
         ");
         if ($stmt === false) {
-            return [];
+            SecureLogger::error('[PluginManager] fetchHooksForPlugins prepare failed', ['db_error' => $this->db->error]);
+            return null;
         }
         $stmt->bind_param(str_repeat('i', count($pluginIds)), ...$pluginIds);
         $stmt->execute();

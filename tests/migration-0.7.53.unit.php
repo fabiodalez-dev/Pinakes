@@ -6,13 +6,15 @@ declare(strict_types=1);
  * indexes for the "newest first" sorts on the public home page and catalogue).
  *
  * Runs the REAL migration file against a sandbox `libri` table (project
- * pattern: same SQL, only the table name rewritten) and asserts:
+ * pattern: same SQL, only the table name rewritten — both the backticked
+ * DDL identifier and the quoted INFORMATION_SCHEMA guard literal) and asserts:
  *   - both composite indexes are created with the expected column order
  *     (idx_libri_deleted_created on (deleted_at, created_at) and
  *      idx_libri_genere_deleted_created on (genere_id, deleted_at, created_at));
- *   - a second run only raises error 1061 (duplicate key name), which the
- *     updater explicitly ignores — i.e. the migration is idempotent under the
- *     updater's error policy and leaves exactly one copy of each index.
+ *   - a second run raises NO error at all (the INFORMATION_SCHEMA guard makes
+ *     the migration intrinsically idempotent, not merely tolerated via the
+ *     updater's ignorable-1061 policy) and exactly one index covers each
+ *     column list afterwards.
  *
  * Run:  php tests/migration-0.7.53.unit.php   (exit 0 iff all pass)
  */
@@ -59,15 +61,22 @@ try {
 $SB = 'zz_mig_libri_0753';
 $migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.53.sql');
 // Retarget the REAL migration at a sandbox table so the test never touches the
-// live libri table.
-$sandbox = static fn (string $sql): string => str_replace('`libri`', "`{$SB}`", $sql);
+// live libri table. The migration references the table both as a backticked
+// DDL identifier and as a quoted string literal in the INFORMATION_SCHEMA
+// guards — rewrite both, or the guard would probe the live table.
+$sandbox = static fn (string $sql): string => str_replace(
+    ['`libri`', "'libri'"],
+    ["`{$SB}`", "'{$SB}'"],
+    $sql
+);
 
-// Mirror the updater's error policy: 1061 (duplicate key name) is ignorable.
+// The guard makes the migration intrinsically idempotent: NO error (not even
+// the updater-ignorable 1061) is acceptable on any run.
 $runMigration = static function () use ($db, $migration, $sandbox): array {
     $unexpected = [];
     mysqli_report(MYSQLI_REPORT_OFF);
     foreach (array_filter(array_map('trim', preg_split('/;\s*\n/', $sandbox(preg_replace('/^--.*$/m', '', $migration) ?? $migration)))) as $statement) {
-        if ($db->query($statement) === false && $db->errno !== 1061) {
+        if ($db->query($statement) === false) {
             $unexpected[] = $db->errno . ': ' . $db->error;
         }
     }
@@ -89,11 +98,22 @@ $indexColumns = static function (string $indexName) use ($db, $SB): array {
     return $columns;
 };
 
-$indexCopies = static function (string $indexName) use ($db, $SB): int {
+// Distinct index names covering EXACTLY the given column sequence. A true
+// duplicate created by a non-idempotent re-run would appear under a different
+// auto-generated name (same name is impossible), so counting by column list —
+// not by name — is what actually detects it.
+$indexesCoveringColumns = static function (array $columns) use ($db, $SB): int {
+    $wanted = implode(',', $columns);
     $row = $db->query(
-        "SELECT COUNT(DISTINCT INDEX_NAME) AS n FROM information_schema.STATISTICS
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$SB}'
-           AND INDEX_NAME = '{$indexName}'"
+        "SELECT COUNT(*) AS n FROM (
+             SELECT INDEX_NAME,
+                    GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS cols
+             FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$SB}'
+               AND INDEX_NAME <> 'PRIMARY'
+             GROUP BY INDEX_NAME
+             HAVING cols = '" . $db->real_escape_string($wanted) . "'
+         ) t"
     )->fetch_assoc();
     return (int) ($row['n'] ?? 0);
 };
@@ -128,9 +148,15 @@ try {
     );
 
     $errorsSecond = $runMigration();
-    $check($errorsSecond === [], 'second run is idempotent under the updater error policy (only 1061 raised)');
-    $check($indexCopies('idx_libri_deleted_created') === 1, 'no duplicate idx_libri_deleted_created after re-run');
-    $check($indexCopies('idx_libri_genere_deleted_created') === 1, 'no duplicate idx_libri_genere_deleted_created after re-run');
+    $check($errorsSecond === [], 'second run raises no error at all (guard-based idempotency)' . ($errorsSecond ? ' (' . implode('; ', $errorsSecond) . ')' : ''));
+    $check(
+        $indexesCoveringColumns(['deleted_at', 'created_at']) === 1,
+        'exactly one index covers (deleted_at, created_at) after re-run'
+    );
+    $check(
+        $indexesCoveringColumns(['genere_id', 'deleted_at', 'created_at']) === 1,
+        'exactly one index covers (genere_id, deleted_at, created_at) after re-run'
+    );
 } finally {
     $cleanup();
     $db->close();

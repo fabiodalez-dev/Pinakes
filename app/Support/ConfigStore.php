@@ -17,6 +17,13 @@ final class ConfigStore
     private static ?array $dbSettingsCache = null;
     private static ?\mysqli $sharedConnection = null;
 
+    /**
+     * True once a connection attempt has failed this request. Without it, a
+     * DB outage makes every ConfigStore call (e.g. an admin save writing N
+     * keys) retry the connect and pay the full timeout N times.
+     */
+    private static bool $connectionFailed = false;
+
     public static function all(): array
     {
         if (self::$runtimeCache !== null) {
@@ -240,6 +247,10 @@ final class ConfigStore
             return self::$sharedConnection;
         }
 
+        if (self::$connectionFailed) {
+            return null;
+        }
+
         $settingsPath = __DIR__ . '/../../config/settings.php';
         if (!is_file($settingsPath)) {
             return null;
@@ -264,8 +275,15 @@ final class ConfigStore
         }
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-        $mysqli = new \mysqli($host, $user, $pass, $name, $port, $socket);
-        $mysqli->set_charset($charset);
+        try {
+            $mysqli = new \mysqli($host, $user, $pass, $name, $port, $socket);
+            $mysqli->set_charset($charset);
+        } catch (\Throwable $e) {
+            // Remember the failure for the rest of the request so later calls
+            // don't re-pay the connect timeout, then let callers handle it.
+            self::$connectionFailed = true;
+            throw $e;
+        }
         self::$sharedConnection = $mysqli;
 
         return self::$sharedConnection;
