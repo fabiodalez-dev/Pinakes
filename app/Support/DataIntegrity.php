@@ -91,8 +91,8 @@ class DataIntegrity {
                         FROM prenotazioni pr
                         WHERE pr.libro_id = l.id
                         AND pr.stato = 'attiva'
-                        AND pr.data_inizio_richiesta IS NOT NULL
-                        AND pr.data_inizio_richiesta <= '{$today}'
+                        AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
+                        AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
                         AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
                     ),
                     0
@@ -124,8 +124,8 @@ class DataIntegrity {
                             FROM prenotazioni pr
                             WHERE pr.libro_id = l.id
                             AND pr.stato = 'attiva'
-                            AND pr.data_inizio_richiesta IS NOT NULL
-                            AND pr.data_inizio_richiesta <= '{$today}'
+                            AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
+                            AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
                             AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
                         ),
                         0
@@ -334,8 +334,8 @@ class DataIntegrity {
                         FROM prenotazioni pr
                         WHERE pr.libro_id = ?
                         AND pr.stato = 'attiva'
-                        AND pr.data_inizio_richiesta IS NOT NULL
-                        AND pr.data_inizio_richiesta <= '{$today}'
+                        AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
+                        AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
                         AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
                     ),
                     0
@@ -367,8 +367,8 @@ class DataIntegrity {
                             FROM prenotazioni pr
                             WHERE pr.libro_id = ?
                             AND pr.stato = 'attiva'
-                            AND pr.data_inizio_richiesta IS NOT NULL
-                            AND pr.data_inizio_richiesta <= '{$today}'
+                            AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
+                            AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
                             AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
                         ),
                         0

@@ -79,6 +79,7 @@ abstract class RecordFormatter
     {
         $allowed = ['principale', 'co-autore', 'traduttore', 'illustratore', 'curatore', 'colorista'];
         $rows = [];
+        $entityRoles = [];
         if (isset($record['contributors']) && is_array($record['contributors'])) {
             foreach ($record['contributors'] as $row) {
                 if (!is_array($row)) {
@@ -88,21 +89,72 @@ abstract class RecordFormatter
                 $role = (string) ($row['ruolo'] ?? 'co-autore');
                 if ($name !== '' && in_array($role, $allowed, true)) {
                     $rows[] = ['nome' => $name, 'ruolo' => $role];
+                    $entityRoles[] = $role;
                 }
-            }
-            if ($rows !== []) {
-                return $rows;
             }
         }
 
-        $authors = array_values(array_filter(array_map(
-            'trim',
-            explode('; ', (string) ($record['autori'] ?? ''))
-        )));
-        foreach ($authors as $index => $name) {
-            $rows[] = ['nome' => $name, 'ruolo' => $index === 0 ? 'principale' : 'co-autore'];
+        // No entity contributors at all: fall back to the historic '; '-joined
+        // author string as intellectual creators.
+        if ($rows === []) {
+            $authors = array_values(array_filter(array_map(
+                'trim',
+                explode('; ', (string) ($record['autori'] ?? ''))
+            )));
+            foreach ($authors as $index => $name) {
+                $rows[] = ['nome' => $name, 'ruolo' => $index === 0 ? 'principale' : 'co-autore'];
+            }
         }
+
+        // Legacy free-text contributor columns (libri.traduttore/illustratore/
+        // curatore/colorista) — exported only when no entity row already covers
+        // that role. Mirrors OaiPmhServerPlugin's legacy safety-net. Values may
+        // be '; '-joined by ContributorSync, so split them.
+        foreach (['traduttore', 'illustratore', 'curatore', 'colorista'] as $role) {
+            if (in_array($role, $entityRoles, true)) {
+                continue;
+            }
+            $raw = trim((string) ($record[$role] ?? ''));
+            if ($raw === '') {
+                continue;
+            }
+            foreach (explode('; ', $raw) as $name) {
+                $name = trim($name);
+                if ($name !== '') {
+                    $rows[] = ['nome' => $name, 'ruolo' => $role];
+                }
+            }
+        }
+
         return $rows;
+    }
+
+    /**
+     * Every publisher for a record: the batch-fetched primary + secondary
+     * co-publishers (#143) when present, otherwise the single primary
+     * `editore` string. Keeps Z39/SRU output at parity with web/OAI-PMH.
+     *
+     * @param array<string,mixed> $record
+     * @return list<string>
+     */
+    protected function publisherNames(array $record): array
+    {
+        $names = [];
+        if (isset($record['publishers']) && is_array($record['publishers'])) {
+            foreach ($record['publishers'] as $name) {
+                $name = trim((string) $name);
+                if ($name !== '') {
+                    $names[] = $name;
+                }
+            }
+        }
+        if ($names === []) {
+            $primary = trim((string) ($record['editore'] ?? ''));
+            if ($primary !== '') {
+                $names[] = $primary;
+            }
+        }
+        return $names;
     }
 
     protected function isCreatorRole(string $role): bool
@@ -119,5 +171,27 @@ abstract class RecordFormatter
             'colorista' => 'colorist',
             default => 'author',
         };
+    }
+
+    /**
+     * Absolutize a stored cover URL so remote SRU/Z39 partners get a resolvable
+     * link.
+     *
+     * #6: covers imported through the app are localized to SITE-RELATIVE paths
+     * (/uploads/copertine/...) by LibriController::downloadExternalCover, so a
+     * raw value is not resolvable by a remote partner. The web and Mobile API
+     * wrap the value in absoluteUrl(); mirror that here. Values that are already
+     * absolute (http/https) are emitted unchanged. Shared by every formatter.
+     */
+    protected function absoluteCoverUrl(string $url): string
+    {
+        $url = trim($url);
+        if ($url === '' || preg_match('#^https?://#i', $url) === 1) {
+            return $url;
+        }
+        if (function_exists('absoluteUrl')) {
+            return \absoluteUrl('/' . ltrim($url, '/'));
+        }
+        return $url;
     }
 }

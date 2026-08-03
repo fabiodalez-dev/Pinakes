@@ -172,7 +172,7 @@ class AutoriApiController
         $selectNaz = $colNaz !== null ? "a.`$colNaz` AS nazionalita" : "'' AS nazionalita";
         $sql_prepared = "SELECT a.id, a.nome, a.pseudonimo, a.data_nascita, a.data_morte, a.biografia, a.sito_web,
                        $selectNaz,
-                       (SELECT COUNT(*)
+                       (SELECT COUNT(DISTINCT la.libro_id)
                           FROM libri_autori la
                           JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
                          WHERE la.autore_id = a.id) AS libri_count
@@ -380,7 +380,7 @@ class AutoriApiController
 
         $sql = "SELECT a.id, a.nome, a.pseudonimo, a.data_nascita, a.data_morte, a.sito_web,
                        $selectNaz,
-                       (SELECT COUNT(*)
+                       (SELECT COUNT(DISTINCT la.libro_id)
                           FROM libri_autori la
                           JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
                          WHERE la.autore_id = a.id) AS libri_count

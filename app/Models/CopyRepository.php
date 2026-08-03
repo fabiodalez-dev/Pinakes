@@ -374,6 +374,34 @@ class CopyRepository
     }
 
     /**
+     * Conta le copie IN CIRCOLAZIONE per un libro, cioè escludendo gli stati
+     * fuori circolazione (perso, danneggiato, manutenzione, in_restauro,
+     * in_trasferimento). Deve restare allineato a DataIntegrity::recalculate
+     * BookAvailability, che calcola `libri.copie_totali` con la stessa
+     * esclusione: il form di modifica pre-compila il campo "copie totali" da
+     * quella colonna filtrata, quindi il conteggio di riferimento per decidere
+     * quante copie aggiungere/rimuovere deve usare LO STESSO insieme di stati.
+     * Usare invece countByBookId() (conteggio grezzo di TUTTE le copie) fa sì
+     * che un salvataggio di routine, su un libro con anche una sola copia fuori
+     * circolazione, veda current > form e cancelli una copia buona.
+     */
+    public function countInCirculationByBookId(int $bookId): int
+    {
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) as count FROM copie
+             WHERE libro_id = ?
+             AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')"
+        );
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+
+        return (int)($row['count'] ?? 0);
+    }
+
+    /**
      * Genera numero inventario univoco per una nuova copia
      */
     public function generateInventoryNumber(int $bookId, string $baseNumber): string

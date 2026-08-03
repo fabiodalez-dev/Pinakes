@@ -1205,6 +1205,14 @@ class LibriController
                 $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
             }
 
+            // Ricalcola disponibilità dopo aver generato le copie, come fa il
+            // percorso di update. Senza questo, copie_disponibili/copie_totali e
+            // lo stato canonico non vengono derivati dalle copie appena create:
+            // ogni superficie OPAC calcola la disponibilità da copie_disponibili,
+            // quindi un nuovo libro resterebbe con i contatori a zero (o con lo
+            // stato grezzo scritto dal form) finché non passa un altro salvataggio.
+            (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($id);
+
             // Persist all fields first, then apply an explicitly chosen cover
             // (file upload or scraped URL) on top so it isn't reverted by the
             // field update (mirrors update(); see #165).
@@ -1840,9 +1848,16 @@ class LibriController
             // Plugin hook: After book save (update)
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
-            // Gestione copie: aggiorna il numero di copie se cambiato
+            // Gestione copie: aggiorna il numero di copie se cambiato.
+            // Il conteggio di riferimento DEVE escludere le copie fuori
+            // circolazione (perso/danneggiato/manutenzione/in_restauro/
+            // in_trasferimento), perché `$fields['copie_totali']` arriva dal
+            // form pre-compilato con `libri.copie_totali`, che DataIntegrity
+            // calcola con la stessa esclusione. Con il conteggio grezzo
+            // (countByBookId) un libro con una copia fuori circolazione avrebbe
+            // current > form a ogni salvataggio e cancellerebbe una copia buona.
             $copyRepo = new \App\Models\CopyRepository($db);
-            $currentCopieCount = $copyRepo->countByBookId($id);
+            $currentCopieCount = $copyRepo->countInCirculationByBookId($id);
             $newCopieCount = (int) $fields['copie_totali'];
 
             if ($newCopieCount > $currentCopieCount) {
@@ -3212,6 +3227,14 @@ class LibriController
                 array_map('intval', explode(',', $idsParam)),
                 static fn (int $id): bool => $id > 0
             )));
+            // The selected-export path caps at 1000 IDs. Don't truncate in
+            // silence: log it so a large multi-page selection that loses rows
+            // is at least diagnosable (the UI accumulates IDs across pages).
+            if (count($selectedIds) > 1000) {
+                SecureLogger::error(__('Export selezione troncato a 1000 libri'), [
+                    'requested' => count($selectedIds),
+                ]);
+            }
             $selectedIds = array_slice($selectedIds, 0, 1000);
         }
 
@@ -3317,6 +3340,11 @@ class LibriController
 
         $query .= " GROUP BY l.id ORDER BY l.id DESC";
 
+        // Raise GROUP_CONCAT limit (MySQL default 1024 bytes) so long author /
+        // publisher lists in autori_nomi / editori_nomi are not silently
+        // truncated mid-name on export — same precaution as SearchIndexBuilder.
+        $db->query("SET SESSION group_concat_max_len = 1000000");
+
         // Execute query with prepared statement if filters are applied
         if (!empty($bindValues)) {
             $stmt = $db->prepare($query);
@@ -3375,6 +3403,9 @@ class LibriController
                 'collana',
                 'numero_serie',
                 'traduttore',
+                'illustratore',
+                'curatore',
+                'classificazione_dewey',
                 'parole_chiave'
             ];
         }
@@ -3425,6 +3456,9 @@ class LibriController
                     $libro['collana'] ?? '',
                     $libro['numero_serie'] ?? '',
                     $libro['traduttore'] ?? '',
+                    $libro['illustratore'] ?? '',
+                    $libro['curatore'] ?? '',
+                    $libro['classificazione_dewey'] ?? '',
                     $libro['parole_chiave'] ?? ''
                 ];
             }

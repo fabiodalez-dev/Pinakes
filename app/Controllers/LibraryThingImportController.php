@@ -416,7 +416,11 @@ class LibraryThingImportController
                     // silently lost every contributor entity on each re-import
                     // (this importer only manages provenance-scoped translators
                     // below).
-                    if ($action === 'updated') {
+                    // Only rewrite the principal links when the row carries an
+                    // author. An EMPTY author cell must NOT wipe the existing
+                    // principal authors, which left the book permanently
+                    // authorless on a re-import that omitted the author (#22).
+                    if ($action === 'updated' && !empty($parsedData['autori'])) {
                         $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ? AND ruolo = 'principale'");
                         $stmt->bind_param('i', $bookId);
                         $stmt->execute();
@@ -850,9 +854,13 @@ class LibraryThingImportController
             }
         }
 
-        // Return only the first normalized name — traduttore is treated as single-value
-        // throughout the app (Schema.org Person, book-detail view, etc.)
-        return $normalized === [] ? null : $normalized[0];
+        // Return ALL normalized names joined with '; ' — the legacy contributor
+        // cache columns (libri.traduttore/illustratore/curatore) hold a '; '-joined
+        // list of every role entity (the same separator ContributorSync and
+        // BookRepository use). Returning only the first name dropped every
+        // translator after the first, contradicting the full multi-name string
+        // this same import hands to ContributorSync::syncImportedLegacyValues (#8).
+        return $normalized === [] ? null : implode('; ', $normalized);
     }
 
     private function parseLibraryThingRow(array $data): array

@@ -103,7 +103,13 @@ final class CapacityService
         return $this->sweepPeak($intervals);
     }
 
-    /** True iff OCC(b,[s,e]) < totalCopies(b) for every day in [s,e]. */
+    /**
+     * True iff OCC(b,[s,e]) < totalCopies(b) for every day in [s,e].
+     *
+     * @phpstan-impure Reads live prestiti/prenotazioni/copie state: two identical
+     * calls can legitimately differ (e.g. a pre-lock check vs a post-lock recheck
+     * inside a transaction), so the result must never be treated as memoisable.
+     */
     public function hasFreeCapacity(
         int $libroId,
         string $start,

@@ -171,6 +171,28 @@ class GenereRepository
             throw new \RuntimeException('Impossibile eliminare: il genere è usato da libri esistenti');
         }
 
+        // Physical shelf bindings must block a plain delete rather than silently
+        // cascade. posizioni.genere_id is ON DELETE CASCADE: deleting the genre
+        // would drop its posizioni and NULL libri.posizione_id even for books of
+        // OTHER genres that happen to be shelved there (they are not caught by the
+        // genere_id/sottogenere_id book check above). mensole.genere_id is RESTRICT,
+        // so an assigned mensola would otherwise crash with FK error 1451.
+        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM posizioni WHERE genere_id = ?");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];
+        if ($count > 0) {
+            throw new \RuntimeException('Impossibile eliminare: il genere ha posizioni fisiche assegnate');
+        }
+
+        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM mensole WHERE genere_id = ?");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];
+        if ($count > 0) {
+            throw new \RuntimeException('Impossibile eliminare: il genere è assegnato a una mensola');
+        }
+
         $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
         $stmt->bind_param('i', $id);
         $result = $stmt->execute();
@@ -206,6 +228,18 @@ class GenereRepository
             $this->bindIntParams($stmt, $ids);
             if (!$stmt->execute()) {
                 throw new \RuntimeException('Errore nello scollegamento delle mensole dai generi');
+            }
+
+            // Explicitly remove the subtree's posizioni inside the transaction rather
+            // than letting the ON DELETE CASCADE fire silently when the genere rows go.
+            // posizioni.genere_id is NOT NULL (cannot be unlinked like mensole), so
+            // deleting the defining genres necessarily removes their positions; the
+            // FK on libri.posizione_id (ON DELETE SET NULL) unshelves the affected
+            // books, an inherent consequence of force-deleting the genre subtree.
+            $stmt = $this->db->prepare("DELETE FROM posizioni WHERE genere_id IN ({$placeholders})");
+            $this->bindIntParams($stmt, $ids);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nella rimozione delle posizioni dei generi');
             }
 
             $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
@@ -422,6 +456,66 @@ class GenereRepository
             $stmt->bind_param('ii', $targetId, $sourceId);
             if (!$stmt->execute()) {
                 throw new \RuntimeException('Errore nell\'aggiornamento del sottogenere dei libri');
+            }
+
+            // Preserve physical shelf placement: posizioni.genere_id is ON DELETE
+            // CASCADE and libri.posizione_id is ON DELETE SET NULL, so deleting the
+            // source genre would drop its posizioni and strip the shelf from every
+            // book placed there. Repoint the source genre's posizioni to the target
+            // instead. posizioni has a UNIQUE (scaffale_id, mensola_id, genere_id):
+            // when the target already owns a position on the same shelf+mensola,
+            // move the books onto that existing row and drop the duplicate source
+            // position rather than triggering a unique-key collision.
+            $srcPosStmt = $this->db->prepare("SELECT id, scaffale_id, mensola_id FROM posizioni WHERE genere_id = ?");
+            $srcPosStmt->bind_param('i', $sourceId);
+            if (!$srcPosStmt->execute()) {
+                throw new \RuntimeException('Errore nel recupero delle posizioni del genere di origine');
+            }
+            $positions = $srcPosStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+            if (!empty($positions)) {
+                $findTargetPos = $this->db->prepare("SELECT id FROM posizioni WHERE scaffale_id = ? AND mensola_id = ? AND genere_id = ? LIMIT 1");
+                $moveBooksPos = $this->db->prepare("UPDATE libri SET posizione_id = ? WHERE posizione_id = ?");
+                $dropPos = $this->db->prepare("DELETE FROM posizioni WHERE id = ?");
+                $repointPos = $this->db->prepare("UPDATE posizioni SET genere_id = ? WHERE id = ?");
+
+                foreach ($positions as $pos) {
+                    $posId = (int)$pos['id'];
+                    $posScaffale = (int)$pos['scaffale_id'];
+                    $posMensola = (int)$pos['mensola_id'];
+
+                    $findTargetPos->bind_param('iii', $posScaffale, $posMensola, $targetId);
+                    if (!$findTargetPos->execute()) {
+                        throw new \RuntimeException('Errore nella verifica delle posizioni di destinazione');
+                    }
+                    $existing = $findTargetPos->get_result()->fetch_assoc();
+
+                    if ($existing) {
+                        $existingId = (int)$existing['id'];
+                        $moveBooksPos->bind_param('ii', $existingId, $posId);
+                        if (!$moveBooksPos->execute()) {
+                            throw new \RuntimeException('Errore nello spostamento dei libri sulla posizione di destinazione');
+                        }
+                        $dropPos->bind_param('i', $posId);
+                        if (!$dropPos->execute()) {
+                            throw new \RuntimeException('Errore nella rimozione della posizione duplicata');
+                        }
+                    } else {
+                        $repointPos->bind_param('ii', $targetId, $posId);
+                        if (!$repointPos->execute()) {
+                            throw new \RuntimeException('Errore nel ripuntamento della posizione al genere di destinazione');
+                        }
+                    }
+                }
+            }
+
+            // mensole.genere_id is a plain RESTRICT FK with no unique on genere_id,
+            // so a straight repoint is safe (and prevents the FK 1451 that would
+            // otherwise abort the merge whenever a mensola is assigned to the genre).
+            $stmt = $this->db->prepare("UPDATE mensole SET genere_id = ? WHERE genere_id = ?");
+            $stmt->bind_param('ii', $targetId, $sourceId);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nel ripuntamento delle mensole al genere di destinazione');
             }
 
             // Delete source genre

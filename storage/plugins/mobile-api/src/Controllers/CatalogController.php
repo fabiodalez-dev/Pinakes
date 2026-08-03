@@ -362,9 +362,15 @@ final class CatalogController
             $availState  = 'available';
             if ($copiesAvail <= 0) {
                 $availState = 'unavailable';
+                // A 'da_ritirare' loan (approved, awaiting pickup) is RESERVED, not
+                // on_loan: the copy is still physically in the library. This matches
+                // DataIntegrity (prenotato/da_ritirare → copy stato 'prenotato') and the
+                // web catalog badge. Only in_corso/in_ritardo mean a copy is checked out.
+                // The ordered probe keeps on_loan precedence, so an actually-loaned copy
+                // still wins over a held one.
                 $holds = [
-                    'on_loan'  => "SELECT 1 FROM prestiti WHERE libro_id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare') LIMIT 1",
-                    'reserved' => "SELECT 1 FROM prestiti WHERE libro_id = ? AND attivo = 1 AND stato = 'prenotato' LIMIT 1",
+                    'on_loan'  => "SELECT 1 FROM prestiti WHERE libro_id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo') LIMIT 1",
+                    'reserved' => "SELECT 1 FROM prestiti WHERE libro_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare') LIMIT 1",
                     'reserved2'=> "SELECT 1 FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva' LIMIT 1",
                 ];
                 foreach ($holds as $state => $sql) {

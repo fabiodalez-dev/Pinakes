@@ -466,7 +466,7 @@ class SearchController
 
         $sql = "
             SELECT a.id, a.nome, a.pseudonimo, a.biografia,
-                   (SELECT COUNT(*) FROM libri_autori la2 JOIN libri l2 ON la2.libro_id = l2.id WHERE la2.autore_id = a.id AND l2.deleted_at IS NULL) as libro_count
+                   (SELECT COUNT(DISTINCT la2.libro_id) FROM libri_autori la2 JOIN libri l2 ON la2.libro_id = l2.id WHERE la2.autore_id = a.id AND l2.deleted_at IS NULL) as libro_count
             FROM autori a
             WHERE " . implode(' AND ', $conditions) . "
             ORDER BY " . \App\Support\AuthorName::preferredSql('a') . " LIMIT 4

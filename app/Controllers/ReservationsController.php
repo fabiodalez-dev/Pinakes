@@ -161,7 +161,16 @@ class ReservationsController
                 continue;
             }
 
+            // Occupancy start mirrors CapacityService's COALESCE fallback: a legacy
+            // 'attiva' row whose data_inizio_richiesta is NULL still occupies its
+            // copy, using the reservation deadline (data_scadenza_prenotazione) as
+            // the start. It must NOT be skipped — otherwise the calendars would
+            // free a slot the canonical capacity gate still counts. Only drop the
+            // row if neither a start nor a deadline is known.
             $resStart = $reservation['data_inizio_richiesta'] ?? null;
+            if (!$resStart && !empty($reservation['data_scadenza_prenotazione'])) {
+                $resStart = substr((string) $reservation['data_scadenza_prenotazione'], 0, 10);
+            }
             if (!$resStart) {
                 continue;
             }
@@ -344,25 +353,16 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Check if dates are available
+        // Availability decision routes through CapacityService — the single
+        // capacity authority — so this web loan-request gate matches the mobile
+        // gate exactly (same COALESCE occupancy semantics). excludeUserId mirrors
+        // the previous hand-rolled behaviour of not letting the user's own
+        // commitments block them.
+        $capacity = new \App\Services\CapacityService($this->db);
         $requestedDates = $this->getDateRange($startDate, $endDate);
-        $rangeDays = max(count($requestedDates), 1);
-        // Pass userId to exclude their own reservation from blocking them
-        $availability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30, $userId);
-        $availabilityByDate = $availability['by_date'] ?? [];
 
-        $conflictDates = [];
-        foreach ($requestedDates as $date) {
-            $dayData = $availabilityByDate[$date] ?? null;
-            if ($dayData === null) {
-                continue;
-            }
-            if (($dayData['available'] ?? 0) <= 0) {
-                $conflictDates[] = $date;
-            }
-        }
-
-        if (!empty($conflictDates)) {
+        if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
+            $conflictDates = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __('Nessuna copia disponibile nelle date richieste'),
@@ -445,17 +445,10 @@ class ReservationsController
                 }
             }
 
-            // Re-check availability after acquiring lock to avoid races
-            $postLockAvailability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30, $userId);
-            $postLockByDate = $postLockAvailability['by_date'] ?? [];
-            $postLockConflicts = [];
-            foreach ($requestedDates as $date) {
-                $dayData = $postLockByDate[$date] ?? null;
-                if ($dayData !== null && ($dayData['available'] ?? 0) <= 0) {
-                    $postLockConflicts[] = $date;
-                }
-            }
-            if (!empty($postLockConflicts)) {
+            // Re-check availability after acquiring lock to avoid races, through
+            // the same CapacityService gate as the pre-check.
+            if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
+                $postLockConflicts = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
                 $this->db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -543,6 +536,26 @@ class ReservationsController
         $existingReservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
 
         return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId);
+    }
+
+    /**
+     * Days within $requestedDates for which the book has no free capacity, per the
+     * canonical CapacityService gate. Used only to enrich the client error payload
+     * after the whole-range hasFreeCapacity() decision has already failed, so the
+     * response keeps its previous conflict_dates shape.
+     *
+     * @param list<string> $requestedDates
+     * @return list<string>
+     */
+    private function capacityConflictDates(\App\Services\CapacityService $capacity, int $bookId, array $requestedDates, int $userId): array
+    {
+        $conflicts = [];
+        foreach ($requestedDates as $date) {
+            if (!$capacity->hasFreeCapacity($bookId, $date, $date, excludeUserId: $userId)) {
+                $conflicts[] = $date;
+            }
+        }
+        return $conflicts;
     }
 
     private function getDateRange($startDate, $endDate)

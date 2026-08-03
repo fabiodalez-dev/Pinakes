@@ -262,7 +262,7 @@ class CollocazioneController
         $scaffaleId = (int) ($q['scaffale_id'] ?? 0);
         $mensolaId = (int) ($q['mensola_id'] ?? 0);
 
-        $sql = "SELECT l.id, l.titolo, l.scaffale_id, l.mensola_id, l.posizione_progressiva,
+        $sql = "SELECT l.id, l.titolo, l.scaffale_id, l.mensola_id, l.posizione_progressiva, l.collocazione,
                        s.codice as scaffale_codice, m.numero_livello,
                        GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori,
                        e.nome as editore
@@ -307,9 +307,12 @@ class CollocazioneController
 
         $libri = [];
         while ($row = $result->fetch_assoc()) {
-            $collocazione = '';
-            if ($row['scaffale_codice'] && $row['numero_livello'] && $row['posizione_progressiva']) {
-                $collocazione = $row['scaffale_codice'] . '.' . $row['numero_livello'] . '.' . $row['posizione_progressiva'];
+            // Use the stored, canonical collocazione (dash-separated, zero-padded
+            // 'A-2-03') so the shelf browser matches the OPAC detail and admin sheet.
+            // Fall back to the same padded format only if the stored value is empty.
+            $collocazione = (string) ($row['collocazione'] ?? '');
+            if ($collocazione === '' && $row['scaffale_codice'] && $row['numero_livello'] && $row['posizione_progressiva']) {
+                $collocazione = sprintf('%s-%d-%02d', strtoupper(trim((string) $row['scaffale_codice'])), (int) $row['numero_livello'], (int) $row['posizione_progressiva']);
             }
 
             $libri[] = [
@@ -334,7 +337,7 @@ class CollocazioneController
         $mensolaId = (int) ($q['mensola_id'] ?? 0);
 
         $sql = "SELECT l.id, l.titolo, COALESCE(l.isbn13, l.isbn10) as isbn, l.anno_pubblicazione,
-                       s.codice as scaffale_codice, m.numero_livello, l.posizione_progressiva,
+                       s.codice as scaffale_codice, m.numero_livello, l.posizione_progressiva, l.collocazione,
                        GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori,
                        e.nome as editore
                 FROM libri l
@@ -388,9 +391,12 @@ class CollocazioneController
         ];
 
         while ($row = $result->fetch_assoc()) {
-            $collocazione = '';
-            if ($row['scaffale_codice'] && $row['numero_livello'] && $row['posizione_progressiva']) {
-                $collocazione = $row['scaffale_codice'] . '.' . $row['numero_livello'] . '.' . $row['posizione_progressiva'];
+            // Match the stored, canonical collocazione (dash-separated, zero-padded)
+            // used by the OPAC detail and admin sheet; fall back to the same padded
+            // format only when the stored value is empty.
+            $collocazione = (string) ($row['collocazione'] ?? '');
+            if ($collocazione === '' && $row['scaffale_codice'] && $row['numero_livello'] && $row['posizione_progressiva']) {
+                $collocazione = sprintf('%s-%d-%02d', strtoupper(trim((string) $row['scaffale_codice'])), (int) $row['numero_livello'], (int) $row['posizione_progressiva']);
             }
 
             $csv[] = [

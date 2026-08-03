@@ -307,8 +307,22 @@ class CsvImportController
                     ));
                 }
 
-                // Map data
-                $row = array_combine($mappedHeaders, $rawData);
+                // Map data. Several source headers can legitimately map to the
+                // same canonical field (e.g. LibraryThing exports both 'ISBN' and
+                // 'ISBNs' → isbn13, and 'Tags' + 'Subjects' → parole_chiave, and
+                // multiple call-number columns → classificazione_dewey). A plain
+                // array_combine() lets the LAST duplicate silently overwrite the
+                // first — often with a messier value ('[978…, 88…]') or an empty
+                // cell — destroying data on import (#13). Keep the FIRST non-empty
+                // value per canonical instead.
+                $row = [];
+                foreach ($mappedHeaders as $index => $canonical) {
+                    $value = $rawData[$index] ?? '';
+                    if (array_key_exists($canonical, $row) && trim((string) $row[$canonical]) !== '') {
+                        continue; // already have a non-empty value for this field
+                    }
+                    $row[$canonical] = $value;
+                }
                 $parsedData = $this->parseCsvRow($row);
 
                 if (empty($parsedData['titolo'])) {
@@ -317,23 +331,51 @@ class CsvImportController
 
                 $db->begin_transaction();
 
-                // Get or create publisher
+                // Resolve publisher(s). The exporter joins ALL publishers
+                // (primary + co-publishers from libri_editori, #143) into the
+                // single `editore` cell with ';'. Treating the whole cell as ONE
+                // publisher name created a bogus "A;B" editore on round-trip
+                // (#12): split it, first = primary, the rest = co-publishers.
                 $editorId = null;
+                $coPublisherIds = [];
+                $publisherCellHasMultiple = false;
                 if (!empty($parsedData['editore'])) {
-                    $publisherResult = $this->getOrCreatePublisher($db, trim($parsedData['editore']));
-                    $editorId = $publisherResult['id'];
-                    if ($publisherResult['created']) {
-                        $importData['publishers_created']++;
+                    $publisherNames = array_values(array_filter(
+                        array_map('trim', explode(';', (string) $parsedData['editore'])),
+                        static fn (string $n): bool => $n !== ''
+                    ));
+                    $publisherCellHasMultiple = count($publisherNames) > 1;
+                    foreach ($publisherNames as $pIndex => $pName) {
+                        $publisherResult = $this->getOrCreatePublisher($db, $pName);
+                        if ($publisherResult['created']) {
+                            $importData['publishers_created']++;
+                        }
+                        if ($pIndex === 0) {
+                            $editorId = $publisherResult['id'];
+                        } elseif ((int) $publisherResult['id'] !== (int) $editorId) {
+                            $coPublisherIds[] = (int) $publisherResult['id'];
+                        }
                     }
                 }
 
-                // Get genre ID
-                $genreId = $this->getGenreId($db, $parsedData['genere'] ?? '');
+                // Resolve genre, creating it when the CSV names a genre absent
+                // from the catalogue (#16). Previously getGenreId() only looked up
+                // existing rows and returned NULL for anything new — so a genre
+                // present in the export vanished on re-import — unlike the
+                // authors/publishers auto-create paths.
+                $genreId = $this->getOrCreateGenre($db, $parsedData['genere'] ?? '', $importData);
 
                 // Upsert book
                 $upsertResult = $this->upsertBook($db, $parsedData, $editorId, $genreId);
                 $bookId = $upsertResult['id'];
                 $action = $upsertResult['action'];
+
+                // Import the co-publishers (#12/#143) ONLY when the cell actually
+                // carried more than one publisher, so a single-publisher CSV never
+                // wipes co-publishers a librarian curated in the admin form.
+                if ($publisherCellHasMultiple) {
+                    $this->syncImportedCoPublishers($db, $bookId, $editorId, $coPublisherIds);
+                }
 
                 // Remove old PRINCIPAL author links if updating — scoped to
                 // ruolo='principale' so a re-import re-writes the authors the CSV
@@ -342,7 +384,12 @@ class CsvImportController
                 // below with importer provenance, while colorist/curator aren't
                 // CSV columns at all. A blanket delete-all silently lost every
                 // contributor entity on each re-import.
-                if ($action === 'updated') {
+                // Only rewrite the principal links when the row actually carries
+                // an author. An EMPTY author cell must NOT wipe the existing
+                // principal authors — a blanket delete-when-updated left the book
+                // permanently authorless whenever a re-imported row omitted the
+                // author (#22).
+                if ($action === 'updated' && !empty($parsedData['autori'])) {
                     $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ? AND ruolo = 'principale'");
                     $stmt->bind_param('i', $bookId);
                     $stmt->execute();
@@ -384,6 +431,7 @@ class CsvImportController
                     [
                         'traduttore' => $parsedData['traduttore'] ?? null,
                         'illustratore' => $parsedData['illustratore'] ?? null,
+                        'curatore' => $parsedData['curatore'] ?? null,
                     ],
                     'csv'
                 );
@@ -805,8 +853,36 @@ class CsvImportController
     /**
      * Parse a single CSV row into normalized book data
      */
+    /**
+     * Reverse the CSV formula-injection escaping applied on export: League\Csv
+     * EscapeFormula prepends a single "'" to any cell whose first character is
+     * one of = + - @ (or a leading tab / CR). Strip that apostrophe on import so
+     * an export→import round-trip is byte-stable for such values.
+     */
+    private function unescapeCsvFormula(string $value): string
+    {
+        if (strlen($value) >= 2
+            && $value[0] === "'"
+            && in_array($value[1], ['=', '+', '-', '@', "\t", "\r"], true)
+        ) {
+            return substr($value, 1);
+        }
+        return $value;
+    }
+
     private function parseCsvRow(array $row): array
     {
+        // Reverse CSV formula-injection escaping applied on export. The standard
+        // export prepends a single "'" to any cell starting with = + - @ (League
+        // EscapeFormula) so spreadsheet clients don't evaluate it as a formula.
+        // parseCsvRow only trims, so without this a round-trip would keep (and, on
+        // repeated cycles, never shed) that leading apostrophe (#14).
+        foreach ($row as $k => $v) {
+            if (is_string($v)) {
+                $row[$k] = $this->unescapeCsvFormula($v);
+            }
+        }
+
         // Combine primary_author, secondary_author, and autori fields to prevent data loss
         $authors = [];
         if (!empty($row['primary_author'])) {
@@ -849,6 +925,7 @@ class CsvImportController
             'numero_serie' => !empty($row['numero_serie']) ? trim($row['numero_serie']) : null,
             'traduttore' => !empty($row['traduttore']) ? trim($row['traduttore']) : null,
             'illustratore' => !empty($row['illustratore']) ? trim($row['illustratore']) : null,
+            'curatore' => !empty($row['curatore']) ? trim($row['curatore']) : null,
             'parole_chiave' => !empty($row['parole_chiave']) ? trim($row['parole_chiave']) : null,
             'classificazione_dewey' => !empty($row['classificazione_dewey']) ? trim($row['classificazione_dewey']) : null,
             'copertina_url' => !empty($row['copertina_url']) ? trim($row['copertina_url']) : null
@@ -1102,6 +1179,7 @@ class CsvImportController
             'numero_serie' => ['numero_serie', 'series number', 'number in series', 'número de serie', 'numéro de série'],
             'traduttore' => ['traduttore', 'translator', 'traductor', 'traducteur', 'übersetzer'],
             'illustratore' => ['illustratore', 'illustrator', 'ilustrador', 'illustrateur', 'zeichner'],
+            'curatore' => ['curatore', 'editor', 'curator', 'edited by', 'herausgeber'],
             'parole_chiave' => ['parole_chiave', 'parole chiave', 'keywords', 'tags', 'palabras clave', 'mots-clés', 'schlagwörter', 'subjects'],
             'classificazione_dewey' => ['classificazione_dewey', 'dewey', 'dewey decimal', 'dewey classification', 'dewey wording', 'lc classification', 'call number', 'other call number']
         ];
@@ -1211,6 +1289,88 @@ class CsvImportController
     }
 
     /**
+     * Ottieni ID genere, creandolo come genere di primo livello se assente.
+     *
+     * Simmetrico ai percorsi auto-create di autori/editori: un genere presente
+     * nell'export (colonna `genere`) ma non ancora in catalogo veniva prima
+     * scartato con genere_id = NULL (#16). Il match resta per nome esatto.
+     *
+     * @param array<string,mixed> $importData
+     */
+    private function getOrCreateGenre(\mysqli $db, string $name, array &$importData): ?int
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return null;
+        }
+
+        $existing = $this->getGenreId($db, $name);
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        // Crea un genere di primo livello (parent_id NULL). Le uniche colonne
+        // NOT NULL senza default sono id (auto) e nome.
+        $stmt = $db->prepare("INSERT INTO generi (nome, parent_id, created_at) VALUES (?, NULL, NOW())");
+        $stmt->bind_param('s', $name);
+        $stmt->execute();
+        $newId = (int) $db->insert_id;
+        $stmt->close();
+
+        $importData['genres_created'] = ($importData['genres_created'] ?? 0) + 1;
+
+        return $newId > 0 ? $newId : null;
+    }
+
+    /**
+     * Sincronizza i co-editori importati (#12/#143) nella junction libri_editori.
+     *
+     * Il primary (ordine 0) è gestito da syncPrimaryPublisherJunction; qui si
+     * sostituiscono i co-editori (ordine > 0) con l'insieme importato. Va
+     * chiamato SOLO quando la cella `editore` conteneva più di un nome, così un
+     * CSV a editore singolo non cancella i co-editori curati a mano nell'admin.
+     *
+     * @param int[] $coPublisherIds
+     */
+    private function syncImportedCoPublishers(\mysqli $db, int $bookId, ?int $primaryId, array $coPublisherIds): void
+    {
+        if ($bookId <= 0 || !\App\Support\SchemaInfo::hasLibriEditori($db)) {
+            return;
+        }
+
+        // Prepara l'INSERT prima della DELETE, così un prepare fallito non lascia
+        // la junction spogliata dei co-editori (mirror di syncPrimaryPublisherJunction).
+        $insert = $db->prepare('INSERT INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE ordine = VALUES(ordine)');
+        if ($insert === false) {
+            return;
+        }
+
+        $del = $db->prepare('DELETE FROM libri_editori WHERE libro_id = ? AND ordine > 0');
+        if ($del === false) {
+            $insert->close();
+            return;
+        }
+        $del->bind_param('i', $bookId);
+        $del->execute();
+        $del->close();
+
+        $primaryId = (int) $primaryId;
+        $ordine = 1;
+        $seen = [];
+        foreach ($coPublisherIds as $pid) {
+            $pid = (int) $pid;
+            if ($pid <= 0 || $pid === $primaryId || isset($seen[$pid])) {
+                continue; // salta primary e duplicati
+            }
+            $seen[$pid] = true;
+            $insert->bind_param('iii', $bookId, $pid, $ordine);
+            $insert->execute();
+            $ordine++;
+        }
+        $insert->close();
+    }
+
+    /**
      * Trova libro esistente usando strategia a cascata:
      * 1. Per ID (se presente nel CSV)
      * 2. Per ISBN13 (se presente)
@@ -1314,6 +1474,7 @@ class CsvImportController
                 numero_pagine = ?,
                 genere_id = ?,
                 descrizione = ?,
+                descrizione_plain = ?,
                 formato = ?{$tipoMediaSet},
                 prezzo = ?,
                 editore_id = ?,
@@ -1321,6 +1482,7 @@ class CsvImportController
                 numero_serie = ?,
                 traduttore = ?,
                 illustratore = ?,
+                curatore = ?,
                 parole_chiave = ?,
                 classificazione_dewey = ?,
                 updated_at = NOW()
@@ -1336,28 +1498,65 @@ class CsvImportController
         $lingua = !empty($data['lingua']) ? $data['lingua'] : 'italiano';
         $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
-        $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
+
+        // #15/#10: an export→import round-trip strips HTML from the description
+        // (the export writes plain text). Preserve the stored rich-text version
+        // when the CSV value is merely its plain projection; only overwrite when
+        // the incoming plain text genuinely differs. Recompute descrizione_plain
+        // alongside so the search_index never indexes a stale projection.
+        $csvDescrizione = !empty($data['descrizione']) ? (string) $data['descrizione'] : null;
+        $existingDesc = null;
+        if ($csvDescrizione !== null) {
+            $sel = $db->prepare("SELECT descrizione, descrizione_plain FROM libri WHERE id = ? LIMIT 1");
+            $sel->bind_param('i', $bookId);
+            $sel->execute();
+            $existingDesc = $sel->get_result()->fetch_assoc() ?: null;
+            $sel->close();
+        }
+        if ($csvDescrizione === null) {
+            $descrizione = null;
+            $descrizionePlain = null;
+        } else {
+            $incomingPlain = \App\Support\DescriptionText::toPlain($csvDescrizione);
+            $existingPlain = $existingDesc !== null
+                ? ($existingDesc['descrizione_plain'] ?? \App\Support\DescriptionText::toPlain($existingDesc['descrizione'] ?? null))
+                : null;
+            if ($existingDesc !== null
+                && $existingPlain !== null
+                && trim((string) $incomingPlain) === trim((string) $existingPlain)
+            ) {
+                // Pure round-trip: keep the existing (possibly rich HTML) description.
+                $descrizione = $existingDesc['descrizione'];
+                $descrizionePlain = $existingDesc['descrizione_plain'] ?? $incomingPlain;
+            } else {
+                $descrizione = $csvDescrizione;
+                $descrizionePlain = $incomingPlain;
+            }
+        }
         $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null) : null;
         $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
         $prezzo = $data['prezzo'] ?? null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
-        $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
-        $illustratore = !empty($data['illustratore']) ? $data['illustratore'] : null;
+        // #7: normalize the free-text contributor columns like every other writer
+        // (BookRepository), so "Rossi, Mario" from a CSV matches "Mario Rossi".
+        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['traduttore']) : null;
+        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['illustratore']) : null;
+        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['curatore']) : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $params = [
             $isbn10, $isbn13, $ean, $titolo, $sottotitolo,
             $anno, $lingua, $edizione, $pagine, $genreId,
-            $descrizione, $formato,
+            $descrizione, $descrizionePlain, $formato,
         ];
         if ($hasTipoMedia) {
             $params[] = $tipoMedia;
         }
         $params = array_merge($params, [
             $prezzo, $editorId, $collana, $numeroSerie,
-            $traduttore, $illustratore, $paroleChiave, $dewey, $bookId,
+            $traduttore, $illustratore, $curatore, $paroleChiave, $dewey, $bookId,
         ]);
 
         $types = '';
@@ -1485,14 +1684,14 @@ class CsvImportController
             INSERT INTO libri (
                 isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
                 lingua, edizione, numero_pagine, genere_id,
-                descrizione, formato{$tipoMediaCol}, prezzo, copie_totali, copie_disponibili,
-                editore_id, collana, numero_serie, traduttore, illustratore, parole_chiave,
+                descrizione, descrizione_plain, formato{$tipoMediaCol}, prezzo, copie_totali, copie_disponibili,
+                editore_id, collana, numero_serie, traduttore, illustratore, curatore, parole_chiave,
                 classificazione_dewey, stato, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
-                ?, ?{$tipoMediaVal}, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?{$tipoMediaVal}, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?,
                 ?, 'disponibile', NOW()
             )
         ");
@@ -1506,35 +1705,50 @@ class CsvImportController
         $lingua = !empty($data['lingua']) ? $data['lingua'] : 'italiano';
         $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
-        $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
+        $descrizione = !empty($data['descrizione']) ? (string) $data['descrizione'] : null;
+        // #10: keep descrizione_plain in step with descrizione so the search
+        // index (COALESCE(descrizione_plain, descrizione)) never indexes a stale
+        // projection. On INSERT the incoming value is authoritative (no prior
+        // rich text to preserve, unlike the update path).
+        $descrizionePlain = \App\Support\DescriptionText::toPlain($descrizione);
         $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null) : null;
         $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
         $prezzo = $data['prezzo'] ?? null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
-        // Add bounds checking to prevent DoS attacks
+        // Bounds checking to prevent DoS. #20: the previous cap of 100 silently
+        // dropped copies on a cross-install migration (export writes the real
+        // count); raise it to a still-DoS-safe ceiling and log when it bites so a
+        // truncation is diagnosable rather than invisible.
         if ($copie < 1) {
             $copie = 1;
-        } elseif ($copie > 100) {
-            $copie = 100;  // Max 100 copie per libro da CSV import
+        } elseif ($copie > 2000) {
+            \App\Support\SecureLogger::warning('CsvImportController: copie_totali troncato all\'import', [
+                'titolo' => $titolo,
+                'requested' => $copie,
+                'capped_to' => 2000,
+            ]);
+            $copie = 2000;
         }
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
-        $traduttore = !empty($data['traduttore']) ? $data['traduttore'] : null;
-        $illustratore = !empty($data['illustratore']) ? $data['illustratore'] : null;
+        // #7: normalize free-text contributor columns like every other writer.
+        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['traduttore']) : null;
+        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['illustratore']) : null;
+        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['curatore']) : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $params = [
             $isbn10, $isbn13, $ean, $titolo, $sottotitolo, $anno,
             $lingua, $edizione, $pagine, $genreId,
-            $descrizione, $formato,
+            $descrizione, $descrizionePlain, $formato,
         ];
         if ($hasTipoMedia) {
             $params[] = $tipoMedia;
         }
         $params = array_merge($params, [
             $prezzo, $copie, $copie,
-            $editorId, $collana, $numeroSerie, $traduttore, $illustratore, $paroleChiave,
+            $editorId, $collana, $numeroSerie, $traduttore, $illustratore, $curatore, $paroleChiave,
             $dewey,
         ]);
 
