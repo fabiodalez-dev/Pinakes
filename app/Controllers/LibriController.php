@@ -3115,18 +3115,22 @@ class LibriController
                 );
             } else {
                 // Auto-fit font: start from the block height (mm→pt via /0.3528,
-                // ×0.68 for cap height + a little breathing room), then shrink until
-                // the text fits the width so it can never overflow horizontally.
+                // ×0.68 for cap height + a little breathing room).
                 $fontPt = ($blockHeight / 0.3528) * 0.68;
                 $fontPt = max(3.0, min(60.0, $fontPt));
                 $pdf->SetFont($family, $b['style'], $fontPt);
-                while ($fontPt > 3.0 && $pdf->GetStringWidth($b['text']) > $availableWidth) {
+                // Wrap instead of clip: a long line (e.g. title + subtitle on a
+                // narrow label) flows onto extra lines, and the font shrinks only
+                // until the wrapped text fits the block's height — so text never
+                // overflows the label and never gets cut off horizontally.
+                while ($fontPt > 3.0 && $pdf->getStringHeight($availableWidth, $b['text']) > $blockHeight) {
                     $fontPt -= 0.5;
                     $pdf->SetFont($family, $b['style'], $fontPt);
                 }
-                // Vertically centered within the block, horizontally centered.
+                // Vertically + horizontally centered within the block; MultiCell
+                // wraps on word boundaries and 'M' valign centers the wrapped run.
                 $pdf->SetXY($x, $y);
-                $pdf->Cell($availableWidth, $blockHeight, $b['text'], 0, 0, 'C', false, '', 0, false, 'T', 'M');
+                $pdf->MultiCell($availableWidth, $blockHeight, $b['text'], 0, 'C', false, 0, $x, $y, true, 0, false, true, $blockHeight, 'M');
             }
 
             $y += $blockHeight;
