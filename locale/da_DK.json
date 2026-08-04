@@ -6680,7 +6680,7 @@
   "Anno minimo": "Minimalt år",
   "Attività padre inesistente.": "Den overordnede aktivitet findes ikke.",
   "Cartella temporanea mancante sul server. Contatta l'amministratore di sistema.": "Midlertidig mappe mangler på serveren. Kontakt systemadministratoren.",
-  "Ciclo rilevato — scegli un genitore che non sia discendente.": "Cyklus registreret — vælg et overordnet element, der ikke er et efterkommer.",
+  "Ciclo rilevato — scegli un genitore che non sia discendente.": "Cyklus registreret — vælg et overordnet element, der ikke er en efterkommer.",
   "Clicca \"Generate new token (classic)\"": "Klik på \"Generate new token (classic)\"",
   "Cookie Policy": "Cookiepolitik",
   "Copia non più disponibile": "Eksemplar ikke længere tilgængeligt",
@@ -6757,6 +6757,6 @@
   "Wikidata ID deve essere nel formato Q seguito da numeri (es. Q220).": "Wikidata-ID skal være i formatet Q efterfulgt af tal (f.eks. Q220).",
   "file": "fil",
   "https://...": "https://...",
-  "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.": "⚙️ Automatisk adfærd: Hvis du indtaster kode i \"Analytisk JavaScript\" eller \"Marketing-JavaScript\", vil de tilhørende kontakter i <a href=\"%s\" class=\"underline font-semibold\">Privatlivsindstillinger</a> automatisk blive valgt.",
+  "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.": "⚙️ Automatisk adfærd: Hvis du indtaster kode i \"Analytisk JavaScript\" eller \"Marketing-JavaScript\", vil de tilhørende til/fra-knapper i <a href=\"%s\" class=\"underline font-semibold\">Privatlivsindstillinger</a> automatisk blive valgt.",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Vigtigt: Du skal manuelt angive de cookies, som disse scripts sporer, på <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Cookie-siden</a> for at overholde GDPR."
 }
