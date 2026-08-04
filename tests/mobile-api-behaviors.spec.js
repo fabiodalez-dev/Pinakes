@@ -157,6 +157,30 @@ function seedReservedBook(bookId, userId, dataPrestito, dataScadenza, loanState 
 }
 
 test.beforeAll(async ({ request }) => {
+    // 0) Make the suite independent of the installation default. App access is
+    // intentionally off on a fresh install; preserve and restore the exact row
+    // so this reusable suite can run after any other E2E ordering.
+    ctx.mobileEnabledHadValue = dbInt(
+        "SELECT COUNT(*) FROM system_settings WHERE category='mobile_api' AND setting_key='enabled'"
+    ) > 0;
+    ctx.mobileEnabledOldValue = dbScalar(
+        "SELECT setting_value FROM system_settings WHERE category='mobile_api' AND setting_key='enabled' LIMIT 1"
+    );
+    ctx.catalogueModeHadValue = dbInt(
+        "SELECT COUNT(*) FROM system_settings WHERE category='system' AND setting_key='catalogue_mode'"
+    ) > 0;
+    ctx.catalogueModeOldValue = dbScalar(
+        "SELECT setting_value FROM system_settings WHERE category='system' AND setting_key='catalogue_mode' LIMIT 1"
+    );
+    dbExec(`
+        INSERT INTO system_settings (category, setting_key, setting_value)
+        VALUES ('mobile_api', 'enabled', '1')
+        ON DUPLICATE KEY UPDATE setting_value = '1'`);
+    dbExec(`
+        INSERT INTO system_settings (category, setting_key, setting_value)
+        VALUES ('system', 'catalogue_mode', '0')
+        ON DUPLICATE KEY UPDATE setting_value = '0'`);
+
     // 1) Admin token via the API.
     const login = await call(request, 'POST', '/auth/login', {
         body: { email: ADMIN_EMAIL, password: ADMIN_PASS, device_name: 'BehavAdmin', device_id: 'behav-admin', platform: 'test' },
@@ -217,8 +241,19 @@ test.afterAll(async () => {
         // loans, each cleaned by its own id — so we avoid a broad time-window
         // DELETE on prenotazioni that could remove unrelated real reservations.)
     }
-    // Always restore catalogue mode off.
-    try { dbExec("UPDATE system_settings SET setting_value = '0' WHERE category = 'system' AND setting_key = 'catalogue_mode'"); } catch {}
+    // Restore both global gates to their exact pre-suite states.
+    try {
+        if (ctx.mobileEnabledHadValue) {
+            dbExec(`UPDATE system_settings SET setting_value = ${sqlStr(ctx.mobileEnabledOldValue)} WHERE category = 'mobile_api' AND setting_key = 'enabled'`);
+        } else {
+            dbExec("DELETE FROM system_settings WHERE category = 'mobile_api' AND setting_key = 'enabled'");
+        }
+        if (ctx.catalogueModeHadValue) {
+            dbExec(`UPDATE system_settings SET setting_value = ${sqlStr(ctx.catalogueModeOldValue)} WHERE category = 'system' AND setting_key = 'catalogue_mode'`);
+        } else {
+            dbExec("DELETE FROM system_settings WHERE category = 'system' AND setting_key = 'catalogue_mode'");
+        }
+    } catch {}
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
