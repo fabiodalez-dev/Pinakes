@@ -13,12 +13,15 @@
 //   - Each test that needs an on-loan / loan / pending fixture seeds it against
 //     the admin user and tears it down in a finally{} block so tests stay
 //     independent and order-free.
+//   - The catalogue-mode fixture is changed through the real admin form so the
+//     production ConfigStore invalidation path is exercised (including APCu).
 //   - afterAll removes EVERYTHING seeded (admin loans/reservations, the borrower
 //     and its tokens/reservations) so the full-test suite is unaffected and the
 //     DB is left exactly as found.
 //
-// All state is created/torn down via DIRECT DB (mysql CLI through execFileSync);
-// all assertions go through the live HTTP API. Creds come only from E2E_* env.
+// Fixture rows use direct DB writes; cached settings use the real admin write
+// path. All behavior assertions go through the live HTTP API. Credentials come
+// only from E2E_* env.
 //
 // Run:
 //   /tmp/run-e2e.sh tests/mobile-api-behaviors.spec.js --config=tests/playwright.config.js --workers=1 --reporter=line
@@ -59,19 +62,6 @@ function dbScalar(sql) {
 function dbInt(sql) { const v = dbScalar(sql); return v === '' ? 0 : parseInt(v, 10); }
 function sqlStr(v) { return "'" + String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
 
-// Direct DB writes bypass SettingsRepository::set(), whose production write
-// path invalidates ConfigStore's cross-request cache. Keep test mutations
-// behaviorally equivalent so toggles are visible on the very next HTTP request.
-function clearConfigCache() {
-    const installRoot = process.env.E2E_INSTALL_ROOT || process.cwd();
-    const autoload = Buffer.from(`${installRoot}/vendor/autoload.php`).toString('base64');
-    execFileSync(
-        'php',
-        ['-r', `require base64_decode('${autoload}'); \\App\\Support\\ConfigStore::clearCache();`],
-        { encoding: 'utf-8', timeout: 15000, env: process.env }
-    );
-}
-
 // ─── Request helpers ─────────────────────────────────────────────────────────
 
 function headers(token, extra) {
@@ -85,6 +75,40 @@ async function call(request, method, path, { token, body, extraHeaders } = {}) {
     return request.fetch(`${API}${path}`, { method, ...opts });
 }
 async function jsonOf(res) { try { return await res.json(); } catch { return null; } }
+
+// Change catalogue mode through the same web write path used in production.
+// A direct SQL UPDATE would bypass ConfigStore invalidation and can leave the
+// Apache APCu entry stale even if a separate CLI process clears its own cache.
+async function setCatalogueModeThroughAdmin(browser, enabled) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+        await page.goto(`${BASE}/accedi`);
+        await page.fill('input[name="email"]', ADMIN_EMAIL);
+        await page.fill('input[name="password"]', ADMIN_PASS);
+        await page.locator('button[type="submit"]').click();
+        await page.waitForURL(/admin/, { timeout: 15000 });
+
+        await page.goto(`${BASE}/admin/settings?tab=advanced`);
+        const toggle = page.locator('#catalogue_mode');
+        await expect(toggle, 'catalogue-mode admin toggle exists').toHaveCount(1);
+        await toggle.evaluate((element, checked) => {
+            element.checked = checked;
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+        }, enabled);
+        const form = toggle.locator('xpath=ancestor::form[1]');
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+            form.locator('button[type="submit"]').click(),
+        ]);
+        expect(
+            dbScalar("SELECT setting_value FROM system_settings WHERE category='system' AND setting_key='catalogue_mode' LIMIT 1"),
+            'catalogue-mode setting persisted through admin form'
+        ).toBe(enabled ? '1' : '0');
+    } finally {
+        await context.close();
+    }
+}
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
@@ -174,7 +198,7 @@ function seedReservedBook(bookId, userId, dataPrestito, dataScadenza, loanState 
     };
 }
 
-test.beforeAll(async ({ request }) => {
+test.beforeAll(async ({ browser, request }) => {
     // 0) Make the suite independent of the installation default. App access is
     // intentionally off on a fresh install; preserve and restore the exact row
     // so this reusable suite can run after any other E2E ordering.
@@ -194,11 +218,7 @@ test.beforeAll(async ({ request }) => {
         INSERT INTO system_settings (category, setting_key, setting_value)
         VALUES ('mobile_api', 'enabled', '1')
         ON DUPLICATE KEY UPDATE setting_value = '1'`);
-    dbExec(`
-        INSERT INTO system_settings (category, setting_key, setting_value)
-        VALUES ('system', 'catalogue_mode', '0')
-        ON DUPLICATE KEY UPDATE setting_value = '0'`);
-    clearConfigCache();
+    await setCatalogueModeThroughAdmin(browser, false);
 
     // 1) Admin token via the API.
     const login = await call(request, 'POST', '/auth/login', {
@@ -256,7 +276,7 @@ test.beforeAll(async ({ request }) => {
     expect(ctx.availBook, 'an available book exists').toBeGreaterThan(0);
 });
 
-test.afterAll(async () => {
+test.afterAll(async ({ browser }) => {
     // Remove everything seeded so the next suite sees a pristine DB.
     if (ctx.userId) {
         try { dbExec(`DELETE FROM prestiti WHERE utente_id = ${ctx.userId}`); } catch {}
@@ -287,19 +307,18 @@ test.afterAll(async () => {
     if (ctx.fixtureGenre) {
         try { dbExec(`DELETE FROM generi WHERE id = ${ctx.fixtureGenre}`); } catch {}
     }
-    // Restore both global gates to their exact pre-suite states.
+    // Restore both global gates to their exact pre-suite states. Catalogue mode
+    // goes through the app so its cross-request cache is also restored.
     try {
         if (ctx.mobileEnabledHadValue) {
             dbExec(`UPDATE system_settings SET setting_value = ${sqlStr(ctx.mobileEnabledOldValue)} WHERE category = 'mobile_api' AND setting_key = 'enabled'`);
         } else {
             dbExec("DELETE FROM system_settings WHERE category = 'mobile_api' AND setting_key = 'enabled'");
         }
-        if (ctx.catalogueModeHadValue) {
-            dbExec(`UPDATE system_settings SET setting_value = ${sqlStr(ctx.catalogueModeOldValue)} WHERE category = 'system' AND setting_key = 'catalogue_mode'`);
-        } else {
+        await setCatalogueModeThroughAdmin(browser, ctx.catalogueModeOldValue === '1');
+        if (!ctx.catalogueModeHadValue) {
             dbExec("DELETE FROM system_settings WHERE category = 'system' AND setting_key = 'catalogue_mode'");
         }
-        clearConfigCache();
     } catch {}
 });
 
@@ -318,9 +337,6 @@ test.describe('Health & discovery', () => {
     });
 
     test('2) features.loans/reservations/wishlist all true when not in catalogue mode', async ({ request }) => {
-        // Ensure catalogue mode is off for this assertion.
-        dbExec("UPDATE system_settings SET setting_value = '0' WHERE category = 'system' AND setting_key = 'catalogue_mode'");
-        clearConfigCache();
         const j = await jsonOf(await call(request, 'GET', '/health'));
         expect(j.data.catalogue_mode).toBe(false);
         expect(j.data.features.loans).toBe(true);
@@ -334,14 +350,9 @@ test.describe('Health & discovery', () => {
         expect(j.data.app_access_enabled).toBe(true);
     });
 
-    test('4) toggling catalogue mode flips features.loans and catalogue_mode', async ({ request }) => {
+    test('4) toggling catalogue mode flips features.loans and catalogue_mode', async ({ browser, request }) => {
         try {
-            // Turn catalogue-only mode ON.
-            dbExec(`
-                INSERT INTO system_settings (category, setting_key, setting_value)
-                VALUES ('system','catalogue_mode','1')
-                ON DUPLICATE KEY UPDATE setting_value = '1'`);
-            clearConfigCache();
+            await setCatalogueModeThroughAdmin(browser, true);
             const on = await jsonOf(await call(request, 'GET', '/health'));
             expect(on.data.catalogue_mode, 'catalogue_mode true when on').toBe(true);
             expect(on.data.features.loans, 'loans gated off in catalogue mode').toBe(false);
@@ -349,8 +360,7 @@ test.describe('Health & discovery', () => {
             expect(on.data.features.wishlist).toBe(false);
         } finally {
             // Restore and confirm loans is re-enabled.
-            dbExec("UPDATE system_settings SET setting_value = '0' WHERE category = 'system' AND setting_key = 'catalogue_mode'");
-            clearConfigCache();
+            await setCatalogueModeThroughAdmin(browser, false);
         }
         const off = await jsonOf(await call(request, 'GET', '/health'));
         expect(off.data.catalogue_mode, 'catalogue_mode restored false').toBe(false);
