@@ -5,6 +5,17 @@ $presetUserId = (int) ($presetUserId ?? 0);
 $presetUserName = (string) ($presetUserName ?? '');
 $presetUserLocked = (bool) ($presetUserLocked ?? false);
 
+// Retained input (failed submit / "save and add another") + "Me" self-checkout.
+$oldBookId = (int) ($oldBookId ?? 0);
+$oldBookTitle = (string) ($oldBookTitle ?? '');
+$oldDataPrestito = (string) ($oldDataPrestito ?? '');
+$oldDataScadenza = (string) ($oldDataScadenza ?? '');
+$oldNote = (string) ($oldNote ?? '');
+$oldConsegna = (bool) ($oldConsegna ?? true);
+$oldPdf = (bool) ($oldPdf ?? true);
+$meUserId = (int) ($meUserId ?? 0);
+$meUserName = (string) ($meUserName ?? '');
+
 $csrf = Csrf::ensureToken();
 // Get locale from session (same as frontend/layout.php)
 $currentLocale = $_SESSION['locale'] ?? 'it_IT';
@@ -91,8 +102,21 @@ $isItalian = str_starts_with($currentLocale, 'it');
     <!-- Ricerca Utente -->
     <div class="relative">
       <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Utente") ?> *</label>
-      <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white <?= $presetUserLocked ? 'bg-gray-100 cursor-not-allowed' : '' ?>" autocomplete="off" value="<?= htmlspecialchars($presetUserName, ENT_QUOTES, 'UTF-8') ?>" <?= $presetUserLocked ? 'readonly' : '' ?>>
-      <div id="utente_suggest" class="suggestions-box"></div>
+      <div class="mt-1 flex gap-2">
+        <div class="relative flex-1">
+          <input type="text" id="utente_search" placeholder="<?= __('Cerca per nome, cognome, telefono, email o tessera') ?>" class="block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white <?= $presetUserLocked ? 'bg-gray-100 cursor-not-allowed' : '' ?>" autocomplete="off" value="<?= htmlspecialchars($presetUserName, ENT_QUOTES, 'UTF-8') ?>" <?= $presetUserLocked ? 'readonly' : '' ?>>
+          <div id="utente_suggest" class="suggestions-box"></div>
+        </div>
+        <?php if ($meUserId > 0 && !$presetUserLocked): ?>
+        <button type="button" id="utente_me_btn"
+                data-me-id="<?= $meUserId ?>"
+                data-me-name="<?= htmlspecialchars($meUserName, ENT_QUOTES, 'UTF-8') ?>"
+                class="inline-flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                title="<?= htmlspecialchars(__('Prestito a me stesso'), ENT_QUOTES, 'UTF-8') ?>">
+          <i class="fas fa-user"></i><span class="hidden sm:inline"><?= __("Io") ?></span>
+        </button>
+        <?php endif; ?>
+      </div>
       <input type="hidden" name="utente_id" id="utente_id" value="<?= $presetUserId ?>" required />
       <?php if ($presetUserLocked): ?>
       <p class="mt-1 text-xs text-gray-500"><i class="fas fa-lock mr-1"></i><?= __("Utente preselezionato") ?></p>
@@ -102,9 +126,9 @@ $isItalian = str_starts_with($currentLocale, 'it');
     <!-- Ricerca Libro -->
     <div class="relative">
       <label for="libro_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Libro") ?> *</label>
-      <input type="text" id="libro_search" placeholder="<?= __('Cerca per titolo, ISBN o EAN') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" autocomplete="off">
+      <input type="text" id="libro_search" placeholder="<?= __('Cerca per titolo, ISBN o EAN') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" autocomplete="off" value="<?= htmlspecialchars($oldBookTitle, ENT_QUOTES, 'UTF-8') ?>">
       <div id="libro_suggest" class="suggestions-box"></div>
-      <input type="hidden" name="libro_id" id="libro_id" value="0" required />
+      <input type="hidden" name="libro_id" id="libro_id" value="<?= $oldBookId ?>" required />
       <!-- Availability indicator -->
       <div id="libro_availability" class="mt-2 hidden">
         <div class="flex items-center gap-2 p-3 rounded-lg border" id="availability_card">
@@ -137,14 +161,14 @@ $isItalian = str_starts_with($currentLocale, 'it');
       <!-- Data Prestito -->
       <div>
         <label for="data_prestito" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Prestito") ?> *</label>
-        <input type="text" name="data_prestito" id="data_prestito" value="<?php echo date('Y-m-d'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
+        <input type="text" name="data_prestito" id="data_prestito" value="<?php echo htmlspecialchars($oldDataPrestito !== '' ? $oldDataPrestito : date('Y-m-d'), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
         <p id="data_prestito_hint" class="mt-1 text-xs text-gray-500 hidden"></p>
       </div>
 
       <!-- Data Scadenza -->
       <div>
         <label for="data_scadenza" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Scadenza") ?> *</label>
-        <input type="text" name="data_scadenza" id="data_scadenza" value="<?php echo date('Y-m-d', strtotime('+1 month')); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
+        <input type="text" name="data_scadenza" id="data_scadenza" value="<?php echo htmlspecialchars($oldDataScadenza !== '' ? $oldDataScadenza : date('Y-m-d', strtotime('+1 month')), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
       </div>
     </div>
 
@@ -166,7 +190,7 @@ $isItalian = str_starts_with($currentLocale, 'it');
 
     <!-- Consegna immediata (solo per prestiti con data_prestito <= oggi) -->
     <div id="consegna_immediata_container" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-      <input type="checkbox" name="consegna_immediata" id="consegna_immediata" value="1" checked
+      <input type="checkbox" name="consegna_immediata" id="consegna_immediata" value="1" <?= $oldConsegna ? 'checked' : '' ?>
              class="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500">
       <div class="flex-1">
         <label for="consegna_immediata" class="block text-sm font-medium text-gray-900 cursor-pointer">
@@ -180,7 +204,7 @@ $isItalian = str_starts_with($currentLocale, 'it');
 
     <!-- Scarica ricevuta PDF (visibile solo con consegna immediata) -->
     <div id="scarica_pdf_container" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-      <input type="checkbox" name="scarica_pdf" id="scarica_pdf" value="1" checked
+      <input type="checkbox" name="scarica_pdf" id="scarica_pdf" value="1" <?= $oldPdf ? 'checked' : '' ?>
              class="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500">
       <div class="flex-1">
         <label for="scarica_pdf" class="block text-sm font-medium text-gray-900 cursor-pointer">
@@ -195,13 +219,17 @@ $isItalian = str_starts_with($currentLocale, 'it');
     <!-- Note sul prestito -->
     <div>
       <label for="note" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Note (opzionali)") ?></label>
-      <textarea id="note" name="note" rows="4" placeholder="<?= __('Aggiungi eventuali note sul prestito') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white"></textarea>
+      <textarea id="note" name="note" rows="4" placeholder="<?= __('Aggiungi eventuali note sul prestito') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white"><?= htmlspecialchars($oldNote, ENT_QUOTES, 'UTF-8') ?></textarea>
     </div>
 
     <!-- Pulsanti -->
-    <div class="flex items-center gap-4">
+    <div class="flex flex-wrap items-center gap-4">
       <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
         <i class="fas fa-save mr-2"></i><?= __("Crea Prestito") ?></button>
+      <!-- Registra più copie per lo stesso utente: salva e riapre il form con i
+           campi mantenuti (tranne il codice copia, che si azzera ogni volta). -->
+      <button type="submit" name="save_and_new" value="1" class="inline-flex items-center px-4 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+        <i class="fas fa-layer-group mr-2"></i><?= __("Salva e registra un'altra copia") ?></button>
       <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
         <i class="fas fa-times mr-2"></i><?= __("Annulla") ?>
       </a>
@@ -697,6 +725,20 @@ $isItalian = str_starts_with($currentLocale, 'it');
       // Initialize autocompletes
       setupAutocomplete('utente_search', 'utente_suggest', 'utente_id', window.BASE_PATH + '/api/search/utenti', false);
       setupAutocomplete('libro_search', 'libro_suggest', 'libro_id', window.BASE_PATH + '/api/search/libri', true);
+
+      // "Me" button: fill the borrower with the logged-in staff/admin user
+      // (teacher self-checkout) without searching.
+      const meBtn = document.getElementById('utente_me_btn');
+      if (meBtn) {
+        meBtn.addEventListener('click', function () {
+          const hidden = document.getElementById('utente_id');
+          const search = document.getElementById('utente_search');
+          if (hidden) hidden.value = meBtn.getAttribute('data-me-id') || '0';
+          if (search) search.value = meBtn.getAttribute('data-me-name') || '';
+          const sug = document.getElementById('utente_suggest');
+          if (sug) { sug.style.display = 'none'; sug.innerHTML = ''; }
+        });
+      }
 
       // Copy-code resolver (#238): entering or scanning an inventory code
       // identifies the book automatically, so the operator never has to also

@@ -74,25 +74,89 @@ class PrestitiController
             return $guard;
         }
 
-        // Pre-fill user info if utente_id query param provided
+        // Retained input from a failed submit or a "save and add another"
+        // (shown once, then discarded).
+        $old = $_SESSION['loan_form_old'] ?? [];
+        unset($_SESSION['loan_form_old']);
+
+        // Small helper: resolve a user's display label "Nome Cognome (tessera)".
+        $resolveUserLabel = static function (mysqli $db, int $userId): ?array {
+            if ($userId <= 0) {
+                return null;
+            }
+            $stmt = $db->prepare("SELECT id, nome, cognome, codice_tessera FROM utenti WHERE id = ? LIMIT 1");
+            if (!$stmt) {
+                return null;
+            }
+            $stmt->bind_param('i', $userId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$row) {
+                return null;
+            }
+            $row['label'] = full_name($row['nome'] ?? '', $row['cognome'] ?? '') . ' (' . $row['codice_tessera'] . ')';
+            return $row;
+        };
+
+        // Pre-fill user info: a ?utente_id query param LOCKS the field (deep link
+        // from a user page); a retained value from $old pre-fills but stays editable.
         $queryParams = $request->getQueryParams();
         $presetUserId = isset($queryParams['utente_id']) ? (int)$queryParams['utente_id'] : 0;
         $presetUserName = '';
         $presetUserLocked = false;
         if ($presetUserId > 0) {
-            $presetUser = null;
-            $stmt = $db->prepare("SELECT id, nome, cognome, codice_tessera FROM utenti WHERE id = ? LIMIT 1");
-            if ($stmt) {
-                $stmt->bind_param('i', $presetUserId);
-                $stmt->execute();
-                $presetUser = $stmt->get_result()->fetch_assoc();
-                $stmt->close();
-            }
+            $presetUser = $resolveUserLabel($db, $presetUserId);
             if ($presetUser) {
-                $presetUserName = full_name($presetUser['nome'] ?? '', $presetUser['cognome'] ?? '') . ' (' . $presetUser['codice_tessera'] . ')';
+                $presetUserName = $presetUser['label'];
                 $presetUserLocked = true;
             } else {
                 $presetUserId = 0;
+            }
+        } elseif (!empty($old['utente_id'])) {
+            $presetUser = $resolveUserLabel($db, (int) $old['utente_id']);
+            if ($presetUser) {
+                $presetUserId = (int) $old['utente_id'];
+                $presetUserName = $presetUser['label'];
+            }
+        }
+
+        // Retained book (title looked up so the search box shows a label).
+        $oldBookId = !empty($old['libro_id']) ? (int) $old['libro_id'] : 0;
+        $oldBookTitle = '';
+        if ($oldBookId > 0) {
+            $bStmt = $db->prepare("SELECT titolo, sottotitolo FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+            if ($bStmt) {
+                $bStmt->bind_param('i', $oldBookId);
+                $bStmt->execute();
+                $bRow = $bStmt->get_result()->fetch_assoc();
+                $bStmt->close();
+                if ($bRow) {
+                    $oldBookTitle = trim((string) $bRow['titolo'] . (!empty($bRow['sottotitolo']) ? ' — ' . $bRow['sottotitolo'] : ''));
+                } else {
+                    $oldBookId = 0;
+                }
+            }
+        }
+
+        // Other retained scalar fields (copy_code is deliberately never retained).
+        $oldDataPrestito = isset($old['data_prestito']) ? (string) $old['data_prestito'] : '';
+        $oldDataScadenza = isset($old['data_scadenza']) ? (string) $old['data_scadenza'] : '';
+        $oldNote = isset($old['note']) ? (string) $old['note'] : '';
+        // Checkboxes: on a re-render, absence means unchecked (the browser omits
+        // unchecked boxes), so only honour $old when the form was actually submitted.
+        $oldSubmitted = $old !== [];
+        $oldConsegna = $oldSubmitted ? (isset($old['consegna_immediata']) && $old['consegna_immediata'] === '1') : true;
+        $oldPdf = $oldSubmitted ? (isset($old['scarica_pdf']) && $old['scarica_pdf'] === '1') : true;
+
+        // "Me" button: the logged-in staff/admin as a borrower (teacher self-checkout).
+        $meUserId = 0;
+        $meUserName = '';
+        if (!empty($_SESSION['user']['id'])) {
+            $me = $resolveUserLabel($db, (int) $_SESSION['user']['id']);
+            if ($me) {
+                $meUserId = (int) $me['id'];
+                $meUserName = $me['label'];
             }
         }
 
@@ -114,6 +178,14 @@ class PrestitiController
         $data = (array) $request->getParsedBody();
 
         // CSRF validated by CsrfMiddleware
+
+        // Preserve the submitted values so a validation/availability error can
+        // re-render the form pre-filled instead of wiping everything. Cleared on
+        // success below (except the "save and add another" path, which keeps them
+        // minus the copy code). csrf_token is regenerated by the view.
+        $oldInput = $data;
+        unset($oldInput['csrf_token']);
+        $_SESSION['loan_form_old'] = $oldInput;
 
         // Verifica dati obbligatori
         $utente_id = (int) ($data['utente_id'] ?? 0);
@@ -536,6 +608,19 @@ class PrestitiController
             } catch (\Throwable $e) {
                 SecureLogger::warning(__('Notifica prestito fallita'), ['error' => $e->getMessage()]);
             }
+
+            // "Salva e registra un'altra copia": keep the form pre-filled for the
+            // SAME user (and book/dates/note) but drop the copy code, so a teacher
+            // checking out many copies re-enters only the next inventory code.
+            if (!empty($data['save_and_new'])) {
+                $retain = $oldInput;
+                unset($retain['copy_code'], $retain['save_and_new']);
+                $_SESSION['loan_form_old'] = $retain;
+                return $response->withHeader('Location', url('/admin/loans/create') . '?created=1')->withStatus(302);
+            }
+
+            // Normal path: clear the retained input and go to the list.
+            unset($_SESSION['loan_form_old']);
 
             // Redirect to list page — PDF download triggered via JS if requested
             $scaricaPdf = isset($data['scarica_pdf']) && $data['scarica_pdf'] === '1';
