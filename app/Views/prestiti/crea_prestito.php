@@ -228,7 +228,7 @@ $isItalian = str_starts_with($currentLocale, 'it');
         <i class="fas fa-save mr-2"></i><?= __("Crea Prestito") ?></button>
       <!-- Registra più copie per lo stesso utente: salva e riapre il form con i
            campi mantenuti (tranne il codice copia, che si azzera ogni volta). -->
-      <button type="submit" name="save_and_new" value="1" class="inline-flex items-center px-4 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+      <button type="submit" name="save_and_new" value="1" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
         <i class="fas fa-layer-group mr-2"></i><?= __("Salva e registra un'altra copia") ?></button>
       <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
         <i class="fas fa-times mr-2"></i><?= __("Annulla") ?>
