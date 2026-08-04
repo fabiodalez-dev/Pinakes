@@ -2194,7 +2194,7 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     // Submit. Using waitForFunction(pathname) instead of waitForURL(regex)
     // because waitForURL defaults to waitUntil:'load' which races with
     // the loan index page's autoreload chart scripts — see Phase 6.3 note.
-    await page.locator('button[type="submit"]').click();
+    await page.locator('button[type="submit"]:not([name="save_and_new"])').click();
     // Wait for BOTH conditions: we're no longer on /crea AND there's no
     // error query param. A validation failure (e.g. a book whose copies
     // became unavailable between the autocomplete pick and submit) would
@@ -2261,6 +2261,35 @@ test.describe.serial('Phase 14: Admin Loan', () => {
 
     const disponibili = Number(dbQuery(`SELECT copie_disponibili FROM libri WHERE id=${testBookId}`));
     expect(disponibili).toBeGreaterThanOrEqual(1);
+  });
+
+  test('14.6 Quick flow retains borrower but clears the previous book', async () => {
+    test.skip(!testBookId || !state.userId, 'No book or user');
+
+    const bookTitle = String(dbQuery(`SELECT titolo FROM libri WHERE id=${testBookId} AND deleted_at IS NULL`)).trim();
+    await page.goto(`${BASE}/admin/loans/create`);
+    await fillAutocomplete(page, '#utente_search', '#utente_suggest', `User${RUN_ID}`, '/api/search/utenti');
+    await fillAutocomplete(page, '#libro_search', '#libro_suggest', bookTitle, '/api/search/libri');
+    await page.locator('#scarica_pdf').uncheck();
+    await page.locator('button[name="save_and_new"]').click();
+    await page.waitForURL(url => url.pathname.endsWith('/admin/loans/create') && url.searchParams.get('created') === '1');
+
+    await expect(page.locator('#utente_id')).toHaveValue(String(state.userId));
+    await expect(page.locator('#utente_search')).not.toHaveValue('');
+    await expect(page.locator('#libro_id')).toHaveValue('0');
+    await expect(page.locator('#libro_search')).toHaveValue('');
+    await expect(page.locator('#copy_code')).toHaveValue('');
+
+    // Leave the shared E2E database in an available state for later phases and
+    // for focused reruns that omit the suite-wide cleanup phase.
+    const quickLoanId = Number(dbQuery(`SELECT id FROM prestiti WHERE utente_id=${state.userId} AND libro_id=${testBookId} AND attivo=1 ORDER BY id DESC LIMIT 1`));
+    expect(quickLoanId).toBeGreaterThan(0);
+    const quickCopyId = Number(dbQuery(`SELECT copia_id FROM prestiti WHERE id=${quickLoanId}`));
+    dbQuery(`UPDATE prestiti SET stato='restituito', attivo=0, data_restituzione=CURDATE() WHERE id=${quickLoanId}`);
+    if (quickCopyId > 0) {
+      dbQuery(`UPDATE copie SET stato='disponibile' WHERE id=${quickCopyId}`);
+    }
+    dbQuery(`UPDATE libri SET copie_disponibili = (SELECT COUNT(*) FROM copie WHERE libro_id=${testBookId} AND stato='disponibile') WHERE id=${testBookId}`);
   });
 });
 

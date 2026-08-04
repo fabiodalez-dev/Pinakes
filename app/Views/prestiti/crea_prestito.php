@@ -20,6 +20,9 @@ $csrf = Csrf::ensureToken();
 // Get locale from session (same as frontend/layout.php)
 $currentLocale = $_SESSION['locale'] ?? 'it_IT';
 $isItalian = str_starts_with($currentLocale, 'it');
+$pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
+    'options' => ['default' => 0, 'min_range' => 1],
+]);
 ?>
 <section class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
   <!-- Breadcrumb -->
@@ -93,7 +96,16 @@ $isItalian = str_starts_with($currentLocale, 'it');
   <?php endif; ?>
 
   <?php if(isset($_GET['created']) && $_GET['created'] == '1'): ?>
-    <div class="mb-4 p-4 bg-green-100 text-green-800 rounded"><?= __("Prestito creato con successo.") ?></div>
+    <div class="mb-4 flex items-center gap-3 p-4 bg-green-100 text-green-800 rounded" role="alert">
+      <i class="fas fa-check-circle" aria-hidden="true"></i>
+      <span><?= __("Prestito creato con successo.") ?></span>
+      <?php if ($pdfIdForDownload > 0): ?>
+      <a href="<?= htmlspecialchars(url('/admin/loans/' . $pdfIdForDownload . '/pdf'), ENT_QUOTES, 'UTF-8') ?>"
+         class="ml-auto inline-flex items-center px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors">
+        <i class="fas fa-file-pdf mr-2" aria-hidden="true"></i><?= __("Scarica PDF") ?>
+      </a>
+      <?php endif; ?>
+    </div>
   <?php endif; ?>
 
   <form method="post" action="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
@@ -111,7 +123,8 @@ $isItalian = str_starts_with($currentLocale, 'it');
         <button type="button" id="utente_me_btn"
                 data-me-id="<?= $meUserId ?>"
                 data-me-name="<?= htmlspecialchars($meUserName, ENT_QUOTES, 'UTF-8') ?>"
-                class="inline-flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                class="inline-flex items-center gap-2 whitespace-nowrap px-4 py-2.5 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                aria-label="<?= htmlspecialchars(__('Prestito a me stesso'), ENT_QUOTES, 'UTF-8') ?>"
                 title="<?= htmlspecialchars(__('Prestito a me stesso'), ENT_QUOTES, 'UTF-8') ?>">
           <i class="fas fa-user"></i><span class="hidden sm:inline"><?= __("Io") ?></span>
         </button>
@@ -227,7 +240,7 @@ $isItalian = str_starts_with($currentLocale, 'it');
       <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
         <i class="fas fa-save mr-2"></i><?= __("Crea Prestito") ?></button>
       <!-- Registra più copie per lo stesso utente: salva e riapre il form con i
-           campi mantenuti (tranne il codice copia, che si azzera ogni volta). -->
+           dati del prestito mantenuti; libro e codice copia vengono azzerati. -->
       <button type="submit" name="save_and_new" value="1" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
         <i class="fas fa-layer-group mr-2"></i><?= __("Salva e registra un'altra copia") ?></button>
       <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
@@ -726,6 +739,13 @@ $isItalian = str_starts_with($currentLocale, 'it');
       setupAutocomplete('utente_search', 'utente_suggest', 'utente_id', window.BASE_PATH + '/api/search/utenti', false);
       setupAutocomplete('libro_search', 'libro_suggest', 'libro_id', window.BASE_PATH + '/api/search/libri', true);
 
+      // A retained book already has a valid hidden ID; refresh its calendar
+      // immediately instead of waiting for the operator to search it again.
+      const retainedBookId = document.getElementById('libro_id');
+      if (retainedBookId && parseInt(retainedBookId.value, 10) > 0) {
+        fetchBookAvailability(retainedBookId.value);
+      }
+
       // "Me" button: fill the borrower with the logged-in staff/admin user
       // (teacher self-checkout) without searching.
       const meBtn = document.getElementById('utente_me_btn');
@@ -813,6 +833,22 @@ $isItalian = str_starts_with($currentLocale, 'it');
       setupCopyCodeResolver();
     });
   </script>
+
+  <?php if ($pdfIdForDownload > 0): ?>
+  <script>
+    (function () {
+      var pdfId = <?= json_encode($pdfIdForDownload, JSON_HEX_TAG) ?>;
+      if (pdfId <= 0) return;
+      var iframe = document.createElement('iframe');
+      iframe.hidden = true;
+      iframe.src = window.BASE_PATH + '/admin/loans/' + pdfId + '/pdf';
+      document.body.appendChild(iframe);
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, '', window.BASE_PATH + '/admin/loans/create?created=1');
+      }
+    })();
+  </script>
+  <?php endif; ?>
 
   <!-- Camera barcode scanner (Phase 2) -->
   <?php include __DIR__ . '/../partials/copy-scanner-i18n.php'; ?>
