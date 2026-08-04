@@ -116,7 +116,7 @@
               <div class="mt-4 flex flex-col sm:flex-row gap-2">
                 <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . (int)$user['id'] . '/approve-and-send-activation'), ENT_QUOTES, 'UTF-8') ?>" class="flex-1">
                   <input type="hidden" name="csrf_token" value="<?= \App\Support\Csrf::ensureToken() ?>">
-                  <button type="submit" class="w-full bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
+                  <button type="submit" class="w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
                     <i class="fas fa-envelope"></i>
                     <span><?= __("Invia Email") ?></span>
                   </button>
@@ -127,7 +127,7 @@
                       data-swal-confirm-button="<?= htmlspecialchars(__('Attiva utente'), ENT_QUOTES, 'UTF-8') ?>"
                       data-swal-confirm-kind="action">
                   <input type="hidden" name="csrf_token" value="<?= \App\Support\Csrf::ensureToken() ?>">
-                  <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
+                  <button type="submit" class="w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
                     <i class="fas fa-user-check"></i>
                     <span><?= __("Attiva utente") ?></span>
                   </button>

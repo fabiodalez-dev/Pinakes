@@ -18,7 +18,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                 <p class="mt-2 text-sm text-gray-600"><?= __("Gestisci le estensioni dell'applicazione") ?></p>
             </div>
             <button onclick="openUploadModal()"
-                class="inline-flex items-center px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all duration-200 shadow-md hover:shadow-lg">
+                class="inline-flex items-center px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 shadow-md hover:shadow-lg">
                 <i class="fas fa-upload mr-2"></i>
                 <?= __("Carica Plugin") ?>
             </button>
@@ -83,7 +83,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                     <h3 class="text-lg font-medium text-gray-900 mb-2"><?= __("Nessun plugin installato") ?></h3>
                     <p class="text-gray-600 mb-6"><?= __("Inizia caricando il tuo primo plugin") ?></p>
                     <button onclick="openUploadModal()"
-                        class="inline-flex items-center px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all duration-200">
+                        class="inline-flex items-center px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200">
                         <i class="fas fa-upload mr-2"></i>
                         <?= __("Carica Plugin") ?>
                     </button>
@@ -215,7 +215,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                 <?php if ($isOpenLibrary): ?>
                                     <?php if ($hasGoogleKey): ?>
                                         <button type="button"
-                                            class="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-all duration-200 text-sm font-medium"
+                                            class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium"
                                             data-plugin-id="<?= (int)$plugin['id'] ?>"
                                             data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                             data-plugin-type="open-library" data-has-key="1"
@@ -226,7 +226,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                         </button>
                                     <?php else: ?>
                                         <button type="button"
-                                            class="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-all duration-200 text-sm font-medium"
+                                            class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium"
                                             data-plugin-id="<?= (int)$plugin['id'] ?>"
                                             data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                             data-plugin-type="open-library" data-has-key="0"
@@ -239,7 +239,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                 <?php endif; ?>
                                 <?php if ($isApiBookScraper): ?>
                                     <button type="button"
-                                        class="px-4 py-2 <?= $hasApiConfig ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-orange-100 text-orange-700 hover:bg-orange-200' ?> rounded-lg transition-all duration-200 text-sm font-medium"
+                                        class="px-4 py-2 <?= $hasApiConfig ? 'bg-gray-100 text-gray-900 border border-gray-300 hover:bg-gray-200' : 'bg-gray-100 text-gray-900 border border-gray-300 hover:bg-gray-200' ?> rounded-lg transition-all duration-200 text-sm font-medium"
                                         data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                         data-plugin-type="api-book-scraper" data-has-config="<?= $hasApiConfig ? '1' : '0' ?>"
@@ -258,7 +258,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                     $z39ServerCount = count($z39Servers);
                                     ?>
                                     <button type="button"
-                                        class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-all duration-200 text-sm font-medium"
+                                        class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium"
                                         data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                         data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
@@ -276,14 +276,14 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                 <?php endif; ?>
                                 <?php if ($plugin['name'] === 'dewey-editor' && $plugin['is_active']): ?>
                                     <a href="<?= htmlspecialchars(url('/admin/dewey-editor'), ENT_QUOTES, 'UTF-8') ?>"
-                                        class="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
+                                        class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
                                         <i class="fas fa-edit mr-1"></i>
                                         <?= __("Apri Editor") ?>
                                     </a>
                                 <?php endif; ?>
                                 <?php if ($isGoodLib && $plugin['is_active']): ?>
                                     <button type="button"
-                                        class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-all duration-200 text-sm font-medium"
+                                        class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium"
                                         data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
                                         data-goodlib-anna="<?= ($goodlibSettings['anna_enabled'] ?? '1') === '1' ? '1' : '0' ?>"
@@ -308,7 +308,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                 ?>
                                 <?php if (!$hasCustomSettingsButton && !empty($pluginHasSettings[$plugin['id']])): ?>
                                     <a href="<?= htmlspecialchars(url('/admin/plugins') . '/' . (int) $plugin['id'] . '/settings', ENT_QUOTES, 'UTF-8') ?>"
-                                        class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
+                                        class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
                                         <i class="fas fa-cog mr-1"></i>
                                         <?= __("Impostazioni") ?>
                                     </a>
@@ -321,7 +321,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                     </button>
                                 <?php else: ?>
                                     <button onclick="activatePlugin(<?= (int)$plugin['id'] ?>)"
-                                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium">
+                                        class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 text-sm font-medium">
                                         <i class="fas fa-check mr-1"></i>
                                         <?= __("Attiva plugin") ?>
                                     </button>
@@ -332,7 +332,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                     data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                     aria-label="<?= HtmlHelper::e(__('Disinstalla plugin')) ?>"
                                     onclick="uninstallPlugin(this.dataset.pluginId, this.dataset.pluginName)"
-                                    class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all duration-200 text-sm font-medium">
+                                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 transition-all duration-200 text-sm font-medium">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -389,7 +389,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                         <?= __("Annulla") ?>
                     </button>
                     <button type="button" id="uploadButton"
-                        class="inline-flex items-center px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="inline-flex items-center px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
                         <i class="fas fa-upload mr-2"></i>
                         <?= __("Installa Plugin") ?>
                     </button>
@@ -461,7 +461,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                             <?= __("Chiudi") ?>
                         </button>
                         <button type="submit"
-                            class="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 transition disabled:opacity-60"
+                            class="inline-flex items-center gap-2 rounded-xl bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition disabled:opacity-60"
                             data-role="save-key" data-label="<?= __("Salva API Key") ?>">
                             <i class="fas fa-save"></i>
                             <?= __("Salva API Key") ?>
@@ -570,7 +570,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                     <?= __("Annulla") ?>
                 </button>
                 <button type="submit"
-                    class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-semibold">
+                    class="inline-flex items-center gap-2 px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all text-sm font-semibold">
                     <i class="fas fa-save"></i>
                     <?= __("Salva Configurazione") ?>
                 </button>
@@ -713,7 +713,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                     <?= __("Annulla") ?>
                 </button>
                 <button type="submit"
-                    class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all text-sm font-semibold">
+                    class="inline-flex items-center gap-2 px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all text-sm font-semibold">
                     <i class="fas fa-save"></i>
                     <?= __("Salva Configurazione") ?>
                 </button>
@@ -858,7 +858,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
             <button onclick="closeGoodLibModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                 <?= __("Annulla") ?>
             </button>
-            <button onclick="saveGoodLibSettings()" id="goodlibSaveBtn" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors">
+            <button onclick="saveGoodLibSettings()" id="goodlibSaveBtn" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
                 <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
             </button>
         </div>

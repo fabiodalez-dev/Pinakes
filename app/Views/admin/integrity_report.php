@@ -17,7 +17,7 @@
                     </div>
                 </div>
                 <div class="flex space-x-3">
-                    <button onclick="performMaintenance()" class="inline-flex items-center bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    <button onclick="performMaintenance()" class="inline-flex items-center bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
                         <i class="fas fa-tools mr-2"></i><?= __("Esegui Manutenzione") ?>
                     </button>
                     <button onclick="location.reload()" class="inline-flex items-center bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300 font-medium py-2 px-4 rounded-lg transition-colors">
@@ -122,7 +122,7 @@
                                 <?php if (!empty($suggestedUrl)): ?>
                                 <button
                                     onclick="applyConfigFix(<?= htmlspecialchars(json_encode($issue['type'], JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($suggestedUrl, JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>)"
-                                    class="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                    class="inline-flex items-center px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors">
                                     <i class="fas fa-magic mr-2"></i><?= __("Applica Fix") ?>
                                 </button>
                                 <?php endif; ?>
@@ -294,7 +294,7 @@
                     </div>
 
                     <div class="mt-6 flex flex-wrap gap-3">
-                        <button onclick="createMissingIndexes()" class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors">
+                        <button onclick="createMissingIndexes()" class="inline-flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
                             <i class="fas fa-bolt mr-2"></i><?= __("Crea Indici Automaticamente") ?>
                         </button>
                         <a href="<?= htmlspecialchars(url('/admin/maintenance/indexes-sql'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-medium rounded-lg transition-colors">
@@ -374,7 +374,7 @@
                     </div>
 
                     <div class="mt-6">
-                        <button onclick="createMissingSystemTables()" class="inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors">
+                        <button onclick="createMissingSystemTables()" class="inline-flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
                             <i class="fas fa-plus-circle mr-2"></i><?= __("Crea Tabelle Mancanti") ?>
                         </button>
                     </div>
