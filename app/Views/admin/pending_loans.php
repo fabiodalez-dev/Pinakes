@@ -105,7 +105,7 @@
                                 <a href="<?= htmlspecialchars(url('/admin/loans/edit/' . $loan['id']), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center justify-center flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-edit mr-1"></i><?= __("Gestisci") ?>
                                 </a>
-                                <button type="button" class="inline-flex items-center justify-center flex-1 bg-green-600 hover:bg-green-500 text-white font-medium py-2 px-3 rounded-lg transition-colors return-btn text-sm" data-loan-id="<?= $loan['id'] ?>">
+                                <button type="button" class="inline-flex items-center justify-center flex-1 bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors return-btn text-sm" data-loan-id="<?= $loan['id'] ?>">
                                     <i class="fas fa-undo mr-1"></i><?= __("Restituisci") ?>
                                 </button>
                             </div>
@@ -180,7 +180,7 @@
                                     <i class="fas fa-times mr-1"></i><?= __("Annulla Prestito Scaduto") ?>
                                 </button>
                                 <?php else: ?>
-                                <button type="button" class="inline-flex items-center justify-center w-full bg-green-600 hover:bg-green-500 text-white font-medium py-2 px-3 rounded-lg transition-colors confirm-pickup-btn shadow-sm text-sm" data-loan-id="<?= $loan['id'] ?>">
+                                <button type="button" class="inline-flex items-center justify-center w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors confirm-pickup-btn shadow-sm text-sm" data-loan-id="<?= $loan['id'] ?>">
                                     <i class="fas fa-check-circle mr-1"></i><?= __("Conferma Ritiro") ?>
                                 </button>
                                 <?php endif; ?>
@@ -244,7 +244,7 @@
                                 </div>
                             </div>
                             <div class="mt-3 flex gap-2">
-                                <button type="button" class="inline-flex items-center justify-center flex-1 bg-gray-900 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors approve-btn shadow-sm text-sm" data-loan-id="<?= $loan['id'] ?>">
+                                <button type="button" class="inline-flex items-center justify-center flex-1 bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors approve-btn shadow-sm text-sm" data-loan-id="<?= $loan['id'] ?>">
                                     <i class="fas fa-check mr-1"></i><?= __("Approva") ?>
                                 </button>
                                 <button type="button" class="inline-flex items-center justify-center flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-3 rounded-lg transition-colors reject-btn shadow-sm text-sm" data-loan-id="<?= $loan['id'] ?>">
@@ -371,7 +371,7 @@
                                 <a href="<?= htmlspecialchars(url('/admin/loans/edit/' . $loan['id']), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center justify-center flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors text-center text-sm">
                                     <i class="fas fa-edit mr-1"></i><?= __("Gestisci") ?>
                                 </a>
-                                <button type="button" class="inline-flex items-center justify-center flex-1 bg-green-600 hover:bg-green-500 text-white font-medium py-2 px-3 rounded-lg transition-colors return-btn text-sm" data-loan-id="<?= $loan['id'] ?>">
+                                <button type="button" class="inline-flex items-center justify-center flex-1 bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors return-btn text-sm" data-loan-id="<?= $loan['id'] ?>">
                                     <i class="fas fa-undo mr-1"></i><?= __("Restituisci") ?>
                                 </button>
                             </div>

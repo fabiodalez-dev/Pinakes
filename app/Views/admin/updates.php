@@ -71,7 +71,7 @@ $hasGithubToken ??= false;
                 <?php if ($updateInfo['available'] && $requirements['met']): ?>
                 <div>
                     <button onclick="startUpdate(this.dataset.version)" data-version="<?= HtmlHelper::e($updateInfo['latest']) ?>"
-                        class="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg">
+                        class="inline-flex items-center px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 shadow-md hover:shadow-lg">
                         <i class="fas fa-download mr-2"></i>
                         <?= __("Aggiorna Ora") ?>
                     </button>
@@ -148,11 +148,11 @@ $hasGithubToken ??= false;
                             class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm font-mono"
                             autocomplete="new-password"
                             <?= $hasGithubToken ? 'readonly onfocus="this.removeAttribute(\'readonly\');this.type=\'password\';this.value=\'\';this.placeholder=\'ghp_xxxxxxxxxxxxxxxxxxxx\';"' : '' ?>>
-                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
+                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm">
                             <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
                         </button>
                         <?php if ($hasGithubToken): ?>
-                        <button type="button" onclick="removeGitHubToken()" aria-label="<?= __("Rimuovi token GitHub") ?>" title="<?= __("Rimuovi token GitHub") ?>" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm">
+                        <button type="button" onclick="removeGitHubToken()" aria-label="<?= __("Rimuovi token GitHub") ?>" title="<?= __("Rimuovi token GitHub") ?>" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
                             <i class="fas fa-trash mr-1"></i>
                         </button>
                         <?php endif; ?>
@@ -258,7 +258,7 @@ $hasGithubToken ??= false;
                         <input type="file" id="restoreFileInput" accept=".zip"
                             class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
                         <button onclick="uploadRestoreFile()"
-                            class="mt-3 w-full inline-flex items-center justify-center px-6 py-3 bg-red-50 text-red-700 rounded-xl hover:bg-red-100 transition-all duration-200">
+                            class="mt-3 w-full inline-flex items-center justify-center px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200">
                             <i class="fas fa-upload mr-2"></i>
                             <?= __("Carica e Ripristina") ?>
                         </button>
@@ -296,7 +296,7 @@ $hasGithubToken ??= false;
                     <div id="uppy-manual-update" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-400 transition-colors bg-gray-50"></div>
                     <div class="mt-4">
                         <button id="manual-update-submit-btn" onclick="submitManualUpdate()" disabled
-                            class="inline-flex items-center justify-center w-full px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600">
+                            class="inline-flex items-center justify-center w-full px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-800">
                             <i class="fas fa-upload mr-2"></i>
                             <span id="manual-update-btn-text"><?= __("Avvia Aggiornamento") ?></span>
                         </button>
@@ -552,7 +552,7 @@ $hasGithubToken ??= false;
                 </div>
 
                 <div id="updateActions" class="mt-6 hidden">
-                    <button onclick="closeUpdateModal()" class="w-full px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all">
+                    <button onclick="closeUpdateModal()" class="w-full px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all">
                         <?= __("Chiudi") ?>
                     </button>
                 </div>

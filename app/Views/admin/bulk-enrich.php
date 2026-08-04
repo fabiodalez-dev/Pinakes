@@ -100,7 +100,7 @@ $enabled = $enabled ?? false;
             <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= __("Arricchimento Manuale") ?></h2>
             <p class="text-sm text-gray-600 mb-6"><?= __("Avvia manualmente l'arricchimento di un batch di 20 libri. Verranno cercate copertine e descrizioni mancanti.") ?></p>
             <button type="button" id="btn-enrich-now"
-                class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                class="inline-flex items-center px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
                 <i class="fas fa-magic mr-2" id="enrich-icon"></i>
                 <span id="enrich-text"><?= __("Arricchisci Adesso") ?></span>
             </button>

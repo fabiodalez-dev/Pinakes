@@ -243,7 +243,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
     <div class="flex flex-col sm:flex-row gap-3">
       <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . $id . '/approve-and-send-activation'), ENT_QUOTES, 'UTF-8') ?>" class="flex-1">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-        <button type="submit" class="w-full px-4 py-3 bg-gray-900 text-white hover:bg-blue-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center gap-2 border border-blue-700">
+        <button type="submit" class="w-full px-4 py-3 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center gap-2 border border-gray-800">
           <i class="fas fa-envelope"></i>
           <span class="font-medium"><?= __("Approva e Invia Email Attivazione") ?></span>
         </button>
@@ -258,7 +258,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
             data-swal-confirm-button="<?= htmlspecialchars(__('Attiva utente'), ENT_QUOTES, 'UTF-8') ?>"
             data-swal-confirm-kind="action">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-        <button type="submit" class="w-full px-4 py-3 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center gap-2 border border-green-700">
+        <button type="submit" class="w-full px-4 py-3 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center gap-2 border border-gray-800">
           <i class="fas fa-user-check"></i>
           <span class="font-medium"><?= __("Attiva Direttamente") ?></span>
         </button>
