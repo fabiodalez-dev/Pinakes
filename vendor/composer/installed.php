@@ -3,7 +3,7 @@
         'name' => 'pinakes/slim-app',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '3b79b0d4ede96c27ab08801dab262bca8a53c1ee',
+        'reference' => '798ee7a4f92236fda2f97a24d6ea1cb96022d62b',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -247,7 +247,7 @@
         'pinakes/slim-app' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '3b79b0d4ede96c27ab08801dab262bca8a53c1ee',
+            'reference' => '798ee7a4f92236fda2f97a24d6ea1cb96022d62b',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

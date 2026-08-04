@@ -64,7 +64,12 @@ class SettingsRepository
         $value = $result->fetch_column();
         $stmt->close();
 
-        if ($value === null) {
+        // fetch_column() returns false when the query matched no row, and null
+        // when the stored value is SQL NULL — both mean "unset". Coercing the
+        // no-row false to '' silently discarded every caller's $default (e.g.
+        // label show_* flags fell back to '' instead of '1', so the label PDF
+        // rendered only the barcode). Treat both as absent → return $default.
+        if ($value === null || $value === false) {
             return $default;
         }
 
