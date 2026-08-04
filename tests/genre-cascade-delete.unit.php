@@ -122,6 +122,16 @@ $stmt->bind_param('iii', $scaffaleId, $level, $leafId);
 $stmt->execute();
 $mensolaId = $db->insert_id;
 
+$stmt = $db->prepare('INSERT INTO posizioni (scaffale_id, mensola_id, genere_id, descrizione) VALUES (?, ?, ?, ?)');
+$positionDescription = $prefix . '_position';
+$stmt->bind_param('iiis', $scaffaleId, $mensolaId, $leafId, $positionDescription);
+$stmt->execute();
+$positionId = $db->insert_id;
+
+$stmt = $db->prepare('UPDATE libri SET posizione_id = ?, scaffale_id = ?, mensola_id = ? WHERE id = ?');
+$stmt->bind_param('iiii', $positionId, $scaffaleId, $mensolaId, $bookId);
+$stmt->execute();
+
 $check($repo->cascadeDelete($rootId), 'cascade delete succeeds for a deep genre tree');
 
 $stmt = $db->prepare('SELECT COUNT(*) AS cnt FROM generi WHERE nome LIKE ?');
@@ -130,17 +140,70 @@ $stmt->bind_param('s', $like);
 $stmt->execute();
 $check((int)$stmt->get_result()->fetch_assoc()['cnt'] === 0, 'root and descendants are deleted');
 
-$stmt = $db->prepare('SELECT genere_id, sottogenere_id FROM libri WHERE id = ?');
+$stmt = $db->prepare('SELECT genere_id, sottogenere_id, posizione_id FROM libri WHERE id = ?');
 $stmt->bind_param('i', $bookId);
 $stmt->execute();
 $book = $stmt->get_result()->fetch_assoc();
 $check($book !== null && $book['genere_id'] === null && $book['sottogenere_id'] === null, 'book genre references are unlinked');
+$check($book !== null && $book['posizione_id'] === null, 'book is unshelved when its deleted genre defined the physical position');
+
+$stmt = $db->prepare('SELECT COUNT(*) AS cnt FROM posizioni WHERE id = ?');
+$stmt->bind_param('i', $positionId);
+$stmt->execute();
+$check((int)$stmt->get_result()->fetch_assoc()['cnt'] === 0, 'subtree positions are explicitly removed inside cascade transaction');
 
 $stmt = $db->prepare('SELECT genere_id FROM mensole WHERE id = ?');
 $stmt->bind_param('i', $mensolaId);
 $stmt->execute();
 $mensola = $stmt->get_result()->fetch_assoc();
 $check($mensola !== null && $mensola['genere_id'] === null, 'shelf genre reference is unlinked');
+
+// A plain delete must be conservative: even a genre unused as genere_id or
+// sottogenere_id can define a physical position used by an otherwise unrelated
+// book. Deleting it would silently unshelve that book through FK SET NULL.
+$physicalGenreId = $repo->create(['nome' => $prefix . '_physical_only']);
+$stmt = $db->prepare('INSERT INTO scaffali (codice, nome, lettera) VALUES (?, ?, ?)');
+$physicalShelfCode = $prefix . '_phys';
+$physicalShelfName = $prefix . '_Physical';
+$stmt->bind_param('sss', $physicalShelfCode, $physicalShelfName, $letter);
+$stmt->execute();
+$physicalShelfId = $db->insert_id;
+
+$stmt = $db->prepare('INSERT INTO mensole (scaffale_id, numero_livello, genere_id) VALUES (?, ?, NULL)');
+$physicalLevel = 2;
+$stmt->bind_param('ii', $physicalShelfId, $physicalLevel);
+$stmt->execute();
+$physicalMensolaId = $db->insert_id;
+
+$stmt = $db->prepare('INSERT INTO posizioni (scaffale_id, mensola_id, genere_id, descrizione) VALUES (?, ?, ?, ?)');
+$physicalDescription = $prefix . '_physical_position';
+$stmt->bind_param('iiis', $physicalShelfId, $physicalMensolaId, $physicalGenreId, $physicalDescription);
+$stmt->execute();
+$physicalPositionId = $db->insert_id;
+
+$stmt = $db->prepare('INSERT INTO libri (titolo, posizione_id, scaffale_id, mensola_id) VALUES (?, ?, ?, ?)');
+$physicalBookTitle = $prefix . '_other_genre_book';
+$stmt->bind_param('siii', $physicalBookTitle, $physicalPositionId, $physicalShelfId, $physicalMensolaId);
+$stmt->execute();
+$physicalBookId = $db->insert_id;
+
+$physicalDeleteBlocked = false;
+try {
+    $repo->delete($physicalGenreId);
+} catch (\RuntimeException $e) {
+    $physicalDeleteBlocked = str_contains($e->getMessage(), 'posizioni fisiche');
+}
+$check($physicalDeleteBlocked, 'plain delete rejects a genre that defines physical positions');
+
+$stmt = $db->prepare('SELECT posizione_id FROM libri WHERE id = ?');
+$stmt->bind_param('i', $physicalBookId);
+$stmt->execute();
+$check((int)$stmt->get_result()->fetch_column() === $physicalPositionId, 'blocked plain delete leaves unrelated book shelving untouched');
+
+$stmt = $db->prepare('SELECT COUNT(*) FROM generi WHERE id = ?');
+$stmt->bind_param('i', $physicalGenreId);
+$stmt->execute();
+$check((int)$stmt->get_result()->fetch_column() === 1, 'blocked plain delete preserves the physical genre');
 
 $cleanup();
 printf("\nALL %d PASS\n", $testNo);

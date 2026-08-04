@@ -1,5 +1,5 @@
 // @ts-check
-// Mobile API — reusable behaviour suite (25 tests).
+// Mobile API — reusable behaviour suite (30 tests).
 //
 // Covers the critical mobile-API behaviours built this session (see
 // tests/CRITICAL_AREAS.md): health/discovery + catalogue-mode gating, opaque
@@ -132,18 +132,21 @@ function seedOnLoanBook(bookId, userId, dataPrestito, dataScadenza) {
     };
 }
 
-// ── Seed / restore a reserved (scheduled, prenotato) single-copy book ────────
-// Same shape as seedOnLoanBook but the hold is a future 'prenotato' loan
-// (attivo = 1), which the API must report as availability.state = 'reserved'.
-function seedReservedBook(bookId, userId, dataPrestito, dataScadenza) {
+// ── Seed / restore a held (prenotato/da_ritirare) single-copy book ───────────
+// Reusable for scheduled and awaiting-pickup holds: neither state is checked
+// out, so both must be exposed as availability.state = 'reserved'.
+function seedReservedBook(bookId, userId, dataPrestito, dataScadenza, loanState = 'prenotato') {
+    if (!['prenotato', 'da_ritirare'].includes(loanState)) {
+        throw new Error(`unsupported held-loan fixture state: ${loanState}`);
+    }
     const copiaId = dbInt(`SELECT id FROM copie WHERE libro_id = ${bookId} ORDER BY id LIMIT 1`);
     const prevCopie = dbInt(`SELECT copie_disponibili FROM libri WHERE id = ${bookId}`);
 
     dbExec(`UPDATE libri SET copie_disponibili = 0 WHERE id = ${bookId}`);
-    if (copiaId > 0) dbExec(`UPDATE copie SET stato = 'prestato' WHERE id = ${copiaId}`);
+    if (copiaId > 0) dbExec(`UPDATE copie SET stato = 'prenotato' WHERE id = ${copiaId}`);
     dbExec(`
         INSERT INTO prestiti (libro_id, utente_id, copia_id, data_prestito, data_scadenza, stato, attivo, origine, renewals)
-        VALUES (${bookId}, ${userId}, ${copiaId > 0 ? copiaId : 'NULL'}, ${sqlStr(dataPrestito)}, ${sqlStr(dataScadenza)}, 'prenotato', 1, 'prenotazione', 0)`);
+        VALUES (${bookId}, ${userId}, ${copiaId > 0 ? copiaId : 'NULL'}, ${sqlStr(dataPrestito)}, ${sqlStr(dataScadenza)}, ${sqlStr(loanState)}, 1, 'prenotazione', 0)`);
     const loanId = dbInt(`SELECT id FROM prestiti WHERE libro_id = ${bookId} AND utente_id = ${userId} ORDER BY id DESC LIMIT 1`);
 
     return function teardown() {
@@ -403,6 +406,21 @@ test.describe('Availability state', () => {
         try {
             const d = (await jsonOf(await call(request, 'GET', `/catalog/books/${book}`, { token: ctx.adminToken }))).data;
             expect(d.availability.state).toBe('reserved');
+            expect(d.availability.loanable_now).toBe(false);
+            expect(d.availability.copies_available).toBe(0);
+        } finally {
+            teardown();
+        }
+    });
+
+    test('14c) a da_ritirare single-copy book → state=reserved, never on_loan', async ({ request }) => {
+        const book = pickOneCopyAvailableBook();
+        expect(book, 'a 1-copy available book exists').toBeGreaterThan(0);
+        const teardown = seedReservedBook(book, ctx.adminId, todayYmd(), plusDays(14), 'da_ritirare');
+        try {
+            const d = (await jsonOf(await call(request, 'GET', `/catalog/books/${book}`, { token: ctx.adminToken }))).data;
+            expect(d.availability.state).toBe('reserved');
+            expect(d.availability.state).not.toBe('on_loan');
             expect(d.availability.loanable_now).toBe(false);
             expect(d.availability.copies_available).toBe(0);
         } finally {

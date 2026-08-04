@@ -95,6 +95,88 @@ $check(
     'available-book DB failures return a cacheable zero instead of repeated null misses'
 );
 
+echo "\nBehavioural cache contracts:\n";
+$runKey = 'pr323_' . bin2hex(random_bytes(6));
+$cacheKeys = [
+    'catalog_' . $runKey => 'catalog value',
+    'home_' . $runKey => 'home value',
+    'genre_tree_' . $runKey => 'genre value',
+    'unrelated_' . $runKey => 'unrelated value',
+];
+foreach ($cacheKeys as $key => $value) {
+    $check(\App\Support\QueryCache::set($key, $value, 120), "fixture cache entry {$key} is written");
+}
+\App\Support\ContentCache::booksChanged();
+$check(\App\Support\QueryCache::get('catalog_' . $runKey) === null, 'booksChanged clears catalogue values');
+$check(\App\Support\QueryCache::get('home_' . $runKey) === null, 'booksChanged clears home values');
+$check(\App\Support\QueryCache::get('genre_tree_' . $runKey) === null, 'booksChanged clears genre-tree values');
+$check(\App\Support\QueryCache::get('unrelated_' . $runKey) === 'unrelated value', 'booksChanged preserves unrelated namespaces');
+
+\App\Support\QueryCache::set('catalog_' . $runKey, 'catalog value', 120);
+\App\Support\QueryCache::set('home_' . $runKey, 'home value', 120);
+\App\Support\ContentCache::homeContentChanged();
+$check(\App\Support\QueryCache::get('home_' . $runKey) === null, 'homeContentChanged clears home values');
+$check(\App\Support\QueryCache::get('catalog_' . $runKey) === 'catalog value', 'homeContentChanged preserves catalogue values');
+
+$rememberCatalogValue = $reflection->getMethod('rememberCatalogValue');
+$boundedCalls = 0;
+$boundedKey = 'catalog_' . $runKey . '_bounded';
+$boundedLoader = static function () use (&$boundedCalls): string {
+    $boundedCalls++;
+    return 'bounded-' . $boundedCalls;
+};
+$firstBounded = $rememberCatalogValue->invoke($controller, $boundedKey, $base, $boundedLoader);
+$secondBounded = $rememberCatalogValue->invoke($controller, $boundedKey, $base, $boundedLoader);
+$check($firstBounded === 'bounded-1' && $secondBounded === 'bounded-1' && $boundedCalls === 1, 'bounded catalogue state executes its loader once');
+
+$unboundedCalls = 0;
+$unboundedLoader = static function () use (&$unboundedCalls): string {
+    $unboundedCalls++;
+    return 'unbounded-' . $unboundedCalls;
+};
+$unboundedFilters = array_replace($base, ['search' => $runKey]);
+$firstUnbounded = $rememberCatalogValue->invoke($controller, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
+$secondUnbounded = $rememberCatalogValue->invoke($controller, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
+$check($firstUnbounded === 'unbounded-1' && $secondUnbounded === 'unbounded-2' && $unboundedCalls === 2, 'unbounded catalogue state bypasses persistent cache on every call');
+
+// Cross-request caches can be exercised without a live query: pre-seed the
+// shared cache and use an intentionally disconnected mysqli. Any unexpected DB
+// access would throw and fail the test, which makes these useful hit-path tests.
+$i18nReflection = new ReflectionClass(\App\Support\I18n::class);
+$i18nReflection->getProperty('languagesCache')->setValue(null, null);
+$i18nReflection->getProperty('languagesLoadedFromDb')->setValue(null, false);
+\App\Support\QueryCache::set('i18n_languages', [
+    ['code' => 'en-us', 'native_name' => 'English', 'is_default' => 1],
+    ['code' => '../bad', 'native_name' => 'Invalid', 'is_default' => 0],
+], 120);
+$disconnectedDb = new mysqli();
+$check(\App\Support\I18n::loadFromDatabase($disconnectedDb), 'I18n consumes cached language rows without a database query');
+$check(\App\Support\I18n::getAvailableLocales() === ['en_US' => 'English'], 'I18n normalizes valid cached locales and rejects invalid codes');
+
+$themeReflection = new ReflectionClass(\App\Support\ThemeManager::class);
+$themeReflection->getProperty('activeThemeMemo')->setValue(null, []);
+\App\Support\QueryCache::set('active_theme_row', ['theme' => ['id' => 323, 'name' => 'Cached theme']], 120);
+$themeManager = $themeReflection->newInstanceWithoutConstructor();
+$check($themeManager->getActiveTheme()['id'] === 323, 'ThemeManager serves a cached active-theme row without a database query');
+$themeReflection->getProperty('activeThemeMemo')->setValue(null, []);
+\App\Support\QueryCache::set('active_theme_row', ['theme' => null], 120);
+$check($themeManager->getActiveTheme() === null, 'ThemeManager caches the no-active-theme result with a sentinel');
+\App\Support\ThemeManager::clearThemeCache();
+$check(\App\Support\QueryCache::get('active_theme_row') === null, 'clearThemeCache removes the cross-request row');
+
+\App\Support\QueryCache::set('schema_table_pr323_cached', true, 120);
+\App\Support\SchemaInfo::resetCache();
+$check(\App\Support\QueryCache::get('schema_table_pr323_cached') === null, 'SchemaInfo reset clears its cross-request namespace');
+
+foreach (array_keys($cacheKeys) as $key) {
+    \App\Support\QueryCache::delete($key);
+}
+\App\Support\QueryCache::delete($boundedKey);
+\App\Support\QueryCache::delete('catalog_' . $runKey . '_unbounded');
+\App\Support\QueryCache::delete('i18n_languages');
+$i18nReflection->getProperty('languagesCache')->setValue(null, null);
+$i18nReflection->getProperty('languagesLoadedFromDb')->setValue(null, false);
+
 echo "\nInvalidation coverage and transaction boundary:\n";
 $cms = $read('app/Controllers/CmsController.php');
 $reorderStart = strpos($cms, 'public function reorderHomeSections');
@@ -115,6 +197,16 @@ $check(str_contains($integrity, 'ContentCache::deferBooksChanged()'), 'DataInteg
 $check(
     substr_count($integrity, 'ContentCache::booksChanged()') >= 2,
     'single and global standalone recalculations invalidate after their commits'
+);
+$settingsRepository = $read('app/Models/SettingsRepository.php');
+$check(
+    substr_count($settingsRepository, '\\App\\Support\\ConfigStore::clearCache()') >= 2,
+    'settings set/delete invalidate ConfigStore through the shared repository boundary'
+);
+$languageModel = $read('app/Models/Language.php');
+$check(
+    substr_count($languageModel, "QueryCache::delete('i18n_languages')") >= 5,
+    'every language mutation invalidates the shared active-language cache'
 );
 
 foreach ([
