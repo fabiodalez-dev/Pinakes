@@ -70,8 +70,11 @@ async function setToggles(adminPage, cognome, telefono, indirizzo) {
   for (const [key, on] of Object.entries(combo)) {
     await adminPage.locator(`input[name="${key}"]`).setChecked(on);
   }
+  // Wait for the POST redirect to actually land, not just for the (already
+  // loaded) page's domcontentloaded — otherwise later assertions can read
+  // ConfigStore before the settings write completed.
   await Promise.all([
-    adminPage.waitForLoadState('domcontentloaded'),
+    adminPage.waitForURL(/\/admin\/settings/, { timeout: 15000 }),
     adminPage.click('form[action*="/admin/settings/registration"] button[type="submit"]'),
   ]);
 }

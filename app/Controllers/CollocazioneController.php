@@ -256,6 +256,31 @@ class CollocazioneController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
+    /**
+     * Canonical collocazione for a joined row: the stored `l.collocazione` when
+     * present, otherwise the same dash-separated zero-padded fallback used across
+     * the shelf browser and CSV export. Single place for the fallback format so
+     * getLibri() and exportCSV() can't drift.
+     *
+     * @param array<string,mixed> $row
+     */
+    private function collocazioneOrFallback(array $row): string
+    {
+        $collocazione = (string) ($row['collocazione'] ?? '');
+        if ($collocazione !== '') {
+            return $collocazione;
+        }
+        if ($row['scaffale_codice'] && $row['numero_livello'] && $row['posizione_progressiva']) {
+            return sprintf(
+                '%s-%d-%02d',
+                strtoupper(trim((string) $row['scaffale_codice'])),
+                (int) $row['numero_livello'],
+                (int) $row['posizione_progressiva']
+            );
+        }
+        return '';
+    }
+
     public function getLibri(Request $request, Response $response, mysqli $db): Response
     {
         $q = $request->getQueryParams();
@@ -310,10 +335,7 @@ class CollocazioneController
             // Use the stored, canonical collocazione (dash-separated, zero-padded
             // 'A-2-03') so the shelf browser matches the OPAC detail and admin sheet.
             // Fall back to the same padded format only if the stored value is empty.
-            $collocazione = (string) ($row['collocazione'] ?? '');
-            if ($collocazione === '' && $row['scaffale_codice'] && $row['numero_livello'] && $row['posizione_progressiva']) {
-                $collocazione = sprintf('%s-%d-%02d', strtoupper(trim((string) $row['scaffale_codice'])), (int) $row['numero_livello'], (int) $row['posizione_progressiva']);
-            }
+            $collocazione = $this->collocazioneOrFallback($row);
 
             $libri[] = [
                 'id' => (int) $row['id'],
@@ -394,10 +416,7 @@ class CollocazioneController
             // Match the stored, canonical collocazione (dash-separated, zero-padded)
             // used by the OPAC detail and admin sheet; fall back to the same padded
             // format only when the stored value is empty.
-            $collocazione = (string) ($row['collocazione'] ?? '');
-            if ($collocazione === '' && $row['scaffale_codice'] && $row['numero_livello'] && $row['posizione_progressiva']) {
-                $collocazione = sprintf('%s-%d-%02d', strtoupper(trim((string) $row['scaffale_codice'])), (int) $row['numero_livello'], (int) $row['posizione_progressiva']);
-            }
+            $collocazione = $this->collocazioneOrFallback($row);
 
             $csv[] = [
                 $collocazione,

@@ -148,60 +148,100 @@ class GenereRepository
         return $result;
     }
 
+    /**
+     * Detect an already-active transaction (autocommit disabled by the caller)
+     * so delete() never nests begin_transaction(), which would implicitly commit
+     * the outer unit of work.
+     */
+    private function hasActiveTransaction(): bool
+    {
+        $result = $this->db->query('SELECT @@autocommit AS ac');
+        if ($result instanceof \mysqli_result) {
+            $row = $result->fetch_assoc();
+            $result->free();
+            return (int)($row['ac'] ?? 1) === 0;
+        }
+        return false;
+    }
+
     public function delete(int $id): bool
     {
-        // Check if genre has children
-        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM generi WHERE parent_id = ?");
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];
-
-        if ($count > 0) {
-            throw new \RuntimeException('Impossibile eliminare: il genere ha sottogeneri');
+        // The usage checks and the DELETE must be atomic: without a transaction
+        // a concurrent request could create a posizione/mensola between the COUNT
+        // and the DELETE, and the ON DELETE CASCADE on posizioni.genere_id would
+        // then silently drop it (and unshelve its books) instead of the delete
+        // being refused. Lock the genre row FOR UPDATE and run everything in one
+        // transaction. Don't nest if the caller already owns one.
+        $ownsTx = !$this->hasActiveTransaction();
+        if ($ownsTx) {
+            $this->db->begin_transaction();
         }
 
-        // Only count non-deleted books. Soft-deleted rows are safe because both
-        // libri_ibfk_3 (genere_id) and fk_libri_sottogenere (sottogenere_id) use
-        // ON DELETE SET NULL — the DB automatically nullifies references when
-        // a genre is deleted, so no FK violation can occur from soft-deleted rows.
-        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE (genere_id = ? OR sottogenere_id = ?) AND deleted_at IS NULL");
-        $stmt->bind_param('ii', $id, $id);
-        $stmt->execute();
-        $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];
+        try {
+            // Lock the genre row so concurrent writers serialize behind us.
+            $stmt = $this->db->prepare("SELECT id FROM generi WHERE id = ? FOR UPDATE");
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            if ($stmt->get_result()->fetch_assoc() === null) {
+                throw new \RuntimeException('Genere inesistente');
+            }
 
-        if ($count > 0) {
-            throw new \RuntimeException('Impossibile eliminare: il genere è usato da libri esistenti');
-        }
+            // Check if genre has children
+            $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM generi WHERE parent_id = ?");
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            if ((int)$stmt->get_result()->fetch_assoc()['cnt'] > 0) {
+                throw new \RuntimeException('Impossibile eliminare: il genere ha sottogeneri');
+            }
 
-        // Physical shelf bindings must block a plain delete rather than silently
-        // cascade. posizioni.genere_id is ON DELETE CASCADE: deleting the genre
-        // would drop its posizioni and NULL libri.posizione_id even for books of
-        // OTHER genres that happen to be shelved there (they are not caught by the
-        // genere_id/sottogenere_id book check above). mensole.genere_id is RESTRICT,
-        // so an assigned mensola would otherwise crash with FK error 1451.
-        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM posizioni WHERE genere_id = ?");
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];
-        if ($count > 0) {
-            throw new \RuntimeException('Impossibile eliminare: il genere ha posizioni fisiche assegnate');
-        }
+            // Only count non-deleted books. Soft-deleted rows are safe because both
+            // libri_ibfk_3 (genere_id) and fk_libri_sottogenere (sottogenere_id) use
+            // ON DELETE SET NULL — the DB automatically nullifies references when
+            // a genre is deleted, so no FK violation can occur from soft-deleted rows.
+            $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE (genere_id = ? OR sottogenere_id = ?) AND deleted_at IS NULL");
+            $stmt->bind_param('ii', $id, $id);
+            $stmt->execute();
+            if ((int)$stmt->get_result()->fetch_assoc()['cnt'] > 0) {
+                throw new \RuntimeException('Impossibile eliminare: il genere è usato da libri esistenti');
+            }
 
-        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM mensole WHERE genere_id = ?");
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];
-        if ($count > 0) {
-            throw new \RuntimeException('Impossibile eliminare: il genere è assegnato a una mensola');
-        }
+            // Physical shelf bindings must block a plain delete rather than silently
+            // cascade. posizioni.genere_id is ON DELETE CASCADE: deleting the genre
+            // would drop its posizioni and NULL libri.posizione_id even for books of
+            // OTHER genres that happen to be shelved there (they are not caught by the
+            // genere_id/sottogenere_id book check above). mensole.genere_id is RESTRICT,
+            // so an assigned mensola would otherwise crash with FK error 1451.
+            $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM posizioni WHERE genere_id = ?");
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            if ((int)$stmt->get_result()->fetch_assoc()['cnt'] > 0) {
+                throw new \RuntimeException('Impossibile eliminare: il genere ha posizioni fisiche assegnate');
+            }
 
-        $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
-        $stmt->bind_param('i', $id);
-        $result = $stmt->execute();
-        if ($result) {
+            $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM mensole WHERE genere_id = ?");
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            if ((int)$stmt->get_result()->fetch_assoc()['cnt'] > 0) {
+                throw new \RuntimeException('Impossibile eliminare: il genere è assegnato a una mensola');
+            }
+
+            $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
+            $stmt->bind_param('i', $id);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nella cancellazione del genere');
+            }
+
+            if ($ownsTx) {
+                $this->db->commit();
+            }
             ContentCache::deferBooksChanged();
+            return true;
+        } catch (\Throwable $e) {
+            if ($ownsTx) {
+                $this->db->rollback();
+            }
+            throw $e;
         }
-        return $result;
     }
 
     public function cascadeDelete(int $id): bool
@@ -248,11 +288,15 @@ class GenereRepository
 
             $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
             $stmt->bind_param('i', $id);
-            $result = $stmt->execute();
+            if (!$stmt->execute()) {
+                // Without this the transaction would commit the libri/mensole/
+                // posizioni updates while leaving the root genre in place.
+                throw new \RuntimeException('Errore nella cancellazione del genere');
+            }
 
             $this->db->commit();
             ContentCache::booksChanged();
-            return $result;
+            return true;
         } catch (\Throwable $e) {
             $this->db->rollback();
             throw $e;
@@ -479,7 +523,7 @@ class GenereRepository
 
             if (!empty($positions)) {
                 $findTargetPos = $this->db->prepare("SELECT id FROM posizioni WHERE scaffale_id = ? AND mensola_id = ? AND genere_id = ? LIMIT 1");
-                $moveBooksPos = $this->db->prepare("UPDATE libri SET posizione_id = ? WHERE posizione_id = ?");
+                $moveBooksPos = $this->db->prepare("UPDATE libri SET posizione_id = ? WHERE posizione_id = ? AND deleted_at IS NULL");
                 $dropPos = $this->db->prepare("DELETE FROM posizioni WHERE id = ?");
                 $repointPos = $this->db->prepare("UPDATE posizioni SET genere_id = ? WHERE id = ?");
                 // Fail the transaction cleanly instead of fataling on bind_param

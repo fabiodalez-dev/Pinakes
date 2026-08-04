@@ -461,6 +461,12 @@ class AuthorRepository
                 $res->free();
             }
 
+            // Both ship via migrations, so a pre-migration schema may lack them.
+            // Gate their repoint/delete on existence so a merge never fails on a
+            // missing optional table.
+            $hasAlternates = \App\Support\SchemaInfo::hasTable($this->db, 'author_authority_alternates');
+            $hasImportSources = \App\Support\SchemaInfo::hasTable($this->db, 'libri_autori_import_sources');
+
             foreach ($duplicateIds as $duplicateId) {
                 // Update book-author relationships to point to primary author
                 // Use IGNORE to handle unique constraint violations (book already linked to primary)
@@ -490,43 +496,47 @@ class AuthorRepository
                 // Repoint authority alternates before the cascade drops them.
                 // Surrogate PK only (no unique on autore_id + authority), so a
                 // plain UPDATE cannot collide.
-                $stmt = $this->db->prepare(
-                    "UPDATE author_authority_alternates SET autore_id = ? WHERE autore_id = ?"
-                );
-                if ($stmt === false) {
-                    throw new \Exception("Failed to prepare UPDATE author_authority_alternates: " . $this->db->error);
+                if ($hasAlternates) {
+                    $stmt = $this->db->prepare(
+                        "UPDATE author_authority_alternates SET autore_id = ? WHERE autore_id = ?"
+                    );
+                    if ($stmt === false) {
+                        throw new \Exception("Failed to prepare UPDATE author_authority_alternates: " . $this->db->error);
+                    }
+                    $stmt->bind_param('ii', $primaryId, $duplicateId);
+                    if (!$stmt->execute()) {
+                        throw new \Exception("Failed to execute UPDATE author_authority_alternates: " . $stmt->error);
+                    }
+                    $stmt->close();
                 }
-                $stmt->bind_param('ii', $primaryId, $duplicateId);
-                if (!$stmt->execute()) {
-                    throw new \Exception("Failed to execute UPDATE author_authority_alternates: " . $stmt->error);
-                }
-                $stmt->close();
 
                 // Repoint import-source provenance. Its composite PK
                 // (libro_id, autore_id, ruolo, source) can collide when the
                 // primary already holds the same tuple — IGNORE skips those,
                 // then delete the leftovers still on the duplicate.
-                $stmt = $this->db->prepare(
-                    "UPDATE IGNORE libri_autori_import_sources SET autore_id = ? WHERE autore_id = ?"
-                );
-                if ($stmt === false) {
-                    throw new \Exception("Failed to prepare UPDATE IGNORE libri_autori_import_sources: " . $this->db->error);
-                }
-                $stmt->bind_param('ii', $primaryId, $duplicateId);
-                if (!$stmt->execute()) {
-                    throw new \Exception("Failed to execute UPDATE IGNORE libri_autori_import_sources: " . $stmt->error);
-                }
-                $stmt->close();
+                if ($hasImportSources) {
+                    $stmt = $this->db->prepare(
+                        "UPDATE IGNORE libri_autori_import_sources SET autore_id = ? WHERE autore_id = ?"
+                    );
+                    if ($stmt === false) {
+                        throw new \Exception("Failed to prepare UPDATE IGNORE libri_autori_import_sources: " . $this->db->error);
+                    }
+                    $stmt->bind_param('ii', $primaryId, $duplicateId);
+                    if (!$stmt->execute()) {
+                        throw new \Exception("Failed to execute UPDATE IGNORE libri_autori_import_sources: " . $stmt->error);
+                    }
+                    $stmt->close();
 
-                $stmt = $this->db->prepare("DELETE FROM libri_autori_import_sources WHERE autore_id = ?");
-                if ($stmt === false) {
-                    throw new \Exception("Failed to prepare DELETE libri_autori_import_sources: " . $this->db->error);
+                    $stmt = $this->db->prepare("DELETE FROM libri_autori_import_sources WHERE autore_id = ?");
+                    if ($stmt === false) {
+                        throw new \Exception("Failed to prepare DELETE libri_autori_import_sources: " . $this->db->error);
+                    }
+                    $stmt->bind_param('i', $duplicateId);
+                    if (!$stmt->execute()) {
+                        throw new \Exception("Failed to execute DELETE libri_autori_import_sources: " . $stmt->error);
+                    }
+                    $stmt->close();
                 }
-                $stmt->bind_param('i', $duplicateId);
-                if (!$stmt->execute()) {
-                    throw new \Exception("Failed to execute DELETE libri_autori_import_sources: " . $stmt->error);
-                }
-                $stmt->close();
 
                 // Repoint the archives-plugin authority-identity link when the
                 // table exists. Composite PK (autori_id, authority_id) can

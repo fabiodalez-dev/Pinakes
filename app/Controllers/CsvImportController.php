@@ -1565,7 +1565,10 @@ class CsvImportController
         $csvDescrizione = !empty($data['descrizione']) ? (string) $data['descrizione'] : null;
         $existingDesc = null;
         if ($csvDescrizione !== null) {
-            $sel = $db->prepare("SELECT descrizione, descrizione_plain FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+            // Select descrizione_plain only when the column exists, so the lookup
+            // doesn't throw on a pre-migration schema (same guard as the UPDATE).
+            $descCols = $hasDescPlain ? 'descrizione, descrizione_plain' : 'descrizione';
+            $sel = $db->prepare("SELECT {$descCols} FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
             if ($sel !== false) {
                 $sel->bind_param('i', $bookId);
                 $sel->execute();
@@ -1847,48 +1850,16 @@ class CsvImportController
         // Genera numero inventario base (usa ISBN se disponibile, altrimenti LIB-{id})
         $baseInventario = $isbn13 ?: ($isbn10 ?: "LIB-{$bookId}");
 
-        for ($i = 1; $i <= $copie; $i++) {
-            $candidato = $copie > 1
-                ? "{$baseInventario}-C{$i}"
-                : $baseInventario;
-
-            // Ensure unique numero_inventario (may collide with previous imports)
-            $numeroInventario = $candidato;
-            $suffix = 2;
-            $maxAttempts = 1000;
-            while ($this->inventoryNumberExists($db, $numeroInventario) && $suffix <= $maxAttempts) {
-                $numeroInventario = "{$candidato}-{$suffix}";
-                $suffix++;
-            }
-            if ($suffix > $maxAttempts) {
-                throw new \RuntimeException("Impossibile generare numero inventario unico per: {$candidato}");
-            }
-
-            $note = $copie > 1 ? sprintf(__("Copia %d di %d"), $i, $copie) : null;
-
-            $copyRepo->create($bookId, $numeroInventario, 'disponibile', $note);
-        }
+        // Batch: one prefix pre-load + one multi-row INSERT instead of two
+        // queries per copy, so a large copie_totali doesn't flood the per-row
+        // transaction with thousands of statements.
+        $copyRepo->createManyForBook($bookId, $baseInventario, $copie, 'disponibile', __("Copia %d di %d"));
 
         // Ricalcola disponibilità dopo aver creato le copie
         $integrity = new \App\Support\DataIntegrity($db);
         $integrity->recalculateBookAvailability($bookId);
 
         return $bookId;
-    }
-
-
-    /**
-     * Check if a numero_inventario already exists in the copie table.
-     */
-    private function inventoryNumberExists(\mysqli $db, string $numero): bool
-    {
-        $stmt = $db->prepare("SELECT 1 FROM copie WHERE numero_inventario = ? LIMIT 1");
-        $stmt->bind_param('s', $numero);
-        $stmt->execute();
-        $stmt->store_result();
-        $exists = $stmt->num_rows > 0;
-        $stmt->close();
-        return $exists;
     }
 
     /**

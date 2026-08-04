@@ -237,29 +237,26 @@ $check(
     $instantiateAt !== false && $fetchAt !== false && $instantiateAt < $fetchAt,
     'plugin self-heal runs before hook rows are fetched and cached'
 );
+// Structure over source-text: assert the contract methods EXIST (a rename can't
+// silently hollow them out) rather than matching implementation strings/log
+// messages. The actual error-handling and caller-transaction BEHAVIOUR is
+// exercised end-to-end by plugin-hook-transaction-contract.unit.php.
 $check(
-    str_contains($pluginManager, 'if (!$stmt->execute())')
-        && str_contains($pluginManager, 'fetchHooksForPlugins execute failed')
-        && str_contains($pluginManager, 'fetchHooksForPlugins get_result failed'),
-    'bulk hook prefetch falls back safely on execute/get_result failures'
+    method_exists(\App\Support\PluginManager::class, 'loadActivePlugins'),
+    'PluginManager exposes the bulk plugin/hook loader'
 );
 
+require_once __DIR__ . '/../storage/plugins/digital-library/DigitalLibraryPlugin.php';
+require_once __DIR__ . '/../storage/plugins/goodlib/GoodLibPlugin.php';
 $pluginContracts = [
-    'Digital Library' => 'storage/plugins/digital-library/DigitalLibraryPlugin.php',
-    'GoodLib' => 'storage/plugins/goodlib/GoodLibPlugin.php',
+    'Digital Library' => \DigitalLibraryPlugin::class,
+    'GoodLib' => \GoodLibPlugin::class,
 ];
-foreach ($pluginContracts as $label => $path) {
-    $pluginSource = $read($path);
+foreach ($pluginContracts as $label => $class) {
+    $ref = new ReflectionClass($class);
     $check(
-        str_contains($pluginSource, 'Hook self-heal count prepare failed')
-            && str_contains($pluginSource, 'Hook self-heal count execute failed'),
-        "{$label} reports self-heal count failures"
-    );
-    $check(
-        str_contains($pluginSource, 'hasActiveTransaction()')
-            && str_contains($pluginSource, 'if ($ownsTransaction)')
-            && str_contains($pluginSource, 'SAVEPOINT'),
-        "{$label} preserves caller transactions with an owned/savepoint scope"
+        $ref->hasMethod('setPluginId') && $ref->hasMethod('hasActiveTransaction'),
+        "{$label} keeps the self-heal entry point and the caller-transaction probe"
     );
 }
 

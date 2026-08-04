@@ -351,27 +351,4 @@ class MARCXMLFormatter extends RecordFormatter
         $language = strtolower($language);
         return $codes[$language] ?? 'und'; // und = undetermined
     }
-
-    /**
-     * Format copy status for human readability
-     *
-     * @param string $status Copy status code
-     * @return string Human-readable status
-     */
-    private function formatCopyStatus(string $status): string
-    {
-        // Keys must match the copie.stato enum exactly.
-        $statusMap = [
-            'disponibile'       => 'Available',
-            'prestato'          => 'On loan',
-            'prenotato'         => 'Reserved',
-            'manutenzione'      => 'Under maintenance',
-            'in_restauro'       => 'Under restoration',
-            'perso'             => 'Lost',
-            'danneggiato'       => 'Damaged',
-            'in_trasferimento'  => 'In transit',
-        ];
-
-        return $statusMap[$status] ?? ucfirst($status);
-    }
 }

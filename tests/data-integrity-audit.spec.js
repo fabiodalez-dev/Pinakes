@@ -302,12 +302,26 @@ test.describe.serial('CSV export', () => {
     const csv = await res.text();
     const lines = csv.replace(/^\uFEFF/, '').trim().split(/\r?\n/);
     const headers = lines[0].split(';');
-    const cells = lines[1].split(';').map((cell) => {
-      if (cell.startsWith('"') && cell.endsWith('"')) {
-        return cell.slice(1, -1).replace(/""/g, '"');
+    // Quote-aware split: a ';' inside a quoted cell (e.g. a multi-publisher
+    // editore cell) must not shift the column indexes.
+    const splitCsvLine = (line) => {
+      const out = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+          if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+          else if (ch === '"') { inQuotes = false; }
+          else { cur += ch; }
+        } else if (ch === '"') { inQuotes = true; }
+        else if (ch === ';') { out.push(cur); cur = ''; }
+        else { cur += ch; }
       }
-      return cell;
-    });
+      out.push(cur);
+      return out;
+    };
+    const cells = splitCsvLine(lines[1]);
     expect(cells[headers.indexOf('autori')]).toBe(principalName);
     expect(cells[headers.indexOf('co_autori')]).toBe(coauthorName);
     expect(cells[headers.indexOf('colorista')]).toBe(coloristName);
@@ -353,12 +367,12 @@ test.describe.serial('CSV import roundtrip', () => {
       // illustratore + curatore + dewey (#11/#9), multi-publisher (#12),
       // new genre (#16), 150 copies (#20)
       ['', '', '', '', rtTitle, '', 'Una descrizione semplice.',
-       'Primo Autore', `DIimpA_${RUN};DIimpB_${RUN}`, '2020', 'Italiano', '',
+       `Primo Autore ${RUN}`, `DIimpA_${RUN};DIimpB_${RUN}`, '2020', 'Italiano', '',
        '200', genreName, 'cartaceo', '', '10.00', '150',
        '', '', 'Trad Uno', 'Illus Due', 'Cura Tre', '823.912', 'kw1, kw2'],
       // formula-injection escaped title (#14)
       ['', '', '', '', `'${fxTitle}`, '', '',
-       'Autore Formula', '', '2021', 'Italiano', '', '', '', 'cartaceo', '', '', '1',
+       `Autore Formula ${RUN}`, '', '2021', 'Italiano', '', '', '', 'cartaceo', '', '', '1',
        '', '', '', '', '', '', ''],
     ];
     const csv = writeCsv('roundtrip', STD_HEADERS, rows);
@@ -370,7 +384,7 @@ test.describe.serial('CSV import roundtrip', () => {
     }
     for (const r of q(`SELECT id FROM editori WHERE nome IN ('DIimpA_${RUN}','DIimpB_${RUN}')`).split(/\n/).filter(Boolean)) created.editori.push(Number(r));
     for (const r of q(`SELECT id FROM generi WHERE nome='${esc(genreName)}'`).split(/\n/).filter(Boolean)) created.generi.push(Number(r));
-    for (const r of q(`SELECT id FROM autori WHERE nome IN ('Primo Autore','Autore Formula')`).split(/\n/).filter(Boolean)) created.autori.push(Number(r));
+    for (const r of q(`SELECT id FROM autori WHERE nome IN ('Primo Autore ${RUN}','Autore Formula ${RUN}')`).split(/\n/).filter(Boolean)) created.autori.push(Number(r));
   });
 
   test('import completed with no row errors', () => {
@@ -562,13 +576,13 @@ test.describe.serial('Counts, facets & API parity', () => {
     const title = `DInorm_${RUN}`;
     // "Rossi, Mario" (inverted Surname, Forename) must be stored as "Mario Rossi"
     // — the same AuthorNormalizer every other writer applies.
-    const rows = [['', '', '', '', title, '', '', 'Autore Norm', '', '2017', 'Italiano', '', '', '', 'cartaceo', '', '', '1', '', '', 'Rossi, Mario', 'Bianchi, Anna', 'Verdi, Luca', '', '']];
+    const rows = [['', '', '', '', title, '', '', `Autore Norm ${RUN}`, '', '2017', 'Italiano', '', '', '', 'cartaceo', '', '', '1', '', '', 'Rossi, Mario', 'Bianchi, Anna', 'Verdi, Luca', '', '']];
     const csv = writeCsv('normalizer', STD_HEADERS, rows);
     const summary = await importCsv(page, csv);
     await page.close();
     expect(summary.errors).toBe(0);
     for (const r of q(`SELECT id FROM libri WHERE titolo='${esc(title)}'`).split(/\n/).filter(Boolean)) created.libri.push(Number(r));
-    for (const r of q(`SELECT id FROM autori WHERE nome='Autore Norm'`).split(/\n/).filter(Boolean)) created.autori.push(Number(r));
+    for (const r of q(`SELECT id FROM autori WHERE nome='Autore Norm ${RUN}'`).split(/\n/).filter(Boolean)) created.autori.push(Number(r));
     const row = q(`SELECT traduttore, illustratore, curatore FROM libri WHERE titolo='${esc(title)}'`);
     const [trad, ill, cur] = row.split('\t');
     expect(trad).toBe('Mario Rossi');

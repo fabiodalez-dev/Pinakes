@@ -293,14 +293,15 @@ class Language
             throw new \Exception("Failed to create language: " . $this->db->error);
         }
 
-        // Invalidate AFTER the successful write: clearing the cache first
-        // opens a window where a concurrent request re-caches the pre-write
-        // language list for the full TTL.
-        \App\Support\QueryCache::delete('i18n_languages');
-
-        // If this is set as default, unset other defaults
+        // Invalidate ONCE, and only after the languages list is in its final
+        // consistent state. When this row becomes the default, setDefault()
+        // flips the other rows and invalidates at its own commit — invalidating
+        // here first would let a concurrent read re-cache the intermediate
+        // multiple-defaults state for the full TTL.
         if ($isDefault) {
             $this->setDefault($code);
+        } else {
+            \App\Support\QueryCache::delete('i18n_languages');
         }
 
         return $insertId;
@@ -364,11 +365,12 @@ class Language
             throw new \Exception("Failed to update language: " . $this->db->error);
         }
 
-        \App\Support\QueryCache::delete('i18n_languages');
-
-        // If is_default was set to 1, unset other defaults
+        // Invalidate once, only after the final consistent state (see create()):
+        // when this becomes the default, setDefault() invalidates at its commit.
         if (!empty($data['is_default']) && $data['is_default'] == 1) {
             $this->setDefault($code);
+        } else {
+            \App\Support\QueryCache::delete('i18n_languages');
         }
 
         return true;

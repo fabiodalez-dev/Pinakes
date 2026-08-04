@@ -2183,19 +2183,40 @@ class LibraryThingImportController
 
         $db->query("SET SESSION group_concat_max_len = 1000000");
 
-        // Execute query
-        if (!empty($bindValues)) {
-            $stmt = $db->prepare($query);
-            $stmt->bind_param($bindTypes, ...$bindValues);
-            $stmt->execute();
-            $result = $stmt->get_result();
-        } else {
-            $result = $db->query($query);
-        }
-
+        // Execute query. Guard the DB calls so a prepare/execute failure returns
+        // a clear error instead of emitting a truncated / malformed export.
         $libri = [];
-        while ($row = $result->fetch_assoc()) {
-            $libri[] = $row;
+        try {
+            if (!empty($bindValues)) {
+                $stmt = $db->prepare($query);
+                if ($stmt === false) {
+                    throw new \RuntimeException($db->error);
+                }
+                $stmt->bind_param($bindTypes, ...$bindValues);
+                if (!$stmt->execute()) {
+                    throw new \RuntimeException($stmt->error);
+                }
+                $result = $stmt->get_result();
+            } else {
+                $result = $db->query($query);
+            }
+            if ($result === false) {
+                throw new \RuntimeException($db->error);
+            }
+
+            while ($row = $result->fetch_assoc()) {
+                $libri[] = $row;
+            }
+        } catch (\Throwable $e) {
+            if (isset($stmt) && $stmt instanceof \mysqli_stmt) {
+                $stmt->close();
+            }
+            \App\Support\SecureLogger::error('[LibraryThing export] query failed', ['error' => $e->getMessage()]);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore durante l\'esportazione. Riprova più tardi.'),
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
 
         if (isset($stmt)) {

@@ -316,7 +316,12 @@ try {
     // serializer without changing global API-key settings for the test run.
     $apiCuratorName = "ZZ API Curator {$token}";
     $apiCuratorId = $authors->create(['nome' => $apiCuratorName]);
+    // Create BOTH roles locally so this assertion doesn't rely on the earlier
+    // provenance-import block for the illustrator link.
+    $apiIllustratorName = "ZZ API Illustrator {$token}";
+    $apiIllustratorId = $authors->create(['nome' => $apiIllustratorName]);
     $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$bookId}, {$apiCuratorId}, 'curatore')");
+    $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$bookId}, {$apiIllustratorId}, 'illustratore')");
     $findBooks = new ReflectionMethod(PublicApiController::class, 'findBooks');
     $findBooks->setAccessible(true);
     $apiContributorRows = $findBooks->invoke(new PublicApiController(), $db, null, null, null, $realName);

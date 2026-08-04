@@ -129,6 +129,69 @@ final class CapacityService
     }
 
     /**
+     * Every day in [$start,$end] that has NO free capacity, computed from a
+     * SINGLE load of the loan/reservation intervals plus an in-memory per-day
+     * count — instead of one hasFreeCapacity() call (and its queries) per day.
+     * Used to enrich a rejection payload after a whole-range check already
+     * failed, so a 90-day request no longer fires ~360 extra queries.
+     *
+     * @return list<string> Y-m-d dates lacking capacity, ascending
+     */
+    public function unavailableDatesInRange(int $libroId, string $start, string $end, ?int $excludeUserId = null): array
+    {
+        $days = $this->enumerateDays($start, $end);
+        if ($days === []) {
+            return [];
+        }
+        $total = $this->totalCopies($libroId);
+        if ($total <= 0) {
+            return $days; // nothing lendable → every requested day conflicts
+        }
+
+        $intervals = array_merge(
+            $this->holdingLoanIntervals($libroId, $start, $end, null, $excludeUserId),
+            $this->activeReservationIntervals($libroId, $start, $end, null, $excludeUserId)
+        );
+
+        $conflicts = [];
+        foreach ($days as $day) {
+            $count = 0;
+            foreach ($intervals as [$s, $e]) {
+                if ($s <= $day && $day <= $e) {
+                    $count++;
+                }
+            }
+            if ($count >= $total) {
+                $conflicts[] = $day;
+            }
+        }
+        return $conflicts;
+    }
+
+    /**
+     * @return list<string> Y-m-d days from $start to $end inclusive.
+     */
+    private function enumerateDays(string $start, string $end): array
+    {
+        try {
+            $cur = new \DateTimeImmutable($start);
+            $stop = new \DateTimeImmutable($end);
+        } catch (\Throwable) {
+            return [];
+        }
+        if ($cur > $stop) {
+            return [];
+        }
+        $days = [];
+        $oneDay = new \DateInterval('P1D');
+        while ($cur <= $stop) {
+            $days[] = $cur->format('Y-m-d');
+            $cur = $cur->add($oneDay);
+        }
+        return $days;
+    }
+
+    /**
      * HOLDING loan intervals overlapping [$start,$end], clamped to the window.
      * @return list<array{0:string,1:string}>
      */

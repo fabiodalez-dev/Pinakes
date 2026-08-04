@@ -10,7 +10,8 @@
 -- ============================================================
 -- 1. ADD INDEX idx_libri_deleted_created (only if not exists)
 -- ============================================================
-SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND INDEX_NAME = 'idx_libri_deleted_created');
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND INDEX_NAME = 'idx_libri_deleted_created');
 SET @sql = IF(@idx_exists = 0, 'ALTER TABLE `libri` ADD INDEX `idx_libri_deleted_created` (`deleted_at`, `created_at`)', 'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
@@ -19,7 +20,8 @@ DEALLOCATE PREPARE stmt;
 -- ============================================================
 -- 2. ADD INDEX idx_libri_genere_deleted_created (only if not exists)
 -- ============================================================
-SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND INDEX_NAME = 'idx_libri_genere_deleted_created');
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND INDEX_NAME = 'idx_libri_genere_deleted_created');
 SET @sql = IF(@idx_exists = 0, 'ALTER TABLE `libri` ADD INDEX `idx_libri_genere_deleted_created` (`genere_id`, `deleted_at`, `created_at`)', 'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;

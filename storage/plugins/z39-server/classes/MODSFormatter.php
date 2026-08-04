@@ -299,29 +299,6 @@ class MODSFormatter extends RecordFormatter
     }
 
     /**
-     * Format copy status for human readability
-     *
-     * @param string $status Copy status code
-     * @return string Human-readable status
-     */
-    private function formatCopyStatus(string $status): string
-    {
-        // Keys must match the copie.stato enum exactly.
-        $statusMap = [
-            'disponibile'       => 'Available',
-            'prestato'          => 'On loan',
-            'prenotato'         => 'Reserved',
-            'manutenzione'      => 'Under maintenance',
-            'in_restauro'       => 'Under restoration',
-            'perso'             => 'Lost',
-            'danneggiato'       => 'Damaged',
-            'in_trasferimento'  => 'In transit',
-        ];
-
-        return $statusMap[$status] ?? ucfirst($status);
-    }
-
-    /**
      * Map tipo_media to a MODS typeOfResource term.
      *
      * @param string|null $tipoMedia Raw tipo_media value

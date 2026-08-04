@@ -549,13 +549,17 @@ class ReservationsController
      */
     private function capacityConflictDates(\App\Services\CapacityService $capacity, int $bookId, array $requestedDates, int $userId): array
     {
-        $conflicts = [];
-        foreach ($requestedDates as $date) {
-            if (!$capacity->hasFreeCapacity($bookId, $date, $date, excludeUserId: $userId)) {
-                $conflicts[] = $date;
-            }
+        if ($requestedDates === []) {
+            return [];
         }
-        return $conflicts;
+        // One interval load for the whole span instead of a per-day query storm.
+        $unavailable = $capacity->unavailableDatesInRange($bookId, min($requestedDates), max($requestedDates), $userId);
+        // Restrict to the actually-requested days (the request set may be sparse).
+        $requestedSet = array_flip($requestedDates);
+        return array_values(array_filter(
+            $unavailable,
+            static fn (string $date): bool => isset($requestedSet[$date])
+        ));
     }
 
     private function getDateRange($startDate, $endDate)

@@ -1470,24 +1470,27 @@ class LibriController
             // Conta quante copie sono disponibili per la rimozione
             $copie = $copyRepo->getByBookId($id);
             $removableCopies = 0;
-            $nonRemovableCopies = 0;
 
             foreach ($copie as $copia) {
                 if ($copia['stato'] === 'disponibile' && empty($copia['prestito_id'])) {
                     $removableCopies++;
-                } else {
-                    $nonRemovableCopies++;
                 }
             }
 
             $requiredReduction = $currentCopieCount - $newCopieCount;
 
             if ($requiredReduction > $removableCopies) {
+                // The floor is the in-circulation count minus what we can remove.
+                // Deriving it from $currentCopieCount (which already excludes
+                // out-of-circulation copies) keeps the message consistent with the
+                // canonical libri.copie_totali, instead of counting perso/danneggiato
+                // copies that aren't part of that total at all.
+                $minimumCopies = $currentCopieCount - $removableCopies;
                 $_SESSION['error_message'] = sprintf(
                     __('Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.'),
                     $newCopieCount,
-                    $nonRemovableCopies,
-                    $nonRemovableCopies
+                    $minimumCopies,
+                    $minimumCopies
                 );
                 return $response->withHeader('Location', url('/admin/books/edit/' . $id))->withStatus(302);
             }
@@ -3237,15 +3240,20 @@ class LibriController
                 array_map('intval', explode(',', $idsParam)),
                 static fn (int $id): bool => $id > 0
             )));
-            // The selected-export path caps at 1000 IDs. Don't truncate in
-            // silence: log it so a large multi-page selection that loses rows
-            // is at least diagnosable (the UI accumulates IDs across pages).
+            // The selected-export path caps at 1000 IDs. Rather than silently
+            // shipping a partial CSV that looks complete, refuse the export and
+            // tell the user to narrow the selection (the UI accumulates IDs
+            // across pages, so this is a reachable state).
             if (count($selectedIds) > 1000) {
-                SecureLogger::error(__('Export selezione troncato a 1000 libri'), [
+                SecureLogger::error(__('Export selezione troppo grande'), [
                     'requested' => count($selectedIds),
                 ]);
+                $_SESSION['error_message'] = sprintf(
+                    __('Selezione troppo grande per l\'esportazione: %d libri (massimo 1000). Riduci la selezione e riprova.'),
+                    count($selectedIds)
+                );
+                return $response->withHeader('Location', url('/admin/books'))->withStatus(302);
             }
-            $selectedIds = array_slice($selectedIds, 0, 1000);
         }
 
         // Export format options

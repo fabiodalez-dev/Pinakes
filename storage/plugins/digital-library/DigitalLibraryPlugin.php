@@ -78,7 +78,17 @@ class DigitalLibraryPlugin
             }
             $row = $result->fetch_assoc();
             if ((int)($row['total'] ?? 0) === 0) {
-                $this->registerHooks();
+                // Self-heal path (runs on EVERY request): registerHooks() now
+                // throws on a write failure, but a plugin_hooks glitch must not
+                // break page bootstrap. Log and continue; onActivate() still
+                // propagates so activation surfaces the error.
+                try {
+                    $this->registerHooks();
+                } catch (\Throwable $e) {
+                    \App\Support\SecureLogger::error('[Digital Library] Hook self-heal registerHooks failed', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
         } else {
             \App\Support\SecureLogger::error('[Digital Library] Hook self-heal count execute failed', [
@@ -282,9 +292,13 @@ class DigitalLibraryPlugin
                 $stmt->close();
             }
             if ($ownsTransaction) {
-                $this->db->commit();
+                if (!$this->db->commit()) {
+                    throw new \RuntimeException("Digital Library hook commit failed: {$this->db->error}");
+                }
             } else {
-                $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+                if (!$this->db->query("RELEASE SAVEPOINT {$savepoint}")) {
+                    throw new \RuntimeException("Digital Library hook savepoint release failed: {$this->db->error}");
+                }
             }
         } catch (\Throwable $e) {
             if ($ownsTransaction) {

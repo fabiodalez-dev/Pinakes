@@ -139,6 +139,70 @@ class CopyRepository
     }
 
     /**
+     * Create $howMany copies for a book in a single round-trip: pre-load the
+     * existing codes of this base's family ONCE, generate collision-free
+     * "{base}-C{N}" codes in memory, then batch-insert every row with one
+     * prepared statement. Replaces the per-copy inventoryCodeExists()+create()
+     * pair that turned a large copie_totali import into thousands of queries
+     * inside the per-row transaction (holding locks on `copie`).
+     *
+     * @param string|null $noteTemplate already-translated sprintf template with
+     *                                   two %d (index, total); null = no note.
+     * @return int number of copies inserted
+     */
+    public function createManyForBook(int $bookId, string $base, int $howMany, string $stato = 'disponibile', ?string $noteTemplate = null): int
+    {
+        $howMany = max(0, $howMany);
+        if ($howMany === 0) {
+            return 0;
+        }
+        // numero_inventario is VARCHAR(100); leave room for the "-C{N}" suffix.
+        $base = mb_substr($base, 0, 90);
+
+        // Pre-load, once, every existing code that could collide with this family.
+        $taken = [];
+        $likeParam = $base . '%';
+        $sel = $this->db->prepare("SELECT numero_inventario FROM copie WHERE numero_inventario LIKE ?");
+        $sel->bind_param('s', $likeParam);
+        $sel->execute();
+        $res = $sel->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $taken[$row['numero_inventario']] = true;
+        }
+        $sel->close();
+
+        // Generate collision-free codes in memory (walk up, filling gaps).
+        $codes = [];
+        for ($index = 1; count($codes) < $howMany; $index++) {
+            $candidate = "{$base}-C{$index}";
+            if (!isset($taken[$candidate])) {
+                $taken[$candidate] = true;
+                $codes[] = $candidate;
+            }
+        }
+
+        // Single multi-row INSERT.
+        $total = count($codes);
+        $placeholders = implode(',', array_fill(0, $total, '(?, ?, ?, ?)'));
+        $stmt = $this->db->prepare("INSERT INTO copie (libro_id, numero_inventario, stato, note) VALUES {$placeholders}");
+        $types = '';
+        $params = [];
+        foreach ($codes as $i => $code) {
+            $note = ($noteTemplate !== null && $total > 1) ? sprintf($noteTemplate, $i + 1, $total) : null;
+            $types .= 'isss';
+            $params[] = $bookId;
+            $params[] = $code;
+            $params[] = $stato;
+            $params[] = $note;
+        }
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $stmt->close();
+
+        return $total;
+    }
+
+    /**
      * True if a numero_inventario already exists anywhere (the uniq_numero_inventario
      * index is global, not per-book), so callers can avoid the duplicate-key crash.
      */

@@ -44,21 +44,28 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     $env[trim($key)] = $value;
 }
 
-$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
+// Prefer the E2E_DB_* environment (how CI/the runner injects credentials),
+// falling back to .env, so configured creds don't make the test silently SKIP.
+$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
+$dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
+$dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
+$dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
+$dbHost = getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
+$dbPort = (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306));
 try {
     $db = is_string($socket) && $socket !== '' && file_exists($socket)
-        ? new mysqli(null, $env['DB_USER'] ?? '', $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''), $env['DB_NAME'] ?? '', 0, $socket)
-        : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'] ?? '', $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''), $env['DB_NAME'] ?? '', (int) ($env['DB_PORT'] ?? 3306));
+        ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
+        : new mysqli($dbHost, $dbUser, $dbPass, $dbName, $dbPort);
     $db->set_charset('utf8mb4');
 } catch (Throwable $e) {
     echo "SKIP: database not reachable ({$e->getMessage()})\n";
     exit(0);
 }
 
-/** @var list<array{label:string,class:class-string,expected_hooks:int}> $pluginCases */
+/** @var list<array{label:string,class:class-string}> $pluginCases */
 $pluginCases = [
-    ['label' => 'Digital Library', 'class' => DigitalLibraryPlugin::class, 'expected_hooks' => 7],
-    ['label' => 'GoodLib', 'class' => GoodLibPlugin::class, 'expected_hooks' => 2],
+    ['label' => 'Digital Library', 'class' => DigitalLibraryPlugin::class],
+    ['label' => 'GoodLib', 'class' => GoodLibPlugin::class],
 ];
 
 $hookCount = static function (mysqli $db, int $pluginId): int {
@@ -94,7 +101,7 @@ $deleteHooks = static function (mysqli $db, int $pluginId): void {
 };
 
 /**
- * @param array{label:string,class:class-string,expected_hooks:int} $case
+ * @param array{label:string,class:class-string} $case
  */
 $verifyPluginContract = static function (array $case) use (
     $db,
@@ -121,6 +128,20 @@ $verifyPluginContract = static function (array $case) use (
 
     echo "{$case['label']}:\n";
     try {
+        // Derive the expected hook count from the plugin itself (a standalone
+        // registration) rather than hard-coding it, so adding or removing a hook
+        // never requires editing this test. The transaction-mode assertions then
+        // check they reproduce this same baseline set.
+        $baseline = new $case['class']($db);
+        $baseline->setPluginId($pluginId);
+        $expectedHooks = $hookCount($db, $pluginId);
+        $deleteHooks($db, $pluginId);
+        $setDisplayName($db, $pluginId, $originalLabel);
+        $check(
+            $expectedHooks > 0,
+            "{$case['label']} registers at least one hook standalone"
+        );
+
         $modes = [
             'begin_transaction' => static function (mysqli $connection): void {
                 $connection->begin_transaction();
@@ -140,7 +161,7 @@ $verifyPluginContract = static function (array $case) use (
             $plugin->setPluginId($pluginId);
 
             $check(
-                $hookCount($db, $pluginId) === $case['expected_hooks'],
+                $hookCount($db, $pluginId) === $expectedHooks,
                 "{$case['label']} registers the complete hook set inside {$mode}"
             );
 
@@ -166,7 +187,7 @@ $verifyPluginContract = static function (array $case) use (
         $plugin = new $class($db);
         $plugin->setPluginId($pluginId);
         $check(
-            $hookCount($db, $pluginId) === $case['expected_hooks'],
+            $hookCount($db, $pluginId) === $expectedHooks,
             "{$case['label']} commits its complete hook set when standalone"
         );
     } finally {

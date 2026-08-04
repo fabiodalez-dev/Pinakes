@@ -1274,6 +1274,9 @@ class SettingsController
 
         $repository->set('cms', 'event_image_layout', $layout);
         ConfigStore::set('cms.event_image_layout', $layout);
+        // The cached home dataset folds in CMS/event settings; refresh it so a
+        // settings change is reflected immediately rather than after the TTL.
+        \App\Support\ContentCache::homeContentChanged();
 
         $_SESSION['success_message'] = __('Impostazioni eventi aggiornate.');
         return $this->redirect($response, '/admin/settings?tab=cms');

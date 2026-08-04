@@ -39,7 +39,7 @@ class SRUServer
             'type' => 'text',
             // Primary publisher (editori) plus secondary publishers via the
             // libri_editori junction (#143), mirroring OAI-PMH/web parity.
-            'columns' => ['e.nome', 'e2.nome'],
+            'columns' => ['e.nome', self::PUBLISHER_MATCH],
         ],
         'dc.date' => [
             'type' => 'numeric',
@@ -57,7 +57,7 @@ class SRUServer
                 'a.nome',
                 'a.pseudonimo',
                 'e.nome',
-                'e2.nome',
+                self::PUBLISHER_MATCH,
                 'l.isbn10',
                 'l.isbn13',
                 'l.ean',
@@ -89,6 +89,10 @@ class SRUServer
     ];
 
     // SRU namespaces
+    // Sentinel "column" for secondary-publisher matching: expanded to a correlated
+    // EXISTS on libri_editori in buildTextMatchClause, so no base-query JOIN is needed.
+    private const PUBLISHER_MATCH = '__pub_exists__';
+
     private const NS_SRU = 'http://www.loc.gov/zing/srw/';
     private const NS_DIAG = 'info:srw/diagnostic/1/';
 
@@ -424,8 +428,10 @@ class SRUServer
                                       AND la.ruolo IN ('principale', 'co-autore')
             LEFT JOIN autori a ON la.autore_id = a.id
             LEFT JOIN editori e ON l.editore_id = e.id
-            LEFT JOIN libri_editori le ON l.id = le.libro_id
-            LEFT JOIN editori e2 ON le.editore_id = e2.id
+            -- Secondary publishers (#143) are matched via a correlated EXISTS in
+            -- the WHERE (see PUBLISHER_MATCH) rather than a LEFT JOIN, so the base
+            -- query doesn't multiply rows (libri_autori × copie × libri_editori)
+            -- before GROUP BY. Payload publishers come from fetchPublishersForRecords().
             LEFT JOIN generi g ON l.genere_id = g.id
             -- #5: resolve shelf/location from the CURRENT columns. The admin
             -- book save hard-sets libri.posizione_id = NULL and stores the
@@ -742,6 +748,31 @@ class SRUServer
         };
     }
 
+    /**
+     * SQL fragment matching one search column against an already-escaped value.
+     * The PUBLISHER_MATCH sentinel expands to a correlated EXISTS on
+     * libri_editori (secondary publishers, #143) so the base query needs no
+     * fan-out JOIN; every other column is a plain LIKE/=/NOT LIKE.
+     *
+     * @param string $mode 'like' | 'notlike' | 'exact'
+     */
+    private function textColumnClause(string $column, string $escaped, string $mode): string
+    {
+        if ($column === self::PUBLISHER_MATCH) {
+            $inner = $mode === 'exact'
+                ? "e2.nome = '{$escaped}'"
+                : "e2.nome LIKE '%{$escaped}%' ESCAPE '\\\\'";
+            $exists = "EXISTS (SELECT 1 FROM libri_editori le_pub JOIN editori e2 ON e2.id = le_pub.editore_id WHERE le_pub.libro_id = l.id AND {$inner})";
+            return $mode === 'notlike' ? "NOT {$exists}" : $exists;
+        }
+
+        return match ($mode) {
+            'exact'   => "{$column} = '{$escaped}'",
+            'notlike' => "{$column} NOT LIKE '%{$escaped}%' ESCAPE '\\\\'",
+            default   => "{$column} LIKE '%{$escaped}%' ESCAPE '\\\\'",
+        };
+    }
+
     private function buildTextMatchClause(array $columns, string $relation, string $value): string
     {
         $columns = !empty($columns) ? $columns : $this->indexDefinitions['cql.anywhere']['columns'];
@@ -750,7 +781,7 @@ class SRUServer
         $like = function (string $term) use ($columns): string {
             $escaped = $this->escapeForLike($term);
             $clauses = array_map(
-                fn($column) => "{$column} LIKE '%{$escaped}%' ESCAPE '\\\\'",
+                fn($column) => $this->textColumnClause($column, $escaped, 'like'),
                 $columns
             );
             return '(' . implode(' OR ', $clauses) . ')';
@@ -760,7 +791,7 @@ class SRUServer
             'exact' => (function () use ($columns, $value): string{
                     $escaped = $this->db->real_escape_string($value);
                     $clauses = array_map(
-                    fn($column) => "{$column} = '{$escaped}'",
+                    fn($column) => $this->textColumnClause($column, $escaped, 'exact'),
                     $columns
                     );
                     return '(' . implode(' OR ', $clauses) . ')';
@@ -768,7 +799,7 @@ class SRUServer
             '!=' => (function () use ($columns, $value): string{
                     $escaped = $this->escapeForLike($value);
                     $clauses = array_map(
-                    fn($column) => "{$column} NOT LIKE '%{$escaped}%' ESCAPE '\\\\'",
+                    fn($column) => $this->textColumnClause($column, $escaped, 'notlike'),
                     $columns
                     );
                     return '(' . implode(' AND ', $clauses) . ')';

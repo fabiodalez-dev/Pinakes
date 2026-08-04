@@ -228,16 +228,24 @@ class DataIntegrity {
             // Aggiorna lastId per il prossimo batch
             $lastId = end($ids);
 
-            // Processa ogni libro nel batch
+            // Processa ogni libro nel batch. Suppress the per-book cache
+            // invalidation and clear the books-derived caches ONCE per chunk,
+            // so a 10k-book recalc doesn't fire 10k invalidations and prevent
+            // the shared caches from ever settling.
+            $chunkDirty = false;
             foreach ($ids as $bookId) {
                 try {
-                    if ($this->recalculateBookAvailability($bookId)) {
+                    if ($this->recalculateBookAvailability($bookId, false, true)) {
                         $results['updated']++;
+                        $chunkDirty = true;
                     }
                 } catch (\Throwable $e) {
                     $results['errors'][] = "Libro #$bookId: " . $e->getMessage();
                 }
                 $processed++;
+            }
+            if ($chunkDirty) {
+                ContentCache::booksChanged();
             }
 
             // Report progress
@@ -254,7 +262,7 @@ class DataIntegrity {
      * Ricalcola le copie disponibili per un singolo libro
      * Supports being called inside or outside a transaction
      */
-    public function recalculateBookAvailability(int $bookId, bool $insideTransaction = false): bool {
+    public function recalculateBookAvailability(int $bookId, bool $insideTransaction = false, bool $skipCacheInvalidation = false): bool {
         // App-timezone "today" (see recalculateAllBookAvailability) — interpolated in place of
         // the DB CURDATE() so the availability comparisons don't drift around local midnight.
         $today = \App\Support\DateHelper::today();
@@ -400,8 +408,10 @@ class DataIntegrity {
             // Availability feeds the cached catalog facets / home dataset:
             // invalidate only after our own commit. When the caller owns the
             // transaction, defer until request shutdown so no concurrent read
-            // can repopulate the cache from pre-commit rows.
-            if ($result) {
+            // can repopulate the cache from pre-commit rows. A batch caller
+            // ($skipCacheInvalidation) invalidates once per chunk instead of
+            // once per book.
+            if ($result && !$skipCacheInvalidation) {
                 if ($insideTransaction) {
                     ContentCache::deferBooksChanged();
                 } else {

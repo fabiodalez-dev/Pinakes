@@ -194,4 +194,24 @@ abstract class RecordFormatter
         }
         return $url;
     }
+
+    /**
+     * Human-readable copy status. Keys must match the copie.stato enum exactly.
+     * Shared by every formatter so the enum→label map lives in one place.
+     */
+    protected function formatCopyStatus(string $status): string
+    {
+        $statusMap = [
+            'disponibile'       => 'Available',
+            'prestato'          => 'On loan',
+            'prenotato'         => 'Reserved',
+            'manutenzione'      => 'Under maintenance',
+            'in_restauro'       => 'Under restoration',
+            'perso'             => 'Lost',
+            'danneggiato'       => 'Damaged',
+            'in_trasferimento'  => 'In transit',
+        ];
+
+        return $statusMap[$status] ?? ucfirst($status);
+    }
 }
