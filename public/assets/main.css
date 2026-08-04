@@ -6713,6 +6713,14 @@ table.dataTable thead td {
     margin: 0 !important;
   }
 
+  /* The card padding above is zeroed for full-bleed content, but that left
+     text bodies (dl grids, prose descriptions) touching the screen edge while
+     the header kept its 1.5rem inset — visibly inconsistent. Restore breathing
+     room for padded bodies; full-bleed bodies opt out with the existing `p-0`. */
+  .admin-book-detail .card-body:not(.p-0) {
+    padding: 1rem 1.5rem 1.5rem;
+  }
+
   /* Contact page - Add vertical padding */
   .contact-page {
     padding: 4rem 0 !important;
@@ -8672,4 +8680,3 @@ table.dataTable thead td {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
-

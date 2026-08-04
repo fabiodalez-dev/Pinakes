@@ -33,7 +33,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
 
 ?>
 
-<section class="min-h-screen bg-gray-50 py-6">
+<section class="admin-book-detail min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 <?php if (isset($_SESSION['success_message'])): ?>
   <div class="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-green-700" role="alert">
@@ -1182,8 +1182,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
   <?php endif; ?>
 
   <?php if (empty($volumes) && empty($parentWork)): ?>
-  <div class="mt-6">
-    <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
+  <div class="mt-6 border-t border-gray-200 pt-4">
+    <p class="text-sm text-gray-600 mb-2 max-w-3xl">
+      <?= __("Un'opera multi-volume raggruppa più libri già in catalogo come volumi di un'unica opera (es. una trilogia o un'enciclopedia in più tomi).") ?>
+    </p>
+    <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="inline-flex items-center py-3 text-sm text-gray-900 hover:text-gray-700 font-medium">
       <i class="fas fa-layer-group mr-1"></i> <?= __("Configura come opera multi-volume") ?>
     </button>
   </div>
@@ -1634,6 +1637,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
         title: __('Aggiungi volume'),
         html: '<div class="text-left">'
           + '<label class="block text-sm font-medium text-gray-700 mb-1">' + __('Cerca libro') + '</label>'
+          + '<p class="text-sm text-gray-600 mb-2" style="margin-top:0">' + __('Cerca un libro già in catalogo da collegare come volume.') + '</p>'
           + '<input id="swal-volume-search" class="swal2-input" placeholder="' + __('Titolo o ISBN...') + '" style="margin:0;width:100%">'
           + '<div id="swal-volume-results" class="mt-2 max-h-40 overflow-y-auto text-sm"></div>'
           + '<input type="hidden" id="swal-volume-id" value="">'
