@@ -8,8 +8,8 @@
 // has_pending_request), the /me/loans envelope, and reservation create/cancel.
 //
 // SELF-CONTAINED & CLEAN:
-//   - beforeAll logs in as admin (POST /auth/login → token) and seeds a borrower
-//     (direct DB) for reservation tests.
+//   - beforeAll logs in as admin (POST /auth/login → token), seeds a borrower,
+//     and creates its own one-copy book + genre (direct DB).
 //   - Each test that needs an on-loan / loan / pending fixture seeds it against
 //     the admin user and tears it down in a finally{} block so tests stay
 //     independent and order-free.
@@ -95,12 +95,14 @@ const ctx = {};
 
 // Pick a non-deleted book with exactly ONE copie row that is currently free.
 function pickOneCopyAvailableBook() {
+    const ownFixture = ctx.fixtureBook ? ` AND l.id = ${ctx.fixtureBook}` : '';
     return dbInt(`
         SELECT l.id
         FROM libri l
         WHERE l.deleted_at IS NULL
           AND l.copie_disponibili > 0
           AND (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id) = 1
+          ${ownFixture}
         ORDER BY l.id
         LIMIT 1`);
 }
@@ -108,7 +110,10 @@ function pickOneCopyAvailableBook() {
 // Pick any available, non-deleted book (used for reservation create).
 function pickAvailableBook(excludeId) {
     const ex = excludeId ? ` AND l.id <> ${excludeId}` : '';
-    return dbInt(`SELECT l.id FROM libri l WHERE l.deleted_at IS NULL AND l.copie_disponibili > 0${ex} ORDER BY l.id LIMIT 1`);
+    const ownFixture = ctx.fixtureBook && ctx.fixtureBook !== excludeId
+        ? ` AND l.id = ${ctx.fixtureBook}`
+        : '';
+    return dbInt(`SELECT l.id FROM libri l WHERE l.deleted_at IS NULL AND l.copie_disponibili > 0${ex}${ownFixture} ORDER BY l.id LIMIT 1`);
 }
 
 // ── Seed / restore an on-loan single-copy book ───────────────────────────────
@@ -213,9 +218,27 @@ test.beforeAll(async ({ request }) => {
     expect(blogin.status(), 'borrower login must succeed').toBe(200);
     ctx.userToken = (await blogin.json()).data.token;
 
-    // 4) Fixture book ids.
+    // 4) Own catalogue fixtures. Never depend on books/genres left by another
+    // spec: the preceding data-integrity audit intentionally cleans all rows it
+    // created, and a fresh installation may otherwise have an empty catalogue.
+    ctx.fixtureGenreName = `Mobile Behaviors ${RUN_ID}`;
+    ctx.fixtureBookTitle = `Mobile Behaviors Book ${RUN_ID}`;
+    ctx.fixtureInventory = `MB${Date.now()}${process.pid}`.slice(0, 50);
+    dbExec(`INSERT INTO generi (nome, created_at, updated_at) VALUES (${sqlStr(ctx.fixtureGenreName)}, NOW(), NOW())`);
+    ctx.fixtureGenre = dbInt(`SELECT id FROM generi WHERE nome = ${sqlStr(ctx.fixtureGenreName)} ORDER BY id DESC LIMIT 1`);
+    expect(ctx.fixtureGenre, 'fixture genre seeded').toBeGreaterThan(0);
+    dbExec(`
+        INSERT INTO libri (titolo, genere_id, copie_totali, copie_disponibili, stato, created_at, updated_at)
+        VALUES (${sqlStr(ctx.fixtureBookTitle)}, ${ctx.fixtureGenre}, 1, 1, 'disponibile', NOW(), NOW())`);
+    ctx.fixtureBook = dbInt(`SELECT id FROM libri WHERE titolo = ${sqlStr(ctx.fixtureBookTitle)} ORDER BY id DESC LIMIT 1`);
+    expect(ctx.fixtureBook, 'fixture book seeded').toBeGreaterThan(0);
+    dbExec(`
+        INSERT INTO copie (libro_id, numero_inventario, stato, created_at, updated_at)
+        VALUES (${ctx.fixtureBook}, ${sqlStr(ctx.fixtureInventory)}, 'disponibile', NOW(), NOW())`);
+
     ctx.oneCopyBook = pickOneCopyAvailableBook();
     ctx.availBook   = pickAvailableBook();
+    expect(ctx.oneCopyBook, 'a self-contained 1-copy available book exists').toBeGreaterThan(0);
     expect(ctx.availBook, 'an available book exists').toBeGreaterThan(0);
 });
 
@@ -240,6 +263,15 @@ test.afterAll(async () => {
         // (No admin reservations are seeded by this suite — all admin fixtures are
         // loans, each cleaned by its own id — so we avoid a broad time-window
         // DELETE on prenotazioni that could remove unrelated real reservations.)
+    }
+    if (ctx.fixtureBook) {
+        try { dbExec(`DELETE FROM prestiti WHERE libro_id = ${ctx.fixtureBook}`); } catch {}
+        try { dbExec(`DELETE FROM prenotazioni WHERE libro_id = ${ctx.fixtureBook}`); } catch {}
+        try { dbExec(`DELETE FROM copie WHERE libro_id = ${ctx.fixtureBook}`); } catch {}
+        try { dbExec(`DELETE FROM libri WHERE id = ${ctx.fixtureBook}`); } catch {}
+    }
+    if (ctx.fixtureGenre) {
+        try { dbExec(`DELETE FROM generi WHERE id = ${ctx.fixtureGenre}`); } catch {}
     }
     // Restore both global gates to their exact pre-suite states.
     try {
