@@ -74,25 +74,97 @@ class PrestitiController
             return $guard;
         }
 
-        // Pre-fill user info if utente_id query param provided
+        // Retained input from a failed submit or a "save and add another"
+        // (shown once, then discarded).
+        $old = $_SESSION['loan_form_old'] ?? [];
+        if (!is_array($old)) {
+            $old = [];
+        }
+        unset($_SESSION['loan_form_old']);
+
+        // Small helper: resolve a user's display label "Nome Cognome (tessera)".
+        $resolveUserLabel = static function (mysqli $db, int $userId): ?array {
+            if ($userId <= 0) {
+                return null;
+            }
+            $stmt = $db->prepare("SELECT id, nome, cognome, codice_tessera FROM utenti WHERE id = ? LIMIT 1");
+            if (!$stmt) {
+                return null;
+            }
+            $stmt->bind_param('i', $userId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$row) {
+                return null;
+            }
+            // The "Me" button targets staff/admin, who often have no library
+            // card — only append " (code)" when a card number is actually set,
+            // otherwise the label reads "Name Surname ()".
+            $row['label'] = full_name($row['nome'] ?? '', $row['cognome'] ?? '')
+                . (!empty($row['codice_tessera']) ? ' (' . $row['codice_tessera'] . ')' : '');
+            return $row;
+        };
+
+        // Pre-fill user info: a ?utente_id query param LOCKS the field (deep link
+        // from a user page); a retained value from $old pre-fills but stays editable.
         $queryParams = $request->getQueryParams();
-        $presetUserId = isset($queryParams['utente_id']) ? (int)$queryParams['utente_id'] : 0;
+        $queryUserId = $queryParams['utente_id'] ?? null;
+        $presetUserId = is_scalar($queryUserId) ? (int) $queryUserId : 0;
         $presetUserName = '';
         $presetUserLocked = false;
         if ($presetUserId > 0) {
-            $presetUser = null;
-            $stmt = $db->prepare("SELECT id, nome, cognome, codice_tessera FROM utenti WHERE id = ? LIMIT 1");
-            if ($stmt) {
-                $stmt->bind_param('i', $presetUserId);
-                $stmt->execute();
-                $presetUser = $stmt->get_result()->fetch_assoc();
-                $stmt->close();
-            }
+            $presetUser = $resolveUserLabel($db, $presetUserId);
             if ($presetUser) {
-                $presetUserName = full_name($presetUser['nome'] ?? '', $presetUser['cognome'] ?? '') . ' (' . $presetUser['codice_tessera'] . ')';
+                $presetUserName = $presetUser['label'];
                 $presetUserLocked = true;
             } else {
                 $presetUserId = 0;
+            }
+        } elseif (!empty($old['utente_id'])) {
+            $presetUser = $resolveUserLabel($db, (int) $old['utente_id']);
+            if ($presetUser) {
+                $presetUserId = (int) $old['utente_id'];
+                $presetUserName = $presetUser['label'];
+            }
+        }
+
+        // Retained book (title looked up so the search box shows a label).
+        $oldBookId = !empty($old['libro_id']) ? (int) $old['libro_id'] : 0;
+        $oldBookTitle = '';
+        if ($oldBookId > 0) {
+            $bStmt = $db->prepare("SELECT titolo, sottotitolo FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+            if ($bStmt) {
+                $bStmt->bind_param('i', $oldBookId);
+                $bStmt->execute();
+                $bRow = $bStmt->get_result()->fetch_assoc();
+                $bStmt->close();
+                if ($bRow) {
+                    $oldBookTitle = trim((string) $bRow['titolo'] . (!empty($bRow['sottotitolo']) ? ' — ' . $bRow['sottotitolo'] : ''));
+                } else {
+                    $oldBookId = 0;
+                }
+            }
+        }
+
+        // Other retained scalar fields (copy_code is deliberately never retained).
+        $oldDataPrestito = isset($old['data_prestito']) ? (string) $old['data_prestito'] : '';
+        $oldDataScadenza = isset($old['data_scadenza']) ? (string) $old['data_scadenza'] : '';
+        $oldNote = isset($old['note']) ? (string) $old['note'] : '';
+        // Checkboxes: on a re-render, absence means unchecked (the browser omits
+        // unchecked boxes), so only honour $old when the form was actually submitted.
+        $oldSubmitted = $old !== [];
+        $oldConsegna = $oldSubmitted ? (isset($old['consegna_immediata']) && $old['consegna_immediata'] === '1') : true;
+        $oldPdf = $oldSubmitted ? (isset($old['scarica_pdf']) && $old['scarica_pdf'] === '1') : true;
+
+        // "Me" button: the logged-in staff/admin as a borrower (teacher self-checkout).
+        $meUserId = 0;
+        $meUserName = '';
+        if (!empty($_SESSION['user']['id'])) {
+            $me = $resolveUserLabel($db, (int) $_SESSION['user']['id']);
+            if ($me) {
+                $meUserId = (int) $me['id'];
+                $meUserName = $me['label'];
             }
         }
 
@@ -115,12 +187,37 @@ class PrestitiController
 
         // CSRF validated by CsrfMiddleware
 
+        // Preserve the submitted values so a validation/availability error can
+        // re-render the form pre-filled instead of wiping everything. Cleared on
+        // success below (except the "save and add another" path, which keeps them
+        // minus the copy code). csrf_token is regenerated by the view.
+        // Keep only the form's scalar fields. Besides avoiding needless session
+        // growth, this prevents crafted array values from reaching casts in the
+        // subsequent GET and emitting Array-to-string warnings.
+        $oldInput = [];
+        foreach ([
+            'utente_id',
+            'libro_id',
+            'copy_code',
+            'data_prestito',
+            'data_scadenza',
+            'note',
+            'consegna_immediata',
+            'scarica_pdf',
+            'save_and_new',
+        ] as $field) {
+            if (isset($data[$field]) && is_scalar($data[$field])) {
+                $oldInput[$field] = (string) $data[$field];
+            }
+        }
+        $_SESSION['loan_form_old'] = $oldInput;
+
         // Verifica dati obbligatori
-        $utente_id = (int) ($data['utente_id'] ?? 0);
-        $libro_id = (int) ($data['libro_id'] ?? 0);
-        $data_prestito = $data['data_prestito'] ?? '';
-        $data_scadenza = $data['data_scadenza'] ?? '';
-        $note = trim((string) ($data['note'] ?? '')) ?: null;
+        $utente_id = (int) ($oldInput['utente_id'] ?? 0);
+        $libro_id = (int) ($oldInput['libro_id'] ?? 0);
+        $data_prestito = $oldInput['data_prestito'] ?? '';
+        $data_scadenza = $oldInput['data_scadenza'] ?? '';
+        $note = trim($oldInput['note'] ?? '') ?: null;
 
         // Se le date sono vuote, usa i valori di default. "Oggi" nel timezone
         // applicativo (M9): date() userebbe la TZ del processo (spesso UTC).
@@ -256,7 +353,7 @@ class PrestitiController
             // Resolve it, verify it belongs to the selected book and is free for the
             // requested period, then force it. When empty, fall through to the normal
             // auto-assign paths below (fully backward compatible).
-            $copyCode = trim((string) ($data['copy_code'] ?? ''));
+            $copyCode = trim($oldInput['copy_code'] ?? '');
             if ($copyCode !== '') {
                 // Lock ONLY the copie row here — the requested book is already
                 // locked above (line ~155), so JOINing+locking libri would lock a
@@ -427,7 +524,7 @@ class PrestitiController
             // - Future loans: always 'prenotato' (user will pick up when loan starts)
             // - Immediate loans with checkbox checked: 'in_corso' (book delivered now)
             // - Immediate loans with checkbox unchecked: 'da_ritirare' (user must confirm pickup)
-            $consegnaImmediata = isset($data['consegna_immediata']) && $data['consegna_immediata'] === '1';
+            $consegnaImmediata = ($oldInput['consegna_immediata'] ?? '') === '1';
             $pickupDeadline = null;
 
             if ($isImmediateLoan) {
@@ -537,8 +634,27 @@ class PrestitiController
                 SecureLogger::warning(__('Notifica prestito fallita'), ['error' => $e->getMessage()]);
             }
 
+            // "Salva e registra un'altra copia": keep borrower, dates and note,
+            // but clear both book and copy. Active loans are unique per user/book,
+            // so retaining the previous book would make the next submit fail the
+            // duplicate guard. Scanning the next inventory code fills its book.
+            if (($oldInput['save_and_new'] ?? '') === '1') {
+                $retain = $oldInput;
+                unset($retain['libro_id'], $retain['copy_code'], $retain['save_and_new']);
+                $_SESSION['loan_form_old'] = $retain;
+                $redirectUrl = url('/admin/loans/create') . '?created=1';
+                $scaricaPdf = ($oldInput['scarica_pdf'] ?? '') === '1';
+                if ($consegnaImmediata && $scaricaPdf) {
+                    $redirectUrl .= '&pdf=' . (int) $newLoanId;
+                }
+                return $response->withHeader('Location', $redirectUrl)->withStatus(302);
+            }
+
+            // Normal path: clear the retained input and go to the list.
+            unset($_SESSION['loan_form_old']);
+
             // Redirect to list page — PDF download triggered via JS if requested
-            $scaricaPdf = isset($data['scarica_pdf']) && $data['scarica_pdf'] === '1';
+            $scaricaPdf = ($oldInput['scarica_pdf'] ?? '') === '1';
             $redirectUrl = url('/admin/loans') . '?created=1';
             if ($consegnaImmediata && $scaricaPdf) {
                 $redirectUrl .= '&pdf=' . (int) $newLoanId;
