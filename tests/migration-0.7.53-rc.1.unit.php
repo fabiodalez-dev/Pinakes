@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Behavioural test for migrate_0.7.53.sql (performance release — composite
+ * Behavioural test for migrate_0.7.53-rc.1.sql (performance release — composite
  * indexes for the "newest first" sorts on the public home page and catalogue).
  *
  * Runs the REAL migration file against a sandbox `libri` table (project
@@ -16,7 +16,7 @@ declare(strict_types=1);
  *     updater's ignorable-1061 policy) and exactly one index covers each
  *     column list afterwards.
  *
- * Run:  php tests/migration-0.7.53.unit.php   (exit 0 iff all pass)
+ * Run:  php tests/migration-0.7.53-rc.1.unit.php   (exit 0 iff all pass)
  */
 
 $root = dirname(__DIR__);
@@ -59,7 +59,7 @@ try {
 }
 
 $SB = 'zz_mig_libri_0753';
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.53.sql');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.53-rc.1.sql');
 // Retarget the REAL migration at a sandbox table so the test never touches the
 // live libri table. The migration references the table both as a backticked
 // DDL identifier and as a quoted string literal in the INFORMATION_SCHEMA
