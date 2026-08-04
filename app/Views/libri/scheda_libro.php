@@ -1182,7 +1182,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   <?php endif; ?>
 
   <?php if (empty($volumes) && empty($parentWork)): ?>
-  <div class="mt-6">
+  <div class="mt-6 border-t border-gray-200 pt-4">
+    <p class="text-xs text-gray-500 mb-2">
+      <?= __("Un'opera multi-volume raggruppa più libri già in catalogo come volumi di un'unica opera (es. una trilogia o un'enciclopedia in più tomi).") ?>
+    </p>
     <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
       <i class="fas fa-layer-group mr-1"></i> <?= __("Configura come opera multi-volume") ?>
     </button>
@@ -1634,6 +1637,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         title: __('Aggiungi volume'),
         html: '<div class="text-left">'
           + '<label class="block text-sm font-medium text-gray-700 mb-1">' + __('Cerca libro') + '</label>'
+          + '<p class="text-xs text-gray-500 mb-2" style="margin-top:0">' + __('Cerca un libro già in catalogo da collegare come volume.') + '</p>'
           + '<input id="swal-volume-search" class="swal2-input" placeholder="' + __('Titolo o ISBN...') + '" style="margin:0;width:100%">'
           + '<div id="swal-volume-results" class="mt-2 max-h-40 overflow-y-auto text-sm"></div>'
           + '<input type="hidden" id="swal-volume-id" value="">'
