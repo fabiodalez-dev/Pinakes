@@ -13,13 +13,13 @@ $getBookStatusBadge = static function ($book) {
     // case — 'non_disponibile', or a stale/unexpected stato on a zero-copy book —
     // falls to "Non disponibile" rather than being mislabelled as on loan (#303 review).
     if ($available) {
-        echo '<span class="book-status-badge status-available">' . HtmlHelper::e(__("Disponibile"));
+        echo '<span class="book-status-badge status-available">' . htmlspecialchars(__("Disponibile"), ENT_QUOTES, 'UTF-8');
     } elseif ($stato === 'prenotato') {
-        echo '<span class="book-status-badge status-reserved">' . HtmlHelper::e(__("Prenotato"));
+        echo '<span class="book-status-badge status-reserved">' . htmlspecialchars(__("Prenotato"), ENT_QUOTES, 'UTF-8');
     } elseif ($stato === 'prestato') {
-        echo '<span class="book-status-badge status-borrowed">' . HtmlHelper::e(__("In prestito"));
+        echo '<span class="book-status-badge status-borrowed">' . htmlspecialchars(__("In prestito"), ENT_QUOTES, 'UTF-8');
     } else {
-        echo '<span class="book-status-badge status-unavailable">' . HtmlHelper::e(__("Non disponibile"));
+        echo '<span class="book-status-badge status-unavailable">' . htmlspecialchars(__("Non disponibile"), ENT_QUOTES, 'UTF-8');
     }
     // Hook: Allow plugins to add icons to status badge (e.g., eBook/audio icons)
     do_action('book.badge.digital_icons', $book);

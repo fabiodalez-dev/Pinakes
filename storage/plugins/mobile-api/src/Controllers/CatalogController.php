@@ -368,9 +368,15 @@ final class CatalogController
                 // web catalog badge. Only in_corso/in_ritardo mean a copy is checked out.
                 // The ordered probe keeps on_loan precedence, so an actually-loaned copy
                 // still wins over a held one.
+                // A pending conversion loan that already holds a copy
+                // (attivo=0, stato='pendente', copia_id NOT NULL) occupies
+                // capacity in CapacityService/DataIntegrity; without this probe,
+                // once its source reservation is completed the book would report
+                // 'unavailable' instead of the correct 'reserved'.
                 $holds = [
                     'on_loan'  => "SELECT 1 FROM prestiti WHERE libro_id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo') LIMIT 1",
                     'reserved' => "SELECT 1 FROM prestiti WHERE libro_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare') LIMIT 1",
+                    'reserved_pending' => "SELECT 1 FROM prestiti WHERE libro_id = ? AND attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL LIMIT 1",
                     'reserved2'=> "SELECT 1 FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva' LIMIT 1",
                 ];
                 foreach ($holds as $state => $sql) {
@@ -383,7 +389,8 @@ final class CatalogController
                     $hit = ($r = $q->get_result()) !== false && $r->fetch_row() !== null;
                     $q->close();
                     if ($hit) {
-                        $availState = ($state === 'reserved2') ? 'reserved' : $state;
+                        // Collapse the internal probe keys onto the public state.
+                        $availState = in_array($state, ['reserved2', 'reserved_pending'], true) ? 'reserved' : $state;
                         break;
                     }
                 }

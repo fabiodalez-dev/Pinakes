@@ -22,6 +22,30 @@ class CsvImportController
     /** @var bool|null Cached result of tipo_media column existence check */
     private ?bool $cachedHasTipoMedia = null;
 
+    /** @var bool|null Cached result of descrizione_plain column existence check */
+    private ?bool $cachedHasDescPlain = null;
+
+    /**
+     * Check if descrizione_plain column exists (cached per controller instance).
+     * The column ships from migrate_0.4.9.9; guarding it keeps the import from
+     * fataling on a pre-migration schema (mirrors LibraryThingImportController).
+     */
+    private function hasDescrizionePlainColumn(\mysqli $db): bool
+    {
+        if ($this->cachedHasDescPlain === null) {
+            try {
+                $checkCol = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
+                $this->cachedHasDescPlain = $checkCol !== false && $checkCol->num_rows > 0;
+                if ($checkCol instanceof \mysqli_result) {
+                    $checkCol->free();
+                }
+            } catch (\Throwable $e) {
+                $this->cachedHasDescPlain = false;
+            }
+        }
+        return $this->cachedHasDescPlain;
+    }
+
     /**
      * Check if tipo_media column exists (cached per controller instance).
      */
@@ -1492,6 +1516,8 @@ class CsvImportController
     {
         $hasTipoMedia = $this->hasTipoMediaColumn($db);
         $tipoMediaSet = $hasTipoMedia ? ', tipo_media = COALESCE(?, tipo_media)' : '';
+        $hasDescPlain = $this->hasDescrizionePlainColumn($db);
+        $descPlainSet = $hasDescPlain ? 'descrizione_plain = ?,' : '';
 
         $stmt = $db->prepare("
             UPDATE libri SET
@@ -1506,7 +1532,7 @@ class CsvImportController
                 numero_pagine = ?,
                 genere_id = ?,
                 descrizione = ?,
-                descrizione_plain = ?,
+                {$descPlainSet}
                 formato = ?{$tipoMediaSet},
                 prezzo = ?,
                 editore_id = ?,
@@ -1539,11 +1565,13 @@ class CsvImportController
         $csvDescrizione = !empty($data['descrizione']) ? (string) $data['descrizione'] : null;
         $existingDesc = null;
         if ($csvDescrizione !== null) {
-            $sel = $db->prepare("SELECT descrizione, descrizione_plain FROM libri WHERE id = ? LIMIT 1");
-            $sel->bind_param('i', $bookId);
-            $sel->execute();
-            $existingDesc = $sel->get_result()->fetch_assoc() ?: null;
-            $sel->close();
+            $sel = $db->prepare("SELECT descrizione, descrizione_plain FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+            if ($sel !== false) {
+                $sel->bind_param('i', $bookId);
+                $sel->execute();
+                $existingDesc = $sel->get_result()->fetch_assoc() ?: null;
+                $sel->close();
+            }
         }
         if ($csvDescrizione === null) {
             $descrizione = null;
@@ -1581,8 +1609,12 @@ class CsvImportController
         $params = [
             $isbn10, $isbn13, $ean, $titolo, $sottotitolo,
             $anno, $lingua, $edizione, $pagine, $genreId,
-            $descrizione, $descrizionePlain, $formato,
+            $descrizione,
         ];
+        if ($hasDescPlain) {
+            $params[] = $descrizionePlain;
+        }
+        $params[] = $formato;
         if ($hasTipoMedia) {
             $params[] = $tipoMedia;
         }
@@ -1711,18 +1743,21 @@ class CsvImportController
         $hasTipoMedia = $this->hasTipoMediaColumn($db);
         $tipoMediaCol = $hasTipoMedia ? ', tipo_media' : '';
         $tipoMediaVal = $hasTipoMedia ? ', ?' : '';
+        $hasDescPlain = $this->hasDescrizionePlainColumn($db);
+        $descPlainCol = $hasDescPlain ? ', descrizione_plain' : '';
+        $descPlainVal = $hasDescPlain ? ', ?' : '';
 
         $stmt = $db->prepare("
             INSERT INTO libri (
                 isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
                 lingua, edizione, numero_pagine, genere_id,
-                descrizione, descrizione_plain, formato{$tipoMediaCol}, prezzo, copie_totali, copie_disponibili,
+                descrizione{$descPlainCol}, formato{$tipoMediaCol}, prezzo, copie_totali, copie_disponibili,
                 editore_id, collana, numero_serie, traduttore, illustratore, curatore, parole_chiave,
                 classificazione_dewey, stato, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
-                ?, ?, ?{$tipoMediaVal}, ?, ?, ?,
+                ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?,
                 ?, 'disponibile', NOW()
             )
@@ -1773,8 +1808,12 @@ class CsvImportController
         $params = [
             $isbn10, $isbn13, $ean, $titolo, $sottotitolo, $anno,
             $lingua, $edizione, $pagine, $genreId,
-            $descrizione, $descrizionePlain, $formato,
+            $descrizione,
         ];
+        if ($hasDescPlain) {
+            $params[] = $descrizionePlain;
+        }
+        $params[] = $formato;
         if ($hasTipoMedia) {
             $params[] = $tipoMedia;
         }

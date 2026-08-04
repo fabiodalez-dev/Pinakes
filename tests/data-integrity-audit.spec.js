@@ -47,7 +47,12 @@ function isbn13(base12) {
   return base12 + ((10 - (s % 10)) % 10);
 }
 
-test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'E2E admin credentials not configured');
+// This spec hits the DB directly via q()/exec()/insertId(), so it needs the
+// DB config too — without it mysqlArgs() would splice undefined into argv.
+test.skip(
+  !ADMIN_EMAIL || !ADMIN_PASS || !process.env.E2E_DB_USER || !process.env.E2E_DB_NAME,
+  'E2E admin credentials or database configuration not available'
+);
 
 // ---- DB helpers (mysql CLI, mirrors tests/helpers/e2e-fixtures.js) ----------
 function mysqlArgs(sql) {
@@ -120,7 +125,12 @@ function writeCsv(name, headers, rows) {
   return p;
 }
 
-// Standard export header order (must match LibriController::export()).
+// A valid subset of the standard import columns, in export order. The importer
+// maps columns by NAME, so a CSV built from this subset is valid input even
+// though the real export also emits co_autori / colorista (those roles are
+// simply "not provided" here, which the importer preserves). The full-fidelity
+// 26-column round-trip is exercised by the "#17" test, which re-imports the
+// actual export output rather than this subset.
 const STD_HEADERS = [
   'id', 'isbn10', 'isbn13', 'ean', 'titolo', 'sottotitolo', 'descrizione',
   'autori', 'editore', 'anno_pubblicazione', 'lingua', 'edizione',
@@ -204,14 +214,24 @@ test.describe.serial('Copies & availability', () => {
 
   test('unavailable (maintenance) book shows Non disponibile badge', async ({ page }) => {
     const title = `DIbadge_${RUN}`;
-    const id = seedBook({ titolo: title, copie_totali: 0, copie_disponibili: 0, stato: 'non_disponibile' });
+    // List the book via an editore filter (a name match, NOT the FULLTEXT `q`
+    // search — the dev MySQL FULLTEXT index rots and makes `?q=` flaky). This
+    // deterministically returns exactly this book's card.
+    const pubName = `DIbadgePub_${RUN}`;
+    const pubId = insertId(`INSERT INTO editori (nome, created_at) VALUES ('${esc(pubName)}', NOW())`); created.editori.push(pubId);
+    const id = seedBook({ titolo: title, editore_id: pubId, copie_totali: 0, copie_disponibili: 0, stato: 'non_disponibile' });
     exec(`INSERT INTO copie (libro_id, numero_inventario, stato, created_at) VALUES (${id}, 'DIbadge-${RUN}', 'manutenzione', NOW())`);
-    const res = await page.request.get(`${BASE}/catalogo?q=${encodeURIComponent(title)}`);
+    const res = await page.request.get(`${BASE}/catalogo?editore=${encodeURIComponent(pubName)}`);
     const html = await res.text();
     expect(html).toContain(title);
-    // The book must not be advertised as "In prestito" when nothing is on loan.
-    const slice = html.slice(Math.max(0, html.indexOf(title) - 1500), html.indexOf(title) + 1500);
+    // Around the book card: the "Non disponibile" badge label must be rendered,
+    // and the book must NOT be advertised as "In prestito" when nothing is on
+    // loan. (Assert the visible label, not the CSS class name, which also appears
+    // in the page's <style> block regardless of any badge.)
+    const at = html.indexOf(title);
+    const slice = html.slice(Math.max(0, at - 2500), at + 2500);
     expect(slice.toLowerCase()).not.toContain('in prestito');
+    expect(slice).toContain('Non disponibile');
   });
 });
 
