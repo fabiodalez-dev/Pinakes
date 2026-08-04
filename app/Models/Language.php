@@ -265,46 +265,55 @@ class Language
         $translatedKeys = $data['translated_keys'] ?? 0;
         $completionPercentage = $totalKeys > 0 ? ($translatedKeys / $totalKeys) * 100 : 0.00;
 
-        $stmt = $this->db->prepare("
-            INSERT INTO languages
-            (code, name, native_name, flag_emoji, is_default, is_active, translation_file, total_keys, translated_keys, completion_percentage)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-
-        $stmt->bind_param(
-            'ssssiiisid',
-            $code,
-            $name,
-            $nativeName,
-            $flagEmoji,
-            $isDefault,
-            $isActive,
-            $translationFile,
-            $totalKeys,
-            $translatedKeys,
-            $completionPercentage
-        );
-
-        $success = $stmt->execute();
-        $insertId = $this->db->insert_id;
-        $stmt->close();
-
-        if (!$success) {
-            throw new \Exception("Failed to create language: " . $this->db->error);
+        $promoteToDefault = $isDefault === 1;
+        if ($promoteToDefault) {
+            $this->db->begin_transaction();
         }
 
-        // Invalidate ONCE, and only after the languages list is in its final
-        // consistent state. When this row becomes the default, setDefault()
-        // flips the other rows and invalidates at its own commit — invalidating
-        // here first would let a concurrent read re-cache the intermediate
-        // multiple-defaults state for the full TTL.
-        if ($isDefault) {
-            $this->setDefault($code);
-        } else {
+        try {
+            $stmt = $this->db->prepare("
+                INSERT INTO languages
+                (code, name, native_name, flag_emoji, is_default, is_active, translation_file, total_keys, translated_keys, completion_percentage)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+
+            $stmt->bind_param(
+                'ssssiiisid',
+                $code,
+                $name,
+                $nativeName,
+                $flagEmoji,
+                $isDefault,
+                $isActive,
+                $translationFile,
+                $totalKeys,
+                $translatedKeys,
+                $completionPercentage
+            );
+
+            if (!$stmt->execute()) {
+                $error = $stmt->error;
+                $stmt->close();
+                throw new \RuntimeException($error);
+            }
+            $insertId = $this->db->insert_id;
+            $stmt->close();
+
+            if ($promoteToDefault) {
+                $this->setDefaultRows($code);
+                $this->db->commit();
+            }
             \App\Support\QueryCache::delete('i18n_languages');
+            return $insertId;
+        } catch (\Throwable $e) {
+            if ($promoteToDefault) {
+                $this->db->rollback();
+            }
+            throw new \Exception("Failed to create language: " . $e->getMessage(), 0, $e);
         }
-
-        return $insertId;
     }
 
     /**
@@ -356,24 +365,36 @@ class Language
         $types .= 's'; // for code parameter
         $values[] = $code;
 
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param($types, ...$values);
-        $success = $stmt->execute();
-        $stmt->close();
-
-        if (!$success) {
-            throw new \Exception("Failed to update language: " . $this->db->error);
+        $promoteToDefault = !empty($data['is_default']) && (int)$data['is_default'] === 1;
+        if ($promoteToDefault) {
+            $this->db->begin_transaction();
         }
 
-        // Invalidate once, only after the final consistent state (see create()):
-        // when this becomes the default, setDefault() invalidates at its commit.
-        if (!empty($data['is_default']) && $data['is_default'] == 1) {
-            $this->setDefault($code);
-        } else {
+        try {
+            $stmt = $this->db->prepare($sql);
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param($types, ...$values);
+            if (!$stmt->execute()) {
+                $error = $stmt->error;
+                $stmt->close();
+                throw new \RuntimeException($error);
+            }
+            $stmt->close();
+
+            if ($promoteToDefault) {
+                $this->setDefaultRows($code);
+                $this->db->commit();
+            }
             \App\Support\QueryCache::delete('i18n_languages');
+            return true;
+        } catch (\Throwable $e) {
+            if ($promoteToDefault) {
+                $this->db->rollback();
+            }
+            throw new \Exception("Failed to update language: " . $e->getMessage(), 0, $e);
         }
-
-        return true;
     }
 
     /**
@@ -439,15 +460,7 @@ class Language
         $this->db->begin_transaction();
 
         try {
-            // Unset all defaults
-            $this->db->query("UPDATE languages SET is_default = 0");
-
-            // Set new default and ensure it is active (can't default to inactive language)
-            $stmt = $this->db->prepare("UPDATE languages SET is_default = 1, is_active = 1 WHERE code = ?");
-            $stmt->bind_param('s', $code);
-            $stmt->execute();
-            $stmt->close();
-
+            $this->setDefaultRows($code);
             $this->db->commit();
             \App\Support\QueryCache::delete('i18n_languages');
             return true;
@@ -455,6 +468,28 @@ class Language
             $this->db->rollback();
             throw new \Exception("Failed to set default language: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Switch the default rows inside a transaction owned by the caller.
+     */
+    private function setDefaultRows(string $code): void
+    {
+        if (!$this->db->query("UPDATE languages SET is_default = 0")) {
+            throw new \RuntimeException($this->db->error);
+        }
+
+        $stmt = $this->db->prepare("UPDATE languages SET is_default = 1, is_active = 1 WHERE code = ?");
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('s', $code);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException($error);
+        }
+        $stmt->close();
     }
 
     /**

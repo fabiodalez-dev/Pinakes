@@ -205,5 +205,20 @@ $stmt->bind_param('i', $physicalGenreId);
 $stmt->execute();
 $check((int)$stmt->get_result()->fetch_column() === 1, 'blocked plain delete preserves the physical genre');
 
+// Explicit begin_transaction() leaves @@autocommit at 1. The repository must
+// still detect that caller-owned transaction and must not implicitly commit it.
+$transactionGenreId = $repo->create(['nome' => $prefix . '_outer_transaction']);
+$db->begin_transaction();
+$repo->delete($transactionGenreId);
+$stmt = $db->prepare('SELECT COUNT(*) FROM generi WHERE id = ?');
+$stmt->bind_param('i', $transactionGenreId);
+$stmt->execute();
+$check((int)$stmt->get_result()->fetch_column() === 0, 'plain delete participates in an explicit caller transaction');
+$db->rollback();
+$stmt = $db->prepare('SELECT COUNT(*) FROM generi WHERE id = ?');
+$stmt->bind_param('i', $transactionGenreId);
+$stmt->execute();
+$check((int)$stmt->get_result()->fetch_column() === 1, 'caller rollback restores a genre deleted inside its transaction');
+
 $cleanup();
 printf("\nALL %d PASS\n", $testNo);

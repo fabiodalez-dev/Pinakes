@@ -79,7 +79,8 @@ abstract class RecordFormatter
     {
         $allowed = ['principale', 'co-autore', 'traduttore', 'illustratore', 'curatore', 'colorista'];
         $rows = [];
-        $entityRoles = [];
+        /** @var array<string,array<string,true>> $namesByRole */
+        $namesByRole = [];
         if (isset($record['contributors']) && is_array($record['contributors'])) {
             foreach ($record['contributors'] as $row) {
                 if (!is_array($row)) {
@@ -89,7 +90,7 @@ abstract class RecordFormatter
                 $role = (string) ($row['ruolo'] ?? 'co-autore');
                 if ($name !== '' && in_array($role, $allowed, true)) {
                     $rows[] = ['nome' => $name, 'ruolo' => $role];
-                    $entityRoles[] = $role;
+                    $namesByRole[$role][mb_strtolower($name, 'UTF-8')] = true;
                 }
             }
         }
@@ -107,22 +108,25 @@ abstract class RecordFormatter
         }
 
         // Legacy free-text contributor columns (libri.traduttore/illustratore/
-        // curatore/colorista) — exported only when no entity row already covers
-        // that role. Mirrors OaiPmhServerPlugin's legacy safety-net. Values may
-        // be '; '-joined by ContributorSync, so split them.
+        // curatore/colorista) fill gaps left by entity rows. Merge by normalized
+        // name AND role: skipping an entire role would lose a second legacy name
+        // when only one of its contributors has already been migrated to entities.
         foreach (['traduttore', 'illustratore', 'curatore', 'colorista'] as $role) {
-            if (in_array($role, $entityRoles, true)) {
-                continue;
-            }
             $raw = trim((string) ($record[$role] ?? ''));
             if ($raw === '') {
                 continue;
             }
-            foreach (explode('; ', $raw) as $name) {
+            foreach (preg_split('/\s*;\s*/u', $raw) ?: [] as $name) {
                 $name = trim($name);
-                if ($name !== '') {
-                    $rows[] = ['nome' => $name, 'ruolo' => $role];
+                if ($name === '') {
+                    continue;
                 }
+                $normalizedName = mb_strtolower($name, 'UTF-8');
+                if (isset($namesByRole[$role][$normalizedName])) {
+                    continue;
+                }
+                $rows[] = ['nome' => $name, 'ruolo' => $role];
+                $namesByRole[$role][$normalizedName] = true;
             }
         }
 

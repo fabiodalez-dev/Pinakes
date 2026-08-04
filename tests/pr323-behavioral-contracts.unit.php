@@ -18,6 +18,7 @@ require_once $root . '/storage/plugins/z39-server/classes/DublinCoreFormatter.ph
 require_once $root . '/storage/plugins/z39-server/classes/MODSFormatter.php';
 require_once $root . '/storage/plugins/z39-server/classes/MARCXMLFormatter.php';
 require_once $root . '/storage/plugins/z39-server/classes/UNIMARCXMLFormatter.php';
+require_once $root . '/storage/plugins/z39-server/classes/SRUServer.php';
 require_once $root . '/storage/plugins/ncip-server/NcipServerPlugin.php';
 
 $passed = 0;
@@ -73,9 +74,9 @@ $record = [
         ['nome' => 'Coauthor Person', 'ruolo' => 'co-autore'],
         ['nome' => 'Entity Translator', 'ruolo' => 'traduttore'],
     ],
-    // Same role as the entity row must not be exported twice. Other legacy
-    // roles remain a compatibility fallback and may contain multiple names.
-    'traduttore' => 'Ignored Legacy Translator',
+    // The entity name must not be exported twice, while a second legacy name
+    // in the same role remains part of the interoperable record.
+    'traduttore' => 'Entity Translator; Legacy Translator',
     'illustratore' => 'Illustrator One; Illustrator Two',
     'curatore' => 'Editor Person',
     'colorista' => 'Colorist Person',
@@ -116,17 +117,16 @@ foreach ($formatters as $format => $class) {
     $doc = new DOMDocument('1.0', 'UTF-8');
     $check(\Z39Server\RecordFormatter::create($format, $doc) instanceof $class, "factory resolves {$format}");
     $xml[$format] = $render($class, $record);
-    foreach (['Primary Person', 'Coauthor Person', 'Entity Translator', 'Illustrator One', 'Illustrator Two', 'Editor Person', 'Colorist Person'] as $name) {
+    foreach (['Primary Person', 'Coauthor Person', 'Entity Translator', 'Legacy Translator', 'Illustrator One', 'Illustrator Two', 'Editor Person', 'Colorist Person'] as $name) {
         // UNIMARC repeats the first creator in the 200$f statement of
         // responsibility and the controlled 700 access point by design.
         $expectedOccurrences = $format === 'unimarcxml' && $name === 'Primary Person' ? 2 : 1;
         $check($countText($xml[$format], $name) === $expectedOccurrences, "{$format} exports {$name} with the expected cardinality");
     }
-    $check(!str_contains($xml[$format], 'Ignored Legacy Translator'), "{$format} suppresses legacy text when that role has entity rows");
     $check(!str_contains($xml[$format], 'Ignored Legacy Publisher'), "{$format} prefers the publisher collection over the legacy scalar");
 }
 
-$check(substr_count($xml['dc'], '<dc:creator>') === 2 && substr_count($xml['dc'], '<dc:contributor>') === 5, 'Dublin Core separates two creators from five contributors');
+$check(substr_count($xml['dc'], '<dc:creator>') === 2 && substr_count($xml['dc'], '<dc:contributor>') === 6, 'Dublin Core separates two creators from six contributors');
 $check($countText($xml['dc'], 'Primary House') === 1 && $countText($xml['dc'], 'Co-publisher House') === 1, 'Dublin Core repeats publishers');
 $check(str_contains($xml['dc'], '<dc:type>Sound</dc:type>'), 'Dublin Core maps audiobooks to DCMI Sound');
 $check(str_contains($xml['dc'], 'Shelf: S-7, Level: 3') && !str_contains($xml['dc'], 'LEGACY-LOCATION'), 'Dublin Core uses current shelf/level before legacy collocazione');
@@ -138,7 +138,7 @@ foreach (['Reserved', 'Under maintenance', 'Under restoration', 'Lost', 'Damaged
 }
 $check(str_contains($xml['mods'], '/uploads/copertine/pr323.jpg') && !str_contains($xml['mods'], '<url displayLabel="Cover image" access="preview">/uploads/'), 'MODS exports a resolvable absolute cover URL');
 
-$check(str_contains($xml['marcxml'], 'tag="100"') && substr_count($xml['marcxml'], 'tag="700"') === 6, 'MARCXML assigns main and added responsibility fields by role');
+$check(str_contains($xml['marcxml'], 'tag="100"') && substr_count($xml['marcxml'], 'tag="700"') === 7, 'MARCXML assigns main and added responsibility fields by role');
 $marcDoc = new DOMDocument();
 $marcDoc->loadXML($xml['marcxml']);
 $marcXpath = new DOMXPath($marcDoc);
@@ -150,7 +150,7 @@ foreach (['Reserved', 'Under maintenance', 'Under restoration', 'Lost', 'Damaged
 }
 
 $check(substr_count($xml['unimarcxml'], 'tag="210"') === 1 && substr_count($xml['unimarcxml'], '<subfield code="c">') >= 2, 'UNIMARC repeats publisher 210$c');
-$check(str_contains($xml['unimarcxml'], 'tag="700"') && str_contains($xml['unimarcxml'], 'tag="701"') && substr_count($xml['unimarcxml'], 'tag="702"') === 5, 'UNIMARC assigns 700/701/702 from contributor roles');
+$check(str_contains($xml['unimarcxml'], 'tag="700"') && str_contains($xml['unimarcxml'], 'tag="701"') && substr_count($xml['unimarcxml'], 'tag="702"') === 6, 'UNIMARC assigns 700/701/702 from contributor roles');
 foreach (['730', '440', '340', '410'] as $relator) {
     $check(str_contains($xml['unimarcxml'], '<subfield code="4">' . $relator . '</subfield>'), "UNIMARC exports relator {$relator}");
 }
@@ -165,6 +165,15 @@ $fallbackRecord = [
 $fallbackDc = $render(\Z39Server\DublinCoreFormatter::class, $fallbackRecord);
 $check(substr_count($fallbackDc, '<dc:creator>') === 2 && substr_count($fallbackDc, '<dc:contributor>') === 2, 'legacy strings split into reusable creator/contributor rows when entities are absent');
 $check($countText($fallbackDc, 'Legacy Publisher') === 1, 'single legacy publisher remains a formatter fallback');
+
+$sruReflection = new ReflectionClass(\Z39Server\SRUServer::class);
+$sru = $sruReflection->newInstanceWithoutConstructor();
+$textColumnClause = $sruReflection->getMethod('textColumnClause');
+$notLikeClause = (string) $textColumnClause->invoke($sru, 'e.nome', 'Other House', 'notlike');
+$check(
+    str_contains($notLikeClause, 'e.nome IS NULL OR e.nome NOT LIKE'),
+    'SRU exclusion filters retain rows whose plain-text column is NULL'
+);
 
 $unsupportedThrown = false;
 try {

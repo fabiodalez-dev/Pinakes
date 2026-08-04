@@ -163,8 +163,15 @@ class CopyRepository
         $taken = [];
         $likeParam = $base . '%';
         $sel = $this->db->prepare("SELECT numero_inventario FROM copie WHERE numero_inventario LIKE ?");
+        if ($sel === false) {
+            throw new \RuntimeException('Unable to prepare inventory-code lookup: ' . $this->db->error);
+        }
         $sel->bind_param('s', $likeParam);
-        $sel->execute();
+        if (!$sel->execute()) {
+            $error = $sel->error;
+            $sel->close();
+            throw new \RuntimeException('Unable to load inventory codes: ' . $error);
+        }
         $res = $sel->get_result();
         while ($row = $res->fetch_assoc()) {
             $taken[$row['numero_inventario']] = true;
@@ -185,6 +192,9 @@ class CopyRepository
         $total = count($codes);
         $placeholders = implode(',', array_fill(0, $total, '(?, ?, ?, ?)'));
         $stmt = $this->db->prepare("INSERT INTO copie (libro_id, numero_inventario, stato, note) VALUES {$placeholders}");
+        if ($stmt === false) {
+            throw new \RuntimeException('Unable to prepare copy batch insert: ' . $this->db->error);
+        }
         $types = '';
         $params = [];
         foreach ($codes as $i => $code) {
@@ -196,7 +206,11 @@ class CopyRepository
             $params[] = $note;
         }
         $stmt->bind_param($types, ...$params);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('Unable to insert copy batch: ' . $error);
+        }
         $stmt->close();
 
         return $total;

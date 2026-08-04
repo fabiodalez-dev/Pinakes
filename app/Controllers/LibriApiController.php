@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\HtmlHelper;
 use App\Support\Log as AppLog;
+use App\Support\ContentCache;
 
 class LibriApiController
 {
@@ -572,6 +573,10 @@ class LibriApiController
         $affected = $stmt->affected_rows;
         $stmt->close();
 
+        if ($affected > 0) {
+            ContentCache::booksChanged();
+        }
+
         AppLog::info('libri.bulk_status', ['ids' => $cleanIds, 'stato' => $normalizedStato, 'affected' => $affected]);
 
         $response->getBody()->write(json_encode([
@@ -679,6 +684,10 @@ class LibriApiController
         }
         $affected = $stmt->affected_rows;
         $stmt->close();
+
+        if ($affected > 0) {
+            ContentCache::booksChanged();
+        }
 
         AppLog::info('libri.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);
 

@@ -183,6 +183,32 @@ $verifyPluginContract = static function (array $case) use (
             $setDisplayName($db, $pluginId, $originalLabel);
         }
 
+        $legacyPrefix = $case['label'] === 'Digital Library'
+            ? 'pinakes_digital_hooks'
+            : 'pinakes_goodlib_hooks';
+        foreach (["{$legacyPrefix}_probe", "{$legacyPrefix}_{$pluginId}"] as $callerSavepoint) {
+            $deleteHooks($db, $pluginId);
+            $db->begin_transaction();
+            $db->query("SAVEPOINT {$callerSavepoint}");
+            $savepointSurvived = false;
+            try {
+                $class = $case['class'];
+                $plugin = new $class($db);
+                $plugin->setPluginId($pluginId);
+                $savepointSurvived = (bool) $db->query("ROLLBACK TO SAVEPOINT {$callerSavepoint}");
+            } catch (Throwable) {
+                $savepointSurvived = false;
+            } finally {
+                $db->rollback();
+                $db->autocommit(true);
+                $deleteHooks($db, $pluginId);
+            }
+            $check(
+                $savepointSurvived,
+                "{$case['label']} preserves caller savepoint {$callerSavepoint}"
+            );
+        }
+
         $class = $case['class'];
         $plugin = new $class($db);
         $plugin->setPluginId($pluginId);

@@ -477,6 +477,7 @@ class LibraryThingImportController
                     }
 
                     $db->commit();
+                    \App\Support\ContentCache::deferBooksChanged();
 
                     if ($action === 'created') {
                         $importData['imported']++;
@@ -1968,7 +1969,9 @@ class LibraryThingImportController
         }
 
         $integrity = new \App\Support\DataIntegrity($db);
-        $integrity->recalculateBookAvailability($bookId);
+        if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
+            throw new \RuntimeException(__('Impossibile ricalcolare la disponibilità del libro importato'));
+        }
 
         return $bookId;
     }

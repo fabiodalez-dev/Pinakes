@@ -214,9 +214,21 @@ foreach ([
     'app/Models/PublisherRepository.php',
     'app/Models/GenereRepository.php',
     'app/Services/BulkEnrichmentService.php',
+    'app/Controllers/LibriApiController.php',
+    'app/Controllers/CsvImportController.php',
+    'app/Controllers/LibraryThingImportController.php',
+    'app/Controllers/CollaneController.php',
+    'storage/plugins/book-club/src/Repo.php',
 ] as $writer) {
     $check(str_contains($read($writer), 'ContentCache::'), "{$writer} invalidates dependent public data");
 }
+$csvImport = $read('app/Controllers/CsvImportController.php');
+$libraryThingImport = $read('app/Controllers/LibraryThingImportController.php');
+$check(
+    str_contains($csvImport, 'recalculateBookAvailability($bookId, insideTransaction: true)')
+        && str_contains($libraryThingImport, 'recalculateBookAvailability($bookId, insideTransaction: true)'),
+    'importers preserve their per-row transaction while recalculating new-book availability'
+);
 $bulkEnrichment = $read('app/Services/BulkEnrichmentService.php');
 $check(
     str_contains($bulkEnrichment, 'ContentCache::deferBooksChanged()')

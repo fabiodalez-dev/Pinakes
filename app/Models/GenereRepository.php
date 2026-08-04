@@ -149,9 +149,9 @@ class GenereRepository
     }
 
     /**
-     * Detect an already-active transaction (autocommit disabled by the caller)
-     * so delete() never nests begin_transaction(), which would implicitly commit
-     * the outer unit of work.
+     * Detect both autocommit(false) and an explicit begin_transaction(). The
+     * latter leaves @@autocommit enabled, so use a uniquely named disposable
+     * savepoint probe without colliding with savepoints owned by the caller.
      */
     private function hasActiveTransaction(): bool
     {
@@ -159,9 +159,34 @@ class GenereRepository
         if ($result instanceof \mysqli_result) {
             $row = $result->fetch_assoc();
             $result->free();
-            return (int)($row['ac'] ?? 1) === 0;
+            if ((int)($row['ac'] ?? 1) === 0) {
+                return true;
+            }
         }
-        return false;
+
+        $probe = 'pinakes_genere_probe_' . bin2hex(random_bytes(6));
+        $probeCreated = false;
+        try {
+            if (!$this->db->query("SAVEPOINT {$probe}")) {
+                return false;
+            }
+            $probeCreated = true;
+            if (!$this->db->query("ROLLBACK TO SAVEPOINT {$probe}")) {
+                return false;
+            }
+            return true;
+        } catch (\mysqli_sql_exception) {
+            return false;
+        } finally {
+            if ($probeCreated) {
+                try {
+                    $this->db->query("RELEASE SAVEPOINT {$probe}");
+                } catch (\mysqli_sql_exception) {
+                    // The caller still owns its transaction; failed cleanup of
+                    // this disposable probe must not change that ownership.
+                }
+            }
+        }
     }
 
     public function delete(int $id): bool

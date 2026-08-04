@@ -635,6 +635,7 @@ class CollaneController
         // Build the new parent book's denormalized search_index — otherwise it
         // stays NULL and the parent work is invisible to catalog search.
         \App\Support\SearchIndexBuilder::rebuild($db, (int) $parentId);
+        \App\Support\ContentCache::booksChanged();
 
         $_SESSION['success_message'] = sprintf(__('Opera "%s" creata con %d volumi'), $parentTitle, $linkedCount);
         return $response->withHeader('Location', url('/admin/books/' . $parentId))->withStatus(302);

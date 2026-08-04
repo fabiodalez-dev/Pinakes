@@ -321,7 +321,7 @@ class GoodLibPlugin
         // savepoint keeps this hook set atomic even if the caller catches the
         // propagated exception; otherwise this method owns the transaction.
         $ownsTransaction = !$this->hasActiveTransaction();
-        $savepoint = 'pinakes_goodlib_hooks_' . $this->pluginId;
+        $savepoint = 'pinakes_goodlib_hooks_' . $this->pluginId . '_' . bin2hex(random_bytes(6));
         if ($ownsTransaction) {
             if (!$this->db->begin_transaction()) {
                 throw new \RuntimeException('Unable to begin GoodLib hook transaction');
@@ -408,7 +408,7 @@ class GoodLibPlugin
             }
         }
 
-        $probe = 'pinakes_goodlib_hooks_probe';
+        $probe = 'pinakes_goodlib_probe_' . bin2hex(random_bytes(6));
         $probeCreated = false;
         try {
             if (!$db->query("SAVEPOINT {$probe}")) {

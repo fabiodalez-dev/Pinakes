@@ -7,6 +7,7 @@ namespace App\Plugins\BookClub;
 use App\Support\IsbnFormatter;
 use App\Support\SearchIndexBuilder;
 use App\Support\SecureLogger;
+use App\Support\ContentCache;
 use mysqli;
 
 /**
@@ -1135,6 +1136,7 @@ class Repo
             }
 
             $this->db->commit();
+            ContentCache::booksChanged();
             return $libroId;
         } catch (\Throwable $e) {
             $this->db->rollback();

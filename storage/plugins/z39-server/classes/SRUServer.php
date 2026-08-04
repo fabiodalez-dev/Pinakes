@@ -768,7 +768,7 @@ class SRUServer
 
         return match ($mode) {
             'exact'   => "{$column} = '{$escaped}'",
-            'notlike' => "{$column} NOT LIKE '%{$escaped}%' ESCAPE '\\\\'",
+            'notlike' => "({$column} IS NULL OR {$column} NOT LIKE '%{$escaped}%' ESCAPE '\\\\')",
             default   => "{$column} LIKE '%{$escaped}%' ESCAPE '\\\\'",
         };
     }
