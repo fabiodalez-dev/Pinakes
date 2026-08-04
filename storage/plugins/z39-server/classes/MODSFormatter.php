@@ -60,8 +60,8 @@ class MODSFormatter extends RecordFormatter
             $role->appendChild($roleTerm);
         }
 
-        // Type of Resource
-        $typeOfResource = $this->doc->createElement('typeOfResource', 'text');
+        // Type of Resource (derived from tipo_media, mirroring MediaLabels)
+        $typeOfResource = $this->doc->createElement('typeOfResource', $this->typeOfResource($record['tipo_media'] ?? null));
         $mods->appendChild($typeOfResource);
 
         // Genre
@@ -75,8 +75,9 @@ class MODSFormatter extends RecordFormatter
         $originInfo = $this->doc->createElement('originInfo');
         $mods->appendChild($originInfo);
 
-        if (!empty($record['editore'])) {
-            $publisher = $this->doc->createElement('publisher', $this->escapeXml($record['editore']));
+        // Publisher (repeatable: primary + co-publishers, #143)
+        foreach ($this->publisherNames($record) as $publisherName) {
+            $publisher = $this->doc->createElement('publisher', $this->escapeXml($publisherName));
             $originInfo->appendChild($publisher);
         }
 
@@ -209,7 +210,7 @@ class MODSFormatter extends RecordFormatter
             $location = $this->doc->createElement('location');
             $mods->appendChild($location);
 
-            $url = $this->doc->createElement('url', $this->escapeXml($record['copertina_url']));
+            $url = $this->doc->createElement('url', $this->escapeXml($this->absoluteCoverUrl((string) $record['copertina_url'])));
             $url->setAttribute('displayLabel', 'Cover image');
             $url->setAttribute('access', 'preview');
             $location->appendChild($url);
@@ -299,16 +300,36 @@ class MODSFormatter extends RecordFormatter
      */
     private function formatCopyStatus(string $status): string
     {
+        // Keys must match the copie.stato enum exactly.
         $statusMap = [
-            'disponibile' => 'Available',
-            'prestato' => 'On loan',
-            'riservato' => 'Reserved',
-            'danneggiato' => 'Damaged',
-            'smarrito' => 'Lost',
-            'in_riparazione' => 'In repair',
-            'non_disponibile' => 'Not available'
+            'disponibile'       => 'Available',
+            'prestato'          => 'On loan',
+            'prenotato'         => 'Reserved',
+            'manutenzione'      => 'Under maintenance',
+            'in_restauro'       => 'Under restoration',
+            'perso'             => 'Lost',
+            'danneggiato'       => 'Damaged',
+            'in_trasferimento'  => 'In transit',
         ];
 
         return $statusMap[$status] ?? ucfirst($status);
+    }
+
+    /**
+     * Map tipo_media to a MODS typeOfResource term.
+     *
+     * @param string|null $tipoMedia Raw tipo_media value
+     * @return string MODS typeOfResource term
+     */
+    private function typeOfResource(?string $tipoMedia): string
+    {
+        $resolved = \App\Support\MediaLabels::normalizeTipoMedia($tipoMedia) ?? 'libro';
+        return match ($resolved) {
+            'disco'      => 'sound recording-musical',
+            'audiolibro' => 'sound recording-nonmusical',
+            'dvd'        => 'moving image',
+            'altro'      => 'mixed material',
+            default      => 'text',
+        };
     }
 }

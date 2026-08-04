@@ -1824,19 +1824,9 @@ class BookRepository
 
     private function toPlainTextDescription(?string $html): ?string
     {
-        if ($html === null || $html === '') {
-            return $html;
-        }
-        $text = preg_replace(
-            '/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)\b[^>]*|br\b[^>]*\/?)>/i',
-            "\n",
-            $html
-        );
-        $text = html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = str_replace("\xC2\xA0", ' ', (string) $text);
-        $text = preg_replace("/[ \t]+/", ' ', (string) $text);
-        $text = preg_replace("/\n{3,}/", "\n\n", (string) $text);
-        return trim((string) $text);
+        // Delegates to the shared helper so the CSV/import paths derive
+        // descrizione_plain identically (single source of truth).
+        return \App\Support\DescriptionText::toPlain($html);
     }
 
     private static array $columnCacheByDb = [];

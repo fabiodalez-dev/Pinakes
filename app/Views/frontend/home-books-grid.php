@@ -8,13 +8,18 @@ $createBookUrl = static function ($book) {
 $getBookStatusBadge = static function ($book) {
     ob_start();
     $available = ($book['copie_disponibili'] ?? 0) > 0;
-    $reserved = !$available && ($book['stato'] ?? '') === 'prenotato';
+    $stato = $book['stato'] ?? '';
+    // "In prestito" is shown ONLY for stato='prestato'. Every other not-available
+    // case — 'non_disponibile', or a stale/unexpected stato on a zero-copy book —
+    // falls to "Non disponibile" rather than being mislabelled as on loan (#303 review).
     if ($available) {
         echo '<span class="book-status-badge status-available">' . HtmlHelper::e(__("Disponibile"));
-    } elseif ($reserved) {
+    } elseif ($stato === 'prenotato') {
         echo '<span class="book-status-badge status-reserved">' . HtmlHelper::e(__("Prenotato"));
-    } else {
+    } elseif ($stato === 'prestato') {
         echo '<span class="book-status-badge status-borrowed">' . HtmlHelper::e(__("In prestito"));
+    } else {
+        echo '<span class="book-status-badge status-unavailable">' . HtmlHelper::e(__("Non disponibile"));
     }
     // Hook: Allow plugins to add icons to status badge (e.g., eBook/audio icons)
     do_action('book.badge.digital_icons', $book);
@@ -174,6 +179,12 @@ $getBookStatusBadge = static function ($book) {
 .status-reserved {
     background: var(--warning-color); /* fallback for browsers without color-mix() */
     background: color-mix(in srgb, var(--warning-color) 90%, transparent);
+    color: white;
+}
+
+.status-unavailable {
+    /* Neutral grey — theme-agnostic, signals "not circulating" without alarm */
+    background: #6b7280;
     color: white;
 }
 

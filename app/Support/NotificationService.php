@@ -826,7 +826,7 @@ class NotificationService {
             SELECT MIN(COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta)) as earliest_end
             FROM prenotazioni
             WHERE libro_id = ? AND stato = 'attiva'
-            AND data_inizio_richiesta IS NOT NULL
+            AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) IS NOT NULL
             AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
         ");
         $resStmt->bind_param('is', $bookId, $today);

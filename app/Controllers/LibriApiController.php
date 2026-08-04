@@ -343,6 +343,7 @@ class LibriApiController
                 LEFT JOIN editori e ON l.editore_id = e.id
                 INNER JOIN libri_autori la ON l.id = la.libro_id
                 WHERE la.autore_id = ? AND l.deleted_at IS NULL
+                GROUP BY l.id
                 ORDER BY l.titolo ASC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('i', $authorId);

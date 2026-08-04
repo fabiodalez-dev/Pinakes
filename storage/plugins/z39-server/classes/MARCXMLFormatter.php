@@ -114,8 +114,9 @@ class MARCXMLFormatter extends RecordFormatter
         // Publication, Distribution, Manufacture, and Copyright Notice - 264
         // FIX 6: field 260 is obsolete; 264 ind2='1' = production/publication
         $pubSubfields = [];
-        if (!empty($record['editore'])) {
-            $pubSubfields[] = ['b', $record['editore']];
+        // Repeatable $b — primary publisher plus co-publishers (#143)
+        foreach ($this->publisherNames($record) as $publisherName) {
+            $pubSubfields[] = ['b', $publisherName];
         }
         if (!empty($record['anno_pubblicazione'])) {
             $pubSubfields[] = ['c', (string) $record['anno_pubblicazione']];
@@ -175,7 +176,7 @@ class MARCXMLFormatter extends RecordFormatter
         // Electronic Location - 856
         if (!empty($record['copertina_url'])) {
             $recordEl->appendChild($this->createDataField('856', '4', '2', [
-                ['u', $record['copertina_url']],
+                ['u', $this->absoluteCoverUrl((string) $record['copertina_url'])],
                 ['y', 'Cover image']
             ]));
         }
@@ -185,12 +186,19 @@ class MARCXMLFormatter extends RecordFormatter
             foreach ($record['copies'] as $copy) {
                 $holdingsSubfields = [];
 
-                // Location (scaffale and mensola from record or copy)
+                // Location — resolved from the CURRENT libri.scaffale_id /
+                // libri.mensola_id columns (SRU joins scaffali/mensole on those,
+                // not the abandoned posizione_id chain). Fall back to the
+                // human-readable libri.collocazione when no shelf is assigned.
                 if (!empty($record['scaffale'])) {
                     $holdingsSubfields[] = ['b', $record['scaffale']];
                 }
                 if (!empty($record['mensola'])) {
                     $holdingsSubfields[] = ['c', 'Shelf ' . $record['mensola']];
+                }
+                if (empty($record['scaffale']) && empty($record['mensola'])
+                    && !empty($record['collocazione'])) {
+                    $holdingsSubfields[] = ['c', (string) $record['collocazione']];
                 }
 
                 // Call number / Inventory number
@@ -215,15 +223,21 @@ class MARCXMLFormatter extends RecordFormatter
             }
         }
 
-        // Add summary holdings note if copies exist
+        // Add summary holdings note if copies exist. Total/Available come from
+        // the canonical counters libri.copie_totali / libri.copie_disponibili
+        // (maintained by App\Support\DataIntegrity, matching web + Mobile API +
+        // NCIP): copie_disponibili subtracts active reservations and pending
+        // loans, and copie_totali excludes perso/danneggiato/manutenzione/
+        // in_restauro/in_trasferimento copies. Counting raw copie rows here
+        // over-reports both totals. Fall back to row counts only when the
+        // counters are absent from the record.
         if (!empty($record['copies'])) {
-            $totalCopies = count($record['copies']);
-            $availableCopies = 0;
-            foreach ($record['copies'] as $copy) {
-                if (($copy['stato'] ?? '') === 'disponibile') {
-                    $availableCopies++;
-                }
-            }
+            $totalCopies = isset($record['copie_totali'])
+                ? (int) $record['copie_totali']
+                : count($record['copies']);
+            $availableCopies = isset($record['copie_disponibili'])
+                ? (int) $record['copie_disponibili']
+                : 0;
 
             $recordEl->appendChild($this->createDataField('866', ' ', ' ', [
                 ['a', "Total copies: $totalCopies, Available: $availableCopies"]
@@ -343,14 +357,16 @@ class MARCXMLFormatter extends RecordFormatter
      */
     private function formatCopyStatus(string $status): string
     {
+        // Keys must match the copie.stato enum exactly.
         $statusMap = [
-            'disponibile' => 'Available',
-            'prestato' => 'On loan',
-            'riservato' => 'Reserved',
-            'danneggiato' => 'Damaged',
-            'smarrito' => 'Lost',
-            'in_riparazione' => 'In repair',
-            'non_disponibile' => 'Not available'
+            'disponibile'       => 'Available',
+            'prestato'          => 'On loan',
+            'prenotato'         => 'Reserved',
+            'manutenzione'      => 'Under maintenance',
+            'in_restauro'       => 'Under restoration',
+            'perso'             => 'Lost',
+            'danneggiato'       => 'Damaged',
+            'in_trasferimento'  => 'In transit',
         ];
 
         return $statusMap[$status] ?? ucfirst($status);

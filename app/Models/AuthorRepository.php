@@ -106,6 +106,7 @@ class AuthorRepository
                 LEFT JOIN editori e ON l.editore_id = e.id
                 INNER JOIN libri_autori la ON l.id = la.libro_id
                 WHERE la.autore_id = ? AND l.deleted_at IS NULL
+                GROUP BY l.id
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $authorId);
@@ -120,7 +121,7 @@ class AuthorRepository
 
     public function countBooks(int $authorId): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM libri_autori la JOIN libri l ON la.libro_id = l.id AND l.deleted_at IS NULL WHERE la.autore_id = ?');
+        $stmt = $this->db->prepare('SELECT COUNT(DISTINCT la.libro_id) FROM libri_autori la JOIN libri l ON la.libro_id = l.id AND l.deleted_at IS NULL WHERE la.autore_id = ?');
         $stmt->bind_param('i', $authorId);
         $stmt->execute();
         $stmt->bind_result($count);
@@ -446,6 +447,20 @@ class AuthorRepository
         $this->db->begin_transaction();
 
         try {
+            // The archives plugin (optional) keeps an author↔authority identity
+            // table with a FK ON DELETE CASCADE to autori. Detect it once so the
+            // per-duplicate loop can repoint it when present; absent when the
+            // plugin isn't installed.
+            $hasAuthorityLink = false;
+            $res = $this->db->query(
+                "SELECT 1 FROM information_schema.TABLES "
+                . "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'autori_authority_link' LIMIT 1"
+            );
+            if ($res instanceof \mysqli_result) {
+                $hasAuthorityLink = $res->num_rows > 0;
+                $res->free();
+            }
+
             foreach ($duplicateIds as $duplicateId) {
                 // Update book-author relationships to point to primary author
                 // Use IGNORE to handle unique constraint violations (book already linked to primary)
@@ -471,6 +486,74 @@ class AuthorRepository
                     throw new \Exception("Failed to execute DELETE libri_autori: " . $stmt->error);
                 }
                 $stmt->close();
+
+                // Repoint authority alternates before the cascade drops them.
+                // Surrogate PK only (no unique on autore_id + authority), so a
+                // plain UPDATE cannot collide.
+                $stmt = $this->db->prepare(
+                    "UPDATE author_authority_alternates SET autore_id = ? WHERE autore_id = ?"
+                );
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare UPDATE author_authority_alternates: " . $this->db->error);
+                }
+                $stmt->bind_param('ii', $primaryId, $duplicateId);
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute UPDATE author_authority_alternates: " . $stmt->error);
+                }
+                $stmt->close();
+
+                // Repoint import-source provenance. Its composite PK
+                // (libro_id, autore_id, ruolo, source) can collide when the
+                // primary already holds the same tuple — IGNORE skips those,
+                // then delete the leftovers still on the duplicate.
+                $stmt = $this->db->prepare(
+                    "UPDATE IGNORE libri_autori_import_sources SET autore_id = ? WHERE autore_id = ?"
+                );
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare UPDATE IGNORE libri_autori_import_sources: " . $this->db->error);
+                }
+                $stmt->bind_param('ii', $primaryId, $duplicateId);
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute UPDATE IGNORE libri_autori_import_sources: " . $stmt->error);
+                }
+                $stmt->close();
+
+                $stmt = $this->db->prepare("DELETE FROM libri_autori_import_sources WHERE autore_id = ?");
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare DELETE libri_autori_import_sources: " . $this->db->error);
+                }
+                $stmt->bind_param('i', $duplicateId);
+                if (!$stmt->execute()) {
+                    throw new \Exception("Failed to execute DELETE libri_autori_import_sources: " . $stmt->error);
+                }
+                $stmt->close();
+
+                // Repoint the archives-plugin authority-identity link when the
+                // table exists. Composite PK (autori_id, authority_id) can
+                // collide — IGNORE skips those, then delete the leftovers.
+                if ($hasAuthorityLink) {
+                    $stmt = $this->db->prepare(
+                        "UPDATE IGNORE autori_authority_link SET autori_id = ? WHERE autori_id = ?"
+                    );
+                    if ($stmt === false) {
+                        throw new \Exception("Failed to prepare UPDATE IGNORE autori_authority_link: " . $this->db->error);
+                    }
+                    $stmt->bind_param('ii', $primaryId, $duplicateId);
+                    if (!$stmt->execute()) {
+                        throw new \Exception("Failed to execute UPDATE IGNORE autori_authority_link: " . $stmt->error);
+                    }
+                    $stmt->close();
+
+                    $stmt = $this->db->prepare("DELETE FROM autori_authority_link WHERE autori_id = ?");
+                    if ($stmt === false) {
+                        throw new \Exception("Failed to prepare DELETE autori_authority_link: " . $this->db->error);
+                    }
+                    $stmt->bind_param('i', $duplicateId);
+                    if (!$stmt->execute()) {
+                        throw new \Exception("Failed to execute DELETE autori_authority_link: " . $stmt->error);
+                    }
+                    $stmt->close();
+                }
 
                 // Delete the duplicate author
                 $stmt = $this->db->prepare("DELETE FROM autori WHERE id = ?");

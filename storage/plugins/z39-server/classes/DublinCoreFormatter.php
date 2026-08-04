@@ -65,9 +65,9 @@ class DublinCoreFormatter extends RecordFormatter
             $dcRecord->appendChild($this->createElement('description', $record['descrizione']));
         }
 
-        // Publisher - dc:publisher
-        if (!empty($record['editore'])) {
-            $dcRecord->appendChild($this->createElement('publisher', $record['editore']));
+        // Publisher - dc:publisher (repeatable: primary + co-publishers, #143)
+        foreach ($this->publisherNames($record) as $publisher) {
+            $dcRecord->appendChild($this->createElement('publisher', $publisher));
         }
 
         // Date - dc:date
@@ -75,8 +75,9 @@ class DublinCoreFormatter extends RecordFormatter
             $dcRecord->appendChild($this->createElement('date', (string) $record['anno_pubblicazione']));
         }
 
-        // Type - dc:type
-        $dcRecord->appendChild($this->createElement('type', 'Text'));
+        // Type - dc:type (DCMI Type derived from tipo_media, mirroring how
+        // MediaLabels maps media type for the web/Schema.org)
+        $dcRecord->appendChild($this->createElement('type', $this->dcmiType($record['tipo_media'] ?? null)));
 
         // Format - dc:format
         if (!empty($record['formato'])) {
@@ -119,7 +120,10 @@ class DublinCoreFormatter extends RecordFormatter
             $dcRecord->appendChild($this->createElement('rights', (string) $record['diritti']));
         }
 
-        // Location information
+        // Location information — resolved from the CURRENT libri.scaffale_id /
+        // libri.mensola_id columns (SRU joins scaffali/mensole on those, not the
+        // abandoned posizione_id chain). Fall back to the human-readable
+        // libri.collocazione string when no shelf is assigned.
         if (!empty($record['scaffale']) || !empty($record['mensola'])) {
             $location = [];
             if (!empty($record['scaffale'])) {
@@ -129,6 +133,8 @@ class DublinCoreFormatter extends RecordFormatter
                 $location[] = 'Level: ' . $record['mensola'];
             }
             $dcRecord->appendChild($this->createElement('coverage', implode(', ', $location)));
+        } elseif (!empty($record['collocazione'])) {
+            $dcRecord->appendChild($this->createElement('coverage', (string) $record['collocazione']));
         }
 
         return $dcRecord;
@@ -144,5 +150,23 @@ class DublinCoreFormatter extends RecordFormatter
     private function createElement(string $name, string $value): \DOMElement
     {
         return $this->doc->createElementNS(self::NS_DC, 'dc:' . $name, $this->escapeXml($value));
+    }
+
+    /**
+     * Map tipo_media to a DCMI Type Vocabulary term.
+     *
+     * @param string|null $tipoMedia Raw tipo_media value
+     * @return string DCMI Type term
+     */
+    private function dcmiType(?string $tipoMedia): string
+    {
+        $resolved = \App\Support\MediaLabels::normalizeTipoMedia($tipoMedia) ?? 'libro';
+        return match ($resolved) {
+            'disco'      => 'Sound',
+            'audiolibro' => 'Sound',
+            'dvd'        => 'MovingImage',
+            'altro'      => 'Text',
+            default      => 'Text',
+        };
     }
 }

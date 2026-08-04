@@ -110,8 +110,9 @@ class UNIMARCXMLFormatter extends RecordFormatter
 
         // 210 — Publication, distribution, manufacture
         $subs210 = [];
-        if (!empty($record['editore'])) {
-            $subs210[] = ['c', (string) $record['editore']];
+        // Repeatable $c — primary publisher plus co-publishers (#143)
+        foreach ($this->publisherNames($record) as $publisherName) {
+            $subs210[] = ['c', $publisherName];
         }
         if ($year !== '') {
             $subs210[] = ['d', $year];

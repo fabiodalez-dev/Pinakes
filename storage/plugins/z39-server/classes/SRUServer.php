@@ -37,7 +37,9 @@ class SRUServer
         ],
         'dc.publisher' => [
             'type' => 'text',
-            'columns' => ['e.nome'],
+            // Primary publisher (editori) plus secondary publishers via the
+            // libri_editori junction (#143), mirroring OAI-PMH/web parity.
+            'columns' => ['e.nome', 'e2.nome'],
         ],
         'dc.date' => [
             'type' => 'numeric',
@@ -55,8 +57,12 @@ class SRUServer
                 'a.nome',
                 'a.pseudonimo',
                 'e.nome',
+                'e2.nome',
                 'l.isbn10',
                 'l.isbn13',
+                'l.ean',
+                'l.parole_chiave',
+                'l.collana',
                 'g.nome',
             ],
         ],
@@ -418,10 +424,15 @@ class SRUServer
                                       AND la.ruolo IN ('principale', 'co-autore')
             LEFT JOIN autori a ON la.autore_id = a.id
             LEFT JOIN editori e ON l.editore_id = e.id
+            LEFT JOIN libri_editori le ON l.id = le.libro_id
+            LEFT JOIN editori e2 ON le.editore_id = e2.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            LEFT JOIN posizioni p ON l.posizione_id = p.id
-            LEFT JOIN scaffali s ON p.scaffale_id = s.id
-            LEFT JOIN mensole m ON p.mensola_id = m.id
+            -- #5: resolve shelf/location from the CURRENT columns. The admin
+            -- book save hard-sets libri.posizione_id = NULL and stores the
+            -- location in libri.scaffale_id / libri.mensola_id / libri.collocazione,
+            -- so the legacy posizioni chain is always empty for UI-saved books.
+            LEFT JOIN scaffali s ON l.scaffale_id = s.id
+            LEFT JOIN mensole m ON l.mensola_id = m.id
             LEFT JOIN copie c ON l.id = c.libro_id
             WHERE l.deleted_at IS NULL AND ({$whereClause})
             GROUP BY l.id
@@ -437,7 +448,7 @@ class SRUServer
                     l.*,
                     GROUP_CONCAT(DISTINCT a.nome ORDER BY la.ordine_credito SEPARATOR '; ') as autori,
                     (SELECT GROUP_CONCAT(
-                                CONCAT(HEX(la_all.ruolo), ':', HEX(a_all.nome))
+                                CONCAT(HEX(la_all.ruolo), ':', HEX(" . \App\Support\AuthorName::displaySql('a_all') . "))
                                 ORDER BY (la_all.ruolo = 'principale') DESC,
                                          (la_all.ruolo = 'co-autore') DESC,
                                          la_all.ordine_credito IS NULL,
@@ -450,9 +461,7 @@ class SRUServer
                     e.nome as editore,
                     g.nome as genere,
                     s.nome as scaffale,
-                    m.numero_livello as mensola,
-                    p.scaffale_id,
-                    p.mensola_id
+                    m.numero_livello as mensola
                 {$baseQuery}
                 " . $this->buildSortClause($sortKeys) . "
                 LIMIT " . (int) $maximumRecords . " OFFSET " . (int) $offset
@@ -491,6 +500,9 @@ class SRUServer
 
             // Fetch detailed copy information
             $this->fetchCopiesForRecords($records);
+
+            // Fetch every publisher (primary + secondary co-publishers, #143)
+            $this->fetchPublishersForRecords($records);
 
             return $records;
         } catch (\mysqli_sql_exception $e) {
@@ -555,6 +567,61 @@ class SRUServer
             // If copy fetch fails, just continue without copies
             \App\Support\SecureLogger::warning("SRU Server: Failed to fetch copies: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Batch-fetch every publisher for the result page (primary + secondary
+     * co-publishers via libri_editori, #143) and attach an ordered list of
+     * names to each record. Falls back to the primary editore when the
+     * junction is empty, matching OaiPmhServerPlugin::fetchPublishersForBook.
+     *
+     * @param array<int,array<string,mixed>> $records
+     */
+    private function fetchPublishersForRecords(array &$records): void
+    {
+        if (empty($records)) {
+            return;
+        }
+
+        $bookIds = array_column($records, 'id');
+        $idsStr = implode(',', array_map('intval', $bookIds));
+        if ($idsStr === '') {
+            return;
+        }
+
+        $publishersByBook = [];
+        try {
+            $sql = "SELECT le.libro_id, e.nome
+                    FROM libri_editori le
+                    JOIN editori e ON e.id = le.editore_id
+                    WHERE le.libro_id IN ($idsStr)
+                    ORDER BY le.libro_id, le.ordine, e.nome";
+            $result = $this->db->query($sql);
+            if ($result) {
+                while ($row = $result->fetch_assoc()) {
+                    $name = trim((string) ($row['nome'] ?? ''));
+                    if ($name !== '') {
+                        $publishersByBook[$row['libro_id']][] = $name;
+                    }
+                }
+                $result->free();
+            }
+        } catch (\Throwable $e) {
+            // If the junction lookup fails, fall back to the primary publisher.
+            \App\Support\SecureLogger::warning("SRU Server: Failed to fetch publishers: " . $e->getMessage());
+        }
+
+        foreach ($records as &$record) {
+            $names = $publishersByBook[$record['id']] ?? [];
+            if ($names === []) {
+                $primary = trim((string) ($record['editore'] ?? ''));
+                if ($primary !== '') {
+                    $names[] = $primary;
+                }
+            }
+            $record['publishers'] = $names;
+        }
+        unset($record);
     }
 
     private function buildSortClause(string $sortKeys): string
@@ -772,22 +839,20 @@ class SRUServer
         $value = strtolower(trim($value));
 
         // Handle boolean searches: "true", "yes", "available"
+        // #4: answer availability from the canonical counter libri.copie_disponibili
+        // (maintained by App\Support\DataIntegrity, used by web + Mobile API +
+        // NCIP). It subtracts active reservations and pending loans holding a
+        // copy and excludes perso/danneggiato/manutenzione/in_restauro/
+        // in_trasferimento copies from the total — none of which a raw
+        // EXISTS(copie.stato='disponibile') probe accounts for.
         if (in_array($value, ['true', 'yes', '1', 'available', 'disponibile'], true)) {
-            // Find books with at least one available copy
-            return "EXISTS (
-                SELECT 1 FROM copie c 
-                WHERE c.libro_id = l.id 
-                AND c.stato = 'disponibile'
-            )";
+            // Books with at least one canonically available copy
+            return "(COALESCE(l.copie_disponibili, 0) > 0)";
         }
 
         if (in_array($value, ['false', 'no', '0', 'unavailable', 'non_disponibile'], true)) {
-            // Find books with NO available copies
-            return "NOT EXISTS (
-                SELECT 1 FROM copie c 
-                WHERE c.libro_id = l.id 
-                AND c.stato = 'disponibile'
-            )";
+            // Books with no canonically available copy
+            return "(COALESCE(l.copie_disponibili, 0) <= 0)";
         }
 
         // Specific status search
@@ -940,12 +1005,18 @@ class SRUServer
         try {
             switch ($index) {
                 case 'dc.creator':
+                    // Frequency must reflect the number of non-deleted catalogue
+                    // records a searchRetrieve would return for the author, not
+                    // the number of authority rows sharing that name. The INNER
+                    // JOINs drop authors whose only books are soft-deleted.
                     $stmt = $this->db->prepare("
-                        SELECT nome AS term, COUNT(*) AS frequency
-                        FROM autori
-                        WHERE nome <> '' AND nome LIKE ?
-                        GROUP BY nome
-                        ORDER BY nome
+                        SELECT a.nome AS term, COUNT(DISTINCT l.id) AS frequency
+                        FROM autori a
+                        JOIN libri_autori la ON la.autore_id = a.id
+                        JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
+                        WHERE a.nome <> '' AND a.nome LIKE ?
+                        GROUP BY a.nome
+                        ORDER BY a.nome
                         LIMIT ?
                     ");
                     if ($stmt) {
@@ -956,12 +1027,16 @@ class SRUServer
                     break;
 
                 case 'dc.subject':
+                    // Count non-deleted records per genre name across both the
+                    // primary genre and the subgenre; drop genres with no books.
                     $stmt = $this->db->prepare("
-                        SELECT nome AS term, COUNT(*) AS frequency
-                        FROM generi
-                        WHERE nome <> '' AND nome LIKE ?
-                        GROUP BY nome
-                        ORDER BY nome
+                        SELECT g.nome AS term, COUNT(DISTINCT l.id) AS frequency
+                        FROM generi g
+                        JOIN libri l ON (l.genere_id = g.id OR l.sottogenere_id = g.id)
+                                    AND l.deleted_at IS NULL
+                        WHERE g.nome <> '' AND g.nome LIKE ?
+                        GROUP BY g.nome
+                        ORDER BY g.nome
                         LIMIT ?
                     ");
                     if ($stmt) {

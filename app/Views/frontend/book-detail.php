@@ -257,20 +257,12 @@ foreach ($authors as $authorData) {
             break;
     }
 }
-// Also add translator/illustrator/curator from direct book fields if not already in authors
-// Apply html_entity_decode consistently (author names from libri_autori are decoded above)
-$bookTranslator = trim(html_entity_decode($book['traduttore'] ?? '', ENT_QUOTES, 'UTF-8'));
-if ($bookTranslator !== '' && !in_array($bookTranslator, array_column($schemaTranslators, 'name'), true)) {
-    $schemaTranslators[] = ["@type" => "Person", "name" => $bookTranslator];
-}
-$bookIllustrator = trim(html_entity_decode($book['illustratore'] ?? '', ENT_QUOTES, 'UTF-8'));
-if ($bookIllustrator !== '' && !in_array($bookIllustrator, array_column($schemaIllustrators, 'name'), true)) {
-    $schemaIllustrators[] = ["@type" => "Person", "name" => $bookIllustrator];
-}
-$bookCurator = trim(html_entity_decode($book['curatore'] ?? '', ENT_QUOTES, 'UTF-8'));
-if ($bookCurator !== '' && !in_array($bookCurator, array_column($schemaEditors, 'name'), true)) {
-    $schemaEditors[] = ["@type" => "Person", "name" => $bookCurator];
-}
+// Contributors in the JSON-LD are emitted from libri_autori entities only, to
+// match the visible book-detail page and the admin sheet (entity-only policy,
+// #237). The legacy free-text columns (libri.traduttore/illustratore/curatore)
+// are NOT used as a fallback here: they are a '; '-joined cache of ALL role
+// entities (ContributorSync), so treating the whole column as one Person name
+// produced bogus multi-name Persons in the Schema.org output.
 
 if ($bookDescription) {
     $bookSchema["description"] = strip_tags($bookDescription);

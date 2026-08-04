@@ -75,6 +75,11 @@ assertNotContainsText(
 
 $integrity = readFileOrFail($root . '/app/Support/DataIntegrity.php');
 assertContainsText('overbooked_circulation_period', $integrity, 'DataIntegrity must report capacity-aware overbooking');
+assertContainsText(
+    'DATE(COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione))) AS start_date',
+    $integrity,
+    'DataIntegrity overbooking audit must retain legacy NULL-start reservations'
+);
 assertContainsText('duplicate_user_circulation_request', $integrity, 'DataIntegrity must report cross-table user/book duplicates');
 assertNotContainsText('overlap_reservation_loan', $integrity, 'DataIntegrity must not flag any reservation/loan overlap without checking capacity');
 assertNotContainsText('overlap_reservation_reservation', $integrity, 'DataIntegrity must not flag reservation/reservation overlap without checking capacity');
@@ -100,8 +105,25 @@ assertContainsText(
     $notificationService,
     'Wishlist availability must delegate to the canonical capacity authority'
 );
+assertContainsText(
+    'COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) IS NOT NULL',
+    $notificationService,
+    'next-availability lookup must retain legacy NULL-start reservations'
+);
 assertContainsText("AND p.attivo = 1", $notificationService, 'Automatic loan notifications must ignore closed rows');
 assertContainsText("AND attivo = 1 AND stato = 'in_corso'", $notificationService, 'Expiration-warning claim must revalidate the loan lifecycle');
+
+$reservationManager = readFileOrFail($root . '/app/Controllers/ReservationManager.php');
+assertContainsText(
+    'COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione)) IS NOT NULL',
+    $reservationManager,
+    'reservation notification retries must retain legacy NULL-start rows'
+);
+assertContainsText(
+    '$reservation[\'data_inizio_richiesta\'] = $reservation[\'data_inizio_richiesta\']',
+    $reservationManager,
+    'reservation notification retries must normalize the legacy start before rendering email dates'
+);
 
 foreach ([
     'app/Controllers/UserDashboardController.php',

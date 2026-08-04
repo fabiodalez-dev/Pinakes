@@ -17,7 +17,7 @@ use mysqli;
 final class ContributorSync
 {
     /** @var list<string> */
-    private const ROLES = ['traduttore', 'illustratore', 'curatore', 'colorista'];
+    private const ROLES = ['co-autore', 'traduttore', 'illustratore', 'curatore', 'colorista'];
 
     /** @var list<string> */
     private const IMPORT_SOURCES = ['csv', 'librarything', 'legacy-backfill'];

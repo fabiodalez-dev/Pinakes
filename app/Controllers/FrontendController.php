@@ -282,11 +282,11 @@ class FrontendController
         $books_query = "
             SELECT DISTINCT l.*,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome,
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome,
                    (SELECT SUBSTRING_INDEX(" . \App\Support\AuthorName::preferredSql('a') . ", ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_cognome,
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_cognome,
                    e.nome AS editore,
                    g.nome AS genere
             " . $base_query . "
@@ -387,11 +387,11 @@ class FrontendController
         $books_query = "
             SELECT DISTINCT l.*,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome,
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome,
                    (SELECT SUBSTRING_INDEX(" . \App\Support\AuthorName::preferredSql('a') . ", ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_cognome,
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_cognome,
                    e.nome AS editore,
                    g.nome AS genere
             " . $base_query . "
@@ -1026,7 +1026,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = e.id)"
         : "";
     $queryEditori = "
-        SELECT e.id, e.nome, COUNT(DISTINCT l.id) AS cnt
+        SELECT e.nome, COUNT(DISTINCT l.id) AS cnt
         FROM editori e
         JOIN libri l ON (e.id = l.editore_id{$facetExists})
                         AND l.deleted_at IS NULL
@@ -1040,7 +1040,12 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         // Only editore filter is excluded (via filtersForEditori)
         $queryEditori .= " WHERE " . implode(' AND ', $conditionsEd);
     }
-    $queryEditori .= " GROUP BY e.id, e.nome HAVING cnt > 0 ORDER BY e.nome";
+    // Group by NAME, not id: the catalog filter matches publishers by e.nome
+    // (editori.nome has no UNIQUE constraint — same-named rows are legitimate),
+    // so grouping per id would render duplicate labels each with a partial count
+    // that no single filtered result could match. Grouping by name merges them
+    // and makes each badge equal the count the name filter returns.
+    $queryEditori .= " GROUP BY e.nome HAVING cnt > 0 ORDER BY e.nome";
 
     $stmt = $db->prepare($queryEditori);
     if (!empty($paramsEd)) {
@@ -1254,11 +1259,13 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                 $query = "
                     SELECT l.*,
                            (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                            WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
                            (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome,
+                            WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome,
+                           e.nome AS editore,
                            g.nome AS genere
                     FROM libri l
+                    LEFT JOIN editori e ON l.editore_id = e.id
                     LEFT JOIN generi g ON l.genere_id = g.id
                     WHERE l.deleted_at IS NULL
                     ORDER BY l.{$latestSort} DESC
@@ -1279,10 +1286,12 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                 $query = "
                     SELECT l.*,
                            (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                            WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
                            (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
+                            WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome,
+                           e.nome AS editore
                     FROM libri l
+                    LEFT JOIN editori e ON l.editore_id = e.id
                     WHERE l.genere_id = ? AND l.deleted_at IS NULL
                     ORDER BY l.created_at DESC
                     LIMIT ? OFFSET ?
@@ -1776,9 +1785,9 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $query_slider = "
             SELECT l.*,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome,
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome,
                    g.nome AS genere
             FROM libri l
             LEFT JOIN generi g ON l.genere_id = g.id
@@ -1854,9 +1863,9 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                 $query_genre_books = "
                     SELECT l.*,
                            (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                            WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
                            (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
+                            WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome
                     FROM libri l
                     WHERE l.genere_id IN " . $inClause . " AND l.deleted_at IS NULL
                     ORDER BY l.created_at DESC

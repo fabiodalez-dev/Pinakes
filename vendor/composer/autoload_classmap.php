@@ -110,6 +110,7 @@ return array(
     'App\\Support\\Csv' => $baseDir . '/app/Support/Csv.php',
     'App\\Support\\DataIntegrity' => $baseDir . '/app/Support/DataIntegrity.php',
     'App\\Support\\DateHelper' => $baseDir . '/app/Support/DateHelper.php',
+    'App\\Support\\DescriptionText' => $baseDir . '/app/Support/DescriptionText.php',
     'App\\Support\\DeweyAutoPopulator' => $baseDir . '/app/Support/DeweyAutoPopulator.php',
     'App\\Support\\EmailLayout' => $baseDir . '/app/Support/EmailLayout.php',
     'App\\Support\\EmailService' => $baseDir . '/app/Support/EmailService.php',

@@ -405,6 +405,7 @@ class ComposerStaticInite58358eec498b7b6927cfe671382554c
         'App\\Support\\Csv' => __DIR__ . '/../..' . '/app/Support/Csv.php',
         'App\\Support\\DataIntegrity' => __DIR__ . '/../..' . '/app/Support/DataIntegrity.php',
         'App\\Support\\DateHelper' => __DIR__ . '/../..' . '/app/Support/DateHelper.php',
+        'App\\Support\\DescriptionText' => __DIR__ . '/../..' . '/app/Support/DescriptionText.php',
         'App\\Support\\DeweyAutoPopulator' => __DIR__ . '/../..' . '/app/Support/DeweyAutoPopulator.php',
         'App\\Support\\EmailLayout' => __DIR__ . '/../..' . '/app/Support/EmailLayout.php',
         'App\\Support\\EmailService' => __DIR__ . '/../..' . '/app/Support/EmailService.php',

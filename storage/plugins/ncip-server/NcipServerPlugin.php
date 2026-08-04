@@ -932,6 +932,32 @@ class NcipServerPlugin
         $id  = (int) $book['id'];
         $avail = (int) ($book['copie_disponibili'] ?? 0);
 
+        // Derive the NCIP circulation status from the book's derived availability
+        // summary (libri.stato) rather than treating every not-available cause as
+        // "Checked Out". Fall back to the lendable-copy counter when stato is unknown.
+        $stato = (string) ($book['stato'] ?? '');
+        switch ($stato) {
+            case 'prestato':
+                $circStatus = 'Checked Out';
+                break;
+            case 'prenotato':
+                $circStatus = 'On Hold';
+                break;
+            case 'perso':
+                $circStatus = 'Lost';
+                break;
+            case 'danneggiato':
+            case 'non_disponibile':
+                $circStatus = 'Not Available';
+                break;
+            case 'disponibile':
+                $circStatus = $avail > 0 ? 'Available On Shelf' : 'Not Available';
+                break;
+            default:
+                $circStatus = $avail > 0 ? 'Available On Shelf' : 'Not Available';
+                break;
+        }
+
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
         $xw->writeAttribute('version', self::NCIP_VERSION);
 
@@ -957,7 +983,7 @@ class NcipServerPlugin
 
         $xw->startElement('CirculationStatus');
         $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/circulationstatus/');
-        $xw->text($avail > 0 ? 'Available On Shelf' : 'Checked Out');
+        $xw->text($circStatus);
         $xw->endElement();
 
         $xw->startElement('ItemDescription');
@@ -1201,7 +1227,7 @@ class NcipServerPlugin
     {
         if ($id <= 0) { return null; }
         $stmt = $this->db->prepare(
-            'SELECT l.id, l.titolo, l.copie_totali, l.copie_disponibili,
+            'SELECT l.id, l.titolo, l.stato, l.copie_totali, l.copie_disponibili,
                     l.anno_pubblicazione, a.nome AS author_name
                FROM libri l
                LEFT JOIN autori a ON a.id = (

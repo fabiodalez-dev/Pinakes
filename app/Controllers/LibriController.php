@@ -1205,6 +1205,14 @@ class LibriController
                 $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
             }
 
+            // Ricalcola disponibilità dopo aver generato le copie, come fa il
+            // percorso di update. Senza questo, copie_disponibili/copie_totali e
+            // lo stato canonico non vengono derivati dalle copie appena create:
+            // ogni superficie OPAC calcola la disponibilità da copie_disponibili,
+            // quindi un nuovo libro resterebbe con i contatori a zero (o con lo
+            // stato grezzo scritto dal form) finché non passa un altro salvataggio.
+            (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($id);
+
             // Persist all fields first, then apply an explicitly chosen cover
             // (file upload or scraped URL) on top so it isn't reverted by the
             // field update (mirrors update(); see #165).
@@ -1843,9 +1851,16 @@ class LibriController
             // Plugin hook: After book save (update)
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
-            // Gestione copie: aggiorna il numero di copie se cambiato
+            // Gestione copie: aggiorna il numero di copie se cambiato.
+            // Il conteggio di riferimento DEVE escludere le copie fuori
+            // circolazione (perso/danneggiato/manutenzione/in_restauro/
+            // in_trasferimento), perché `$fields['copie_totali']` arriva dal
+            // form pre-compilato con `libri.copie_totali`, che DataIntegrity
+            // calcola con la stessa esclusione. Con il conteggio grezzo
+            // (countByBookId) un libro con una copia fuori circolazione avrebbe
+            // current > form a ogni salvataggio e cancellerebbe una copia buona.
             $copyRepo = new \App\Models\CopyRepository($db);
-            $currentCopieCount = $copyRepo->countByBookId($id);
+            $currentCopieCount = $copyRepo->countInCirculationByBookId($id);
             $newCopieCount = (int) $fields['copie_totali'];
 
             if ($newCopieCount > $currentCopieCount) {
@@ -3218,6 +3233,14 @@ class LibriController
                 array_map('intval', explode(',', $idsParam)),
                 static fn (int $id): bool => $id > 0
             )));
+            // The selected-export path caps at 1000 IDs. Don't truncate in
+            // silence: log it so a large multi-page selection that loses rows
+            // is at least diagnosable (the UI accumulates IDs across pages).
+            if (count($selectedIds) > 1000) {
+                SecureLogger::error(__('Export selezione troncato a 1000 libri'), [
+                    'requested' => count($selectedIds),
+                ]);
+            }
             $selectedIds = array_slice($selectedIds, 0, 1000);
         }
 
@@ -3282,7 +3305,10 @@ class LibriController
 
         // Autore filter
         if ($autoreId > 0) {
-            $whereClauses[] = "la.autore_id = ?";
+            // Filter the book set without restricting the aggregate join: the
+            // exported row must still contain every creator/contributor, not
+            // only the author used to find the book.
+            $whereClauses[] = "EXISTS (SELECT 1 FROM libri_autori la_filter WHERE la_filter.libro_id = l.id AND la_filter.autore_id = ?)";
             $bindTypes .= 'i';
             $bindValues[] = $autoreId;
         }
@@ -3291,8 +3317,18 @@ class LibriController
         $query = "
             SELECT
                 l.*,
-                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo IN ('principale', 'co-autore') THEN a.nome END
-                             ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'principale' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as autori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'co-autore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as coautori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'traduttore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as traduttori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'illustratore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as illustratori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'curatore' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as curatori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo = 'colorista' THEN a.nome END
+                             ORDER BY la.ordine_credito, a.nome SEPARATOR ';') as coloristi_nomi,
                 e.nome as editore_nome,
                 " . ($hasJunction
                     ? "(SELECT GROUP_CONCAT(e2.nome ORDER BY le.ordine, e2.nome SEPARATOR ';')
@@ -3322,6 +3358,11 @@ class LibriController
         $query .= " WHERE " . implode(' AND ', $whereClauses);
 
         $query .= " GROUP BY l.id ORDER BY l.id DESC";
+
+        // Raise GROUP_CONCAT limit (MySQL default 1024 bytes) so long author /
+        // publisher lists in autori_nomi / editori_nomi are not silently
+        // truncated mid-name on export — same precaution as SearchIndexBuilder.
+        $db->query("SET SESSION group_concat_max_len = 1000000");
 
         // Execute query with prepared statement if filters are applied
         if (!empty($bindValues)) {
@@ -3368,6 +3409,7 @@ class LibriController
                 'sottotitolo',
                 'descrizione',
                 'autori',
+                'co_autori',
                 'editore',
                 'anno_pubblicazione',
                 'lingua',
@@ -3381,6 +3423,10 @@ class LibriController
                 'collana',
                 'numero_serie',
                 'traduttore',
+                'illustratore',
+                'curatore',
+                'colorista',
+                'classificazione_dewey',
                 'parole_chiave'
             ];
         }
@@ -3418,6 +3464,7 @@ class LibriController
                     $libro['sottotitolo'] ?? '',
                     $descrizione,
                     $libro['autori_nomi'] ?? '',
+                    $libro['coautori_nomi'] ?? '',
                     ($libro['editori_nomi'] ?? '') !== '' ? $libro['editori_nomi'] : ($libro['editore_nome'] ?? ''),
                     $anno,
                     $libro['lingua'] ?? '',
@@ -3430,7 +3477,11 @@ class LibriController
                     $libro['copie_totali'] ?? '1',
                     $libro['collana'] ?? '',
                     $libro['numero_serie'] ?? '',
-                    $libro['traduttore'] ?? '',
+                    ($libro['traduttori_nomi'] ?? '') !== '' ? $libro['traduttori_nomi'] : ($libro['traduttore'] ?? ''),
+                    ($libro['illustratori_nomi'] ?? '') !== '' ? $libro['illustratori_nomi'] : ($libro['illustratore'] ?? ''),
+                    ($libro['curatori_nomi'] ?? '') !== '' ? $libro['curatori_nomi'] : ($libro['curatore'] ?? ''),
+                    $libro['coloristi_nomi'] ?? '',
+                    $libro['classificazione_dewey'] ?? '',
                     $libro['parole_chiave'] ?? ''
                 ];
             }
@@ -3544,11 +3595,30 @@ class LibriController
      */
     private function formatLibraryThingRow(array $libro, string $anno): array
     {
-        // Parse authors (may be semicolon-separated)
-        $autori = $libro['autori_nomi'] ?? '';
-        $autoriArray = !empty($autori) ? explode(';', $autori) : [];
-        $primaryAuthor = $autoriArray[0] ?? '';
-        $secondaryAuthor = $autoriArray[1] ?? '';
+        // LibraryThing has one primary-author cell plus parallel secondary
+        // author/role lists. Keep every principal after the first as an
+        // unqualified secondary creator, and encode all other relational roles
+        // explicitly so an export/import cycle does not promote co-authors or
+        // discard contributors.
+        $principalAuthors = \App\Support\ContributorSync::splitNames((string) ($libro['autori_nomi'] ?? ''));
+        $primaryAuthor = array_shift($principalAuthors) ?? '';
+        $secondaryAuthors = $principalAuthors;
+        $secondaryAuthorRoles = array_fill(0, count($secondaryAuthors), '');
+        $roleSources = [
+            'Co-author' => (string) ($libro['coautori_nomi'] ?? ''),
+            'Translator' => (string) (($libro['traduttori_nomi'] ?? '') !== '' ? $libro['traduttori_nomi'] : ($libro['traduttore'] ?? '')),
+            'Illustrator' => (string) (($libro['illustratori_nomi'] ?? '') !== '' ? $libro['illustratori_nomi'] : ($libro['illustratore'] ?? '')),
+            'Editor' => (string) (($libro['curatori_nomi'] ?? '') !== '' ? $libro['curatori_nomi'] : ($libro['curatore'] ?? '')),
+            'Colorist' => (string) ($libro['coloristi_nomi'] ?? ''),
+        ];
+        foreach ($roleSources as $role => $rawNames) {
+            foreach (\App\Support\ContributorSync::splitNames($rawNames) as $name) {
+                $secondaryAuthors[] = $name;
+                $secondaryAuthorRoles[] = $role;
+            }
+        }
+        $secondaryAuthor = implode('; ', $secondaryAuthors);
+        $secondaryAuthorRole = implode('; ', $secondaryAuthorRoles);
 
         // Map formato to Media
         $formatoMap = [
@@ -3604,7 +3674,7 @@ class LibriController
             $primaryAuthor,                                        // Primary Author
             '',                                                    // Primary Author Role
             $secondaryAuthor,                                      // Secondary Author
-            '',                                                    // Secondary Author Roles
+            $secondaryAuthorRole,                                  // Secondary Author Roles
             $publication,                                          // Publication
             $anno,                                                 // Date
             $libro['review'] ?? '',                                // Review
