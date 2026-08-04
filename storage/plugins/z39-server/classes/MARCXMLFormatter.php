@@ -237,7 +237,10 @@ class MARCXMLFormatter extends RecordFormatter
                 : count($record['copies']);
             $availableCopies = isset($record['copie_disponibili'])
                 ? (int) $record['copie_disponibili']
-                : 0;
+                : count(array_filter(
+                    $record['copies'],
+                    static fn (array $copy): bool => ($copy['stato'] ?? '') === 'disponibile'
+                ));
 
             $recordEl->appendChild($this->createDataField('866', ' ', ' ', [
                 ['a', "Total copies: $totalCopies, Available: $availableCopies"]

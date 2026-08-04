@@ -482,6 +482,11 @@ class GenereRepository
                 $moveBooksPos = $this->db->prepare("UPDATE libri SET posizione_id = ? WHERE posizione_id = ?");
                 $dropPos = $this->db->prepare("DELETE FROM posizioni WHERE id = ?");
                 $repointPos = $this->db->prepare("UPDATE posizioni SET genere_id = ? WHERE id = ?");
+                // Fail the transaction cleanly instead of fataling on bind_param
+                // if any statement could not be prepared.
+                if ($findTargetPos === false || $moveBooksPos === false || $dropPos === false || $repointPos === false) {
+                    throw new \RuntimeException('Errore nella preparazione delle query sulle posizioni');
+                }
 
                 foreach ($positions as $pos) {
                     $posId = (int)$pos['id'];
@@ -511,6 +516,10 @@ class GenereRepository
                         }
                     }
                 }
+                $findTargetPos->close();
+                $moveBooksPos->close();
+                $dropPos->close();
+                $repointPos->close();
             }
 
             // mensole.genere_id is a plain RESTRICT FK with no unique on genere_id,

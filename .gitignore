@@ -615,3 +615,16 @@ graphify-out/
 /raw/
 public/sitemap.xml
 docs/prototypes/
+
+# ========================================
+# Editor / AI-tool & skill working artifacts — NEVER commit (local-only)
+# ========================================
+# Scratch/design output of local skills and assistant tooling. These are
+# developer-machine artifacts, not project source, and must never reach a remote.
+.impeccable/
+.code-review-graph/
+.playwright-mcp/
+.claude/
+.adams-reviews/
+.installed
+.installed.backup

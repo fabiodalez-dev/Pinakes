@@ -275,14 +275,20 @@ class MODSFormatter extends RecordFormatter
                 }
             }
 
-            // Summary note
-            $totalCopies = count($record['copies']);
-            $availableCopies = 0;
-            foreach ($record['copies'] as $copy) {
-                if (($copy['stato'] ?? '') === 'disponibile') {
-                    $availableCopies++;
-                }
-            }
+            // Summary note. Total/Available come from the canonical counters
+            // libri.copie_totali / libri.copie_disponibili (App\Support\Data
+            // Integrity), matching web + Mobile API + NCIP + MARCXML: they
+            // subtract active reservations / pending loans and exclude out-of-
+            // circulation copies. Fall back to raw row counts only when absent.
+            $totalCopies = isset($record['copie_totali'])
+                ? (int) $record['copie_totali']
+                : count($record['copies']);
+            $availableCopies = isset($record['copie_disponibili'])
+                ? (int) $record['copie_disponibili']
+                : count(array_filter(
+                    $record['copies'],
+                    static fn (array $copy): bool => ($copy['stato'] ?? '') === 'disponibile'
+                ));
 
             $note = $this->doc->createElement('note', $this->escapeXml("Total copies: $totalCopies, Available: $availableCopies"));
             $note->setAttribute('type', 'holdings');

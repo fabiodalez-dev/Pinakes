@@ -29,6 +29,7 @@ final class DescriptionText
         );
         $text = html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $text = str_replace("\xC2\xA0", ' ', (string) $text);
+        $text = str_replace("\r", '', (string) $text);
         $text = preg_replace("/[ \t]+/", ' ', (string) $text);
         $text = preg_replace("/\n{3,}/", "\n\n", (string) $text);
         return trim((string) $text);

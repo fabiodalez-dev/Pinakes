@@ -1457,9 +1457,13 @@ class LibriController
             $fields['copie_totali'] = 9999;
         }
 
-        // Validazione copie: verifica che sia possibile ridurre il numero di copie
+        // Validazione copie: verifica che sia possibile ridurre il numero di copie.
+        // Usa lo stesso conteggio "in circolazione" della gestione copie più sotto
+        // (e di libri.copie_totali via DataIntegrity): con il conteggio grezzo,
+        // un libro con copie fuori circolazione divergerebbe dalla logica reale e
+        // bloccherebbe il salvataggio con un messaggio errato.
         $copyRepo = new \App\Models\CopyRepository($db);
-        $currentCopieCount = $copyRepo->countByBookId($id);
+        $currentCopieCount = $copyRepo->countInCirculationByBookId($id);
         $newCopieCount = $fields['copie_totali'];
 
         if ($newCopieCount < $currentCopieCount) {
@@ -3577,13 +3581,8 @@ class LibriController
 
     private function normalizeDescriptionForCsv(string $html): string
     {
-        $text = preg_replace('/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)\b[^>]*|br\b[^>]*\/?)>/i', "\n", $html);
-        $text = html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = str_replace("\xC2\xA0", ' ', (string) $text);
-        $text = str_replace("\r", '', $text);
-        $text = (string) preg_replace("/[ \t]+/", ' ', $text);
-        $text = (string) preg_replace("/\n{3,}/", "\n\n", $text);
-        return trim($text);
+        // Single source of truth for HTML→plain description projection.
+        return (string) \App\Support\DescriptionText::toPlain($html);
     }
 
     /**
