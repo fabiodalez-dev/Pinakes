@@ -59,6 +59,19 @@ function dbScalar(sql) {
 function dbInt(sql) { const v = dbScalar(sql); return v === '' ? 0 : parseInt(v, 10); }
 function sqlStr(v) { return "'" + String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
 
+// Direct DB writes bypass SettingsRepository::set(), whose production write
+// path invalidates ConfigStore's cross-request cache. Keep test mutations
+// behaviorally equivalent so toggles are visible on the very next HTTP request.
+function clearConfigCache() {
+    const installRoot = process.env.E2E_INSTALL_ROOT || process.cwd();
+    const autoload = Buffer.from(`${installRoot}/vendor/autoload.php`).toString('base64');
+    execFileSync(
+        'php',
+        ['-r', `require base64_decode('${autoload}'); \\App\\Support\\ConfigStore::clearCache();`],
+        { encoding: 'utf-8', timeout: 15000, env: process.env }
+    );
+}
+
 // ─── Request helpers ─────────────────────────────────────────────────────────
 
 function headers(token, extra) {
@@ -185,6 +198,7 @@ test.beforeAll(async ({ request }) => {
         INSERT INTO system_settings (category, setting_key, setting_value)
         VALUES ('system', 'catalogue_mode', '0')
         ON DUPLICATE KEY UPDATE setting_value = '0'`);
+    clearConfigCache();
 
     // 1) Admin token via the API.
     const login = await call(request, 'POST', '/auth/login', {
@@ -285,6 +299,7 @@ test.afterAll(async () => {
         } else {
             dbExec("DELETE FROM system_settings WHERE category = 'system' AND setting_key = 'catalogue_mode'");
         }
+        clearConfigCache();
     } catch {}
 });
 
@@ -305,6 +320,7 @@ test.describe('Health & discovery', () => {
     test('2) features.loans/reservations/wishlist all true when not in catalogue mode', async ({ request }) => {
         // Ensure catalogue mode is off for this assertion.
         dbExec("UPDATE system_settings SET setting_value = '0' WHERE category = 'system' AND setting_key = 'catalogue_mode'");
+        clearConfigCache();
         const j = await jsonOf(await call(request, 'GET', '/health'));
         expect(j.data.catalogue_mode).toBe(false);
         expect(j.data.features.loans).toBe(true);
@@ -325,6 +341,7 @@ test.describe('Health & discovery', () => {
                 INSERT INTO system_settings (category, setting_key, setting_value)
                 VALUES ('system','catalogue_mode','1')
                 ON DUPLICATE KEY UPDATE setting_value = '1'`);
+            clearConfigCache();
             const on = await jsonOf(await call(request, 'GET', '/health'));
             expect(on.data.catalogue_mode, 'catalogue_mode true when on').toBe(true);
             expect(on.data.features.loans, 'loans gated off in catalogue mode').toBe(false);
@@ -333,6 +350,7 @@ test.describe('Health & discovery', () => {
         } finally {
             // Restore and confirm loans is re-enabled.
             dbExec("UPDATE system_settings SET setting_value = '0' WHERE category = 'system' AND setting_key = 'catalogue_mode'");
+            clearConfigCache();
         }
         const off = await jsonOf(await call(request, 'GET', '/health'));
         expect(off.data.catalogue_mode, 'catalogue_mode restored false').toBe(false);
