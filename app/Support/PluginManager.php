@@ -1739,8 +1739,23 @@ class PluginManager
             return null;
         }
         $stmt->bind_param(str_repeat('i', count($pluginIds)), ...$pluginIds);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            SecureLogger::error('[PluginManager] fetchHooksForPlugins execute failed', [
+                'stmt_error' => $stmt->error,
+                'plugin_count' => count($pluginIds),
+            ]);
+            $stmt->close();
+            return null;
+        }
         $result = $stmt->get_result();
+        if (!$result instanceof \mysqli_result) {
+            SecureLogger::error('[PluginManager] fetchHooksForPlugins get_result failed', [
+                'stmt_error' => $stmt->error,
+                'plugin_count' => count($pluginIds),
+            ]);
+            $stmt->close();
+            return null;
+        }
 
         $hooksByPlugin = [];
         while ($row = $result->fetch_assoc()) {

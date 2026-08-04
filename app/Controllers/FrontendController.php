@@ -435,18 +435,18 @@ class FrontendController
         //
         // When the flag is absent the field stays null; home.php's JS falls back
         // to total_books, but only the search path (which never requests stats)
-        // ever sees that fallback. When the flag IS passed the value is the real
-        // count, or null only on a genuine DB failure (never a misleading 0):
-        // the failure is logged instead of silently masked.
+        // ever sees that fallback. When the flag IS passed, database failures are
+        // logged and cached as 0 so the same failing aggregate is not retried on
+        // every request until the short cache entry expires.
         $available_books = null;
         if (($params['with_stats'] ?? '') === '1') {
             $availabilityLoader = function () use ($db, $base_query, $param_types, $query_params) {
                 $available_stmt = $db->prepare("SELECT COUNT(DISTINCT l.id) as total " . $base_query . " AND l.copie_disponibili > 0");
                 if ($available_stmt === false) {
                     \App\Support\SecureLogger::error('Available-books count prepare failed', ['db_error' => $db->error]);
-                    return null;
+                    return 0;
                 }
-                $available_books = null;
+                $available_books = 0;
                 if (!empty($query_params)) {
                     $available_stmt->bind_param($param_types, ...$query_params);
                 }

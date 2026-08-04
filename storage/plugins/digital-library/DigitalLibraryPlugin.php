@@ -60,16 +60,30 @@ class DigitalLibraryPlugin
 
         $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM plugin_hooks WHERE plugin_id = ?");
         if ($stmt === false) {
+            \App\Support\SecureLogger::error('[Digital Library] Hook self-heal count prepare failed', [
+                'db_error' => $this->db->error,
+            ]);
             return;
         }
 
         $stmt->bind_param('i', $this->pluginId);
         if ($stmt->execute()) {
             $result = $stmt->get_result();
-            $row = $result ? $result->fetch_assoc() : null;
+            if (!$result instanceof \mysqli_result) {
+                \App\Support\SecureLogger::error('[Digital Library] Hook self-heal count get_result failed', [
+                    'stmt_error' => $stmt->error,
+                ]);
+                $stmt->close();
+                return;
+            }
+            $row = $result->fetch_assoc();
             if ((int)($row['total'] ?? 0) === 0) {
                 $this->registerHooks();
             }
+        } else {
+            \App\Support\SecureLogger::error('[Digital Library] Hook self-heal count execute failed', [
+                'stmt_error' => $stmt->error,
+            ]);
         }
         $stmt->close();
     }
@@ -224,15 +238,22 @@ class DigitalLibraryPlugin
             ]
         ];
 
-        // All-or-nothing: a partial hook set would look "healthy" to
-        // ensureHooksRegistered() (count > 0) and never self-repair, so the
-        // upserts run in one transaction and any failure rolls back and
-        // rethrows (per storage/plugins hook-registration guidelines).
-        $this->db->begin_transaction();
+        // Participate in a caller transaction without committing it. The
+        // savepoint keeps this hook set atomic even if the caller catches the
+        // propagated exception; otherwise this method owns the transaction.
+        $ownsTransaction = !$this->hasActiveTransaction();
+        $savepoint = 'pinakes_digital_hooks_' . $this->pluginId;
+        if ($ownsTransaction) {
+            if (!$this->db->begin_transaction()) {
+                throw new \RuntimeException('Unable to begin Digital Library hook transaction');
+            }
+        } elseif (!$this->db->query("SAVEPOINT {$savepoint}")) {
+            throw new \RuntimeException('Unable to create Digital Library hook savepoint');
+        }
         try {
             foreach ($hooks as $hook) {
                 // Atomic upsert — relies on UNIQUE KEY uk_plugin_hook_callback
-                // (plugin_id, hook_name, callback_class, callback_method)
+                // (plugin_id, hook_name, callback_method)
                 $stmt = $this->db->prepare("
                     INSERT INTO plugin_hooks
                     (plugin_id, hook_name, callback_class, callback_method, priority, is_active)
@@ -260,13 +281,58 @@ class DigitalLibraryPlugin
                 }
                 $stmt->close();
             }
-            $this->db->commit();
+            if ($ownsTransaction) {
+                $this->db->commit();
+            } else {
+                $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+            }
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            if ($ownsTransaction) {
+                $this->db->rollback();
+            } else {
+                $this->db->query("ROLLBACK TO SAVEPOINT {$savepoint}");
+                $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+            }
             \App\Support\SecureLogger::error('[Digital Library] Hook registration failed, rolled back', [
                 'error' => $e->getMessage(),
             ]);
             throw $e;
+        }
+    }
+
+    /**
+     * Detect both autocommit(false) and an explicit begin_transaction().
+     * The latter leaves @@autocommit at 1, so a disposable savepoint probe is
+     * required to avoid silently committing the caller's transaction.
+     */
+    private function hasActiveTransaction(): bool
+    {
+        $db = $this->db;
+        if ($db === null) {
+            return false;
+        }
+
+        $result = $db->query('SELECT @@autocommit AS ac');
+        if ($result instanceof \mysqli_result) {
+            $row = $result->fetch_assoc();
+            $result->free();
+            if ((int)($row['ac'] ?? 1) === 0) {
+                return true;
+            }
+        }
+
+        $probe = 'pinakes_digital_hooks_probe';
+        try {
+            if (!$db->query("SAVEPOINT {$probe}")) {
+                return false;
+            }
+            if (!$db->query("ROLLBACK TO SAVEPOINT {$probe}")) {
+                return false;
+            }
+            $db->query("RELEASE SAVEPOINT {$probe}");
+            return true;
+        } catch (\mysqli_sql_exception) {
+            return false;
         }
     }
 

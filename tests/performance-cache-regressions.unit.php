@@ -24,6 +24,34 @@ $read = static function (string $relative): string {
     return $contents;
 };
 
+/**
+ * Assert that every literal cache-key family in a producer belongs to the
+ * namespace cleared by its invalidator. Reuse this for future cache families.
+ */
+$checkCacheNamespace = static function (
+    string $producer,
+    string $keyFamily,
+    string $namespace,
+    string $invalidator,
+    string $label
+) use ($check): void {
+    preg_match_all(
+        "/QueryCache::remember\\(\\s*'([^']*" . preg_quote($keyFamily, '/') . "[^']*)'/",
+        $producer,
+        $matches
+    );
+    $keys = $matches[1] ?? [];
+    $check($keys !== [], "{$label} cache keys are discoverable");
+    $check(
+        $keys !== [] && count(array_filter($keys, static fn(string $key): bool => str_starts_with($key, $namespace))) === count($keys),
+        "{$label} keys use the {$namespace} namespace"
+    );
+    $check(
+        str_contains($invalidator, "QueryCache::clearByPrefix('{$namespace}')"),
+        "{$label} invalidator clears the {$namespace} namespace"
+    );
+};
+
 echo "Catalogue cache cardinality:\n";
 $controller = new \App\Controllers\FrontendController();
 $reflection = new ReflectionClass($controller);
@@ -57,6 +85,15 @@ foreach ([
 }
 $frontend = $read('app/Controllers/FrontendController.php');
 $check(!str_contains($frontend, 'QueryCache::remember($cacheKeyGeneri'), 'genre query has no second unbounded per-filter cache');
+$availabilityStart = strpos($frontend, '$availabilityLoader = function');
+$availabilityEnd = strpos($frontend, '$available_books = $this->rememberCatalogValue', $availabilityStart ?: 0);
+$availabilityBody = $availabilityStart !== false && $availabilityEnd !== false
+    ? substr($frontend, $availabilityStart, $availabilityEnd - $availabilityStart)
+    : '';
+$check(
+    str_contains($availabilityBody, 'return 0;') && str_contains($availabilityBody, '$available_books = 0;'),
+    'available-book DB failures return a cacheable zero instead of repeated null misses'
+);
 
 echo "\nInvalidation coverage and transaction boundary:\n";
 $cms = $read('app/Controllers/CmsController.php');
@@ -71,6 +108,7 @@ $check(str_contains($reorderBody, 'ContentCache::homeContentChanged()'), 'home r
 $check(str_contains($toggleBody, 'ContentCache::homeContentChanged()'), 'home visibility toggle invalidates cached visibility');
 
 $contentCache = $read('app/Support/ContentCache.php');
+$checkCacheNamespace($frontend, 'home_api_count_', 'home_', $contentCache, 'home API counts');
 $check(str_contains($contentCache, 'function deferBooksChanged'), 'transaction-owned writers can defer invalidation');
 $integrity = $read('app/Support/DataIntegrity.php');
 $check(str_contains($integrity, 'ContentCache::deferBooksChanged()'), 'DataIntegrity defers invalidation for outer transactions');
@@ -87,6 +125,12 @@ foreach ([
 ] as $writer) {
     $check(str_contains($read($writer), 'ContentCache::'), "{$writer} invalidates dependent public data");
 }
+$bulkEnrichment = $read('app/Services/BulkEnrichmentService.php');
+$check(
+    str_contains($bulkEnrichment, 'ContentCache::deferBooksChanged()')
+        && !str_contains($bulkEnrichment, 'ContentCache::booksChanged()'),
+    'bulk enrichment collapses repeated cache invalidations into one deferred sweep'
+);
 
 echo "\nPlugin hook prefetch ordering:\n";
 $pluginManager = $read('app/Support/PluginManager.php');
@@ -101,6 +145,31 @@ $check(
     $instantiateAt !== false && $fetchAt !== false && $instantiateAt < $fetchAt,
     'plugin self-heal runs before hook rows are fetched and cached'
 );
+$check(
+    str_contains($pluginManager, 'if (!$stmt->execute())')
+        && str_contains($pluginManager, 'fetchHooksForPlugins execute failed')
+        && str_contains($pluginManager, 'fetchHooksForPlugins get_result failed'),
+    'bulk hook prefetch falls back safely on execute/get_result failures'
+);
+
+$pluginContracts = [
+    'Digital Library' => 'storage/plugins/digital-library/DigitalLibraryPlugin.php',
+    'GoodLib' => 'storage/plugins/goodlib/GoodLibPlugin.php',
+];
+foreach ($pluginContracts as $label => $path) {
+    $pluginSource = $read($path);
+    $check(
+        str_contains($pluginSource, 'Hook self-heal count prepare failed')
+            && str_contains($pluginSource, 'Hook self-heal count execute failed'),
+        "{$label} reports self-heal count failures"
+    );
+    $check(
+        str_contains($pluginSource, 'hasActiveTransaction()')
+            && str_contains($pluginSource, 'if ($ownsTransaction)')
+            && str_contains($pluginSource, 'SAVEPOINT'),
+        "{$label} preserves caller transactions with an owned/savepoint scope"
+    );
+}
 
 echo "\n================================\n";
 echo "Passed: {$passed}   Failed: {$failed}\n";

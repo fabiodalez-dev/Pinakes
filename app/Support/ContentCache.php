@@ -16,7 +16,8 @@ final class ContentCache
 
     /**
      * A book (or its availability) changed: clear catalog counts/facets,
-     * the home dataset and the cached genre tree.
+     * every home entry (home_page_data_v1 and home_api_count_*), and the
+     * cached genre tree.
      */
     public static function booksChanged(): void
     {
