@@ -95,7 +95,11 @@ class PrestitiController
             if (!$row) {
                 return null;
             }
-            $row['label'] = full_name($row['nome'] ?? '', $row['cognome'] ?? '') . ' (' . $row['codice_tessera'] . ')';
+            // The "Me" button targets staff/admin, who often have no library
+            // card — only append " (code)" when a card number is actually set,
+            // otherwise the label reads "Name Surname ()".
+            $row['label'] = full_name($row['nome'] ?? '', $row['cognome'] ?? '')
+                . (!empty($row['codice_tessera']) ? ' (' . $row['codice_tessera'] . ')' : '');
             return $row;
         };
 
