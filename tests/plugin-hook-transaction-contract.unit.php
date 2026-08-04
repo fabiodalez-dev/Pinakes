@@ -172,6 +172,7 @@ $verifyPluginContract = static function (array $case) use (
     } finally {
         $db->rollback();
         $db->autocommit(true);
+        $deleteHooks($db, $pluginId);
         $stmt = $db->prepare('DELETE FROM plugins WHERE id = ?');
         $stmt->bind_param('i', $pluginId);
         $stmt->execute();

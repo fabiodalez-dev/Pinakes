@@ -304,6 +304,12 @@ class DigitalLibraryPlugin
      * Detect both autocommit(false) and an explicit begin_transaction().
      * The latter leaves @@autocommit at 1, so a disposable savepoint probe is
      * required to avoid silently committing the caller's transaction.
+     *
+     * Contract: a caller that disables autocommit owns the resulting unit of
+     * work and must eventually commit or roll it back. Core bootstrap keeps
+     * autocommit enabled, so standalone self-heal still owns and commits its
+     * transaction; committing an autocommit(false) session here would instead
+     * violate deliberate caller transaction boundaries.
      */
     private function hasActiveTransaction(): bool
     {
@@ -322,17 +328,27 @@ class DigitalLibraryPlugin
         }
 
         $probe = 'pinakes_digital_hooks_probe';
+        $probeCreated = false;
         try {
             if (!$db->query("SAVEPOINT {$probe}")) {
                 return false;
             }
+            $probeCreated = true;
             if (!$db->query("ROLLBACK TO SAVEPOINT {$probe}")) {
                 return false;
             }
-            $db->query("RELEASE SAVEPOINT {$probe}");
             return true;
         } catch (\mysqli_sql_exception) {
             return false;
+        } finally {
+            if ($probeCreated) {
+                try {
+                    $db->query("RELEASE SAVEPOINT {$probe}");
+                } catch (\mysqli_sql_exception) {
+                    // In autocommit mode SAVEPOINT may not persist. Cleanup was
+                    // still attempted; there is no caller transaction to alter.
+                }
+            }
         }
     }
 
