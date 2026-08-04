@@ -29,7 +29,7 @@ $statusBadgeClass = $statusClasses[$status] ?? 'inline-flex items-center gap-2 r
 
 $btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700';
 $btnGhost   = 'inline-flex items-center gap-2 rounded-lg border-2 border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100';
-$btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500';
+$btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700';
 
 ?>
 
@@ -640,7 +640,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
             <?php if ($isSafeUrl($libro['file_url'] ?? null)): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("File") ?></dt>
-              <dd><a class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-800 text-white hover:bg-gray-700 transition-colors" href="<?php echo htmlspecialchars($normalizeHref((string) $libro['file_url']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-file-alt"></i> <?= __("Apri") ?></a></dd>
+              <dd><a class="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors" href="<?php echo htmlspecialchars($normalizeHref((string) $libro['file_url']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-file-alt"></i> <?= __("Apri") ?></a></dd>
             </div>
             <?php endif; ?>
             <?php if ($isSafeUrl($libro['audio_url'] ?? null)): ?>
@@ -650,7 +650,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                 <button type="button" id="btn-admin-audio-toggle"
                   aria-controls="admin-audio-player"
                   aria-expanded="false"
-                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-800 text-white hover:bg-gray-700 transition-colors">
+                  class="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors">
                   <i class="fas fa-headphones"></i> <span><?= __("Ascolta") ?></span>
                 </button>
                 <div id="admin-audio-player" class="hidden mt-2">

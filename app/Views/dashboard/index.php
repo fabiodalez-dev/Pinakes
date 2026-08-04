@@ -261,7 +261,7 @@ $applicationToday = \App\Support\DateHelper::today();
               </div>
               <div class="px-5 pb-5">
                 <?php if ($isExpired): ?>
-                  <button type="button" class="inline-flex items-center justify-center w-full bg-red-600 hover:bg-red-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors cancel-pickup-btn" data-loan-id="<?= (int)$loan['id']; ?>">
+                  <button type="button" class="inline-flex items-center justify-center w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors cancel-pickup-btn" data-loan-id="<?= (int)$loan['id']; ?>">
                     <i class="fas fa-times mr-2"></i><?= __("Annulla Prestito Scaduto") ?>
                   </button>
                 <?php else: ?>
@@ -364,7 +364,7 @@ $applicationToday = \App\Support\DateHelper::today();
                   <button type="button" class="inline-flex items-center justify-center flex-1 bg-gray-800 hover:bg-gray-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors approve-btn" data-loan-id="<?= (int)$loan['id']; ?>">
                     <i class="fas fa-check mr-2"></i><?= __("Approva") ?>
                   </button>
-                  <button type="button" class="inline-flex items-center justify-center flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors reject-btn" data-loan-id="<?= (int)$loan['id']; ?>">
+                  <button type="button" class="inline-flex items-center justify-center flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors reject-btn" data-loan-id="<?= (int)$loan['id']; ?>">
                     <i class="fas fa-times mr-2"></i><?= __("Rifiuta") ?>
                   </button>
                 </div>

@@ -152,7 +152,7 @@ $hasGithubToken ??= false;
                             <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
                         </button>
                         <?php if ($hasGithubToken): ?>
-                        <button type="button" onclick="removeGitHubToken()" aria-label="<?= __("Rimuovi token GitHub") ?>" title="<?= __("Rimuovi token GitHub") ?>" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 transition-colors text-sm">
+                        <button type="button" onclick="removeGitHubToken()" aria-label="<?= __("Rimuovi token GitHub") ?>" title="<?= __("Rimuovi token GitHub") ?>" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
                             <i class="fas fa-trash mr-1"></i>
                         </button>
                         <?php endif; ?>
@@ -258,7 +258,7 @@ $hasGithubToken ??= false;
                         <input type="file" id="restoreFileInput" accept=".zip"
                             class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
                         <button onclick="uploadRestoreFile()"
-                            class="mt-3 w-full inline-flex items-center justify-center px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-500 transition-all duration-200">
+                            class="mt-3 w-full inline-flex items-center justify-center px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200">
                             <i class="fas fa-upload mr-2"></i>
                             <?= __("Carica e Ripristina") ?>
                         </button>

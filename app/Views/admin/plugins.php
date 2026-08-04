@@ -239,7 +239,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                 <?php endif; ?>
                                 <?php if ($isApiBookScraper): ?>
                                     <button type="button"
-                                        class="px-4 py-2 <?= $hasApiConfig ? 'bg-gray-100 text-gray-900 border border-gray-300 hover:bg-gray-200' : 'bg-gray-100 text-gray-900 border border-gray-300 hover:bg-gray-200' ?> rounded-lg transition-all duration-200 text-sm font-medium"
+                                        class="px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 hover:bg-gray-200 rounded-lg transition-all duration-200 text-sm font-medium"
                                         data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                         data-plugin-type="api-book-scraper" data-has-config="<?= $hasApiConfig ? '1' : '0' ?>"
@@ -332,7 +332,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                     data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                     aria-label="<?= HtmlHelper::e(__('Disinstalla plugin')) ?>"
                                     onclick="uninstallPlugin(this.dataset.pluginId, this.dataset.pluginName)"
-                                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 transition-all duration-200 text-sm font-medium">
+                                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 text-sm font-medium">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
