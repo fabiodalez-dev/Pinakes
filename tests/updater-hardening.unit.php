@@ -71,6 +71,20 @@ $check($sha('sha256:' . str_repeat('a', 64)) === false, 'still-prefixed value =>
 $check($sha(str_repeat('a', 63) . 'g') === false, 'non-hex char => false');
 
 // ---------------------------------------------------------------------------
+echo "extractFinalHttpStatus() — redirect-chain status\n";
+// ---------------------------------------------------------------------------
+
+$extractStatus = $ref->getMethod('extractFinalHttpStatus');
+$extractStatus->setAccessible(true);
+$status = static fn(array $headers): int => (int) $extractStatus->invoke($updater, $headers);
+
+$check($status(['HTTP/1.1 302 Found', 'Location: /asset', 'HTTP/1.1 200 OK']) === 200,
+    'redirect followed by success => final 200');
+$check($status(['HTTP/1.1 302 Found', 'Location: /asset', 'HTTP/1.1 500 Internal Server Error']) === 500,
+    'redirect followed by failure => final 500');
+$check($status([]) === 0, 'missing response status => 0 (fail closed)');
+
+// ---------------------------------------------------------------------------
 echo "fetchVerifiedReleaseAsset() — behavioral, offline (injected canned data)\n";
 // ---------------------------------------------------------------------------
 

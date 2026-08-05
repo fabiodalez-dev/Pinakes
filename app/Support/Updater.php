@@ -4425,21 +4425,16 @@ class Updater
 
         [$content, $responseHeaders] = $this->httpGetWithHeaders($url, $context);
 
-        // Check HTTP status from response headers.
-        if (!empty($responseHeaders)) {
-            foreach ($responseHeaders as $header) {
-                if (preg_match('/HTTP\/\d\.\d\s+(\d+)/', $header, $matches)) {
-                    $httpCode = (int) $matches[1];
-                    if ($httpCode === 404) {
-                        return null;
-                    }
-                    if ($httpCode === 403) {
-                        $this->debugLog('WARNING', 'Download patch negato (403)', ['url' => $url]);
-                        return null;
-                    }
-                    break;
-                }
-            }
+        $httpCode = $this->extractFinalHttpStatus($responseHeaders);
+        if ($httpCode === 404) {
+            return null;
+        }
+        if ($httpCode === 403) {
+            $this->debugLog('WARNING', 'Download patch negato (403)', ['url' => $url]);
+            return null;
+        }
+        if ($httpCode < 200 || $httpCode >= 300) {
+            return null;
         }
 
         return $content !== false ? $content : null;
