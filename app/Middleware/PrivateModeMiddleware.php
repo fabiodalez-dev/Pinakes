@@ -58,13 +58,16 @@ class PrivateModeMiddleware implements MiddlewareInterface
     ];
 
     /**
-     * API prefixes whose routes enforce their OWN authentication (e.g. an API
-     * key validated by ApiKeyMiddleware). Private mode must not pre-empt them
-     * with a blanket 401 before that check runs — a missing/invalid key is
-     * still rejected downstream by the route's own middleware.
+     * API surfaces that enforce their OWN access policy.
+     *
+     * `/api/public` validates API keys, while `/api/v1` deliberately exposes
+     * discovery/auth routes and protects the remaining Mobile API routes with
+     * bearer-token middleware. Private mode must not pre-empt either surface
+     * with its web-session 401 before those policies run.
      */
-    private const API_KEY_PROTECTED_PREFIXES = [
-        '/api/public/',
+    private const SELF_AUTHENTICATING_API_PREFIXES = [
+        '/api/public',
+        '/api/v1',
     ];
 
     public function process(Request $request, RequestHandler $handler): Response
@@ -111,10 +114,10 @@ class PrivateModeMiddleware implements MiddlewareInterface
 
     private function isAllowed(string $path): bool
     {
-        // API endpoints that gate themselves with an API key: defer to their
-        // own middleware instead of pre-empting with a session-based 401.
-        foreach (self::API_KEY_PROTECTED_PREFIXES as $prefix) {
-            if (str_starts_with($path, $prefix)) {
+        // API surfaces with their own public/authenticated route policy: defer
+        // to that policy instead of pre-empting with a web-session-based 401.
+        foreach (self::SELF_AUTHENTICATING_API_PREFIXES as $prefix) {
+            if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
                 return true;
             }
         }
