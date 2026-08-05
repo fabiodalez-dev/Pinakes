@@ -78,5 +78,25 @@ $check(($classified['illustrators'] ?? []) === ['Illustrator Person'], 'illustra
 $check(($classified['curators'] ?? []) === ['Editor Person'], 'editor role decodes as curator');
 $check(($classified['colorists'] ?? []) === ['Color Person'], 'colorist role decodes independently');
 
+$parseLibraryThing = $libraryThingReflection->getMethod('parseLibraryThingRow');
+$clearedRoles = $parseLibraryThing->invoke($libraryThing, [
+    'Book Id' => '1',
+    'Title' => 'Roles removed upstream',
+    'Primary Author' => 'Primary Person',
+    'Secondary Author' => '',
+    'Secondary Author Roles' => '',
+]);
+foreach (['co_autori', 'traduttore', 'illustratore', 'curatore', 'colorista'] as $field) {
+    $check(array_key_exists($field, $clearedRoles) && $clearedRoles[$field] === null,
+        "present LibraryThing role column authoritatively clears {$field}");
+}
+$legacyRoles = $parseLibraryThing->invoke($libraryThing, [
+    'Book Id' => '2',
+    'Title' => 'Legacy row without roles',
+    'Primary Author' => 'Primary Person',
+]);
+$check(!array_key_exists('traduttore', $legacyRoles) && !array_key_exists('illustratore', $legacyRoles),
+    'legacy LibraryThing rows without the role column preserve existing contributors');
+
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

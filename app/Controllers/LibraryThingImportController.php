@@ -921,8 +921,25 @@ class LibraryThingImportController
         // Subtitle (LibraryThing doesn't export subtitles, leave empty)
         $result['sottotitolo'] = '';
 
-        // Authors (combine primary and secondary, normalize names)
+        // Authors (combine primary and secondary, normalize names). When the
+        // LibraryThing role column is present, every supported contributor role
+        // is authoritative even if empty: passing null through to
+        // ContributorSync removes stale links previously owned by this importer
+        // while preserving untracked/manual links. Older files without the role
+        // column keep the historical non-destructive behaviour.
         $authors = [];
+        $secondaryRoleFields = [
+            'coauthors' => 'co_autori',
+            'translators' => 'traduttore',
+            'illustrators' => 'illustratore',
+            'curators' => 'curatore',
+            'colorists' => 'colorista',
+        ];
+        if (array_key_exists('Secondary Author Roles', $data)) {
+            foreach ($secondaryRoleFields as $field) {
+                $result[$field] = null;
+            }
+        }
         if (!empty($data['Primary Author'])) {
             $authors[] = \App\Support\AuthorNormalizer::normalize(trim($data['Primary Author']));
         }
@@ -936,13 +953,7 @@ class LibraryThingImportController
                     $authors[] = $secondaryAuthor;
                 }
             }
-            foreach ([
-                'coauthors' => 'co_autori',
-                'translators' => 'traduttore',
-                'illustrators' => 'illustratore',
-                'curators' => 'curatore',
-                'colorists' => 'colorista',
-            ] as $bucket => $field) {
+            foreach ($secondaryRoleFields as $bucket => $field) {
                 if ($secondaryContributors[$bucket] !== []) {
                     $result[$field] = implode('; ', $secondaryContributors[$bucket]);
                 }
