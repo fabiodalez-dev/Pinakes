@@ -1549,6 +1549,30 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         return $response->withHeader('Content-Type', 'text/html');
     }
 
+    /**
+     * Public publisher page by ID — mirrors authorArchiveById(). The header search
+     * links a publisher result to /editore/{id}, but only the by-name route existed,
+     * so /editore/5 matched the {name} route with name="5", found no publisher named
+     * "5" and 404'd. Resolve the id to the publisher name and delegate to
+     * publisherArchive(), which aggregates same-named publishers and renders the
+     * shared frontend/archive.php — the same layout as the author page.
+     */
+    public function publisherArchiveById(Request $request, Response $response, mysqli $db, int $publisherId): Response
+    {
+        $stmt = $db->prepare("SELECT nome FROM editori WHERE id = ? LIMIT 1");
+        $stmt->bind_param('i', $publisherId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) {
+            return $this->render404($response);
+        }
+
+        // publisherArchive() urldecode()s its argument, so hand it an encoded name.
+        return $this->publisherArchive($request, $response, $db, rawurlencode((string) $row['nome']));
+    }
+
     public function bookDetailSEO(Request $request, Response $response, mysqli $db, int $id, string $slug = ''): Response
     {
         // Richiama il metodo esistente modificando i parametri della query

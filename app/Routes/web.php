@@ -2525,7 +2525,19 @@ return function (App $app): void {
         });
     }
 
-    // Publisher archive page (all language variants)
+    // Publisher archive page by ID (all language variants) — registered BEFORE the
+    // by-name route so /editore/{id} (the URL the header search builds) matches the
+    // numeric variant instead of the {name} route with name="5" (which 404'd).
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('publisher', $locale) . '/{id:\d+}', function ($request, $response, $args) use ($app) {
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
+            return $controller->publisherArchiveById($request, $response, $db, (int) $args['id']);
+        });
+    }
+
+    // Publisher archive page by name (all language variants)
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('publisher', $locale) . '/{name}', function ($request, $response, $args) use ($app) {
             $container = $app->getContainer();
