@@ -442,6 +442,36 @@ class Updater
      * Extract final HTTP status code from response headers (handles redirects).
      * @param array<int, string> $headers
      */
+    /**
+     * GET a URL through the HTTP stream wrapper, returning [body, responseHeaders].
+     *
+     * Reads response headers from stream_get_meta_data()['wrapper_data'] instead
+     * of the $http_response_header magic variable, which PHP 8.5 deprecates — the
+     * notice fires the moment the engine populates the variable when a function
+     * references it, even in an unexecuted branch, and the only notice-free access
+     * form (`$http_response_header ?? …`) trips PHPStan's nullCoalesce.variable.
+     * wrapper_data carries the same header lines (including redirect hops) on every
+     * supported PHP version, with no notice and no static-analysis false positive.
+     *
+     * Every caller passes a context with 'ignore_errors' => true, so fopen() still
+     * returns a handle (and headers) on 4xx/5xx instead of failing, matching the
+     * old @file_get_contents behaviour.
+     *
+     * @param resource $context
+     * @return array{0: string|false, 1: array<int, string>}
+     */
+    private function httpGetWithHeaders(string $url, $context): array
+    {
+        $handle = @fopen($url, 'rb', false, $context);
+        if ($handle === false) {
+            return [false, []];
+        }
+        $wrapperData = stream_get_meta_data($handle)['wrapper_data'] ?? [];
+        $body = stream_get_contents($handle);
+        fclose($handle);
+        return [$body, is_array($wrapperData) ? $wrapperData : []];
+    }
+
     private function extractFinalHttpStatus(array $headers): int
     {
         for ($i = count($headers) - 1; $i >= 0; $i--) {
@@ -746,15 +776,9 @@ class Updater
             'timeout' => 30
         ]);
 
-        // Capture response headers
-        $responseHeaders = [];
-        $response = @file_get_contents($url, false, $context);
-
-        // Get response headers from $http_response_header (magic variable set by file_get_contents)
-        /** @var array<int, string> $http_response_header */
-        if (!empty($http_response_header)) {
-            $responseHeaders = $http_response_header;
-        }
+        // Fetch body + response headers without the $http_response_header magic
+        // variable (deprecated in PHP 8.5) — see httpGetWithHeaders().
+        [$response, $responseHeaders] = $this->httpGetWithHeaders($url, $context);
 
         $this->debugLog('DEBUG', 'Risposta HTTP ricevuta', [
             'response_length' => $response !== false ? strlen($response) : 0,
@@ -1062,11 +1086,10 @@ class Updater
                 ]
             ]);
 
-            $response = @file_get_contents($url, false, $context);
+            [$response, $responseHeaders] = $this->httpGetWithHeaders($url, $context);
 
             // Retry without token on auth failure
-            /** @var array<int, string> $http_response_header */
-            $status = $this->extractFinalHttpStatus($http_response_header);
+            $status = $this->extractFinalHttpStatus($responseHeaders);
             if (in_array($status, [401, 403], true) && $this->githubToken !== '') {
                 $savedToken = $this->githubToken;
                 $this->githubToken = '';
@@ -1282,19 +1305,16 @@ class Updater
                     ]
                 ]);
 
-                $fileContent = @file_get_contents($downloadUrl, false, $context);
+                [$fileContent, $responseHeaders] = $this->httpGetWithHeaders($downloadUrl, $context);
 
-                // Log response headers (magic variable set by file_get_contents)
-                /** @var array<int, string> $http_response_header */
-                if (!empty($http_response_header)) {
+                if (!empty($responseHeaders)) {
                     $this->debugLog('DEBUG', 'Response headers download', [
-                        'headers' => $http_response_header
+                        'headers' => $responseHeaders
                     ]);
                 }
 
                 // Retry without token on auth failure
-                /** @var array<int, string> $http_response_header */
-                $dlStatus = $this->extractFinalHttpStatus($http_response_header);
+                $dlStatus = $this->extractFinalHttpStatus($responseHeaders);
                 if (in_array($dlStatus, [401, 403], true) && $this->githubToken !== '') {
                     $savedToken = $this->githubToken;
                     $this->githubToken = '';
@@ -1308,9 +1328,8 @@ class Updater
                                 'ignore_errors' => true
                             ]
                         ]);
-                        $retryContent = @file_get_contents($downloadUrl, false, $context);
-                        /** @var array<int, string> $http_response_header */
-                        $retryStatus = $this->extractFinalHttpStatus($http_response_header);
+                        [$retryContent, $retryHeaders] = $this->httpGetWithHeaders($downloadUrl, $context);
+                        $retryStatus = $this->extractFinalHttpStatus($retryHeaders);
                         $fileContent = ($retryContent !== false && $retryStatus >= 200 && $retryStatus < 400)
                             ? $retryContent
                             : false;
@@ -4404,12 +4423,11 @@ class Updater
             ]
         ]);
 
-        $content = @file_get_contents($url, false, $context);
+        [$content, $responseHeaders] = $this->httpGetWithHeaders($url, $context);
 
-        // Check HTTP status from response headers (magic variable set by file_get_contents)
-        /** @var array<int, string> $http_response_header */
-        if (!empty($http_response_header)) {
-            foreach ($http_response_header as $header) {
+        // Check HTTP status from response headers.
+        if (!empty($responseHeaders)) {
+            foreach ($responseHeaders as $header) {
                 if (preg_match('/HTTP\/\d\.\d\s+(\d+)/', $header, $matches)) {
                     $httpCode = (int) $matches[1];
                     if ($httpCode === 404) {
