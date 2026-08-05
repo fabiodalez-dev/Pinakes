@@ -293,18 +293,28 @@ class LanguagesController
         try {
             $languageModel->delete($code);
 
-            // Optionally delete translation file(s): the shipped base and the
-            // admin override, so a deleted language leaves no lingering override
-            // that would resurface if the same code is re-added later.
+            // Delete both translation files: the shipped base and the admin
+            // override, so a deleted language leaves no lingering override that
+            // would resurface if the same code is re-added later. The DB record is
+            // already gone, so a failed unlink cannot be rolled back — surface it
+            // as a warning (never a silent success) instead of claiming the files
+            // are cleaned up when a residual file could resurrect stale strings.
+            $residual = [];
             foreach ([$this->getLocaleFilePath($code), $this->getOverrideFilePath($code)] as $translationFile) {
                 if (file_exists($translationFile)) {
-                    // Backup before deleting
                     copy($translationFile, $translationFile . '.deleted.' . time());
-                    unlink($translationFile);
+                    if (!unlink($translationFile)) {
+                        $residual[] = basename($translationFile);
+                    }
                 }
             }
 
-            $_SESSION['flash_success'] = __("Lingua eliminata con successo");
+            if ($residual !== []) {
+                SecureLogger::error('LanguagesController::delete could not remove translation file(s): ' . implode(', ', $residual));
+                $_SESSION['flash_warning'] = __("Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.");
+            } else {
+                $_SESSION['flash_success'] = __("Lingua eliminata con successo");
+            }
         } catch (\Throwable $e) {
             SecureLogger::error('LanguagesController::delete error: ' . $e->getMessage());
             $_SESSION['flash_error'] = __("Errore nell'eliminazione della lingua.");
@@ -411,26 +421,23 @@ class LanguagesController
                 continue;
             }
 
-            $translationFile = $this->getLocaleFilePath($code);
+            // Count from the EFFECTIVE catalogue (shipped base merged with the
+            // admin override) so an override-only language (a custom locale whose
+            // first upload lives only under locale/overrides/) is counted too.
+            $sanitized = $this->getEffectiveTranslations($code);
 
-            if (file_exists($translationFile)) {
-                $jsonContent = file_get_contents($translationFile);
-                $decoded = json_decode($jsonContent, true);
+            if (!empty($sanitized)) {
+                $totalKeys = count($canonical);
+                $translatedKeys = count(array_filter(
+                    array_intersect_key($sanitized, $canonical),
+                    static fn(string $value): bool => trim($value) !== ''
+                ));
 
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $sanitized = $this->sanitizeTranslations($decoded);
-                    $totalKeys = count($canonical);
-                    $translatedKeys = count(array_filter(
-                        array_intersect_key($sanitized, $canonical),
-                        static fn($value): bool => is_string($value) && trim($value) !== ''
-                    ));
-
-                    try {
-                        $languageModel->updateStats($code, $totalKeys, $translatedKeys);
-                        $updated++;
-                    } catch (\Throwable $e) {
-                        $errors[] = $lang['code'] . ': ' . $e->getMessage();
-                    }
+                try {
+                    $languageModel->updateStats($code, $totalKeys, $translatedKeys);
+                    $updated++;
+                } catch (\Throwable $e) {
+                    $errors[] = $lang['code'] . ': ' . $e->getMessage();
                 }
             }
         }
@@ -470,33 +477,20 @@ class LanguagesController
                 ->withStatus(302);
         }
 
-        // Get translation file path
-        $translationFile = $this->getLocaleFilePath($code);
-
-        if (!file_exists($translationFile)) {
+        // Export the EFFECTIVE translations (shipped base merged with the admin
+        // override) so a re-download reflects what the app actually serves and a
+        // re-upload never silently drops prior overrides. Accept the language when
+        // EITHER the base or the override exists — an override-only custom locale
+        // (whose first upload lives only under locale/overrides/) is valid too.
+        if (!file_exists($this->getLocaleFilePath($code)) && !file_exists($this->getOverrideFilePath($code))) {
             $_SESSION['flash_error'] = __("File di traduzione non trovato");
             return $response
                 ->withHeader('Location', '/admin/languages')
                 ->withStatus(302);
         }
 
-        // Read JSON content
-        $jsonContent = file_get_contents($translationFile);
-
-        // Validate JSON
-        $decoded = json_decode($jsonContent, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $_SESSION['flash_error'] = __("File JSON non valido");
-            return $response
-                ->withHeader('Location', '/admin/languages')
-                ->withStatus(302);
-        }
-
-        // Export the EFFECTIVE translations (shipped base merged with the admin
-        // override) so a re-download reflects what the app actually serves and a
-        // re-upload never silently drops prior overrides. Every current
-        // application key is present; missing translations are empty; custom
-        // extra keys remain at the end for backwards compatibility.
+        // Every current application key is present; missing translations are
+        // empty; custom extra keys remain at the end for backwards compatibility.
         $translations = $this->getEffectiveTranslations($code);
         $complete = [];
         foreach ($this->loadCanonicalTranslations() as $key => $_default) {

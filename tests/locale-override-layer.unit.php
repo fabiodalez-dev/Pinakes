@@ -29,6 +29,10 @@ $baseFile = "$localeDir/$code.json";
 $overrideFile = "$overrideDir/$code.json";
 $overrideDirPreexisted = is_dir($overrideDir);
 
+// Record any pre-existing files so the test never destroys a real zz_ZZ catalog.
+$basePre = is_file($baseFile) ? (string) file_get_contents($baseFile) : null;
+$overridePre = is_file($overrideFile) ? (string) file_get_contents($overrideFile) : null;
+
 // --- sandbox base + override ---
 if (!$overrideDirPreexisted) {
     mkdir($overrideDir, 0755, true);
@@ -69,8 +73,17 @@ try {
     $checks['without override, base value shows'] = I18n::translate('ovl_shared') === 'BASE shared';
     $checks['without override, override-only key is gone'] = I18n::translate('ovl_override_only') === 'ovl_override_only';
 } finally {
-    @unlink($baseFile);
-    @unlink($overrideFile);
+    // Restore any pre-existing catalog; otherwise remove the test's own files.
+    if ($basePre !== null) {
+        file_put_contents($baseFile, $basePre);
+    } else {
+        @unlink($baseFile);
+    }
+    if ($overridePre !== null) {
+        file_put_contents($overrideFile, $overridePre);
+    } else {
+        @unlink($overrideFile);
+    }
     if (!$overrideDirPreexisted && is_dir($overrideDir)) {
         @rmdir($overrideDir);
     }
