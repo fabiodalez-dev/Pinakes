@@ -293,12 +293,15 @@ class LanguagesController
         try {
             $languageModel->delete($code);
 
-            // Optionally delete translation file
-            $translationFile = $this->getLocaleFilePath($code);
-            if (file_exists($translationFile)) {
-                // Backup before deleting
-                copy($translationFile, $translationFile . '.deleted.' . time());
-                unlink($translationFile);
+            // Optionally delete translation file(s): the shipped base and the
+            // admin override, so a deleted language leaves no lingering override
+            // that would resurface if the same code is re-added later.
+            foreach ([$this->getLocaleFilePath($code), $this->getOverrideFilePath($code)] as $translationFile) {
+                if (file_exists($translationFile)) {
+                    // Backup before deleting
+                    copy($translationFile, $translationFile . '.deleted.' . time());
+                    unlink($translationFile);
+                }
             }
 
             $_SESSION['flash_success'] = __("Lingua eliminata con successo");
@@ -489,14 +492,16 @@ class LanguagesController
                 ->withStatus(302);
         }
 
-        // Export every current application key. Missing translations are empty;
-        // custom extra keys remain at the end for backwards compatibility.
-        $translations = $this->sanitizeTranslations(is_array($decoded) ? $decoded : []);
+        // Export the EFFECTIVE translations (shipped base merged with the admin
+        // override) so a re-download reflects what the app actually serves and a
+        // re-upload never silently drops prior overrides. Every current
+        // application key is present; missing translations are empty; custom
+        // extra keys remain at the end for backwards compatibility.
+        $translations = $this->getEffectiveTranslations($code);
         $complete = [];
         foreach ($this->loadCanonicalTranslations() as $key => $_default) {
-            $complete[$key] = isset($translations[$key]) && is_string($translations[$key])
-                ? $translations[$key]
-                : '';
+            // getEffectiveTranslations() guarantees string values (sanitized).
+            $complete[$key] = $translations[$key] ?? '';
         }
         foreach (array_diff_key($translations, $complete) as $key => $value) {
             $complete[$key] = $value;
@@ -549,6 +554,52 @@ class LanguagesController
         return rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $code . '.json';
     }
 
+    /**
+     * Path of the admin OVERRIDE file for a locale: locale/overrides/{code}.json.
+     * This directory is never re-seeded by the Docker entrypoint, so in-app edits
+     * of a shipped locale persist across image upgrades (see I18n::loadTranslations,
+     * which merges this on top of the base). Creates the subdirectory on demand.
+     */
+    private function getOverrideFilePath(string $code): string
+    {
+        $baseDir = realpath(__DIR__ . '/../../../locale');
+        if ($baseDir === false) {
+            $baseDir = __DIR__ . '/../../../locale';
+        }
+        $overrideDir = rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'overrides';
+        if (!is_dir($overrideDir)) {
+            mkdir($overrideDir, 0755, true);
+        }
+        return $overrideDir . DIRECTORY_SEPARATOR . $code . '.json';
+    }
+
+    /**
+     * Effective translations for a locale as the app sees them at runtime:
+     * shipped base merged with the admin override (override wins). Used for the
+     * download/export and for accurate key counts.
+     *
+     * @return array<string, string>
+     */
+    private function getEffectiveTranslations(string $code): array
+    {
+        $result = [];
+        $base = $this->getLocaleFilePath($code);
+        if (is_file($base)) {
+            $decoded = json_decode((string) file_get_contents($base), true);
+            if (is_array($decoded)) {
+                $result = $decoded;
+            }
+        }
+        $override = $this->getOverrideFilePath($code);
+        if (is_file($override)) {
+            $decoded = json_decode((string) file_get_contents($override), true);
+            if (is_array($decoded)) {
+                $result = array_merge($result, $decoded);
+            }
+        }
+        return $this->sanitizeTranslations($result);
+    }
+
     private function sanitizeTranslations(array $translations): array
     {
         $sanitized = [];
@@ -599,15 +650,18 @@ class LanguagesController
         }
 
         $sanitized = $this->sanitizeTranslations($decoded);
-        $targetPath = $this->getLocaleFilePath($code);
+        // Write the edit to the non-reseeded override layer (locale/overrides/)
+        // instead of the shipped base, so it survives a Docker image re-seed.
+        // getOverrideFilePath() has already created the subdirectory.
+        $targetPath = $this->getOverrideFilePath($code);
 
         // Defense in depth: the resolved file must live directly inside the
-        // locale directory. realpath() can't resolve a not-yet-created file, so
-        // validate the DIRNAME against the locale base and the basename shape.
-        $localeDir = realpath(__DIR__ . '/../../../locale');
+        // locale/overrides directory. realpath() can't resolve a not-yet-created
+        // file, so validate the DIRNAME against the override base and the basename.
+        $overrideDir = realpath(__DIR__ . '/../../../locale/overrides');
         $targetDir = realpath(dirname($targetPath));
-        if ($localeDir === false || $targetDir === false
-            || $targetDir !== $localeDir
+        if ($overrideDir === false || $targetDir === false
+            || $targetDir !== $overrideDir
             || basename($targetPath) !== $code . '.json') {
             return ['success' => false, 'error' => __("Percorso file non valido")];
         }

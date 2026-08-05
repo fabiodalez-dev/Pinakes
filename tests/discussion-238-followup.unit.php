@@ -29,7 +29,7 @@ $check(str_contains($settingsView, 'name="custom_width"') && str_contains($setti
 $check(str_contains($settings, "'show_subtitle'") && str_contains($settings, "'show_dewey'"), 'label content choices are persisted');
 $check(str_contains($controller, 'applyLabelContentSettings'), 'book and copy labels apply content choices');
 $check(str_contains($languages, 'loadCanonicalTranslations'), 'language exports and stats use the current canonical key set');
-$check(str_contains($languages, "                : '';"), 'missing translations export as empty strings');
+$check(str_contains($languages, "\$translations[\$key] ?? ''"), 'missing translations export as empty strings');
 $check(str_contains($updater, 'isCustomLocalePath'), 'updater recognizes custom locale catalogs');
 $check(substr_count($updater, 'isCustomLocalePath(') >= 4, 'custom locales are preserved in copy, preflight and orphan cleanup');
 

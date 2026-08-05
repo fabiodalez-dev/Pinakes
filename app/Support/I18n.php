@@ -187,17 +187,32 @@ final class I18n
         }
 
         $locale = self::$locale;
-        $translationFile = __DIR__ . '/../../locale/' . $locale . '.json';
+        $localeDir = __DIR__ . '/../../locale/';
+        $translations = [];
 
+        // Base (shipped) translations. In the Docker image these are re-seeded on
+        // every boot, so they must NOT hold admin edits.
+        $translationFile = $localeDir . $locale . '.json';
         if (file_exists($translationFile)) {
-            $json = file_get_contents($translationFile);
-            $decoded = json_decode($json, true);
-
+            $decoded = json_decode((string) file_get_contents($translationFile), true);
             if (is_array($decoded)) {
-                self::$translations = $decoded;
+                $translations = $decoded;
             }
         }
 
+        // Admin overrides live in a non-reseeded subdirectory (locale/overrides/),
+        // so an in-app edit of a shipped locale survives a Docker image re-seed.
+        // Override values win; keys shipped only in a later base image still flow
+        // through because they are absent from the override.
+        $overrideFile = $localeDir . 'overrides/' . $locale . '.json';
+        if (file_exists($overrideFile)) {
+            $decoded = json_decode((string) file_get_contents($overrideFile), true);
+            if (is_array($decoded)) {
+                $translations = array_merge($translations, $decoded);
+            }
+        }
+
+        self::$translations = $translations;
         self::$translationsLoaded = true;
     }
 
