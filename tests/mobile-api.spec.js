@@ -483,6 +483,43 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         expect(d.features.push).toBe(true);                     // push available once keyed
     });
 
+    test('9c. private mode preserves Mobile API discovery and bearer auth (#29)', async ({ request }) => {
+        const original = dbQuery(
+            "SELECT COALESCE((SELECT setting_value FROM system_settings " +
+            "WHERE category='advanced' AND setting_key='private_mode' LIMIT 1), '__MISSING__')"
+        );
+        dbExec(
+            "INSERT INTO system_settings (category, setting_key, setting_value) " +
+            "VALUES ('advanced', 'private_mode', '1') " +
+            "ON DUPLICATE KEY UPDATE setting_value='1'"
+        );
+
+        try {
+            // Regression for Pinakes-Android#29: the app has no web session
+            // during server discovery, so /health must reach the plugin's
+            // deliberately public route even when the website is private.
+            const health = await apiGet(request, '/health');
+            const healthBody = await envelope(health, 200);
+            expect(healthBody.error).toBeNull();
+            expect(healthBody.data).toMatchObject({ api_version: 'v1' });
+
+            // Deferring /api/v1 to the plugin must not make protected routes
+            // public: AppAuthMiddleware still rejects a missing bearer token.
+            const catalog = await apiGet(request, '/catalog/search');
+            const catalogBody = await envelope(catalog, 401);
+            expect(catalogBody.data).toBeNull();
+            expect(catalogBody.error).toMatchObject({ code: 'unauthorized' });
+        } finally {
+            dbExec("DELETE FROM system_settings WHERE category='advanced' AND setting_key='private_mode'");
+            if (original !== '__MISSING__') {
+                dbExec(
+                    "INSERT INTO system_settings (category, setting_key, setting_value) " +
+                    `VALUES ('advanced', 'private_mode', '${original.replace(/'/g, "''")}')`
+                );
+            }
+        }
+    });
+
     // ── GET /auth/registration-fields — the canonical signup form contract (#255,
     //    hardened per the #277 review: core fields + no profile-field leak) ──────
     test('9d. /auth/registration-fields → 200 envelope with the three top-level keys', async ({ request }) => {

@@ -3,11 +3,11 @@
         'name' => 'pinakes/slim-app',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '9f8b62efa180ab411103acbee334e90a1ab629b1',
+        'reference' => 'f71c20037dfa6b29e66708830983538ba3461116',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'dev' => false,
+        'dev' => true,
     ),
     'versions' => array(
         'carbonphp/carbon-doctrine-types' => array(
@@ -247,7 +247,7 @@
         'pinakes/slim-app' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '9f8b62efa180ab411103acbee334e90a1ab629b1',
+            'reference' => 'f71c20037dfa6b29e66708830983538ba3461116',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

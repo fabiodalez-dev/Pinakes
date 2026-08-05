@@ -171,6 +171,12 @@ jobs:
             --config=tests/playwright.config.js \
             --workers=1
 
+      - name: "[required] mobile-api.spec.js — discovery/auth + private-mode regression (#29)"
+        run: |
+          npx playwright test tests/mobile-api.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
       - name: "[4/13] mag-validation.spec.js — OAI-PMH MAG 2.0.1 metadata"
         run: |
           npx playwright test tests/mag-validation.spec.js \
