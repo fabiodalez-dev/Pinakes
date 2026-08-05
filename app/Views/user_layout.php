@@ -1221,7 +1221,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                         html += '<a href="' + bookUrl + '" class="search-result-item book-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
                             '<img src="' + coverUrl + '" alt="' + bookTitle + '" class="search-book-cover" style="width: 40px; height: 60px; object-fit: cover; border-radius: 0.25rem; margin-right: 0.75rem;">' +
                             '<div class="search-book-info">' +
-                            '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: #000000;">' + bookTitle + '</div>' +
+                            '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: #000000; text-align: left;">' + bookTitle + '</div>' +
                             (book.subtitle ? '<div class="search-book-subtitle" style="font-size: 0.75rem; font-style: italic; color: #6b7280; margin-bottom: 0.125rem; text-align: left;">' + bookSubtitle + '</div>' : '') +
                             (book.author ? '<div class="search-book-author" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.125rem; text-align: left;">' + bookAuthor + '</div>' : '') +
                             (book.year ? '<div class="search-book-year" style="font-size: 0.75rem; color: #9ca3af; text-align: left;">' + bookYear + '</div>' : '') +
@@ -1343,6 +1343,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                     'z-index: 99999;' +
                     'display: none;' +
                     (isMobile ? 'min-width: 300px;' : 'min-width: 500px;') +
+                    'text-align: left;' +
                     'pointer-events: auto;';
 
                 // Append to parent
