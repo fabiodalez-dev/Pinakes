@@ -658,9 +658,24 @@ class LoanApprovalController
             $userName = $loan['utente_nome'];
             $bookTitle = $loan['libro_titolo'];
 
-            // Delete the loan
-            $stmt = $db->prepare("DELETE FROM prestiti WHERE id = ? AND stato = 'pendente'");
-            $stmt->bind_param('i', $loanId);
+            // Mark as annullato instead of deleting: the rejection was the only
+            // terminal transition that destroyed its row, leaving no audit of
+            // who rejected what and blinding the statistics. Same shape as the
+            // user cancel path (stato='annullato', attivo=0, processed_by, note);
+            // the duplicate-request checks ignore 'annullato', so the user can
+            // request the same book again.
+            $rejectedBy = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
+            $rejectNote = "\n[Admin] " . __('Richiesta rifiutata');
+            if (is_scalar($reason) && (string) $reason !== '') {
+                $rejectNote .= ': ' . (string) $reason;
+            }
+            $stmt = $db->prepare("
+                UPDATE prestiti
+                SET stato = 'annullato', attivo = 0, processed_by = ?,
+                    note = CONCAT(COALESCE(note, ''), ?), updated_at = NOW()
+                WHERE id = ? AND stato = 'pendente'
+            ");
+            $stmt->bind_param('isi', $rejectedBy, $rejectNote, $loanId);
             $stmt->execute();
 
             if ($db->affected_rows === 0) {

@@ -108,6 +108,98 @@ $checks['user dashboard views use the app clock for overdue'] =
     && str_contains($indexView, 'strtotime(\App\Support\DateHelper::today())')
     && str_contains($pendingView, 'DateHelper::today()');
 
+// ── Follow-up fixes (agreed design decisions + #301 second report) ──────────
+
+// 11. #301: the book-detail modal path (createReservation) must honour the
+//     automatic-approval setting like UserActionsController::loan does.
+$checks['createReservation honours auto_approve_requests (#301)'] =
+    str_contains($reservations, 'autoApproveLoanRequest($request, $loanRequestId)')
+    && str_contains($reservations, "'automatic_loan_approval'");
+
+// 12. rejectLoan must keep an audit row (annullato), never DELETE it.
+$checks['rejectLoan cancels with audit instead of deleting'] =
+    !str_contains($rejectBody, 'DELETE FROM prestiti')
+    && str_contains($rejectBody, "SET stato = 'annullato'")
+    && str_contains($rejectBody, 'processed_by');
+
+// 13. Renewal confirmation email: template in base + all 4 locale overrides,
+//     NotificationService sender, and the post-commit call in renew().
+$mailBase = (string) file_get_contents($root . '/app/Support/SettingsMailTemplates.php');
+$notif = (string) file_get_contents($root . '/app/Support/NotificationService.php');
+$renewedEverywhere = str_contains($mailBase, "'loan_renewed'");
+foreach (['da_DK', 'de_DE', 'en_US', 'fr_FR'] as $mailLocale) {
+    $renewedEverywhere = $renewedEverywhere
+        && str_contains((string) file_get_contents($root . "/app/Support/mail_templates/{$mailLocale}.php"), "'loan_renewed'");
+}
+$checks['loan_renewed template exists in base + 4 locale overrides'] = $renewedEverywhere;
+$checks['renew() sends the renewal confirmation post-commit'] =
+    str_contains($notif, 'function sendLoanRenewedNotification')
+    && str_contains($prestiti, 'sendLoanRenewedNotification($id, $maxRenewals)');
+
+// 14. app.timezone is a real setting: ConfigStore default, per-locale installer
+//     seed, loans-tab select, validated save.
+$configStore = (string) file_get_contents($root . '/app/Support/ConfigStore.php');
+$loansTab = (string) file_get_contents($root . '/app/Views/settings/loans-tab.php');
+$settingsCtrl = (string) file_get_contents($root . '/app/Controllers/SettingsController.php');
+$seededEverywhere = true;
+foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $seedLocale) {
+    $seededEverywhere = $seededEverywhere
+        && str_contains((string) file_get_contents($root . "/installer/database/data_{$seedLocale}.sql"), "('app', 'timezone'");
+}
+$checks['app.timezone has a ConfigStore default and is seeded in all 5 installers'] =
+    str_contains($configStore, "'timezone' => 'Europe/Rome'") && $seededEverywhere;
+$checks['loans settings expose and validate the timezone'] =
+    str_contains($loansTab, 'name="app_timezone"')
+    && str_contains($settingsCtrl, 'DateTimeZone::listIdentifiers()')
+    && str_contains($settingsCtrl, "ConfigStore::set('app.timezone'");
+
+// 15. Book badge: the unavailable state is a TODAY snapshot — the copy must say
+//     so, or it reads as contradicting the calendar's free future days.
+$bookDetail = (string) file_get_contents($root . '/app/Views/frontend/book-detail.php');
+$checks['book badge says "Non disponibile oggi" (today snapshot)'] =
+    str_contains($bookDetail, '__("Non disponibile oggi")');
+
+// 16. i18n parity: the 5 locales share the same key count and all carry the
+//     new keys introduced by these fixes.
+$parityOk = true;
+$counts = [];
+$mustHave = ['Fuso orario', 'Prestito rinnovato', 'Non disponibile oggi'];
+foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $l10n) {
+    $decoded = json_decode((string) file_get_contents($root . "/locale/{$l10n}.json"), true);
+    if (!is_array($decoded)) {
+        $parityOk = false;
+        break;
+    }
+    $counts[] = count($decoded);
+    foreach ($mustHave as $mk) {
+        $parityOk = $parityOk && array_key_exists($mk, $decoded);
+    }
+}
+$checks['i18n parity: 5 locales aligned and carrying the new keys'] =
+    $parityOk && count(array_unique($counts)) === 1;
+
+// ── Adversarial-review findings (multi-agent workflow on this branch) ────────
+
+// 17. ConfigStore must MAP the timezone row back from the DB: without the
+//     loadDatabaseSettings() entry the seeds + save wrote a row that was never
+//     read, and get('app.timezone') always returned the hardcoded default.
+$checks['ConfigStore maps the app.timezone DB row into the cache'] =
+    str_contains($configStore, "raw['app']['timezone']");
+
+// 18. Both availability labels on the book page must use the today-snapshot
+//     copy — the sidebar "Stato" said "Non Disponibile" while the hero badge
+//     said "Non disponibile oggi" for the same condition.
+$checks['book page has no leftover "Non Disponibile" label'] =
+    !str_contains($bookDetail, '__("Non Disponibile")')
+    && substr_count($bookDetail, '__("Non disponibile oggi")') >= 2;
+
+// 19. The reservation modal must branch on the auto-approve response: with the
+//     option on, the loan is already approved and "waiting for approval" copy
+//     would be false (the user would wait for an approval that already happened).
+$checks['reservation modal branches on result.auto_approved'] =
+    str_contains($bookDetail, 'result.auto_approved === true')
+    && str_contains($bookDetail, 'approvedFootnote');
+
 $failed = 0;
 foreach ($checks as $label => $ok) {
     echo ($ok ? '[PASS] ' : '[FAIL] ') . $label . "\n";

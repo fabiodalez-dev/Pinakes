@@ -1894,7 +1894,7 @@ ob_start();
                                 ? ($book['copie_totali'] > 1
                                     ? "{$book['copie_disponibili']}/{$book['copie_totali']} " . __("Disponibili")
                                     : __("Disponibile"))
-                                : __("Non Disponibile") ?>
+                                : __("Non disponibile oggi") /* lo snapshot è di OGGI: il calendario può mostrare giorni futuri liberi */ ?>
                         </span>
                     </div>
 
@@ -2435,7 +2435,7 @@ ob_start();
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
                                 <span class="book-status-inline <?= ($book['copie_disponibili'] > 0) ? 'is-available' : 'is-unavailable' ?>">
-                                    <?= ($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non Disponibile") ?>
+                                    <?= ($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non disponibile oggi") ?>
                                 </span>
                             </div>
                         </div>
@@ -2805,6 +2805,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const successRangeTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     const successOneMonthTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%s</strong> per 1 mese'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     const successFootnote = <?php echo json_encode(__('Riceverai una conferma via email appena la richiesta sarà approvata.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    // #301: con l'auto-approvazione attiva il server risponde auto_approved=true
+    // e il prestito è GIÀ in attesa di ritiro — il copy "appena sarà approvata"
+    // sarebbe falso e l'utente aspetterebbe un'approvazione già avvenuta.
+    const approvedTitle = <?php echo json_encode(__('Prestito approvato!'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const approvedFootnote = <?php echo json_encode(__('La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
 
     async function updateReservationsBadge() {
       const badge = document.getElementById('nav-res-count');
@@ -3084,10 +3089,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 ? successRangeTpl.replace('%1$s', formatDateIT(formValues.startDate)).replace('%2$s', formatDateIT(formValues.endDate))
                 : successOneMonthTpl.replace('%s', formatDateIT(formValues.startDate));
 
+              const isAutoApproved = result.auto_approved === true;
               Swal.fire({
                 icon: 'success',
-                title: __('Richiesta Inviata!'),
-                html: `${successHtml}<br><small>${successFootnote}</small>`
+                title: isAutoApproved ? approvedTitle : __('Richiesta Inviata!'),
+                html: `${successHtml}<br><small>${isAutoApproved ? approvedFootnote : successFootnote}</small>`
               });
               return;
             } else {

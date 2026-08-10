@@ -196,6 +196,19 @@ return [
 </div>
 <p>God fornøjelse med læsningen!</p>',
     ],
+    'loan_renewed' => [
+        'subject' => '🔄 Dit lån er blevet fornyet',
+        'body' => '<h2>Dit lån er blevet fornyet</h2>
+<p>Hej {{utente_nome}},</p>
+<p>Lånet af bogen <strong>"{{libro_titolo}}"</strong> er blevet fornyet.</p>
+<p><strong>Detaljer om fornyelsen:</strong></p>
+<ul>
+    <li>Ny afleveringsdato: {{data_fine}}</li>
+    <li>Fornyelser stadig til rådighed: {{rinnovi_rimanenti}}</li>
+</ul>
+<p><strong>Vigtigt:</strong> Husk at aflevere bogen inden den nye afleveringsdato. Du modtager en påmindelse nogle dage før.</p>
+<p>God læselyst!</p>',
+    ],
     'loan_rejected' => [
         'subject' => '❌ Din udlånsanmodning er ikke blevet godkendt',
         'body' => '<h2>Din udlånsanmodning er ikke blevet godkendt</h2>

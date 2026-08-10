@@ -471,23 +471,38 @@ class ReservationsController
             $stmt->bind_param('iiss', $bookId, $userId, $startDate, $endDate);
 
             if ($stmt->execute()) {
-                $loanRequestId = $this->db->insert_id;
+                $loanRequestId = (int) $this->db->insert_id;
                 $this->db->commit();
 
-                // Send notification to admins
-                try {
-                    $notificationService = new NotificationService($this->db);
-                    $notificationService->notifyLoanRequest($loanRequestId);
-                } catch (\Throwable $notifError) {
-                    \App\Support\SecureLogger::error('Error sending notification for loan request', ['error' => $notifError->getMessage()]);
-                    // Don't fail the loan request creation if notification fails
+                // #301: honour the automatic-approval setting on THIS entry point
+                // too. The book-detail modal posts here, but the auto-approve
+                // lived only in UserActionsController::loan() — so real users'
+                // requests always landed in the admin approval queue even with
+                // the option enabled. Same race-safe canonical pipeline: a
+                // failure deliberately leaves the request pending for an admin.
+                $autoApproved = $this->autoApproveLoanRequest($request, $loanRequestId);
+
+                if (!$autoApproved) {
+                    // Send notification to admins (an auto-approved request no
+                    // longer needs admin action — the old "new request" email
+                    // would carry a stale approval link).
+                    try {
+                        $notificationService = new NotificationService($this->db);
+                        $notificationService->notifyLoanRequest($loanRequestId);
+                    } catch (\Throwable $notifError) {
+                        \App\Support\SecureLogger::error('Error sending notification for loan request', ['error' => $notifError->getMessage()]);
+                        // Don't fail the loan request creation if notification fails
+                    }
                 }
 
                 $response->getBody()->write(json_encode([
                     'success' => true,
-                    'message' => __('Richiesta di prestito inviata con successo'),
+                    'message' => $autoApproved
+                        ? __('Prestito approvato - in attesa di ritiro')
+                        : __('Richiesta di prestito inviata con successo'),
                     'loan_request_id' => $loanRequestId,
-                    'status' => 'pending_approval'
+                    'auto_approved' => $autoApproved,
+                    'status' => $autoApproved ? 'approved' : 'pending_approval'
                 ]));
                 return $response->withHeader('Content-Type', 'application/json');
             } else {
@@ -503,6 +518,47 @@ class ReservationsController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore del server')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
+    }
+
+    /**
+     * Promote a newly-created request through the canonical approval pipeline
+     * when the automatic-approval setting is on (#301). Mirrors
+     * UserActionsController::autoApproveLoanRequest — a failure deliberately
+     * leaves the request pending so an administrator can still process it.
+     */
+    private function autoApproveLoanRequest($request, int $loanId): bool
+    {
+        $settings = new \App\Models\SettingsRepository($this->db);
+        if (!$settings->autoApproveLoanRequests()) {
+            return false;
+        }
+
+        try {
+            $approvalRequest = $request
+                ->withParsedBody(['loan_id' => $loanId])
+                ->withAttribute('automatic_loan_approval', true);
+            $result = (new \App\Controllers\LoanApprovalController())->approveLoan(
+                $approvalRequest,
+                new \Slim\Psr7\Response(),
+                $this->db
+            );
+
+            if ($result->getStatusCode() >= 200 && $result->getStatusCode() < 300) {
+                return true;
+            }
+
+            \App\Support\SecureLogger::warning('Automatic loan approval left request pending (createReservation)', [
+                'loan_id' => $loanId,
+                'status' => $result->getStatusCode(),
+            ]);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('Automatic loan approval failed; request left pending (createReservation)', [
+                'loan_id' => $loanId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return false;
     }
 
     /**

@@ -6764,5 +6764,13 @@
   "https://...": "https://...",
   "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.": "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.",
-  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice."
+  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.",
+  "Fuso orario": "Fuso orario",
+  "Fuso orario usato per calcolare scadenze, attivazioni e automatismi dei prestiti. Deve corrispondere al fuso orario della tua biblioteca.": "Fuso orario usato per calcolare scadenze, attivazioni e automatismi dei prestiti. Deve corrispondere al fuso orario della tua biblioteca.",
+  "Predefinito: Europe/Rome": "Predefinito: Europe/Rome",
+  "Prestito rinnovato": "Prestito rinnovato",
+  "Inviata all'utente quando un prestito viene rinnovato, con la nuova data di scadenza.": "Inviata all'utente quando un prestito viene rinnovato, con la nuova data di scadenza.",
+  "Notifica rinnovo prestito fallita": "Notifica rinnovo prestito fallita",
+  "Non disponibile oggi": "Non disponibile oggi",
+  "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.": "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro."
 }

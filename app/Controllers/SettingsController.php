@@ -1283,7 +1283,7 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, app_timezone: string}
      */
     private function resolveLoansSettings(SettingsRepository $repository): array
     {
@@ -1294,6 +1294,8 @@ class SettingsController
             'max_active_loans_per_user' => (int) ($repository->get('loans', 'max_active_loans_per_user', '0') ?? 0),
             'max_loan_duration_days'   => (int) ($repository->get('loans', 'max_loan_duration_days', '90') ?? 90),
             'auto_approve_requests'    => $repository->autoApproveLoanRequests(),
+            // App-wide clock for due dates and automatisms (DateHelper reads it).
+            'app_timezone'             => (string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome'),
         ];
     }
 
@@ -1327,6 +1329,17 @@ class SettingsController
         $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
         $repository->set('loans', 'max_loan_duration_days', (string) $maxLoanDuration);
         $repository->set('loans', 'auto_approve_requests', $autoApprove ? '1' : '0');
+
+        // App timezone: DateHelper computes the loan clock ("today"/"now") from
+        // this. Validate against the canonical identifier list — an invalid or
+        // missing value leaves the stored setting untouched (the DateHelper
+        // fallback ladder keeps working either way).
+        $timezone = isset($data['app_timezone']) && is_scalar($data['app_timezone'])
+            ? trim((string) $data['app_timezone'])
+            : '';
+        if ($timezone !== '' && in_array($timezone, \DateTimeZone::listIdentifiers(), true)) {
+            \App\Support\ConfigStore::set('app.timezone', $timezone);
+        }
 
         $_SESSION['success_message'] = __('Impostazioni prestiti aggiornate correttamente.');
         return $response->withHeader('Location', url('/admin/settings?tab=loans'))->withStatus(302);

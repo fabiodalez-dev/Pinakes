@@ -1855,6 +1855,15 @@ class PrestitiController
             $db->commit();
             $_SESSION['success_message'] = __('Prestito rinnovato correttamente. Nuova scadenza: %s', format_date($newDueDate, false, '/'));
 
+            // Conferma al lettore con la NUOVA scadenza, DOPO il commit: prima
+            // il rinnovo era l'unica transizione benefica senza email — se lo
+            // faceva il bibliotecario al banco, l'utente non lo sapeva proprio.
+            try {
+                (new \App\Support\NotificationService($db))->sendLoanRenewedNotification($id, $maxRenewals);
+            } catch (\Throwable $notifError) {
+                SecureLogger::warning(__('Notifica rinnovo prestito fallita'), ['loan_id' => $id, 'error' => $notifError->getMessage()]);
+            }
+
             $successUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($successUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', url($successUrl . $separator . 'renewed=1'))->withStatus(302);

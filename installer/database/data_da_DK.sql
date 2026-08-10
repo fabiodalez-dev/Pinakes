@@ -282,6 +282,7 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('app', 'logo_path', '', 'Sti til applikationens logo', NOW()),
 ('app', 'footer_description', 'Dit Pinakes-system til at katalogisere, administrere og dele din bogsamling.', 'Sidefodsbeskrivelse', NOW()),
 ('app', 'locale', 'da_DK', 'Default application locale', NOW()),
+('app', 'timezone', 'Europe/Copenhagen', 'Application timezone (loan clock)', NOW()),
 ('app', 'social_facebook', '', 'Facebook-profil-URL', NOW()),
 ('app', 'social_twitter', '', 'Twitter-profil-URL', NOW()),
 ('app', 'social_instagram', '', 'Instagram-profil-URL', NOW()),

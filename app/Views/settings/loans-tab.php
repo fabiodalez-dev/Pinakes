@@ -86,6 +86,35 @@
       </div>
     </div>
 
+    <!-- App timezone (loan clock for due dates and automatisms) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-globe text-gray-500"></i>
+          <?= __("Fuso orario") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Fuso orario usato per calcolare scadenze, attivazioni e automatismi dei prestiti. Deve corrispondere al fuso orario della tua biblioteca.") ?></p>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div>
+          <label for="app_timezone" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Fuso orario") ?>
+          </label>
+          <select id="app_timezone"
+                  name="app_timezone"
+                  class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+            <?php foreach (\DateTimeZone::listIdentifiers() as $tzId): ?>
+              <option value="<?= htmlspecialchars($tzId, ENT_QUOTES, 'UTF-8') ?>" <?= ($loansSettings['app_timezone'] ?? 'Europe/Rome') === $tzId ? 'selected' : '' ?>><?= htmlspecialchars($tzId, ENT_QUOTES, 'UTF-8') ?></option>
+            <?php endforeach; ?>
+          </select>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Predefinito: Europe/Rome") ?>
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Max requestable loan duration (reservation-window cap) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">

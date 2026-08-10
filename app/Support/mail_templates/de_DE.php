@@ -187,6 +187,19 @@ return [
 </div>
 <p>Viel Freude beim Lesen!</p>',
     ],
+    'loan_renewed' => [
+        'subject' => '🔄 Ihre Ausleihe wurde verlängert',
+        'body' => '<h2>Ihre Ausleihe wurde verlängert</h2>
+<p>Hallo {{utente_nome}},</p>
+<p>Die Ausleihe des Buches <strong>"{{libro_titolo}}"</strong> wurde verlängert.</p>
+<p><strong>Details der Verlängerung:</strong></p>
+<ul>
+    <li>Neues Fälligkeitsdatum: {{data_fine}}</li>
+    <li>Noch verfügbare Verlängerungen: {{rinnovi_rimanenti}}</li>
+</ul>
+<p><strong>Wichtig:</strong> Bitte geben Sie das Buch bis zum neuen Fälligkeitsdatum zurück. Sie erhalten einige Tage vorher eine Erinnerung.</p>
+<p>Viel Freude beim Lesen!</p>',
+    ],
     'loan_rejected' => [
         'subject' => '❌ Deine Ausleihanfrage wurde nicht genehmigt',
         'body' => '<h2>Deine Ausleihanfrage wurde nicht genehmigt</h2>

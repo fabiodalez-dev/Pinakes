@@ -211,6 +211,24 @@ HTML,
 <p>Buona lettura!</p>
 HTML,
             ],
+            'loan_renewed' => [
+                'label' => __('Prestito rinnovato'),
+                'description' => __("Inviata all'utente quando un prestito viene rinnovato, con la nuova data di scadenza."),
+                'subject' => '🔄 Il tuo prestito è stato rinnovato',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_fine', 'rinnovi_rimanenti'],
+                'body' => <<<'HTML'
+<h2>Il tuo prestito è stato rinnovato</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Il prestito del libro <strong>"{{libro_titolo}}"</strong> è stato rinnovato.</p>
+<p><strong>Dettagli del rinnovo:</strong></p>
+<ul>
+    <li>Nuova data di scadenza: {{data_fine}}</li>
+    <li>Rinnovi ancora disponibili: {{rinnovi_rimanenti}}</li>
+</ul>
+<p><strong>Importante:</strong> Ricorda di restituire il libro entro la nuova data di scadenza. Riceverai un promemoria alcuni giorni prima.</p>
+<p>Buona lettura!</p>
+HTML,
+            ],
             'loan_rejected' => [
                 'label' => __('Prestito rifiutato'),
                 'description' => __("Inviata all'utente quando un amministratore rifiuta una richiesta di prestito."),
