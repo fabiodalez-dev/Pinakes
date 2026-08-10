@@ -104,7 +104,11 @@ class ReservationsController
 
     private function calculateAvailability($currentLoans, $existingReservations, int $totalCopies, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null)
     {
-        $start = $startDate ? new DateTime($startDate) : new DateTime(); // today by default
+        // Default start = "today" in the APP timezone (DateHelper), not the PHP
+        // process TZ (usually UTC): a bare `new DateTime()` made the mobile
+        // calendar (the only null-start caller) begin on "yesterday" between
+        // midnight and 2am Rome time, diverging from every web surface.
+        $start = new DateTime($startDate ?: \App\Support\DateHelper::today());
         $start->setTime(0, 0, 0);
 
         // Normalize intervals (#157, model A-refined):
@@ -501,8 +505,23 @@ class ReservationsController
         }
     }
 
-    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null)
+    /**
+     * Per-day availability payload for a book, or NULL when the book does not
+     * exist or is soft-deleted. Every caller must 404 on null: without this
+     * guard the method served real per-day occupancy for soft-deleted books
+     * (libri queries MUST honour deleted_at IS NULL).
+     */
+    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null): ?array
     {
+        $bookStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL");
+        $bookStmt->bind_param('i', $bookId);
+        $bookStmt->execute();
+        $bookExists = $bookStmt->get_result()->fetch_assoc() !== null;
+        $bookStmt->close();
+        if (!$bookExists) {
+            return null;
+        }
+
         $totalCopies = $this->getBookTotalCopies($bookId);
 
         // Get current and future loans for this book. Approved states always

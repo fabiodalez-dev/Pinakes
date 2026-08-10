@@ -538,10 +538,15 @@ function accountLineIcon(string $name): string {
   <?php endif; ?>
 
   <?php
+    // "In ritardo" con la STESSA semantica del cron (updateOverdueLoans):
+    // data_scadenza < oggi nel timezone applicativo. Il vecchio
+    // strtotime() < time() (TZ processo) marcava in ritardo già nel
+    // pomeriggio del giorno di scadenza, in disaccordo col backend.
+    $appToday = \App\Support\DateHelper::today();
     $overdueCount = 0;
     foreach ($activePrestiti as $loan) {
         $dueAt = $loan['data_scadenza'] ?? '';
-        if ($dueAt !== '' && strtotime($dueAt) < time()) {
+        if ($dueAt !== '' && $dueAt < $appToday) {
             $overdueCount++;
         }
     }
@@ -638,7 +643,7 @@ function accountLineIcon(string $name): string {
       <?php foreach ($activePrestiti as $loan):
         $cover = resolveCoverUrl($loan);
         $scadenza = $loan['data_scadenza'] ?? '';
-        $isOverdue = ($scadenza !== '' && strtotime($scadenza) < time());
+        $isOverdue = ($scadenza !== '' && $scadenza < $appToday);
         $startDate = $loan['data_prestito'] ?? '';
         $hasReview = !empty($loan['has_review']);
       ?>

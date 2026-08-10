@@ -88,7 +88,7 @@ $csrf = Csrf::ensureToken();
                 <input
                     type="date"
                     name="data_scadenza"
-                    value="<?= HtmlHelper::e($prestito['data_scadenza'] ?? date('Y-m-d', strtotime('+14 days'))); ?>"
+                    value="<?= HtmlHelper::e($prestito['data_scadenza'] ?? date('Y-m-d', strtotime(\App\Support\DateHelper::today() . ' +30 days'))); ?>"
                     class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                 >
             </label>

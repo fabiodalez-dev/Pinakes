@@ -174,14 +174,14 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
       <!-- Data Prestito -->
       <div>
         <label for="data_prestito" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Prestito") ?> *</label>
-        <input type="text" name="data_prestito" id="data_prestito" value="<?php echo htmlspecialchars($oldDataPrestito !== '' ? $oldDataPrestito : date('Y-m-d'), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
+        <input type="text" name="data_prestito" id="data_prestito" value="<?php echo htmlspecialchars($oldDataPrestito !== '' ? $oldDataPrestito : ($defaultDataPrestito ?? \App\Support\DateHelper::today()), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
         <p id="data_prestito_hint" class="mt-1 text-xs text-gray-500 hidden"></p>
       </div>
 
       <!-- Data Scadenza -->
       <div>
         <label for="data_scadenza" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Scadenza") ?> *</label>
-        <input type="text" name="data_scadenza" id="data_scadenza" value="<?php echo htmlspecialchars($oldDataScadenza !== '' ? $oldDataScadenza : date('Y-m-d', strtotime('+1 month')), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
+        <input type="text" name="data_scadenza" id="data_scadenza" value="<?php echo htmlspecialchars($oldDataScadenza !== '' ? $oldDataScadenza : ($defaultDataScadenza ?? date('Y-m-d', strtotime(\App\Support\DateHelper::today() . ' +30 days'))), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
       </div>
     </div>
 

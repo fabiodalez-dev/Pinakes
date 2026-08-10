@@ -93,7 +93,18 @@ class LoanRepository
         $utente_id = (int) ($data['utente_id'] ?? 0);
         // "Oggi" nel timezone applicativo (M9): mai date() (TZ processo, spesso UTC).
         $data_prestito = $data['data_prestito'] ?? DateHelper::today();
-        $data_scadenza = $data['data_scadenza'] ?? date('Y-m-d', strtotime(DateHelper::today() . ' +14 days'));
+        if (isset($data['data_scadenza'])) {
+            $data_scadenza = $data['data_scadenza'];
+        } else {
+            // Fallback dalla setting di durata prestito: il vecchio +14gg
+            // hardcoded era metà del default seminato (30) e ignorava la
+            // configurazione dell'admin — stesso fix M5b già applicato a renew().
+            $loanDays = (int) ((new SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
+            if ($loanDays < 1) {
+                $loanDays = 30;
+            }
+            $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
+        }
         $processed_by = $data['processed_by'] ?? null;
         $stmt->bind_param('issii', $utente_id, $data_prestito, $data_scadenza, $processed_by, $id);
         return $stmt->execute();

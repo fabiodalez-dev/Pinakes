@@ -168,6 +168,16 @@ class PrestitiController
             }
         }
 
+        // Prefill delle date nel timezone APPLICATIVO e con la durata configurata:
+        // il vecchio date('Y-m-d') (TZ processo, spesso UTC) mostrava "ieri" dopo
+        // mezzanotte, e il '+1 month' della view divergeva dal default server (30gg).
+        $defaultDataPrestito = \App\Support\DateHelper::today();
+        $defaultLoanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
+        if ($defaultLoanDays < 1) {
+            $defaultLoanDays = 30;
+        }
+        $defaultDataScadenza = date('Y-m-d', strtotime($defaultDataPrestito . " +{$defaultLoanDays} days"));
+
         ob_start();
         require __DIR__ . '/../Views/prestiti/crea_prestito.php';
         $content = ob_get_clean();
@@ -237,8 +247,19 @@ class PrestitiController
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=missing_fields')->withStatus(302);
         }
 
+        // Validazione ISO stretta di ENTRAMBE le date (stessa regola di update()):
+        // il vecchio guard `strtotime($a) <= strtotime($b)` con una data non
+        // parsabile confrontava int con false in modo booleano e PASSAVA, e
+        // l'ambiguità '12/03/2026' veniva letta all'americana (3 dicembre).
+        // L'input arriva libero (il campo è data-no-flatpickr), quindi qui è
+        // l'unico punto di difesa prima dell'INSERT.
+        if (!\App\Support\DateHelper::isISODateFormat($data_prestito) || !\App\Support\DateHelper::isISODateFormat($data_scadenza)) {
+            return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_dates')->withStatus(302);
+        }
+
         // Verifica che la data di scadenza sia successiva alla data di prestito
-        if (strtotime($data_scadenza) <= strtotime($data_prestito)) {
+        // (confronto lessicografico sicuro: entrambe validate Y-m-d qui sopra)
+        if ($data_scadenza <= $data_prestito) {
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_dates')->withStatus(302);
         }
 

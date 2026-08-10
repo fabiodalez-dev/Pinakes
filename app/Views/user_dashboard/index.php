@@ -444,7 +444,10 @@ $profileRoute = route_path('profile');
                 'autore' => ''
               ]);
               $scadenza = strtotime($prestito['data_scadenza'] ?? '');
-              $oggi = time();
+              // Mezzanotte di "oggi" nel timezone applicativo: con time() (TZ
+              // processo) il conteggio dei giorni cambiava a mezzanotte UTC,
+              // in disaccordo col cron (updateOverdueLoans usa DateHelper).
+              $oggi = strtotime(\App\Support\DateHelper::today());
               if ($scadenza === false || $scadenza === 0) {
                   $giorni_rimanenti = 0;
                   $scaduto = false;

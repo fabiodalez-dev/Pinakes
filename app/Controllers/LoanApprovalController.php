@@ -679,7 +679,27 @@ class LoanApprovalController
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            // Promote the waitlist: a rejected reservation-conversion 'pendente'
+            // held a copy, and every other release path (return, cancel, expiry)
+            // immediately converts the next queued reservation — rejectLoan was
+            // the only one that left the freed capacity idle until the next
+            // maintenance run. processBookAvailability() is a no-op for bare
+            // pendings (nothing was occupied) and for soft-deleted books.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($bookId); $promoGuard++) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
             $db->commit();
+
+            // Notifiche accodate durante la transazione esterna (P2): inviale ora
+            // che il commit è avvenuto, come fa MaintenanceService.
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $flushError) {
+                \App\Support\SecureLogger::warning("[rejectLoan] Deferred notification flush failed: " . $flushError->getMessage());
+            }
 
             // Send notification AFTER successful commit (outside transaction)
             // Use pre-fetched data since loan is deleted
