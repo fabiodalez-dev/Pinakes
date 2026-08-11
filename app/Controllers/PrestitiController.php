@@ -774,7 +774,11 @@ class PrestitiController
 
             // Lock del prestito e ri-verifica sotto lock: stato aperto invariato e
             // libro_id non cambiato (TOCTOU sulla lettura non bloccante iniziale).
-            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, utente_id FROM prestiti WHERE id=? FOR UPDATE');
+            // Rilegge anche le DATE correnti: un update concorrente tra la lettura
+            // iniziale e questo lock le può aver cambiate, e la finestra "vecchia"
+            // del check di capacità qui sotto deve basarsi sui valori realmente
+            // salvati, non su quelli pre-transazione (CodeRabbit, PR #337).
+            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
             $lockLoan->bind_param('i', $id);
             $lockLoan->execute();
             $locked = $lockLoan->get_result()->fetch_assoc();
@@ -786,6 +790,19 @@ class PrestitiController
             if ((int) $locked['libro_id'] !== $libroId) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
+            }
+
+            // Ricostruisci i valori effettivi dai dati LOCKATI: i campi non inviati
+            // dal form devono completarsi con lo stato corrente reale della riga.
+            // Ri-valida il range con gli stessi criteri del pre-check (che resta
+            // come fast-fail senza aprire la transazione).
+            $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $locked['utente_id'];
+            $newPrestito = (string) ($updateData['data_prestito'] ?? $locked['data_prestito']);
+            $newScadenza = (string) ($updateData['data_scadenza'] ?? $locked['data_scadenza']);
+            if (strtotime($newScadenza) === false || strtotime($newPrestito) === false
+                || strtotime($newScadenza) < strtotime($newPrestito)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
             }
 
             // Se l'utente cambia, ri-esegui i controlli di store() (M6b): il campo
@@ -869,8 +886,9 @@ class PrestitiController
             // the loan), so on a 1-copy book ANY date edit — even shortening the
             // loan — bounced with no_copies_available. Days inside the old window
             // are already held by this loan; only the added days need free capacity.
-            $oldPrestito = (string) $current['data_prestito'];
-            $oldScadenza = (string) $current['data_scadenza'];
+            // Old window from the LOCKED row, not the pre-transaction read.
+            $oldPrestito = (string) $locked['data_prestito'];
+            $oldScadenza = (string) $locked['data_scadenza'];
             if ($newPrestito !== $oldPrestito || $newScadenza !== $oldScadenza) {
                 $claimedWindows = [];
                 if ($newPrestito < $oldPrestito) {
@@ -920,7 +938,7 @@ class PrestitiController
             // emails. A data_prestito-only edit does not affect the overdue clock,
             // so it is intentionally excluded from this guard (do not reuse the
             // combined data_prestito||data_scadenza condition above).
-            if ($newScadenza !== (string) $current['data_scadenza']) {
+            if ($newScadenza !== (string) $locked['data_scadenza']) {
                 $today = \App\Support\DateHelper::today();
                 $recalcStato = $db->prepare(
                     "UPDATE prestiti

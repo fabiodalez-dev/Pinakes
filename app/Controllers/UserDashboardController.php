@@ -192,7 +192,7 @@ class UserDashboardController
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id
                 WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato','annullato','scaduto') AND l.deleted_at IS NULL
-                ORDER BY COALESCE(pr.data_restituzione, DATE(pr.updated_at)) DESC, pr.data_prestito DESC
+                ORDER BY COALESCE(pr.data_restituzione, pr.updated_at) DESC, pr.data_prestito DESC
                 LIMIT 50
             ");
             $stmt->bind_param('ii', $userId, $userId);

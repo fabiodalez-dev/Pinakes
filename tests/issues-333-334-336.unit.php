@@ -25,20 +25,36 @@ $check = static function (bool $condition, string $label) use (&$passed, &$faile
     echo ($condition ? '[PASS] ' : '[FAIL] ') . $label . PHP_EOL;
     $condition ? $passed++ : $failed++;
 };
+// Lettura "rumorosa": molti check qui sotto sono NEGATIVI (!str_contains) e
+// passerebbero in silenzio su una sorgente vuota. Un file mancante o illeggibile
+// deve far fallire subito il test, non farlo diventare verde a vuoto.
+$src = static function (string $relPath) use ($root): string {
+    $path = $root . '/' . $relPath;
+    if (!is_file($path)) {
+        fwrite(STDERR, "[FATAL] missing source file: {$relPath}" . PHP_EOL);
+        exit(1);
+    }
+    $content = file_get_contents($path);
+    if ($content === false || $content === '') {
+        fwrite(STDERR, "[FATAL] unreadable/empty source file: {$relPath}" . PHP_EOL);
+        exit(1);
+    }
+    return $content;
+};
 
-$loansIndex = (string) file_get_contents($root . '/app/Views/prestiti/index.php');
-$loanDetails = (string) file_get_contents($root . '/app/Views/prestiti/dettagli_prestito.php');
-$userDetails = (string) file_get_contents($root . '/app/Views/utenti/dettagli_utente.php');
-$bookPage = (string) file_get_contents($root . '/app/Views/libri/scheda_libro.php');
-$pendingLoans = (string) file_get_contents($root . '/app/Views/admin/pending_loans.php');
-$integrityReport = (string) file_get_contents($root . '/app/Views/admin/integrity_report.php');
-$controller = (string) file_get_contents($root . '/app/Controllers/PrestitiController.php');
-$badgePartial = (string) file_get_contents($root . '/app/Views/partials/loan-status-badge.php');
-$helpers = (string) file_get_contents($root . '/app/helpers.php');
-$profileReservations = (string) file_get_contents($root . '/app/Views/profile/reservations.php');
-$userDashboard = (string) file_get_contents($root . '/app/Views/user_dashboard/prenotazioni.php');
-$userActions = (string) file_get_contents($root . '/app/Controllers/UserActionsController.php');
-$userDashboardCtrl = (string) file_get_contents($root . '/app/Controllers/UserDashboardController.php');
+$loansIndex = $src('app/Views/prestiti/index.php');
+$loanDetails = $src('app/Views/prestiti/dettagli_prestito.php');
+$userDetails = $src('app/Views/utenti/dettagli_utente.php');
+$bookPage = $src('app/Views/libri/scheda_libro.php');
+$pendingLoans = $src('app/Views/admin/pending_loans.php');
+$integrityReport = $src('app/Views/admin/integrity_report.php');
+$controller = $src('app/Controllers/PrestitiController.php');
+$badgePartial = $src('app/Views/partials/loan-status-badge.php');
+$helpers = $src('app/helpers.php');
+$profileReservations = $src('app/Views/profile/reservations.php');
+$userDashboard = $src('app/Views/user_dashboard/prenotazioni.php');
+$userActions = $src('app/Controllers/UserActionsController.php');
+$userDashboardCtrl = $src('app/Controllers/UserDashboardController.php');
 
 echo "== #333: canonical badge covers the whole stato enum, used by every admin view ==\n";
 // The shared partial is the ONLY badge map: every enum value must be there,
@@ -93,8 +109,8 @@ $check(
     'user dashboard history query AND its counter include cancelled/expired loans'
 );
 $check(
-    str_contains($userActions, 'COALESCE(pr.data_restituzione, DATE(pr.updated_at))')
-        && str_contains($userDashboardCtrl, 'COALESCE(pr.data_restituzione, DATE(pr.updated_at))'),
+    str_contains($userActions, 'COALESCE(pr.data_restituzione, pr.updated_at)')
+        && str_contains($userDashboardCtrl, 'COALESCE(pr.data_restituzione, pr.updated_at)'),
     'history sorts cancelled loans by closing time instead of sinking NULL return dates'
 );
 $check(
@@ -108,9 +124,9 @@ $check(
 );
 
 echo "== #333 sweep: every stato-label consumer routes through the canonical helpers ==\n";
-$statsView = (string) file_get_contents($root . '/app/Views/admin/stats.php');
-$dashboardView = (string) file_get_contents($root . '/app/Views/dashboard/index.php');
-$icsGenerator = (string) file_get_contents($root . '/app/Support/IcsGenerator.php');
+$statsView = $src('app/Views/admin/stats.php');
+$dashboardView = $src('app/Views/dashboard/index.php');
+$icsGenerator = $src('app/Support/IcsGenerator.php');
 $check(
     str_contains($helpers, 'function loan_status_label_map()')
         && str_contains($helpers, "translate_loan_status(\$stato)"),
@@ -150,12 +166,12 @@ foreach ([
 }
 
 echo "== #333 API: mobile /me/loans matches the web history and labels via the helper ==\n";
-$mobileActions = (string) file_get_contents($root . '/storage/plugins/mobile-api/src/Controllers/ActionsController.php');
-$mobileOpenApi = (string) file_get_contents($root . '/storage/plugins/mobile-api/src/Controllers/OpenApiController.php');
-$mobilePlugin = json_decode((string) file_get_contents($root . '/storage/plugins/mobile-api/plugin.json'), true);
+$mobileActions = $src('storage/plugins/mobile-api/src/Controllers/ActionsController.php');
+$mobileOpenApi = $src('storage/plugins/mobile-api/src/Controllers/OpenApiController.php');
+$mobilePlugin = json_decode($src('storage/plugins/mobile-api/plugin.json'), true);
 $check(
     str_contains($mobileActions, "'restituito','perso','danneggiato','annullato','scaduto'")
-        && str_contains($mobileActions, 'COALESCE(pr.data_restituzione, DATE(pr.updated_at))'),
+        && str_contains($mobileActions, 'COALESCE(pr.data_restituzione, pr.updated_at)'),
     'mobile loans history includes cancelled/expired loans with closing-time order'
 );
 $check(
@@ -163,8 +179,13 @@ $check(
     'mobile loan payload carries a server-localized status_label from the canonical helper'
 );
 $check(
-    str_contains($mobileOpenApi, "'status_label'"),
-    'OpenAPI schema documents the additive status_label field'
+    str_contains($mobileOpenApi, "'status_label'") && str_contains($mobileOpenApi, "'requested_at'"),
+    'OpenAPI schema documents the additive status_label and requested_at fields'
+);
+$check(
+    str_contains($mobileActions, "'requested_at'")
+        && substr_count($mobileActions, 'pr.created_at') >= 3,
+    'every /me/loans payload carries requested_at, selected in all three queries'
 );
 $check(
     is_array($mobilePlugin) && version_compare((string) ($mobilePlugin['version'] ?? '0'), '1.4.3', '>='),
@@ -186,9 +207,12 @@ $check(
 echo "== #336: date edits check only newly-claimed days; clear error messages ==\n";
 $updateStart = strpos($controller, 'public function update(');
 $closeStart = strpos($controller, 'public function close(');
-$updateSource = ($updateStart !== false && $closeStart !== false)
+$updateSource = ($updateStart !== false && $closeStart !== false && $closeStart > $updateStart)
     ? substr($controller, $updateStart, $closeStart - $updateStart)
     : '';
+// Guardia: il check negativo qui sotto passerebbe a vuoto su una sezione
+// vuota — l'estrazione deve aver realmente trovato il corpo di update().
+$check($updateSource !== '', 'update() source section extracted (guards the negative checks below)');
 $check(
     str_contains($updateSource, '$claimedWindows')
         && str_contains($updateSource, 'excludePrestitoId: $id'),
@@ -200,9 +224,10 @@ $check(
 );
 $bulkStart = strpos($controller, 'private function applyBulkLoanExtension(');
 $renewStart = strpos($controller, 'public function renew(');
-$bulkSource = ($bulkStart !== false && $renewStart !== false)
+$bulkSource = ($bulkStart !== false && $renewStart !== false && $renewStart > $bulkStart)
     ? substr($controller, $bulkStart, $renewStart - $bulkStart)
     : '';
+$check($bulkSource !== '', 'applyBulkLoanExtension() source section extracted');
 $check(
     str_contains($bulkSource, "hasFreeCapacity(\$bookId, (string) \$loan['data_scadenza'], \$newDueDate"),
     'bulk extension checks the extension window only, like renew()'
@@ -224,7 +249,7 @@ $newStrings = [
     'Rinnovo non riuscito. Riprova.',
 ];
 foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
-    $bundle = json_decode((string) file_get_contents($root . '/locale/' . $locale . '.json'), true);
+    $bundle = json_decode($src('locale/' . $locale . '.json'), true);
     $ok = is_array($bundle);
     foreach ($newStrings as $key) {
         $ok = $ok && isset($bundle[$key]) && $bundle[$key] !== '';

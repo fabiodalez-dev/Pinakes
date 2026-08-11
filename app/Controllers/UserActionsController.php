@@ -81,7 +81,7 @@ class UserActionsController
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
                 WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato','annullato','scaduto')
-                ORDER BY COALESCE(pr.data_restituzione, DATE(pr.updated_at)) DESC, pr.data_prestito DESC
+                ORDER BY COALESCE(pr.data_restituzione, pr.updated_at) DESC, pr.data_prestito DESC
                 LIMIT 20";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('ii', $uid, $uid);

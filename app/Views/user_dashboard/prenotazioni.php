@@ -815,7 +815,7 @@ function accountLineIcon(string $name): string {
                 <?php endif; ?>
               </div>
               <?php if ($hasReview || $canReview): ?>
-              <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= HtmlHelper::e($loan['titolo'] ?? ''); ?>">
+              <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= htmlspecialchars((string) ($loan['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                 <i class="fas fa-star" aria-hidden="true"></i>
                 <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
