@@ -1261,6 +1261,7 @@ final class OpenApiController
                 'title'       => ['type' => 'string'],
                 'cover_url'   => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
                 'status'      => ['type' => 'string', 'description' => 'Raw prestiti.stato value.'],
+                'status_label' => ['type' => 'string', 'description' => 'Server-localized label for status (since 1.4.3). Prefer this over client-side status maps.'],
                 'loaned_at'   => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'due_at'      => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'due_attention' => [

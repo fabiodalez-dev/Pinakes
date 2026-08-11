@@ -149,6 +149,28 @@ foreach ([
     );
 }
 
+echo "== #333 API: mobile /me/loans matches the web history and labels via the helper ==\n";
+$mobileActions = (string) file_get_contents($root . '/storage/plugins/mobile-api/src/Controllers/ActionsController.php');
+$mobileOpenApi = (string) file_get_contents($root . '/storage/plugins/mobile-api/src/Controllers/OpenApiController.php');
+$mobilePlugin = json_decode((string) file_get_contents($root . '/storage/plugins/mobile-api/plugin.json'), true);
+$check(
+    str_contains($mobileActions, "'restituito','perso','danneggiato','annullato','scaduto'")
+        && str_contains($mobileActions, 'COALESCE(pr.data_restituzione, DATE(pr.updated_at))'),
+    'mobile loans history includes cancelled/expired loans with closing-time order'
+);
+$check(
+    str_contains($mobileActions, "'status_label' => translate_loan_status(\$status)"),
+    'mobile loan payload carries a server-localized status_label from the canonical helper'
+);
+$check(
+    str_contains($mobileOpenApi, "'status_label'"),
+    'OpenAPI schema documents the additive status_label field'
+);
+$check(
+    is_array($mobilePlugin) && version_compare((string) ($mobilePlugin['version'] ?? '0'), '1.4.3', '>='),
+    'mobile-api plugin version bumped for the additive API change'
+);
+
 echo "== #334: page header no longer covers the notifications dropdown ==\n";
 // Match class attributes only — the explanatory comments in those views cite
 // the removed utility string verbatim.

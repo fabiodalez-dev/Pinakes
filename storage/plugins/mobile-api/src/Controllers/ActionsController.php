@@ -99,13 +99,17 @@ final class ActionsController
                 $active[] = $this->mapLoan($r);
             }
 
-            // Concluded history (most recent 30).
+            // Concluded history (most recent 30) — includes cancelled/expired
+            // loans like the web history. They have no data_restituzione: order
+            // on the closing moment (updated_at) so a recent cancellation does
+            // not sink to the bottom. `status` is documented as the raw
+            // prestiti.stato value, so the extra states are additive.
             $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_restituzione, pr.stato,
                            l.titolo, l.copertina_url
                     FROM prestiti pr
                     JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
-                    WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato')
-                    ORDER BY pr.data_restituzione DESC, pr.data_prestito DESC
+                    WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato','annullato','scaduto')
+                    ORDER BY COALESCE(pr.data_restituzione, DATE(pr.updated_at)) DESC, pr.data_prestito DESC
                     LIMIT 30";
             foreach ($this->fetchScoped($sql, $userId) as $r) {
                 $history[] = $this->mapLoan($r);
@@ -972,6 +976,10 @@ final class ActionsController
             'title'        => (string) ($r['titolo'] ?? ''),
             'cover_url'    => absoluteUrl($this->coverPath($r['copertina_url'] ?? null)),
             'status'       => $status,
+            // Additive since 1.4.3: server-localized label from the canonical
+            // translate_loan_status() helper (#333), so clients need no local
+            // stato→label map and new enum values degrade gracefully.
+            'status_label' => translate_loan_status($status),
             'loaned_at'    => $this->nullableString($r['data_prestito'] ?? null),
             'due_at'       => $dueAt,
             // Server-authoritative visibility cue: the Android device may be in a
