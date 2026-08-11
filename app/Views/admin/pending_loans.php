@@ -151,7 +151,7 @@
                                     <h3 class="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2"><?= htmlspecialchars($loan['titolo']) ?></h3>
                                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                                         <i class="fas fa-box text-[10px]"></i>
-                                        <?= __("Da Ritirare") ?>
+                                        <?= htmlspecialchars(translate_loan_status('da_ritirare'), ENT_QUOTES, 'UTF-8') ?>
                                     </span>
                                     <div class="space-y-1 text-xs mt-2">
                                         <p class="text-gray-600 dark:text-gray-400 flex items-center">
@@ -354,7 +354,7 @@
                                         <?php if ($isExpiringSoon): ?>
                                             <?= sprintf(__("Scade tra %d giorni"), max(0, $daysLeft)) ?>
                                         <?php else: ?>
-                                            <?= __("In Corso") ?>
+                                            <?= htmlspecialchars(translate_loan_status('in_corso'), ENT_QUOTES, 'UTF-8') ?>
                                         <?php endif; ?>
                                     </span>
                                     <div class="space-y-1 text-xs mt-2">

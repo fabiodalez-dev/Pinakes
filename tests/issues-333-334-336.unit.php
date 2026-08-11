@@ -98,14 +98,56 @@ $check(
     'history sorts cancelled loans by closing time instead of sinking NULL return dates'
 );
 $check(
-    str_contains($profileReservations, "'annullato' => __('Annullato')")
-        && str_contains($userDashboard, "'annullato' => __('Annullato')"),
-    'both user history views label the annullato state'
+    str_contains($profileReservations, "'annullato' => 'fa-ban'")
+        && str_contains($userDashboard, "'annullato' => 'fa-ban'"),
+    'both user history views give cancelled loans a dedicated icon'
 );
 $check(
     str_contains($profileReservations, '$canReview') && str_contains($userDashboard, '$canReview'),
     'history hides the review button for loans that never went out (annullato/scaduto)'
 );
+
+echo "== #333 sweep: every stato-label consumer routes through the canonical helpers ==\n";
+$statsView = (string) file_get_contents($root . '/app/Views/admin/stats.php');
+$dashboardView = (string) file_get_contents($root . '/app/Views/dashboard/index.php');
+$icsGenerator = (string) file_get_contents($root . '/app/Support/IcsGenerator.php');
+$check(
+    str_contains($helpers, 'function loan_status_label_map()')
+        && str_contains($helpers, "translate_loan_status(\$stato)"),
+    'helpers.php exposes the enum-wide label map built on translate_loan_status()'
+);
+$check(
+    str_contains($statsView, 'loan_status_label_map()'),
+    'stats chart labels come from the canonical label map'
+);
+$check(
+    str_contains($dashboardView, 'loan_status_label_map()'),
+    'dashboard calendar labels come from the canonical label map'
+);
+$check(
+    str_contains($icsGenerator, 'translate_loan_status($status)'),
+    'ICS feed status labels delegate to translate_loan_status()'
+);
+$check(
+    str_contains($bookPage, 'translate_loan_status((string) $stato)'),
+    'book page occupancy calendar labels delegate to translate_loan_status()'
+);
+$check(
+    str_contains($profileReservations, 'translate_loan_status(')
+        && str_contains($userDashboard, 'translate_loan_status('),
+    'user history views delegate labels to translate_loan_status()'
+);
+// No hand-maintained stato→label literals left outside the two helpers: the
+// old maps always spelled a quoted state key next to a __() label call.
+foreach ([
+    'admin stats view' => $statsView,
+    'admin dashboard view' => $dashboardView,
+] as $surface => $source) {
+    $check(
+        !preg_match('/[\'"]in_corso[\'"]\s*(=>|:)\s*(<\?=\s*)?(json_encode\()?__\(/', $source),
+        "{$surface} keeps no local stato→label literal map"
+    );
+}
 
 echo "== #334: page header no longer covers the notifications dropdown ==\n";
 // Match class attributes only — the explanatory comments in those views cite

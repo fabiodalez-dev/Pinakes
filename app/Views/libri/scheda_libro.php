@@ -1099,7 +1099,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                     <?php if (!$canEdit): ?>
                     <?php
                     // Show actual status instead of generic "In prestito"
-                    // Use explicit fallback to surface unexpected values during testing
+                    // Use explicit fallback to surface unexpected values during testing.
+                    // Divergenza voluta da translate_loan_status(): qui si descrive la
+                    // COPIA fisica ("In prestito" = è fuori), non lo stato del prestito.
                     $statusText = match($loanStatusVal) {
                         'in_corso' => __('In prestito'),
                         'in_ritardo' => __('In ritardo'),
@@ -1411,15 +1413,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
               default => $copyColor
           };
 
-          // Status label
-          $statusLabel = match($stato) {
-              'in_corso' => __('In prestito'),
-              'prenotato' => __('Prenotato'),
-              'in_ritardo' => __('In ritardo'),
-              'pendente' => __('In attesa'),
-              'da_ritirare' => __('Da Ritirare'),
-              default => ucfirst($stato)
-          };
+          // Etichetta canonica dello stato (translate_loan_status, #333): stessa
+          // dicitura dei badge nella tabella prestiti di questa stessa pagina.
+          $statusLabel = translate_loan_status((string) $stato);
 
           // FullCalendar expects end date to be exclusive, so add 1 day
           $endDateObj = new DateTime($endDate);

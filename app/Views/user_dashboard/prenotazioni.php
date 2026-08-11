@@ -652,9 +652,11 @@ function accountLineIcon(string $name): string {
               <div class="item-badges">
                 <?php
                 $stato = $loan['stato'] ?? 'in_corso';
+                // Etichette dall'helper canonico (translate_loan_status, #333);
+                // icone e stili restano specifici di questa vista frontend.
                 $statoBadges = [
-                    'da_ritirare' => ['icon' => 'fa-box-open', 'label' => __('Da ritirare'), 'style' => 'background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;'],
-                    'prenotato' => ['icon' => 'fa-bookmark', 'label' => __('Prenotato'), 'style' => 'background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd;'],
+                    'da_ritirare' => ['icon' => 'fa-box-open', 'label' => translate_loan_status('da_ritirare'), 'style' => 'background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;'],
+                    'prenotato' => ['icon' => 'fa-bookmark', 'label' => translate_loan_status('prenotato'), 'style' => 'background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd;'],
                 ];
                 if (isset($statoBadges[$stato])): ?>
                   <div class="status-badge" style="<?= $statoBadges[$stato]['style'] ?>">
@@ -779,17 +781,9 @@ function accountLineIcon(string $name): string {
     <div class="items-grid">
       <?php foreach ($pastPrestiti as $loan):
         $cover = resolveCoverUrl($loan);
-        $statusLabels = [
-          'restituito' => __('Restituito'),
-          'in_ritardo' => __('Restituito in ritardo'),
-          'perso' => __('Perso'),
-          'danneggiato' => __('Danneggiato'),
-          'prestato' => __('Prestato'),
-          'in_corso' => __('In corso'),
-          'annullato' => __('Annullato'),
-          'scaduto' => __('Scaduto'),
-        ];
-        $statusLabel = $statusLabels[$loan['stato']] ?? ucfirst(str_replace('_', ' ', (string)$loan['stato']));
+        // Etichetta canonica dello stato (translate_loan_status, #333): lo storico
+        // contiene solo stati chiusi (restituito/perso/danneggiato/annullato/scaduto).
+        $statusLabel = translate_loan_status((string) $loan['stato']);
         $statusIcon = match ($loan['stato']) {
           'annullato' => 'fa-ban',
           'scaduto' => 'fa-calendar-times',

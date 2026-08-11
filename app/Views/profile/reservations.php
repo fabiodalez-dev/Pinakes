@@ -562,17 +562,9 @@ $profileReservationCoverUrl = static function (array $item): string {
       <?php foreach ($pastPrestiti as $p):
         $cover = $profileReservationCoverUrl($p);
 
-        $statusLabels = [
-          'restituito' => __('Restituito'),
-          'in_ritardo' => __('Restituito in ritardo'),
-          'perso' => __('Perso'),
-          'danneggiato' => __('Danneggiato'),
-          'prestato' => __('Prestato'),
-          'in_corso' => __('In corso'),
-          'annullato' => __('Annullato'),
-          'scaduto' => __('Scaduto')
-        ];
-        $statusLabel = $statusLabels[$p['stato']] ?? ucfirst(str_replace('_', ' ', $p['stato']));
+        // Etichetta canonica dello stato (translate_loan_status, #333): lo storico
+        // contiene solo stati chiusi (restituito/perso/danneggiato/annullato/scaduto).
+        $statusLabel = translate_loan_status((string) $p['stato']);
         $statusIcon = match ($p['stato']) {
           'annullato' => 'fa-ban',
           'scaduto' => 'fa-calendar-times',
