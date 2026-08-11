@@ -191,7 +191,7 @@ HTML,
                 'label' => __('Prestito approvato'),
                 'description' => __("Inviata all'utente quando un amministratore approva una richiesta di prestito."),
                 'subject' => '✅ La tua richiesta di prestito è stata approvata!',
-                'placeholders' => ['utente_nome', 'libro_titolo', 'data_inizio', 'data_fine', 'giorni_prestito', 'pickup_instructions'],
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_inizio', 'data_fine', 'giorni_prestito', 'pickup_instructions', 'sezione_calendario'],
                 'body' => <<<'HTML'
 <h2>La tua richiesta di prestito è stata approvata!</h2>
 <p>Ciao {{utente_nome}},</p>
@@ -207,6 +207,7 @@ HTML,
     <p><strong>📦 Ritiro del libro</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p><strong>Importante:</strong> Ricorda di restituire il libro entro la data di scadenza. Riceverai un promemoria alcuni giorni prima della scadenza.</p>
 <p>Buona lettura!</p>
 HTML,
@@ -281,7 +282,7 @@ HTML,
                 'label' => __('Pronto per il ritiro'),
                 'description' => __("Inviata quando un prestito è stato approvato e il libro è pronto per il ritiro."),
                 'subject' => '📦 Libro pronto per il ritiro!',
-                'placeholders' => ['utente_nome', 'libro_titolo', 'data_inizio', 'data_fine', 'giorni_prestito', 'scadenza_ritiro', 'pickup_instructions'],
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_inizio', 'data_fine', 'giorni_prestito', 'scadenza_ritiro', 'pickup_instructions', 'sezione_calendario'],
                 'body' => <<<'HTML'
 <h2>Il tuo libro è pronto per il ritiro!</h2>
 <p>Ciao {{utente_nome}},</p>
@@ -299,6 +300,7 @@ HTML,
     <p><strong>📦 Come ritirare</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p>Buona lettura!</p>
 HTML,
             ],
@@ -600,6 +602,7 @@ HTML,
             'profile_url'            => __('Link al profilo dell\'utente'),
             'reset_url'              => __('Link per reimpostare la password'),
             'scadenza_ritiro'        => __('Scadenza entro cui ritirare il libro'),
+            'sezione_calendario'     => __('Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)'),
             'sezione_verifica'       => __('Sezione di verifica dell\'account'),
             'stelle'                 => __('Valutazione in stelle'),
             'titolo_recensione'      => __('Titolo della recensione'),

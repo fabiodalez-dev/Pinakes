@@ -6764,5 +6764,9 @@
   "https://...": "https://...",
   "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.": "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.",
-  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice."
+  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.",
+  "Aggiungi il prestito al tuo calendario": "Aggiungi il prestito al tuo calendario",
+  "Altri calendari (.ics)": "Altri calendari (.ics)",
+  "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.": "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.",
+  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)"
 }

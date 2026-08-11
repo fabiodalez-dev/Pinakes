@@ -95,6 +95,7 @@ return [
     <p><strong>📦 Retrait du livre</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p><strong>Important :</strong> N\'oubliez pas de rendre le livre avant la date d\'échéance. Vous recevrez un rappel quelques jours avant l\'échéance.</p>
 <p>Bonne lecture !</p>',
     ],
@@ -185,6 +186,7 @@ return [
     <p><strong>📦 Comment récupérer votre livre</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p>Bonne lecture !</p>',
     ],
     'loan_rejected' => [
