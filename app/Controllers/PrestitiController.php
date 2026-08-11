@@ -172,10 +172,7 @@ class PrestitiController
         // il vecchio date('Y-m-d') (TZ processo, spesso UTC) mostrava "ieri" dopo
         // mezzanotte, e il '+1 month' della view divergeva dal default server (30gg).
         $defaultDataPrestito = \App\Support\DateHelper::today();
-        $defaultLoanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
-        if ($defaultLoanDays < 1) {
-            $defaultLoanDays = 30;
-        }
+        $defaultLoanDays = (new \App\Models\SettingsRepository($db))->loanDurationDays();
         $defaultDataScadenza = date('Y-m-d', strtotime($defaultDataPrestito . " +{$defaultLoanDays} days"));
 
         ob_start();
@@ -236,10 +233,7 @@ class PrestitiController
         }
         if (empty($data_scadenza)) {
             // Default loan duration read from admin settings (fallback: 30 days)
-            $loanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
-            if ($loanDays < 1) {
-                $loanDays = 30;
-            }
+            $loanDays = (new \App\Models\SettingsRepository($db))->loanDurationDays();
             $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
         }
 
@@ -1704,10 +1698,7 @@ class PrestitiController
 
         // Durata del rinnovo dalla setting di durata prestito (M5b): il vecchio
         // '+14 days' hardcoded ignorava la configurazione dell'admin.
-        $renewDays = (int) ($settingsRepo->get('loans', 'loan_duration_days', '30') ?? 30);
-        if ($renewDays < 1) {
-            $renewDays = 30;
-        }
+        $renewDays = $settingsRepo->loanDurationDays();
 
         // Calculate proposed new due date for conflict checking
         $currentDueDate = $loan['data_scadenza'];

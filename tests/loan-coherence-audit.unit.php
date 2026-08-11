@@ -73,11 +73,16 @@ $checks['DashboardStats uses only the app clock'] =
 // 5. LoanRepository::update() fallback honours the configured duration.
 $checks['LoanRepository::update fallback reads loan_duration_days'] =
     !str_contains($loanRepo, "+14 days")
-    && str_contains($loanRepo, "get('loans', 'loan_duration_days', '30')");
+    && str_contains($loanRepo, 'loanDurationDays()');
 
 // 6. rejectLoan promotes the waitlist + flushes deferred notifications.
 $rejectPos = strpos($approval, 'function rejectLoan');
-$rejectBody = $rejectPos !== false ? substr($approval, $rejectPos, 10000) : '';
+$rejectEnd = $rejectPos !== false
+    ? strpos($approval, "\n    public function ", $rejectPos + strlen('function rejectLoan'))
+    : false;
+$rejectBody = $rejectPos !== false
+    ? substr($approval, $rejectPos, $rejectEnd !== false ? $rejectEnd - $rejectPos : null)
+    : '';
 $checks['rejectLoan promotes waitlist and flushes notifications'] =
     str_contains($rejectBody, 'processBookAvailability($bookId)')
     && str_contains($rejectBody, 'flushDeferredNotifications()');

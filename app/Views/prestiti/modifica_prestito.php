@@ -1,6 +1,5 @@
 <?php
 use App\Support\Csrf;
-use App\Support\HtmlHelper;
 
 $csrf = Csrf::ensureToken();
 ?>
@@ -47,7 +46,7 @@ $csrf = Csrf::ensureToken();
                     </div>
                     <div>
                         <p class="text-lg font-semibold text-gray-900 leading-tight">
-                            <?= HtmlHelper::e($prestito['utente'] ?? 'Utente sconosciuto'); ?>
+                            <?= htmlspecialchars((string) ($prestito['utente'] ?? 'Utente sconosciuto'), ENT_QUOTES, 'UTF-8'); ?>
                         </p>
                         <p class="text-sm text-gray-600 mt-1">ID utente: #<?= (int)($prestito['utente_id'] ?? 0); ?></p>
                     </div>
@@ -63,7 +62,7 @@ $csrf = Csrf::ensureToken();
                     <div>
                         <p class="text-lg font-semibold leading-tight">
                             <a href="<?= htmlspecialchars(url('/admin/books/edit/' . (int)($prestito['libro_id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="text-blue-600 underline hover:text-blue-800 transition-colors">
-                                <?= HtmlHelper::e($prestito['libro'] ?? 'Libro non disponibile'); ?>
+                                <?= htmlspecialchars((string) ($prestito['libro'] ?? 'Libro non disponibile'), ENT_QUOTES, 'UTF-8'); ?>
                             </a>
                         </p>
                         <p class="text-sm text-gray-600 mt-1">ID libro: #<?= (int)($prestito['libro_id'] ?? 0); ?></p>
@@ -78,7 +77,7 @@ $csrf = Csrf::ensureToken();
                 <input
                     type="date"
                     name="data_prestito"
-                    value="<?= HtmlHelper::e($prestito['data_prestito'] ?? date('Y-m-d')); ?>"
+                    value="<?= htmlspecialchars((string) ($prestito['data_prestito'] ?? date('Y-m-d')), ENT_QUOTES, 'UTF-8'); ?>"
                     class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                 >
             </label>
@@ -88,7 +87,7 @@ $csrf = Csrf::ensureToken();
                 <input
                     type="date"
                     name="data_scadenza"
-                    value="<?= HtmlHelper::e($prestito['data_scadenza'] ?? date('Y-m-d', strtotime(\App\Support\DateHelper::today() . ' +30 days'))); ?>"
+                    value="<?= htmlspecialchars((string) ($prestito['data_scadenza'] ?? date('Y-m-d', strtotime(\App\Support\DateHelper::today() . ' +30 days'))), ENT_QUOTES, 'UTF-8'); ?>"
                     class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                 >
             </label>

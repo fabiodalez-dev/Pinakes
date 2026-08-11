@@ -98,6 +98,16 @@ class SettingsRepository
     }
 
     /**
+     * Configured default loan duration. Invalid or missing values retain the
+     * historical 30-day fallback in every loan creation/update path.
+     */
+    public function loanDurationDays(): int
+    {
+        $days = (int) ($this->get('loans', 'loan_duration_days', '30') ?? 30);
+        return $days >= 1 ? $days : 30;
+    }
+
+    /**
      * @return array<string,string>
      */
     public function getCategory(string $category): array

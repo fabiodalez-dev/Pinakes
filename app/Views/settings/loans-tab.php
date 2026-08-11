@@ -100,16 +100,17 @@
           <label for="app_timezone" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __("Fuso orario") ?>
           </label>
+          <?php $currentTimezone = (string) ($loansSettings['app_timezone'] ?? \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome')); ?>
           <select id="app_timezone"
                   name="app_timezone"
                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
             <?php foreach (\DateTimeZone::listIdentifiers() as $tzId): ?>
-              <option value="<?= htmlspecialchars($tzId, ENT_QUOTES, 'UTF-8') ?>" <?= ($loansSettings['app_timezone'] ?? 'Europe/Rome') === $tzId ? 'selected' : '' ?>><?= htmlspecialchars($tzId, ENT_QUOTES, 'UTF-8') ?></option>
+              <option value="<?= htmlspecialchars($tzId, ENT_QUOTES, 'UTF-8') ?>" <?= $currentTimezone === $tzId ? 'selected' : '' ?>><?= htmlspecialchars($tzId, ENT_QUOTES, 'UTF-8') ?></option>
             <?php endforeach; ?>
           </select>
           <p class="text-xs text-gray-500 mt-3">
             <i class="fas fa-info-circle mr-1"></i>
-            <?= __("Predefinito: Europe/Rome") ?>
+            <?= __("Fuso orario") ?>: <?= htmlspecialchars($currentTimezone, ENT_QUOTES, 'UTF-8') ?>
           </p>
         </div>
       </div>

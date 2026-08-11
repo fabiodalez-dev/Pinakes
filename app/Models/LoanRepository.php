@@ -99,10 +99,7 @@ class LoanRepository
             // Fallback dalla setting di durata prestito: il vecchio +14gg
             // hardcoded era metà del default seminato (30) e ignorava la
             // configurazione dell'admin — stesso fix M5b già applicato a renew().
-            $loanDays = (int) ((new SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
-            if ($loanDays < 1) {
-                $loanDays = 30;
-            }
+            $loanDays = (new SettingsRepository($this->db))->loanDurationDays();
             $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
         }
         $processed_by = $data['processed_by'] ?? null;

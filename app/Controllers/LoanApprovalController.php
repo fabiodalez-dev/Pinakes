@@ -577,7 +577,11 @@ class LoanApprovalController
             }
         }
         $loanId = (int) ($data['loan_id'] ?? 0);
-        $reason = $data['reason'] ?? '';
+        // Used both in the audit note and the rejection email: normalize once
+        // so crafted array input cannot break the post-commit notification and
+        // long notes cannot overflow the persistence column in strict mode.
+        $rawReason = $data['reason'] ?? '';
+        $reason = is_scalar($rawReason) ? mb_substr(trim((string) $rawReason), 0, 500) : '';
 
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
@@ -666,8 +670,8 @@ class LoanApprovalController
             // request the same book again.
             $rejectedBy = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
             $rejectNote = "\n[Admin] " . __('Richiesta rifiutata');
-            if (is_scalar($reason) && (string) $reason !== '') {
-                $rejectNote .= ': ' . (string) $reason;
+            if ($reason !== '') {
+                $rejectNote .= ': ' . $reason;
             }
             $stmt = $db->prepare("
                 UPDATE prestiti

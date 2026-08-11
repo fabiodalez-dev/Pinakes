@@ -192,6 +192,26 @@ $check($loanOnId > 0 && $loanField($loanOnId, 'stato') === 'da_ritirare', "08 lo
 $check((int) $loanField($loanOnId, 'attivo') === 1 && $loanField($loanOnId, 'copia_id') !== null, '09 canonical pipeline assigned a copy and activated the loan');
 $check($loanField($loanOnId, 'pickup_deadline') !== null, '10 immediate auto-approved loan has a pickup deadline');
 
+// ── C. Setting ON but no physical copy: approval fails gracefully ───────────
+// A legacy aggregate-only book can advertise capacity without having a `copie`
+// row. The request is valid, but the canonical approval allocator cannot assign
+// a physical copy: createReservation must still succeed and retain the manual
+// pending request (which also keeps the admin-notification path active).
+echo "C. createReservation with auto-approve ON and no physical copy\n";
+$legacyBookId = $makeBook(0);
+$db->query("UPDATE libri SET copie_totali = 1, copie_disponibili = 1 WHERE id = {$legacyBookId}");
+$resNoCopy = $callCreate($legacyBookId, $makeUser());
+$check($resNoCopy['status'] === 200 && ($resNoCopy['payload']['success'] ?? false) === true, '11 request remains accepted when automatic approval cannot allocate a copy');
+$check(($resNoCopy['payload']['auto_approved'] ?? null) === false, '12 response auto_approved = false after allocation failure');
+$check(($resNoCopy['payload']['status'] ?? '') === 'pending_approval', '13 response falls back to pending_approval');
+$loanNoCopyId = (int) ($resNoCopy['payload']['loan_request_id'] ?? 0);
+$check(
+    $loanNoCopyId > 0
+        && $loanField($loanNoCopyId, 'stato') === 'pendente'
+        && $loanField($loanNoCopyId, 'copia_id') === null,
+    '14 request stays pendente without an assigned copy'
+);
+
 $cleanup();
 $db->close();
 echo "\n{$pass} checks passed\n";
