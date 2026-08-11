@@ -786,9 +786,19 @@ function accountLineIcon(string $name): string {
           'danneggiato' => __('Danneggiato'),
           'prestato' => __('Prestato'),
           'in_corso' => __('In corso'),
+          'annullato' => __('Annullato'),
+          'scaduto' => __('Scaduto'),
         ];
         $statusLabel = $statusLabels[$loan['stato']] ?? ucfirst(str_replace('_', ' ', (string)$loan['stato']));
+        $statusIcon = match ($loan['stato']) {
+          'annullato' => 'fa-ban',
+          'scaduto' => 'fa-calendar-times',
+          default => 'fa-check-circle',
+        };
         $hasReview = !empty($loan['has_review']);
+        // Un prestito annullato/scaduto non è mai uscito: nessuna recensione
+        // proponibile (il server la rifiuterebbe: richiede restituito/in corso).
+        $canReview = !in_array($loan['stato'], ['annullato', 'scaduto'], true);
         $returnDate = $loan['data_restituzione'] ?? '';
       ?>
         <div class="item-card">
@@ -800,7 +810,7 @@ function accountLineIcon(string $name): string {
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="status-badge badge-status">
-                  <i class="fas fa-check-circle" aria-hidden="true"></i>
+                  <i class="fas <?= $statusIcon ?>" aria-hidden="true"></i>
                   <span><?= HtmlHelper::e($statusLabel); ?></span>
                 </div>
                 <?php if ($returnDate): ?>
@@ -810,10 +820,12 @@ function accountLineIcon(string $name): string {
                   </div>
                 <?php endif; ?>
               </div>
+              <?php if ($hasReview || $canReview): ?>
               <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= HtmlHelper::e($loan['titolo'] ?? ''); ?>">
                 <i class="fas fa-star" aria-hidden="true"></i>
                 <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
+              <?php endif; ?>
             </div>
           </div>
         </div>

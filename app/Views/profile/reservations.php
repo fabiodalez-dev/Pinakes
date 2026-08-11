@@ -568,10 +568,20 @@ $profileReservationCoverUrl = static function (array $item): string {
           'perso' => __('Perso'),
           'danneggiato' => __('Danneggiato'),
           'prestato' => __('Prestato'),
-          'in_corso' => __('In corso')
+          'in_corso' => __('In corso'),
+          'annullato' => __('Annullato'),
+          'scaduto' => __('Scaduto')
         ];
         $statusLabel = $statusLabels[$p['stato']] ?? ucfirst(str_replace('_', ' ', $p['stato']));
+        $statusIcon = match ($p['stato']) {
+          'annullato' => 'fa-ban',
+          'scaduto' => 'fa-calendar-times',
+          default => 'fa-check-circle',
+        };
         $hasReview = !empty($p['has_review']);
+        // Un prestito annullato/scaduto non è mai uscito: nessuna recensione
+        // proponibile (il server la rifiuterebbe: richiede restituito/in corso).
+        $canReview = !in_array($p['stato'], ['annullato', 'scaduto'], true);
       ?>
         <div class="item-card">
           <div class="item-inner">
@@ -584,7 +594,7 @@ $profileReservationCoverUrl = static function (array $item): string {
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="status-badge badge-status">
-                  <i class="fas fa-check-circle"></i>
+                  <i class="fas <?= $statusIcon ?>"></i>
                   <span><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
                 <?php if (!empty($p['data_restituzione'])): ?>
@@ -599,7 +609,7 @@ $profileReservationCoverUrl = static function (array $item): string {
                 <i class="fas fa-star"></i>
                 <span><?= __('Già recensito') ?></span>
               </button>
-              <?php else: ?>
+              <?php elseif ($canReview): ?>
               <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, <?php echo htmlspecialchars(json_encode($p['titolo'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>)">
                 <i class="fas fa-star"></i>
                 <span><?= __('Lascia una recensione') ?></span>

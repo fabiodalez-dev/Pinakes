@@ -1,22 +1,9 @@
 <?php
 /** @var array $prestito */
 $prestito = $prestito ?? [];
-// Helper function to generate a human-readable status string
-function formatLoanStatus($status) {
-    return match ($status) {
-        'pendente' => __('In Attesa di Approvazione'),
-        'prenotato' => __('Prenotato'),
-        'da_ritirare' => __('Da Ritirare'),
-        'in_corso' => __('In Corso'),
-        'in_ritardo' => __('In Ritardo'),
-        'restituito' => __('Restituito'),
-        'perso' => __('Perso'),
-        'danneggiato' => __('Danneggiato'),
-        'annullato' => __('Annullato'),
-        'scaduto' => __('Scaduto'),
-        default => __('Sconosciuto'),
-    };
-}
+// Badge canonico degli stati prestito (#333): colore/icona/etichetta arrivano
+// dal partial condiviso, niente mappa locale da tenere allineata.
+require_once __DIR__ . '/../partials/loan-status-badge.php';
 ?>
 <section class="space-y-4 p-6">
   <!-- Breadcrumb -->
@@ -114,19 +101,7 @@ function formatLoanStatus($status) {
         <div class="space-y-3">
           <div>
             <span class="font-semibold text-gray-600"><?= __("Stato:") ?></span>
-            <span class="inline-block px-2 py-1 rounded text-sm <?php
-              echo match($prestito['stato'] ?? '') {
-                'pendente' => 'bg-orange-100 text-orange-800',
-                'prenotato' => 'bg-purple-100 text-purple-800',
-                'da_ritirare' => 'bg-amber-100 text-amber-800',
-                'restituito' => 'bg-green-100 text-green-800',
-                'in_corso' => 'bg-blue-100 text-blue-800',
-                'in_ritardo' => 'bg-yellow-100 text-yellow-800',
-                'perso', 'danneggiato' => 'bg-red-100 text-red-800',
-                'annullato', 'scaduto' => 'bg-gray-200 text-gray-700',
-                default => 'bg-gray-100 text-gray-800'
-              };
-            ?>"><?= App\Support\HtmlHelper::e(formatLoanStatus($prestito['stato'] ?? 'N/D')); ?></span>
+            <?= loan_status_badge($prestito['stato'] ?? null); ?>
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Attivo:") ?></span>

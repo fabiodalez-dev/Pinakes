@@ -1,6 +1,9 @@
 <?php
 use App\Support\ConfigStore;
 
+// Badge canonico degli stati prestito (#333): usato nello storico prestiti admin.
+require_once __DIR__ . '/../partials/loan-status-badge.php';
+
 // Variables passed from controller
 $libro = $libro ?? [];
 // Security: borrower PII (loan history, active-loan/per-copy borrower) is gated
@@ -1261,67 +1264,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <?php
-                    $statusClass = 'bg-gray-100 text-gray-800';
-                    $statusIcon = 'fa-circle';
-                    $statusLabel = __('Sconosciuto');
-                    switch ($loan['stato']) {
-                      case 'restituito':
-                        $statusClass = 'bg-green-100 text-green-800';
-                        $statusIcon = 'fa-check-circle';
-                        $statusLabel = __('Restituito');
-                        break;
-                      case 'prenotato':
-                        $statusClass = 'bg-purple-100 text-purple-800';
-                        $statusIcon = 'fa-calendar-check';
-                        $statusLabel = __('Prenotato');
-                        break;
-                      case 'in_corso':
-                        $statusClass = 'bg-blue-100 text-blue-800';
-                        $statusIcon = 'fa-book-open';
-                        $statusLabel = __('In Corso');
-                        break;
-                      case 'in_ritardo':
-                        $statusClass = 'bg-red-100 text-red-800';
-                        $statusIcon = 'fa-exclamation-triangle';
-                        $statusLabel = __('In Ritardo');
-                        break;
-                      case 'perso':
-                        $statusClass = 'bg-yellow-100 text-yellow-800';
-                        $statusIcon = 'fa-exclamation-circle';
-                        $statusLabel = __('Perso');
-                        break;
-                      case 'danneggiato':
-                        $statusClass = 'bg-yellow-100 text-yellow-800';
-                        $statusIcon = 'fa-exclamation-circle';
-                        $statusLabel = __('Danneggiato');
-                        break;
-                      case 'pendente':
-                        $statusClass = 'bg-orange-100 text-orange-800';
-                        $statusIcon = 'fa-clock';
-                        $statusLabel = __('In Attesa');
-                        break;
-                      case 'da_ritirare':
-                        $statusClass = 'bg-amber-100 text-amber-800';
-                        $statusIcon = 'fa-box';
-                        $statusLabel = __('Da Ritirare');
-                        break;
-                      case 'annullato':
-                        $statusClass = 'bg-gray-200 text-gray-700';
-                        $statusIcon = 'fa-ban';
-                        $statusLabel = __('Annullato');
-                        break;
-                      case 'scaduto':
-                        $statusClass = 'bg-gray-200 text-gray-700';
-                        $statusIcon = 'fa-calendar-times';
-                        $statusLabel = __('Scaduto');
-                        break;
-                    }
-                  ?>
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $statusClass; ?>">
-                    <i class="fas <?php echo $statusIcon; ?> mr-1"></i>
-                    <?php echo App\Support\HtmlHelper::e($statusLabel); ?>
-                  </span>
+                  <?php // Badge canonico degli stati prestito (#333): partial condiviso. ?>
+                  <?= loan_status_badge((string) ($loan['stato'] ?? '')); ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php if ((int)$loan['renewals'] > 0): ?>

@@ -33,11 +33,42 @@ $bookPage = (string) file_get_contents($root . '/app/Views/libri/scheda_libro.ph
 $pendingLoans = (string) file_get_contents($root . '/app/Views/admin/pending_loans.php');
 $integrityReport = (string) file_get_contents($root . '/app/Views/admin/integrity_report.php');
 $controller = (string) file_get_contents($root . '/app/Controllers/PrestitiController.php');
+$badgePartial = (string) file_get_contents($root . '/app/Views/partials/loan-status-badge.php');
+$helpers = (string) file_get_contents($root . '/app/helpers.php');
+$profileReservations = (string) file_get_contents($root . '/app/Views/profile/reservations.php');
+$userDashboard = (string) file_get_contents($root . '/app/Views/user_dashboard/prenotazioni.php');
+$userActions = (string) file_get_contents($root . '/app/Controllers/UserActionsController.php');
+$userDashboardCtrl = (string) file_get_contents($root . '/app/Controllers/UserDashboardController.php');
 
-echo "== #333: stato 'annullato' rendered everywhere ==\n";
+echo "== #333: canonical badge covers the whole stato enum, used by every admin view ==\n";
+// The shared partial is the ONLY badge map: every enum value must be there,
+// and the labels must come from the same helper the PDF/CSV already use.
+foreach (['pendente', 'prenotato', 'da_ritirare', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato', 'scaduto', 'annullato'] as $stato) {
+    $check(
+        str_contains($badgePartial, "'{$stato}'"),
+        "canonical badge map covers '{$stato}'"
+    );
+}
 $check(
-    substr_count($loansIndex, "case 'annullato':") >= 2,
-    'loans list renders the annullato badge in both the SSR and DataTables paths'
+    str_contains($badgePartial, 'translate_loan_status(')
+        && str_contains($helpers, "'annullato' => __('Annullato')"),
+    'badge labels come from translate_loan_status(), which maps annullato'
+);
+foreach ([
+    'loans list' => $loansIndex,
+    'loan details page' => $loanDetails,
+    'user details page' => $userDetails,
+    'admin book page' => $bookPage,
+] as $surface => $source) {
+    $check(
+        str_contains($source, 'loan-status-badge.php') && str_contains($source, 'loan_status_badge('),
+        "{$surface} renders states through the shared badge partial"
+    );
+}
+$check(
+    str_contains($loansIndex, 'loan_status_badge_map()')
+        && !str_contains($loansIndex, "case 'in_corso':"),
+    'DataTables status column uses the PHP-generated map, no duplicated JS switch'
 );
 $check(
     str_contains($loansIndex, 'data-status="annullato"'),
@@ -48,21 +79,32 @@ $check(
     'CSV export dialog includes the annullato state'
 );
 $check(
-    str_contains($loanDetails, "'annullato' => __('Annullato')")
-        && str_contains($loanDetails, "'scaduto' => __('Scaduto')"),
-    'loan details page labels annullato/scaduto instead of Sconosciuto'
-);
-$check(
     str_contains($loanDetails, "['annullato', 'scaduto']"),
     'loan details page does not claim "not yet returned" for cancelled/expired loans'
 );
+
+echo "== #333 follow-up: cancelled loans appear in the user-facing history ==\n";
 $check(
-    str_contains($userDetails, "case 'annullato':") && str_contains($userDetails, "case 'da_ritirare':"),
-    'user details page labels annullato (and da_ritirare) loans'
+    substr_count($userActions, "'restituito','perso','danneggiato','annullato','scaduto'") === 1,
+    'profile history query includes cancelled/expired loans'
 );
 $check(
-    str_contains($bookPage, "case 'annullato':"),
-    'admin book page loan history labels annullato loans'
+    substr_count($userDashboardCtrl, "'restituito','perso','danneggiato','annullato','scaduto'") === 2,
+    'user dashboard history query AND its counter include cancelled/expired loans'
+);
+$check(
+    str_contains($userActions, 'COALESCE(pr.data_restituzione, DATE(pr.updated_at))')
+        && str_contains($userDashboardCtrl, 'COALESCE(pr.data_restituzione, DATE(pr.updated_at))'),
+    'history sorts cancelled loans by closing time instead of sinking NULL return dates'
+);
+$check(
+    str_contains($profileReservations, "'annullato' => __('Annullato')")
+        && str_contains($userDashboard, "'annullato' => __('Annullato')"),
+    'both user history views label the annullato state'
+);
+$check(
+    str_contains($profileReservations, '$canReview') && str_contains($userDashboard, '$canReview'),
+    'history hides the review button for loans that never went out (annullato/scaduto)'
 );
 
 echo "== #334: page header no longer covers the notifications dropdown ==\n";
