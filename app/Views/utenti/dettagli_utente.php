@@ -19,6 +19,12 @@ function getLoanStatusBadge($status) {
             return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Perso") . "</span>";
         case 'danneggiato':
             return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Danneggiato") . "</span>";
+        case 'da_ritirare':
+            return "<span class='$baseClasses bg-amber-100 text-amber-800'><i class='fas fa-box mr-2'></i>" . __("Da Ritirare") . "</span>";
+        case 'scaduto':
+            return "<span class='$baseClasses bg-gray-200 text-gray-700'><i class='fas fa-calendar-times mr-2'></i>" . __("Scaduto") . "</span>";
+        case 'annullato':
+            return "<span class='$baseClasses bg-gray-200 text-gray-700'><i class='fas fa-ban mr-2'></i>" . __("Annullato") . "</span>";
         default:
             return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . __("Sconosciuto") . "</span>";
     }

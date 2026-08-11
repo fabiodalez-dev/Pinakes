@@ -6764,5 +6764,7 @@
   "https://...": "https://...",
   "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.": "⚙️ Automatic behaviour: If you enter code in \"Analytics JavaScript\" or \"Marketing JavaScript\", the respective toggles in <a href=\"%s\" class=\"underline font-semibold\">Privacy Settings</a> will be selected automatically.",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Important: You must manually list the cookies tracked by these scripts on the <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Cookie Page</a> for GDPR compliance.",
-  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Language deleted, but a translation file could not be removed: it may reappear if you recreate the language with the same code."
+  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Language deleted, but a translation file could not be removed: it may reappear if you recreate the language with the same code.",
+  "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.": "Change not saved: in the new period every copy is already taken by other loans or reservations.",
+  "Rinnovo non riuscito. Riprova.": "Renewal failed. Please try again."
 }

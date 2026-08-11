@@ -12,6 +12,8 @@ function formatLoanStatus($status) {
         'restituito' => __('Restituito'),
         'perso' => __('Perso'),
         'danneggiato' => __('Danneggiato'),
+        'annullato' => __('Annullato'),
+        'scaduto' => __('Scaduto'),
         default => __('Sconosciuto'),
     };
 }
@@ -91,7 +93,18 @@ function formatLoanStatus($status) {
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Data Restituzione:") ?></span>
-            <span class="text-gray-800"><?= !empty($prestito['data_restituzione']) ? format_date($prestito['data_restituzione'], false, '/') : __("Non ancora restituito") ?></span>
+            <span class="text-gray-800"><?php
+              // Un prestito chiuso senza restituzione (annullato/scaduto) non è
+              // "non ancora restituito": il libro non è mai uscito. Mostra un
+              // trattino invece di un'attesa che non arriverà mai (#333).
+              if (!empty($prestito['data_restituzione'])) {
+                  echo format_date($prestito['data_restituzione'], false, '/');
+              } elseif (in_array((string) ($prestito['stato'] ?? ''), ['annullato', 'scaduto'], true)) {
+                  echo '&mdash;';
+              } else {
+                  echo __("Non ancora restituito");
+              }
+            ?></span>
           </div>
         </div>
       </div>
@@ -110,6 +123,7 @@ function formatLoanStatus($status) {
                 'in_corso' => 'bg-blue-100 text-blue-800',
                 'in_ritardo' => 'bg-yellow-100 text-yellow-800',
                 'perso', 'danneggiato' => 'bg-red-100 text-red-800',
+                'annullato', 'scaduto' => 'bg-gray-200 text-gray-700',
                 default => 'bg-gray-100 text-gray-800'
               };
             ?>"><?= App\Support\HtmlHelper::e(formatLoanStatus($prestito['stato'] ?? 'N/D')); ?></span>

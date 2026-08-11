@@ -66,7 +66,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
             echo __('Numero massimo di rinnovi raggiunto per questo prestito.');
             break;
         case 'renewal_conflict':
+        case 'extension_conflicts':
+            // #336: renew() emette 'extension_conflicts' — il vecchio switch conosceva
+            // solo 'renewal_conflict' (mai emesso) e mostrava il messaggio generico.
             echo __('Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.');
+            break;
+        case 'renewal_failed':
+            echo __('Rinnovo non riuscito. Riprova.');
             break;
         default:
             echo __('Operazione non riuscita. Riprova.');
@@ -1299,6 +1305,16 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                         $statusClass = 'bg-amber-100 text-amber-800';
                         $statusIcon = 'fa-box';
                         $statusLabel = __('Da Ritirare');
+                        break;
+                      case 'annullato':
+                        $statusClass = 'bg-gray-200 text-gray-700';
+                        $statusIcon = 'fa-ban';
+                        $statusLabel = __('Annullato');
+                        break;
+                      case 'scaduto':
+                        $statusClass = 'bg-gray-200 text-gray-700';
+                        $statusIcon = 'fa-calendar-times';
+                        $statusLabel = __('Scaduto');
                         break;
                     }
                   ?>

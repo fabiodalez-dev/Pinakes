@@ -858,15 +858,35 @@ class PrestitiController
                 }
             }
 
-            // #11: if the loan is being RESCHEDULED, re-check the new window against
+            // #11: if the loan is being RESCHEDULED, re-check the new dates against
             // overlapping loans + queue reservations vs capacity (renew() does this — update()
             // used to accept any new dates and only recalc counters, silently extending a loan
             // over a queued reservation). Only when the dates actually change.
-            if ($newPrestito !== (string) $current['data_prestito'] || $newScadenza !== (string) $current['data_scadenza']) {
+            // #336: check ONLY the newly-claimed segments (before the old start and/or
+            // after the old due date), like renew() checks just the extension window.
+            // Checking the WHOLE new window re-counted commitments that already
+            // coexist with the current period (e.g. a queued reservation overlapping
+            // the loan), so on a 1-copy book ANY date edit — even shortening the
+            // loan — bounced with no_copies_available. Days inside the old window
+            // are already held by this loan; only the added days need free capacity.
+            $oldPrestito = (string) $current['data_prestito'];
+            $oldScadenza = (string) $current['data_scadenza'];
+            if ($newPrestito !== $oldPrestito || $newScadenza !== $oldScadenza) {
+                $claimedWindows = [];
+                if ($newPrestito < $oldPrestito) {
+                    // Y-m-d strings compare correctly lexicographically. The inclusive
+                    // boundary day (old start / old due) mirrors renew()'s convention.
+                    $claimedWindows[] = [$newPrestito, min($oldPrestito, $newScadenza)];
+                }
+                if ($newScadenza > $oldScadenza) {
+                    $claimedWindows[] = [max($oldScadenza, $newPrestito), $newScadenza];
+                }
                 $capacity = new \App\Services\CapacityService($db);
-                if (!$capacity->hasFreeCapacity($libroId, $newPrestito, $newScadenza, excludePrestitoId: $id)) {
-                    $db->rollback();
-                    return $response->withHeader('Location', url('/admin/loans') . '?error=no_copies_available')->withStatus(302);
+                foreach ($claimedWindows as [$claimStart, $claimEnd]) {
+                    if (!$capacity->hasFreeCapacity($libroId, $claimStart, $claimEnd, excludePrestitoId: $id)) {
+                        $db->rollback();
+                        return $response->withHeader('Location', url('/admin/loans') . '?error=no_copies_available')->withStatus(302);
+                    }
                 }
             }
 
@@ -1575,7 +1595,11 @@ class PrestitiController
 
         // Apply each accepted extension immediately inside the transaction, so the
         // next capacity check sees all earlier proposed extensions too.
-        if (!$capacity->hasFreeCapacity($bookId, $loanStart, $newDueDate, excludePrestitoId: $loanId)) {
+        // #336: capacity is checked on the EXTENSION window only (current due date →
+        // new due date), the same convention as renew(). Checking the whole loan
+        // window re-counted commitments already coexisting with the current period,
+        // rejecting extensions that add no new conflict.
+        if (!$capacity->hasFreeCapacity($bookId, (string) $loan['data_scadenza'], $newDueDate, excludePrestitoId: $loanId)) {
             return null;
         }
 
