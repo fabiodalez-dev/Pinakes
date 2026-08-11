@@ -118,8 +118,11 @@ $check(
         && str_contains($userDashboard, "'annullato' => 'fa-ban'"),
     'both user history views give cancelled loans a dedicated icon'
 );
+// Strutturale (CodeRabbit): asserisci l'ESPRESSIONE di esclusione, non la sola
+// presenza della variabile — le due viste iterano con nomi diversi ($p / $loan).
 $check(
-    str_contains($profileReservations, '$canReview') && str_contains($userDashboard, '$canReview'),
+    str_contains($profileReservations, "\$canReview = !in_array(\$p['stato'], ['annullato', 'scaduto'], true)")
+        && str_contains($userDashboard, "\$canReview = !in_array(\$loan['stato'], ['annullato', 'scaduto'], true)"),
     'history hides the review button for loans that never went out (annullato/scaduto)'
 );
 
