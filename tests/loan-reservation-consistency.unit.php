@@ -132,7 +132,11 @@ foreach ([
 ] as $historyPath) {
     $history = readFileOrFail($root . '/' . $historyPath);
     assertNotContainsText("stato != 'prestato'", $history, "{$historyPath} must not show pending/cancelled rows as loan history");
-    assertContainsText("stato IN ('restituito','perso','danneggiato')", $history, "{$historyPath} must use terminal physical-loan outcomes for history");
+    // Since PR #337 the history predicate includes the CLOSED no-return states
+    // too (annullato = user-cancelled, scaduto = pickup expired): they are
+    // terminal outcomes and must not vanish from the user's history (#333).
+    // The three consumers must keep sharing this exact predicate.
+    assertContainsText("stato IN ('restituito','perso','danneggiato','annullato','scaduto')", $history, "{$historyPath} must use terminal loan outcomes (incl. cancelled/expired) for history");
 }
 
 echo "Loan/reservation consistency unit checks passed.\n";
