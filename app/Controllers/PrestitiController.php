@@ -2084,6 +2084,13 @@ class PrestitiController
      */
     private static function isStrictIsoDate(string $value): bool
     {
+        // Shape-check PRIMA di toccare DateTime: createFromFormat() lancia
+        // ValueError su input con byte NUL ('2026-01-01%00'), che fuori da un
+        // try diventerebbe un 500 invece di invalid_dates (CodeRabbit, #337).
+        // /D àncora la fine reale della stringa (niente newline finale tollerato).
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value)) {
+            return false;
+        }
         $dt = \DateTime::createFromFormat('Y-m-d', $value);
         return $dt !== false && $dt->format('Y-m-d') === $value;
     }

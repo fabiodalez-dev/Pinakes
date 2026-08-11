@@ -182,9 +182,19 @@ $check(
     str_contains($mobileOpenApi, "'status_label'") && str_contains($mobileOpenApi, "'requested_at'"),
     'OpenAPI schema documents the additive status_label and requested_at fields'
 );
+// Strutturale (CodeRabbit): estrai la RIGA dello schema e verifica insieme la
+// forma 3.1 e l'ASSENZA del flag legacy — "type array + nullable=true" non passa.
+$requestedAtSchemaLine = '';
+foreach (explode("\n", $mobileOpenApi) as $openApiLine) {
+    if (str_contains($openApiLine, "'requested_at'")) {
+        $requestedAtSchemaLine = $openApiLine;
+        break;
+    }
+}
 $check(
-    str_contains($mobileOpenApi, "'requested_at' => ['type' => ['string', 'null']"),
-    'requested_at declares nullability the OpenAPI 3.1 way (type array, no nullable flag)'
+    str_contains($requestedAtSchemaLine, "'type' => ['string', 'null']")
+        && !str_contains($requestedAtSchemaLine, "'nullable'"),
+    'requested_at declares nullability the OpenAPI 3.1 way (type array, no legacy nullable flag)'
 );
 $check(
     str_contains($mobileActions, "'requested_at'")
@@ -222,10 +232,12 @@ $check(
         && str_contains($updateSource, 'excludePrestitoId: $id'),
     'update() checks capacity on the newly-claimed windows through CapacityService'
 );
+// Strutturale (CodeRabbit): i boundary helper devono ALIMENTARE il calcolo
+// delle finestre, non solo comparire nel testo della funzione.
 $check(
-    str_contains($updateSource, '$dayBefore($oldPrestito)')
-        && str_contains($updateSource, '$dayAfter($oldScadenza)'),
-    'claimed windows are the exact set difference (boundary days already held are excluded)'
+    str_contains($updateSource, '$claimedWindows[] = [$newPrestito, min($dayBefore($oldPrestito), $newScadenza)]')
+        && str_contains($updateSource, '$claimedWindows[] = [max($dayAfter($oldScadenza), $newPrestito), $newScadenza]'),
+    'claimed windows are the exact set difference (boundary helpers feed the window bounds)'
 );
 $check(
     substr_count($updateSource, 'isStrictIsoDate(') >= 4
