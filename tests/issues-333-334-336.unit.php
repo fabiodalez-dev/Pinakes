@@ -183,6 +183,10 @@ $check(
     'OpenAPI schema documents the additive status_label and requested_at fields'
 );
 $check(
+    str_contains($mobileOpenApi, "'requested_at' => ['type' => ['string', 'null']"),
+    'requested_at declares nullability the OpenAPI 3.1 way (type array, no nullable flag)'
+);
+$check(
     str_contains($mobileActions, "'requested_at'")
         && substr_count($mobileActions, 'pr.created_at') >= 3,
     'every /me/loans payload carries requested_at, selected in all three queries'
@@ -219,6 +223,16 @@ $check(
     'update() checks capacity on the newly-claimed windows through CapacityService'
 );
 $check(
+    str_contains($updateSource, '$dayBefore($oldPrestito)')
+        && str_contains($updateSource, '$dayAfter($oldScadenza)'),
+    'claimed windows are the exact set difference (boundary days already held are excluded)'
+);
+$check(
+    substr_count($updateSource, 'isStrictIsoDate(') >= 4
+        && !str_contains($updateSource, 'strtotime('),
+    'update() validates dates strictly (exact Y-m-d, real calendar) with no strtotime'
+);
+$check(
     !str_contains($updateSource, 'hasFreeCapacity($libroId, $newPrestito, $newScadenza'),
     'update() no longer re-checks the whole loan window (which bounced every edit)'
 );
@@ -229,8 +243,9 @@ $bulkSource = ($bulkStart !== false && $renewStart !== false && $renewStart > $b
     : '';
 $check($bulkSource !== '', 'applyBulkLoanExtension() source section extracted');
 $check(
-    str_contains($bulkSource, "hasFreeCapacity(\$bookId, (string) \$loan['data_scadenza'], \$newDueDate"),
-    'bulk extension checks the extension window only, like renew()'
+    str_contains($bulkSource, 'hasFreeCapacity($bookId, $extensionStart, $newDueDate')
+        && str_contains($bulkSource, '$copyOverlap->bind_param(\'iiss\', $copyId, $loanId, $newDueDate, $extensionStart)'),
+    'bulk extension gates capacity AND copy overlap on the same added-days interval'
 );
 $check(
     str_contains($loansIndex, "case 'no_copies_available':")

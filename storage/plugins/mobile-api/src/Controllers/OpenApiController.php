@@ -1262,7 +1262,7 @@ final class OpenApiController
                 'cover_url'   => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
                 'status'      => ['type' => 'string', 'description' => 'Raw prestiti.stato value.'],
                 'status_label' => ['type' => 'string', 'description' => 'Server-localized label for status (since 1.4.3). Fallback for clients without a local mapping for a state; known states may keep device-localized wording.'],
-                'requested_at' => ['type' => 'string', 'format' => 'date', 'nullable' => true, 'description' => 'Date the loan request was created (since 1.4.3). The honest date for cancelled/expired loans, which never went out.'],
+                'requested_at' => ['type' => ['string', 'null'], 'format' => 'date', 'description' => 'Date the loan request was created (since 1.4.3). The honest date for cancelled/expired loans, which never went out.'],
                 'loaned_at'   => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'due_at'      => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'due_attention' => [

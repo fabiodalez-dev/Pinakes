@@ -755,8 +755,12 @@ class PrestitiController
         // giornata singola) è lecita: createReservation accetta end == start,
         // quindi un rifiuto strettamente esclusivo renderebbe immodificabili
         // i prestiti a giornata nati dal calendario utente.
-        if (strtotime($newScadenza) === false || strtotime($newPrestito) === false
-            || strtotime($newScadenza) < strtotime($newPrestito)) {
+        // Formato STRETTO Y-m-d (niente strtotime): valori ambigui o date di
+        // calendario inesistenti (2026-02-30) vanno rifiutati, non normalizzati
+        // — i confronti lessicografici a valle e il match con i valori salvati
+        // presuppongono stringhe canoniche (CodeRabbit, PR #337).
+        if (!self::isStrictIsoDate($newPrestito) || !self::isStrictIsoDate($newScadenza)
+            || $newScadenza < $newPrestito) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
         }
 
@@ -799,8 +803,8 @@ class PrestitiController
             $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $locked['utente_id'];
             $newPrestito = (string) ($updateData['data_prestito'] ?? $locked['data_prestito']);
             $newScadenza = (string) ($updateData['data_scadenza'] ?? $locked['data_scadenza']);
-            if (strtotime($newScadenza) === false || strtotime($newPrestito) === false
-                || strtotime($newScadenza) < strtotime($newPrestito)) {
+            if (!self::isStrictIsoDate($newPrestito) || !self::isStrictIsoDate($newScadenza)
+                || $newScadenza < $newPrestito) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
             }
@@ -879,25 +883,28 @@ class PrestitiController
             // overlapping loans + queue reservations vs capacity (renew() does this — update()
             // used to accept any new dates and only recalc counters, silently extending a loan
             // over a queued reservation). Only when the dates actually change.
-            // #336: check ONLY the newly-claimed segments (before the old start and/or
-            // after the old due date), like renew() checks just the extension window.
-            // Checking the WHOLE new window re-counted commitments that already
-            // coexist with the current period (e.g. a queued reservation overlapping
-            // the loan), so on a 1-copy book ANY date edit — even shortening the
-            // loan — bounced with no_copies_available. Days inside the old window
-            // are already held by this loan; only the added days need free capacity.
+            // #336: check ONLY the newly-claimed segments — the EXACT set difference
+            // new window ∖ old window. Checking the WHOLE new window re-counted
+            // commitments that already coexist with the current period (e.g. a
+            // queued reservation overlapping the loan), so on a 1-copy book ANY
+            // date edit — even shortening the loan — bounced with
+            // no_copies_available. Days inside the old window (boundary days
+            // included: they are already held by this loan) need no re-check;
+            // only genuinely added days need free capacity.
             // Old window from the LOCKED row, not the pre-transaction read.
             $oldPrestito = (string) $locked['data_prestito'];
             $oldScadenza = (string) $locked['data_scadenza'];
             if ($newPrestito !== $oldPrestito || $newScadenza !== $oldScadenza) {
+                // Y-m-d strings compare correctly lexicographically (validated
+                // strict above); ±1 day via DateTimeImmutable, no TZ ambiguity.
+                $dayBefore = static fn (string $ymd): string => (new \DateTimeImmutable($ymd))->modify('-1 day')->format('Y-m-d');
+                $dayAfter = static fn (string $ymd): string => (new \DateTimeImmutable($ymd))->modify('+1 day')->format('Y-m-d');
                 $claimedWindows = [];
                 if ($newPrestito < $oldPrestito) {
-                    // Y-m-d strings compare correctly lexicographically. The inclusive
-                    // boundary day (old start / old due) mirrors renew()'s convention.
-                    $claimedWindows[] = [$newPrestito, min($oldPrestito, $newScadenza)];
+                    $claimedWindows[] = [$newPrestito, min($dayBefore($oldPrestito), $newScadenza)];
                 }
                 if ($newScadenza > $oldScadenza) {
-                    $claimedWindows[] = [max($oldScadenza, $newPrestito), $newScadenza];
+                    $claimedWindows[] = [max($dayAfter($oldScadenza), $newPrestito), $newScadenza];
                 }
                 $capacity = new \App\Services\CapacityService($db);
                 foreach ($claimedWindows as [$claimStart, $claimEnd]) {
@@ -1609,21 +1616,22 @@ class PrestitiController
         $todayDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $today);
         $base = ($todayDate !== false && $todayDate > $dueDate) ? $todayDate : $dueDate;
         $newDueDate = $base->modify('+' . $days . ' days')->format('Y-m-d');
-        $loanStart = (string) $loan['data_prestito'];
 
         // Apply each accepted extension immediately inside the transaction, so the
         // next capacity check sees all earlier proposed extensions too.
-        // #336: capacity is checked on the EXTENSION window only (current due date →
-        // new due date), the same convention as renew(). Checking the whole loan
-        // window re-counted commitments already coexisting with the current period,
-        // rejecting extensions that add no new conflict.
-        if (!$capacity->hasFreeCapacity($bookId, (string) $loan['data_scadenza'], $newDueDate, excludePrestitoId: $loanId)) {
+        // #336: BOTH gates check the same interval — only the days the extension
+        // actually adds (day after the current due date → new due date). The due
+        // date itself is already held by this loan, and the copy-overlap check
+        // previously scanned the whole loan window while capacity scanned the
+        // extension window: two different intervals for one decision (CodeRabbit).
+        $extensionStart = $dueDate->modify('+1 day')->format('Y-m-d');
+        if (!$capacity->hasFreeCapacity($bookId, $extensionStart, $newDueDate, excludePrestitoId: $loanId)) {
             return null;
         }
 
         $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
         if ($copyId !== null) {
-            $copyOverlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $loanStart);
+            $copyOverlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $extensionStart);
             $copyOverlap->execute();
             if ((bool) $copyOverlap->get_result()->fetch_row()) {
                 return null;
@@ -2065,6 +2073,19 @@ class PrestitiController
             ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
             ->withHeader('Cache-Control', 'no-cache, must-revalidate')
             ->withHeader('Pragma', 'no-cache');
+    }
+
+    /**
+     * Data in formato STRETTAMENTE Y-m-d E valida sul calendario reale.
+     * A differenza di strtotime(), rifiuta formati ambigui ('2026-2-5') e date
+     * inesistenti ('2026-02-30' — che strtotime normalizzerebbe al 2 marzo):
+     * il round-trip con createFromFormat garantisce input canonico, così i
+     * confronti lessicografici tra stringhe Y-m-d restano corretti.
+     */
+    private static function isStrictIsoDate(string $value): bool
+    {
+        $dt = \DateTime::createFromFormat('Y-m-d', $value);
+        return $dt !== false && $dt->format('Y-m-d') === $value;
     }
 
     private function guardStaffAccess(Response $response): ?Response
