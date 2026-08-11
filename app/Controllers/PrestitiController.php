@@ -782,7 +782,7 @@ class PrestitiController
             // iniziale e questo lock le può aver cambiate, e la finestra "vecchia"
             // del check di capacità qui sotto deve basarsi sui valori realmente
             // salvati, non su quelli pre-transazione (CodeRabbit, PR #337).
-            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
+            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, copia_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
             $lockLoan->bind_param('i', $id);
             $lockLoan->execute();
             $locked = $lockLoan->get_result()->fetch_assoc();
@@ -912,6 +912,35 @@ class PrestitiController
                         $db->rollback();
                         return $response->withHeader('Location', url('/admin/loans') . '?error=no_copies_available')->withStatus(302);
                     }
+                }
+
+                // CapacityService decides at BOOK level. With multiple copies it
+                // can report spare capacity even when the physical copy assigned
+                // to this loan has another future loan on the added days. The DB
+                // trigger would reject the UPDATE later, but only as the generic
+                // loan_update_failed. Mirror renew()/bulkExtend() here so the
+                // conflict is detected before the write and reported truthfully.
+                $copyId = $locked['copia_id'] !== null ? (int) $locked['copia_id'] : null;
+                if ($copyId !== null && $claimedWindows !== []) {
+                    $copyOverlap = $db->prepare(
+                        "SELECT 1 FROM prestiti
+                          WHERE copia_id = ? AND id <> ?
+                            AND data_prestito <= ?
+                            AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                            AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                                 OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL))
+                          LIMIT 1"
+                    );
+                    foreach ($claimedWindows as [$claimStart, $claimEnd]) {
+                        $copyOverlap->bind_param('iiss', $copyId, $id, $claimEnd, $claimStart);
+                        $copyOverlap->execute();
+                        if ((bool) $copyOverlap->get_result()->fetch_row()) {
+                            $copyOverlap->close();
+                            $db->rollback();
+                            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_copy_conflict')->withStatus(302);
+                        }
+                    }
+                    $copyOverlap->close();
                 }
             }
 

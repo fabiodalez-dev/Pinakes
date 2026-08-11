@@ -6766,5 +6766,6 @@
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Wichtig: Sie müssen die von diesen Skripten erfassten Cookies manuell auf der <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Cookie-Seite</a> auflisten, um die DSGVO einzuhalten.",
   "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Sprache gelöscht, aber eine Übersetzungsdatei konnte nicht entfernt werden: Sie könnte wieder auftauchen, wenn Sie die Sprache mit demselben Code neu anlegen.",
   "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.": "Änderung nicht gespeichert: Im neuen Zeitraum sind alle Exemplare bereits durch andere Ausleihen oder Vormerkungen belegt.",
-  "Rinnovo non riuscito. Riprova.": "Verlängerung fehlgeschlagen. Bitte erneut versuchen."
+  "Rinnovo non riuscito. Riprova.": "Verlängerung fehlgeschlagen. Bitte erneut versuchen.",
+  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Änderung nicht gespeichert: Das zugewiesene Exemplar ist im neuen Zeitraum bereits durch eine andere Ausleihe belegt."
 }

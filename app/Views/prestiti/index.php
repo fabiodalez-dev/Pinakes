@@ -91,6 +91,9 @@ $applicationToday = \App\Support\DateHelper::today();
                     // è un conflitto con un altro impegno nel periodo richiesto.
                     echo __('Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.');
                     break;
+                case 'loan_copy_conflict':
+                    echo __('Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.');
+                    break;
                 case 'extension_conflicts':
                     echo __('Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.');
                     break;

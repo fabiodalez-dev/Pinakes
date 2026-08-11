@@ -232,6 +232,11 @@ $check(
         && str_contains($updateSource, 'excludePrestitoId: $id'),
     'update() checks capacity on the newly-claimed windows through CapacityService'
 );
+$check(
+    str_contains($updateSource, '$copyOverlap->bind_param(\'iiss\', $copyId, $id, $claimEnd, $claimStart)')
+        && str_contains($updateSource, '?error=loan_copy_conflict'),
+    'update() checks the assigned copy on the same newly-claimed windows with a dedicated error'
+);
 // Strutturale (CodeRabbit): i boundary helper devono ALIMENTARE il calcolo
 // delle finestre, non solo comparire nel testo della funzione.
 $check(
@@ -261,7 +266,8 @@ $check(
 );
 $check(
     str_contains($loansIndex, "case 'no_copies_available':")
-        && str_contains($loansIndex, "case 'extension_conflicts':"),
+        && str_contains($loansIndex, "case 'extension_conflicts':")
+        && str_contains($loansIndex, "case 'loan_copy_conflict':"),
     'loans list banner explains capacity conflicts instead of a generic error'
 );
 $check(
@@ -273,6 +279,7 @@ $check(
 // The new user-facing strings must be translated in every bundled locale.
 $newStrings = [
     'Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.',
+    'Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.',
     'Rinnovo non riuscito. Riprova.',
 ];
 foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
