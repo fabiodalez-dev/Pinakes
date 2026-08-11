@@ -107,6 +107,11 @@ $seriesTypeLabels = SeriesLabels::types();
             <a href="<?= htmlspecialchars(url('/admin/series/detail?nome=' . urlencode($c['collana'])), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-700 font-medium">
               <?= HtmlHelper::e($c['collana']) ?>
             </a>
+            <?php if (!empty($supportsCompleteFlag) && (int) ($c['is_completa'] ?? 0) === 1): ?>
+              <span class="ml-2 inline-flex text-green-600" role="img" aria-label="<?= htmlspecialchars(__('Serie completa'), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__('Tutti i volumi previsti sono presenti in catalogo.'), ENT_QUOTES, 'UTF-8') ?>">
+                <i class="fas fa-check-circle" aria-hidden="true"></i>
+              </span>
+            <?php endif; ?>
           </td>
           <?php if (!empty($supportsHierarchy)): ?>
           <td class="px-6 py-4 text-sm text-gray-600">

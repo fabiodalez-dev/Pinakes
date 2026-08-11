@@ -50,6 +50,7 @@ class CollaneController
     {
         $seriesRepo = new SeriesRepository($db);
         $supportsHierarchy = $seriesRepo->supportsHierarchy();
+        $supportsCompleteFlag = $seriesRepo->supportsCompleteFlag();
         $collane = $seriesRepo->listSeries();
 
         ob_start();
@@ -74,6 +75,7 @@ class CollaneController
 
         $seriesRepo = new SeriesRepository($db);
         $supportsHierarchy = $seriesRepo->supportsHierarchy();
+        $supportsCompleteFlag = $seriesRepo->supportsCompleteFlag();
 
         // Get collana metadata from collane table
         $collanaDesc = '';
@@ -82,6 +84,7 @@ class CollaneController
         $cycleOrder = null;
         $seriesParent = '';
         $seriesType = 'serie';
+        $seriesComplete = false;
         $seriesRepo->ensureCollana($collana, [], false);
         $metaRow = $seriesRepo->getSeriesByName($collana);
         if ($metaRow) {
@@ -91,6 +94,7 @@ class CollaneController
             $cycleOrder = $metaRow['ordine_ciclo'] ?? null;
             $seriesParent = $metaRow['parent_nome'] ?? '';
             $seriesType = $metaRow['tipo'] ?? 'serie';
+            $seriesComplete = (int) ($metaRow['is_completa'] ?? 0) === 1;
         }
 
         $relatedCollane = $seriesRepo->getRelatedSeries($collana);
@@ -224,6 +228,8 @@ class CollaneController
         $seriesCycle = $this->nullableString($data['ciclo'] ?? null);
         $cycleOrder = $this->nullableCycleOrder($data['ordine_ciclo'] ?? null);
         $seriesParent = $this->nullableString($data['serie_padre'] ?? null);
+        $rawSeriesComplete = $data['is_completa'] ?? null;
+        $seriesComplete = is_scalar($rawSeriesComplete) && (string) $rawSeriesComplete === '1';
         $seriesRepo = new SeriesRepository($db);
         $seriesType = $seriesRepo->normalizeType((string) ($data['tipo_collana'] ?? 'serie'));
 
@@ -243,9 +249,10 @@ class CollaneController
             'ordine_ciclo' => $cycleOrder,
             'parent_nome' => $seriesParent,
             'tipo' => $seriesType,
+            'is_completa' => $seriesComplete,
         ]);
 
-        $_SESSION['success_message'] = __('Descrizione salvata');
+        $_SESSION['success_message'] = __('Metadati serie salvati');
         return $response->withHeader('Location', url('/admin/series/detail?nome=' . urlencode($nome)))->withStatus(302);
     }
 

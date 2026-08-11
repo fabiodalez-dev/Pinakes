@@ -1082,6 +1082,7 @@ CREATE TABLE `collane` (
   `gruppo_serie` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Umbrella series/universe grouping for spin-offs',
   `ciclo` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Cycle or season label inside the series group',
   `ordine_ciclo` smallint unsigned DEFAULT NULL COMMENT 'Sort order for cycle/season inside the group',
+  `is_completa` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Admin flag: all expected volumes are present in the catalogue',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
