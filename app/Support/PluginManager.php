@@ -1732,6 +1732,7 @@ class PluginManager
             SELECT plugin_id, hook_name, callback_method, priority
             FROM plugin_hooks
             WHERE plugin_id IN ({$placeholders})
+              AND is_active = 1
             ORDER BY priority ASC
         ");
         if ($stmt === false) {
@@ -1781,28 +1782,37 @@ class PluginManager
             $callbackMethod = $row['callback_method'];
             if (method_exists($pluginInstance, $callbackMethod) || $this->hasMagicMethod($pluginInstance, $callbackMethod)) {
                 $this->hookManager->addHook($row['hook_name'], [$pluginInstance, $callbackMethod], $row['priority']);
-            } elseif ($this->pruneOrphanHook($pluginId, $row['hook_name'], $callbackMethod)) {
-                SecureLogger::warning("[PluginManager] Removed orphan hook '{$row['hook_name']}' → {$callbackMethod} (method missing on plugin class; likely dropped by a plugin upgrade)");
+            } elseif ($this->disableOrphanHook($pluginId, $row['hook_name'], $callbackMethod)) {
+                SecureLogger::warning("[PluginManager] Disabled orphan hook '{$row['hook_name']}' → {$callbackMethod} (method missing on plugin class; likely dropped by a plugin upgrade — row kept, re-enabled on re-activation)");
             }
         }
     }
 
     /**
-     * Remove a hook row whose callback method no longer exists on the plugin
+     * Disable a hook row whose callback method no longer exists on the plugin
      * class. Upgrades replace plugin files but do NOT re-run a plugin's
      * onActivate() (which resyncs hooks via deleteHooks + reinsert), so a hook
      * registered by an OLD plugin version and dropped in a NEW one lingers in
-     * plugin_hooks and logs "Method not found" on every request. Deleting the
-     * dead row self-heals the install on the first request after the upgrade;
-     * a legitimate future re-activation reinserts the correct hook set anyway.
+     * plugin_hooks and logs "Method not found" on every request.
      *
-     * Returns true only when a row was actually deleted, so the caller logs the
-     * removal exactly once (a cached hook list can re-present the same orphan for
-     * up to the QueryCache TTL, but the DELETE then matches zero rows silently).
+     * The row is DISABLED (is_active = 0), not deleted: the "method missing"
+     * signal is also what a partially-deployed upgrade or a transient class-load
+     * glitch would produce, and destroying the registration would be
+     * unrecoverable without a full re-activation. Disabling stops the loader from
+     * re-loading it (both hook SELECTs filter is_active = 1) — the same "stop
+     * logging every request" outcome — while keeping the row for audit; a
+     * legitimate re-activation (deleteHooks + reinsert) cleans or restores it.
+     * Reached only for an already-instantiated plugin, so the class did load.
+     *
+     * Returns true only when a row actually flipped 1 -> 0, so the caller logs
+     * once. Concurrent requests are safe: the WHERE is_active = 1 clause is
+     * re-evaluated under the row lock, so at most one request sees the
+     * transition (a cached hook list can re-present the orphan for up to the
+     * QueryCache TTL; the UPDATE then matches zero rows silently).
      */
-    private function pruneOrphanHook(int $pluginId, string $hookName, string $callbackMethod): bool
+    private function disableOrphanHook(int $pluginId, string $hookName, string $callbackMethod): bool
     {
-        $stmt = $this->db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ? AND hook_name = ? AND callback_method = ?');
+        $stmt = $this->db->prepare('UPDATE plugin_hooks SET is_active = 0 WHERE plugin_id = ? AND hook_name = ? AND callback_method = ? AND is_active = 1');
         if ($stmt === false) {
             return false;
         }
@@ -1863,6 +1873,7 @@ class PluginManager
             SELECT hook_name, callback_method, priority
             FROM plugin_hooks
             WHERE plugin_id = ?
+              AND is_active = 1
             ORDER BY priority ASC
         ");
         $stmt->bind_param('i', $pluginId);
@@ -1878,8 +1889,8 @@ class PluginManager
             // Support both direct methods and __call magic methods
             if (method_exists($pluginInstance, $callbackMethod) || $this->hasMagicMethod($pluginInstance, $callbackMethod)) {
                 $this->hookManager->addHook($hookName, [$pluginInstance, $callbackMethod], $priority);
-            } elseif ($this->pruneOrphanHook($pluginId, $hookName, $callbackMethod)) {
-                SecureLogger::warning("[PluginManager] Removed orphan hook '{$hookName}' → {$callbackMethod} (method missing on plugin class; likely dropped by a plugin upgrade)");
+            } elseif ($this->disableOrphanHook($pluginId, $hookName, $callbackMethod)) {
+                SecureLogger::warning("[PluginManager] Disabled orphan hook '{$hookName}' → {$callbackMethod} (method missing on plugin class; likely dropped by a plugin upgrade — row kept, re-enabled on re-activation)");
             }
         }
 

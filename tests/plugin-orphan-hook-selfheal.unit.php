@@ -2,16 +2,19 @@
 declare(strict_types=1);
 
 /**
- * Behavioural coverage for PluginManager::pruneOrphanHook().
+ * Behavioural coverage for PluginManager::disableOrphanHook().
  *
  * A hook row registered by an OLD plugin version and dropped in a NEW one
  * lingers in plugin_hooks because upgrades don't re-run onActivate() (which
  * resyncs hooks). The loader used to log "[PluginManager] Method not found" for
- * that orphan on EVERY request. Now it deletes the dead row on first sight
- * (self-heal). This test asserts the prune is correct, idempotent, and — most
- * importantly — precise: it must NEVER delete a legitimate sibling hook.
+ * that orphan on EVERY request. Now it DISABLES the dead row (is_active = 0) on
+ * first sight — reversibly, so a partially-deployed upgrade can't destroy a
+ * legitimate registration — and the loader (which filters is_active = 1) stops
+ * re-loading it. This test asserts the self-heal is correct, idempotent, and —
+ * most importantly — precise: it must NEVER touch a legitimate sibling hook, and
+ * the disabled row must survive for audit rather than being deleted.
  *
- * Run: php tests/plugin-orphan-hook-prune.unit.php
+ * Run: php tests/plugin-orphan-hook-selfheal.unit.php
  */
 
 use App\Support\HookManager;
@@ -89,32 +92,51 @@ $hookExists = static function (string $hook, string $method) use ($db, $pluginId
     $stmt->close();
     return $n > 0;
 };
+// Returns -1 if the row is absent, else its is_active flag (0/1).
+$hookActive = static function (string $hook, string $method) use ($db, $pluginId): int {
+    $stmt = $db->prepare('SELECT is_active FROM plugin_hooks WHERE plugin_id = ? AND hook_name = ? AND callback_method = ?');
+    $stmt->bind_param('iss', $pluginId, $hook, $method);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row === null ? -1 : (int) $row['is_active'];
+};
+// Mirrors the loader's WHERE clause: an active hook the loader would register.
+$loaderWouldLoad = static function (string $hook, string $method) use ($db, $pluginId): bool {
+    $stmt = $db->prepare('SELECT COUNT(*) AS n FROM plugin_hooks WHERE plugin_id = ? AND hook_name = ? AND callback_method = ? AND is_active = 1');
+    $stmt->bind_param('iss', $pluginId, $hook, $method);
+    $stmt->execute();
+    $n = (int) $stmt->get_result()->fetch_assoc()['n'];
+    $stmt->close();
+    return $n > 0;
+};
 
 $insertHook($orphanHook, 'zzMissingMethod');
 $insertHook($keeperHook, 'zzKeeperMethod');
 
 $pm = new PluginManager($db, new HookManager($db));
-$prune = new ReflectionMethod($pm, 'pruneOrphanHook');
-$prune->setAccessible(true);
+$disable = new ReflectionMethod($pm, 'disableOrphanHook');
+$disable->setAccessible(true);
 
-echo "pruneOrphanHook — correctness, idempotency, precision\n";
-$check($hookExists($orphanHook, 'zzMissingMethod'), '01 orphan seeded');
-$check($hookExists($keeperHook, 'zzKeeperMethod'), '02 keeper seeded');
+echo "disableOrphanHook — correctness, reversibility, idempotency, precision\n";
+$check($loaderWouldLoad($orphanHook, 'zzMissingMethod'), '01 orphan seeded active (loader would load it)');
+$check($loaderWouldLoad($keeperHook, 'zzKeeperMethod'), '02 keeper seeded active');
 
-$r1 = $prune->invoke($pm, $pluginId, $orphanHook, 'zzMissingMethod');
-$check($r1 === true, '03 prune deletes the orphan and reports true (so the caller logs once)');
-$check(!$hookExists($orphanHook, 'zzMissingMethod'), '04 orphan row is gone');
+$r1 = $disable->invoke($pm, $pluginId, $orphanHook, 'zzMissingMethod');
+$check($r1 === true, '03 disable flips the orphan 1->0 and reports true (so the caller logs once)');
+$check($hookActive($orphanHook, 'zzMissingMethod') === 0, '04 orphan row is DISABLED, not deleted (kept for audit, restorable)');
+$check(!$loaderWouldLoad($orphanHook, 'zzMissingMethod'), '05 loader would no longer load the disabled orphan (is_active=1 filter)');
 
-$r2 = $prune->invoke($pm, $pluginId, $orphanHook, 'zzMissingMethod');
-$check($r2 === false, '05 prune on the already-removed orphan reports false (no repeat log within cache TTL)');
+$r2 = $disable->invoke($pm, $pluginId, $orphanHook, 'zzMissingMethod');
+$check($r2 === false, '06 disable on the already-disabled orphan reports false (no repeat log within cache TTL / under concurrency)');
 
-$check($hookExists($keeperHook, 'zzKeeperMethod'), '06 the legitimate sibling hook is UNTOUCHED (precise match, no over-delete)');
+$check($loaderWouldLoad($keeperHook, 'zzKeeperMethod'), '07 the legitimate sibling hook is UNTOUCHED (precise match, no over-reach)');
 
-// Wrong method / wrong plugin must never delete the keeper.
-$prune->invoke($pm, $pluginId, $keeperHook, 'zzWrongMethod');
-$check($hookExists($keeperHook, 'zzKeeperMethod'), '07 prune with a non-matching method does not touch the keeper');
-$prune->invoke($pm, $pluginId + 999999, $keeperHook, 'zzKeeperMethod');
-$check($hookExists($keeperHook, 'zzKeeperMethod'), '08 prune scoped to a different plugin_id does not touch the keeper');
+// Wrong method / wrong plugin must never disable the keeper.
+$disable->invoke($pm, $pluginId, $keeperHook, 'zzWrongMethod');
+$check($loaderWouldLoad($keeperHook, 'zzKeeperMethod'), '08 disable with a non-matching method does not touch the keeper');
+$disable->invoke($pm, $pluginId + 999999, $keeperHook, 'zzKeeperMethod');
+$check($loaderWouldLoad($keeperHook, 'zzKeeperMethod'), '09 disable scoped to a different plugin_id does not touch the keeper');
 
 $cleanup();
 $db->close();

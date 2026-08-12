@@ -110,5 +110,18 @@ foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
     $check(is_array($translations) && isset($translations['Serie completa'], $translations['Tutti i volumi previsti sono presenti in catalogo.'], $translations['Metadati serie salvati']), "{$locale} contains all completion strings");
 }
 
+// Updater migration-selection contract (app/Support/Updater.php::runMigrations):
+// a migration runs iff  version_compare(mig, from, '>') && version_compare(mig, to, '<=').
+// This guards the exact risk of naming a migration after a prerelease — it must
+// fire on every upgrade path that has to add the column, and never re-fire once
+// the RC is already installed.
+$mig = '0.7.59-rc.1';
+$updaterRuns = static fn(string $from, string $to): bool =>
+    version_compare($mig, $from, '>') && version_compare($mig, $to, '<=');
+$check(version_compare('0.7.59-rc.1', '0.7.59', '<'), 'version_compare orders the RC below its stable (prerelease semantics)');
+$check($updaterRuns('0.7.58', '0.7.59-rc.1'), 'Updater runs it on 0.7.58 -> 0.7.59-rc.1 (RC upgrade)');
+$check($updaterRuns('0.7.58', '0.7.59'), 'Updater runs it on 0.7.58 -> 0.7.59 stable (RC never installed)');
+$check(!$updaterRuns('0.7.59-rc.1', '0.7.59'), 'Updater does NOT re-run it on 0.7.59-rc.1 -> 0.7.59 stable (already applied; migration is idempotent as a backstop)');
+
 echo "\n{$passed} PASS, {$failed} FAIL\n";
 exit($failed === 0 ? 0 : 1);
