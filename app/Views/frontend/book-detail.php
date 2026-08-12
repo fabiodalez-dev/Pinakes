@@ -1581,12 +1581,16 @@ $additional_css = "
         min-width: 0;
     }
 
-    /* Phones and small tablets: the desktop grid packs 2+ partial, cut-off cards.
-       Switch to a horizontal snap-scroll strip that shows ONE whole book per view
-       and snaps book-by-book, so all related books are reachable by swiping.
-       Breakpoint raised to 767px so every phone (and small portrait tablet) gets
-       the one-book carousel instead of clipped grid cards. */
-    @media (max-width: 767px) {
+    /* Phones, tablets AND narrow desktop windows: the desktop grid packs one row
+       and vertically CLIPS every related book past the first row (grid-auto-rows:0
+       + overflow:hidden) with no hint that more exist. Switch to a horizontal
+       snap-scroll strip so all related books are reachable by swiping and the next
+       card peeks as the affordance. Breakpoint raised from 767px to 1023.98px so
+       the narrow/responsive range — where the grid used to clip in silence — also
+       gets the carousel, not just phones. Per-card width is tuned per sub-range
+       below (one dominant book on phones, ~2.5 denser books on tablet/narrow
+       desktop). */
+    @media (max-width: 1023.98px) {
         .related-books-grid {
             display: flex;
             flex-wrap: nowrap;
@@ -1624,6 +1628,17 @@ $additional_css = "
             flex: 0 0 85%;
             scroll-snap-align: start;
             scroll-snap-stop: always;
+        }
+    }
+
+    /* Tablet / narrow desktop (768–1023.98px): same snap-scroll strip as phones,
+       but denser — show two whole books with a third clearly half-visible instead
+       of one dominant cover. The half-card peek is an unmistakable scroll-for-more
+       cue at this width, where the old grid clipped extras out of sight.
+       Overrides only flex-basis; flex-grow/shrink stay 0 from the shorthand above. */
+    @media (min-width: 768px) and (max-width: 1023.98px) {
+        .related-book-cell {
+            flex-basis: 38%;
         }
     }
 
@@ -2620,8 +2635,8 @@ ob_start();
   var cells = Array.prototype.slice.call(grid.querySelectorAll('.related-book-cell'));
   if (!cells.length) { return; }
   function sync() {
-    // Phone scroll mode (F003): the @media(max-width:480px) rule turns the grid
-    // into a horizontal snap-scroll strip (overflow-x:auto), where every card is
+    // Scroll mode: the @media(max-width:1023.98px) rule turns the grid into a
+    // horizontal snap-scroll strip (overflow-x:auto), where every card is
     // reachable by swiping — nothing is clipped. Clear any inert/aria-hidden/
     // tabindex the desktop path may have set and bail out. The desktop clip mode
     // uses overflow:hidden (overflow-x:hidden), so overflowX==='auto' unambiguously
