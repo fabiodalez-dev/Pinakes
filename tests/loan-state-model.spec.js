@@ -10,6 +10,7 @@ const { test, expect } = require('@playwright/test');
 test.describe.configure({ mode: 'serial' });
 const { execFileSync } = require('child_process');
 const fs = require('fs'); const os = require('os'); const path = require('path');
+const { appDateOffsetISO } = require('./helpers/app-date');
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
@@ -26,9 +27,7 @@ function dbQuery(sql){
 }
 const q1 = (sql) => dbQuery(sql).split('\n')[0].trim();
 const addDays = (n) => {
-  const d = new Date(); d.setDate(d.getDate()+n);
-  // Local Y-m-d (not toISOString/UTC) so dates don't slip ±1 near local midnight.
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  return appDateOffsetISO(n);
 };
 
 test.describe('canonical loan/reservation state model', () => {

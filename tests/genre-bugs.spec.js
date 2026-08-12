@@ -187,7 +187,7 @@ test.describe('Issue #63: Genre Pre-population on Edit', () => {
     await page.waitForFunction(() => {
       const sel = document.getElementById('radice_select');
       return sel && sel.options.length > 1;
-    }, { timeout: 10000 });
+    }, null, { timeout: 10000 });
     await page.locator('#radice_select').selectOption(rootId);
 
     // Wait for L2 to load, then select our genre

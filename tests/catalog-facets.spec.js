@@ -39,6 +39,7 @@ async function applyFilter(page, key, value) {
         grid && grid.style.display !== 'none'
       );
     },
+    null,
     { timeout: 15000 }
   );
 }
@@ -59,6 +60,7 @@ async function applyFilterMaybeEmpty(page, key, value) {
       const emptyShown = empty && empty.style.display !== 'none';
       return loadingGone && (gridBack || emptyShown);
     },
+    null,
     { timeout: 15000 }
   );
 }
@@ -413,7 +415,7 @@ test.describe('Catalog facets', () => {
     await page.waitForFunction(() => {
       const loading = document.getElementById('loading-state');
       return loading && loading.style.display === 'none';
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     expect(catalogRequests).toBe(1);
     await expect(page.locator('#books-grid')).not.toHaveClass(/fade-in/);

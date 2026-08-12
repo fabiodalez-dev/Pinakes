@@ -23,6 +23,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { appDateOffsetISO } = require('./helpers/app-date');
 
 const BASE        = process.env.E2E_BASE_URL  || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -62,8 +63,7 @@ function tryInsertLoan({ bookId, copyId, userId, start, end, stato, attivo, orig
 }
 
 function dISO(off) {
-  const d = new Date(); d.setDate(d.getDate() + off);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appDateOffsetISO(off);
 }
 
 test.describe.serial('Loan overlap model (#157) — 39 scenarios', () => {

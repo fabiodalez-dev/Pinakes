@@ -52,10 +52,20 @@ test.describe('#165 — replace a book cover in one step', () => {
   });
 
   async function submitBook() {
+    // Start observing the final redirect before either click. The form first
+    // opens a confirmation modal and only navigates after its confirm handler;
+    // waiting merely for networkidle can resolve in that gap and let the next
+    // goto race the still-pending redirect.
+    const redirected = page.waitForURL(/\/admin\/books\/\d+\/?(?:\?.*)?$/, {
+      timeout: 15_000,
+      waitUntil: 'domcontentloaded',
+    });
     await page.locator('#bookForm button[type="submit"], button[type="submit"]').first().click();
-    await Promise.race([ page.waitForSelector('.swal2-popup', { timeout: 8000 }), page.waitForURL(/\/admin\/books\/\d+/, { timeout: 8000 }) ]).catch(() => {});
-    const c = page.locator('.swal2-confirm'); if (await c.isVisible({ timeout: 2000 }).catch(() => false)) await c.click().catch(() => {});
-    await page.waitForLoadState('networkidle').catch(() => {});
+    const c = page.locator('.swal2-confirm');
+    if (await c.isVisible({ timeout: 8_000 }).catch(() => false)) {
+      await c.click();
+    }
+    await redirected;
   }
   async function createWithCover(title, coverPath) {
     await page.goto(`${BASE}/admin/books/create`);

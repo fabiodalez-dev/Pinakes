@@ -257,7 +257,7 @@ test.describe.serial('G1 — Backup', () => {
       await page.waitForFunction(() => {
         const el = document.getElementById('backupListContainer');
         return el && !el.innerHTML.includes('fa-spinner');
-      }, { timeout: 15000 });
+      }, null, { timeout: 15000 });
 
       // The row for the legacy dir should contain the 'Formato legacy' text
       // and must NOT contain a btn-backup-restore element.
@@ -383,7 +383,7 @@ test.describe.serial('G2 — Restore', () => {
     await page.waitForFunction(() => {
       const el = document.getElementById('backupListContainer');
       return el && !el.innerHTML.includes('fa-spinner');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     const firstBackupName = await page.evaluate(() => {
       const btn = document.querySelector('.btn-backup-restore');
@@ -411,7 +411,7 @@ test.describe.serial('G2 — Restore', () => {
     await page.waitForFunction(() => {
       const el = document.getElementById('backupListContainer');
       return el && !el.innerHTML.includes('fa-spinner');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     // Track fetch calls to restore-upload.
     const restoreUploadRequests = [];
@@ -460,7 +460,7 @@ test.describe.serial('G2 — Restore', () => {
     await page.waitForFunction(() => {
       const el = document.getElementById('backupListContainer');
       return el && !el.innerHTML.includes('fa-spinner');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     // Find a real .zip backup to upload.
     const zipFiles = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.zip'));
@@ -506,7 +506,7 @@ test.describe.serial('G2 — Restore', () => {
     await page.waitForFunction(() => {
       const el = document.getElementById('backupListContainer');
       return el && !el.innerHTML.includes('fa-spinner');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     // Pick a backup name to use (doesn't matter which; fetch is monkeypatched).
     const backupName = CREATED_BACKUPS[0] || 'backup_fake.zip';

@@ -1,6 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -44,8 +45,7 @@ function dbQuery(sql) {
 
 /** Return today's date as YYYY-MM-DD. */
 function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appTodayISO();
 }
 
 /** Dismiss a visible SweetAlert popup (success/error toast). */
@@ -59,6 +59,7 @@ async function dismissSwal(page) {
       }
       await page.waitForFunction(
         () => !document.querySelector('.swal2-popup'),
+        null,
         { timeout: 5000 },
       ).catch(() => {});
     }
@@ -79,6 +80,7 @@ async function requestLoanViaSwal(page, dateISO) {
       const el = document.querySelector('#swal-date-start');
       return el && /** @type {any} */ (el)._flatpickr;
     },
+    null,
     { timeout: 8000 },
   );
 
@@ -93,6 +95,7 @@ async function requestLoanViaSwal(page, dateISO) {
   // Wait for either success or error SweetAlert
   await page.waitForFunction(
     () => !!document.querySelector('.swal2-icon-success, .swal2-icon-error'),
+    null,
     { timeout: 15000 },
   );
 
@@ -397,6 +400,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     // Wait for success
     await adminPage.waitForFunction(
       () => !!document.querySelector('.swal2-icon-success') || !document.querySelector('.swal2-popup'),
+      null,
       { timeout: 15000 },
     );
     await dismissSwal(adminPage);
@@ -482,9 +486,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     await userPage.waitForLoadState('networkidle');
 
     // Use tomorrow to avoid any same-day conflicts with the returned loan
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowISO = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    const tomorrowISO = appDateOffsetISO(1);
 
     const ok = await requestLoanViaSwal(userPage, tomorrowISO);
     expect(ok).toBe(true);
@@ -519,6 +521,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     // Wait for success
     await adminPage.waitForFunction(
       () => !!document.querySelector('.swal2-icon-success') || !document.querySelector('.swal2-popup'),
+      null,
       { timeout: 15000 },
     );
     await dismissSwal(adminPage);
@@ -567,9 +570,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     // The unified flow creates a prestiti row via POST /api/libro/{id}/reservation.
     // Even though copie have stato='prestato', they are still "lendable" (not perso/danneggiato),
     // and with no overlapping prestiti rows, the availability API shows dates as free.
-    const future = new Date();
-    future.setDate(future.getDate() + 14);
-    const futureISO = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, '0')}-${String(future.getDate()).padStart(2, '0')}`;
+    const futureISO = appDateOffsetISO(14);
 
     const ok = await requestLoanViaSwal(userPage, futureISO);
     expect(ok).toBe(true);
@@ -584,9 +585,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
   });
 
   test('6.3: Duplicate reservation prevention', async () => {
-    const future = new Date();
-    future.setDate(future.getDate() + 14);
-    const futureISO = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, '0')}-${String(future.getDate()).padStart(2, '0')}`;
+    const futureISO = appDateOffsetISO(14);
 
     const ok = await requestLoanViaSwal(userPage, futureISO);
     expect(ok).toBe(false); // duplicate
@@ -601,10 +600,8 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
 
   test('6.4: User cancels a reservation (prenotazioni table)', async () => {
     // Create a prenotazioni row directly to test the cancel flow
-    const start = new Date(); start.setDate(start.getDate() + 30);
-    const end   = new Date(); end.setDate(end.getDate() + 60);
-    const startISO = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
-    const endISO   = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    const startISO = appDateOffsetISO(30);
+    const endISO = appDateOffsetISO(60);
 
     dbQuery(
       `INSERT INTO prenotazioni (libro_id, utente_id, queue_position, stato, data_prenotazione, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta, created_at)

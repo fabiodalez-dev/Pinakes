@@ -23,6 +23,7 @@ const { execFileSync }    = require('child_process');
 const os                  = require('os');
 const path                = require('path');
 const fs                  = require('fs');
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
 
 // ── Environment ──────────────────────────────────────────────────────────────
 const BASE         = process.env.E2E_BASE_URL   || 'http://localhost:8081';
@@ -63,14 +64,11 @@ function dbQuery(sql) {
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appTodayISO();
 }
 
 function dateISO(daysOffset) {
-  const d = new Date();
-  d.setDate(d.getDate() + daysOffset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appDateOffsetISO(daysOffset);
 }
 
 // ── Rate-limit clearing ───────────────────────────────────────────────────────
@@ -142,6 +140,7 @@ async function dismissSwal(page) {
       }
       await page.waitForFunction(
         () => !document.querySelector('.swal2-popup'),
+        null,
         { timeout: 5_000 },
       ).catch(() => {});
     }
@@ -166,6 +165,7 @@ async function requestLoanViaSwal(page, dateISO_) {
       const el = document.querySelector('#swal-date-start');
       return el && /** @type {any} */ (el)._flatpickr;
     },
+    null,
     { timeout: 8_000 },
   );
 
@@ -180,6 +180,7 @@ async function requestLoanViaSwal(page, dateISO_) {
   // Wait for outcome icon
   await page.waitForFunction(
     () => !!document.querySelector('.swal2-icon-success, .swal2-icon-error'),
+    null,
     { timeout: 15_000 },
   );
 
@@ -647,6 +648,7 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
 
     await adminPage.waitForFunction(
       () => !!document.querySelector('.swal2-icon-success') || !document.querySelector('.swal2-popup'),
+      null,
       { timeout: 15_000 },
     );
     await dismissSwal(adminPage);
@@ -842,6 +844,7 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
       await adminPage.locator('.swal2-confirm').click();
       await adminPage.waitForFunction(
         () => !!document.querySelector('.swal2-icon-success') || !document.querySelector('.swal2-popup'),
+        null,
         { timeout: 15_000 }
       );
       await dismissSwal(adminPage);

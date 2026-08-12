@@ -2760,7 +2760,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     if (await scrollBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await scrollBtn.click();
       // Wait for smooth scroll animation to complete
-      await page.waitForFunction(() => window.scrollY < 100, { timeout: 5000 });
+      await page.waitForFunction(() => window.scrollY < 100, null, { timeout: 5000 });
     }
   });
 

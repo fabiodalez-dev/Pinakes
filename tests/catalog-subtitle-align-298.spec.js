@@ -72,7 +72,7 @@ test('#298: subtitle space is reserved per row so cards stay aligned', async ({ 
   await page.setViewportSize({ width: 1200, height: 1400 });
   await page.goto(`${BASE}/catalogo`);
   // The alignment script runs on load and settles; wait for it rather than networkidle.
-  await page.waitForFunction(() => document.querySelectorAll('.books-grid .book-card').length > 0, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('.books-grid .book-card').length > 0, null, { timeout: 15000 });
   await waitForAligned(page);
 
   // Pin the assertion to the seeded fixture: if ambient data pushed the seeds off
@@ -127,7 +127,7 @@ test('#298: single-column (mobile) layout injects no spurious placeholder', asyn
   // may collapse to zero height (#302 review — this path was previously untested).
   await page.setViewportSize({ width: 375, height: 1600 });
   await page.goto(`${BASE}/catalogo`);
-  await page.waitForFunction(() => document.querySelectorAll('.books-grid .book-card').length > 0, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('.books-grid .book-card').length > 0, null, { timeout: 15000 });
   await waitForAligned(page);
 
   const r = await page.evaluate(() => {
@@ -149,7 +149,7 @@ test('#298: single-column (mobile) layout injects no spurious placeholder', asyn
 test('#298: AJAX catalogue refresh realigns the replacement cards', async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 1400 });
   await page.goto(`${BASE}/catalogo`);
-  await page.waitForFunction(() => document.querySelectorAll('#books-grid .book-card').length > 0, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('#books-grid .book-card').length > 0, null, { timeout: 15000 });
 
   // Remove the initial alignment so a placeholder can only reappear if the
   // post-AJAX replacement explicitly triggers a fresh alignment pass.
@@ -163,7 +163,7 @@ test('#298: AJAX catalogue refresh realigns the replacement cards', async ({ pag
   );
   await page.evaluate(() => updateFilter('sort', 'title_desc'));
   await response;
-  await page.waitForFunction(() => document.querySelectorAll('#books-grid .subtitle-ph').length > 0, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('#books-grid .subtitle-ph').length > 0, null, { timeout: 15000 });
 
   const result = await page.evaluate(() => {
     const cards = Array.from(document.querySelectorAll('#books-grid .book-card'));
@@ -201,7 +201,7 @@ test('#298: two grids on one page are aligned independently', async ({ page }) =
   await page.setViewportSize({ width: 1200, height: 1000 });
   await page.goto(`${BASE}/catalogo`);
   // wait until the page's own script (with align()/resize listener) is live
-  await page.waitForFunction(() => document.querySelectorAll('.books-grid').length > 0, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('.books-grid').length > 0, null, { timeout: 15000 });
 
   const res = await page.evaluate(async () => {
     function card(title, subtitle) {

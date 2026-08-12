@@ -42,6 +42,76 @@ function fail(message) {
   process.exitCode = 1;
 }
 
+/**
+ * Return the top-level arguments of a JavaScript call. This deliberately small
+ * lexer is enough for test sources and avoids adding a parser dependency just
+ * for one API-contract check.
+ */
+function callArguments(source, openParen) {
+  const args = [];
+  let start = openParen + 1;
+  let parens = 1;
+  let braces = 0;
+  let brackets = 0;
+  let quote = '';
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (lineComment) {
+      if (char === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (char === '*' && next === '/') { blockComment = false; index += 1; }
+      continue;
+    }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '/' && next === '/') { lineComment = true; index += 1; continue; }
+    if (char === '/' && next === '*') { blockComment = true; index += 1; continue; }
+    if (char === "'" || char === '"' || char === '`') { quote = char; continue; }
+    if (char === '(') parens += 1;
+    else if (char === ')') {
+      parens -= 1;
+      if (parens === 0) {
+        args.push(source.slice(start, index).trim());
+        return args;
+      }
+    } else if (char === '{') braces += 1;
+    else if (char === '}') braces -= 1;
+    else if (char === '[') brackets += 1;
+    else if (char === ']') brackets -= 1;
+    else if (char === ',' && parens === 1 && braces === 0 && brackets === 0) {
+      args.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  return [];
+}
+
+function checkWaitForFunctionOptions(file, source) {
+  const marker = '.waitForFunction';
+  let offset = 0;
+  while ((offset = source.indexOf(marker, offset)) !== -1) {
+    const openParen = source.indexOf('(', offset + marker.length);
+    if (openParen === -1) break;
+    const args = callArguments(source, openParen);
+    if (args.length === 2 && /^\{[\s\S]*\btimeout\s*:/.test(args[1])) {
+      const line = source.slice(0, offset).split('\n').length;
+      fail(`${file}:${line} passes waitForFunction options as its browser argument; add null/undefined before { timeout }`);
+    }
+    offset = openParen + 1;
+  }
+}
+
 function checkPolicy() {
   const seen = new Map();
   for (const [group, entries] of Object.entries(groups)) {
@@ -67,6 +137,7 @@ function checkPolicy() {
     if (/^[\t ]*test\.skip\s*\(\s*\)/m.test(source)) {
       fail(`${file} contains test.skip() without a reason`);
     }
+    checkWaitForFunctionOptions(file, source);
   }
 
   const requiredWorkflows = ['ci-quality.yml', 'ci-e2e.yml', 'ci-deep-regression.yml'];

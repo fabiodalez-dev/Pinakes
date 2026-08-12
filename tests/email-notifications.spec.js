@@ -4,6 +4,7 @@ const { execFileSync, execSync } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
 
 // ── Environment ──────────────────────────────────────────────────────
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
@@ -201,15 +202,12 @@ function clearRateLimits() {
 
 /** Return today's date as YYYY-MM-DD */
 function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appTodayISO();
 }
 
 /** Return a date offset from today as YYYY-MM-DD */
 function dateOffset(days) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appDateOffsetISO(days);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -512,21 +510,27 @@ test.describe.serial('Email Notifications E2E', () => {
             const el = document.querySelector('#swal-date-start');
             return el && /** @type {any} */ (el)._flatpickr;
           },
+          null,
           { timeout: 5000 },
         ).catch(() => {});
 
-        const today = todayISO();
-        await userPage.evaluate((iso) => {
-          const el = document.querySelector('#swal-date-start');
-          if (el && /** @type {any} */ (el)._flatpickr) {
-            /** @type {any} */ (el)._flatpickr.setDate(iso, true);
-          }
-        }, today);
+        // The application selects the first available date in its own
+        // timezone. Preserve that value instead of replacing it with Node's
+        // host date, which can be the previous calendar day around midnight.
+        const selectedStart = await userPage.locator('#swal-date-start').inputValue();
+        expect(selectedStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        const reservationResponse = userPage.waitForResponse(
+          (response) => response.request().method() === 'POST'
+            && new URL(response.url()).pathname.endsWith('/reservation'),
+          { timeout: 15000 },
+        );
         await userPage.locator('.swal2-confirm').click();
+        expect((await reservationResponse).status()).toBeLessThan(400);
         await userPage.waitForFunction(
           () => !!document.querySelector('.swal2-icon-success, .swal2-icon-error'),
+          null,
           { timeout: 15000 },
-        ).catch(() => {});
+        );
         // Dismiss the result SweetAlert
         const confirmBtn = userPage.locator('.swal2-confirm');
         if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {

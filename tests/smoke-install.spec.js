@@ -125,6 +125,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
         const el = document.getElementById('connection-result');
         return el && el.style.display !== 'none' && el.textContent.trim().length > 0;
       },
+      null,
       { timeout: 15000 }
     );
     // Check it was a success
@@ -239,7 +240,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
     await page.waitForFunction(() => {
       const sel = document.querySelector('#radice_select');
       return sel && sel.options.length > 1;
-    }, { timeout: 10000 });
+    }, null, { timeout: 10000 });
     await page.selectOption('#radice_select', { label: 'Narrativa' });
 
     // Submit — the form uses SweetAlert2 confirmation dialog
