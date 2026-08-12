@@ -101,6 +101,9 @@ jobs:
           npm ci --silent
           npx playwright install chromium --with-deps
 
+      - name: Route legacy MySQL test clients to the service container
+        run: echo "${GITHUB_WORKSPACE}/scripts/ci-bin" >> "${GITHUB_PATH}"
+
       - name: Verify test coverage policy
         run: npm run test:ci-policy
 

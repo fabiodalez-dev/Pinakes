@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Legacy browser specs invoke `mysql` directly. In CI the database is a service
+# container, so a missing explicit endpoint must mean the configured E2E TCP
+# endpoint rather than the runner's (non-existent) local Unix socket.
+real_mysql="${PINAKES_REAL_MYSQL:-/usr/bin/mysql}"
+has_endpoint=0
+
+for argument in "$@"; do
+  case "${argument}" in
+    -h|--host|-h*|--host=*|-S|--socket|-S*|--socket=*)
+      has_endpoint=1
+      break
+      ;;
+  esac
+done
+
+if [[ "${has_endpoint}" -eq 0 && -n "${E2E_DB_HOST:-}" ]]; then
+  endpoint=(-h "${E2E_DB_HOST}")
+  if [[ -n "${E2E_DB_PORT:-}" ]]; then
+    endpoint+=(-P "${E2E_DB_PORT}")
+  fi
+
+  # MySQL requires defaults-file switches to be the first command-line option.
+  if [[ "${1:-}" == --defaults-file=* || "${1:-}" == --defaults-extra-file=* ]]; then
+    defaults_option="$1"
+    shift
+    exec "${real_mysql}" "${defaults_option}" "${endpoint[@]}" "$@"
+  fi
+
+  exec "${real_mysql}" "${endpoint[@]}" "$@"
+fi
+
+exec "${real_mysql}" "$@"

@@ -82,6 +82,48 @@ function checkPolicy() {
     }
   }
 
+  const mysqlWrapperPath = path.join(root, 'scripts', 'ci-bin', 'mysql');
+  if (!fs.existsSync(mysqlWrapperPath)) {
+    fail('CI MySQL wrapper is missing');
+  } else {
+    const wrapperEnv = {
+      ...process.env,
+      PINAKES_REAL_MYSQL: '/bin/echo',
+      E2E_DB_HOST: '192.0.2.10',
+      E2E_DB_PORT: '4406',
+    };
+    const tcpProbe = spawnSync(mysqlWrapperPath, ['probe'], { encoding: 'utf8', env: wrapperEnv });
+    if (tcpProbe.status !== 0 || tcpProbe.stdout.trim() !== '-h 192.0.2.10 -P 4406 probe') {
+      fail('CI MySQL wrapper does not inject the configured TCP endpoint');
+    }
+    const socketProbe = spawnSync(mysqlWrapperPath, ['-S', '/tmp/pinakes-test.sock', 'probe'], {
+      encoding: 'utf8',
+      env: wrapperEnv,
+    });
+    if (socketProbe.status !== 0 || socketProbe.stdout.trim() !== '-S /tmp/pinakes-test.sock probe') {
+      fail('CI MySQL wrapper overrides an explicit socket endpoint');
+    }
+    const defaultsProbe = spawnSync(
+      mysqlWrapperPath,
+      ['--defaults-extra-file=/tmp/pinakes-test.cnf', 'probe'],
+      { encoding: 'utf8', env: wrapperEnv },
+    );
+    if (
+      defaultsProbe.status !== 0
+      || defaultsProbe.stdout.trim() !== '--defaults-extra-file=/tmp/pinakes-test.cnf -h 192.0.2.10 -P 4406 probe'
+    ) {
+      fail('CI MySQL wrapper does not preserve defaults-file option ordering');
+    }
+  }
+
+  const deepWorkflowPath = path.join(root, '.github', 'workflows', 'ci-deep-regression.yml');
+  if (fs.existsSync(deepWorkflowPath)) {
+    const deepWorkflow = fs.readFileSync(deepWorkflowPath, 'utf8');
+    if (!/scripts\/ci-bin[^\n]*GITHUB_PATH/.test(deepWorkflow)) {
+      fail('deep regression does not expose the CI MySQL wrapper on GITHUB_PATH');
+    }
+  }
+
   const workflowDir = path.join(root, '.github', 'workflows');
   for (const workflow of fs.readdirSync(workflowDir)) {
     const workflowPath = path.join(workflowDir, workflow);

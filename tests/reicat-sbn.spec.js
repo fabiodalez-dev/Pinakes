@@ -80,6 +80,15 @@ test.describe.serial('REICAT/SBN — book form', () => {
   let page;
   let bookId = 0;
 
+  async function openReicatPanel() {
+    const toggle = page.locator('#reicat-sbn-toggle');
+    await expect(toggle).toBeVisible();
+    if (await toggle.getAttribute('aria-expanded') !== 'true') {
+      await toggle.click();
+    }
+    await expect(page.locator('#reicat-sbn-body')).toBeVisible();
+  }
+
   test.beforeAll(async ({ browser }) => {
     context = await browser.newContext();
     page = await context.newPage();
@@ -95,6 +104,7 @@ test.describe.serial('REICAT/SBN — book form', () => {
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('#reicat-sbn-panel')).toBeVisible();
     await expect(page.locator('#reicat-sbn-panel')).toContainText(/REICAT/i);
+    await openReicatPanel();
     await expect(page.locator('#sbn_bid')).toHaveCount(1);
     await expect(page.locator('#reicat_soggettario_search')).toBeVisible();
   });
@@ -125,6 +135,7 @@ test.describe.serial('REICAT/SBN — book form', () => {
 
     await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
+    await openReicatPanel();
     await page.fill('#reicat_import_isbn', '9788845292866');
     await page.locator('#reicat-import-btn').click();
 
@@ -153,6 +164,7 @@ test.describe.serial('REICAT/SBN — book form', () => {
 
     await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
+    await openReicatPanel();
     await page.fill('#reicat_soggettario_search', 'Romanzi');
     // Wait for the mocked dropdown then click the result.
     const result = page.locator('#reicat_soggettario_results button', { hasText: 'Romanzi storici' });
@@ -171,6 +183,7 @@ test.describe.serial('REICAT/SBN — book form', () => {
     test.skip(bookId === 0, 'no book available');
     await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
+    await openReicatPanel();
     await page.fill('#reicat_soggettario_search', 'Soggetto libero E2E');
     await page.locator('#reicat_soggettario_search').press('Enter');
     await expect(page.locator('#reicat_soggetti_chips')).toContainText('Soggetto libero E2E');
