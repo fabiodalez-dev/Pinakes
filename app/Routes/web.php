@@ -1962,10 +1962,18 @@ return function (App $app): void {
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
         $data['available'] = ($data['copies_available'] > 0);
-        // Next due date among active loans
+        // Next due date among HOLDING loans, never in the past. The bare
+        // `attivo = 1` version could return the past data_scadenza of an
+        // in_ritardo loan ("available again on <date already gone>") or the
+        // far-future date of a scheduled prenotato — align the predicate with
+        // NotificationService::getNextAvailabilityDate.
         if (!$data['available']) {
-            $stmt = $db->prepare("SELECT MIN(data_scadenza) AS next_due FROM prestiti WHERE libro_id = ? AND attivo = 1");
-            $stmt->bind_param('i', $bookId);
+            $today = \App\Support\DateHelper::today();
+            $stmt = $db->prepare("SELECT MIN(data_scadenza) AS next_due FROM prestiti
+                WHERE libro_id = ? AND attivo = 1
+                  AND stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')
+                  AND data_scadenza >= ?");
+            $stmt->bind_param('is', $bookId, $today);
             $stmt->execute();
             $res = $stmt->get_result();
             $row = $res->fetch_assoc();
@@ -1993,7 +2001,27 @@ return function (App $app): void {
         if ($days > 180)
             $days = 180;
         $controller = new \App\Controllers\ReservationsController($db);
-        $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), $days);
+        // Exclude the requesting user's own reservations, like the mobile
+        // calendar and the server-side write gate already do: without it the
+        // picker painted the user's own reserved days red while the server
+        // would have accepted the same dates.
+        // F012: the admin loan form fetches this same route while creating a loan
+        // FOR a borrower who is NOT the session operator. When an admin/staff
+        // passes ?for_user=<id>, exclude THAT borrower's reservations instead of
+        // the operator's, so the calendar matches the write gate. Anonymous or
+        // non-privileged callers stay on the session id (self-service default).
+        $sessionUserId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
+        $forUser = $request->getQueryParams()['for_user'] ?? null;
+        $sessionRole = $_SESSION['user']['tipo_utente'] ?? '';
+        $excludeUserId = $sessionUserId;
+        if ($forUser !== null && is_numeric($forUser) && in_array($sessionRole, ['admin', 'staff'], true)) {
+            $excludeUserId = (int) $forUser;
+        }
+        $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), $days, $excludeUserId);
+        if ($availability === null) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
+            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+        }
 
         $response->getBody()->write(json_encode([
             'total_copies' => $availability['total_copies'] ?? 0,
@@ -2162,11 +2190,19 @@ return function (App $app): void {
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
 
-        // Intervalli occupati (per la visualizzazione) dai prestiti attivi
+        // Intervalli occupati (per la visualizzazione). Predicato HOLDING completo
+        // (#157): oltre agli stati attivi, anche il 'pendente' da conversione
+        // prenotazione che detiene già una copia. Senza questi due archi il
+        // payload si contraddiceva: occupied_ranges diceva "libero" mentre
+        // first_available/is_available_now (calcolati per-giorno qui sotto)
+        // contavano anche pendenti-con-copia e coda prenotazioni.
         $stmt = $db->prepare("
             SELECT data_prestito, data_scadenza, stato
             FROM prestiti
-            WHERE libro_id = ? AND attivo = 1 AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
+            WHERE libro_id = ? AND (
+                (attivo = 1 AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo'))
+                OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL)
+            )
             ORDER BY data_prestito
         ");
         $stmt->bind_param('i', $libroId);
@@ -2182,12 +2218,35 @@ return function (App $app): void {
         }
         $stmt->close();
 
+        // Anche la coda prenotazioni occupa il suo periodo promesso (stessa
+        // regola di CapacityService): catena COALESCE canonica per i bound.
+        $resStmt = $db->prepare("
+            SELECT COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) AS r_start,
+                   COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) AS r_end
+            FROM prenotazioni
+            WHERE libro_id = ? AND stato = 'attiva'
+            ORDER BY queue_position ASC
+        ");
+        $resStmt->bind_param('i', $libroId);
+        $resStmt->execute();
+        $resResult = $resStmt->get_result();
+        while ($row = $resResult->fetch_assoc()) {
+            if (!empty($row['r_start'])) {
+                $occupiedRanges[] = [
+                    'from' => $row['r_start'],
+                    'to' => $row['r_end'] ?? $row['r_start'],
+                    'stato' => 'prenotazione'
+                ];
+            }
+        }
+        $resStmt->close();
+
         // first_available / is_available_now: delega al calcolo per-giorno e per-copia
         // (AVAIL-001). Il vecchio "giorno dopo la scadenza più lontana" ignorava le
         // copie multiple, restituendo una data troppo conservativa.
         $today = \App\Support\DateHelper::today();
         $reservations = new \App\Controllers\ReservationsController($db);
-        $availability = $reservations->getBookAvailabilityData($libroId, $today, 180);
+        $availability = $reservations->getBookAvailabilityData($libroId, $today, 180) ?? [];
         $todayData = $availability['by_date'][$today] ?? null;
         $isAvailableNow = $todayData !== null && (int) ($todayData['available'] ?? 0) > 0;
 
@@ -2465,13 +2524,35 @@ return function (App $app): void {
             $db = $app->getContainer()->get('db');
             $bookId = (int)$args['id'];
             $controller = new \App\Controllers\ReservationsController($db);
-            $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), 180);
+            // Public endpoint (the book-page picker) — when a session exists,
+            // exclude the user's own reservations like the write gate does.
+            // F012: the admin loan form fetches this same route to create a loan
+            // FOR a borrower who is not the session operator. An admin/staff can
+            // pass ?for_user=<id> to exclude THAT borrower instead of the
+            // operator; everyone else stays on the session id (self-service).
+            $sessionUserId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
+            $forUser = $request->getQueryParams()['for_user'] ?? null;
+            $sessionRole = $_SESSION['user']['tipo_utente'] ?? '';
+            $excludeUserId = $sessionUserId;
+            if ($forUser !== null && is_numeric($forUser) && in_array($sessionRole, ['admin', 'staff'], true)) {
+                $excludeUserId = (int) $forUser;
+            }
+            $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), 180, $excludeUserId);
+            if ($availability === null) {
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
+                return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+            }
             $data = [
                 'success' => true,
                 'availability' => [
                     'unavailable_dates' => $availability['unavailable_dates'] ?? [],
-                    'earliest_available' => $availability['earliest_available'] ?? date('Y-m-d'),
-                    'days' => $availability['days'] ?? []
+                    'earliest_available' => $availability['earliest_available'] ?? \App\Support\DateHelper::today(),
+                    'days' => $availability['days'] ?? [],
+                    // F040: true when the excluded user already holds an active
+                    // reservation on this book — the picker would otherwise show
+                    // an all-green calendar that the date-less duplicate guard in
+                    // createReservation rejects for every date.
+                    'has_active_reservation' => $availability['has_active_reservation'] ?? false
                 ]
             ];
             $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));

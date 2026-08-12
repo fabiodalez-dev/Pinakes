@@ -605,6 +605,8 @@ class UserActionsController
             // Promote immediately before performing slower email I/O, minimizing
             // the post-commit window in which another request could claim the
             // same copy. The canonical approval path re-checks every constraint.
+            // ?string: the persisted state ('prenotato'/'da_ritirare') on
+            // success, null when the request stays pending.
             $autoApproved = $this->autoApproveLoanRequest($request, $db, $newLoanId);
 
             // A successfully auto-approved request no longer needs admin action.
@@ -623,6 +625,10 @@ class UserActionsController
                 'loan_request_success' => 1,
                 'loan_id' => $newLoanId,
                 'auto_approved' => $autoApproved ? 1 : 0,
+                // Thread the persisted state through the redirect so the alert
+                // can distinguish a scheduled ('prenotato') loan from one
+                // awaiting pickup ('da_ritirare').
+                'loan_state' => $autoApproved ?? '',
             ]);
 
         } catch (\Throwable $e) {
@@ -784,14 +790,21 @@ class UserActionsController
      * A failure deliberately leaves the request pending, so an administrator can
      * still process it instead of losing an otherwise valid request.
      */
-    private function autoApproveLoanRequest(Request $request, mysqli $db, int $loanId): bool
+    private function autoApproveLoanRequest(Request $request, mysqli $db, int $loanId): ?string
     {
-        $settings = new \App\Models\SettingsRepository($db);
-        if (!$settings->autoApproveLoanRequests()) {
-            return false;
-        }
-
+        // The settings read runs INSIDE the try: this helper is called AFTER the
+        // request is committed, so a DB hiccup in the SettingsRepository lookup
+        // must degrade to "left pending" (return null) rather than escape to the
+        // outer transaction catch, which would roll back and report a failure for
+        // an already durable request.
         try {
+            $settings = new \App\Models\SettingsRepository($db);
+            if (!$settings->autoApproveLoanRequests()) {
+                // A disabled setting is not a failure: leave the request pending
+                // for an admin without logging any warning noise.
+                return null;
+            }
+
             $approvalRequest = $request
                 ->withParsedBody(['loan_id' => $loanId])
                 ->withAttribute('automatic_loan_approval', true);
@@ -802,7 +815,13 @@ class UserActionsController
             );
 
             if ($result->getStatusCode() >= 200 && $result->getStatusCode() < 300) {
-                return true;
+                // Return the state approveLoan actually persisted ('prenotato'
+                // for a future-dated loan, 'da_ritirare' for an immediate one)
+                // so the caller can describe the real outcome.
+                $body = json_decode((string) $result->getBody(), true);
+                return is_array($body) && isset($body['loan_state']) && is_string($body['loan_state'])
+                    ? $body['loan_state']
+                    : 'da_ritirare';
             }
 
             SecureLogger::warning('Automatic loan approval left request pending', [
@@ -816,7 +835,7 @@ class UserActionsController
             ]);
         }
 
-        return false;
+        return null;
     }
 
     /**

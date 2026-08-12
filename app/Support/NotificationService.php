@@ -916,6 +916,48 @@ class NotificationService {
     /**
      * Invia email di approvazione prestito all'utente
      */
+    /**
+     * Renewal confirmation with the NEW due date. Without it the borrower —
+     * especially when the librarian renews at the desk — had no way to know
+     * the deadline moved.
+     */
+    public function sendLoanRenewedNotification(int $loanId, int $maxRenewals): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
+                return false;
+            }
+            $stmt->close();
+
+            $remaining = max(0, $maxRenewals - (int) ($loan['renewals'] ?? 0));
+
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
+                'rinnovi_rimanenti' => (string) $remaining,
+            ];
+
+            return $this->sendWithRetry($loan['utente_email'], 'loan_renewed', $variables);
+
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to send loan renewed notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
     public function sendLoanApprovedNotification(int $loanId): bool {
         try {
             $stmt = $this->db->prepare("

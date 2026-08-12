@@ -6636,6 +6636,7 @@
   "Indirizzo email dell'utente": "E-Mail-Adresse des Benutzers",
   "Durata del prestito in giorni": "Ausleihdauer in Tagen",
   "Giorni rimanenti alla scadenza": "Verbleibende Tage bis zur Fälligkeit",
+  "Numero di rinnovi ancora disponibili": "Anzahl der noch verfügbaren Verlängerungen",
   "Giorni di ritardo nella restituzione": "Tage Verzug bei der Rückgabe",
   "Autore del libro": "Autor des Buches",
   "ISBN del libro": "ISBN des Buches",
@@ -6767,5 +6768,16 @@
   "https://...": "https://...",
   "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.": "⚙️ Automatisches Verhalten: Wenn Sie Code in „Analyse-JavaScript“ oder „Marketing-JavaScript“ eingeben, werden die jeweiligen Schalter in <a href=\"%s\" class=\"underline font-semibold\">Datenschutzeinstellungen</a> automatisch aktiviert.",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Wichtig: Sie müssen die von diesen Skripten erfassten Cookies manuell auf der <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Cookie-Seite</a> auflisten, um die DSGVO einzuhalten.",
-  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Sprache gelöscht, aber eine Übersetzungsdatei konnte nicht entfernt werden: Sie könnte wieder auftauchen, wenn Sie die Sprache mit demselben Code neu anlegen."
+  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Sprache gelöscht, aber eine Übersetzungsdatei konnte nicht entfernt werden: Sie könnte wieder auftauchen, wenn Sie die Sprache mit demselben Code neu anlegen.",
+  "Fuso orario": "Zeitzone",
+  "Fuso orario usato per calcolare scadenze, attivazioni e automatismi dei prestiti. Deve corrispondere al fuso orario della tua biblioteca.": "Zeitzone für die Berechnung von Fälligkeiten, Aktivierungen und Ausleih-Automatismen. Sie muss der Ortszeit Ihrer Bibliothek entsprechen.",
+  "Predefinito: Europe/Rome": "Standard: Europe/Berlin",
+  "Prestito rinnovato": "Ausleihe verlängert",
+  "Inviata all'utente quando un prestito viene rinnovato, con la nuova data di scadenza.": "Wird an den Benutzer gesendet, wenn eine Ausleihe verlängert wird, mit dem neuen Fälligkeitsdatum.",
+  "Notifica rinnovo prestito fallita": "Benachrichtigung über die Verlängerung fehlgeschlagen",
+  "Non disponibile oggi": "Heute nicht verfügbar",
+  "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.": "Ihre Anfrage wurde automatisch genehmigt: Sie erhalten eine E-Mail mit den Abholhinweisen.",
+  "Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.": "Ausleihe vorgemerkt: Sie erhalten die Abholhinweise, wenn das Startdatum näher rückt.",
+  "Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.": "Sie haben bereits eine aktive Vormerkung für dieses Buch. Warten Sie, bis sie bearbeitet wurde, bevor Sie eine neue anfordern.",
+  "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Fehler: ungültiges Datumsformat. Geben Sie die Daten im Format YYYY-MM-DD ein."
 }

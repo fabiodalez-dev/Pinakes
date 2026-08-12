@@ -6636,6 +6636,7 @@
   "Indirizzo email dell'utente": "User's email address",
   "Durata del prestito in giorni": "Loan duration in days",
   "Giorni rimanenti alla scadenza": "Days remaining until the due date",
+  "Numero di rinnovi ancora disponibili": "Number of renewals still available",
   "Giorni di ritardo nella restituzione": "Days overdue on the return",
   "Autore del libro": "Book author",
   "ISBN del libro": "Book ISBN",
@@ -6767,5 +6768,16 @@
   "https://...": "https://...",
   "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.": "⚙️ Automatic behaviour: If you enter code in \"Analytics JavaScript\" or \"Marketing JavaScript\", the respective toggles in <a href=\"%s\" class=\"underline font-semibold\">Privacy Settings</a> will be selected automatically.",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Important: You must manually list the cookies tracked by these scripts on the <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Cookie Page</a> for GDPR compliance.",
-  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Language deleted, but a translation file could not be removed: it may reappear if you recreate the language with the same code."
+  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Language deleted, but a translation file could not be removed: it may reappear if you recreate the language with the same code.",
+  "Fuso orario": "Time zone",
+  "Fuso orario usato per calcolare scadenze, attivazioni e automatismi dei prestiti. Deve corrispondere al fuso orario della tua biblioteca.": "Time zone used to compute due dates, activations and loan automatisms. It must match your library's local time zone.",
+  "Predefinito: Europe/Rome": "Default: UTC",
+  "Prestito rinnovato": "Loan renewed",
+  "Inviata all'utente quando un prestito viene rinnovato, con la nuova data di scadenza.": "Sent to the user when a loan is renewed, with the new due date.",
+  "Notifica rinnovo prestito fallita": "Loan renewal notification failed",
+  "Non disponibile oggi": "Not available today",
+  "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.": "Your request was approved automatically: you will receive an email with pickup instructions.",
+  "Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.": "Loan booked: you will receive pickup instructions as the start date approaches.",
+  "Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.": "You already have an active reservation for this book. Wait until it is fulfilled before requesting a new one.",
+  "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Error: invalid date format. Enter dates in YYYY-MM-DD format."
 }

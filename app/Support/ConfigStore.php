@@ -36,6 +36,12 @@ final class ConfigStore
                 'logo' => '',
                 'footer_description' => 'Il tuo sistema Pinakes per catalogare, gestire e condividere la tua collezione libraria.',
                 'locale' => 'it_IT',
+                // App-wide timezone: DateHelper::today()/now() compute the loan
+                // clock from this. Was a phantom key (read but defined nowhere,
+                // always resolving to the hardcoded fallback) — now a real
+                // default, seeded per-locale by the installer and editable from
+                // the loans settings tab.
+                'timezone' => 'Europe/Rome',
                 'social_facebook' => '',
                 'social_twitter' => '',
                 'social_instagram' => '',
@@ -418,6 +424,14 @@ final class ConfigStore
                 // Load locale
                 if (isset($raw['app']['locale'])) {
                     self::$dbSettingsCache['app']['locale'] = (string) $raw['app']['locale'];
+                }
+                // Load timezone (loan clock — DateHelper reads app.timezone).
+                // This mapping is what makes the setting REAL: without it the
+                // installer seed and the loans-tab save wrote a row that was
+                // never read back, and get('app.timezone') always returned the
+                // hardcoded default (caught by the adversarial review).
+                if (isset($raw['app']['timezone']) && $raw['app']['timezone'] !== '') {
+                    self::$dbSettingsCache['app']['timezone'] = (string) $raw['app']['timezone'];
                 }
                 // Load social links
                 $socialKeys = ['social_facebook', 'social_twitter', 'social_instagram', 'social_linkedin', 'social_bluesky', 'social_telegram'];

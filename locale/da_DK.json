@@ -6636,6 +6636,7 @@
   "Indirizzo email dell'utente": "Brugerens e-mailadresse",
   "Durata del prestito in giorni": "Lånevarighed i dage",
   "Giorni rimanenti alla scadenza": "Dage tilbage til forfald",
+  "Numero di rinnovi ancora disponibili": "Antal resterende fornyelser",
   "Giorni di ritardo nella restituzione": "Dage for sen aflevering",
   "Autore del libro": "Bogens forfatter",
   "ISBN del libro": "Bogens ISBN",
@@ -6767,5 +6768,16 @@
   "https://...": "https://...",
   "⚙️ Comportamento Automatico: Se inserisci codice in \"JavaScript Analitici\" o \"JavaScript Marketing\", i rispettivi toggle in <a href=\"%s\" class=\"underline font-semibold\">Impostazioni Privacy</a> verranno automaticamente selezionati.": "⚙️ Automatisk adfærd: Hvis du indtaster kode i \"Analytisk JavaScript\" eller \"Marketing-JavaScript\", vil de tilhørende til/fra-knapper i <a href=\"%s\" class=\"underline font-semibold\">Privatlivsindstillinger</a> automatisk blive valgt.",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Vigtigt: Du skal manuelt angive de cookies, som disse scripts sporer, på <a href=\"%s\" target=\"_blank\" class=\"underline font-semibold\">Cookie-siden</a> for at overholde GDPR.",
-  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Sproget er slettet, men en oversættelsesfil kunne ikke fjernes: den kan dukke op igen, hvis du genopretter sproget med samme kode."
+  "Lingua eliminata, ma un file di traduzione non è stato rimosso: potrebbe riapparire se ricrei la lingua con lo stesso codice.": "Sproget er slettet, men en oversættelsesfil kunne ikke fjernes: den kan dukke op igen, hvis du genopretter sproget med samme kode.",
+  "Fuso orario": "Tidszone",
+  "Fuso orario usato per calcolare scadenze, attivazioni e automatismi dei prestiti. Deve corrispondere al fuso orario della tua biblioteca.": "Tidszone der bruges til at beregne afleveringsfrister, aktiveringer og automatik for lån. Den skal svare til bibliotekets lokale tidszone.",
+  "Predefinito: Europe/Rome": "Standard: Europe/Copenhagen",
+  "Prestito rinnovato": "Lån fornyet",
+  "Inviata all'utente quando un prestito viene rinnovato, con la nuova data di scadenza.": "Sendes til brugeren, når et lån fornyes, med den nye afleveringsdato.",
+  "Notifica rinnovo prestito fallita": "Meddelelse om fornyelse af lån mislykkedes",
+  "Non disponibile oggi": "Ikke tilgængelig i dag",
+  "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.": "Din anmodning blev godkendt automatisk: du modtager en e-mail med afhentningsinstruktioner.",
+  "Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.": "Lån reserveret: du modtager afhentningsinstruktioner, når startdatoen nærmer sig.",
+  "Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.": "Du har allerede en aktiv reservation til denne bog. Vent, til den er behandlet, før du anmoder om en ny.",
+  "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Fejl: ugyldigt datoformat. Indtast datoerne i formatet YYYY-MM-DD."
 }

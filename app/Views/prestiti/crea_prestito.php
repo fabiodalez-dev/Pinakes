@@ -23,6 +23,11 @@ $isItalian = str_starts_with($currentLocale, 'it');
 $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
     'options' => ['default' => 0, 'min_range' => 1],
 ]);
+// F043: la route /api/libro|/api/book|... è registrata per-locale ATTIVO in
+// web.php; un path italiano hardcoded andrebbe in 404 su installazioni dove
+// it_IT è disattivato o rinominato. route_path risolve la route per il locale
+// corrente e include GIÀ il base path — quindi non le antepongo window.BASE_PATH.
+$apiBookRoute = route_path('api_book');
 ?>
 <section class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
   <!-- Breadcrumb -->
@@ -66,6 +71,9 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
           break;
         case 'invalid_dates':
           echo __('Errore: la data di scadenza deve essere successiva alla data di prestito.');
+          break;
+        case 'invalid_date_format':
+          echo __('Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.');
           break;
         case 'no_copies_available':
           echo __('Tutte le copie di questo libro hanno già un prestito attivo o prenotato. Attendi che una copia venga restituita.');
@@ -174,14 +182,14 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
       <!-- Data Prestito -->
       <div>
         <label for="data_prestito" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Prestito") ?> *</label>
-        <input type="text" name="data_prestito" id="data_prestito" value="<?php echo htmlspecialchars($oldDataPrestito !== '' ? $oldDataPrestito : date('Y-m-d'), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
+        <input type="text" name="data_prestito" id="data_prestito" value="<?php echo htmlspecialchars($oldDataPrestito !== '' ? $oldDataPrestito : ($defaultDataPrestito ?? \App\Support\DateHelper::today()), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
         <p id="data_prestito_hint" class="mt-1 text-xs text-gray-500 hidden"></p>
       </div>
 
       <!-- Data Scadenza -->
       <div>
         <label for="data_scadenza" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Data Scadenza") ?> *</label>
-        <input type="text" name="data_scadenza" id="data_scadenza" value="<?php echo htmlspecialchars($oldDataScadenza !== '' ? $oldDataScadenza : date('Y-m-d', strtotime('+1 month')), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
+        <input type="text" name="data_scadenza" id="data_scadenza" value="<?php echo htmlspecialchars($oldDataScadenza !== '' ? $oldDataScadenza : ($defaultDataScadenza ?? date('Y-m-d', strtotime(\App\Support\DateHelper::today() . ' +30 days'))), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" data-no-flatpickr required>
       </div>
     </div>
 
@@ -323,6 +331,11 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
         copyNotFound: <?= json_encode(__("Nessuna copia trovata con questo codice inventario."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         copyNotAvailable: <?= json_encode(__("Questa copia non è disponibile ora."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
       };
+
+      // F043: base della route di disponibilità risolta per il locale attivo,
+      // base path incluso. Non anteporre window.BASE_PATH (raddoppierebbe il
+      // base path sulle installazioni in sottocartella).
+      const API_BOOK_BASE = <?= json_encode($apiBookRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;
 
       // Book availability data
       let bookAvailability = {
@@ -502,6 +515,28 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
         }
       }
 
+      // F012: la disponibilità va calcolata dal punto di vista del PRESTATARIO
+      // selezionato, non dell'operatore loggato. Le route di disponibilità
+      // escludono di default le prenotazioni della sessione (l'operatore): con
+      // ?for_user=<id> un admin/staff chiede l'esclusione delle prenotazioni del
+      // vero prestatario, così il calendario combacia col gate di scrittura
+      // (hasFreeCapacity) che non esclude nessuno.
+      function getSelectedBorrowerId() {
+        const el = document.getElementById('utente_id');
+        const id = el ? parseInt(el.value, 10) : 0;
+        return (id && id > 0) ? id : null;
+      }
+
+      // Ricalcola la disponibilità del libro già selezionato quando cambia il
+      // prestatario (non solo quando cambia il libro).
+      function refetchAvailabilityForBorrowerChange() {
+        const libroIdEl = document.getElementById('libro_id');
+        const bid = libroIdEl ? parseInt(libroIdEl.value, 10) : 0;
+        if (bid && bid > 0) {
+          fetchBookAvailability(String(bid));
+        }
+      }
+
       // Fetch and apply book availability (same API as frontend)
       function fetchBookAvailability(bookId) {
         if (!bookId || bookId === '0') {
@@ -516,7 +551,12 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
 
         // Use same API as frontend
         const safeBookId = parseInt(bookId, 10);
-        fetch(window.BASE_PATH + '/api/libro/' + safeBookId + '/availability')
+        let availabilityUrl = API_BOOK_BASE + '/' + safeBookId + '/availability';
+        const borrowerId = getSelectedBorrowerId();
+        if (borrowerId) {
+          availabilityUrl += '?for_user=' + borrowerId;
+        }
+        fetch(availabilityUrl)
           .then(function(response) {
             if (!response.ok) throw new Error('Failed to fetch availability');
             return response.json();
@@ -568,8 +608,10 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
           });
       }
 
-      // Simple autocomplete setup
-      function setupAutocomplete(inputId, suggestId, hiddenId, endpoint, isBook) {
+      // Simple autocomplete setup. onSelect (optional) fires whenever the hidden
+      // id changes (selection made OR cleared) — used to re-fetch availability
+      // when the borrower changes (F012).
+      function setupAutocomplete(inputId, suggestId, hiddenId, endpoint, isBook, onSelect) {
         const inputEl = document.getElementById(inputId);
         const suggestEl = document.getElementById(suggestId);
         const hiddenEl = document.getElementById(hiddenId);
@@ -627,12 +669,17 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
         }
 
         inputEl.addEventListener('input', function() {
+          const prevHidden = hiddenEl.value;
           hiddenEl.value = '0';
           hideAvailability();
 
           // Reset calendar availability when book changes
           if (isBook) {
             fetchBookAvailability(null);
+          } else if (onSelect && prevHidden && prevHidden !== '0') {
+            // Borrower cleared: refetch so the operator's own reservations are
+            // no longer excluded (the safe, more restrictive direction).
+            onSelect();
           }
 
           const query = this.value.trim();
@@ -679,6 +726,9 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
             showAvailability(copies, total);
             // Fetch availability dates for calendar coloring
             fetchBookAvailability(selectedId);
+          } else if (onSelect) {
+            // Borrower selected: refetch the current book's availability for them.
+            onSelect();
           }
 
           hideSuggestions();
@@ -736,7 +786,7 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
       }
 
       // Initialize autocompletes
-      setupAutocomplete('utente_search', 'utente_suggest', 'utente_id', window.BASE_PATH + '/api/search/utenti', false);
+      setupAutocomplete('utente_search', 'utente_suggest', 'utente_id', window.BASE_PATH + '/api/search/utenti', false, refetchAvailabilityForBorrowerChange);
       setupAutocomplete('libro_search', 'libro_suggest', 'libro_id', window.BASE_PATH + '/api/search/libri', true);
 
       // A retained book already has a valid hidden ID; refresh its calendar
@@ -757,6 +807,9 @@ $pdfIdForDownload = (int) filter_input(INPUT_GET, 'pdf', FILTER_VALIDATE_INT, [
           if (search) search.value = meBtn.getAttribute('data-me-name') || '';
           const sug = document.getElementById('utente_suggest');
           if (sug) { sug.style.display = 'none'; sug.innerHTML = ''; }
+          // Borrower changed to the operator: refetch the current book's
+          // availability from their point of view (F012).
+          refetchAvailabilityForBorrowerChange();
         });
       }
 

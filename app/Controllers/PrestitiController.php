@@ -168,6 +168,13 @@ class PrestitiController
             }
         }
 
+        // Prefill delle date nel timezone APPLICATIVO e con la durata configurata:
+        // il vecchio date('Y-m-d') (TZ processo, spesso UTC) mostrava "ieri" dopo
+        // mezzanotte, e il '+1 month' della view divergeva dal default server (30gg).
+        $defaultDataPrestito = \App\Support\DateHelper::today();
+        $defaultLoanDays = (new \App\Models\SettingsRepository($db))->loanDurationDays();
+        $defaultDataScadenza = date('Y-m-d', strtotime($defaultDataPrestito . " +{$defaultLoanDays} days"));
+
         ob_start();
         require __DIR__ . '/../Views/prestiti/crea_prestito.php';
         $content = ob_get_clean();
@@ -226,10 +233,7 @@ class PrestitiController
         }
         if (empty($data_scadenza)) {
             // Default loan duration read from admin settings (fallback: 30 days)
-            $loanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
-            if ($loanDays < 1) {
-                $loanDays = 30;
-            }
+            $loanDays = (new \App\Models\SettingsRepository($db))->loanDurationDays();
             $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
         }
 
@@ -237,8 +241,23 @@ class PrestitiController
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=missing_fields')->withStatus(302);
         }
 
+        // Validazione ISO stretta di ENTRAMBE le date (stessa regola di update()):
+        // il vecchio guard `strtotime($a) <= strtotime($b)` con una data non
+        // parsabile confrontava int con false in modo booleano e PASSAVA, e
+        // l'ambiguità '12/03/2026' veniva letta all'americana (3 dicembre).
+        // L'input arriva libero (il campo è data-no-flatpickr), quindi qui è
+        // l'unico punto di difesa prima dell'INSERT.
+        // F028: un formato non-ISO e un range invertito sono due errori diversi.
+        // Separo i codici così l'admin non legge "la scadenza deve essere
+        // successiva" quando il vero problema è il formato — con l'indicazione
+        // esplicita del formato atteso YYYY-MM-DD.
+        if (!\App\Support\DateHelper::isISODateFormat($data_prestito) || !\App\Support\DateHelper::isISODateFormat($data_scadenza)) {
+            return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
+        }
+
         // Verifica che la data di scadenza sia successiva alla data di prestito
-        if (strtotime($data_scadenza) <= strtotime($data_prestito)) {
+        // (confronto lessicografico sicuro: entrambe validate Y-m-d qui sopra)
+        if ($data_scadenza <= $data_prestito) {
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_dates')->withStatus(302);
         }
 
@@ -755,8 +774,14 @@ class PrestitiController
         // giornata singola) è lecita: createReservation accetta end == start,
         // quindi un rifiuto strettamente esclusivo renderebbe immodificabili
         // i prestiti a giornata nati dal calendario utente.
-        if (strtotime($newScadenza) === false || strtotime($newPrestito) === false
-            || strtotime($newScadenza) < strtotime($newPrestito)) {
+        // F028: uso la stessa validazione ISO stretta di store() invece di
+        // strtotime(), che leggeva '12/03/2026' all'americana (3 dicembre) e
+        // trattava una data non parsabile come false confrontata booleana.
+        // Codici d'errore separati: formato non valido vs range invertito.
+        if (!\App\Support\DateHelper::isISODateFormat($newPrestito) || !\App\Support\DateHelper::isISODateFormat($newScadenza)) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_date_format')->withStatus(302);
+        }
+        if ($newScadenza < $newPrestito) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
         }
 
@@ -1683,10 +1708,7 @@ class PrestitiController
 
         // Durata del rinnovo dalla setting di durata prestito (M5b): il vecchio
         // '+14 days' hardcoded ignorava la configurazione dell'admin.
-        $renewDays = (int) ($settingsRepo->get('loans', 'loan_duration_days', '30') ?? 30);
-        if ($renewDays < 1) {
-            $renewDays = 30;
-        }
+        $renewDays = $settingsRepo->loanDurationDays();
 
         // Calculate proposed new due date for conflict checking
         $currentDueDate = $loan['data_scadenza'];
@@ -1833,6 +1855,15 @@ class PrestitiController
 
             $db->commit();
             $_SESSION['success_message'] = __('Prestito rinnovato correttamente. Nuova scadenza: %s', format_date($newDueDate, false, '/'));
+
+            // Conferma al lettore con la NUOVA scadenza, DOPO il commit: prima
+            // il rinnovo era l'unica transizione benefica senza email — se lo
+            // faceva il bibliotecario al banco, l'utente non lo sapeva proprio.
+            try {
+                (new \App\Support\NotificationService($db))->sendLoanRenewedNotification($id, $maxRenewals);
+            } catch (\Throwable $notifError) {
+                SecureLogger::warning(__('Notifica rinnovo prestito fallita'), ['loan_id' => $id, 'error' => $notifError->getMessage()]);
+            }
 
             $successUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($successUrl, '?') === false ? '?' : '&';

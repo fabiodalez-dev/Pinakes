@@ -56,7 +56,8 @@
 
     <!-- Content -->
     <div class="p-6 space-y-8">
-        <?php $today = date('Y-m-d'); ?>
+        <?php // "Oggi" nel timezone applicativo: stessa base del cron e della dashboard
+        $today = \App\Support\DateHelper::today(); ?>
 
         <!-- Section 1: Overdue Loans (in_ritardo) - Most Urgent -->
         <?php if (!empty($overdueLoans)): ?>

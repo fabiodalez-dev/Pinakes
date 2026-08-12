@@ -554,14 +554,19 @@ class DataIntegrity {
         }
         $stmt->close();
 
-        // 8. Verifica prenotazioni scadute ancora attive
+        // 8. Verifica prenotazioni scadute ancora attive. Orologio APPLICATIVO
+        // (DateHelper), non NOW() del server MySQL: ReservationManager::
+        // cancelExpiredReservations valuta la stessa scadenza con DateHelper —
+        // due orologi diversi sulla stessa riga segnalavano/curavano in disaccordo.
         $stmt = $this->db->prepare("
             SELECT id, libro_id, utente_id, data_scadenza_prenotazione
             FROM prenotazioni
             WHERE stato = 'attiva'
             AND data_scadenza_prenotazione IS NOT NULL
-            AND data_scadenza_prenotazione < NOW()
+            AND data_scadenza_prenotazione < ?
         ");
+        $appNow = \App\Support\DateHelper::now();
+        $stmt->bind_param('s', $appNow);
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result && $result->num_rows > 0) {
@@ -1056,14 +1061,19 @@ class DataIntegrity {
             $results['fixed'] += $this->db->affected_rows;
             $stmt->close();
 
-            // 5. Annulla prenotazioni scadute (data_scadenza_prenotazione < NOW())
+            // 5. Annulla prenotazioni scadute — orologio APPLICATIVO (DateHelper),
+            // stesso clock di ReservationManager::cancelExpiredReservations e del
+            // check n.8 sopra: con NOW() del server la stessa riga poteva risultare
+            // scaduta per un percorso e valida per l'altro a cavallo di mezzanotte.
             $stmt = $this->db->prepare("
                 UPDATE prenotazioni
                 SET stato = 'annullata'
                 WHERE stato = 'attiva'
                 AND data_scadenza_prenotazione IS NOT NULL
-                AND data_scadenza_prenotazione < NOW()
+                AND data_scadenza_prenotazione < ?
             ");
+            $appNow = \App\Support\DateHelper::now();
+            $stmt->bind_param('s', $appNow);
             $stmt->execute();
             $results['fixed'] += $this->db->affected_rows;
             $stmt->close();
