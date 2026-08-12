@@ -40,11 +40,16 @@ async function setCustomCss(page, value) {
   await css.waitFor({ state: 'visible', timeout: 10000 });
   await css.fill(value);
   // Submit the actual form that owns the textarea (posts to /admin/settings/advanced).
-  await css.evaluate((el) => {
-    const form = el.closest('form');
-    if (form) form.requestSubmit();
-  });
-  await page.waitForLoadState('networkidle');
+  // Register the navigation waiter before requestSubmit. Merely awaiting a
+  // later network-idle state can observe the pre-submit page and let a caller's
+  // next goto race with the form's redirect back to the advanced tab.
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle' }),
+    css.evaluate((el) => {
+      const form = el.closest('form');
+      if (form) form.requestSubmit();
+    }),
+  ]);
 }
 
 test.describe('Custom CSS injection hardening', () => {

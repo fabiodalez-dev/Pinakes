@@ -644,7 +644,6 @@ test.describe.serial('G3 — Concurrency / lock', () => {
 
   async function releaseLock(holder) {
     await holder.release();
-    await waitForLock(true);
   }
 
   test('13. Two concurrent restores are both rejected while the lock is held', async () => {
@@ -678,7 +677,11 @@ test.describe.serial('G3 — Concurrency / lock', () => {
       await releaseLock(holder);
     }
 
-    // Wait for the holder to release, then a restore succeeds again.
+    // The supervised holder has exited; a real restore is the authoritative
+    // proof that the application can acquire the shared lock again. Avoid a
+    // redundant CLI probe here: after two concurrent Apache responses, an
+    // immediate third-party flock probe can race PHP request shutdown even
+    // though BackupManager has already returned both 409 responses.
     const ok = await apiPost(page, '/admin/updates/backup/restore', { backup });
     expect(ok.json?.success).toBe(true);
     if (ok.json?.safety_backup) CREATED_BACKUPS.push(ok.json.safety_backup);
