@@ -98,34 +98,47 @@ jobs:
             exit 1
           fi
           TAG=$(python3 -c "import json; d=json.load(open('/tmp/release.json')); print(d.get('tag_name',''))")
-          ASSET=$(python3 -c "import json; d=json.load(open('/tmp/release.json')); assets=[a['browser_download_url'] for a in d.get('assets',[]) if a['name'].endswith('.zip')]; print(assets[0] if assets else '')")
-          if [ -z "$TAG" ] || [ -z "$ASSET" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No ZIP asset found in latest release — skipping upgrade path"
-            exit 0
+          ASSET=$(python3 -c "import json; d=json.load(open('/tmp/release.json')); assets=[a['browser_download_url'] for a in d.get('assets',[]) if a['name'].endswith('.zip')]; print(assets[0] if len(assets) == 1 else '')")
+          CHECKSUM=$(python3 -c "import json; d=json.load(open('/tmp/release.json')); assets=[a['browser_download_url'] for a in d.get('assets',[]) if a['name'].endswith('.zip.sha256')]; print(assets[0] if len(assets) == 1 else '')")
+          if [ -z "$TAG" ] || [ -z "$ASSET" ] || [ -z "$CHECKSUM" ]; then
+            echo "Latest release must provide exactly one ZIP and one ZIP.sha256 asset"
+            exit 1
           fi
           {
             echo "tag=$TAG"
             echo "asset=$ASSET"
+            echo "checksum=$CHECKSUM"
             echo "skip=false"
           } >> "$GITHUB_OUTPUT"
-          echo "Latest release: $TAG  ($ASSET)"
+          echo "Latest release: $TAG  ($ASSET; checksum verified before use)"
 
       # ── Step 2: Install released schema ───────────────────────────────────
       - name: Install released schema (baseline)
+        id: baseline
         if: steps.release.outputs.skip == 'false'
         env:
           ASSET_URL: ${{ steps.release.outputs.asset }}
+          CHECKSUM_URL: ${{ steps.release.outputs.checksum }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
-          curl -sfL -o /tmp/release.zip "$ASSET_URL"
-          mkdir -p /tmp/pinakes-release
-          unzip -q /tmp/release.zip -d /tmp/pinakes-release
-          SCHEMA=$(find /tmp/pinakes-release -name "schema.sql" -path "*/database/*" | head -1)
+          RELEASE_DIR=$(mktemp -d "${RUNNER_TEMP}/pinakes-release.XXXXXX")
+          ARCHIVE_NAME=${ASSET_URL##*/}
+          CHECKSUM_NAME=${CHECKSUM_URL##*/}
+          curl --fail-with-body --location --retry 5 --retry-all-errors \
+            --retry-delay 2 --retry-max-time 120 --connect-timeout 15 \
+            -o "${RELEASE_DIR}/${ARCHIVE_NAME}" "$ASSET_URL"
+          curl --fail-with-body --location --retry 5 --retry-all-errors \
+            --retry-delay 2 --retry-max-time 120 --connect-timeout 15 \
+            -o "${RELEASE_DIR}/${CHECKSUM_NAME}" "$CHECKSUM_URL"
+          (cd "$RELEASE_DIR" && sha256sum -c "$CHECKSUM_NAME")
+          mkdir "${RELEASE_DIR}/extracted"
+          unzip -q "${RELEASE_DIR}/${ARCHIVE_NAME}" -d "${RELEASE_DIR}/extracted"
+          SCHEMA=$(find "${RELEASE_DIR}/extracted" -name "schema.sql" -path "*/database/*" | head -1)
           if [ -z "$SCHEMA" ]; then
             echo "schema.sql not found in release ZIP — aborting"
             exit 1
           fi
+          echo "release_dir=${RELEASE_DIR}/extracted" >> "$GITHUB_OUTPUT"
           echo "Using schema: $SCHEMA  (from $RELEASE_TAG)"
           mysql -h 127.0.0.1 -u root -proot pinakes_upgrade < "$SCHEMA"
           echo "✓ Base schema installed from $RELEASE_TAG"
@@ -139,8 +152,10 @@ jobs:
       # (pre-guard era) produce when re-run on an already-migrated schema.
       - name: Apply released migrations
         if: steps.release.outputs.skip == 'false'
+        env:
+          RELEASE_DIR: ${{ steps.baseline.outputs.release_dir }}
         run: |
-          MIGRATIONS=$(find /tmp/pinakes-release -type d -name "migrations" | head -1)
+          MIGRATIONS=$(find "$RELEASE_DIR" -type d -name "migrations" | head -1)
           if [ -z "$MIGRATIONS" ]; then
             echo "No migrations dir in release ZIP — skipping"
             exit 0
