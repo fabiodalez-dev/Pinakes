@@ -2274,11 +2274,21 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     await page.locator('button[name="save_and_new"]').click();
     await page.waitForURL(url => url.pathname.endsWith('/admin/loans/create') && url.searchParams.get('created') === '1');
 
+    await expect(page.locator('#loan_created_alert')).toBeVisible();
     await expect(page.locator('#utente_id')).toHaveValue(String(state.userId));
     await expect(page.locator('#utente_search')).not.toHaveValue('');
     await expect(page.locator('#libro_id')).toHaveValue('0');
     await expect(page.locator('#libro_search')).toHaveValue('');
     await expect(page.locator('#copy_code')).toHaveValue('');
+
+    // The notice belongs to the loan just created. As soon as the operator starts
+    // the next one it must disappear, along with the URL flags that would otherwise
+    // resurrect it (and a PDF download) on refresh.
+    await page.locator('#copy_code').fill(`NEXT-${RUN_ID}`);
+    await expect(page.locator('#loan_created_alert')).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).searchParams.has('created')).toBe(false);
+    await expect.poll(() => new URL(page.url()).searchParams.has('pdf')).toBe(false);
+    await page.locator('#copy_code').fill('');
 
     // Leave the shared E2E database in an available state for later phases and
     // for focused reruns that omit the suite-wide cleanup phase.

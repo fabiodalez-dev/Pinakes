@@ -52,8 +52,8 @@ const RUN = Date.now().toString(36);
 const TITLE = `ZLabelTitle ${RUN}`;
 const SUBTITLE = `ZLabelSub ${RUN}`;
 const DEWEY = '823.92';
-const CODE_A = `ZLBLA-${RUN}`;
-const CODE_B = `ZLBLB-${RUN}`;
+const CODE_A = `ZLBL-${RUN}-C2`;
+const CODE_B = `ZLBL-${RUN}-C10`;
 
 /** Download the label PDF to a temp file and return {text, widthPt, heightPt}. */
 async function inspectLabel(page, urlPath) {
@@ -156,6 +156,14 @@ test.describe.serial('Copy-label PDF content (#238)', () => {
     await page.waitForLoadState('networkidle');
     expect(dbQuery(`SELECT setting_value FROM system_settings WHERE category='label' AND setting_key='width'`)).toBe('89');
 
+    // The physical-copy table must use the same human order as the printed
+    // labels: C2 precedes C10 instead of VARCHAR's C10, C2 ordering.
+    await page.goto(`${BASE}/admin/books/${bookId}`);
+    const copyRows = page.locator('a[href*="copy-labels-pdf?copy_id="]').locator('xpath=ancestor::tr');
+    await expect(copyRows).toHaveCount(2);
+    const inventoryCodes = await copyRows.locator('td:first-child').allTextContents();
+    expect(inventoryCodes.map((code) => code.trim())).toEqual([CODE_A, CODE_B]);
+
     // Single copy A.
     const a = await inspectLabel(page, `/admin/books/${bookId}/copy-labels-pdf?copy_id=${copyAId}`);
     // 89mm × 41mm in points (1mm = 2.83465pt): 252.3 × 116.2, allow ±3pt.
@@ -172,6 +180,7 @@ test.describe.serial('Copy-label PDF content (#238)', () => {
     const all = await inspectLabel(page, `/admin/books/${bookId}/copy-labels-pdf`);
     expect(all.text).toContain(CODE_A);
     expect(all.text).toContain(CODE_B);
+    expect(all.text.indexOf(CODE_A)).toBeLessThan(all.text.indexOf(CODE_B));
   });
 
   test('content scales with the label size (#238) and padding insets it', async ({ page }) => {

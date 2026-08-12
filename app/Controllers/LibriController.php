@@ -2858,6 +2858,7 @@ class LibriController
             $copie[] = $copyRow;
         }
         $copiesStmt->close();
+        $copie = \App\Models\CopyRepository::sortByInventoryNumber($copie);
 
         if (count($copie) === 0) {
             $_SESSION['error_message'] = __('Nessuna copia disponibile per la stampa delle etichette.');

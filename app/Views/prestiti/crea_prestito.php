@@ -104,7 +104,7 @@ $apiBookRoute = route_path('api_book');
   <?php endif; ?>
 
   <?php if(isset($_GET['created']) && $_GET['created'] == '1'): ?>
-    <div class="mb-4 flex items-center gap-3 p-4 bg-green-100 text-green-800 rounded" role="alert">
+    <div id="loan_created_alert" class="mb-4 flex items-center gap-3 p-4 bg-green-100 text-green-800 rounded" role="alert">
       <i class="fas fa-check-circle" aria-hidden="true"></i>
       <span><?= __("Prestito creato con successo.") ?></span>
       <?php if ($pdfIdForDownload > 0): ?>
@@ -316,6 +316,28 @@ $apiBookRoute = route_path('api_book');
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
+      // The success notice describes the loan that was just saved, not the next
+      // values now being entered. Remove it on the first form edit (including a
+      // scanner-generated input/change event) and clean the stale URL flags so a
+      // refresh cannot bring the old notice or PDF download back.
+      const loanForm = document.querySelector('form[action$="/admin/loans/create"]');
+      const loanCreatedAlert = document.getElementById('loan_created_alert');
+      if (loanForm && loanCreatedAlert) {
+        const clearCreatedAlert = function() {
+          if (loanCreatedAlert.isConnected) loanCreatedAlert.remove();
+          if (window.history && window.history.replaceState) {
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.delete('created');
+            currentUrl.searchParams.delete('pdf');
+            window.history.replaceState({}, '', currentUrl.pathname + currentUrl.search + currentUrl.hash);
+          }
+          loanForm.removeEventListener('input', clearCreatedAlert);
+          loanForm.removeEventListener('change', clearCreatedAlert);
+        };
+        loanForm.addEventListener('input', clearCreatedAlert);
+        loanForm.addEventListener('change', clearCreatedAlert);
+      }
+
       // Translations
       const i18n = {
         noResults: <?= json_encode(__("Nessun risultato"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
