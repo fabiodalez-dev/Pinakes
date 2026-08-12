@@ -62,7 +62,12 @@ test.describe('#165 — replace a book cover in one step', () => {
     await page.fill('#titolo', title);
     await page.setInputFiles('#fallback-file-input', coverPath);
     await submitBook();
-    const id = parseInt(dbQuery(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`), 10);
+    const deadline = Date.now() + 10000;
+    let id = 0;
+    while (Date.now() < deadline && id === 0) {
+      id = parseInt(dbQuery(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`), 10) || 0;
+      if (id === 0) await page.waitForTimeout(100);
+    }
     expect(id).toBeGreaterThan(0);
     createdIds.push(id);
     return id;

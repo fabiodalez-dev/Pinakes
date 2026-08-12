@@ -348,6 +348,8 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
         // libmagic-version differences seen with a 306-byte synthetic PDF.
         const tmpPdf = path.join(PUBLIC_DIR, 'uploads', 'archives', 'e2e', 'letter.pdf');
         expect(fs.existsSync(tmpPdf), 'committed PDF upload fixture').toBe(true);
+        const appLog = path.join(__dirname, '..', 'storage', 'logs', 'app.log');
+        const logOffset = fs.existsSync(appLog) ? fs.statSync(appLog).size : 0;
 
         await page.goto(`${BASE}/admin/archives/${itemAId}`);
         await page.waitForLoadState('domcontentloaded');
@@ -362,7 +364,10 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
         const docPath = dbQuery(
             `SELECT IFNULL(document_path, 'NULL') FROM archival_units WHERE id = ${itemAId}`
         );
-        expect(docPath).toBe('NULL');
+        const uploadDiagnostics = docPath === 'NULL' || !fs.existsSync(appLog)
+            ? ''
+            : fs.readFileSync(appLog, 'utf8').slice(logOffset).trim();
+        expect(docPath, uploadDiagnostics || 'document upload left no application diagnostic').toBe('NULL');
     });
 
     test('7. Upload PDF to unit with legacy doc → document_mime becomes NULL in DB', async () => {

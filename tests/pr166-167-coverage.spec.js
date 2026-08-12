@@ -594,15 +594,27 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     throw new Error(`update lock did not become ${acquirable ? 'available' : 'held'} within ${timeout} ms`);
   }
 
-  // Spawn a PHP process that holds an exclusive flock long enough for the
-  // request under test. waitForLock() verifies the actual flock state rather
-  // than mistaking the persistent lock inode for lock ownership.
-  function holdLock(seconds) {
+  // Spawn a PHP process that holds an exclusive flock until the test releases
+  // it explicitly. A fixed sleep is racy because browser/Apache work before
+  // the request can exceed the nominal hold duration on a busy CI runner.
+  function holdLock() {
     const lf = LOCK_FILE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const code = `$f=fopen('${lf}','c'); if($f===false){exit(1);} flock($f,LOCK_EX); sleep(${seconds}); flock($f,LOCK_UN); fclose($f);`;
+    const signalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pk-update-lock-'));
+    const signalFile = path.join(signalDir, 'release');
+    const sf = signalFile.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const code = `$f=fopen('${lf}','c'); if($f===false){exit(1);} if(!flock($f,LOCK_EX)){exit(2);} $until=microtime(true)+60; while(!file_exists('${sf}') && microtime(true)<$until){usleep(20000);} flock($f,LOCK_UN); fclose($f);`;
     const child = spawn('php', ['-r', code], { detached: true, stdio: 'ignore' });
     child.unref();
-    return child;
+    return {
+      release: () => fs.writeFileSync(signalFile, 'release'),
+      cleanup: () => fs.rmSync(signalDir, { recursive: true, force: true }),
+    };
+  }
+
+  async function releaseLock(holder) {
+    holder.release();
+    await waitForLock(true);
+    holder.cleanup();
   }
 
   test('13. Two concurrent restores are both rejected while the lock is held', async () => {
@@ -618,21 +630,24 @@ test.describe.serial('G3 — Concurrency / lock', () => {
       login(pageA, ADMIN_EMAIL, ADMIN_PASS).then(() => gotoUpdates(pageA)),
       login(pageB, ADMIN_EMAIL, ADMIN_PASS).then(() => gotoUpdates(pageB)),
     ]);
-    holdLock(5);
-    await waitForLock(false);
-    const [a, b] = await Promise.all([
-      apiPost(pageA, '/admin/updates/backup/restore', { backup }),
-      apiPost(pageB, '/admin/updates/backup/restore', { backup }),
-    ]);
-    await Promise.all([ctxA.close(), ctxB.close()]);
-    // Both concurrent restores are rejected by the held lock (not queued).
-    for (const result of [a, b]) {
-      expect(result.status, result.text).toBe(409);
-      expect(result.json?.error || result.text).toMatch(/già in corso/i);
+    const holder = holdLock();
+    try {
+      await waitForLock(false);
+      const [a, b] = await Promise.all([
+        apiPost(pageA, '/admin/updates/backup/restore', { backup }),
+        apiPost(pageB, '/admin/updates/backup/restore', { backup }),
+      ]);
+      // Both concurrent restores are rejected by the held lock (not queued).
+      for (const result of [a, b]) {
+        expect(result.status, result.text).toBe(409);
+        expect(result.json?.error || result.text).toMatch(/già in corso/i);
+      }
+    } finally {
+      await Promise.all([ctxA.close(), ctxB.close()]);
+      await releaseLock(holder);
     }
 
     // Wait for the holder to release, then a restore succeeds again.
-    await waitForLock(true);
     const ok = await apiPost(page, '/admin/updates/backup/restore', { backup });
     expect(ok.json?.success).toBe(true);
     if (ok.json?.safety_backup) CREATED_BACKUPS.push(ok.json.safety_backup);
@@ -649,24 +664,30 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     expect(canAcquireLock()).toBe(true);
 
     // (b) While a holder owns the lock acquisition fails; afterwards it works.
-    holdLock(2);
-    await waitForLock(false);
-    expect(fs.existsSync(LOCK_FILE)).toBe(true);
-    expect(canAcquireLock()).toBe(false);
-    await waitForLock(true);
+    const holder = holdLock();
+    try {
+      await waitForLock(false);
+      expect(fs.existsSync(LOCK_FILE)).toBe(true);
+      expect(canAcquireLock()).toBe(false);
+    } finally {
+      await releaseLock(holder);
+    }
     expect(fs.existsSync(LOCK_FILE)).toBe(true);
     expect(canAcquireLock()).toBe(true);
   });
 
   test('15. A restore is rejected while an update-style lock is held', async () => {
     const backup = await createBackup(page, 'full');
-    holdLock(3);
-    await waitForLock(false);
-    const res = await apiPost(page, '/admin/updates/backup/restore', { backup });
-    expect((res.json && res.json.error) || '').toMatch(/già in corso/i);
+    const holder = holdLock();
+    try {
+      await waitForLock(false);
+      const res = await apiPost(page, '/admin/updates/backup/restore', { backup });
+      expect((res.json && res.json.error) || '').toMatch(/già in corso/i);
+    } finally {
+      await releaseLock(holder);
+    }
 
     // After release the same restore goes through.
-    await waitForLock(true);
     const ok = await apiPost(page, '/admin/updates/backup/restore', { backup });
     expect(ok.json?.success).toBe(true);
     if (ok.json?.safety_backup) CREATED_BACKUPS.push(ok.json.safety_backup);

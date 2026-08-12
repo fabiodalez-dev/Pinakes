@@ -2070,6 +2070,26 @@ class ArchivesPlugin
                 finfo_close($finfo);
             }
         }
+        // Some libmagic releases classify small, entirely textual PDFs as
+        // text/plain or application/octet-stream when PHP inspects the
+        // extensionless upload temp file. Confirm the PDF signature directly
+        // before rejecting it; the browser-provided MIME is still ignored.
+        if (!isset($mimeToExt[$mime]) && isset($mimeToExt['application/pdf'])) {
+            try {
+                if ($stream->isSeekable()) {
+                    $stream->rewind();
+                }
+                $signature = $stream->read(5);
+                if ($stream->isSeekable()) {
+                    $stream->rewind();
+                }
+                if ($signature === '%PDF-') {
+                    $mime = 'application/pdf';
+                }
+            } catch (\Throwable) {
+                // The normal rejection below remains the safe fallback.
+            }
+        }
         if ($mime === '' || !isset($mimeToExt[$mime])) {
             SecureLogger::warning('[Archives] upload rejected — mime not in allow-list', [
                 'kind' => $kind, 'mime' => $mime,

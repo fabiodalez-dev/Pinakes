@@ -224,6 +224,7 @@ jobs:
             playwright-report-bootstrap-${{ matrix.shard }}/
             playwright-report-setup-${{ matrix.shard }}/
             test-results/
+            storage/logs/app.log
             /var/log/apache2/pinakes-error.log
             /var/log/apache2/pinakes-access.log
           retention-days: 14
