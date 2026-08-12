@@ -19,6 +19,7 @@ on:
       - 'frontend/package-lock.json'
       - 'frontend/**/*.js'
       - 'frontend/**/*.css'
+      - 'public/assets/**'
       - 'scripts/ci-*'
       - 'tests/ci-playwright-policy.json'
       - 'installer/database/schema.sql'
@@ -66,7 +67,7 @@ jobs:
         with:
           php-version: '8.2'
           extensions: mysqli, pdo_mysql
-          tools: phpstan
+          tools: phpstan:2.1.56
           coverage: none
 
       - name: Setup Node
@@ -92,7 +93,13 @@ jobs:
           npm audit --audit-level=high 2>&1 || { echo "⚠ npm audit: high/critical vulnerabilities found"; exit 1; }
 
       - name: Root vendor assets are reproducible
-        run: git diff --exit-code -- public/assets/vendor/sortablejs
+        run: |
+          git diff --exit-code -- public/assets/vendor/sortablejs
+          test -z "$(git ls-files --others --exclude-standard -- public/assets/vendor/sortablejs)" || {
+            echo "Generated vendor assets contain untracked files"
+            git ls-files --others --exclude-standard -- public/assets/vendor/sortablejs
+            exit 1
+          }
 
       - name: CI and Playwright coverage policy
         run: npm run test:ci-policy
@@ -151,10 +158,10 @@ jobs:
               if ! grep -q 'ensureSchema()' "$file"; then
                 echo "  ✗ ${plugin_file}: CREATE TABLE senza ensureSchema()"
                 FAILED=1
-              elif ! awk '/function onActivate/,/^[[:space:]]*}/' "$file" | grep -q 'ensureSchema'; then
+              elif ! awk '/function onActivate/,/^    }$/' "$file" | grep -q 'ensureSchema'; then
                 echo "  ✗ ${plugin_file}: ensureSchema() non in onActivate()"
                 FAILED=1
-              elif ! awk '/function onInstall/,/^[[:space:]]*}/' "$file" | grep -q 'ensureSchema'; then
+              elif ! awk '/function onInstall/,/^    }$/' "$file" | grep -q 'ensureSchema'; then
                 echo "  ✗ ${plugin_file}: ensureSchema() non in onInstall()"
                 FAILED=1
               else
@@ -169,16 +176,20 @@ jobs:
         run: |
           VIOLATIONS=0
           while IFS= read -r file; do
-            if grep -qiE "FROM[[:space:]]+\`?libri\`?[[:space:],)]" "$file" 2>/dev/null; then
+            if grep -qiE "FROM[[:space:]]+\`?libri\`?([[:space:],)]|$)" "$file" 2>/dev/null; then
               if ! grep -qiE 'deleted_at[[:space:]]+IS[[:space:]]+NULL' "$file"; then
-                echo "  ⚠ $file: query FROM libri senza deleted_at IS NULL"
-                VIOLATIONS=$((VIOLATIONS + 1))
+                if grep -q 'CI-SOFT-DELETE-EXEMPT:' "$file"; then
+                  echo "  ℹ $file: soft-deleted rows intentionally included (documented exemption)"
+                else
+                  echo "  ✗ $file: query FROM libri senza deleted_at IS NULL"
+                  VIOLATIONS=$((VIOLATIONS + 1))
+                fi
               fi
             fi
           done < <(find app/ -name "*.php" -not -path "*/vendor/*")
           if [ "$VIOLATIONS" -gt 0 ]; then
-            echo "⚠ $VIOLATIONS file potrebbero mancare del soft-delete guard"
-            echo "  Verificare manualmente se le query sono intentenzionali (query admin, conteggi, ecc.)"
+            echo "✗ $VIOLATIONS file potrebbero mancare del soft-delete guard"
+            exit 1
           else
             echo "✓ Soft-delete guard presente in tutti i file con query su libri"
           fi
@@ -263,6 +274,11 @@ jobs:
           CI_STRICT_TESTS: '1'
         run: bash scripts/ci-run-unit-tests.sh
 
+      - name: Schema and migration behavioral gate (strict no-skip mode)
+        env:
+          CI_STRICT_TESTS: '1'
+        run: bash scripts/verify-schema.sh
+
       - name: Shell test — bin/setup-permissions.sh
         run: bash tests/setup-permissions.test.sh
 
@@ -325,3 +341,9 @@ jobs:
             public/assets/main.bundle.js \
             public/assets/vendor.bundle.js \
             public/assets/copy-scanner.bundle.js
+          untracked_assets="$(git ls-files --others --exclude-standard -- public/assets)"
+          if [ -n "${untracked_assets}" ]; then
+            echo "Generated assets are untracked:"
+            echo "${untracked_assets}"
+            exit 1
+          fi

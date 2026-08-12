@@ -271,14 +271,14 @@ $futureStart = (new DateTimeImmutable($today))->modify('+10 days')->format('Y-m-
 $futureEnd = (new DateTimeImmutable($today))->modify('+24 days')->format('Y-m-d');
 $awaitingPickupMsg = __('Prestito approvato - in attesa di ritiro');
 $resFuture = $callCreate($makeBook(1), $makeUser(), $futureStart, $futureEnd);
-$check($resFuture['status'] === 200 && ($resFuture['payload']['success'] ?? false) === true, '15 future-dated request accepted');
-$check(($resFuture['payload']['auto_approved'] ?? null) === true, '16 response auto_approved = true (a real boolean)');
-$check(($resFuture['payload']['status'] ?? '') === 'scheduled', "17 response status = 'scheduled' (not 'approved')");
-$check(($resFuture['payload']['loan_state'] ?? '') === 'prenotato', "18 response exposes loan_state = 'prenotato'");
-$check(($resFuture['payload']['message'] ?? '') !== $awaitingPickupMsg, '19 message is NOT the awaiting-pickup string');
+$check($resFuture['status'] === 200 && ($resFuture['payload']['success'] ?? false) === true, '16 future-dated request accepted');
+$check(($resFuture['payload']['auto_approved'] ?? null) === true, '17 response auto_approved = true (a real boolean)');
+$check(($resFuture['payload']['status'] ?? '') === 'scheduled', "18 response status = 'scheduled' (not 'approved')");
+$check(($resFuture['payload']['loan_state'] ?? '') === 'prenotato', "19 response exposes loan_state = 'prenotato'");
+$check(($resFuture['payload']['message'] ?? '') !== $awaitingPickupMsg, '20 message is NOT the awaiting-pickup string');
 $loanFutureId = (int) ($resFuture['payload']['loan_request_id'] ?? 0);
-$check($loanFutureId > 0 && $loanField($loanFutureId, 'stato') === 'prenotato', "20 loan persisted as 'prenotato' (scheduled)");
-$check($loanField($loanFutureId, 'pickup_deadline') === null, '21 scheduled loan has no pickup_deadline yet');
+$check($loanFutureId > 0 && $loanField($loanFutureId, 'stato') === 'prenotato', "21 loan persisted as 'prenotato' (scheduled)");
+$check($loanField($loanFutureId, 'pickup_deadline') === null, '22 scheduled loan has no pickup_deadline yet');
 
 // ── E. F007: a post-commit settings-read failure degrades to pending ────────
 // The helper runs AFTER the request row is committed. If its SettingsRepository
@@ -305,8 +305,8 @@ try {
 } catch (\Throwable $e) {
     $faultThrew = true;
 }
-$check($faultThrew === false, '22 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
-$check($faultResult === null, '23 failed post-commit settings read degrades to null → pending_approval');
+$check($faultThrew === false, '23 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
+$check($faultResult === null, '24 failed post-commit settings read degrades to null → pending_approval');
 
 $cleanup();
 $db->close();

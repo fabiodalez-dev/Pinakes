@@ -248,9 +248,10 @@ $check(
     'claimed windows are the exact set difference (boundary helpers feed the window bounds)'
 );
 $check(
-    substr_count($updateSource, 'isStrictIsoDate(') >= 4
-        && !str_contains($updateSource, 'strtotime('),
-    'update() validates dates strictly (exact Y-m-d, real calendar) with no strtotime'
+    substr_count($updateSource, 'DateHelper::isISODateFormat(') >= 4
+        && !str_contains($updateSource, 'strtotime(')
+        && !str_contains($updateSource, 'isStrictIsoDate('),
+    'update() uses the shared strict date validator (exact Y-m-d, real calendar) with no strtotime or duplicate helper'
 );
 $check(
     !str_contains($updateSource, 'hasFreeCapacity($libroId, $newPrestito, $newScadenza'),

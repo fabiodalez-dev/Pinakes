@@ -8,8 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LOCALE_DIR = ROOT / "locale"
-FULL_LOCALES = ("de_DE", "fr_FR", "da_DK")
-PLACEHOLDER_LOCALES = (*FULL_LOCALES, "it_IT")
+FULL_LOCALES = ("en_US", "de_DE", "fr_FR", "da_DK")
+PLACEHOLDER_LOCALES = FULL_LOCALES
 ROUTE_LOCALES = ("routes_en_US", "routes_de_DE", "routes_fr_FR", "routes_da_DK")
 PLACEHOLDER = re.compile(r"%(?:\d+\$)?[sd]")
 
@@ -24,12 +24,12 @@ def load(name: str) -> dict[str, object]:
 
 def main() -> int:
     failed = False
-    english = load("en_US")
+    italian = load("it_IT")
 
     for locale_name in FULL_LOCALES:
         translated = load(locale_name)
-        missing = sorted(set(english) - set(translated))
-        extra = sorted(set(translated) - set(english))
+        missing = sorted(set(italian) - set(translated))
+        extra = sorted(set(translated) - set(italian))
         if missing or extra:
             failed = True
             print(f"✗ Translation key drift in {locale_name}.json")
@@ -40,7 +40,7 @@ def main() -> int:
 
     for locale_name in PLACEHOLDER_LOCALES:
         translated = load(locale_name)
-        for key, source_value in english.items():
+        for key, source_value in italian.items():
             if key not in translated:
                 continue
             expected = sorted(PLACEHOLDER.findall(str(source_value)))
@@ -49,7 +49,7 @@ def main() -> int:
                 failed = True
                 print(
                     f'✗ Placeholder mismatch for "{key[:80]}": '
-                    f"en_US={expected}, {locale_name}={actual}"
+                    f"it_IT={expected}, {locale_name}={actual}"
                 )
 
     italian_routes = load("routes_it_IT")

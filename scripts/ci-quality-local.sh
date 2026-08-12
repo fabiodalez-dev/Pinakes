@@ -10,8 +10,8 @@
 # every push to a PR branch and before every release.
 #
 # Usage:  bash scripts/ci-quality-local.sh
-# Exit 0 iff every blocking check passes. The soft-delete grep remains advisory
-# because it is heuristic; dependency audits and skipped unit tests are fatal.
+# Exit 0 iff every check passes. Dependency audits, schema verification,
+# soft-delete regressions and skipped unit tests are all fatal.
 #
 # DB: the standalone unit tests need MySQL. Credentials come from the gitignored
 # .env (same source the .unit.php tests use) — NEVER hardcode a password here.
@@ -61,15 +61,18 @@ fi
 
 # 3 ── npm audit ─────────────────────────────────────────────────────────────
 step "npm audit (blocking)"
-if [ -f package-lock.json ] && command -v npm >/dev/null; then
+if ! command -v npm >/dev/null; then
+  bad "npm is required"
+elif [ ! -f package-lock.json ] || [ ! -f frontend/package-lock.json ]; then
+  bad "both package-lock.json and frontend/package-lock.json are required"
+else
   if npm audit --audit-level=high >/tmp/ciq_npm.log 2>&1 \
       && npm --prefix frontend audit --audit-level=high >>/tmp/ciq_npm.log 2>&1; then
     ok "no high/critical advisories in root or frontend dependencies"
   else
-    bad "npm audit reported high/critical advisories"
+    bad "npm audit failed or reported high/critical advisories"
+    tail -20 /tmp/ciq_npm.log | sed 's/^/    /'
   fi
-else
-  warn "skipped (no package-lock.json or npm)"
 fi
 
 # 4 ── Translation, placeholder and route parity ─────────────────────────────
@@ -123,18 +126,25 @@ for file in storage/plugins/*/*.php; do
   grep -q 'CREATE TABLE' "$file" || continue
   name="$(basename "$(dirname "$file")")/$(basename "$file")"
   if ! grep -q 'ensureSchema()' "$file"; then bad "$name: CREATE TABLE without ensureSchema()"; es=1
-  elif ! awk '/function onActivate/,/^[[:space:]]*}/' "$file" | grep -q 'ensureSchema'; then bad "$name: ensureSchema() not in onActivate()"; es=1
-  elif ! awk '/function onInstall/,/^[[:space:]]*}/' "$file" | grep -q 'ensureSchema'; then bad "$name: ensureSchema() not in onInstall()"; es=1
+  elif ! awk '/function onActivate/,/^    }$/' "$file" | grep -q 'ensureSchema'; then bad "$name: ensureSchema() not in onActivate()"; es=1
+  elif ! awk '/function onInstall/,/^    }$/' "$file" | grep -q 'ensureSchema'; then bad "$name: ensureSchema() not in onInstall()"; es=1
   fi
 done
 [ "$es" -eq 0 ] && ok "every table-creating plugin calls ensureSchema() in onActivate()+onInstall()"
 
-# 8 ── Soft-delete guard (advisory — heuristic grep, false positives possible) ─
+# 8 ── Soft-delete guard ────────────────────────────────────────────────────────
 step "Soft-delete guard (libri queries include deleted_at IS NULL)"
 sd=0
 while IFS= read -r file; do
-  grep -qiE 'deleted_at[[:space:]]+IS[[:space:]]+NULL' "$file" || { warn "$file: a FROM libri query without deleted_at IS NULL (verify manually)"; sd=1; }
-done < <(grep -rliE "FROM[[:space:]]+\`?libri\`?[[:space:],)]" app/ 2>/dev/null)
+  if ! grep -qiE 'deleted_at[[:space:]]+IS[[:space:]]+NULL' "$file"; then
+    if grep -q 'CI-SOFT-DELETE-EXEMPT:' "$file"; then
+      warn "$file: soft-deleted rows intentionally included (documented exemption)"
+    else
+      bad "$file: a FROM libri query lacks deleted_at IS NULL"
+      sd=1
+    fi
+  fi
+done < <(grep -rliE "FROM[[:space:]]+\`?libri\`?([[:space:],)]|$)" app/ 2>/dev/null)
 [ "$sd" -eq 0 ] && ok "no libri query missing deleted_at IS NULL"
 
 # 9 ── Autoloader phpstan-free ────────────────────────────────────────────────
@@ -170,7 +180,15 @@ else
   bad "standalone unit test failures/skips:"; tail -30 /tmp/ciq_units.log | sed 's/^/    /'
 fi
 
-# 12 ── Shell test — permissions ─────────────────────────────────────────────
+# 12 ── Schema/migration behavioral gate ─────────────────────────────────────
+step "Schema and migration behavioral gate (strict no-skip mode)"
+if CI_STRICT_TESTS=1 bash scripts/verify-schema.sh >/tmp/ciq_schema.log 2>&1; then
+  ok "schema and migration behavior passed without skips"
+else
+  bad "schema/migration gate failed:"; tail -30 /tmp/ciq_schema.log | sed 's/^/    /'
+fi
+
+# 13 ── Shell test — permissions ─────────────────────────────────────────────
 step "Shell test — setup-permissions"
 if [ -f tests/setup-permissions.test.sh ]; then
   if bash tests/setup-permissions.test.sh >/tmp/ciq_perm.log 2>&1; then

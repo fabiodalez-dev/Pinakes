@@ -33,8 +33,10 @@ try {
     putenv('PINAKES_E2E_SCRAPER_STUB=1');
     check($enabled->invoke($controller) === true, 'explicit process env enables the stub');
 
+    putenv('PINAKES_E2E_SCRAPER_STUB');
     $_ENV['PINAKES_E2E_SCRAPER_STUB'] = 'true';
     check($enabled->invoke($controller) === true, 'explicit dotenv value enables the stub');
+    unset($_ENV['PINAKES_E2E_SCRAPER_STUB']);
 
     $expected = [
         '9780140328721' => ['Fantastic Mr. Fox', 'libro', 'https://openlibrary.org'],
@@ -64,5 +66,5 @@ try {
     }
 }
 
-echo "\nCompleted {$results['passed']} passing scraper-stub checks.\n";
-exit($results['failed']);
+echo "\n{$results['passed']} PASS, {$results['failed']} FAIL (scraper-stub checks)\n";
+exit($results['failed'] === 0 ? 0 : 1);

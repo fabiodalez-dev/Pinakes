@@ -186,8 +186,11 @@ class DateHelper
             return false;
         }
 
-        $date = trim($date);
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        // Validate the exact wire format. Do not trim: surrounding whitespace,
+        // trailing newlines and embedded NUL bytes are malformed input, not an
+        // alternate representation of the same date. /D makes $ match only the
+        // real end of the string (PHP otherwise accepts a final newline).
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date)) {
             return false;
         }
 

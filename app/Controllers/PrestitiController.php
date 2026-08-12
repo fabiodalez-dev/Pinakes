@@ -231,10 +231,21 @@ class PrestitiController
         if (empty($data_prestito)) {
             $data_prestito = \App\Support\DateHelper::today();
         }
+
+        // Validate the start date before deriving the default deadline. Feeding
+        // malformed user input to strtotime() used to normalize ambiguous dates
+        // (and could throw on NUL bytes) before the validation below ran.
+        if (!\App\Support\DateHelper::isISODateFormat($data_prestito)) {
+            return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
+        }
         if (empty($data_scadenza)) {
             // Default loan duration read from admin settings (fallback: 30 days)
             $loanDays = (new \App\Models\SettingsRepository($db))->loanDurationDays();
-            $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
+            $startDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $data_prestito);
+            if ($startDate === false) {
+                return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
+            }
+            $data_scadenza = $startDate->modify("+{$loanDays} days")->format('Y-m-d');
         }
 
         if ($utente_id <= 0 || $libro_id <= 0) {
@@ -251,7 +262,7 @@ class PrestitiController
         // Separo i codici così l'admin non legge "la scadenza deve essere
         // successiva" quando il vero problema è il formato — con l'indicazione
         // esplicita del formato atteso YYYY-MM-DD.
-        if (!\App\Support\DateHelper::isISODateFormat($data_prestito) || !\App\Support\DateHelper::isISODateFormat($data_scadenza)) {
+        if (!\App\Support\DateHelper::isISODateFormat($data_scadenza)) {
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
         }
 
@@ -777,9 +788,9 @@ class PrestitiController
         // F028 (#335) + strict-ISO (#337): valida entrambe le date in Y-m-d
         // STRETTO senza strtotime, con CODICI D'ERRORE SEPARATI — formato non
         // valido vs range invertito — così l'admin riceve un messaggio azionabile.
-        // isStrictIsoDate rifiuta date ambigue o inesistenti (2026-02-30) e i byte
-        // NUL; la ri-validazione sotto lock più in basso applica lo stesso criterio.
-        if (!self::isStrictIsoDate($newPrestito) || !self::isStrictIsoDate($newScadenza)) {
+        // DateHelper rifiuta date ambigue o inesistenti (2026-02-30) e byte NUL;
+        // la ri-validazione sotto lock più in basso applica lo stesso criterio.
+        if (!\App\Support\DateHelper::isISODateFormat($newPrestito) || !\App\Support\DateHelper::isISODateFormat($newScadenza)) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_date_format')->withStatus(302);
         }
         if ($newScadenza < $newPrestito) {
@@ -825,8 +836,11 @@ class PrestitiController
             $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $locked['utente_id'];
             $newPrestito = (string) ($updateData['data_prestito'] ?? $locked['data_prestito']);
             $newScadenza = (string) ($updateData['data_scadenza'] ?? $locked['data_scadenza']);
-            if (!self::isStrictIsoDate($newPrestito) || !self::isStrictIsoDate($newScadenza)
-                || $newScadenza < $newPrestito) {
+            if (!\App\Support\DateHelper::isISODateFormat($newPrestito) || !\App\Support\DateHelper::isISODateFormat($newScadenza)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_date_format')->withStatus(302);
+            }
+            if ($newScadenza < $newPrestito) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
             }
@@ -2130,26 +2144,6 @@ class PrestitiController
             ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
             ->withHeader('Cache-Control', 'no-cache, must-revalidate')
             ->withHeader('Pragma', 'no-cache');
-    }
-
-    /**
-     * Data in formato STRETTAMENTE Y-m-d E valida sul calendario reale.
-     * A differenza di strtotime(), rifiuta formati ambigui ('2026-2-5') e date
-     * inesistenti ('2026-02-30' — che strtotime normalizzerebbe al 2 marzo):
-     * il round-trip con createFromFormat garantisce input canonico, così i
-     * confronti lessicografici tra stringhe Y-m-d restano corretti.
-     */
-    private static function isStrictIsoDate(string $value): bool
-    {
-        // Shape-check PRIMA di toccare DateTime: createFromFormat() lancia
-        // ValueError su input con byte NUL ('2026-01-01%00'), che fuori da un
-        // try diventerebbe un 500 invece di invalid_dates (CodeRabbit, #337).
-        // /D àncora la fine reale della stringa (niente newline finale tollerato).
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value)) {
-            return false;
-        }
-        $dt = \DateTime::createFromFormat('Y-m-d', $value);
-        return $dt !== false && $dt->format('Y-m-d') === $value;
     }
 
     private function guardStaffAccess(Response $response): ?Response

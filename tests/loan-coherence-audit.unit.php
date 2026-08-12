@@ -55,7 +55,7 @@ $extractMethod = static function (string $source, string $signature): string {
     }
     $remaining = substr($source, $start + strlen($signature));
     if (!preg_match('/\n    (?:public|protected|private) function /', $remaining, $match, PREG_OFFSET_CAPTURE)) {
-        return '';
+        return substr($source, $start);
     }
     $end = $start + strlen($signature) + (int) $match[0][1];
     return substr($source, $start, $end - $start);
@@ -98,7 +98,7 @@ $checks['calculateAvailability defaults start to DateHelper::today()'] =
     && !preg_match('/\$start = \$startDate \? new DateTime\(\$startDate\) : new DateTime\(\);/', $reservations);
 
 // 3. next_due: holding states only, never in the past.
-$nextDueBody = $extractSection($web, 'AS next_due FROM prestiti', '// Queue size');
+$nextDueBody = $extractSection($web, 'AS next_due FROM prestiti', 'SELECT COUNT(*) AS c FROM prenotazioni');
 $checks['next_due filters holding states and >= today'] =
     $nextDueBody !== ''
     && str_contains($nextDueBody, "stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')")
@@ -263,8 +263,8 @@ $checks['loan calendars use app today and ignore stale availability responses'] 
     && !str_contains($loanCreateView, "minDate: 'today'")
     && !str_contains($bookDetail, "minDate: 'today'")
     && str_contains($loanCreateView, 'const requestId = ++availabilityRequestId')
-    && str_contains($loanCreateView, 'if (requestId !== availabilityRequestId) return;')
-    && substr_count($loanCreateView, 'availabilityByDate = {};') >= 3
+    && preg_match('/if\s*\(\s*requestId\s*!==\s*availabilityRequestId\s*\)\s*(?:\{\s*)?return\s*;/', $loanCreateView) === 1
+    && preg_match_all('/availabilityByDate\s*=\s*\{\s*\}\s*;/', $loanCreateView) >= 3
     && str_contains($loanCreateView, 'blockedByReservation: blockedByReservation')
     && str_contains($loanCreateView, 'borrowerAlreadyReserved');
 
@@ -282,7 +282,7 @@ $checks['loan edit fallback uses DateHelper::today()'] =
     && !str_contains($loanEditView, "prestito['data_prestito'] ?? date('Y-m-d')");
 
 // 22. Historical mobile loans retain the due date consumed by mapLoan().
-$mobileHistory = $extractSection($mobileActions, '// Concluded history', '$data = [');
+$mobileHistory = $extractSection($mobileActions, 'SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.data_restituzione', 'foreach ($this->fetchScoped($sql, $userId) as $r)');
 $checks['mobile loan history selects data_scadenza for due_at'] =
     $mobileHistory !== ''
     && str_contains($mobileHistory, 'pr.data_scadenza')
@@ -291,7 +291,7 @@ $checks['mobile loan history selects data_scadenza for due_at'] =
 // 23. The authenticated availability endpoint must preserve the nullable
 //     soft-delete contract instead of converting a concurrent delete to a
 //     successful empty payload.
-$disponibilitaSection = $extractSection($web, "'/api/libri/{id}/disponibilita'", "// NOTE: /api/libro/{id}/availability");
+$disponibilitaSection = $extractSection($web, "'/api/libri/{id}/disponibilita'", "'/api/search/collocazione'");
 $checks['disponibilita endpoint 404s a concurrent soft-delete'] =
     $disponibilitaSection !== ''
     && str_contains($disponibilitaSection, 'if ($availability === null)')

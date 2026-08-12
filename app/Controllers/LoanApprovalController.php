@@ -583,9 +583,10 @@ class LoanApprovalController
             }
         }
         $loanId = (int) ($data['loan_id'] ?? 0);
-        // Used both in the audit note and the rejection email: normalize once
-        // so crafted array input cannot break the post-commit notification and
-        // long notes cannot overflow the persistence column in strict mode.
+        // Used both in the audit note and the rejection email: normalize scalar
+        // input once and apply the admin workflow's explicit 500-character bound.
+        // `prestiti.note` is TEXT: this is an input-policy limit, not a claim
+        // about the persistence column's capacity.
         $rawReason = $data['reason'] ?? '';
         $reason = is_scalar($rawReason) ? mb_substr(trim((string) $rawReason), 0, 500) : '';
 
