@@ -213,7 +213,13 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
                 // with Node's default 0755 mode is not writable by Apache even
                 // though the shared public/uploads root was prepared correctly.
                 // Mirror the throwaway CI install's shared-runtime permissions.
-                fs.chmodSync(dir, 0o777);
+                // A prior HTTP suite may have created the directory as
+                // www-data. In that case CI already prepared it as 0777 and
+                // the runner is not its owner, so a redundant chmod is EPERM.
+                // Only change the mode when group/other write is actually absent.
+                if ((fs.statSync(dir).mode & 0o022) !== 0o022) {
+                    fs.chmodSync(dir, 0o777);
+                }
                 try {
                     fs.writeFileSync(absPath, Buffer.from('stub'), { flag: 'wx' });
                     stubFilePaths.push(absPath);
