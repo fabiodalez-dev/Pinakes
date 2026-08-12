@@ -9,11 +9,14 @@ const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
 const INTEROP_PLUGINS = [
   'bibframe-linked-data',
+  'discogs',
   'ncip-server',
   'oai-pmh-server',
+  'open-library',
   'openurl-resolver',
   'resource-sync',
   'viaf-authority',
+  'z39-server',
 ];
 
 function mysqlArgs(sql, batch = false) {

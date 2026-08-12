@@ -14,6 +14,8 @@ const MAILPIT_API = process.env.MAILPIT_API || 'http://localhost:8025/api/v1';
 const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
+const DB_HOST = process.env.E2E_DB_HOST || '';
+const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 let mailpitAvailable = true;
 const phpMailRoutesToMailpit = (() => {
@@ -48,7 +50,12 @@ const sqlEscape = (s) => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 function dbQuery(sql) {
   const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
-  if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
+  if (DB_HOST) {
+    args.splice(3, 0, '-h', DB_HOST);
+    if (DB_PORT) args.splice(5, 0, '-P', DB_PORT);
+  } else if (DB_SOCKET) {
+    args.splice(3, 0, '-S', DB_SOCKET);
+  }
   return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
 }
 

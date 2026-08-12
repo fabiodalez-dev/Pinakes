@@ -13,6 +13,85 @@ use App\Support\SecureLogger;
 class ScrapeController
 {
     /**
+     * Deterministic scraper fixtures for browser CI.
+     *
+     * This is deliberately opt-in and is never enabled by application config:
+     * only the isolated CI virtual host sets PINAKES_E2E_SCRAPER_STUB=1. Keeping
+     * network providers out of regression tests prevents upstream outages and
+     * metadata changes from producing false failures or false passes.
+     */
+    private function isE2eScraperStubEnabled(): bool
+    {
+        $flag = $_ENV['PINAKES_E2E_SCRAPER_STUB']
+            ?? getenv('PINAKES_E2E_SCRAPER_STUB')
+            ?: '';
+        return $flag === '1' || strtolower((string) $flag) === 'true';
+    }
+
+    /** @return array<string,mixed>|null */
+    private function e2eScraperStubPayload(string $identifier): ?array
+    {
+        $cover = '/uploads/copertine/placeholder.jpg';
+        $fixtures = [
+            '9780140328721' => [
+                'title' => 'Fantastic Mr. Fox',
+                'authors' => ['Roald Dahl'],
+                'publisher' => 'Puffin Books',
+                'pubDate' => '2007',
+                'year' => 2007,
+                'image' => $cover,
+                'source' => 'https://openlibrary.org',
+                '_primary_source' => 'open-library',
+                'tipo_media' => 'libro',
+                'format' => 'cartaceo',
+                'isbn' => $identifier,
+                'isbn13' => $identifier,
+            ],
+            '9788804671664' => [
+                'title' => 'E2E Italian catalogue fixture',
+                'authors' => ['E2E Author'],
+                'publisher' => 'E2E Editore',
+                'pubDate' => '2016',
+                'year' => 2016,
+                'image' => $cover,
+                'source' => 'https://openlibrary.org',
+                '_primary_source' => 'open-library',
+                'tipo_media' => 'libro',
+                'format' => 'cartaceo',
+                'isbn' => $identifier,
+                'isbn13' => $identifier,
+                'classificazione_dewey' => '188',
+            ],
+            '0720642442524' => [
+                'title' => 'Nevermind',
+                'authors' => ['Nirvana'],
+                'publisher' => 'DGC',
+                'pubDate' => '1991',
+                'year' => 1991,
+                'image' => $cover,
+                'source' => 'discogs',
+                'tipo_media' => 'disco',
+                'format' => 'cd_audio',
+                'ean' => $identifier,
+            ],
+            '5099902894225' => [
+                'title' => 'Meddle',
+                'authors' => ['Pink Floyd'],
+                'publisher' => 'Harvest',
+                'pubDate' => '1971',
+                'year' => 1971,
+                'image' => $cover,
+                'source' => 'discogs',
+                'tipo_media' => 'disco',
+                'format' => 'cd_audio',
+                'ean' => $identifier,
+            ],
+        ];
+
+        return $fixtures[$identifier] ?? null;
+    }
+
+    /**
      * Normalize text by removing MARC-8 control characters and collapsing whitespace
      * MARC-8 uses NSB (0x88, 0x98) and NSE (0x89, 0x9C) for non-sorting blocks
      */
@@ -112,6 +191,17 @@ class ScrapeController
                 'error' => __('Parametro ISBN mancante.'),
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        if ($this->isE2eScraperStubEnabled()) {
+            $stubPayload = $this->e2eScraperStubPayload($rawIdentifier);
+            if ($stubPayload !== null) {
+                $response->getBody()->write((string) json_encode(
+                    $stubPayload,
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                ));
+                return $response->withHeader('Content-Type', 'application/json');
+            }
         }
         // SSRF Protection: Validate ISBN format before constructing URL
         $cleanIsbn = preg_replace('/[^0-9X]/', '', strtoupper($rawIdentifier));

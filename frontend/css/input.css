@@ -792,6 +792,11 @@ table.dataTable thead td {
     margin: 0 !important;
   }
 
+  /* Keep textual book details aligned with the inset card header. */
+  .admin-book-detail .card-body:not(.p-0) {
+    padding: 1rem 1.5rem 1.5rem;
+  }
+
   /* Contact page - Add vertical padding */
   .contact-page {
     padding: 4rem 0 !important;

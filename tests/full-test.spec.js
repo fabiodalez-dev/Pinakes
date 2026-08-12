@@ -781,7 +781,7 @@ test.describe.serial('Phase 4: ISBN Scraping', () => {
       await expect(page.locator('#titolo')).toBeVisible();
     } else {
       // Scraping not available — skip gracefully
-      test.skip();
+      test.skip(true, 'No scraping provider is available in this fixture');
     }
   });
 
@@ -2918,7 +2918,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const hasKeywords = dbQuery(
       `SELECT COUNT(*) FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave REGEXP '[^,[:space:]]' AND deleted_at IS NULL`
     );
-    if (Number(hasKeywords) === 0) { test.skip(); return; }
+    if (Number(hasKeywords) === 0) { test.skip(true, 'Catalog fixture contains no keywords'); return; }
 
     // Find a book with keywords and navigate to its detail page
     const bookId = dbQuery(
@@ -2950,9 +2950,9 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     // Find a ROOT genre and one of its direct children
     // This tests the chainLen===1 path in resolveGenreHierarchy
     const rootId = dbQuery("SELECT id FROM generi WHERE parent_id IS NULL LIMIT 1");
-    if (!rootId) { test.skip(); return; }
+    if (!rootId) { test.skip(true, 'Catalog fixture contains no root genre'); return; }
     const childRow = dbQuery(`SELECT id, nome FROM generi WHERE parent_id = ${rootId} LIMIT 1`);
-    if (!childRow) { test.skip(); return; }
+    if (!childRow) { test.skip(true, 'Catalog fixture contains no child genre'); return; }
     const [childId, childName] = childRow.split('\t');
 
     // Get a book to edit

@@ -25,7 +25,7 @@
 #    E2E_DB_NAME / E2E_DB_SOCKET or E2E_DB_HOST+E2E_DB_PORT)
 
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 2
 
 PHP="${PHP_BIN:-php}"
 TESTS=(
@@ -66,9 +66,13 @@ for t in "${TESTS[@]}"; do
   echo ""
   echo "▶ $t"
   if out="$("$PHP" "$t" 2>&1)"; then
-    # A test may SKIP cleanly (no DB) — treat that as non-fatal but visible.
+    # Local runs may skip without a DB; release/CI gates reject every skip.
     if grep -q "^SKIP:" <<<"$out"; then
       echo "  ⚠ SKIPPED: $(grep '^SKIP:' <<<"$out" | head -1)"
+      if [[ "${CI_STRICT_TESTS:-0}" == "1" ]]; then
+        echo "  ✗ Strict mode forbids skipped schema tests"
+        fail=1
+      fi
     else
       echo "  ✓ $(grep -E '^ALL [0-9]+ PASS' <<<"$out" | tail -1)"
     fi

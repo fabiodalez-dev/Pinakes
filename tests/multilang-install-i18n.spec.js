@@ -1,5 +1,5 @@
 // Multi-language installation verification test.
-// Driven by env var E2E_LOCALE (it_IT|en_US|de_DE). Expects a fresh sandbox
+// Driven by env var E2E_LOCALE (it_IT|en_US|de_DE|fr_FR|da_DK). Expects a fresh sandbox
 // with empty DB and no .installed marker. Validates:
 //   1. Installer wizard accepts the requested locale
 //   2. Post-install DB seeds match the chosen locale (`generi` table)
@@ -13,6 +13,7 @@ const BASE = process.env.E2E_BASE_URL || 'http://localhost:8082';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
 const DB_HOST = process.env.E2E_DB_HOST   || 'localhost';
+const DB_PORT = process.env.E2E_DB_PORT   || '';
 const DB_USER = process.env.E2E_DB_USER   || '';
 const DB_PASS = process.env.E2E_DB_PASS   || '';
 const DB_NAME = process.env.E2E_DB_NAME   || '';
@@ -38,6 +39,8 @@ const SEED_EXPECTATIONS = {
   it_IT: { 1: 'Prosa',  2: 'Poesia',  3: 'Teatro',  4: 'Narrativa', 5: 'Divulgativa' },
   en_US: { 1: 'Prose',  2: 'Poetry',  3: 'Theatre', 4: 'Narrative', 5: 'Non-fiction' },
   de_DE: { 1: 'Prosa',  2: 'Lyrik',   3: 'Theater', 4: 'Erzählung', 5: 'Sachbuch' },
+  fr_FR: { 1: 'Prose',  2: 'Poésie',  3: 'Théâtre', 4: 'Récit', 5: 'Essai' },
+  da_DK: { 1: 'Prosa',  2: 'Poesi',   3: 'Teater', 4: 'Skønlitteratur', 5: 'Faglitteratur' },
 };
 
 // Expected URL slugs for the locale-routed login route.
@@ -46,17 +49,23 @@ const LOGIN_SLUGS = {
   it_IT: 'accedi',
   en_US: 'login',
   de_DE: 'anmelden',
+  fr_FR: 'connexion',
+  da_DK: 'log-ind',
 };
 const LOGIN_URL_PATTERNS = {
   it_IT: /\/accedi/,
   en_US: /\/login/,
   de_DE: /\/anmelden/,
+  fr_FR: /\/connexion/,
+  da_DK: /\/log-ind/,
 };
 
 const NOT_LOGIN_URL_PATTERNS = {
-  it_IT: [/\/login(?!\w)/, /\/anmelden/],   // IT login should NOT be /login or /anmelden
-  en_US: [/\/accedi/, /\/anmelden/],
-  de_DE: [/\/accedi/, /\/login(?!\w)/],
+  it_IT: [/\/login(?!\w)/, /\/anmelden/, /\/connexion/, /\/log-ind/],
+  en_US: [/\/accedi/, /\/anmelden/, /\/connexion/, /\/log-ind/],
+  de_DE: [/\/accedi/, /\/login(?!\w)/, /\/connexion/, /\/log-ind/],
+  fr_FR: [/\/accedi/, /\/login(?!\w)/, /\/anmelden/, /\/log-ind/],
+  da_DK: [/\/accedi/, /\/login(?!\w)/, /\/anmelden/, /\/connexion/],
 };
 
 // UI string fingerprints to differentiate locales on dashboard / login pages.
@@ -66,11 +75,14 @@ const UI_FINGERPRINTS = {
   it_IT: { positive: /\bAccedi\b|\bEsci\b|\bProfilo\b|Indirizzo email/i, negative: /\bSign in\b|\bAnmelden\b|\bAbmelden\b/i },
   en_US: { positive: /\bSign in\b|\bLogin\b|\bLogout\b|\bProfile\b/i, negative: /\bAnmelden\b|\bAbmelden\b|\bEsci\b/i },
   de_DE: { positive: /\bAnmelden\b|\bAbmelden\b|\bProfil\b|E-?Mail/i, negative: /\bSign in\b|\bAccedi\b|\bEsci\b/i },
+  fr_FR: { positive: /\bConnexion\b|\bDéconnexion\b|\bProfil\b|E-?mail/i, negative: /\bSign in\b|\bAnmelden\b|\bAccedi\b/i },
+  da_DK: { positive: /\bLog ind\b|\bLog ud\b|\bProfil\b|E-?mail/i, negative: /\bSign in\b|\bAnmelden\b|\bAccedi\b/i },
 };
 
 function dbQuery(sql) {
   const args = ['-N', '-B', '-e', sql];
   if (DB_HOST) args.push('-h', DB_HOST);
+  if (DB_HOST && DB_PORT) args.push('-P', DB_PORT);
   if (DB_SOCKET) args.push('-S', DB_SOCKET);
   args.push('-u', DB_USER);
   if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
@@ -84,7 +96,7 @@ const wrongLoginPatterns = NOT_LOGIN_URL_PATTERNS[LOCALE];
 const uiFingerprint = UI_FINGERPRINTS[LOCALE];
 
 if (!seedExpect || !loginPattern || !uiFingerprint) {
-  throw new Error(`Unsupported E2E_LOCALE=${LOCALE} — must be one of it_IT/en_US/de_DE`);
+  throw new Error(`Unsupported E2E_LOCALE=${LOCALE} — must be one of it_IT/en_US/de_DE/fr_FR/da_DK`);
 }
 
 let appReady = false;

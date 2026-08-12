@@ -18,7 +18,7 @@ jobs:
   e2e:
     name: Full E2E suite (Playwright · Apache · MySQL)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     services:
       mysql:
@@ -108,13 +108,17 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
 
       # ── Node / Playwright ────────────────────────────────────────────────────
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: npm
 
       - name: Install Node dependencies
-        run: npm install --silent
+        run: npm ci --silent
+
+      - name: Verify CI covers every Playwright spec
+        run: npm run test:ci-policy
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
@@ -294,57 +298,52 @@ jobs:
             --config=tests/playwright.config.js \
             --workers=1
 
-      # ── Orphan-spec backfill: tests that were authored against a fresh
-      #    install but never wired into the CI workflow. Adding them as
-      #    `continue-on-error: true` so we get the signal from a clean
-      #    fixture without gating the merge on tests that may have flake-
-      #    or design-level issues unrelated to the merging PR. Once the
-      #    individual specs prove stable (see #144 follow-up triage), drop
-      #    the continue-on-error and promote to a numbered step. ──────────
-      - name: "[orphan/1] book-form-comprehensive.spec.js"
-        continue-on-error: true
+      # Activate linked-data plugins before suites whose routes are registered
+      # only for active plugins. A missing route is now a hard failure.
+      - name: "Interop plugin preflight"
+        run: |
+          npx playwright test tests/interop-00-activate-plugins.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      # Formerly non-blocking backfill. These are release gates now: no test
+      # failure is allowed to leave the workflow green.
+      - name: "[regression/1] book-form-comprehensive.spec.js"
         run: |
           npx playwright test tests/book-form-comprehensive.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/2] code-quality.spec.js"
-        continue-on-error: true
+      - name: "[regression/2] code-quality.spec.js"
         run: |
           npx playwright test tests/code-quality.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/3] genre-merge-rearrange.spec.js"
-        continue-on-error: true
+      - name: "[regression/3] genre-merge-rearrange.spec.js"
         run: |
           npx playwright test tests/genre-merge-rearrange.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/4] loan-reservation.spec.js"
-        continue-on-error: true
+      - name: "[regression/4] loan-reservation.spec.js"
         run: |
           npx playwright test tests/loan-reservation.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/5] multisource-scraping.spec.js"
-        continue-on-error: true
+      - name: "[regression/5] multisource-scraping.spec.js"
         run: |
           npx playwright test tests/multisource-scraping.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/6] security-hardening.spec.js"
-        continue-on-error: true
+      - name: "[regression/6] security-hardening.spec.js"
         run: |
           npx playwright test tests/security-hardening.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/7] viaf-authority.spec.js"
-        continue-on-error: true
+      - name: "[regression/7] viaf-authority.spec.js"
         run: |
           npx playwright test tests/viaf-authority.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/8] interop-specific.spec.js"
-        continue-on-error: true
+      - name: "[regression/8] interop-specific.spec.js"
         run: |
           npx playwright test tests/interop-specific.spec.js \
             --config=tests/playwright.config.js \

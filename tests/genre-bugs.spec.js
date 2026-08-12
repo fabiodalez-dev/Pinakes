@@ -334,7 +334,7 @@ test.describe('Issue #67: Genre Filter in Book List', () => {
 
     const childGenre = genres.find(g => g.parent_id !== null);
     if (!childGenre) {
-      test.skip();
+      test.skip(true, 'Catalog fixture contains no child genre');
       return;
     }
 
@@ -394,7 +394,7 @@ test.describe('Issue #67: Genre Filter in Book List', () => {
 
     const rootWithChildren = roots.find(r => r.children_count > 0);
     if (!rootWithChildren) {
-      test.skip();
+      test.skip(true, 'Catalog fixture contains no root genre with children');
       return;
     }
 

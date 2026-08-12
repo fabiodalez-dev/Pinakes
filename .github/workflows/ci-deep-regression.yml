@@ -1,0 +1,324 @@
+name: Deep Regression Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: Browser regression shard ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pinakes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      mailpit:
+        image: axllent/mailpit:v1.21
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      E2E_BASE_URL: http://localhost:8081
+      APP_URL: http://localhost:8081
+      E2E_ADMIN_EMAIL: admin@pinakes.test
+      E2E_ADMIN_PASS: Test1234!
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: 3306
+      E2E_DB_USER: root
+      E2E_DB_PASS: root
+      E2E_DB_NAME: pinakes_test
+      E2E_INSTALL_ROOT: ${{ github.workspace }}
+      MAILPIT_API: http://127.0.0.1:8025/api/v1
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Apache, PHP module, MySQL client and mail transport
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y apache2 libapache2-mod-php default-mysql-client msmtp-mta
+          sudo a2enmod rewrite headers env
+          php_module="$(find /etc/apache2/mods-available -maxdepth 1 -name 'php*.load' -printf '%f\n' | sed 's/\.load$//' | sort -V | tail -n1)"
+          [ -z "${php_module}" ] || sudo a2enmod "${php_module}"
+          sudo a2dissite 000-default || true
+          sudo tee /etc/msmtprc >/dev/null <<'EOF'
+          defaults
+          account default
+          host 127.0.0.1
+          port 1025
+          tls off
+          from pinakes-ci@localhost
+          EOF
+          sudo chmod 644 /etc/msmtprc
+          while IFS= read -r conf_dir; do
+            echo 'sendmail_path = "/usr/bin/msmtp -t"' | sudo tee "${conf_dir}/99-pinakes-ci.ini" >/dev/null
+          done < <(find /etc/php -type d -path '*/conf.d' | sort -u)
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml
+          coverage: none
+          github-token: ''
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies and Chromium
+        run: |
+          composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+          npm ci --silent
+          npx playwright install chromium --with-deps
+
+      - name: Verify test coverage policy
+        run: npm run test:ci-policy
+
+      - name: Configure Apache on port 8081
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          sudo tee /etc/apache2/sites-available/pinakes.conf >/dev/null <<EOF
+          Listen 8081
+          <VirtualHost *:8081>
+              ServerName localhost
+              DocumentRoot ${WORKSPACE}/public
+              SetEnv PINAKES_E2E_BYPASS_RATE_LIMIT 1
+              SetEnv PINAKES_E2E_SCRAPER_STUB 1
+              <Directory "${WORKSPACE}/public">
+                  Options -Indexes +FollowSymLinks
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+              ErrorLog \${APACHE_LOG_DIR}/pinakes-error.log
+              CustomLog \${APACHE_LOG_DIR}/pinakes-access.log combined
+          </VirtualHost>
+          EOF
+          sudo a2ensite pinakes
+          sudo apachectl configtest
+
+      - name: Grant runtime permissions and start Apache
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          path="${WORKSPACE}"
+          while [ "${path}" != "/" ]; do
+            sudo chmod o+x "${path}"
+            path="$(dirname "${path}")"
+          done
+          sudo chmod 777 "${WORKSPACE}"
+          sudo chmod -R 777 "${WORKSPACE}/storage"
+          sudo mkdir -p "${WORKSPACE}/public/uploads"
+          sudo chmod -R 777 "${WORKSPACE}/public/uploads"
+          sudo systemctl start apache2
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:8081/installer/ && exit 0
+            sleep 1
+          done
+          sudo cat /var/log/apache2/pinakes-error.log || true
+          exit 1
+
+      - name: Bootstrap a complete fresh installation
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/bootstrap-${{ matrix.shard }}.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-bootstrap-${{ matrix.shard }}
+        run: npx playwright test tests/full-test.spec.js --config=tests/playwright.ci.config.js --workers=1
+
+      - name: Audit bootstrap failures, flakes and suspicious skips
+        run: node scripts/ci-audit-playwright-results.js "test-results/bootstrap-${{ matrix.shard }}.json"
+
+      - name: Seed deterministic cross-suite fixtures
+        env:
+          E2E_RUN_SEED: '1'
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/setup-${{ matrix.shard }}.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-setup-${{ matrix.shard }}
+        run: |
+          npx playwright test \
+            tests/interop-00-activate-plugins.spec.js \
+            tests/archives-seed-50.spec.js \
+            tests/seed-catalog.spec.js \
+            --config=tests/playwright.ci.config.js \
+            --workers=1
+          sudo chmod -R 777 "${GITHUB_WORKSPACE}/public/uploads"
+
+      - name: Audit setup fixtures
+        run: node scripts/ci-audit-playwright-results.js "test-results/setup-${{ matrix.shard }}.json"
+
+      - name: Run every deep-regression spec in shard ${{ matrix.shard }}
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/shard-${{ matrix.shard }}.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-shard-${{ matrix.shard }}
+        run: |
+          mapfile -t spec_files < <(node scripts/ci-playwright-policy.js shard "${{ matrix.shard }}" 4)
+          [ "${#spec_files[@]}" -gt 0 ] || { echo "No specs selected for shard"; exit 1; }
+          printf 'Running %s deep specs in shard %s/4\n' "${#spec_files[@]}" "${{ matrix.shard }}"
+          npx playwright test "${spec_files[@]}" \
+            --config=tests/playwright.ci.config.js \
+            --workers=1
+
+      - name: Audit failures, flakes and suspicious skips
+        if: always()
+        run: node scripts/ci-audit-playwright-results.js "test-results/shard-${{ matrix.shard }}.json"
+
+      - name: Upload browser evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deep-regression-shard-${{ matrix.shard }}-${{ github.run_id }}
+          path: |
+            playwright-report-shard-${{ matrix.shard }}/
+            playwright-report-bootstrap-${{ matrix.shard }}/
+            playwright-report-setup-${{ matrix.shard }}/
+            test-results/
+            /var/log/apache2/pinakes-error.log
+            /var/log/apache2/pinakes-access.log
+          retention-days: 14
+          if-no-files-found: warn
+
+  installer-locales:
+    name: Fresh installer (${{ matrix.locale }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        locale: [it_IT, en_US, de_DE, fr_FR, da_DK]
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pinakes_locale_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      E2E_BASE_URL: http://localhost:8081
+      E2E_ADMIN_EMAIL: locale-admin@pinakes.test
+      E2E_ADMIN_PASS: Test1234!
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: 3306
+      E2E_DB_USER: root
+      E2E_DB_PASS: root
+      E2E_DB_NAME: pinakes_locale_test
+      E2E_INSTALL_ROOT: ${{ github.workspace }}
+      E2E_RUN_INSTALLER_SPECS: '1'
+      E2E_LOCALE: ${{ matrix.locale }}
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Apache and PHP module
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y apache2 libapache2-mod-php default-mysql-client
+          sudo a2enmod rewrite headers env
+          php_module="$(find /etc/apache2/mods-available -maxdepth 1 -name 'php*.load' -printf '%f\n' | sed 's/\.load$//' | sort -V | tail -n1)"
+          [ -z "${php_module}" ] || sudo a2enmod "${php_module}"
+          sudo a2dissite 000-default || true
+      - name: Setup PHP and Node
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, mbstring, curl, zip, gd, intl, xml
+          coverage: none
+          github-token: ''
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies and Chromium
+        run: |
+          composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+          npm ci --silent
+          npx playwright install chromium --with-deps
+      - name: Configure and start isolated application
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          sudo tee /etc/apache2/sites-available/pinakes.conf >/dev/null <<EOF
+          Listen 8081
+          <VirtualHost *:8081>
+              ServerName localhost
+              DocumentRoot ${WORKSPACE}/public
+              SetEnv PINAKES_E2E_BYPASS_RATE_LIMIT 1
+              <Directory "${WORKSPACE}/public">
+                  Options -Indexes +FollowSymLinks
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+              ErrorLog \${APACHE_LOG_DIR}/pinakes-error.log
+          </VirtualHost>
+          EOF
+          sudo a2ensite pinakes
+          path="${WORKSPACE}"
+          while [ "${path}" != "/" ]; do sudo chmod o+x "${path}"; path="$(dirname "${path}")"; done
+          sudo chmod 777 "${WORKSPACE}"
+          sudo chmod -R 777 "${WORKSPACE}/storage"
+          sudo mkdir -p "${WORKSPACE}/public/uploads"
+          sudo chmod -R 777 "${WORKSPACE}/public/uploads"
+          sudo apachectl configtest
+          sudo systemctl start apache2
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:8081/installer/ && exit 0
+            sleep 1
+          done
+          exit 1
+      - name: Install and verify locale ${{ matrix.locale }}
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/installer-${{ matrix.locale }}.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-installer-${{ matrix.locale }}
+        run: |
+          npx playwright test tests/multilang-install-i18n.spec.js \
+            --config=tests/playwright.ci.config.js \
+            --workers=1
+      - name: Audit installer result
+        if: always()
+        run: node scripts/ci-audit-playwright-results.js "test-results/installer-${{ matrix.locale }}.json"
+      - name: Upload installer evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-${{ matrix.locale }}-${{ github.run_id }}
+          path: |
+            playwright-report-installer-${{ matrix.locale }}/
+            test-results/
+            /var/log/apache2/pinakes-error.log
+          retention-days: 14
+          if-no-files-found: warn

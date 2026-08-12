@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "webpack --mode development --watch --config webpack.config.js",
-    "build": "webpack --mode production --config webpack.config.js",
+    "build": "webpack --mode production --config webpack.config.js && node ../scripts/normalize-built-assets.js",
     "lint": "eslint js/"
   },
   "devDependencies": {
