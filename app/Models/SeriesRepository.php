@@ -65,6 +65,11 @@ class SeriesRepository
         return $this->tableExists('libri_collane') && $this->hasCollaneTable();
     }
 
+    public function supportsCompleteFlag(): bool
+    {
+        return $this->hasColumn('collane', 'is_completa');
+    }
+
     public function ensureCollana(string $nome, array $metadata = [], bool $updateMetadata = true): ?int
     {
         $nome = $this->cleanName($nome);
@@ -348,11 +353,14 @@ class SeriesRepository
         $selectMeta = $this->supportsHierarchy()
             ? 'c.tipo, c.parent_id, p.nome AS parent_nome, c.gruppo_serie, c.ciclo, c.ordine_ciclo'
             : 'NULL AS tipo, NULL AS parent_id, NULL AS parent_nome, NULL AS gruppo_serie, NULL AS ciclo, NULL AS ordine_ciclo';
+        $selectComplete = $this->supportsCompleteFlag() ? 'c.is_completa' : '0 AS is_completa';
+        $groupComplete = $this->supportsCompleteFlag() ? ', c.is_completa' : '';
 
         if ($this->supportsMemberships()) {
             $sql = "
                 SELECT c.nome AS collana,
                        {$selectMeta},
+                       {$selectComplete},
                        COUNT(DISTINCT m.libro_id) AS book_count,
                        MIN(CASE WHEN TRIM(m.numero_serie) REGEXP '^[0-9]+$' THEN CAST(m.numero_serie AS UNSIGNED) END) AS min_num,
                        MAX(CASE WHEN TRIM(m.numero_serie) REGEXP '^[0-9]+$' THEN CAST(m.numero_serie AS UNSIGNED) END) AS max_num
@@ -368,20 +376,21 @@ class SeriesRepository
                       JOIN collane c2 ON c2.nome = l.collana
                      WHERE l.collana IS NOT NULL AND l.collana != '' AND l.deleted_at IS NULL
                 ) m ON m.collana_id = c.id
-                GROUP BY c.id, c.nome" . ($this->supportsHierarchy() ? ', c.tipo, c.parent_id, p.nome, c.gruppo_serie, c.ciclo, c.ordine_ciclo' : '') . "
+                GROUP BY c.id, c.nome" . ($this->supportsHierarchy() ? ', c.tipo, c.parent_id, p.nome, c.gruppo_serie, c.ciclo, c.ordine_ciclo' : '') . $groupComplete . "
                 ORDER BY " . $this->seriesOrderClause('c') . "
             ";
         } else {
             $sql = "
                 SELECT c.nome AS collana,
                        {$selectMeta},
+                       {$selectComplete},
                        COUNT(l.id) AS book_count,
                        MIN(CASE WHEN TRIM(l.numero_serie) REGEXP '^[0-9]+$' THEN CAST(l.numero_serie AS UNSIGNED) END) AS min_num,
                        MAX(CASE WHEN TRIM(l.numero_serie) REGEXP '^[0-9]+$' THEN CAST(l.numero_serie AS UNSIGNED) END) AS max_num
                 FROM collane c
                 " . ($this->supportsHierarchy() ? 'LEFT JOIN collane p ON p.id = c.parent_id' : '') . "
                 LEFT JOIN libri l ON l.collana = c.nome AND l.deleted_at IS NULL
-                GROUP BY c.id, c.nome" . ($this->supportsHierarchy() ? ', c.tipo, c.parent_id, p.nome, c.gruppo_serie, c.ciclo, c.ordine_ciclo' : '') . "
+                GROUP BY c.id, c.nome" . ($this->supportsHierarchy() ? ', c.tipo, c.parent_id, p.nome, c.gruppo_serie, c.ciclo, c.ordine_ciclo' : '') . $groupComplete . "
                 ORDER BY " . $this->seriesOrderClause('c') . "
             ";
         }
@@ -396,9 +405,10 @@ class SeriesRepository
         }
 
         $name = $this->cleanName($name);
+        $completeFallback = $this->supportsCompleteFlag() ? '' : ', 0 AS is_completa';
         $selectMeta = $this->supportsHierarchy()
-            ? 'c.*, p.nome AS parent_nome'
-            : 'c.*, NULL AS parent_nome, NULL AS parent_id, NULL AS tipo, NULL AS gruppo_serie, NULL AS ciclo, NULL AS ordine_ciclo';
+            ? 'c.*, p.nome AS parent_nome' . $completeFallback
+            : 'c.*, NULL AS parent_nome, NULL AS parent_id, NULL AS tipo, NULL AS gruppo_serie, NULL AS ciclo, NULL AS ordine_ciclo' . $completeFallback;
         $join = $this->supportsHierarchy() ? 'LEFT JOIN collane p ON p.id = c.parent_id' : '';
         $stmt = $this->db->prepare("SELECT {$selectMeta} FROM collane c {$join} WHERE c.nome = ? LIMIT 1");
         if (!$stmt) {
@@ -1037,6 +1047,11 @@ class SeriesRepository
             $types .= 's';
             $params[] = $metadata['descrizione'];
         }
+        if ($this->hasColumn('collane', 'is_completa') && array_key_exists('is_completa', $metadata)) {
+            $sets[] = 'is_completa = ?';
+            $types .= 'i';
+            $params[] = !empty($metadata['is_completa']) ? 1 : 0;
+        }
 
         if ($sets === []) {
             return;
@@ -1258,7 +1273,7 @@ class SeriesRepository
     {
         $sql = "
             SELECT collana, NULL AS tipo, NULL AS parent_id, NULL AS parent_nome,
-                   NULL AS gruppo_serie, NULL AS ciclo, NULL AS ordine_ciclo,
+                   NULL AS gruppo_serie, NULL AS ciclo, NULL AS ordine_ciclo, 0 AS is_completa,
                    COUNT(*) AS book_count,
                    MIN(CASE WHEN TRIM(numero_serie) REGEXP '^[0-9]+$' THEN CAST(numero_serie AS UNSIGNED) END) AS min_num,
                    MAX(CASE WHEN TRIM(numero_serie) REGEXP '^[0-9]+$' THEN CAST(numero_serie AS UNSIGNED) END) AS max_num
