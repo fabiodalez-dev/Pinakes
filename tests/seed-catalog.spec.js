@@ -43,26 +43,24 @@ const MANUAL_ENTRIES = [
 ];
 
 /**
- * Try to save the current form and verify redirect to book detail page.
- * Returns true if saved, false on failure — does NOT throw (seeder resilience).
+ * Save the current form through its mandatory SweetAlert confirmation and
+ * verify the redirect to the book page. Missing UI or navigation is a hard
+ * fixture failure: continuing would make every downstream test untrustworthy.
  * @param {import('@playwright/test').Page} page
  * @param {string} label
  */
 async function trySave(page, label) {
   await page.locator('button[type="submit"]').first().click();
-  const confirmation = page.locator('.swal2-popup.swal2-question .swal2-confirm');
-  if (await confirmation.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await confirmation.click({ force: true });
-  }
-  const saved = await page.waitForURL(/\/admin\/books(?:\/\d+)?(?:[?#].*)?$/, { timeout: 15000 })
-    .then(() => true)
-    .catch(() => false);
-  if (saved) {
-    console.log(`  ✓ ${label}`);
-  } else {
-    console.warn(`  ⚠ ${label} — save failed (URL: ${page.url()}), continuing`);
-  }
-  return saved;
+  const confirmation = page
+    .locator('.swal2-popup', { has: page.locator('.swal2-icon.swal2-question') })
+    .locator('.swal2-confirm');
+  await expect(confirmation).toBeVisible({ timeout: 10000 });
+  await Promise.all([
+    page.waitForURL(/\/admin\/books(?:\/\d+)?(?:[?#].*)?$/, { timeout: 15000 }),
+    confirmation.click(),
+  ]);
+  console.log(`  ✓ ${label}`);
+  return true;
 }
 
 test.describe.serial('Seed Catalog (books + music)', () => {

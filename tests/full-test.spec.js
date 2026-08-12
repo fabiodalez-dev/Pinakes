@@ -1636,24 +1636,26 @@ test.describe.serial('Phase 10: CSV/TSV Import & Export', () => {
 
     // Create a test CSV file
     const csvContent = `titolo;autore;editore;isbn13;anno_pubblicazione
-CSV_Book1_${RUN_ID};CSV Author;CSV Publisher;9781234567890;2024
-CSV_Book2_${RUN_ID};CSV Author2;CSV Publisher2;9781234567906;2023`;
+CSV_Book1_${RUN_ID};CSV Author;CSV Publisher;9781234567897;2024
+CSV_Book2_${RUN_ID};CSV Author2;CSV Publisher2;9781234567903;2023`;
 
     const csvPath = path.join('/tmp', `e2e-import-${RUN_ID}.csv`);
     fs.writeFileSync(csvPath, csvContent, 'utf-8');
 
     const fileInput = page.locator('input[type="file"]');
-    if (await fileInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await fileInput.setInputFiles(csvPath);
+    // The native file input is intentionally visually hidden behind the styled
+    // picker. Requiring isVisible() silently skipped the entire import in CI.
+    await expect(fileInput).toHaveCount(1);
+    await fileInput.setInputFiles(csvPath);
 
-      // Submit import form
-      await page.locator('button[type="submit"]').first().click();
-      await page.waitForLoadState('domcontentloaded');
+    // Submit import form
+    await page.locator('button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded');
 
-      // Verify at least one book was imported
-      const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE 'CSV_%_${RUN_ID}' AND deleted_at IS NULL`);
-      expect(Number(count)).toBeGreaterThanOrEqual(1);
-    }
+    // Both deterministic, checksum-valid rows must be imported. A partial
+    // import is a regression, not sufficient setup for the export test below.
+    const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE 'CSV_%_${RUN_ID}' AND deleted_at IS NULL`);
+    expect(Number(count)).toBe(2);
 
     // Cleanup temp file
     fs.unlinkSync(csvPath);
@@ -1670,14 +1672,13 @@ TSV_Book1_${RUN_ID}\tTSV Author\tTSV Publisher\t2024`;
     fs.writeFileSync(tsvPath, tsvContent, 'utf-8');
 
     const fileInput = page.locator('input[type="file"]');
-    if (await fileInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await fileInput.setInputFiles(tsvPath);
-      await page.locator('button[type="submit"]').first().click();
-      await page.waitForLoadState('domcontentloaded');
+    await expect(fileInput).toHaveCount(1);
+    await fileInput.setInputFiles(tsvPath);
+    await page.locator('button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded');
 
-      const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE 'TSV_%_${RUN_ID}' AND deleted_at IS NULL`);
-      expect(Number(count)).toBeGreaterThanOrEqual(1);
-    }
+    const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE 'TSV_%_${RUN_ID}' AND deleted_at IS NULL`);
+    expect(Number(count)).toBe(1);
 
     fs.unlinkSync(tsvPath);
   });
