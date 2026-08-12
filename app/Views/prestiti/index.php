@@ -1,33 +1,9 @@
 <?php
 // Include loan actions partial for JavaScript translation support
 include __DIR__ . '/../partials/loan-actions-swal.php';
-
-// Helper function to generate status badges for the loan status
-function getStatusBadge($status) {
-    $baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium';
-    switch ($status) {
-        case 'pendente':
-            return "<span class='$baseClasses bg-orange-100 text-orange-800'><i class='fas fa-hourglass-half mr-2'></i>" . __("Pendente") . "</span>";
-        case 'prenotato':
-            return "<span class='$baseClasses bg-purple-100 text-purple-800'><i class='fas fa-calendar-check mr-2'></i>" . __("Prenotato") . "</span>";
-        case 'da_ritirare':
-            return "<span class='$baseClasses bg-amber-100 text-amber-800'><i class='fas fa-box mr-2'></i>" . __("Da Ritirare") . "</span>";
-        case 'in_corso':
-            return "<span class='$baseClasses bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i>" . __("In Corso") . "</span>";
-        case 'in_ritardo':
-            return "<span class='$baseClasses bg-yellow-100 text-yellow-800'><i class='fas fa-exclamation-triangle mr-2'></i>" . __("In Ritardo") . "</span>";
-        case 'restituito':
-            return "<span class='$baseClasses bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i>" . __("Restituito") . "</span>";
-        case 'perso':
-            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Perso") . "</span>";
-        case 'danneggiato':
-            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Danneggiato") . "</span>";
-        case 'scaduto':
-            return "<span class='$baseClasses bg-gray-200 text-gray-700'><i class='fas fa-calendar-times mr-2'></i>" . __("Scaduto") . "</span>";
-        default:
-            return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . __("Sconosciuto") . "</span>";
-    }
-}
+// Badge canonico degli stati prestito (#333): unica mappa colore/icona/etichetta
+// condivisa tra rendering SSR e colonne DataTables.
+require_once __DIR__ . '/../partials/loan-status-badge.php';
 $applicationToday = \App\Support\DateHelper::today();
 ?>
 
@@ -112,6 +88,35 @@ $applicationToday = \App\Support\DateHelper::today();
                     break;
                 case 'loan_not_closable':
                     echo __('Prestito non trovato o non chiudibile.');
+                    break;
+                case 'no_copies_available':
+                    // #336: dire solo "nessuna copia" era fuorviante — il vero motivo
+                    // è un conflitto con un altro impegno nel periodo richiesto.
+                    echo __('Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.');
+                    break;
+                case 'loan_copy_conflict':
+                    echo __('Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.');
+                    break;
+                case 'extension_conflicts':
+                    echo __('Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.');
+                    break;
+                case 'loan_overdue':
+                    echo __('Impossibile rinnovare: il prestito è in ritardo.');
+                    break;
+                case 'max_renewals':
+                    echo __('Numero massimo di rinnovi raggiunto per questo prestito.');
+                    break;
+                case 'loan_not_active':
+                    echo __('Il prestito non è più attivo.');
+                    break;
+                case 'loan_not_picked_up':
+                    echo __('Impossibile rinnovare: il prestito non è ancora stato ritirato.');
+                    break;
+                case 'book_not_found':
+                    echo __('Libro non trovato o non più disponibile.');
+                    break;
+                case 'renewal_failed':
+                    echo __('Rinnovo non riuscito. Riprova.');
                     break;
                 default:
                     echo __('Errore durante l\'aggiornamento del prestito.');
@@ -316,6 +321,7 @@ $applicationToday = \App\Support\DateHelper::today();
               <button data-status="in_ritardo" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("In Ritardo") ?></button>
               <button data-status="restituito" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Restituito") ?></button>
               <button data-status="scaduto" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Scaduto") ?></button>
+              <button data-status="annullato" class="status-filter-btn btn-secondary px-3 py-1.5"><?= __("Annullato") ?></button>
               <button data-status="" class="status-filter-btn btn-primary px-3 py-1.5"><?= __("Tutti") ?></button>
             </div>
         </div>
@@ -374,7 +380,7 @@ $applicationToday = \App\Support\DateHelper::today();
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
-                                    <?php echo getStatusBadge($prestito['stato']); ?>
+                                    <?php echo loan_status_badge($prestito['stato'] ?? null); ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
                                     <a href="<?= htmlspecialchars(url('/admin/loans/' . (int)$prestito['id'] . '/pdf'), ENT_QUOTES, 'UTF-8') ?>"
@@ -466,6 +472,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let currentStatusFilter = '';
     const applicationToday = <?= json_encode($applicationToday, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    // Mappa canonica stato → badge HTML, generata dal partial loan-status-badge.php
+    // così la colonna DataTables e il rendering SSR non possono divergere (#333).
+    const loanStatusBadges = <?= json_encode(loan_status_badge_map(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const loanStatusUnknownBadge = <?= json_encode(loan_status_badge(null), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
     // Initialize DataTable
     const table = new DataTable('#prestiti-table', {
@@ -535,29 +545,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 data: 'stato',
                 className: 'text-center',
                 render: function(data, type, row) {
-                    const baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium';
-                    switch (data) {
-                        case 'pendente':
-                            return `<span class='${baseClasses} bg-orange-100 text-orange-800'><i class='fas fa-hourglass-half mr-2'></i><?= __("Pendente") ?></span>`;
-                        case 'prenotato':
-                            return `<span class='${baseClasses} bg-purple-100 text-purple-800'><i class='fas fa-calendar-check mr-2'></i><?= __("Prenotato") ?></span>`;
-                        case 'da_ritirare':
-                            return `<span class='${baseClasses} bg-amber-100 text-amber-800'><i class='fas fa-box mr-2'></i><?= __("Da Ritirare") ?></span>`;
-                        case 'in_corso':
-                            return `<span class='${baseClasses} bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i><?= __("In Corso") ?></span>`;
-                        case 'in_ritardo':
-                            return `<span class='${baseClasses} bg-yellow-100 text-yellow-800'><i class='fas fa-exclamation-triangle mr-2'></i><?= __("In Ritardo") ?></span>`;
-                        case 'restituito':
-                            return `<span class='${baseClasses} bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i><?= __("Restituito") ?></span>`;
-                        case 'perso':
-                            return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i><?= __("Perso") ?></span>`;
-                        case 'danneggiato':
-                            return `<span class='${baseClasses} bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i><?= __("Danneggiato") ?></span>`;
-                        case 'scaduto':
-                            return `<span class='${baseClasses} bg-gray-200 text-gray-700'><i class='fas fa-calendar-times mr-2'></i><?= __("Scaduto") ?></span>`;
-                        default:
-                            return `<span class='${baseClasses} bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i><?= __("Sconosciuto") ?></span>`;
-                    }
+                    // Badge dalla mappa canonica PHP (loan-status-badge.php):
+                    // stessa fonte del rendering SSR, nessuna mappa duplicata in JS.
+                    return loanStatusBadges[data] || loanStatusUnknownBadge;
                 }
             },
             {
@@ -894,6 +884,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="scaduto" class="export-status-cb w-4 h-4 text-gray-600 rounded" checked>
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700"><i class="fas fa-calendar-times mr-1"></i>${__('Scaduto')}</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                        <input type="checkbox" name="export-status" value="annullato" class="export-status-cb w-4 h-4 text-gray-600 rounded" checked>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700"><i class="fas fa-ban mr-1"></i>${__('Annullato')}</span>
                     </label>
                 </div>
             `,

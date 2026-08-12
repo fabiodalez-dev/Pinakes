@@ -657,9 +657,11 @@ function accountLineIcon(string $name): string {
               <div class="item-badges">
                 <?php
                 $stato = $loan['stato'] ?? 'in_corso';
+                // Etichette dall'helper canonico (translate_loan_status, #333);
+                // icone e stili restano specifici di questa vista frontend.
                 $statoBadges = [
-                    'da_ritirare' => ['icon' => 'fa-box-open', 'label' => __('Da ritirare'), 'style' => 'background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;'],
-                    'prenotato' => ['icon' => 'fa-bookmark', 'label' => __('Prenotato'), 'style' => 'background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd;'],
+                    'da_ritirare' => ['icon' => 'fa-box-open', 'label' => translate_loan_status('da_ritirare'), 'style' => 'background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;'],
+                    'prenotato' => ['icon' => 'fa-bookmark', 'label' => translate_loan_status('prenotato'), 'style' => 'background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd;'],
                 ];
                 if (isset($statoBadges[$stato])): ?>
                   <div class="status-badge" style="<?= $statoBadges[$stato]['style'] ?>">
@@ -784,16 +786,18 @@ function accountLineIcon(string $name): string {
     <div class="items-grid">
       <?php foreach ($pastPrestiti as $loan):
         $cover = resolveCoverUrl($loan);
-        $statusLabels = [
-          'restituito' => __('Restituito'),
-          'in_ritardo' => __('Restituito in ritardo'),
-          'perso' => __('Perso'),
-          'danneggiato' => __('Danneggiato'),
-          'prestato' => __('Prestato'),
-          'in_corso' => __('In corso'),
-        ];
-        $statusLabel = $statusLabels[$loan['stato']] ?? ucfirst(str_replace('_', ' ', (string)$loan['stato']));
+        // Etichetta canonica dello stato (translate_loan_status, #333): lo storico
+        // contiene solo stati chiusi (restituito/perso/danneggiato/annullato/scaduto).
+        $statusLabel = translate_loan_status((string) $loan['stato']);
+        $statusIcon = match ($loan['stato']) {
+          'annullato' => 'fa-ban',
+          'scaduto' => 'fa-calendar-times',
+          default => 'fa-check-circle',
+        };
         $hasReview = !empty($loan['has_review']);
+        // Un prestito annullato/scaduto non è mai uscito: nessuna recensione
+        // proponibile (il server la rifiuterebbe: richiede restituito/in corso).
+        $canReview = !in_array($loan['stato'], ['annullato', 'scaduto'], true);
         $returnDate = $loan['data_restituzione'] ?? '';
       ?>
         <div class="item-card">
@@ -805,7 +809,7 @@ function accountLineIcon(string $name): string {
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="status-badge badge-status">
-                  <i class="fas fa-check-circle" aria-hidden="true"></i>
+                  <i class="fas <?= $statusIcon ?>" aria-hidden="true"></i>
                   <span><?= HtmlHelper::e($statusLabel); ?></span>
                 </div>
                 <?php if ($returnDate): ?>
@@ -815,10 +819,12 @@ function accountLineIcon(string $name): string {
                   </div>
                 <?php endif; ?>
               </div>
-              <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= HtmlHelper::e($loan['titolo'] ?? ''); ?>">
+              <?php if ($hasReview || $canReview): ?>
+              <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= htmlspecialchars((string) ($loan['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                 <i class="fas fa-star" aria-hidden="true"></i>
                 <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
+              <?php endif; ?>
             </div>
           </div>
         </div>

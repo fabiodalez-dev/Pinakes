@@ -774,11 +774,12 @@ class PrestitiController
         // giornata singola) è lecita: createReservation accetta end == start,
         // quindi un rifiuto strettamente esclusivo renderebbe immodificabili
         // i prestiti a giornata nati dal calendario utente.
-        // F028: uso la stessa validazione ISO stretta di store() invece di
-        // strtotime(), che leggeva '12/03/2026' all'americana (3 dicembre) e
-        // trattava una data non parsabile come false confrontata booleana.
-        // Codici d'errore separati: formato non valido vs range invertito.
-        if (!\App\Support\DateHelper::isISODateFormat($newPrestito) || !\App\Support\DateHelper::isISODateFormat($newScadenza)) {
+        // F028 (#335) + strict-ISO (#337): valida entrambe le date in Y-m-d
+        // STRETTO senza strtotime, con CODICI D'ERRORE SEPARATI — formato non
+        // valido vs range invertito — così l'admin riceve un messaggio azionabile.
+        // isStrictIsoDate rifiuta date ambigue o inesistenti (2026-02-30) e i byte
+        // NUL; la ri-validazione sotto lock più in basso applica lo stesso criterio.
+        if (!self::isStrictIsoDate($newPrestito) || !self::isStrictIsoDate($newScadenza)) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_date_format')->withStatus(302);
         }
         if ($newScadenza < $newPrestito) {
@@ -799,7 +800,11 @@ class PrestitiController
 
             // Lock del prestito e ri-verifica sotto lock: stato aperto invariato e
             // libro_id non cambiato (TOCTOU sulla lettura non bloccante iniziale).
-            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, utente_id FROM prestiti WHERE id=? FOR UPDATE');
+            // Rilegge anche le DATE correnti: un update concorrente tra la lettura
+            // iniziale e questo lock le può aver cambiate, e la finestra "vecchia"
+            // del check di capacità qui sotto deve basarsi sui valori realmente
+            // salvati, non su quelli pre-transazione (CodeRabbit, PR #337).
+            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, copia_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
             $lockLoan->bind_param('i', $id);
             $lockLoan->execute();
             $locked = $lockLoan->get_result()->fetch_assoc();
@@ -811,6 +816,19 @@ class PrestitiController
             if ((int) $locked['libro_id'] !== $libroId) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
+            }
+
+            // Ricostruisci i valori effettivi dai dati LOCKATI: i campi non inviati
+            // dal form devono completarsi con lo stato corrente reale della riga.
+            // Ri-valida il range con gli stessi criteri del pre-check (che resta
+            // come fast-fail senza aprire la transazione).
+            $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $locked['utente_id'];
+            $newPrestito = (string) ($updateData['data_prestito'] ?? $locked['data_prestito']);
+            $newScadenza = (string) ($updateData['data_scadenza'] ?? $locked['data_scadenza']);
+            if (!self::isStrictIsoDate($newPrestito) || !self::isStrictIsoDate($newScadenza)
+                || $newScadenza < $newPrestito) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
             }
 
             // Se l'utente cambia, ri-esegui i controlli di store() (M6b): il campo
@@ -883,15 +901,68 @@ class PrestitiController
                 }
             }
 
-            // #11: if the loan is being RESCHEDULED, re-check the new window against
+            // #11: if the loan is being RESCHEDULED, re-check the new dates against
             // overlapping loans + queue reservations vs capacity (renew() does this — update()
             // used to accept any new dates and only recalc counters, silently extending a loan
             // over a queued reservation). Only when the dates actually change.
-            if ($newPrestito !== (string) $current['data_prestito'] || $newScadenza !== (string) $current['data_scadenza']) {
+            // #336: check ONLY the newly-claimed segments — the EXACT set difference
+            // new window ∖ old window. Checking the WHOLE new window re-counted
+            // commitments that already coexist with the current period (e.g. a
+            // queued reservation overlapping the loan), so on a 1-copy book ANY
+            // date edit — even shortening the loan — bounced with
+            // no_copies_available. Days inside the old window (boundary days
+            // included: they are already held by this loan) need no re-check;
+            // only genuinely added days need free capacity.
+            // Old window from the LOCKED row, not the pre-transaction read.
+            $oldPrestito = (string) $locked['data_prestito'];
+            $oldScadenza = (string) $locked['data_scadenza'];
+            if ($newPrestito !== $oldPrestito || $newScadenza !== $oldScadenza) {
+                // Y-m-d strings compare correctly lexicographically (validated
+                // strict above); ±1 day via DateTimeImmutable, no TZ ambiguity.
+                $dayBefore = static fn (string $ymd): string => (new \DateTimeImmutable($ymd))->modify('-1 day')->format('Y-m-d');
+                $dayAfter = static fn (string $ymd): string => (new \DateTimeImmutable($ymd))->modify('+1 day')->format('Y-m-d');
+                $claimedWindows = [];
+                if ($newPrestito < $oldPrestito) {
+                    $claimedWindows[] = [$newPrestito, min($dayBefore($oldPrestito), $newScadenza)];
+                }
+                if ($newScadenza > $oldScadenza) {
+                    $claimedWindows[] = [max($dayAfter($oldScadenza), $newPrestito), $newScadenza];
+                }
                 $capacity = new \App\Services\CapacityService($db);
-                if (!$capacity->hasFreeCapacity($libroId, $newPrestito, $newScadenza, excludePrestitoId: $id)) {
-                    $db->rollback();
-                    return $response->withHeader('Location', url('/admin/loans') . '?error=no_copies_available')->withStatus(302);
+                foreach ($claimedWindows as [$claimStart, $claimEnd]) {
+                    if (!$capacity->hasFreeCapacity($libroId, $claimStart, $claimEnd, excludePrestitoId: $id)) {
+                        $db->rollback();
+                        return $response->withHeader('Location', url('/admin/loans') . '?error=no_copies_available')->withStatus(302);
+                    }
+                }
+
+                // CapacityService decides at BOOK level. With multiple copies it
+                // can report spare capacity even when the physical copy assigned
+                // to this loan has another future loan on the added days. The DB
+                // trigger would reject the UPDATE later, but only as the generic
+                // loan_update_failed. Mirror renew()/bulkExtend() here so the
+                // conflict is detected before the write and reported truthfully.
+                $copyId = $locked['copia_id'] !== null ? (int) $locked['copia_id'] : null;
+                if ($copyId !== null && $claimedWindows !== []) {
+                    $copyOverlap = $db->prepare(
+                        "SELECT 1 FROM prestiti
+                          WHERE copia_id = ? AND id <> ?
+                            AND data_prestito <= ?
+                            AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                            AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                                 OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL))
+                          LIMIT 1"
+                    );
+                    foreach ($claimedWindows as [$claimStart, $claimEnd]) {
+                        $copyOverlap->bind_param('iiss', $copyId, $id, $claimEnd, $claimStart);
+                        $copyOverlap->execute();
+                        if ((bool) $copyOverlap->get_result()->fetch_row()) {
+                            $copyOverlap->close();
+                            $db->rollback();
+                            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_copy_conflict')->withStatus(302);
+                        }
+                    }
+                    $copyOverlap->close();
                 }
             }
 
@@ -925,7 +996,7 @@ class PrestitiController
             // emails. A data_prestito-only edit does not affect the overdue clock,
             // so it is intentionally excluded from this guard (do not reuse the
             // combined data_prestito||data_scadenza condition above).
-            if ($newScadenza !== (string) $current['data_scadenza']) {
+            if ($newScadenza !== (string) $locked['data_scadenza']) {
                 $today = \App\Support\DateHelper::today();
                 $recalcStato = $db->prepare(
                     "UPDATE prestiti
@@ -1596,17 +1667,22 @@ class PrestitiController
         $todayDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $today);
         $base = ($todayDate !== false && $todayDate > $dueDate) ? $todayDate : $dueDate;
         $newDueDate = $base->modify('+' . $days . ' days')->format('Y-m-d');
-        $loanStart = (string) $loan['data_prestito'];
 
         // Apply each accepted extension immediately inside the transaction, so the
         // next capacity check sees all earlier proposed extensions too.
-        if (!$capacity->hasFreeCapacity($bookId, $loanStart, $newDueDate, excludePrestitoId: $loanId)) {
+        // #336: BOTH gates check the same interval — only the days the extension
+        // actually adds (day after the current due date → new due date). The due
+        // date itself is already held by this loan, and the copy-overlap check
+        // previously scanned the whole loan window while capacity scanned the
+        // extension window: two different intervals for one decision (CodeRabbit).
+        $extensionStart = $dueDate->modify('+1 day')->format('Y-m-d');
+        if (!$capacity->hasFreeCapacity($bookId, $extensionStart, $newDueDate, excludePrestitoId: $loanId)) {
             return null;
         }
 
         $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
         if ($copyId !== null) {
-            $copyOverlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $loanStart);
+            $copyOverlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $extensionStart);
             $copyOverlap->execute();
             if ((bool) $copyOverlap->get_result()->fetch_row()) {
                 return null;
@@ -2054,6 +2130,26 @@ class PrestitiController
             ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
             ->withHeader('Cache-Control', 'no-cache, must-revalidate')
             ->withHeader('Pragma', 'no-cache');
+    }
+
+    /**
+     * Data in formato STRETTAMENTE Y-m-d E valida sul calendario reale.
+     * A differenza di strtotime(), rifiuta formati ambigui ('2026-2-5') e date
+     * inesistenti ('2026-02-30' — che strtotime normalizzerebbe al 2 marzo):
+     * il round-trip con createFromFormat garantisce input canonico, così i
+     * confronti lessicografici tra stringhe Y-m-d restano corretti.
+     */
+    private static function isStrictIsoDate(string $value): bool
+    {
+        // Shape-check PRIMA di toccare DateTime: createFromFormat() lancia
+        // ValueError su input con byte NUL ('2026-01-01%00'), che fuori da un
+        // try diventerebbe un 500 invece di invalid_dates (CodeRabbit, #337).
+        // /D àncora la fine reale della stringa (niente newline finale tollerato).
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value)) {
+            return false;
+        }
+        $dt = \DateTime::createFromFormat('Y-m-d', $value);
+        return $dt !== false && $dt->format('Y-m-d') === $value;
     }
 
     private function guardStaffAccess(Response $response): ?Response

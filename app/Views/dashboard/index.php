@@ -945,14 +945,14 @@ document.addEventListener('DOMContentLoaded', function() {
             eventClick: function(info) {
                 const props = info.event.extendedProps;
                 const typeLabel = props.type === 'prenotazione' ? <?= json_encode(__("Prenotazione"), JSON_HEX_TAG) ?> : <?= json_encode(__("Prestito"), JSON_HEX_TAG) ?>;
-                const statusLabels = {
-                    'in_corso': <?= json_encode(__("In corso"), JSON_HEX_TAG) ?>,
-                    'prenotato': <?= json_encode(__("Programmato"), JSON_HEX_TAG) ?>,
-                    'da_ritirare': <?= json_encode(__("Da Ritirare"), JSON_HEX_TAG) ?>,
-                    'in_ritardo': <?= json_encode(__("Scaduto"), JSON_HEX_TAG) ?>,
-                    'pendente': <?= json_encode(__("In attesa"), JSON_HEX_TAG) ?>,
-                    'attiva': <?= json_encode(__("Attiva"), JSON_HEX_TAG) ?>
-                };
+                // Etichette canoniche degli stati prestito (loan_status_label_map,
+                // #333) + lo stato 'attiva' delle prenotazioni, che non fa parte
+                // dell'enum prestiti. Il vecchio alias "Scaduto" per in_ritardo è
+                // sparito: ora collide con lo stato 'scaduto' vero e proprio.
+                const statusLabels = <?= json_encode(
+                    array_merge(loan_status_label_map(), ['attiva' => __('Attiva')]),
+                    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+                ) ?>;
                 const statusLabel = statusLabels[props.status] || props.status;
 
                 // Use originalStart/originalEnd with fallback to event dates

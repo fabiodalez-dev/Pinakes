@@ -1,6 +1,9 @@
 <?php
 use App\Support\ConfigStore;
 
+// Badge canonico degli stati prestito (#333): usato nello storico prestiti admin.
+require_once __DIR__ . '/../partials/loan-status-badge.php';
+
 // Variables passed from controller
 $libro = $libro ?? [];
 // Security: borrower PII (loan history, active-loan/per-copy borrower) is gated
@@ -66,7 +69,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
             echo __('Numero massimo di rinnovi raggiunto per questo prestito.');
             break;
         case 'renewal_conflict':
+        case 'extension_conflicts':
+            // #336: renew() emette 'extension_conflicts' — il vecchio switch conosceva
+            // solo 'renewal_conflict' (mai emesso) e mostrava il messaggio generico.
             echo __('Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.');
+            break;
+        case 'renewal_failed':
+            echo __('Rinnovo non riuscito. Riprova.');
             break;
         default:
             echo __('Operazione non riuscita. Riprova.');
@@ -1090,7 +1099,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                     <?php if (!$canEdit): ?>
                     <?php
                     // Show actual status instead of generic "In prestito"
-                    // Use explicit fallback to surface unexpected values during testing
+                    // Use explicit fallback to surface unexpected values during testing.
+                    // Divergenza voluta da translate_loan_status(): qui si descrive la
+                    // COPIA fisica ("In prestito" = è fuori), non lo stato del prestito.
                     $statusText = match($loanStatusVal) {
                         'in_corso' => __('In prestito'),
                         'in_ritardo' => __('In ritardo'),
@@ -1255,57 +1266,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <?php
-                    $statusClass = 'bg-gray-100 text-gray-800';
-                    $statusIcon = 'fa-circle';
-                    $statusLabel = __('Sconosciuto');
-                    switch ($loan['stato']) {
-                      case 'restituito':
-                        $statusClass = 'bg-green-100 text-green-800';
-                        $statusIcon = 'fa-check-circle';
-                        $statusLabel = __('Restituito');
-                        break;
-                      case 'prenotato':
-                        $statusClass = 'bg-purple-100 text-purple-800';
-                        $statusIcon = 'fa-calendar-check';
-                        $statusLabel = __('Prenotato');
-                        break;
-                      case 'in_corso':
-                        $statusClass = 'bg-blue-100 text-blue-800';
-                        $statusIcon = 'fa-book-open';
-                        $statusLabel = __('In Corso');
-                        break;
-                      case 'in_ritardo':
-                        $statusClass = 'bg-red-100 text-red-800';
-                        $statusIcon = 'fa-exclamation-triangle';
-                        $statusLabel = __('In Ritardo');
-                        break;
-                      case 'perso':
-                        $statusClass = 'bg-yellow-100 text-yellow-800';
-                        $statusIcon = 'fa-exclamation-circle';
-                        $statusLabel = __('Perso');
-                        break;
-                      case 'danneggiato':
-                        $statusClass = 'bg-yellow-100 text-yellow-800';
-                        $statusIcon = 'fa-exclamation-circle';
-                        $statusLabel = __('Danneggiato');
-                        break;
-                      case 'pendente':
-                        $statusClass = 'bg-orange-100 text-orange-800';
-                        $statusIcon = 'fa-clock';
-                        $statusLabel = __('In Attesa');
-                        break;
-                      case 'da_ritirare':
-                        $statusClass = 'bg-amber-100 text-amber-800';
-                        $statusIcon = 'fa-box';
-                        $statusLabel = __('Da Ritirare');
-                        break;
-                    }
-                  ?>
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $statusClass; ?>">
-                    <i class="fas <?php echo $statusIcon; ?> mr-1"></i>
-                    <?php echo App\Support\HtmlHelper::e($statusLabel); ?>
-                  </span>
+                  <?php // Badge canonico degli stati prestito (#333): partial condiviso. ?>
+                  <?= loan_status_badge((string) ($loan['stato'] ?? '')); ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php if ((int)$loan['renewals'] > 0): ?>
@@ -1451,15 +1413,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
               default => $copyColor
           };
 
-          // Status label
-          $statusLabel = match($stato) {
-              'in_corso' => __('In prestito'),
-              'prenotato' => __('Prenotato'),
-              'in_ritardo' => __('In ritardo'),
-              'pendente' => __('In attesa'),
-              'da_ritirare' => __('Da Ritirare'),
-              default => ucfirst($stato)
-          };
+          // Etichetta canonica dello stato (translate_loan_status, #333): stessa
+          // dicitura dei badge nella tabella prestiti di questa stessa pagina.
+          $statusLabel = translate_loan_status((string) $stato);
 
           // FullCalendar expects end date to be exclusive, so add 1 day
           $endDateObj = new DateTime($endDate);

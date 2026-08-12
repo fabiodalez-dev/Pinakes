@@ -71,14 +71,17 @@ class UserActionsController
         }
         $stmt->close();
 
-        // Storico prestiti (ultimi 20) - solo prestiti conclusi
+        // Storico prestiti (ultimi 20) - tutti i prestiti conclusi, inclusi
+        // annullati e scaduti (prima sparivano dallo storico). Questi non hanno
+        // data_restituzione: ordina sul momento di chiusura (updated_at) così
+        // un annullamento recente non finisce in fondo alla lista.
         $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_restituzione, pr.stato,
                        l.titolo, l.copertina_url,
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) as has_review
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
-                WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato')
-                ORDER BY pr.data_restituzione DESC, pr.data_prestito DESC
+                WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato','annullato','scaduto')
+                ORDER BY COALESCE(pr.data_restituzione, pr.updated_at) DESC, pr.data_prestito DESC
                 LIMIT 20";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('ii', $uid, $uid);

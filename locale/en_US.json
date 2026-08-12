@@ -6779,5 +6779,8 @@
   "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.": "Your request was approved automatically: you will receive an email with pickup instructions.",
   "Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.": "Loan booked: you will receive pickup instructions as the start date approaches.",
   "Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.": "You already have an active reservation for this book. Wait until it is fulfilled before requesting a new one.",
-  "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Error: invalid date format. Enter dates in YYYY-MM-DD format."
+  "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Error: invalid date format. Enter dates in YYYY-MM-DD format.",
+  "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.": "Change not saved: in the new period every copy is already taken by other loans or reservations.",
+  "Rinnovo non riuscito. Riprova.": "Renewal failed. Please try again.",
+  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Change not saved: the assigned copy is already committed to another loan in the new period."
 }

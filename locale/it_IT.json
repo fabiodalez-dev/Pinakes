@@ -6779,5 +6779,8 @@
   "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.": "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.",
   "Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.": "Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.",
   "Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.": "Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.",
-  "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD."
+  "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.",
+  "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.": "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.",
+  "Rinnovo non riuscito. Riprova.": "Rinnovo non riuscito. Riprova.",
+  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo."
 }

@@ -219,6 +219,9 @@ class IcsGenerator
      */
     private function getLoanTitle(string $status, string $bookTitle): string
     {
+        // Divergenza voluta da translate_loan_status(): questi sono TITOLI di
+        // eventi calendario ("Prestito Scaduto", "Prestito Programmato"), non
+        // etichette di stato — le etichette passano da translateStatus() sotto.
         $prefix = match($status) {
             'in_corso' => '📖 ' . __('Prestito'),
             'da_ritirare' => '📦 ' . __('Da Ritirare'),
@@ -272,15 +275,14 @@ class IcsGenerator
      */
     private function translateStatus(string $status): string
     {
-        return match($status) {
-            'in_corso' => __('In corso'),
-            'da_ritirare' => __('Da Ritirare'),
-            'prenotato' => __('Programmato'),
-            'in_ritardo' => __('Scaduto'),
-            'pendente' => __('In attesa'),
-            'attiva' => __('Attiva'),
-            default => $status
-        };
+        // 'attiva' è lo stato delle prenotazioni (tabella prenotazioni), fuori
+        // dall'enum prestiti; tutti gli stati prestito passano dall'helper
+        // canonico translate_loan_status() (#333) — il vecchio alias "Scaduto"
+        // per in_ritardo collideva con lo stato 'scaduto' vero e proprio.
+        if ($status === 'attiva') {
+            return __('Attiva');
+        }
+        return translate_loan_status($status);
     }
 
     /**

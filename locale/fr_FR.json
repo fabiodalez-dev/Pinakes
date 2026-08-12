@@ -6779,5 +6779,8 @@
   "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.": "Votre demande a été approuvée automatiquement : vous recevrez un e-mail avec les instructions de retrait.",
   "Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.": "Emprunt réservé : vous recevrez les instructions de retrait à l'approche de la date de début.",
   "Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.": "Vous avez déjà une réservation active pour ce livre. Attendez qu'elle soit traitée avant d'en demander une nouvelle.",
-  "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Erreur : format de date non valide. Saisissez les dates au format YYYY-MM-DD."
+  "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Erreur : format de date non valide. Saisissez les dates au format YYYY-MM-DD.",
+  "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.": "Modification non enregistrée : sur la nouvelle période, tous les exemplaires sont déjà occupés par d'autres prêts ou réservations.",
+  "Rinnovo non riuscito. Riprova.": "Échec du renouvellement. Veuillez réessayer.",
+  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Modification non enregistrée : l’exemplaire attribué est déjà affecté à un autre prêt pendant la nouvelle période."
 }

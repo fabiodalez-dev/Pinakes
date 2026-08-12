@@ -329,6 +329,27 @@ if (!function_exists('translate_loan_status')) {
     }
 }
 
+if (!function_exists('loan_status_label_map')) {
+    /**
+     * Full prestiti.stato enum => localized label, via translate_loan_status()
+     * (single source of truth for the wording). For contexts that need the whole
+     * map at once — e.g. json_encode() into a JS lookup for charts/calendars —
+     * instead of hand-maintained per-view copies (#333). For HTML badges in the
+     * admin views use loan_status_badge() (app/Views/partials/loan-status-badge.php).
+     *
+     * @return array<string, string>
+     */
+    function loan_status_label_map(): array
+    {
+        $states = ['pendente', 'prenotato', 'da_ritirare', 'in_corso', 'in_ritardo', 'restituito', 'perso', 'danneggiato', 'annullato', 'scaduto'];
+        $map = [];
+        foreach ($states as $stato) {
+            $map[$stato] = translate_loan_status($stato);
+        }
+        return $map;
+    }
+}
+
 if (!function_exists('full_name')) {
     /**
      * Join a member's given name and surname into a display name.
