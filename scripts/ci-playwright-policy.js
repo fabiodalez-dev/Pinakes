@@ -82,6 +82,16 @@ function checkPolicy() {
     }
   }
 
+  const workflowDir = path.join(root, '.github', 'workflows');
+  for (const workflow of fs.readdirSync(workflowDir)) {
+    const workflowPath = path.join(workflowDir, workflow);
+    if (!fs.statSync(workflowPath).isFile()) continue;
+    const source = fs.readFileSync(workflowPath, 'utf8');
+    if (/actions\/upload-artifact@v(?:[1-5])\b/.test(source)) {
+      fail(`${workflow} uses an upload-artifact release with a deprecated Node runtime`);
+    }
+  }
+
   if (!fs.existsSync(path.join(root, 'package-lock.json'))) {
     fail('root package-lock.json is required for reproducible npm ci runs');
   }

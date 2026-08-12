@@ -23,7 +23,7 @@ on:
       - 'tests/ci-playwright-policy.json'
       - 'installer/database/schema.sql'
       - 'version.json'
-      - '.github/workflows/ci-quality.yml'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -68,12 +68,17 @@ jobs:
           extensions: mysqli, pdo_mysql
           tools: phpstan
           coverage: none
-          github-token: ''
 
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+
+      - name: Setup Go for workflow validation
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache: false
 
       # ── Dependency CVE scanning ───────────────────────────────────────────
       - name: composer audit (known CVEs)
@@ -86,8 +91,14 @@ jobs:
           npm ci --silent
           npm audit --audit-level=high 2>&1 || { echo "⚠ npm audit: high/critical vulnerabilities found"; exit 1; }
 
+      - name: Root vendor assets are reproducible
+        run: git diff --exit-code -- public/assets/vendor/sortablejs
+
       - name: CI and Playwright coverage policy
         run: npm run test:ci-policy
+
+      - name: Validate every active GitHub Actions workflow
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/*.yml
 
       # ── Translation completeness ──────────────────────────────────────────
       - name: Translation and route parity (all supported locales)
@@ -223,9 +234,29 @@ jobs:
             sleep 2
           done
           mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/schema.sql
+          # Exercise the unit suite against the same baseline as a completed
+          # Italian install. The schema alone contains no default language or
+          # bundled-plugin registrations, which used to turn real regressions
+          # into silent SKIP results.
+          mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/data_it_IT.sql
           # Copy-occupancy triggers live in a separate file (DELIMITER-based); the
           # mysql CLI handles DELIMITER natively. loan-edge-cases relies on them.
           mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/triggers.sql
+          # PHP variables must not expand in Bash.
+          # shellcheck disable=SC2016
+          php -r '
+            require "vendor/autoload.php";
+            $db = new mysqli("127.0.0.1", "root", "root", "pinakes_test", 3306);
+            $db->set_charset("utf8mb4");
+            $hooks = new App\Support\HookManager($db);
+            (new App\Support\PluginManager($db, $hooks))->autoRegisterBundledPlugins();
+          '
+          default_languages="$(mysql -h 127.0.0.1 -u root -proot -Nse \
+            'SELECT COUNT(*) FROM pinakes_test.languages WHERE is_default=1')"
+          book_club_plugins="$(mysql -h 127.0.0.1 -u root -proot -Nse \
+            'SELECT COUNT(*) FROM pinakes_test.plugins WHERE name=0x626f6f6b2d636c7562')"
+          test "${default_languages}" = "1"
+          test "${book_club_plugins}" = "1"
 
       - name: PHP unit tests (standalone .unit.php)
         env:
@@ -254,7 +285,6 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml
           coverage: none
-          github-token: ''
       - name: Validate and install locked dependencies
         run: |
           composer validate --strict

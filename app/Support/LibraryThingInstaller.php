@@ -24,7 +24,9 @@ class LibraryThingInstaller
     public static function isInstalled(\mysqli $db): bool
     {
         // Check if plugin-specific columns exist
-        $result = $db->query("SHOW COLUMNS FROM libri LIKE 'review'");
+        // Use SHOW ... IN so the soft-delete SQL guard does not mistake this
+        // metadata probe for an application SELECT from the books table.
+        $result = $db->query("SHOW COLUMNS IN libri LIKE 'review'");
         return $result && $result->num_rows > 0;
     }
 

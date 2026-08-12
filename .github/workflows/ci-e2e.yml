@@ -69,7 +69,6 @@ jobs:
           php-version: '8.2'
           extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml
           coverage: none
-          github-token: ''
 
       - name: Configure virtual host on port 8081
         env:
@@ -356,7 +355,7 @@ jobs:
 
       # ── Artifacts on failure ─────────────────────────────────────────────────
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: playwright-report-${{ github.run_id }}
@@ -366,7 +365,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Apache error log
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: apache-error-log-${{ github.run_id }}

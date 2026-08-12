@@ -12,6 +12,7 @@ test.skip(process.env.E2E_RUN_SEED !== '1', 'Seeder skipped: set E2E_RUN_SEED=1 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
+const OFFLINE_SEED = process.env.E2E_OFFLINE_SEED === '1';
 
 // 10 music records via Discogs barcode scraping
 const MUSIC_BARCODES = [
@@ -49,9 +50,13 @@ const MANUAL_ENTRIES = [
  */
 async function trySave(page, label) {
   await page.locator('button[type="submit"]').first().click();
-  const swal = page.locator('.swal2-confirm');
-  if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-  const saved = await page.waitForURL(/\/admin\/books\/\d+/, { timeout: 15000 }).then(() => true).catch(() => false);
+  const confirmation = page.locator('.swal2-popup.swal2-question .swal2-confirm');
+  if (await confirmation.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await confirmation.click({ force: true });
+  }
+  const saved = await page.waitForURL(/\/admin\/books(?:\/\d+)?(?:[?#].*)?$/, { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
   if (saved) {
     console.log(`  ✓ ${label}`);
   } else {
@@ -92,7 +97,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       await page.waitForLoadState('domcontentloaded');
 
       const importBtn = page.locator('#btnImportIsbn');
-      if (await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (!OFFLINE_SEED && await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await page.fill('#importIsbn', rec.barcode);
         await importBtn.click();
         // Wait for scraping AJAX to complete (network idle).
@@ -134,7 +139,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       await page.waitForLoadState('domcontentloaded');
 
       const importBtn = page.locator('#btnImportIsbn');
-      if (await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (!OFFLINE_SEED && await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await page.fill('#importIsbn', book.isbn);
         await importBtn.click();
         await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});

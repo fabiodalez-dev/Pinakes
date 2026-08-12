@@ -14,25 +14,25 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Get version from tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
-      - name: Setup PHP 8.1
+      - name: Setup PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.2'
           extensions: mysqli, pdo, mbstring, json, openssl, curl
           tools: composer
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -88,12 +88,16 @@ jobs:
         run: |
           if [ -f "CHANGELOG.md" ]; then
             # Extract changelog section for this version
-            VERSION_SECTION=$(awk "/## \[${VERSION}\]/{flag=1;next}/## \[/{flag=0}flag" CHANGELOG.md || echo "See CHANGELOG.md for details")
-            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-            echo "$VERSION_SECTION" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            VERSION_SECTION=$(awk -v version="$VERSION" \
+              '$0 ~ "^## \\[" version "\\]" {flag=1; next} /^## \\[/ {flag=0} flag' \
+              CHANGELOG.md || echo "See CHANGELOG.md for details")
+            {
+              echo "CHANGELOG<<EOF"
+              echo "$VERSION_SECTION"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "CHANGELOG=See release notes for details" >> $GITHUB_OUTPUT
+            echo "CHANGELOG=See release notes for details" >> "$GITHUB_OUTPUT"
           fi
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
@@ -158,7 +162,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-package-v${{ steps.version.outputs.VERSION }}
           path: |

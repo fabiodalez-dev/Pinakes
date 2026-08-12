@@ -88,7 +88,6 @@ jobs:
           php-version: '8.2'
           extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml
           coverage: none
-          github-token: ''
 
       - name: Setup Node 22
         uses: actions/setup-node@v5
@@ -156,11 +155,13 @@ jobs:
         run: npx playwright test tests/full-test.spec.js --config=tests/playwright.ci.config.js --workers=1
 
       - name: Audit bootstrap failures, flakes and suspicious skips
+        if: always()
         run: node scripts/ci-audit-playwright-results.js "test-results/bootstrap-${{ matrix.shard }}.json"
 
       - name: Seed deterministic cross-suite fixtures
         env:
           E2E_RUN_SEED: '1'
+          E2E_OFFLINE_SEED: '1'
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/setup-${{ matrix.shard }}.json
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-setup-${{ matrix.shard }}
         run: |
@@ -173,9 +174,11 @@ jobs:
           sudo chmod -R 777 "${GITHUB_WORKSPACE}/public/uploads"
 
       - name: Audit setup fixtures
+        if: always()
         run: node scripts/ci-audit-playwright-results.js "test-results/setup-${{ matrix.shard }}.json"
 
       - name: Run every deep-regression spec in shard ${{ matrix.shard }}
+        id: deep-regression
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/shard-${{ matrix.shard }}.json
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-shard-${{ matrix.shard }}
@@ -188,11 +191,11 @@ jobs:
             --workers=1
 
       - name: Audit failures, flakes and suspicious skips
-        if: always()
+        if: always() && steps.deep-regression.outcome != 'skipped'
         run: node scripts/ci-audit-playwright-results.js "test-results/shard-${{ matrix.shard }}.json"
 
       - name: Upload browser evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: deep-regression-shard-${{ matrix.shard }}-${{ github.run_id }}
@@ -258,7 +261,6 @@ jobs:
           php-version: '8.2'
           extensions: mysqli, mbstring, curl, zip, gd, intl, xml
           coverage: none
-          github-token: ''
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
@@ -312,7 +314,7 @@ jobs:
         if: always()
         run: node scripts/ci-audit-playwright-results.js "test-results/installer-${{ matrix.locale }}.json"
       - name: Upload installer evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: installer-${{ matrix.locale }}-${{ github.run_id }}

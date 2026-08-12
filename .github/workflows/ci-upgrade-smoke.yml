@@ -72,7 +72,6 @@ jobs:
           php-version: '8.2'
           extensions: mysqli, curl, zip, mbstring
           coverage: none
-          github-token: ''
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
