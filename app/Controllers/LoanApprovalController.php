@@ -622,6 +622,7 @@ class LoanApprovalController
             // deliberata al soft-delete invariant): rifiutare una richiesta pendente
             // deve funzionare ANCHE se il libro è stato soft-eliminato nel frattempo —
             // filtrare renderebbe la query vuota e lascerebbe la richiesta orfana.
+            // CI-SOFT-DELETE-EXEMPT: rejection must release pending circulation state for a deleted book.
             $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             $lockBook->bind_param('i', $bookId);
             $lockBook->execute();
@@ -637,6 +638,7 @@ class LoanApprovalController
             }
 
             // Fetch full loan data under lock before changing state (needed for email).
+            // CI-SOFT-DELETE-EXEMPT: rejection needs the deleted book title while releasing its pending loan.
             $stmt = $db->prepare("
                 SELECT p.libro_id, p.utente_id, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
@@ -811,6 +813,7 @@ class LoanApprovalController
             // Lock della riga `libri` SENZA filtro deleted_at: come per le restituzioni
             // (vedi LoanRepository::close), l'evasione di un prestito già approvato deve
             // poter procedere anche se il libro è stato soft-deleted nel frattempo.
+            // CI-SOFT-DELETE-EXEMPT: pickup must finish an already-approved loan for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -1000,6 +1003,7 @@ class LoanApprovalController
             // ritiro deve sempre poter procedere anche su libro soft-deleted (vedi
             // LoanRepository::close), altrimenti prestito e copia resterebbero
             // impegnati per sempre.
+            // CI-SOFT-DELETE-EXEMPT: cancellation must free circulation state for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -1172,6 +1176,7 @@ class LoanApprovalController
             // sempre poter procedere anche su libro soft-deleted (vedi il commento in
             // LoanRepository::close), altrimenti prestito e copia resterebbero
             // occupati per sempre.
+            // CI-SOFT-DELETE-EXEMPT: return must release an active loan and copy for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -1372,6 +1377,7 @@ class LoanApprovalController
             // Lock della riga `libri` SENZA filtro deleted_at: l'annullamento di una
             // prenotazione deve sempre poter procedere anche su libro soft-deleted
             // (vedi LoanRepository::close), per non lasciare la coda bloccata.
+            // CI-SOFT-DELETE-EXEMPT: reservation cancellation must unblock the queue for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -1380,6 +1386,7 @@ class LoanApprovalController
             // Poi lock + ri-verifica della prenotazione. Il JOIN recupera anche
             // destinatario e titolo per la notifica post-commit (M11), come fa
             // rejectLoan; niente filtro deleted_at sul libro (vedi sopra).
+            // CI-SOFT-DELETE-EXEMPT: cancellation notification needs the deleted book title for the affected user.
             $stmt = $db->prepare("
                 SELECT r.libro_id, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email

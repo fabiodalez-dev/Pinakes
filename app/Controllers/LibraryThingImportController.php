@@ -2153,7 +2153,7 @@ class LibraryThingImportController
             $bindValues[] = $autoreId;
         }
 
-        // Build query
+        // Build query. CI-SOFT-DELETE-EXEMPT: l.deleted_at IS NULL is appended to this exact query before execution below.
         $query = "
             SELECT
                 l.*,

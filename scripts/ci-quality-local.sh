@@ -20,6 +20,10 @@
 set -uo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 
+readonly CIQ_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pinakes-ci-quality.XXXXXX")" || exit 2
+cleanup_ciq_tmp() { rm -rf -- "$CIQ_TMP_DIR"; }
+trap cleanup_ciq_tmp EXIT HUP INT TERM
+
 # Load DB_* from .env (gitignored) unless already set in the environment.
 if [ -f .env ]; then
   while IFS='=' read -r k v; do
@@ -45,18 +49,18 @@ warn() { printf "  ${Y}⚠${N} %s\n" "$1"; }
 
 # 1 ── PHPStan (level 5) ──────────────────────────────────────────────────────
 step "PHPStan (level 5, full tree)"
-if "$PHPSTAN" analyse --no-progress --memory-limit=512M >/tmp/ciq_phpstan.log 2>&1; then
+if "$PHPSTAN" analyse --no-progress --memory-limit=512M >"$CIQ_TMP_DIR/phpstan.log" 2>&1; then
   ok "no errors"
 else
-  bad "PHPStan errors:"; tail -20 /tmp/ciq_phpstan.log | sed 's/^/    /'
+  bad "PHPStan errors:"; tail -20 "$CIQ_TMP_DIR/phpstan.log" | sed 's/^/    /'
 fi
 
 # 2 ── composer audit ─────────────────────────────────────────────────────────
 step "composer audit (known CVEs)"
-if composer audit --no-dev --abandoned=ignore >/tmp/ciq_composer.log 2>&1; then
+if composer audit --no-dev --abandoned=ignore >"$CIQ_TMP_DIR/composer.log" 2>&1; then
   ok "no known vulnerabilities"
 else
-  bad "composer audit found vulnerabilities:"; tail -15 /tmp/ciq_composer.log | sed 's/^/    /'
+  bad "composer audit found vulnerabilities:"; tail -15 "$CIQ_TMP_DIR/composer.log" | sed 's/^/    /'
 fi
 
 # 3 ── npm audit ─────────────────────────────────────────────────────────────
@@ -66,30 +70,30 @@ if ! command -v npm >/dev/null; then
 elif [ ! -f package-lock.json ] || [ ! -f frontend/package-lock.json ]; then
   bad "both package-lock.json and frontend/package-lock.json are required"
 else
-  if npm audit --audit-level=high >/tmp/ciq_npm.log 2>&1 \
-      && npm --prefix frontend audit --audit-level=high >>/tmp/ciq_npm.log 2>&1; then
+  if npm audit --audit-level=high >"$CIQ_TMP_DIR/npm.log" 2>&1 \
+      && npm --prefix frontend audit --audit-level=high >>"$CIQ_TMP_DIR/npm.log" 2>&1; then
     ok "no high/critical advisories in root or frontend dependencies"
   else
     bad "npm audit failed or reported high/critical advisories"
-    tail -20 /tmp/ciq_npm.log | sed 's/^/    /'
+    tail -20 "$CIQ_TMP_DIR/npm.log" | sed 's/^/    /'
   fi
 fi
 
 # 4 ── Translation, placeholder and route parity ─────────────────────────────
 step "Translation and route key + placeholder parity"
-if python3 scripts/ci-check-locales.py >/tmp/ciq_locales.log 2>&1; then
+if python3 scripts/ci-check-locales.py >"$CIQ_TMP_DIR/locales.log" 2>&1; then
   ok "translation keys, placeholders and routes are aligned"
 else
-  bad "locale parity failed:"; tail -30 /tmp/ciq_locales.log | sed 's/^/    /'
+  bad "locale parity failed:"; tail -30 "$CIQ_TMP_DIR/locales.log" | sed 's/^/    /'
 fi
 
 step "Playwright coverage policy + frontend lint"
-if node scripts/ci-playwright-policy.js check >/tmp/ciq_policy.log 2>&1 \
-    && npm --prefix frontend run lint >/tmp/ciq_frontend.log 2>&1; then
+if node scripts/ci-playwright-policy.js check >"$CIQ_TMP_DIR/policy.log" 2>&1 \
+    && npm --prefix frontend run lint >"$CIQ_TMP_DIR/frontend.log" 2>&1; then
   ok "all browser specs classified; frontend lint clean"
 else
   bad "CI policy or frontend lint failed"
-  tail -20 /tmp/ciq_policy.log /tmp/ciq_frontend.log 2>/dev/null | sed 's/^/    /'
+  tail -20 "$CIQ_TMP_DIR/policy.log" "$CIQ_TMP_DIR/frontend.log" 2>/dev/null | sed 's/^/    /'
 fi
 
 # 5 ── Route key integrity ────────────────────────────────────────────────────
@@ -133,19 +137,12 @@ done
 [ "$es" -eq 0 ] && ok "every table-creating plugin calls ensureSchema() in onActivate()+onInstall()"
 
 # 8 ── Soft-delete guard ────────────────────────────────────────────────────────
-step "Soft-delete guard (libri queries include deleted_at IS NULL)"
-sd=0
-while IFS= read -r file; do
-  if ! grep -qiE 'deleted_at[[:space:]]+IS[[:space:]]+NULL' "$file"; then
-    if grep -q 'CI-SOFT-DELETE-EXEMPT:' "$file"; then
-      warn "$file: soft-deleted rows intentionally included (documented exemption)"
-    else
-      bad "$file: a FROM libri query lacks deleted_at IS NULL"
-      sd=1
-    fi
-  fi
-done < <(grep -rliE "FROM[[:space:]]+\`?libri\`?([[:space:],)]|$)" app/ 2>/dev/null)
-[ "$sd" -eq 0 ] && ok "no libri query missing deleted_at IS NULL"
+step "Soft-delete guard (each libri query is guarded or statement-exempt)"
+if python3 scripts/ci-check-soft-delete.py app storage/plugins installer; then
+  ok "every libri query is guarded at statement scope"
+else
+  bad "one or more libri queries lack a statement-scoped soft-delete policy"
+fi
 
 # 9 ── Autoloader phpstan-free ────────────────────────────────────────────────
 step "Autoloader phpstan-free"
@@ -174,28 +171,28 @@ done
 
 # 11 ── Standalone PHP unit tests (via EXIT CODE, like CI) ────────────────────
 step "PHP unit tests (standalone .unit.php, strict no-skip mode)"
-if CI_STRICT_TESTS=1 bash scripts/ci-run-unit-tests.sh >/tmp/ciq_units.log 2>&1; then
+if CI_STRICT_TESTS=1 bash scripts/ci-run-unit-tests.sh >"$CIQ_TMP_DIR/units.log" 2>&1; then
   ok "all standalone unit tests passed without skips"
 else
-  bad "standalone unit test failures/skips:"; tail -30 /tmp/ciq_units.log | sed 's/^/    /'
+  bad "standalone unit test failures/skips:"; tail -30 "$CIQ_TMP_DIR/units.log" | sed 's/^/    /'
 fi
 
 # 12 ── Schema/migration behavioral gate ─────────────────────────────────────
 step "Schema and migration behavioral gate (strict no-skip mode)"
-if CI_STRICT_TESTS=1 bash scripts/verify-schema.sh >/tmp/ciq_schema.log 2>&1; then
+if CI_STRICT_TESTS=1 bash scripts/verify-schema.sh >"$CIQ_TMP_DIR/schema.log" 2>&1; then
   ok "schema and migration behavior passed without skips"
 else
-  bad "schema/migration gate failed:"; tail -30 /tmp/ciq_schema.log | sed 's/^/    /'
+  bad "schema/migration gate failed:"; tail -30 "$CIQ_TMP_DIR/schema.log" | sed 's/^/    /'
 fi
 
 # 13 ── Shell test — permissions ─────────────────────────────────────────────
 step "Shell test — setup-permissions"
 if [ -f tests/setup-permissions.test.sh ]; then
-  if bash tests/setup-permissions.test.sh >/tmp/ciq_perm.log 2>&1; then
+  if bash tests/setup-permissions.test.sh >"$CIQ_TMP_DIR/permissions.log" 2>&1; then
     ok "setup-permissions ok"
   else
     bad "setup-permissions failed:"
-    tail -10 /tmp/ciq_perm.log | sed 's/^/    /'
+    tail -10 "$CIQ_TMP_DIR/permissions.log" | sed 's/^/    /'
   fi
 else
   warn "tests/setup-permissions.test.sh absent"

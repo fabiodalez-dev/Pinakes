@@ -2522,6 +2522,7 @@ class OaiPmhServerPlugin
             $w = ['l.deleted_at IS NULL'];
             if ($fromMysql !== null)  { $w[] = 'l.updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $w[] = 'l.updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
+            // CI-SOFT-DELETE-EXEMPT: $w is initialized for this UNION arm with l.deleted_at IS NULL.
             $parts[] = 'SELECT l.id AS _id, \'book\' AS _entity, \'active\' AS _status, l.updated_at AS _datestamp'
                 . ' FROM libri l WHERE ' . implode(' AND ', $w);
         }

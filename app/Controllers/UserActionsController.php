@@ -162,6 +162,7 @@ class UserActionsController
 
             // Lock della riga libri per serializzare rilascio copia, promozione
             // coda e ricalcolo disponibilità con gli altri percorsi sullo stesso libro.
+            // CI-SOFT-DELETE-EXEMPT: user cancellation must release existing circulation state for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -296,6 +297,7 @@ class UserActionsController
 
             // Lock the book row to serialize the queue reorder + availability
             // recalculation with other paths working on the same book's queue.
+            // CI-SOFT-DELETE-EXEMPT: reservation cancellation must unblock a deleted book's existing queue.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();

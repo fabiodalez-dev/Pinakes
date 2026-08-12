@@ -60,10 +60,10 @@ jobs:
           --health-retries=5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           extensions: mysqli, pdo_mysql
@@ -71,12 +71,12 @@ jobs:
           coverage: none
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
 
       - name: Setup Go for workflow validation
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: '1.25.x'
           cache: false
@@ -173,26 +173,7 @@ jobs:
 
       # ── Soft-delete guard ─────────────────────────────────────────────────
       - name: Soft-delete guard (libri queries must include deleted_at IS NULL)
-        run: |
-          VIOLATIONS=0
-          while IFS= read -r file; do
-            if grep -qiE "FROM[[:space:]]+\`?libri\`?([[:space:],)]|$)" "$file" 2>/dev/null; then
-              if ! grep -qiE 'deleted_at[[:space:]]+IS[[:space:]]+NULL' "$file"; then
-                if grep -q 'CI-SOFT-DELETE-EXEMPT:' "$file"; then
-                  echo "  ℹ $file: soft-deleted rows intentionally included (documented exemption)"
-                else
-                  echo "  ✗ $file: query FROM libri senza deleted_at IS NULL"
-                  VIOLATIONS=$((VIOLATIONS + 1))
-                fi
-              fi
-            fi
-          done < <(find app/ -name "*.php" -not -path "*/vendor/*")
-          if [ "$VIOLATIONS" -gt 0 ]; then
-            echo "✗ $VIOLATIONS file potrebbero mancare del soft-delete guard"
-            exit 1
-          else
-            echo "✓ Soft-delete guard presente in tutti i file con query su libri"
-          fi
+        run: python3 scripts/ci-check-soft-delete.py app storage/plugins installer
 
       # ── Autoloader safety ─────────────────────────────────────────────────
       - name: Autoloader phpstan-free
@@ -294,9 +275,9 @@ jobs:
       matrix:
         php: ['8.2', '8.3', '8.4']
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup PHP ${{ matrix.php }}
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: ${{ matrix.php }}
           extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml
@@ -315,9 +296,9 @@ jobs:
     name: Frontend audit, lint and reproducible build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
           cache: npm

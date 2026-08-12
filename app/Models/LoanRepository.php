@@ -173,6 +173,7 @@ class LoanRepository
             // il libro è stato soft-deleted nel frattempo: la regola soft-delete
             // governa prestabilità/visibilità, non i rientri. Bloccare il close
             // lascerebbe il prestito attivo e la copia occupata per sempre.
+            // CI-SOFT-DELETE-EXEMPT: closing a loan must free its copy even after the book was deleted.
             $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id=? FOR UPDATE');
             $lockBook->bind_param('i', $bookId);
             $lockBook->execute();

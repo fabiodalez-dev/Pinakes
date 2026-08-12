@@ -59,7 +59,7 @@ jobs:
       MAILPIT_API: http://127.0.0.1:8025/api/v1
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Install Apache, PHP module, MySQL client and mail transport
         run: |
@@ -83,14 +83,14 @@ jobs:
           done < <(find /etc/php -type d -path '*/conf.d' | sort -u)
 
       - name: Setup PHP 8.2
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml
           coverage: none
 
       - name: Setup Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
           cache: npm
@@ -195,7 +195,7 @@ jobs:
         run: node scripts/ci-audit-playwright-results.js "test-results/shard-${{ matrix.shard }}.json"
 
       - name: Upload browser evidence
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
           name: deep-regression-shard-${{ matrix.shard }}-${{ github.run_id }}
@@ -246,7 +246,7 @@ jobs:
       E2E_LOCALE: ${{ matrix.locale }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Install Apache and PHP module
         run: |
           sudo apt-get update -q
@@ -256,12 +256,12 @@ jobs:
           [ -z "${php_module}" ] || sudo a2enmod "${php_module}"
           sudo a2dissite 000-default || true
       - name: Setup PHP and Node
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           extensions: mysqli, mbstring, curl, zip, gd, intl, xml
           coverage: none
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
           cache: npm
@@ -314,7 +314,7 @@ jobs:
         if: always()
         run: node scripts/ci-audit-playwright-results.js "test-results/installer-${{ matrix.locale }}.json"
       - name: Upload installer evidence
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
           name: installer-${{ matrix.locale }}-${{ github.run_id }}

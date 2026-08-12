@@ -46,7 +46,7 @@ jobs:
       E2E_INSTALL_ROOT: ${{ github.workspace }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       # ── Apache2 + mod_php ───────────────────────────────────────────────────
       # Install Apache before setup-php adds external package sources; the app
@@ -64,7 +64,7 @@ jobs:
 
       # ── PHP 8.2 CLI for Composer and tooling ────────────────────────────────
       - name: Setup PHP 8.2
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml
@@ -97,7 +97,7 @@ jobs:
 
       # ── PHP dependencies ────────────────────────────────────────────────────
       - name: Cache Composer packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: vendor
           key: composer-${{ hashFiles('composer.lock') }}
@@ -108,7 +108,7 @@ jobs:
 
       # ── Node / Playwright ────────────────────────────────────────────────────
       - name: Setup Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
           cache: npm
@@ -355,7 +355,7 @@ jobs:
 
       # ── Artifacts on failure ─────────────────────────────────────────────────
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: failure()
         with:
           name: playwright-report-${{ github.run_id }}
@@ -365,7 +365,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Apache error log
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: failure()
         with:
           name: apache-error-log-${{ github.run_id }}

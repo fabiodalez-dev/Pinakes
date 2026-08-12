@@ -114,6 +114,7 @@ final class ContributorBackfill
     private static function booksWithPseudonyms(mysqli $db): array
     {
         $bookIds = [];
+        // CI-SOFT-DELETE-EXEMPT: backfill indexes deleted books too because they may later be restored.
         $res = $db->query(
             "SELECT DISTINCT la.libro_id
                FROM libri_autori la

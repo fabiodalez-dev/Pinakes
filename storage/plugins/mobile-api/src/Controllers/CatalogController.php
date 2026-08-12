@@ -198,6 +198,7 @@ final class CatalogController
                 ? ",\n                    {$relevance['score_sql']} AS relevance_score"
                 : '';
 
+            // CI-SOFT-DELETE-EXEMPT: $where is initialized above with l.deleted_at IS NULL before any optional filter.
             $sql = "
                 SELECT
                     l.id, l.titolo, l.sottotitolo, l.anno_pubblicazione, l.lingua,

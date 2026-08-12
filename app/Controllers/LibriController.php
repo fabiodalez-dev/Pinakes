@@ -2252,7 +2252,7 @@ class LibriController
      */
     private function currentCoverUrl(mysqli $db, int $bookId): string
     {
-        $stmt = $db->prepare('SELECT copertina_url FROM libri WHERE id=?');
+        $stmt = $db->prepare('SELECT copertina_url FROM libri WHERE id=? AND deleted_at IS NULL');
         if (!$stmt) {
             return '';
         }
@@ -3330,7 +3330,7 @@ class LibriController
             $bindValues[] = $autoreId;
         }
 
-        // Build the query
+        // Build the query. CI-SOFT-DELETE-EXEMPT: l.deleted_at IS NULL is appended to this exact export before prepare/query.
         $query = "
             SELECT
                 l.*,

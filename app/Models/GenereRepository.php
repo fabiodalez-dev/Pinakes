@@ -511,6 +511,7 @@ class GenereRepository
             }
 
             // Count distinct books referencing source (including soft-deleted, since we delete the genre row)
+            // CI-SOFT-DELETE-EXEMPT: genre merges must include deleted books to avoid dangling foreign keys after restore.
             $stmt = $this->db->prepare("SELECT COUNT(DISTINCT id) as cnt FROM libri WHERE genere_id = ? OR sottogenere_id = ?");
             $stmt->bind_param('ii', $sourceId, $sourceId);
             if (!$stmt->execute()) {

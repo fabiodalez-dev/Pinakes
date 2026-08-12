@@ -157,7 +157,7 @@ $callBulk = static function (array $ids, int $days) use ($db) {
     return (new PrestitiController())->bulkExtend($request, $response, $db);
 };
 
-$callUpdate = static function (int $loanId, int $userId, string $start, string $due) use ($db) {
+$callUpdate = static function (int $loanId, int $userId, mixed $start, mixed $due) use ($db) {
     // The controller authorizes from the session, while processed_by must also
     // reference a real user because of the FK. Reuse the fixture borrower.
     $_SESSION['user'] = ['tipo_utente' => 'admin', 'id' => $userId];
@@ -217,6 +217,17 @@ $check($dueDate($currentLoan) === $due, 'manual copy conflict leaves the origina
 $response = $callBulk([$currentLoan], 10);
 $check(str_contains($response->getHeaderLine('Location'), 'error=bulk_extend_conflict'), 'same-copy future schedule blocks the extension despite spare book capacity');
 $check($dueDate($currentLoan) === $due, 'copy conflict leaves the original due date unchanged');
+
+$warning = null;
+set_error_handler(static function (int $severity, string $message) use (&$warning): bool {
+    $warning = [$severity, $message];
+    return true;
+});
+$invalidTypeResponse = $callUpdate($currentLoan, $currentUser, [$start], $due);
+restore_error_handler();
+$check($warning === null, 'array date input is rejected before any Array to string warning');
+$check(str_contains($invalidTypeResponse->getHeaderLine('Location'), 'error=invalid_date_format'), 'array date input returns invalid_date_format');
+$check($dueDate($currentLoan) === $due, 'invalid date type leaves the loan unchanged');
 
 echo "C. Manual edit checks only newly claimed days (#336)\n";
 [$reservationBook, [$reservationCopy]] = $makeBook(1);

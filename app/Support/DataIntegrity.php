@@ -30,6 +30,7 @@ class DataIntegrity {
             // Global maintenance still obeys the circulation lock order. Lock
             // every book deterministically before touching copies; otherwise a
             // bulk copies->books update crosses web requests using books->copies.
+            // CI-SOFT-DELETE-EXEMPT: global integrity maintenance locks every book, including restorable deleted rows.
             $lockBooks = $this->db->prepare('SELECT id FROM libri ORDER BY id FOR UPDATE');
             $lockBooks->execute();
             $lockBooks->get_result()->fetch_all(MYSQLI_NUM);
@@ -276,6 +277,7 @@ class DataIntegrity {
             // every circulation write path and making deadlocks possible. Callers
             // already inside a transaction follow the same order; taking the book
             // lock again is harmless and makes that contract explicit.
+            // CI-SOFT-DELETE-EXEMPT: targeted reconciliation must repair a deleted book before a later restore.
             $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             $lockBook->bind_param('i', $bookId);
             $lockBook->execute();
@@ -465,6 +467,7 @@ class DataIntegrity {
         $stmt->close();
 
         // 3. Verifica prestiti orfani (senza libro o utente)
+        // CI-SOFT-DELETE-EXEMPT: a soft-deleted but existing book is not an orphaned foreign-key target.
         $stmt = $this->db->prepare("
             SELECT p.id, p.libro_id, p.utente_id
             FROM prestiti p

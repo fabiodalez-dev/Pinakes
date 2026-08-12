@@ -742,6 +742,7 @@ class PrestitiController
         // data_restituzione/attivo/stato sono gestiti dal form "Registra Restituzione".
         $allowedFields = ['utente_id', 'data_prestito', 'data_scadenza'];
         $updateData = [];
+        $invalidDateInput = false;
         foreach ($allowedFields as $field) {
             if (isset($data[$field])) {
                 switch ($field) {
@@ -750,10 +751,17 @@ class PrestitiController
                         break;
                     case 'data_prestito':
                     case 'data_scadenza':
+                        if (!is_string($data[$field])) {
+                            $invalidDateInput = true;
+                            break;
+                        }
                         $updateData[$field] = $data[$field];
                         break;
                 }
             }
+        }
+        if ($invalidDateInput) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_date_format')->withStatus(302);
         }
         $updateData['processed_by'] = $processedBy;
 
@@ -803,6 +811,7 @@ class PrestitiController
             // come store/renew/close. Niente filtro deleted_at: la modifica di un
             // prestito esistente deve poter procedere anche su libro soft-deleted
             // (stessa regola dei rientri in LoanRepository::close()).
+            // CI-SOFT-DELETE-EXEMPT: editing an existing loan must remain possible after its book is deleted.
             $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             $lockBook->bind_param('i', $libroId);
             $lockBook->execute();
@@ -1175,6 +1184,7 @@ class PrestitiController
             // LoanRepository::close()): la restituzione deve sempre poter procedere
             // anche su libro soft-deleted — la regola soft-delete governa
             // prestabilità/visibilità, non i rientri.
+            // CI-SOFT-DELETE-EXEMPT: a return must release its copy even when the book is deleted.
             $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             $lockBook->bind_param('i', $libro_id);
             $lockBook->execute();
@@ -1565,6 +1575,7 @@ class PrestitiController
             $bookScan->close();
             sort($bookIds, SORT_NUMERIC);
 
+            // CI-SOFT-DELETE-EXEMPT: bulk edits serialize existing loans even if a referenced book was deleted.
             $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             foreach ($bookIds as $bookId) {
                 $lockBook->bind_param('i', $bookId);

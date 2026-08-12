@@ -190,6 +190,7 @@ class LibriApiController
         $total = (int) ($total_res->fetch_assoc()['c'] ?? 0);
 
         // Use prepared statement for filtered count
+        // CI-SOFT-DELETE-EXEMPT: $where is initialized above with WHERE l.deleted_at IS NULL and cannot be replaced.
         $count_sql = 'SELECT COUNT(*) AS c FROM libri l ' . $where;
         $count_stmt = $db->prepare($count_sql);
         if (!$count_stmt) {
@@ -210,6 +211,7 @@ class LibriApiController
         $authorLabelExpr = $this->hasTableColumn($db, 'autori', 'cognome')
             ? "CONCAT(a.nome, ' ', a.cognome)"
             : \App\Support\AuthorName::displaySql('a');
+        // CI-SOFT-DELETE-EXEMPT: the immutable $where prefix injects l.deleted_at IS NULL into this exact list query.
         $sql = "SELECT l.*, e.nome AS editore_nome,
                 g.nome AS genere_nome,
                 COALESCE(s.nome, 'N/D') AS collocazione_nome,

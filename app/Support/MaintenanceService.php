@@ -610,6 +610,7 @@ class MaintenanceService
                 $copiaId = $reservation['copia_id'] ? (int) $reservation['copia_id'] : null;
                 $libroId = (int) $reservation['libro_id'];
 
+                // CI-SOFT-DELETE-EXEMPT: expiry maintenance must clean existing reservations for deleted books.
                 $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
                 $lockBook->bind_param('i', $libroId);
                 $lockBook->execute();
@@ -784,6 +785,7 @@ class MaintenanceService
                 $copiaId = $pickup['copia_id'] ? (int) $pickup['copia_id'] : null;
                 $libroId = (int) $pickup['libro_id'];
 
+                // CI-SOFT-DELETE-EXEMPT: expired pickup cleanup must free copies for deleted books.
                 $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
                 $lockBook->bind_param('i', $libroId);
                 $lockBook->execute();

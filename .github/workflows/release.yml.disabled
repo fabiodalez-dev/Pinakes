@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
@@ -23,14 +23,14 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Setup PHP 8.2
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           extensions: mysqli, pdo, mbstring, json, openssl, curl
           tools: composer
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -89,8 +89,11 @@ jobs:
           if [ -f "CHANGELOG.md" ]; then
             # Extract changelog section for this version
             VERSION_SECTION=$(awk -v version="$VERSION" \
-              '$0 ~ "^## \\[" version "\\]" {flag=1; next} /^## \\[/ {flag=0} flag' \
-              CHANGELOG.md || echo "See CHANGELOG.md for details")
+              '$0 ~ "^## \\[" version "\\]" {flag=1; next} /^## \[/ {flag=0} flag' \
+              CHANGELOG.md)
+            if [ -z "$(printf '%s' "$VERSION_SECTION" | tr -d '[:space:]')" ]; then
+              VERSION_SECTION="See CHANGELOG.md for details"
+            fi
             {
               echo "CHANGELOG<<EOF"
               echo "$VERSION_SECTION"
@@ -103,7 +106,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.VERSION }}
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           name: Pinakes v${{ steps.version.outputs.VERSION }}
           body: |
@@ -162,7 +165,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-package-v${{ steps.version.outputs.VERSION }}
           path: |
