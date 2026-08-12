@@ -343,10 +343,11 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
              WHERE id = ${itemAId}`
         );
 
-        // Upload a new PDF via admin form
-        // Use a parser-valid fixture: the hand-written minimal byte sequence is
-        // useful for rejection paths but is not a valid upload contract sample.
-        const tmpPdf = path.join(__dirname, 'fixtures', 'archive-test.pdf');
+        // Upload a representative PDF via the admin form. The richer archive
+        // fixture includes a content stream and font object, avoiding
+        // libmagic-version differences seen with a 306-byte synthetic PDF.
+        const tmpPdf = path.join(PUBLIC_DIR, 'uploads', 'archives', 'e2e', 'letter.pdf');
+        expect(fs.existsSync(tmpPdf), 'committed PDF upload fixture').toBe(true);
 
         await page.goto(`${BASE}/admin/archives/${itemAId}`);
         await page.waitForLoadState('domcontentloaded');

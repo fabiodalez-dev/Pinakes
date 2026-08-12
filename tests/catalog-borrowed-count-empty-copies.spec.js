@@ -18,6 +18,8 @@ const path = require('path');
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS || '';
+const DB_HOST = process.env.E2E_DB_HOST || '';
+const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 const INSTALL_ROOT = process.env.E2E_INSTALL_ROOT || path.resolve(__dirname, '..');
@@ -26,7 +28,8 @@ test.skip(!DB_USER || !DB_NAME, 'DB credentials not configured (this spec seeds 
 
 function db(sql) {
   const args = [];
-  if (DB_SOCKET) args.push('-S', DB_SOCKET);
+  if (DB_HOST) { args.push('-h', DB_HOST); if (DB_PORT) args.push('-P', DB_PORT); }
+  else if (DB_SOCKET) args.push('-S', DB_SOCKET);
   args.push('-u', DB_USER, DB_NAME, '-N', '-B', '-e', sql);
   return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
 }
@@ -43,7 +46,10 @@ function clearCatalogCache() {
 
 const TAG = 'ZZBORROW298';
 async function counts(page) {
-  await page.goto(`${BASE}/catalogo`);
+  // A unique free-text query isolates the fixture and deliberately bypasses
+  // the Apache APCu facet cache. Node cannot invalidate another process's APCu
+  // after directly seeding SQL rows.
+  await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}`);
   await page.waitForSelector('#borrowed-books-count', { timeout: 15000 });
   const read = async (id) => {
     const txt = (await page.locator('#' + id).first().textContent()) || '0';
@@ -63,10 +69,10 @@ test('#298-borrowed: no-copies books are not counted as "on loan"', async ({ pag
   const before = await counts(page);
 
   // 1 available, 1 truly on loan (has a copy, none available), 2 with no copies at all
-  db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' available')}, 'disponibile', 1, 1)`);
-  db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' on loan')},   'prestato',    1, 0)`);
-  db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' no copies 1')},'disponibile', 0, 0)`);
-  db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' no copies 2')},'disponibile', 0, 0)`);
+  db(`INSERT INTO libri (titolo, search_index, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' available')}, ${sqlq(TAG + ' available')}, 'disponibile', 1, 1)`);
+  db(`INSERT INTO libri (titolo, search_index, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' on loan')}, ${sqlq(TAG + ' on loan')}, 'prestato', 1, 0)`);
+  db(`INSERT INTO libri (titolo, search_index, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' no copies 1')}, ${sqlq(TAG + ' no copies 1')}, 'disponibile', 0, 0)`);
+  db(`INSERT INTO libri (titolo, search_index, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' no copies 2')}, ${sqlq(TAG + ' no copies 2')}, 'disponibile', 0, 0)`);
   clearCatalogCache();
 
   const after = await counts(page);
