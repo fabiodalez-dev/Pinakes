@@ -572,6 +572,13 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     await login(page, ADMIN_EMAIL, ADMIN_PASS);
     await gotoUpdates(page);
     fs.mkdirSync(path.dirname(LOCK_FILE), { recursive: true });
+    // Standalone runs may not have created the persistent lock inode yet.
+    // Once Apache creates it, ownership deliberately remains with www-data;
+    // CLI probes below therefore open the shared inode read-only.
+    if (!fs.existsSync(LOCK_FILE)) {
+      fs.writeFileSync(LOCK_FILE, '', { mode: 0o666 });
+      fs.chmodSync(LOCK_FILE, 0o666);
+    }
   });
 
   test.afterAll(async () => {
@@ -581,7 +588,7 @@ test.describe.serial('G3 — Concurrency / lock', () => {
 
   function canAcquireLock() {
     const lf = LOCK_FILE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const code = `$f=fopen('${lf}','c'); if($f===false){exit(2);} if(!flock($f,LOCK_EX|LOCK_NB)){exit(1);} flock($f,LOCK_UN); fclose($f);`;
+    const code = `$f=fopen('${lf}','r'); if($f===false){exit(2);} if(!flock($f,LOCK_EX|LOCK_NB)){exit(1);} flock($f,LOCK_UN); fclose($f);`;
     return spawnSync('php', ['-r', code], { stdio: 'ignore' }).status === 0;
   }
 
@@ -599,7 +606,7 @@ test.describe.serial('G3 — Concurrency / lock', () => {
   // proves the OS released the descriptor before the next assertion.
   function holdLock() {
     const lf = LOCK_FILE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const code = `$f=fopen('${lf}','c'); if($f===false){fwrite(STDERR,"open failed\\n");exit(1);} if(!flock($f,LOCK_EX|LOCK_NB)){fwrite(STDERR,"flock failed\\n");exit(2);} fwrite(STDOUT,"READY\\n");fflush(STDOUT);fgets(STDIN);flock($f,LOCK_UN);fclose($f);`;
+    const code = `$f=fopen('${lf}','r'); if($f===false){fwrite(STDERR,"open failed\\n");exit(1);} if(!flock($f,LOCK_EX|LOCK_NB)){fwrite(STDERR,"flock failed\\n");exit(2);} fwrite(STDOUT,"READY\\n");fflush(STDOUT);fgets(STDIN);flock($f,LOCK_UN);fclose($f);`;
     const child = spawn('php', ['-r', code], { stdio: ['pipe', 'pipe', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
