@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Behavioural and wiring coverage for issue #338 / migrate_0.7.58.sql.
+ * Behavioural and wiring coverage for issue #338 / migrate_0.7.59-rc.1.sql.
  * Runs the real migration against a sandbox table and verifies that the new
  * flag remains deliberately admin-only.
  */
@@ -39,7 +39,7 @@ try {
 }
 
 $sandboxTable = 'zz_mig_collane_0758';
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.58.sql');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.59-rc.1.sql');
 $sandboxMigration = static fn(string $sql): string => str_replace(
     ['`collane`', "'collane'"],
     ["`{$sandboxTable}`", "'{$sandboxTable}'"],
