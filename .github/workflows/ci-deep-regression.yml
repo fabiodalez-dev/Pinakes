@@ -176,6 +176,9 @@ jobs:
             tests/seed-catalog.spec.js \
             --config=tests/playwright.ci.config.js \
             --workers=1
+          # Apache/PHP may recreate runtime subdirectories with its own umask
+          # while seeding. The later CLI cron tests need the same shared tree.
+          sudo chmod -R 777 "${GITHUB_WORKSPACE}/storage"
           sudo chmod -R 777 "${GITHUB_WORKSPACE}/public/uploads"
 
       - name: Audit setup fixtures
