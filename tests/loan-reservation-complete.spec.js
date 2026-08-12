@@ -30,6 +30,8 @@ const ADMIN_EMAIL  = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS   = process.env.E2E_ADMIN_PASS  || '';
 const DB_USER      = process.env.E2E_DB_USER     || '';
 const DB_PASS      = process.env.E2E_DB_PASS     || '';
+const DB_HOST      = process.env.E2E_DB_HOST     || '';
+const DB_PORT      = process.env.E2E_DB_PORT     || '';
 const DB_SOCKET    = process.env.E2E_DB_SOCKET   || '';
 const DB_NAME      = process.env.E2E_DB_NAME     || '';
 const MAILPIT_API  = process.env.MAILPIT_API     || 'http://localhost:8025/api/v1';
@@ -306,11 +308,23 @@ function performMaintenance() {
   // Remove lock file so concurrent test runs don't skip
   try { fs.unlinkSync(`${projectRoot}/storage/cache/full-maintenance.lock`); } catch { /* ignore */ }
   try {
+    // The cron reads DB_* while browser helpers read E2E_DB_*. Pass the known
+    // isolated test endpoint explicitly so this test cannot accidentally depend
+    // on an .env file left behind (or removed) by an earlier deep-regression spec.
+    const maintenanceEnv = {
+      ...process.env,
+      DB_HOST,
+      DB_PORT: DB_PORT || '3306',
+      DB_USER,
+      DB_PASS,
+      DB_NAME,
+      DB_SOCKET,
+    };
     const output = execFileSync('php', ['cron/full-maintenance.php'], {
       encoding : 'utf-8',
       timeout  : 30_000,
       cwd      : projectRoot,
-      env      : { ...process.env },
+      env      : maintenanceEnv,
     });
     return { status: 0, output };
   } catch (err) {
