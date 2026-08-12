@@ -69,8 +69,27 @@ jobs:
         with:
           php-version: '8.2'
           extensions: mysqli, pdo_mysql
-          tools: phpstan:2.1.56
           coverage: none
+
+      - name: Install pinned PHPStan with verified Composer transport
+        run: |
+          PHPSTAN_HOME=$(mktemp -d "${RUNNER_TEMP}/pinakes-phpstan.XXXXXX")
+          installed=0
+          for attempt in 1 2 3; do
+            if COMPOSER_HOME="$PHPSTAN_HOME" composer global require \
+              --no-interaction --prefer-dist --no-progress \
+              phpstan/phpstan:2.1.56; then
+              installed=1
+              break
+            fi
+            echo "PHPStan install attempt ${attempt}/3 failed"
+            sleep $((attempt * 2))
+          done
+          [ "$installed" -eq 1 ] || { echo "PHPStan installation failed after 3 attempts"; exit 1; }
+          PHPSTAN_BIN="${PHPSTAN_HOME}/vendor/bin/phpstan"
+          [ -x "$PHPSTAN_BIN" ] || { echo "PHPStan executable missing after install"; exit 1; }
+          "$PHPSTAN_BIN" --version
+          echo "PHPSTAN_BIN=$PHPSTAN_BIN" >> "$GITHUB_ENV"
 
       - name: Setup Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
@@ -114,7 +133,8 @@ jobs:
         run: python3 scripts/ci-check-locales.py
 
       - name: PHPStan (level from phpstan.neon)
-        run: phpstan analyse --no-progress --memory-limit=512M
+        run: |
+          "$PHPSTAN_BIN" analyse --no-progress --memory-limit=512M
 
       # ── Route key integrity ───────────────────────────────────────────────
       - name: Route key integrity (route_path() keys exist in routes_it_IT.json)
