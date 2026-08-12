@@ -118,8 +118,9 @@ function apiPost(page, urlPath, params) {
   return page.evaluate(async ({ u, p }) => {
     const body = new URLSearchParams(Object.assign({ csrf_token: csrfToken }, p)).toString();
     const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
-    let j = null; try { j = await r.json(); } catch (e) {}
-    return { status: r.status, json: j };
+    const text = await r.text();
+    let j = null; try { j = JSON.parse(text); } catch (e) {}
+    return { status: r.status, json: j, text };
   }, { u: BASE + urlPath, p: params });
 }
 
@@ -563,8 +564,10 @@ test.describe.serial('G2 — Restore', () => {
 test.describe.serial('G3 — Concurrency / lock', () => {
   /** @type {import('@playwright/test').Page} */
   let page;
+  let browserRef;
 
   test.beforeAll(async ({ browser }) => {
+    browserRef = browser;
     page = await browser.newPage();
     await login(page, ADMIN_EMAIL, ADMIN_PASS);
     await gotoUpdates(page);
@@ -593,13 +596,26 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     await new Promise((r) => setTimeout(r, 400)); // let the holder acquire the lock
     expect(fs.existsSync(LOCK_FILE)).toBe(true);
 
-    const [a, b] = await Promise.all([
-      apiPost(page, '/admin/updates/backup/restore', { backup }),
-      apiPost(page, '/admin/updates/backup/restore', { backup }),
+    // Independent sessions prevent PHP's per-session lock from serialising the
+    // requests before they can exercise the shared update flock.
+    const ctxA = await browserRef.newContext();
+    const ctxB = await browserRef.newContext();
+    const pageA = await ctxA.newPage();
+    const pageB = await ctxB.newPage();
+    await Promise.all([
+      login(pageA, ADMIN_EMAIL, ADMIN_PASS).then(() => gotoUpdates(pageA)),
+      login(pageB, ADMIN_EMAIL, ADMIN_PASS).then(() => gotoUpdates(pageB)),
     ]);
-    const errs = [a, b].map((r) => (r.json && r.json.error) || '');
+    const [a, b] = await Promise.all([
+      apiPost(pageA, '/admin/updates/backup/restore', { backup }),
+      apiPost(pageB, '/admin/updates/backup/restore', { backup }),
+    ]);
+    await Promise.all([ctxA.close(), ctxB.close()]);
     // Both concurrent restores are rejected by the held lock (not queued).
-    for (const e of errs) expect(e).toMatch(/già in corso/i);
+    for (const result of [a, b]) {
+      expect(result.status, result.text).toBe(409);
+      expect(result.json?.error || result.text).toMatch(/già in corso/i);
+    }
 
     // Wait for the holder to release, then a restore succeeds again.
     await new Promise((r) => setTimeout(r, 3200));

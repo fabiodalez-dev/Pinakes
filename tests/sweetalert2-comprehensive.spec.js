@@ -15,9 +15,9 @@
 //
 // Block E loads the actual admin pages and only asserts that the
 // rendered HTML carries the expected `data-swal-confirm*` attributes
-// (it does NOT click through — DB-state independent). Each test is
-// guarded with `test.skip(...)` so missing credentials / missing DB
-// state collapse cleanly to a skip rather than a hard fail.
+// (it does NOT click through). Tests E1–E7 inspect installer fixtures;
+// E8 creates and removes its own shelf so it remains deterministic
+// when Playwright distributes specs across isolated shards.
 //
 // Run:
 //   /tmp/run-e2e.sh tests/sweetalert2-comprehensive.spec.js \
@@ -29,12 +29,46 @@
 //     --grep "BUS|ATTRIBUTE|KIND|I18N"
 
 const { test, expect } = require('@playwright/test');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 const BASE        = process.env.E2E_BASE_URL    || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
+const DB_HOST     = process.env.E2E_DB_HOST      || '';
+const DB_PORT     = process.env.E2E_DB_PORT      || '';
+const DB_SOCKET   = process.env.E2E_DB_SOCKET    || '';
+const DB_USER     = process.env.E2E_DB_USER      || '';
+const DB_PASS     = process.env.E2E_DB_PASS      ?? '';
+const DB_NAME     = process.env.E2E_DB_NAME      || '';
+
+function mysqlArgs(sql, batch = false) {
+    const args = [];
+    if (DB_HOST) args.push('-h', DB_HOST);
+    if (DB_PORT) args.push('-P', DB_PORT);
+    if (DB_SOCKET) args.push('-S', DB_SOCKET);
+    args.push('-u', DB_USER, DB_NAME);
+    if (batch) args.push('-N', '-B');
+    args.push('-e', sql);
+    return args;
+}
+
+function dbQuery(sql) {
+    return execFileSync('mysql', mysqlArgs(sql, true), {
+        encoding: 'utf8',
+        timeout: 10_000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+    }).trim();
+}
+
+function dbExec(sql) {
+    execFileSync('mysql', mysqlArgs(sql), {
+        encoding: 'utf8',
+        timeout: 10_000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+    });
+}
 
 // ─── Static harness ─────────────────────────────────────────────────
 // Loads the on-disk swal-config.js into a synthetic page with Swal
@@ -637,13 +671,27 @@ test.describe('[REFACTORED] per-view attribute assertions', () => {
 
     // E8: collocazione — delete-shelf and delete-position forms wired
     test('E8: collocazione admin page exposes data-swal-confirm forms for shelf/position deletion', async () => {
-        await page.goto(`${BASE}/admin/placement`);
-        await page.waitForLoadState('domcontentloaded');
-        const forms = page.locator('form[data-swal-confirm]');
-        const n = await forms.count();
-        test.skip(n === 0, 'No shelves seeded yet — create at least one shelf to exercise this');
-        // Confirm at least one form has a destructive label.
-        const firstText = await forms.first().getAttribute('data-swal-confirm-button');
-        expect((firstText || '').toLowerCase()).toMatch(/elimin/);
+        expect(DB_USER && DB_NAME && (DB_HOST || DB_SOCKET), 'E8 requires the E2E database endpoint').toBeTruthy();
+
+        // Do not depend on fixtures left behind by another spec: Playwright
+        // sharding may assign producers and consumers to different runners.
+        const code = `SWAL${Date.now()}`.slice(0, 20);
+        let shelfId = '';
+        try {
+            dbExec(`INSERT INTO scaffali (codice, nome, lettera, ordine) VALUES ('${code}', 'SweetAlert fixture', 'S', 0)`);
+            shelfId = dbQuery(`SELECT id FROM scaffali WHERE codice='${code}' LIMIT 1`);
+            expect(shelfId, 'the E8 shelf fixture must be created').not.toBe('');
+
+            await page.goto(`${BASE}/admin/placement`);
+            await page.waitForLoadState('domcontentloaded');
+            const form = page.locator(`form[action$="/admin/placement/shelving-units/${shelfId}/delete"]`);
+            await expect(form).toBeAttached();
+            const confirmText = await form.getAttribute('data-swal-confirm-button');
+            expect((confirmText || '').toLowerCase()).toMatch(/elimin/);
+        } finally {
+            // Delete by the unique code as well as by id: this still cleans up
+            // if the INSERT succeeds but resolving its generated id fails.
+            dbExec(`DELETE FROM scaffali WHERE codice='${code}'`);
+        }
     });
 });

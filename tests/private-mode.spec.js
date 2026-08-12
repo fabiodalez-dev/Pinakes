@@ -16,6 +16,7 @@ const DB_HOST = process.env.E2E_DB_HOST || '';
 const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
+const INSTALL_ROOT = process.env.E2E_INSTALL_ROOT || path.resolve(__dirname, '..');
 
 test.skip(
   !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME,
@@ -50,6 +51,16 @@ function setPrivateMode(on) {
     dbQuery("INSERT INTO system_settings (category,setting_key,setting_value,created_at) VALUES ('advanced','private_mode','1',NOW()) ON DUPLICATE KEY UPDATE setting_value='1'");
   } else {
     dbQuery("DELETE FROM system_settings WHERE category='advanced' AND setting_key='private_mode'");
+  }
+  // Direct DB seeding bypasses ConfigStore::set(), therefore mirror the cache
+  // invalidation performed by the production settings endpoint.
+  const cacheDir = path.join(INSTALL_ROOT, 'storage', 'cache');
+  if (fs.existsSync(cacheDir)) {
+    for (const name of fs.readdirSync(cacheDir)) {
+      if (name.startsWith('pinakes_config_settings_raw_')) {
+        try { fs.unlinkSync(path.join(cacheDir, name)); } catch { /* best effort */ }
+      }
+    }
   }
 }
 

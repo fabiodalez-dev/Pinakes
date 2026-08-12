@@ -99,7 +99,7 @@ test.describe.serial('Collane Management', () => {
     await textarea.fill(TEST_DESC);
 
     // Click save
-    await page.click('button:has-text("Salva descrizione")');
+    await page.locator('form[action*="/admin/series/description"] button[type="submit"]').click();
     await page.waitForLoadState('networkidle');
 
     // Verify in DB

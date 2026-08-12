@@ -344,9 +344,9 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
         );
 
         // Upload a new PDF via admin form
-        const pdfBuffer = makeMinimalPdf('legacy-migration-test');
-        const tmpPdf = path.join('/tmp', 'e2e-legacy-migrate.pdf');
-        fs.writeFileSync(tmpPdf, pdfBuffer);
+        // Use a parser-valid fixture: the hand-written minimal byte sequence is
+        // useful for rejection paths but is not a valid upload contract sample.
+        const tmpPdf = path.join(__dirname, 'fixtures', 'archive-test.pdf');
 
         await page.goto(`${BASE}/admin/archives/${itemAId}`);
         await page.waitForLoadState('domcontentloaded');
@@ -356,7 +356,6 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
             page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
             uploadForm.locator('button[type="submit"]').click(),
         ]);
-        fs.unlinkSync(tmpPdf);
 
         // document_path must now be NULL
         const docPath = dbQuery(

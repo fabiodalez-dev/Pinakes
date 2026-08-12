@@ -187,6 +187,18 @@ function seedCatalog() {
       i++;
     }
   }
+
+  // Keep the catalogue facet contract meaningful on a brand-new CI install:
+  // at least one seeded book must have a real principal-author relation.
+  const authorName = `${SEED_PREFIX}Catalog Author`;
+  const safeAuthor = escapeSqlString(authorName);
+  let authorId = parseInt(dbScalar(`SELECT id FROM autori WHERE nome = '${safeAuthor}' ORDER BY id LIMIT 1`), 10);
+  if (!authorId) {
+    dbQuery(`INSERT INTO autori (nome, created_at) VALUES ('${safeAuthor}', NOW())`);
+    authorId = parseInt(dbScalar(`SELECT id FROM autori WHERE nome = '${safeAuthor}' ORDER BY id LIMIT 1`), 10);
+  }
+  const facetBookId = parseInt(dbScalar(`SELECT id FROM libri WHERE titolo = '${escapeSqlString(`${SEED_PREFIX}Fairy Tail — Vol. 1`)}' AND deleted_at IS NULL LIMIT 1`), 10);
+  dbQuery(`INSERT IGNORE INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (${facetBookId}, ${authorId}, 'principale', 1)`);
 }
 
 // ─── Suite ─────────────────────────────────────────────────────────────────

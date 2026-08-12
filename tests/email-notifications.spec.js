@@ -7,6 +7,7 @@ const fs = require('fs');
 
 // ── Environment ──────────────────────────────────────────────────────
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
+const INSTALL_ROOT = process.env.E2E_INSTALL_ROOT || path.resolve(__dirname, '..');
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 const MAILPIT_API = process.env.MAILPIT_API || 'http://localhost:8025/api/v1';
@@ -94,6 +95,16 @@ async function clearMailpit() {
     throw err;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+function clearConfigCache() {
+  const cacheDir = path.join(INSTALL_ROOT, 'storage', 'cache');
+  if (!fs.existsSync(cacheDir)) return;
+  for (const name of fs.readdirSync(cacheDir)) {
+    if (name.startsWith('pinakes_config_settings_raw_')) {
+      try { fs.unlinkSync(path.join(cacheDir, name)); } catch { /* best effort */ }
+    }
   }
 }
 
@@ -280,6 +291,7 @@ test.describe.serial('Email Notifications E2E', () => {
         ('email', 'from_name', 'Pinakes Test')
       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
     `);
+    clearConfigCache();
 
     // Set contact notification email so contact form tests work
     dbQuery(`
@@ -849,6 +861,7 @@ test.describe.serial('Email Notifications E2E', () => {
     // Switch to PHP mail() driver
     dbQuery(`UPDATE system_settings SET setting_value = 'mail' WHERE category = 'email' AND setting_key = 'type'`);
     dbQuery(`UPDATE system_settings SET setting_value = 'mail' WHERE category = 'email' AND setting_key = 'driver_mode'`);
+    clearConfigCache();
 
     await clearMailpit();
 
@@ -982,6 +995,7 @@ test.describe.serial('Email Notifications E2E', () => {
       if (originalSettings.contact_notification !== undefined) {
         restore('contacts', 'notification_email', originalSettings.contact_notification);
       }
+      clearConfigCache();
 
       // Clear Mailpit
       await clearMailpit();

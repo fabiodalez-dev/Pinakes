@@ -12,12 +12,15 @@
 // Run: /tmp/run-e2e.sh tests/catalog-borrowed-count-empty-copies.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
+const INSTALL_ROOT = process.env.E2E_INSTALL_ROOT || path.resolve(__dirname, '..');
 
 test.skip(!DB_USER || !DB_NAME, 'DB credentials not configured (this spec seeds the catalogue)');
 
@@ -28,6 +31,15 @@ function db(sql) {
   return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
 }
 function sqlq(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
+function clearCatalogCache() {
+  const dir = path.join(INSTALL_ROOT, 'storage', 'cache');
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir)) {
+    if (name.startsWith('pinakes_catalog_facets_')) {
+      try { fs.unlinkSync(path.join(dir, name)); } catch { /* best effort */ }
+    }
+  }
+}
 
 const TAG = 'ZZBORROW298';
 async function counts(page) {
@@ -40,10 +52,14 @@ async function counts(page) {
   return { all: await read('total-books-count'), available: await read('available-books-count'), borrowed: await read('borrowed-books-count') };
 }
 
-test.afterAll(() => { db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`); });
+test.afterAll(() => {
+  db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`);
+  clearCatalogCache();
+});
 
 test('#298-borrowed: no-copies books are not counted as "on loan"', async ({ page }) => {
   db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`);
+  clearCatalogCache();
   const before = await counts(page);
 
   // 1 available, 1 truly on loan (has a copy, none available), 2 with no copies at all
@@ -51,6 +67,7 @@ test('#298-borrowed: no-copies books are not counted as "on loan"', async ({ pag
   db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' on loan')},   'prestato',    1, 0)`);
   db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' no copies 1')},'disponibile', 0, 0)`);
   db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(TAG + ' no copies 2')},'disponibile', 0, 0)`);
+  clearCatalogCache();
 
   const after = await counts(page);
 

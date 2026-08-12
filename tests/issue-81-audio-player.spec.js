@@ -34,6 +34,39 @@ test.describe.serial('Issue #81: Audiobook MP3 Player', () => {
     context = await browser.newContext();
     page = await context.newPage();
 
+    // Exercise the real lifecycle endpoint so PluginManager's cross-request
+    // hook cache agrees with the DB even after earlier suites changed plugins.
+    await page.goto(`${BASE}/accedi`);
+    await page.fill('input[name="email"]', ADMIN_EMAIL);
+    await page.fill('input[name="password"]', ADMIN_PASS);
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL(/admin/, { timeout: 15000 });
+    await page.goto(`${BASE}/admin/plugins`);
+    const pluginId = Number(dbQuery("SELECT id FROM plugins WHERE name='digital-library' LIMIT 1"));
+    expect(pluginId, 'digital-library must be registered').toBeGreaterThan(0);
+    const token = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+    expect(token).toBeTruthy();
+    if (dbQuery(`SELECT is_active FROM plugins WHERE id=${pluginId}`) === '1') {
+      const off = await page.evaluate(async ({ base, id, token }) => {
+        const r = await fetch(`${base}/admin/plugins/${id}/deactivate`, {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'X-CSRF-Token': token, 'Content-Type': 'application/json' }, body: '{}',
+        });
+        return { status: r.status, body: await r.json() };
+      }, { base: BASE, id: pluginId, token });
+      expect(off.status).toBe(200);
+      expect(off.body.success).toBe(true);
+    }
+    const on = await page.evaluate(async ({ base, id, token }) => {
+      const r = await fetch(`${base}/admin/plugins/${id}/activate`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'X-CSRF-Token': token, 'Content-Type': 'application/json' }, body: '{}',
+      });
+      return { status: r.status, body: await r.json() };
+    }, { base: BASE, id: pluginId, token });
+    expect(on.status).toBe(200);
+    expect(on.body.success).toBe(true);
+
     // Find a book and preserve its original audio_url
     const row = dbQuery("SELECT id, (audio_url IS NULL) AS audio_is_null, COALESCE(audio_url, '') AS audio_url FROM libri WHERE deleted_at IS NULL LIMIT 1");
     if (row) {
@@ -108,14 +141,8 @@ test.describe.serial('Issue #81: Audiobook MP3 Player', () => {
   test('Admin: Audio toggle button reveals inline player', async () => {
     test.skip(!testBookId, 'No test book available');
 
-    // Login as admin
-    await page.goto(`${BASE}/accedi`);
-    await page.fill('input[name="email"]', ADMIN_EMAIL);
-    await page.fill('input[name="password"]', ADMIN_PASS);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL(/admin/, { timeout: 15000 });
-
-    // Navigate to the book detail in admin
+    // beforeAll authenticated this context while refreshing the plugin
+    // lifecycle, so navigate directly instead of trying to log in twice.
     await page.goto(`${BASE}/admin/books/${testBookId}`);
     await page.waitForLoadState('networkidle');
 

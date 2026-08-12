@@ -5,7 +5,8 @@
   "setup": [
     "interop-00-activate-plugins.spec.js",
     "archives-seed-50.spec.js",
-    "seed-catalog.spec.js"
+    "seed-catalog.spec.js",
+    "persistent-seed-crud.spec.js"
   ],
   "dedicated": [
     {

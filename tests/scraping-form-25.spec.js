@@ -17,6 +17,8 @@
 
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -29,6 +31,7 @@ const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const RUN_ID = Date.now().toString();
 const RUN_TAG = `E2E_S25_${RUN_ID}`;
+const INSTALL_ROOT = process.env.E2E_INSTALL_ROOT || path.resolve(__dirname, '..');
 
 // ── ISBN-13 checksum helper ──────────────────────────────────────────────
 // The book controller rejects ISBN-13 values that fail the EAN-13 checksum
@@ -196,6 +199,42 @@ test.beforeAll(async ({ browser }) => {
     adminContext = await browser.newContext();
     page = await adminContext.newPage();
     await loginAsAdmin(page);
+
+    // scraping-pro is an optional premium plugin. The CI fixture installs its
+    // files, but another lifecycle suite may legitimately remove its DB row.
+    // Register it idempotently, then use the production endpoint so hooks and
+    // PluginManager caches are rebuilt together.
+    let pluginId = Number(dbQuery("SELECT id FROM plugins WHERE name='scraping-pro' LIMIT 1"));
+    if (!pluginId) {
+        const manifestPath = path.join(INSTALL_ROOT, 'storage', 'plugins', 'scraping-pro', 'plugin.json');
+        expect(fs.existsSync(manifestPath), 'scraping-pro manifest must exist in the complete CI fixture').toBe(true);
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        const q = (value) => String(value ?? '').replace(/'/g, "''");
+        dbExec(`INSERT INTO plugins (name, display_name, version, is_active, directory, entry_point, requires_php, requires_app, settings, installed_at)
+                VALUES ('scraping-pro', '${q(manifest.display_name || manifest.name || 'Scraping Pro')}', '${q(manifest.version || '1.0.0')}', 0,
+                        'scraping-pro', '${q(manifest.entry_point || 'wrapper.php')}', '${q(manifest.requires_php || '7.4')}',
+                        '${q(manifest.requires_app || '0.0.0')}', '{}', NOW())`);
+        pluginId = Number(dbQuery("SELECT id FROM plugins WHERE name='scraping-pro' LIMIT 1"));
+    }
+    await page.goto(`${BASE}/admin/plugins`);
+    const token = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+    expect(token).toBeTruthy();
+    const lifecycle = (action) => page.evaluate(async ({ base, id, token, action }) => {
+        const r = await fetch(`${base}/admin/plugins/${id}/${action}`, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'X-CSRF-Token': token, 'Content-Type': 'application/json' }, body: '{}',
+        });
+        let body = {}; try { body = await r.json(); } catch {}
+        return { status: r.status, body };
+    }, { base: BASE, id: pluginId, token, action });
+    if (dbQuery(`SELECT is_active FROM plugins WHERE id=${pluginId}`) === '1') {
+        const off = await lifecycle('deactivate');
+        expect(off.status).toBe(200);
+        expect(off.body.success).toBe(true);
+    }
+    const on = await lifecycle('activate');
+    expect(on.status).toBe(200);
+    expect(on.body.success).toBe(true);
     setupOk = true;
 });
 

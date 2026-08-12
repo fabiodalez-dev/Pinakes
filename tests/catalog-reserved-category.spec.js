@@ -14,12 +14,15 @@
 // Run: /tmp/run-e2e.sh tests/catalog-reserved-category.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
+const INSTALL_ROOT = process.env.E2E_INSTALL_ROOT || path.resolve(__dirname, '..');
 
 test.skip(!DB_USER || !DB_NAME, 'DB credentials not configured (this spec seeds the catalogue)');
 
@@ -30,6 +33,15 @@ function db(sql) {
   return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
 }
 function sqlq(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
+function clearCatalogCache() {
+  const dir = path.join(INSTALL_ROOT, 'storage', 'cache');
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir)) {
+    if (name.startsWith('pinakes_catalog_facets_')) {
+      try { fs.unlinkSync(path.join(dir, name)); } catch { /* best effort */ }
+    }
+  }
+}
 
 const TAG = 'ZZRESV310';
 const T_AVAIL = `${TAG} disponibile`;
@@ -71,12 +83,17 @@ test.describe.serial('catalogue reserved category', () => {
   test.beforeAll(async ({ browser }) => {
     const page = await browser.newPage();
     db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`);
+    clearCatalogCache();
     before = await counts(page);
     seed();
+    clearCatalogCache();
     await page.close();
   });
 
-  test.afterAll(() => { db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`); });
+  test.afterAll(() => {
+    db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`);
+    clearCatalogCache();
+  });
 
   test('Reserved count rises by exactly 1 (the prenotato book)', async ({ page }) => {
     const after = await counts(page);

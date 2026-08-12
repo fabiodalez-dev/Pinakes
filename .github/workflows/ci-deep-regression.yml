@@ -57,6 +57,8 @@ jobs:
       E2E_DB_NAME: pinakes_test
       E2E_INSTALL_ROOT: ${{ github.workspace }}
       MAILPIT_API: http://127.0.0.1:8025/api/v1
+      E2E_PHP_UPLOAD_MAX_BYTES: 8388608
+      E2E_PHP_POST_MAX_BYTES: 10485760
 
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -81,7 +83,11 @@ jobs:
           EOF
           sudo chmod 644 /etc/msmtprc
           while IFS= read -r conf_dir; do
-            echo 'sendmail_path = "/usr/bin/msmtp -t"' | sudo tee "${conf_dir}/99-pinakes-ci.ini" >/dev/null
+            sudo tee "${conf_dir}/99-pinakes-ci.ini" >/dev/null <<'EOF'
+          sendmail_path = "/usr/bin/msmtp -t"
+          upload_max_filesize = 8M
+          post_max_size = 10M
+          EOF
           done < <(find /etc/php -type d -path '*/conf.d' | sort -u)
 
       - name: Setup PHP 8.2
@@ -174,12 +180,18 @@ jobs:
             tests/interop-00-activate-plugins.spec.js \
             tests/archives-seed-50.spec.js \
             tests/seed-catalog.spec.js \
+            tests/persistent-seed-crud.spec.js \
             --config=tests/playwright.ci.config.js \
             --workers=1
           # Apache/PHP may recreate runtime subdirectories with its own umask
           # while seeding. The later CLI cron tests need the same shared tree.
           sudo chmod -R 777 "${GITHUB_WORKSPACE}/storage"
           sudo chmod -R 777 "${GITHUB_WORKSPACE}/public/uploads"
+          # Installer deliberately protects .env from Apache users. CLI-level
+          # integration harnesses run as the ephemeral GitHub runner and need
+          # to read the same throwaway CI credentials.
+          sudo chmod 640 "${GITHUB_WORKSPACE}/.env"
+          sudo chgrp "$(id -gn)" "${GITHUB_WORKSPACE}/.env"
 
       - name: Audit setup fixtures
         if: always()
