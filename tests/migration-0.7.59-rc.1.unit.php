@@ -10,6 +10,8 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
 
+use App\Support\Updater;
+
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $passed = 0;
@@ -110,27 +112,20 @@ foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
     $check(is_array($translations) && isset($translations['Serie completa'], $translations['Tutti i volumi previsti sono presenti in catalogo.'], $translations['Metadati serie salvati']), "{$locale} contains all completion strings");
 }
 
-// Updater migration-selection contract (app/Support/Updater.php::runMigrations):
-// a migration runs iff  version_compare(mig, from, '>') && version_compare(mig, to, '<=').
-// This guards the exact risk of naming a migration after a prerelease — it must
-// fire on every upgrade path that has to add the column, and never re-fire once
-// the RC is already installed.
+// Exercise the exact production predicate called by Updater::runMigrations().
+// This guards the risk of naming a migration after a prerelease: it must fire
+// on every path that needs the column and never re-fire after the RC installed.
 $mig = '0.7.59-rc.1';
-$updaterRuns = static fn(string $from, string $to): bool =>
-    version_compare($mig, $from, '>') && version_compare($mig, $to, '<=');
 $check(version_compare('0.7.59-rc.1', '0.7.59', '<'), 'version_compare orders the RC below its stable (prerelease semantics)');
-$check($updaterRuns('0.7.58', '0.7.59-rc.1'), 'Updater runs it on 0.7.58 -> 0.7.59-rc.1 (RC upgrade)');
-$check($updaterRuns('0.7.58', '0.7.59'), 'Updater runs it on 0.7.58 -> 0.7.59 stable (RC never installed)');
-$check(!$updaterRuns('0.7.59-rc.1', '0.7.59'), 'Updater does NOT re-run it on 0.7.59-rc.1 -> 0.7.59 stable (already applied; migration is idempotent as a backstop)');
+$check(Updater::shouldRunMigration($mig, '0.7.58', '0.7.59-rc.1'), 'Updater runs it on 0.7.58 -> 0.7.59-rc.1 (RC upgrade)');
+$check(Updater::shouldRunMigration($mig, '0.7.58', '0.7.59'), 'Updater runs it on 0.7.58 -> 0.7.59 stable (RC never installed)');
+$check(!Updater::shouldRunMigration($mig, '0.7.59-rc.1', '0.7.59'), 'Updater does NOT re-run it on 0.7.59-rc.1 -> 0.7.59 stable (already applied; migration is idempotent as a backstop)');
 
-// Drift guard: the predicate replicated above must stay in sync with the real
-// selection logic in Updater::runMigrations(). If someone changes the condition
-// there, this fails and forces the assertions above to be revisited.
+// Wiring guard: the runner must call the production predicate tested above.
 $updaterSrc = (string) file_get_contents($root . '/app/Support/Updater.php');
 $check(
-    str_contains($updaterSrc, "version_compare(\$migrationVersion, \$fromVersion, '>')")
-        && str_contains($updaterSrc, "version_compare(\$migrationVersion, \$toVersion, '<=')"),
-    'Updater::runMigrations still gates on migrationVersion > from AND <= to (mirrored predicate is current)'
+    str_contains($updaterSrc, 'self::shouldRunMigration($migrationVersion, $fromVersion, $toVersion)'),
+    'Updater::runMigrations uses the tested production range predicate'
 );
 
 echo "\n{$passed} PASS, {$failed} FAIL\n";

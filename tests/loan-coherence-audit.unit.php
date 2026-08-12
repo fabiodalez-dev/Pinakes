@@ -34,16 +34,56 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 
-$reservations = (string) file_get_contents($root . '/app/Controllers/ReservationsController.php');
-$web          = (string) file_get_contents($root . '/app/Routes/web.php');
-$dashboard    = (string) file_get_contents($root . '/app/Models/DashboardStats.php');
-$loanRepo     = (string) file_get_contents($root . '/app/Models/LoanRepository.php');
-$approval     = (string) file_get_contents($root . '/app/Controllers/LoanApprovalController.php');
-$integrity    = (string) file_get_contents($root . '/app/Support/DataIntegrity.php');
-$prestiti     = (string) file_get_contents($root . '/app/Controllers/PrestitiController.php');
-$prenotView   = (string) file_get_contents($root . '/app/Views/user_dashboard/prenotazioni.php');
-$indexView    = (string) file_get_contents($root . '/app/Views/user_dashboard/index.php');
-$pendingView  = (string) file_get_contents($root . '/app/Views/admin/pending_loans.php');
+$readSource = static function (string $path) use ($root): string {
+    $fullPath = $root . $path;
+    if (!is_file($fullPath)) {
+        fwrite(STDERR, "FAIL: file sorgente mancante: {$path}\n");
+        exit(1);
+    }
+    $source = file_get_contents($fullPath);
+    if ($source === false) {
+        fwrite(STDERR, "FAIL: impossibile leggere il file sorgente: {$path}\n");
+        exit(1);
+    }
+    return $source;
+};
+
+$extractMethod = static function (string $source, string $signature): string {
+    $start = strpos($source, $signature);
+    if ($start === false) {
+        return '';
+    }
+    $remaining = substr($source, $start + strlen($signature));
+    if (!preg_match('/\n    (?:public|protected|private) function /', $remaining, $match, PREG_OFFSET_CAPTURE)) {
+        return '';
+    }
+    $end = $start + strlen($signature) + (int) $match[0][1];
+    return substr($source, $start, $end - $start);
+};
+
+$extractSection = static function (string $source, string $startMarker, string $endMarker): string {
+    $start = strpos($source, $startMarker);
+    if ($start === false) {
+        return '';
+    }
+    $end = strpos($source, $endMarker, $start + strlen($startMarker));
+    return $end === false ? '' : substr($source, $start, $end - $start);
+};
+
+$reservations = $readSource('/app/Controllers/ReservationsController.php');
+$web          = $readSource('/app/Routes/web.php');
+$dashboard    = $readSource('/app/Models/DashboardStats.php');
+$loanRepo     = $readSource('/app/Models/LoanRepository.php');
+$approval     = $readSource('/app/Controllers/LoanApprovalController.php');
+$integrity    = $readSource('/app/Support/DataIntegrity.php');
+$prestiti     = $readSource('/app/Controllers/PrestitiController.php');
+$frontend     = $readSource('/app/Controllers/FrontendController.php');
+$prenotView   = $readSource('/app/Views/user_dashboard/prenotazioni.php');
+$indexView    = $readSource('/app/Views/user_dashboard/index.php');
+$pendingView  = $readSource('/app/Views/admin/pending_loans.php');
+$loanCreateView = $readSource('/app/Views/prestiti/crea_prestito.php');
+$loanEditView = $readSource('/app/Views/prestiti/modifica_prestito.php');
+$mobileActions = $readSource('/storage/plugins/mobile-api/src/Controllers/ActionsController.php');
 
 $checks = [];
 
@@ -58,11 +98,11 @@ $checks['calculateAvailability defaults start to DateHelper::today()'] =
     && !preg_match('/\$start = \$startDate \? new DateTime\(\$startDate\) : new DateTime\(\);/', $reservations);
 
 // 3. next_due: holding states only, never in the past.
-$nextDuePos = strpos($web, 'AS next_due FROM prestiti');
+$nextDueBody = $extractSection($web, 'AS next_due FROM prestiti', '// Queue size');
 $checks['next_due filters holding states and >= today'] =
-    $nextDuePos !== false
-    && str_contains(substr($web, $nextDuePos, 400), "stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')")
-    && str_contains(substr($web, $nextDuePos, 400), 'data_scadenza >= ?');
+    $nextDueBody !== ''
+    && str_contains($nextDueBody, "stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')")
+    && str_contains($nextDueBody, 'data_scadenza >= ?');
 
 // 4. DashboardStats: one clock (DateHelper), no CURDATE()/process date().
 $checks['DashboardStats uses only the app clock'] =
@@ -75,11 +115,7 @@ $checks['DashboardStats uses only the app clock'] =
 //     that excludes soft-deleted books, so no dashboard badge can exceed the
 //     rows /admin/loans/pending can render. Source-invariant: count the
 //     `FROM prestiti` occurrences and require an equal number of guarded joins.
-$countsPos = strpos($dashboard, 'function counts(');
-$countsEnd = $countsPos !== false ? strpos($dashboard, "\n    public function ", $countsPos + 1) : false;
-$countsBody = $countsPos !== false
-    ? substr($dashboard, $countsPos, $countsEnd !== false ? $countsEnd - $countsPos : null)
-    : '';
+$countsBody = $extractMethod($dashboard, 'public function counts(');
 $checks['DashboardStats::counts() guards every prestiti sub-count with a soft-delete join'] =
     $countsBody !== ''
     && substr_count($countsBody, 'FROM prestiti')
@@ -91,15 +127,10 @@ $checks['LoanRepository::update fallback reads loan_duration_days'] =
     && str_contains($loanRepo, 'loanDurationDays()');
 
 // 6. rejectLoan promotes the waitlist + flushes deferred notifications.
-$rejectPos = strpos($approval, 'function rejectLoan');
-$rejectEnd = $rejectPos !== false
-    ? strpos($approval, "\n    public function ", $rejectPos + strlen('function rejectLoan'))
-    : false;
-$rejectBody = $rejectPos !== false
-    ? substr($approval, $rejectPos, $rejectEnd !== false ? $rejectEnd - $rejectPos : null)
-    : '';
+$rejectBody = $extractMethod($approval, 'public function rejectLoan(');
 $checks['rejectLoan promotes waitlist and flushes notifications'] =
-    str_contains($rejectBody, 'processBookAvailability($bookId)')
+    $rejectBody !== ''
+    && str_contains($rejectBody, 'processBookAvailability($bookId)')
     && str_contains($rejectBody, 'flushDeferredNotifications()');
 
 // 7. DataIntegrity expires prenotazioni on the app clock.
@@ -108,17 +139,19 @@ $checks['DataIntegrity uses app clock for reservation expiry'] =
     && substr_count($integrity, 'data_scadenza_prenotazione < ?') >= 2;
 
 // 8. store() strict-validates both dates (same rule as update()).
-$storePos = strpos($prestiti, 'public function store(');
-$storeBody = $storePos !== false ? substr($prestiti, $storePos, 4000) : '';
+$storeBody = $extractMethod($prestiti, 'public function store(');
 $checks['store() ISO-validates data_prestito and data_scadenza'] =
-    substr_count($storeBody, 'DateHelper::isISODateFormat') >= 2
+    $storeBody !== ''
+    && substr_count($storeBody, 'DateHelper::isISODateFormat') >= 2
     && !str_contains($storeBody, 'strtotime($data_scadenza) <= strtotime($data_prestito)');
 
 // 9. occupied_ranges: pendente-with-copy arm + reservation queue included.
-$rangesPos = strpos($web, 'Intervalli occupati');
-$rangesBody = $rangesPos !== false ? substr($web, $rangesPos, 2500) : '';
+$rangesBody = $extractSection($web, 'Intervalli occupati', '// first_available / is_available_now');
 $checks['occupied_ranges includes pendente-with-copy and prenotazioni'] =
-    str_contains($rangesBody, "stato = 'pendente' AND copia_id IS NOT NULL")
+    $rangesBody !== ''
+    && str_contains($rangesBody, "stato = 'pendente' AND copia_id IS NOT NULL")
+    && str_contains($rangesBody, "WHEN stato = 'in_ritardo' THEN '9999-12-31'")
+    && str_contains($rangesBody, "'to' => \$row['occupied_until']")
     && str_contains($rangesBody, "FROM prenotazioni");
 
 // 10. Views: overdue/day-count displays on the app clock.
@@ -144,12 +177,12 @@ $checks['rejectLoan cancels with audit instead of deleting'] =
 
 // 13. Renewal confirmation email: template in base + all 4 locale overrides,
 //     NotificationService sender, and the post-commit call in renew().
-$mailBase = (string) file_get_contents($root . '/app/Support/SettingsMailTemplates.php');
-$notif = (string) file_get_contents($root . '/app/Support/NotificationService.php');
+$mailBase = $readSource('/app/Support/SettingsMailTemplates.php');
+$notif = $readSource('/app/Support/NotificationService.php');
 $renewedEverywhere = str_contains($mailBase, "'loan_renewed'");
 foreach (['da_DK', 'de_DE', 'en_US', 'fr_FR'] as $mailLocale) {
     $renewedEverywhere = $renewedEverywhere
-        && str_contains((string) file_get_contents($root . "/app/Support/mail_templates/{$mailLocale}.php"), "'loan_renewed'");
+        && str_contains($readSource("/app/Support/mail_templates/{$mailLocale}.php"), "'loan_renewed'");
 }
 $checks['loan_renewed template exists in base + 4 locale overrides'] = $renewedEverywhere;
 $checks['renew() sends the renewal confirmation post-commit'] =
@@ -158,13 +191,13 @@ $checks['renew() sends the renewal confirmation post-commit'] =
 
 // 14. app.timezone is a real setting: ConfigStore default, per-locale installer
 //     seed, loans-tab select, validated save.
-$configStore = (string) file_get_contents($root . '/app/Support/ConfigStore.php');
-$loansTab = (string) file_get_contents($root . '/app/Views/settings/loans-tab.php');
-$settingsCtrl = (string) file_get_contents($root . '/app/Controllers/SettingsController.php');
+$configStore = $readSource('/app/Support/ConfigStore.php');
+$loansTab = $readSource('/app/Views/settings/loans-tab.php');
+$settingsCtrl = $readSource('/app/Controllers/SettingsController.php');
 $seededEverywhere = true;
 foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $seedLocale) {
     $seededEverywhere = $seededEverywhere
-        && str_contains((string) file_get_contents($root . "/installer/database/data_{$seedLocale}.sql"), "('app', 'timezone'");
+        && str_contains($readSource("/installer/database/data_{$seedLocale}.sql"), "('app', 'timezone'");
 }
 $checks['app.timezone has a ConfigStore default and is seeded in all 5 installers'] =
     str_contains($configStore, "'timezone' => 'Europe/Rome'") && $seededEverywhere;
@@ -175,7 +208,7 @@ $checks['loans settings expose and validate the timezone'] =
 
 // 15. Book badge: the unavailable state is a TODAY snapshot — the copy must say
 //     so, or it reads as contradicting the calendar's free future days.
-$bookDetail = (string) file_get_contents($root . '/app/Views/frontend/book-detail.php');
+$bookDetail = $readSource('/app/Views/frontend/book-detail.php');
 $checks['book badge says "Non disponibile oggi" (today snapshot)'] =
     str_contains($bookDetail, '__("Non disponibile oggi")');
 
@@ -185,7 +218,7 @@ $parityOk = true;
 $counts = [];
 $mustHave = ['Fuso orario', 'Prestito rinnovato', 'Non disponibile oggi'];
 foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $l10n) {
-    $decoded = json_decode((string) file_get_contents($root . "/locale/{$l10n}.json"), true);
+    $decoded = json_decode($readSource("/locale/{$l10n}.json"), true);
     if (!is_array($decoded)) {
         $parityOk = false;
         break;
@@ -219,6 +252,50 @@ $checks['book page has no leftover "Non Disponibile" label'] =
 $checks['reservation modal branches on result.auto_approved'] =
     str_contains($bookDetail, 'result.auto_approved === true')
     && str_contains($bookDetail, 'approvedFootnote');
+
+// 20. Every client-side "today" in the two changed loan calendars comes from
+//     DateHelper, not the browser timezone. Availability requests are ordered so
+//     an older borrower response cannot repaint a newer selection.
+$checks['loan calendars use app today and ignore stale availability responses'] =
+    str_contains($loanCreateView, 'const appToday =')
+    && str_contains($bookDetail, 'const appToday =')
+    && !str_contains($loanCreateView, 'formatDate(new Date())')
+    && !str_contains($loanCreateView, "minDate: 'today'")
+    && !str_contains($bookDetail, "minDate: 'today'")
+    && str_contains($loanCreateView, 'const requestId = ++availabilityRequestId')
+    && str_contains($loanCreateView, 'if (requestId !== availabilityRequestId) return;')
+    && substr_count($loanCreateView, 'availabilityByDate = {};') >= 3
+    && str_contains($loanCreateView, 'blockedByReservation: blockedByReservation')
+    && str_contains($loanCreateView, 'borrowerAlreadyReserved');
+
+$checks['loan calendars use the configured duration without local-time date arithmetic'] =
+    str_contains($loanCreateView, 'const defaultLoanDays =')
+    && str_contains($loanCreateView, 'addDaysToIso(dateStr, defaultLoanDays)')
+    && !str_contains($loanCreateView, 'setMonth(endDate.getMonth() + 1)')
+    && str_contains($frontend, '$defaultRequestLoanDays = min(')
+    && str_contains($bookDetail, 'addDaysToIso(dateStr, defaultRequestLoanDays)')
+    && !str_contains($bookDetail, 'setMonth(endDate.getMonth() + 1)');
+
+// 21. Server-rendered edit fallback follows the same application clock.
+$checks['loan edit fallback uses DateHelper::today()'] =
+    str_contains($loanEditView, "prestito['data_prestito'] ?? \\App\\Support\\DateHelper::today()")
+    && !str_contains($loanEditView, "prestito['data_prestito'] ?? date('Y-m-d')");
+
+// 22. Historical mobile loans retain the due date consumed by mapLoan().
+$mobileHistory = $extractSection($mobileActions, '// Concluded history', '$data = [');
+$checks['mobile loan history selects data_scadenza for due_at'] =
+    $mobileHistory !== ''
+    && str_contains($mobileHistory, 'pr.data_scadenza')
+    && str_contains($mobileActions, "'due_at'");
+
+// 23. The authenticated availability endpoint must preserve the nullable
+//     soft-delete contract instead of converting a concurrent delete to a
+//     successful empty payload.
+$disponibilitaSection = $extractSection($web, "'/api/libri/{id}/disponibilita'", "// NOTE: /api/libro/{id}/availability");
+$checks['disponibilita endpoint 404s a concurrent soft-delete'] =
+    $disponibilitaSection !== ''
+    && str_contains($disponibilitaSection, 'if ($availability === null)')
+    && !str_contains($disponibilitaSection, 'getBookAvailabilityData($libroId, $today, 180) ?? []');
 
 $failed = 0;
 foreach ($checks as $label => $ok) {

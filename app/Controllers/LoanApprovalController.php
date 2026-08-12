@@ -594,7 +594,7 @@ class LoanApprovalController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Start transaction for atomic delete + availability update
+        // Start transaction for the atomic terminal transition + availability update.
         $db->begin_transaction();
 
         try {
@@ -635,7 +635,7 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Fetch FULL loan data under lock before deletion (needed for email).
+            // Fetch full loan data under lock before changing state (needed for email).
             $stmt = $db->prepare("
                 SELECT p.libro_id, p.utente_id, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
@@ -663,7 +663,7 @@ class LoanApprovalController
             if ((int) $loan['libro_id'] !== $bookId) {
                 throw new \RuntimeException('libro_id del prestito cambiato durante il lock (TOCTOU).');
             }
-            // Store data needed for rejection email BEFORE deletion
+            // Store data needed for the rejection email before changing state.
             $userEmail = $loan['utente_email'];
             $userName = $loan['utente_nome'];
             $bookTitle = $loan['libro_titolo'];
@@ -727,7 +727,7 @@ class LoanApprovalController
             }
 
             // Send notification AFTER successful commit (outside transaction)
-            // Use pre-fetched data since loan is deleted
+            // Use the pre-fetched data because the row is now in a terminal state.
             try {
                 $notificationService = new \App\Support\NotificationService($db);
                 $notificationService->sendLoanRejectedNotificationDirect(

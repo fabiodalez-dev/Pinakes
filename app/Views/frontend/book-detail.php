@@ -20,6 +20,7 @@ use App\Support\AuthorName;
  * @var bool $userHasActiveWish Whether user has active wishlist item
  * @var array $seriesBooks Other books in the same series (collana)
  * @var string $collana Series/collection name
+ * @var int $defaultRequestLoanDays Effective configured default duration for loan requests
  */
 
 // Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
@@ -2829,7 +2830,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     const csrf = meta ? meta.getAttribute('content') : '';
     const successRangeTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
-    const successOneMonthTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%s</strong> per 1 mese'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     const successFootnote = <?php echo json_encode(__('Riceverai una conferma via email appena la richiesta sarà approvata.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     // #301: con l'auto-approvazione attiva il server risponde auto_approved=true
     // e il prestito è GIÀ in attesa di ritiro — il copy "appena sarà approvata"
@@ -2846,6 +2846,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // la guardia anti-duplicato di createReservation rifiuterebbe ogni data.
     // Meglio spiegarlo subito invece di aprire un picker destinato a fallire.
     const alreadyReservedMsg = <?php echo json_encode(__('Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const appToday = <?php echo json_encode(\App\Support\DateHelper::today(), JSON_HEX_TAG); ?>;
+    const defaultRequestLoanDays = <?= (int) $defaultRequestLoanDays ?>;
+
+    function addDaysToIso(isoDate, days) {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate || '');
+      if (!match) return isoDate;
+      const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    }
 
     async function updateReservationsBadge() {
       const badge = document.getElementById('nav-res-count');
@@ -2875,16 +2885,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      // Note: Uses local timezone (getFullYear/getMonth/getDate) rather than UTC,
-      // which is intentional — loan dates should reflect the user's local date.
-      const iso = (dt) => {
-        const y = dt.getFullYear();
-        const m = String(dt.getMonth() + 1).padStart(2, '0');
-        const d = String(dt.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-      };
-      let earliestAvailable = new Date();
-      let suggestedDate = iso(earliestAvailable);
+      // Loan dates follow the library's configured clock, including for users
+      // whose browser is in a different timezone near the day boundary.
+      let suggestedDate = appToday;
 
       if (window.Swal) {
         // Fetch availability data for the calendar
@@ -2910,12 +2913,8 @@ document.addEventListener('DOMContentLoaded', function() {
               }
               disabledDates = availData.availability.unavailable_dates || [];
               if (availData.availability.earliest_available) {
-                const parts = String(availData.availability.earliest_available).split('-').map(Number);
-                if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-                  earliestAvailable = new Date(parts[0], parts[1] - 1, parts[2]);
-                } else {
-                  earliestAvailable = new Date(); // fallback: today
-                }
+                const earliest = String(availData.availability.earliest_available);
+                suggestedDate = /^\d{4}-\d{2}-\d{2}$/.test(earliest) ? earliest : appToday;
               }
               if (Array.isArray(availData.availability.days)) {
                 availabilityByDate = availData.availability.days.reduce((acc, day) => {
@@ -2938,7 +2937,6 @@ document.addEventListener('DOMContentLoaded', function() {
           console.error('Error fetching availability:', e);
         }
 
-        suggestedDate = iso(earliestAvailable);
         const formatDateIT = (dateStr) => {
           if (!dateStr) { return ''; }
           const parts = dateStr.split('-');
@@ -2972,7 +2970,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `</div>`+
             `<div class="loan-request-field">`+
             `<label class="loan-request-label" data-for-picker="end">${__('Fino a quando? (opzionale):')}</label>`+
-            `<input id="swal-date-end" type="text" class="loan-date-input" placeholder="<?= __('Lascia vuoto per 1 mese') ?>">`+
+            `<input id="swal-date-end" type="text" class="loan-date-input" placeholder="<?= htmlspecialchars(__('Durata predefinita prestito') . ': ' . __('%d giorni', (int) $defaultRequestLoanDays), ENT_QUOTES, 'UTF-8') ?>">`+
             `</div>`+
             `<p class="loan-request-note">`+
             `<i class="fas fa-info-circle mr-1"></i>`+
@@ -3008,7 +3006,7 @@ document.addEventListener('DOMContentLoaded', function() {
               disableMobile: true,
               altInput: true,
               altFormat: forceEn ? 'm-d-Y' : 'd-m-Y',
-              minDate: 'today',
+              minDate: appToday,
               maxDate: maxAvailableDate || undefined,
               defaultDate: suggestedDate,
               locale: forceEn ? 'en' : (fpLocale || 'default'),
@@ -3061,14 +3059,11 @@ document.addEventListener('DOMContentLoaded', function() {
               startPicker = window.flatpickr(startEl, {
                 ...baseOpts,
                 onChange: function(selectedDates, dateStr, instance) {
-                  if (selectedDates.length > 0) {
-                    // Auto-set end date to 1 month after start date
-                    const startDate = new Date(selectedDates[0]);
-                    const endDate = new Date(startDate);
-                    endDate.setMonth(endDate.getMonth() + 1);
+                  if (selectedDates.length > 0 && dateStr) {
+                    const endDate = addDaysToIso(dateStr, defaultRequestLoanDays);
                     if (endPicker) {
                       endPicker.setDate(endDate, true);
-                      endPicker.set('minDate', startDate);
+                      endPicker.set('minDate', dateStr);
                     }
                   }
                 }
@@ -3076,7 +3071,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
               endPicker = window.flatpickr(endEl, {
                 ...baseOpts,
-                minDate: earliestAvailable,
+                minDate: suggestedDate,
                 maxDate: undefined // End date can extend beyond availability range
               });
 
@@ -3132,9 +3127,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (res.ok && result.success) {
               await updateReservationsBadge();
-              const successHtml = formValues.endDate
-                ? successRangeTpl.replace('%1$s', formatDateIT(formValues.startDate)).replace('%2$s', formatDateIT(formValues.endDate))
-                : successOneMonthTpl.replace('%s', formatDateIT(formValues.startDate));
+              const effectiveEndDate = formValues.endDate || addDaysToIso(formValues.startDate, defaultRequestLoanDays);
+              const successHtml = successRangeTpl
+                .replace('%1$s', formatDateIT(formValues.startDate))
+                .replace('%2$s', formatDateIT(effectiveEndDate));
 
               const isAutoApproved = result.auto_approved === true;
               // A scheduled ('prenotato') loan is not awaiting pickup yet: branch

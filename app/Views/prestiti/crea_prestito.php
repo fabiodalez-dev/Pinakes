@@ -15,6 +15,7 @@ $oldConsegna = (bool) ($oldConsegna ?? true);
 $oldPdf = (bool) ($oldPdf ?? true);
 $meUserId = (int) ($meUserId ?? 0);
 $meUserName = (string) ($meUserName ?? '');
+$defaultLoanDays = max(1, (int) ($defaultLoanDays ?? 30));
 
 $csrf = Csrf::ensureToken();
 // Get locale from session (same as frontend/layout.php)
@@ -351,19 +352,31 @@ $apiBookRoute = route_path('api_book');
         selectBook: <?= json_encode(__("Seleziona un libro per vedere la disponibilità"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         copyResolved: <?= json_encode(__("Copia identificata: %s"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         copyNotFound: <?= json_encode(__("Nessuna copia trovata con questo codice inventario."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
-        copyNotAvailable: <?= json_encode(__("Questa copia non è disponibile ora."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
+        copyNotAvailable: <?= json_encode(__("Questa copia non è disponibile ora."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        borrowerAlreadyReserved: <?= json_encode(__("L'utente selezionato ha già una prenotazione attiva per questo libro."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
       };
 
       // F043: base della route di disponibilità risolta per il locale attivo,
       // base path incluso. Non anteporre window.BASE_PATH (raddoppierebbe il
       // base path sulle installazioni in sottocartella).
       const API_BOOK_BASE = <?= json_encode($apiBookRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;
+      const appToday = <?= json_encode(\App\Support\DateHelper::today(), JSON_HEX_TAG) ?>;
+      const defaultLoanDays = <?= (int) $defaultLoanDays ?>;
+
+      function addDaysToIso(isoDate, days) {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate || '');
+        if (!match) return isoDate;
+        const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+        date.setUTCDate(date.getUTCDate() + days);
+        return date.toISOString().slice(0, 10);
+      }
 
       // Book availability data
       let bookAvailability = {
         occupiedRanges: [],
         firstAvailable: null,
-        isAvailableNow: true
+        isAvailableNow: true,
+        blockedByReservation: false
       };
 
       // Date picker elements
@@ -378,15 +391,8 @@ $apiBookRoute = route_path('api_book');
 
       // Availability data by date (same structure as frontend)
       let availabilityByDate = {};
-
-      // Format date as YYYY-MM-DD
-      function formatDate(date) {
-        const d = new Date(date);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      }
+      let availabilityRequestId = 0;
+      let availabilityAbortController = null;
 
       // Flatpickr onDayCreate callback to color dates (same logic as frontend)
       function colorCalendarDates(dObj, dStr, fp, dayElem) {
@@ -394,11 +400,20 @@ $apiBookRoute = route_path('api_book');
         if (dayElem.classList.contains('prevMonthDay') || dayElem.classList.contains('nextMonthDay')) return;
 
         const isoDate = fp.formatDate(dayElem.dateObj, 'Y-m-d');
-        const today = formatDate(new Date());
+        const today = appToday;
         const info = availabilityByDate[isoDate];
 
         // Don't color past dates
         if (isoDate < today) {
+          return;
+        }
+
+        // The create gate forbids another loan while this borrower has an
+        // active queue reservation for the same book, regardless of date.
+        if (bookAvailability.blockedByReservation) {
+          dayElem.style.backgroundColor = '#fffbeb';
+          dayElem.style.borderColor = '#fef3c7';
+          dayElem.style.color = '#b45309';
           return;
         }
 
@@ -427,6 +442,9 @@ $apiBookRoute = route_path('api_book');
 
       // Check if a date is occupied (for hint text)
       function isDateOccupied(dateStr) {
+        if (bookAvailability.blockedByReservation) {
+          return 'in_corso';
+        }
         const info = availabilityByDate[dateStr];
         if (info && info.state !== 'free') {
           return info.state === 'borrowed' ? 'in_ritardo' : 'in_corso';
@@ -457,7 +475,7 @@ $apiBookRoute = route_path('api_book');
       function updateConsegnaImmediataVisibility(dateStr) {
         if (!consegnaContainer || !consegnaCheckbox) return;
 
-        const today = formatDate(new Date());
+        const today = appToday;
         const isImmediate = dateStr <= today;
 
         if (isImmediate) {
@@ -484,15 +502,13 @@ $apiBookRoute = route_path('api_book');
         altInput: true,
         altFormat: isItalian ? 'd/m/Y' : 'm/d/Y',
         allowInput: true,
-        minDate: 'today',
+        minDate: appToday,
         locale: localeObj || undefined,
         onDayCreate: colorCalendarDates,
         onChange: function(selectedDates, dateStr) {
           if (dateStr) {
             // Auto-update end date
-            const startDate = new Date(dateStr);
-            const endDate = new Date(startDate);
-            endDate.setMonth(endDate.getMonth() + 1);
+            const endDate = addDaysToIso(dateStr, defaultLoanDays);
             if (fpScadenza) {
               fpScadenza.set('minDate', dateStr);
               fpScadenza.setDate(endDate);
@@ -515,7 +531,7 @@ $apiBookRoute = route_path('api_book');
         altInput: true,
         altFormat: isItalian ? 'd/m/Y' : 'm/d/Y',
         allowInput: true,
-        minDate: dataPrestitoEl.value || 'today',
+        minDate: dataPrestitoEl.value || appToday,
         locale: localeObj || undefined,
         onDayCreate: colorCalendarDates
       });
@@ -561,15 +577,31 @@ $apiBookRoute = route_path('api_book');
 
       // Fetch and apply book availability (same API as frontend)
       function fetchBookAvailability(bookId) {
+        const requestId = ++availabilityRequestId;
+        if (availabilityAbortController) {
+          availabilityAbortController.abort();
+          availabilityAbortController = null;
+        }
+
         if (!bookId || bookId === '0') {
           availabilityByDate = {};
-          bookAvailability = { occupiedRanges: [], firstAvailable: null, isAvailableNow: true };
+          bookAvailability = { occupiedRanges: [], firstAvailable: null, isAvailableNow: true, blockedByReservation: false };
           if (calendarLegend) calendarLegend.classList.add('hidden');
           if (dataPrestitoHint) dataPrestitoHint.classList.add('hidden');
           if (fpPrestito) fpPrestito.redraw();
           if (fpScadenza) fpScadenza.redraw();
           return;
         }
+
+        // Clear the previous subject immediately. Otherwise its colours and
+        // hint remain actionable while the new request is pending — and remain
+        // indefinitely if that request fails.
+        availabilityByDate = {};
+        bookAvailability = { occupiedRanges: [], firstAvailable: null, isAvailableNow: true, blockedByReservation: false };
+        if (calendarLegend) calendarLegend.classList.add('hidden');
+        if (dataPrestitoHint) dataPrestitoHint.classList.add('hidden');
+        if (fpPrestito) fpPrestito.redraw();
+        if (fpScadenza) fpScadenza.redraw();
 
         // Use same API as frontend
         const safeBookId = parseInt(bookId, 10);
@@ -578,13 +610,21 @@ $apiBookRoute = route_path('api_book');
         if (borrowerId) {
           availabilityUrl += '?for_user=' + borrowerId;
         }
-        fetch(availabilityUrl)
+        availabilityAbortController = new AbortController();
+        const requestController = availabilityAbortController;
+        fetch(availabilityUrl, { signal: requestController.signal })
           .then(function(response) {
             if (!response.ok) throw new Error('Failed to fetch availability');
             return response.json();
           })
           .then(function(data) {
+            // A book or borrower change may have started a newer request while
+            // this one was in flight. Never let the stale subject repaint the
+            // calendars or overwrite the availability used by the form.
+            if (requestId !== availabilityRequestId) return;
+
             if (data.success && data.availability) {
+              const blockedByReservation = data.availability.has_active_reservation === true;
               // Build availabilityByDate map (same structure as frontend)
               availabilityByDate = {};
               if (Array.isArray(data.availability.days)) {
@@ -598,8 +638,9 @@ $apiBookRoute = route_path('api_book');
               // Also keep old structure for backward compatibility
               bookAvailability = {
                 occupiedRanges: [],
-                firstAvailable: data.availability.earliest_available || null,
-                isAvailableNow: !data.availability.unavailable_dates || data.availability.unavailable_dates.length === 0
+                firstAvailable: blockedByReservation ? null : (data.availability.earliest_available || null),
+                isAvailableNow: !blockedByReservation && (!data.availability.unavailable_dates || data.availability.unavailable_dates.length === 0),
+                blockedByReservation: blockedByReservation
               };
             }
 
@@ -611,7 +652,11 @@ $apiBookRoute = route_path('api_book');
             if (fpScadenza) fpScadenza.redraw();
 
             // Update hint if date is already selected
-            if (dataPrestitoEl.value) {
+            if (bookAvailability.blockedByReservation && dataPrestitoHint) {
+              dataPrestitoHint.textContent = i18n.borrowerAlreadyReserved;
+              dataPrestitoHint.className = 'mt-1 text-xs text-amber-600';
+              dataPrestitoHint.classList.remove('hidden');
+            } else if (dataPrestitoEl.value) {
               updateDateHint(dataPrestitoEl.value);
             }
 
@@ -626,7 +671,13 @@ $apiBookRoute = route_path('api_book');
             }
           })
           .catch(function(error) {
+            if (error && error.name === 'AbortError') return;
             console.error('Error fetching availability:', error);
+          })
+          .finally(function() {
+            if (requestId === availabilityRequestId && availabilityAbortController === requestController) {
+              availabilityAbortController = null;
+            }
           });
       }
 

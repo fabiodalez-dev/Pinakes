@@ -19,11 +19,16 @@ $checks['relative URL rejected for admin-provided public link'] = HtmlHelper::sa
 // The template count is DERIVED from the base (it_IT) catalogue, never
 // hardcoded: a hardcoded number goes stale and turns red on every legitimate
 // new template (it broke at 22→23 when loan_renewed was added).
-$baseTemplateCount = count(SettingsMailTemplates::all('it_IT'));
+$baseTemplates = SettingsMailTemplates::all('it_IT');
+$baseTemplateCount = count($baseTemplates);
+$baseTemplateNames = array_keys($baseTemplates);
+sort($baseTemplateNames);
 $checks['base catalogue is non-empty'] = $baseTemplateCount > 0;
 foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
     $allTemplates = SettingsMailTemplates::all($locale);
-    $checks["all {$baseTemplateCount} templates exist for {$locale}"] = count($allTemplates) === $baseTemplateCount;
+    $templateNames = array_keys($allTemplates);
+    sort($templateNames);
+    $checks["template keys match for {$locale}"] = $templateNames === $baseTemplateNames;
     $template = SettingsMailTemplates::get('user_registration_verification', $locale);
     $checks["verification template exists for {$locale}"] = is_array($template)
         && str_contains((string) ($template['body'] ?? ''), '{{sezione_verifica}}')

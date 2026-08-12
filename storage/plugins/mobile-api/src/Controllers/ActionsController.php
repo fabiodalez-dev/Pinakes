@@ -104,8 +104,8 @@ final class ActionsController
             // on the closing moment (updated_at) so a recent cancellation does
             // not sink to the bottom. `status` is documented as the raw
             // prestiti.stato value, so the extra states are additive.
-            $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_restituzione, pr.stato,
-                           pr.created_at, l.titolo, l.copertina_url
+            $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.data_restituzione,
+                           pr.stato, pr.created_at, l.titolo, l.copertina_url
                     FROM prestiti pr
                     JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
                     WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato','annullato','scaduto')

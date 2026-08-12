@@ -2197,7 +2197,9 @@ return function (App $app): void {
         // first_available/is_available_now (calcolati per-giorno qui sotto)
         // contavano anche pendenti-con-copia e coda prenotazioni.
         $stmt = $db->prepare("
-            SELECT data_prestito, data_scadenza, stato
+            SELECT data_prestito,
+                   CASE WHEN stato = 'in_ritardo' THEN '9999-12-31' ELSE data_scadenza END AS occupied_until,
+                   stato
             FROM prestiti
             WHERE libro_id = ? AND (
                 (attivo = 1 AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo'))
@@ -2212,7 +2214,10 @@ return function (App $app): void {
         while ($row = $result->fetch_assoc()) {
             $occupiedRanges[] = [
                 'from' => $row['data_prestito'],
-                'to' => $row['data_scadenza'],
+                // An overdue, unreturned copy has no known release date. Keep
+                // this display payload aligned with CapacityService, which
+                // treats it as occupied for every future availability day.
+                'to' => $row['occupied_until'],
                 'stato' => $row['stato']
             ];
         }
@@ -2246,7 +2251,13 @@ return function (App $app): void {
         // copie multiple, restituendo una data troppo conservativa.
         $today = \App\Support\DateHelper::today();
         $reservations = new \App\Controllers\ReservationsController($db);
-        $availability = $reservations->getBookAvailabilityData($libroId, $today, 180) ?? [];
+        $availability = $reservations->getBookAvailabilityData($libroId, $today, 180);
+        if ($availability === null) {
+            // The book was soft-deleted after the initial lookup above. Keep the
+            // nullable provider contract consistent with the sibling endpoints.
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
+            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+        }
         $todayData = $availability['by_date'][$today] ?? null;
         $isAvailableNow = $todayData !== null && (int) ($todayData['available'] ?? 0) > 0;
 
