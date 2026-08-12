@@ -70,6 +70,21 @@ $checks['DashboardStats uses only the app clock'] =
     && !str_contains($dashboard, "date('Y-m-d')")
     && substr_count($dashboard, 'DateHelper::today()') >= 3;
 
+// 4b. DashboardStats::counts() soft-delete parity (CLAUDE.md rule 2): every
+//     `FROM prestiti` sub-count in counts() must reach `libri` through a join
+//     that excludes soft-deleted books, so no dashboard badge can exceed the
+//     rows /admin/loans/pending can render. Source-invariant: count the
+//     `FROM prestiti` occurrences and require an equal number of guarded joins.
+$countsPos = strpos($dashboard, 'function counts(');
+$countsEnd = $countsPos !== false ? strpos($dashboard, "\n    public function ", $countsPos + 1) : false;
+$countsBody = $countsPos !== false
+    ? substr($dashboard, $countsPos, $countsEnd !== false ? $countsEnd - $countsPos : null)
+    : '';
+$checks['DashboardStats::counts() guards every prestiti sub-count with a soft-delete join'] =
+    $countsBody !== ''
+    && substr_count($countsBody, 'FROM prestiti')
+        === substr_count($countsBody, 'JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL');
+
 // 5. LoanRepository::update() fallback honours the configured duration.
 $checks['LoanRepository::update fallback reads loan_duration_days'] =
     !str_contains($loanRepo, "+14 days")

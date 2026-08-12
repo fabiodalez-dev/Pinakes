@@ -146,12 +146,14 @@ $due = (new DateTimeImmutable($today))->modify('+14 days')->format('Y-m-d');
 
 // Drive the REAL createReservation with a JSON request + session user, exactly
 // like the book-detail modal does (CSRF is middleware, not in the controller).
-$callCreate = static function (int $bookId, int $userId) use ($db, $today, $due): array {
+$callCreate = static function (int $bookId, int $userId, ?string $start = null, ?string $end = null) use ($db, $today, $due): array {
+    $start = $start ?? $today;
+    $end = $end ?? $due;
     $_SESSION['user'] = ['id' => $userId, 'tipo_utente' => 'standard'];
     $request = (new ServerRequestFactory())
         ->createServerRequest('POST', '/api/libro/' . $bookId . '/reservation')
         ->withHeader('Content-Type', 'application/x-www-form-urlencoded')
-        ->withParsedBody(['start_date' => $today, 'end_date' => $due]);
+        ->withParsedBody(['start_date' => $start, 'end_date' => $end]);
     $controller = new ReservationsController($db);
     $result = $controller->createReservation($request, new SlimResponse(), ['id' => $bookId]);
     $payload = json_decode((string) $result->getBody(), true) ?: [];
@@ -211,6 +213,53 @@ $check(
         && $loanField($loanNoCopyId, 'copia_id') === null,
     '14 request stays pendente without an assigned copy'
 );
+
+// ── D. Setting ON + FUTURE start date: the loan is SCHEDULED, not awaiting ───
+// F009: a future-dated request is auto-approved into stato 'prenotato' (no
+// pickup deadline yet). The response must say 'scheduled', not 'approved', and
+// must NOT claim the book is awaiting pickup.
+echo "D. createReservation with a FUTURE start date (auto-approve ON) → scheduled\n";
+$settings->set('loans', 'auto_approve_requests', '1');
+$futureStart = (new DateTimeImmutable($today))->modify('+10 days')->format('Y-m-d');
+$futureEnd = (new DateTimeImmutable($today))->modify('+24 days')->format('Y-m-d');
+$awaitingPickupMsg = __('Prestito approvato - in attesa di ritiro');
+$resFuture = $callCreate($makeBook(1), $makeUser(), $futureStart, $futureEnd);
+$check($resFuture['status'] === 200 && ($resFuture['payload']['success'] ?? false) === true, '15 future-dated request accepted');
+$check(($resFuture['payload']['auto_approved'] ?? null) === true, '16 response auto_approved = true (a real boolean)');
+$check(($resFuture['payload']['status'] ?? '') === 'scheduled', "17 response status = 'scheduled' (not 'approved')");
+$check(($resFuture['payload']['loan_state'] ?? '') === 'prenotato', "18 response exposes loan_state = 'prenotato'");
+$check(($resFuture['payload']['message'] ?? '') !== $awaitingPickupMsg, '19 message is NOT the awaiting-pickup string');
+$loanFutureId = (int) ($resFuture['payload']['loan_request_id'] ?? 0);
+$check($loanFutureId > 0 && $loanField($loanFutureId, 'stato') === 'prenotato', "20 loan persisted as 'prenotato' (scheduled)");
+$check($loanField($loanFutureId, 'pickup_deadline') === null, '21 scheduled loan has no pickup_deadline yet');
+
+// ── E. F007: a post-commit settings-read failure degrades to pending ────────
+// The helper runs AFTER the request row is committed. If its SettingsRepository
+// read throws (e.g. the connection died in the post-commit window), the helper
+// must CATCH it and return null — so the endpoint reports pending_approval with
+// HTTP 200, instead of letting the throw escape to the outer transaction catch
+// (which would return a 500 for an already-durable request, and the duplicate
+// guard would then permanently block the user's retry). Simulated by invoking
+// the private helper against a closed connection: pre-fix the settings read sat
+// OUTSIDE the try and this invoke would throw; post-fix it is caught → null.
+echo "E. F007: settings-read failure in the post-commit helper degrades to pending (never escapes)\n";
+$deadDb = $socket !== '' && file_exists($socket)
+    ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
+    : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
+$deadDb->close(); // connection lost right after the commit
+$faultController = new ReservationsController($deadDb);
+$faultMethod = new ReflectionMethod($faultController, 'autoApproveLoanRequest');
+$faultMethod->setAccessible(true);
+$faultRequest = (new ServerRequestFactory())->createServerRequest('POST', '/api/libro/1/reservation');
+$faultThrew = false;
+$faultResult = 'unset';
+try {
+    $faultResult = $faultMethod->invoke($faultController, $faultRequest, 12345);
+} catch (\Throwable $e) {
+    $faultThrew = true;
+}
+$check($faultThrew === false, '22 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
+$check($faultResult === null, '23 failed post-commit settings read degrades to null → pending_approval');
 
 $cleanup();
 $db->close();

@@ -23,12 +23,12 @@ class DashboardStats
             $sql = "SELECT
                         (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) AS libri,
                         (SELECT COUNT(*) FROM utenti) AS utenti,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato IN ('in_corso','in_ritardo') AND attivo = 1) AS prestiti_in_corso,
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE p.stato IN ('in_corso','in_ritardo') AND p.attivo = 1) AS prestiti_in_corso,
                         (SELECT COUNT(*) FROM autori) AS autori,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente') AS prestiti_pendenti,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND origine = 'prenotazione') AS ritiri_da_confermare,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND (origine = 'richiesta' OR origine IS NULL)) AS richieste_manuali,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= '{$today}')) AS pickup_pronti";
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE p.stato = 'pendente') AS prestiti_pendenti,
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE p.stato = 'pendente' AND p.origine = 'prenotazione') AS ritiri_da_confermare,
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE p.stato = 'pendente' AND (p.origine = 'richiesta' OR p.origine IS NULL)) AS richieste_manuali,
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE (p.stato = 'da_ritirare' OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}'))) AS pickup_pronti";
 
             $result = $db->query($sql);
             if ($result && $row = $result->fetch_assoc()) {

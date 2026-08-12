@@ -548,7 +548,13 @@ class LoanApprovalController
                 'success' => true,
                 'message' => $isFutureLoan
                     ? __('Prestito prenotato con successo')
-                    : __('Prestito approvato - in attesa di ritiro')
+                    : __('Prestito approvato - in attesa di ritiro'),
+                // Expose the state actually persisted so programmatic callers
+                // (autoApproveLoanRequest) can branch on 'prenotato' vs
+                // 'da_ritirare' instead of re-deriving it from the date and
+                // drifting from the authoritative computation above.
+                'loan_state' => $newState,
+                'is_future_loan' => $isFutureLoan,
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 

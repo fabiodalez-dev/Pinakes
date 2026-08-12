@@ -6773,5 +6773,6 @@
   "Inviata all'utente quando un prestito viene rinnovato, con la nuova data di scadenza.": "Sent to the user when a loan is renewed, with the new due date.",
   "Notifica rinnovo prestito fallita": "Loan renewal notification failed",
   "Non disponibile oggi": "Not available today",
-  "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.": "Your request was approved automatically: you will receive an email with pickup instructions."
+  "La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.": "Your request was approved automatically: you will receive an email with pickup instructions.",
+  "Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.": "Loan booked: you will receive pickup instructions as the start date approaches."
 }

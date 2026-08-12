@@ -1945,9 +1945,20 @@ ob_start();
                 <div id="book-alerts">
                     <?php if (!empty($_GET['loan_request_success'])): ?>
                         <div class="alert alert-success relative pr-12 fade show" role="alert">
-                            <i class="fas fa-check-circle mr-2"></i><?= !empty($_GET['auto_approved'])
-                              ? __("Prestito approvato. Il libro è in attesa di ritiro.")
-                              : __("Prestito richiesto con successo.") ?>
+                            <i class="fas fa-check-circle mr-2"></i><?php
+                              // Branch on the persisted state (F009): a future-dated
+                              // auto-approved loan is 'prenotato' (scheduled), not
+                              // awaiting pickup.
+                              $loanStateRaw = $_GET['loan_state'] ?? '';
+                              $loanStateKey = is_scalar($loanStateRaw) ? (string) $loanStateRaw : '';
+                              if (!empty($_GET['auto_approved'])) {
+                                  echo $loanStateKey === 'prenotato'
+                                      ? __("Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.")
+                                      : __("Prestito approvato. Il libro è in attesa di ritiro.");
+                              } else {
+                                  echo __("Prestito richiesto con successo.");
+                              }
+                            ?>
                             <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['loan_error'])): ?>
@@ -2810,6 +2821,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // sarebbe falso e l'utente aspetterebbe un'approvazione già avvenuta.
     const approvedTitle = <?php echo json_encode(__('Prestito approvato!'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     const approvedFootnote = <?php echo json_encode(__('La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    // #301/F009: a future-dated request is auto-approved into stato 'prenotato'
+    // (scheduled, no pickup deadline yet) — the "pickup instructions" copy above
+    // would be false, so the scheduled case gets its own title/footnote.
+    const scheduledTitle = <?php echo json_encode(__('Prestito prenotato con successo'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const scheduledFootnote = <?php echo json_encode(__('Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
 
     async function updateReservationsBadge() {
       const badge = document.getElementById('nav-res-count');
@@ -3090,10 +3106,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 : successOneMonthTpl.replace('%s', formatDateIT(formValues.startDate));
 
               const isAutoApproved = result.auto_approved === true;
+              // A scheduled ('prenotato') loan is not awaiting pickup yet: branch
+              // the footnote so it doesn't promise imminent pickup instructions.
+              const isScheduled = result.loan_state === 'prenotato';
+              const approvedFootnoteText = isScheduled ? scheduledFootnote : approvedFootnote;
               Swal.fire({
                 icon: 'success',
-                title: isAutoApproved ? approvedTitle : __('Richiesta Inviata!'),
-                html: `${successHtml}<br><small>${isAutoApproved ? approvedFootnote : successFootnote}</small>`
+                title: isAutoApproved ? (isScheduled ? scheduledTitle : approvedTitle) : __('Richiesta Inviata!'),
+                html: `${successHtml}<br><small>${isAutoApproved ? approvedFootnoteText : successFootnote}</small>`
               });
               return;
             } else {
