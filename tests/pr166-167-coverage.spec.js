@@ -594,27 +594,57 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     throw new Error(`update lock did not become ${acquirable ? 'available' : 'held'} within ${timeout} ms`);
   }
 
-  // Spawn a PHP process that holds an exclusive flock until the test releases
-  // it explicitly. A fixed sleep is racy because browser/Apache work before
-  // the request can exceed the nominal hold duration on a busy CI runner.
+  // Spawn a supervised PHP process that holds an exclusive flock until stdin
+  // closes. The READY handshake proves acquisition, while awaiting process exit
+  // proves the OS released the descriptor before the next assertion.
   function holdLock() {
     const lf = LOCK_FILE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const signalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pk-update-lock-'));
-    const signalFile = path.join(signalDir, 'release');
-    const sf = signalFile.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const code = `$f=fopen('${lf}','c'); if($f===false){exit(1);} if(!flock($f,LOCK_EX)){exit(2);} $until=microtime(true)+60; while(!file_exists('${sf}') && microtime(true)<$until){usleep(20000);} flock($f,LOCK_UN); fclose($f);`;
-    const child = spawn('php', ['-r', code], { detached: true, stdio: 'ignore' });
-    child.unref();
+    const code = `$f=fopen('${lf}','c'); if($f===false){fwrite(STDERR,"open failed\\n");exit(1);} if(!flock($f,LOCK_EX|LOCK_NB)){fwrite(STDERR,"flock failed\\n");exit(2);} fwrite(STDOUT,"READY\\n");fflush(STDOUT);fgets(STDIN);flock($f,LOCK_UN);fclose($f);`;
+    const child = spawn('php', ['-r', code], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    const exited = new Promise((resolve) => child.once('exit', resolve));
+    const ready = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`lock holder READY timeout: ${stderr.trim()}`)), 8000);
+      child.stdout.once('data', (chunk) => {
+        clearTimeout(timer);
+        if (chunk.toString().includes('READY')) resolve();
+        else reject(new Error(`unexpected lock holder output: ${chunk.toString()}`));
+      });
+      child.once('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.once('exit', (code) => {
+        clearTimeout(timer);
+        if (code !== 0) reject(new Error(`lock holder exited ${code}: ${stderr.trim()}`));
+      });
+    });
     return {
-      release: () => fs.writeFileSync(signalFile, 'release'),
-      cleanup: () => fs.rmSync(signalDir, { recursive: true, force: true }),
+      ready,
+      release: async () => {
+        if (child.exitCode === null) child.stdin.end();
+        let timer;
+        try {
+          await Promise.race([
+            exited,
+            new Promise((_, reject) => {
+              timer = setTimeout(() => reject(new Error('lock holder exit timeout')), 8000);
+            }),
+          ]);
+        } catch (error) {
+          if (child.exitCode === null) child.kill('SIGKILL');
+          throw error;
+        } finally {
+          clearTimeout(timer);
+        }
+      },
     };
   }
 
   async function releaseLock(holder) {
-    holder.release();
+    await holder.release();
     await waitForLock(true);
-    holder.cleanup();
   }
 
   test('13. Two concurrent restores are both rejected while the lock is held', async () => {
@@ -632,6 +662,7 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     ]);
     const holder = holdLock();
     try {
+      await holder.ready;
       await waitForLock(false);
       const [a, b] = await Promise.all([
         apiPost(pageA, '/admin/updates/backup/restore', { backup }),
@@ -666,6 +697,7 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     // (b) While a holder owns the lock acquisition fails; afterwards it works.
     const holder = holdLock();
     try {
+      await holder.ready;
       await waitForLock(false);
       expect(fs.existsSync(LOCK_FILE)).toBe(true);
       expect(canAcquireLock()).toBe(false);
@@ -680,6 +712,7 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     const backup = await createBackup(page, 'full');
     const holder = holdLock();
     try {
+      await holder.ready;
       await waitForLock(false);
       const res = await apiPost(page, '/admin/updates/backup/restore', { backup });
       expect((res.json && res.json.error) || '').toMatch(/già in corso/i);

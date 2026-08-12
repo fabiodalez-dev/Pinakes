@@ -208,6 +208,12 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
                 const absPath = path.join(PUBLIC_DIR, relPath.trim());
                 const dir = path.dirname(absPath);
                 fs.mkdirSync(dir, { recursive: true });
+                // The test process runs as the GitHub runner while uploads are
+                // handled by Apache (www-data). A directory first created here
+                // with Node's default 0755 mode is not writable by Apache even
+                // though the shared public/uploads root was prepared correctly.
+                // Mirror the throwaway CI install's shared-runtime permissions.
+                fs.chmodSync(dir, 0o777);
                 try {
                     fs.writeFileSync(absPath, Buffer.from('stub'), { flag: 'wx' });
                     stubFilePaths.push(absPath);
