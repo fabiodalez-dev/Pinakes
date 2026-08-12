@@ -203,6 +203,9 @@ function checkPolicy() {
     if (/actions\/upload-artifact@v(?:[1-5])\b/.test(source)) {
       fail(`${workflow} uses an upload-artifact release with a deprecated Node runtime`);
     }
+    if (/uses:\s*actions\/cache@(?:v[1-4]\b|[^\s#]+[^\n]*#\s*v[1-4]\b)/.test(source)) {
+      fail(`${workflow} uses an actions/cache release with the deprecated Node 20 runtime`);
+    }
     const checkoutSteps = source.split(/(?=^[ \t]*- (?:name:|uses:))/m)
       .filter((step) => /uses:\s*actions\/checkout@/.test(step));
     for (const step of checkoutSteps) {
