@@ -51,6 +51,15 @@ try {
 }
 
 // Keep email out of the way (approveLoan sends the patron notification).
+// Preserve the originals so later tests in the same runner keep their email
+// configuration — a blind UPDATE here would otherwise leak 'mail' onto every
+// subsequent test.
+$origEmail = [];
+if ($r = $db->query("SELECT setting_key, setting_value FROM system_settings WHERE category='email' AND setting_key IN ('driver_mode','type')")) {
+    while ($row = $r->fetch_assoc()) {
+        $origEmail[$row['setting_key']] = $row['setting_value'];
+    }
+}
 $db->query("UPDATE system_settings SET setting_value='mail' WHERE category='email' AND setting_key IN ('driver_mode','type')");
 
 $run = substr(hash('sha256', uniqid((string) getmypid(), true)), 0, 10);
@@ -65,7 +74,7 @@ if ($r = $db->query("SELECT setting_value FROM system_settings WHERE category='l
     }
 }
 
-$cleanup = static function () use ($db, $titlePrefix, $emailDomain, $origAuto): void {
+$cleanup = static function () use ($db, $titlePrefix, $emailDomain, $origAuto, $origEmail): void {
     $titleLike = $titlePrefix . '%';
     $emailLike = '%' . $emailDomain;
     foreach ([
@@ -88,6 +97,15 @@ $cleanup = static function () use ($db, $titlePrefix, $emailDomain, $origAuto): 
     } else {
         $stmt = $db->prepare("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','auto_approve_requests',?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
         $stmt->bind_param('s', $origAuto);
+        $stmt->execute();
+        $stmt->close();
+    }
+    // Restore the email driver/type rows the setup overwrote. The setup used an
+    // UPDATE (never an INSERT), so only pre-existing rows were touched — a plain
+    // UPDATE back to the captured value fully restores the prior state.
+    foreach ($origEmail as $emailKey => $emailValue) {
+        $stmt = $db->prepare("UPDATE system_settings SET setting_value = ? WHERE category='email' AND setting_key = ?");
+        $stmt->bind_param('ss', $emailValue, $emailKey);
         $stmt->execute();
         $stmt->close();
     }
@@ -150,10 +168,15 @@ $callCreate = static function (int $bookId, int $userId, ?string $start = null, 
     $start = $start ?? $today;
     $end = $end ?? $due;
     $_SESSION['user'] = ['id' => $userId, 'tipo_utente' => 'standard'];
+    // Mirror the book-detail modal exactly: a JSON body behind Content-Type:
+    // application/json, so the request drives createReservation's json_decode
+    // branch (getParsedBody() does NOT parse JSON — the form-urlencoded path
+    // would silently exercise different code than real users hit).
     $request = (new ServerRequestFactory())
         ->createServerRequest('POST', '/api/libro/' . $bookId . '/reservation')
-        ->withHeader('Content-Type', 'application/x-www-form-urlencoded')
-        ->withParsedBody(['start_date' => $start, 'end_date' => $end]);
+        ->withHeader('Content-Type', 'application/json');
+    $request->getBody()->write((string) json_encode(['start_date' => $start, 'end_date' => $end]));
+    $request->getBody()->rewind();
     $controller = new ReservationsController($db);
     $result = $controller->createReservation($request, new SlimResponse(), ['id' => $bookId]);
     $payload = json_decode((string) $result->getBody(), true) ?: [];
