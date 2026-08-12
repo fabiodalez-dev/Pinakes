@@ -791,7 +791,11 @@ test.describe.serial('Email Notifications E2E', () => {
     await page.close();
 
     // Admin should receive contact notification
-    const contactMail = await waitForMail(`to:${ADMIN_EMAIL} subject:messaggio`);
+    // Mailpit updates recipient indexes immediately, while compound full-text
+    // subject searches can lag briefly after SMTP acceptance. The inbox was
+    // cleared above, so locate the admin delivery by envelope recipient and
+    // assert the subject from the canonical stored message below.
+    const contactMail = await waitForMail(`to:${ADMIN_EMAIL}`);
     expect(contactMail).toBeTruthy();
     const msg = await getMessage(contactMail.ID);
     expect(msg.Subject.toLowerCase()).toMatch(/messaggio|contact|contatt/);
