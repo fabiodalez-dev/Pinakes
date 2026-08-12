@@ -2005,8 +2005,19 @@ return function (App $app): void {
         // calendar and the server-side write gate already do: without it the
         // picker painted the user's own reserved days red while the server
         // would have accepted the same dates.
+        // F012: the admin loan form fetches this same route while creating a loan
+        // FOR a borrower who is NOT the session operator. When an admin/staff
+        // passes ?for_user=<id>, exclude THAT borrower's reservations instead of
+        // the operator's, so the calendar matches the write gate. Anonymous or
+        // non-privileged callers stay on the session id (self-service default).
         $sessionUserId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
-        $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), $days, $sessionUserId);
+        $forUser = $request->getQueryParams()['for_user'] ?? null;
+        $sessionRole = $_SESSION['user']['tipo_utente'] ?? '';
+        $excludeUserId = $sessionUserId;
+        if ($forUser !== null && is_numeric($forUser) && in_array($sessionRole, ['admin', 'staff'], true)) {
+            $excludeUserId = (int) $forUser;
+        }
+        $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), $days, $excludeUserId);
         if ($availability === null) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
@@ -2515,8 +2526,18 @@ return function (App $app): void {
             $controller = new \App\Controllers\ReservationsController($db);
             // Public endpoint (the book-page picker) — when a session exists,
             // exclude the user's own reservations like the write gate does.
+            // F012: the admin loan form fetches this same route to create a loan
+            // FOR a borrower who is not the session operator. An admin/staff can
+            // pass ?for_user=<id> to exclude THAT borrower instead of the
+            // operator; everyone else stays on the session id (self-service).
             $sessionUserId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
-            $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), 180, $sessionUserId);
+            $forUser = $request->getQueryParams()['for_user'] ?? null;
+            $sessionRole = $_SESSION['user']['tipo_utente'] ?? '';
+            $excludeUserId = $sessionUserId;
+            if ($forUser !== null && is_numeric($forUser) && in_array($sessionRole, ['admin', 'staff'], true)) {
+                $excludeUserId = (int) $forUser;
+            }
+            $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), 180, $excludeUserId);
             if ($availability === null) {
                 $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
                 return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
@@ -2526,7 +2547,12 @@ return function (App $app): void {
                 'availability' => [
                     'unavailable_dates' => $availability['unavailable_dates'] ?? [],
                     'earliest_available' => $availability['earliest_available'] ?? \App\Support\DateHelper::today(),
-                    'days' => $availability['days'] ?? []
+                    'days' => $availability['days'] ?? [],
+                    // F040: true when the excluded user already holds an active
+                    // reservation on this book — the picker would otherwise show
+                    // an all-green calendar that the date-less duplicate guard in
+                    // createReservation rejects for every date.
+                    'has_active_reservation' => $availability['has_active_reservation'] ?? false
                 ]
             ];
             $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));

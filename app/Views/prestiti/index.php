@@ -96,6 +96,9 @@ $applicationToday = \App\Support\DateHelper::today();
                     // La parità (prestito a giornata singola) è lecita: solo il range invertito è rifiutato.
                     echo __('Errore: la data di scadenza non può essere precedente alla data di prestito.');
                     break;
+                case 'invalid_date_format':
+                    echo __('Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.');
+                    break;
                 case 'loan_closed':
                     echo __('Il prestito è già chiuso: la modifica non è stata salvata.');
                     break;

@@ -158,10 +158,18 @@ class ReservationsController
             $loanIntervals[] = [$startDateLoan, $endDateLoan];
         }
 
+        // F040: does the excluded user already hold an active reservation on this
+        // book? Same predicate as the date-less duplicate guard in
+        // createReservation (prenotazioni WHERE libro_id AND utente_id AND
+        // stato='attiva'). Surfaced so the picker can warn instead of showing an
+        // all-green calendar that the guard would reject for every date.
+        $hasActiveReservation = false;
+
         $reservationIntervals = [];
         foreach ($existingReservations as $reservation) {
             // Skip reservation if it belongs to the excluded user (e.g. the user making the request)
             if ($excludeUserId !== null && isset($reservation['utente_id']) && (int) $reservation['utente_id'] === $excludeUserId) {
+                $hasActiveReservation = true;
                 continue;
             }
 
@@ -245,6 +253,7 @@ class ReservationsController
             'earliest_available' => $earliestAvailable,
             'days' => $daysData,
             'by_date' => array_column($daysData, null, 'date'),
+            'has_active_reservation' => $hasActiveReservation,
         ];
     }
 

@@ -247,8 +247,12 @@ class PrestitiController
         // l'ambiguità '12/03/2026' veniva letta all'americana (3 dicembre).
         // L'input arriva libero (il campo è data-no-flatpickr), quindi qui è
         // l'unico punto di difesa prima dell'INSERT.
+        // F028: un formato non-ISO e un range invertito sono due errori diversi.
+        // Separo i codici così l'admin non legge "la scadenza deve essere
+        // successiva" quando il vero problema è il formato — con l'indicazione
+        // esplicita del formato atteso YYYY-MM-DD.
         if (!\App\Support\DateHelper::isISODateFormat($data_prestito) || !\App\Support\DateHelper::isISODateFormat($data_scadenza)) {
-            return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_dates')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
         }
 
         // Verifica che la data di scadenza sia successiva alla data di prestito
@@ -770,8 +774,14 @@ class PrestitiController
         // giornata singola) è lecita: createReservation accetta end == start,
         // quindi un rifiuto strettamente esclusivo renderebbe immodificabili
         // i prestiti a giornata nati dal calendario utente.
-        if (strtotime($newScadenza) === false || strtotime($newPrestito) === false
-            || strtotime($newScadenza) < strtotime($newPrestito)) {
+        // F028: uso la stessa validazione ISO stretta di store() invece di
+        // strtotime(), che leggeva '12/03/2026' all'americana (3 dicembre) e
+        // trattava una data non parsabile come false confrontata booleana.
+        // Codici d'errore separati: formato non valido vs range invertito.
+        if (!\App\Support\DateHelper::isISODateFormat($newPrestito) || !\App\Support\DateHelper::isISODateFormat($newScadenza)) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_date_format')->withStatus(302);
+        }
+        if ($newScadenza < $newPrestito) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
         }
 

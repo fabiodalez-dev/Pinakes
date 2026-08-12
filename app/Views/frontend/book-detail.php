@@ -2826,6 +2826,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // would be false, so the scheduled case gets its own title/footnote.
     const scheduledTitle = <?php echo json_encode(__('Prestito prenotato con successo'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     const scheduledFootnote = <?php echo json_encode(__('Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    // F040: chi ha già una prenotazione attiva su questo libro vedrebbe un
+    // calendario tutto verde (il picker esclude la sua stessa prenotazione) ma
+    // la guardia anti-duplicato di createReservation rifiuterebbe ogni data.
+    // Meglio spiegarlo subito invece di aprire un picker destinato a fallire.
+    const alreadyReservedMsg = <?php echo json_encode(__('Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
 
     async function updateReservationsBadge() {
       const badge = document.getElementById('nav-res-count');
@@ -2877,6 +2882,17 @@ document.addEventListener('DOMContentLoaded', function() {
           if (availRes.ok) {
             const availData = await availRes.json();
             if (availData.success && availData.availability) {
+              // F040: dead-end guard — a fully-green picker whose every date the
+              // duplicate guard rejects. Explain and stop instead of opening it.
+              if (availData.availability.has_active_reservation === true) {
+                await Swal.fire({
+                  icon: 'info',
+                  title: __('Richiesta Prestito'),
+                  text: alreadyReservedMsg,
+                  confirmButtonText: __('OK')
+                });
+                return;
+              }
               disabledDates = availData.availability.unavailable_dates || [];
               if (availData.availability.earliest_available) {
                 const parts = String(availData.availability.earliest_available).split('-').map(Number);
