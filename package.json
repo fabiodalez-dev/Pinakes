@@ -24,6 +24,9 @@
   "author": "fabiodalez-dev",
   "license": "GPL-3.0-only",
   "type": "commonjs",
+  "engines": {
+    "node": "22.x"
+  },
   "bugs": {
     "url": "https://github.com/fabiodalez-dev/pinakes/issues"
   },

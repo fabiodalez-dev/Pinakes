@@ -2,8 +2,12 @@
   "name": "pinakes-frontend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "start": "webpack --mode development --watch --config webpack.config.js",
+    "prebuild": "node ../scripts/check-node-version.js",
     "build": "webpack --mode production --config webpack.config.js && node ../scripts/normalize-built-assets.js",
     "lint": "eslint js/"
   },

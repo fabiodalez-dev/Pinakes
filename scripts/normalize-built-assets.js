@@ -10,5 +10,6 @@ const assetPaths = [
 
 for (const assetPath of assetPaths) {
   const contents = fs.readFileSync(assetPath, 'utf8');
-  fs.writeFileSync(assetPath, `${contents.trimEnd()}\n`);
+  const normalized = contents.replace(/[ \t]+$/gm, '').trimEnd();
+  fs.writeFileSync(assetPath, `${normalized}\n`);
 }
