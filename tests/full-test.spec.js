@@ -763,22 +763,11 @@ test.describe.serial('Phase 4: ISBN Scraping', () => {
     const importInput = page.locator('#importIsbn');
 
     if (await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await importInput.fill('9788845292613');
+      // CI serves this ISBN from the explicit scraper fixture, so this
+      // lifecycle test never depends on an upstream catalogue being online.
+      await importInput.fill('9780140328721');
       await importBtn.click();
-      // Wait for title field to be populated or for a timeout (external API may fail)
-      // Playwright signature is waitForFunction(fn, arg, options) — the options
-      // object MUST be the third argument. Passing it in the second (arg) slot
-      // silently drops the 15s timeout, so if scraping doesn't populate the
-      // title (degraded external APIs) the wait hangs until the 120s test timeout.
-      await page.waitForFunction(
-        () => {
-          const el = document.querySelector('#titolo');
-          return el && el.value && el.value.length > 0;
-        },
-        undefined,
-        { timeout: 15000 },
-      ).catch(() => {});
-      await expect(page.locator('#titolo')).toBeVisible();
+      await expect(page.locator('#titolo')).toHaveValue('Fantastic Mr. Fox', { timeout: 15000 });
     } else {
       // Scraping not available — skip gracefully
       test.skip(true, 'No scraping provider is available in this fixture');
@@ -1014,18 +1003,12 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
       return;
     }
 
-    await page.locator('#importIsbn').fill('9780061120084');
+    // A second deterministic fixture exercises the plugin-enabled path without
+    // converting provider outages or metadata drift into CI flakes.
+    await page.locator('#importIsbn').fill('9788804671664');
     await importBtn.click();
 
-    // Wait for title to populate (external API)
-    try {
-      await page.waitForFunction(() => {
-        const titleInput = document.querySelector('input[name="titolo"]');
-        return titleInput && titleInput.value && titleInput.value.trim().length > 0;
-      }, undefined, { timeout: 30000 });
-    } catch {
-      // External API may be down — acceptable
-    }
+    await expect(page.locator('#titolo')).toHaveValue('E2E Italian catalogue fixture', { timeout: 15000 });
   });
 
   test('5.4 Save scraped-pro book', async () => {
@@ -1624,6 +1607,42 @@ test.describe.serial('Phase 10: CSV/TSV Import & Export', () => {
   });
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
+  async function importDelimitedCsv(filePath) {
+    const statuses = [];
+    let lastChunk = null;
+    const captureImportResponse = async (response) => {
+      const responseUrl = response.url();
+      if (!responseUrl.includes('/admin/books/import/upload') && !responseUrl.includes('/admin/books/import/chunk')) return;
+      statuses.push(response.status());
+      if (responseUrl.includes('/admin/books/import/chunk')) {
+        try { lastChunk = JSON.parse(await response.text()); } catch { lastChunk = null; }
+      }
+    };
+    page.on('response', captureImportResponse);
+
+    try {
+      const fileInput = page.locator('#csv_file');
+      // Uppy adds its own native input, while #csv_file is the form fallback
+      // consumed by FormData. A broad input[type=file] locator is ambiguous.
+      await expect(fileInput).toHaveCount(1);
+      await fileInput.setInputFiles(filePath);
+      // Selecting the fallback does not emit Uppy's file-added event.
+      await page.evaluate(() => { document.getElementById('submitBtn').disabled = false; });
+      await page.locator('#submitBtn').click();
+
+      await expect.poll(
+        () => lastChunk?.complete === true,
+        { timeout: 30000, intervals: [250, 500, 1000] },
+      ).toBe(true);
+      expect(statuses.length).toBeGreaterThan(1);
+      expect(statuses.every((status) => status === 200)).toBe(true);
+      expect(lastChunk.errors).toBe(0);
+      return lastChunk;
+    } finally {
+      page.off('response', captureImportResponse);
+    }
+  }
+
   test('10.1 Navigate to import page', async () => {
     await page.goto(`${BASE}/admin/books/import`);
     await page.waitForLoadState('domcontentloaded');
@@ -1642,15 +1661,7 @@ CSV_Book2_${RUN_ID};CSV Author2;CSV Publisher2;9781234567903;2023`;
     const csvPath = path.join('/tmp', `e2e-import-${RUN_ID}.csv`);
     fs.writeFileSync(csvPath, csvContent, 'utf-8');
 
-    const fileInput = page.locator('input[type="file"]');
-    // The native file input is intentionally visually hidden behind the styled
-    // picker. Requiring isVisible() silently skipped the entire import in CI.
-    await expect(fileInput).toHaveCount(1);
-    await fileInput.setInputFiles(csvPath);
-
-    // Submit import form
-    await page.locator('button[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
+    await importDelimitedCsv(csvPath);
 
     // Both deterministic, checksum-valid rows must be imported. A partial
     // import is a regression, not sufficient setup for the export test below.
@@ -1661,21 +1672,20 @@ CSV_Book2_${RUN_ID};CSV Author2;CSV Publisher2;9781234567903;2023`;
     fs.unlinkSync(csvPath);
   });
 
-  test('10.3 Upload TSV file', async () => {
+  test('10.3 Upload TAB-delimited CSV file', async () => {
     await page.goto(`${BASE}/admin/books/import`);
     await page.waitForLoadState('domcontentloaded');
 
     const tsvContent = `titolo\tautore\teditore\tanno_pubblicazione
 TSV_Book1_${RUN_ID}\tTSV Author\tTSV Publisher\t2024`;
 
-    const tsvPath = path.join('/tmp', `e2e-import-${RUN_ID}.tsv`);
+    // The standard importer requires a .csv extension but explicitly supports
+    // TAB as a delimiter. LibraryThing's native .tsv route has its own required
+    // 20-row browser test in import-librarything-e2e.spec.js.
+    const tsvPath = path.join('/tmp', `e2e-import-tab-${RUN_ID}.csv`);
     fs.writeFileSync(tsvPath, tsvContent, 'utf-8');
 
-    const fileInput = page.locator('input[type="file"]');
-    await expect(fileInput).toHaveCount(1);
-    await fileInput.setInputFiles(tsvPath);
-    await page.locator('button[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
+    await importDelimitedCsv(tsvPath);
 
     const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE 'TSV_%_${RUN_ID}' AND deleted_at IS NULL`);
     expect(Number(count)).toBe(1);
