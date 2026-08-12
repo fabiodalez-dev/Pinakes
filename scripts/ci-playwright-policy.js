@@ -132,6 +132,13 @@ function checkPolicy() {
     if (/actions\/upload-artifact@v(?:[1-5])\b/.test(source)) {
       fail(`${workflow} uses an upload-artifact release with a deprecated Node runtime`);
     }
+    const checkoutSteps = source.split(/(?=^[ \t]*- (?:name:|uses:))/m)
+      .filter((step) => /uses:\s*actions\/checkout@/.test(step));
+    for (const step of checkoutSteps) {
+      if (!/persist-credentials:\s*false/.test(step)) {
+        fail(`${workflow} has an actions/checkout step that persists GitHub credentials`);
+      }
+    }
   }
 
   if (!fs.existsSync(path.join(root, 'package-lock.json'))) {
