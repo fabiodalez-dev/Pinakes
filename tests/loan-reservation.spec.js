@@ -523,13 +523,22 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     );
     await dismissSwal(adminPage);
 
-    // DB verify: loan is DELETED (rejection deletes the row)
+    // DB verify: #335 changed rejection from a DELETE to a state transition —
+    // the row is KEPT as stato='annullato' (attivo=0), so the user can re-request
+    // the same book and there is an audit trail, instead of the row vanishing.
     const count = parseInt(
       dbQuery(`SELECT COUNT(*) FROM prestiti WHERE id=${loanId}`), 10,
     );
-    expect(count).toBe(0);
+    expect(count).toBe(1);
+    const stato = dbQuery(`SELECT stato FROM prestiti WHERE id=${loanId}`).trim();
+    expect(stato).toBe('annullato');
+    const attivo = parseInt(
+      dbQuery(`SELECT attivo FROM prestiti WHERE id=${loanId}`), 10,
+    );
+    expect(attivo).toBe(0);
 
-    // DB verify: copie_disponibili unchanged (rejection doesn't affect copies)
+    // DB verify: copie_disponibili unchanged (rejecting a pending request never
+    // consumed a copy, so nothing is released either).
     const disponibili = parseInt(
       dbQuery(`SELECT copie_disponibili FROM libri WHERE id=${testBookId}`), 10,
     );
