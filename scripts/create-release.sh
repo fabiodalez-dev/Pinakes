@@ -470,7 +470,6 @@ while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
     fi
 
     ASSET_ID=$(echo "$ASSET_META" | jq -r '.id')
-    REMOTE_SIZE=$(echo "$ASSET_META" | jq -r '.size')
     REMOTE_UPLOADER=$(echo "$ASSET_META" | jq -r '.uploader')
 
     # 2. Fail loudly if the uploader is a bot — means a workflow hijacked the release

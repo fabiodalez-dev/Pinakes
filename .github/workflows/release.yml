@@ -1,0 +1,155 @@
+name: Verified Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Verify, attest and publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write # Create the GitHub Release and upload its assets.
+      id-token: write # Sign the artifact provenance with GitHub OIDC.
+      attestations: write # Store the artifact provenance attestation.
+
+    steps:
+      - name: Checkout complete history without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tag, version and main ancestry
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          version=$(jq -r .version version.json)
+          test "$TAG_NAME" = "v${version}" || {
+            echo "Tag/version mismatch: $TAG_NAME != v${version}"
+            exit 1
+          }
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "Tagged commit is not contained in origin/main"
+            exit 1
+          }
+          test -z "$(git status --porcelain)"
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml, zip, gd
+          coverage: none
+
+      - name: Setup Node 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Install locked build inputs
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y jq rsync unzip zip
+          composer validate --strict
+          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+          composer audit --no-dev --abandoned=ignore
+          npm ci --silent
+          npm audit --audit-level=high
+          npm --prefix frontend ci --silent
+          npm --prefix frontend audit --audit-level=high
+          npm --prefix frontend run lint
+          npm --prefix frontend run build
+          npm run test:ci-policy
+
+      - name: Require committed reproducible frontend assets
+        run: git diff --exit-code -- public/assets
+
+      - name: Build twice and prove byte-for-byte reproducibility
+        run: |
+          bash bin/build-release.sh --skip-build
+          version=$(jq -r .version version.json)
+          first_hash=$(sha256sum "releases/pinakes-v${version}.zip" | cut -d' ' -f1)
+          bash bin/build-release.sh --skip-build
+          second_hash=$(sha256sum "releases/pinakes-v${version}.zip" | cut -d' ' -f1)
+          test "$first_hash" = "$second_hash" || {
+            echo "Release is not reproducible: $first_hash != $second_hash"
+            exit 1
+          }
+
+      - name: Verify exact release archive
+        run: |
+          version=$(jq -r .version version.json)
+          bash scripts/ci-verify-release.sh "releases/pinakes-v${version}.zip"
+          mkdir release-under-test
+          unzip -q "releases/pinakes-v${version}.zip" -d release-under-test
+
+      - name: Generate packaged-release SPDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: release-under-test
+          format: spdx-json
+          output-file: releases/pinakes.spdx.json
+          upload-artifact: false
+
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: releases/*.zip
+
+      - name: Extract version changelog
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          version=${VERSION#v}
+          section=$(awk -v version="$version" \
+            '$0 ~ "^## \\[" version "\\]" {flag=1; next} /^## \\[/ {flag=0} flag' \
+            CHANGELOG.md)
+          if [ -z "$(printf '%s' "$section" | tr -d '[:space:]')" ]; then
+            section="See CHANGELOG.md for details."
+          fi
+          {
+            printf '%s\n\n' "$section"
+            echo 'The ZIP was built twice with an identical SHA-256, audited as the'
+            echo 'exact distributable, accompanied by an SPDX SBOM, and signed with'
+            echo 'a GitHub artifact provenance attestation.'
+          } > releases/GITHUB_RELEASE_BODY.md
+
+      - name: Publish verified GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          mapfile -t assets < <(find releases -maxdepth 1 -type f \
+            \( -name '*.zip' -o -name '*.zip.sha256' -o -name '*.spdx.json' -o -name 'RELEASE_NOTES-*.md' \) \
+            -print | sort)
+          test "${#assets[@]}" -ge 4
+          release_flags=(--verify-tag --title "Pinakes $TAG_NAME" --notes-file releases/GITHUB_RELEASE_BODY.md)
+          if [[ "$TAG_NAME" == *-* ]]; then
+            release_flags+=(--prerelease)
+          else
+            release_flags+=(--latest)
+          fi
+          gh release create "$TAG_NAME" "${assets[@]}" "${release_flags[@]}"
+
+      - name: Retain release evidence in Actions
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-evidence-${{ github.ref_name }}
+          path: |
+            releases/*.zip
+            releases/*.sha256
+            releases/*.spdx.json
+            releases/RELEASE_NOTES-*.md
+          if-no-files-found: error
+          retention-days: 90

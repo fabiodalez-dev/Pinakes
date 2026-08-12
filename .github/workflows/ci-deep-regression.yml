@@ -28,7 +28,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: pinakes_test
@@ -40,7 +40,7 @@ jobs:
           --health-timeout=5s
           --health-retries=10
       mailpit:
-        image: axllent/mailpit:v1.21
+        image: axllent/mailpit:v1.21@sha256:81370195cd4a0eab9604d17c2617a7525b0486f9365555253b6c5376c6350f1a
         ports:
           - 1025:1025
           - 8025:8025
@@ -167,7 +167,9 @@ jobs:
 
       - name: Audit bootstrap failures, flakes and suspicious skips
         if: always()
-        run: node scripts/ci-audit-playwright-results.js "test-results/bootstrap-${{ matrix.shard }}.json"
+        env:
+          RESULT_FILE: test-results/bootstrap-${{ matrix.shard }}.json
+        run: node scripts/ci-audit-playwright-results.js "$RESULT_FILE"
 
       - name: Seed deterministic cross-suite fixtures
         env:
@@ -195,24 +197,29 @@ jobs:
 
       - name: Audit setup fixtures
         if: always()
-        run: node scripts/ci-audit-playwright-results.js "test-results/setup-${{ matrix.shard }}.json"
+        env:
+          RESULT_FILE: test-results/setup-${{ matrix.shard }}.json
+        run: node scripts/ci-audit-playwright-results.js "$RESULT_FILE"
 
       - name: Run every deep-regression spec in shard ${{ matrix.shard }}
         id: deep-regression
         env:
+          SHARD: ${{ matrix.shard }}
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/shard-${{ matrix.shard }}.json
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-shard-${{ matrix.shard }}
         run: |
-          mapfile -t spec_files < <(node scripts/ci-playwright-policy.js shard "${{ matrix.shard }}" 4)
+          mapfile -t spec_files < <(node scripts/ci-playwright-policy.js shard "$SHARD" 4)
           [ "${#spec_files[@]}" -gt 0 ] || { echo "No specs selected for shard"; exit 1; }
-          printf 'Running %s deep specs in shard %s/4\n' "${#spec_files[@]}" "${{ matrix.shard }}"
+          printf 'Running %s deep specs in shard %s/4\n' "${#spec_files[@]}" "$SHARD"
           npx playwright test "${spec_files[@]}" \
             --config=tests/playwright.ci.config.js \
             --workers=1
 
       - name: Audit failures, flakes and suspicious skips
         if: always() && steps.deep-regression.outcome != 'skipped'
-        run: node scripts/ci-audit-playwright-results.js "test-results/shard-${{ matrix.shard }}.json"
+        env:
+          RESULT_FILE: test-results/shard-${{ matrix.shard }}.json
+        run: node scripts/ci-audit-playwright-results.js "$RESULT_FILE"
 
       - name: Upload browser evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -241,7 +248,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: pinakes_locale_test
@@ -335,7 +342,9 @@ jobs:
             --workers=1
       - name: Audit installer result
         if: always()
-        run: node scripts/ci-audit-playwright-results.js "test-results/installer-${{ matrix.locale }}.json"
+        env:
+          RESULT_FILE: test-results/installer-${{ matrix.locale }}.json
+        run: node scripts/ci-audit-playwright-results.js "$RESULT_FILE"
       - name: Upload installer evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()

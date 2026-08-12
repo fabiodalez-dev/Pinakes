@@ -1,0 +1,186 @@
+name: Browser Compatibility and DAST
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '29 2 * * 4'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-security:
+    name: Packaged app · 3 browsers · axe-core · OWASP ZAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read # Build and scan the checked-out application.
+
+    services:
+      mysql:
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pinakes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      E2E_BASE_URL: http://localhost:8081
+      E2E_ADMIN_EMAIL: admin@pinakes.test
+      E2E_ADMIN_PASS: Test1234!
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: '3306'
+      E2E_DB_USER: root
+      E2E_DB_PASS: root
+      E2E_DB_NAME: pinakes_test
+
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Apache and packaging tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y apache2 libapache2-mod-php jq rsync unzip zip
+          sudo a2enmod rewrite headers env
+          php_module=$(find /etc/apache2/mods-available -maxdepth 1 -name 'php*.load' -printf '%f\n' | sed 's/\.load$//' | sort -V | tail -n1)
+          if [ -n "$php_module" ]; then sudo a2enmod "$php_module"; fi
+          sudo a2dissite 000-default || true
+
+      - name: Setup PHP 8.2 tooling
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml, zip, gd
+          coverage: none
+
+      - name: Setup Node 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Build the exact release artifact under test
+        run: |
+          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+          npm ci --silent
+          npm --prefix frontend ci --silent
+          npm --prefix frontend run build
+          bash bin/build-release.sh --skip-build
+          version=$(jq -r .version version.json)
+          mkdir -p "$RUNNER_TEMP/pinakes-package"
+          unzip -q "releases/pinakes-v${version}.zip" -d "$RUNNER_TEMP/pinakes-package"
+          package_root="$RUNNER_TEMP/pinakes-package/pinakes-v${version}"
+          test -f "$package_root/public/index.php"
+          echo "PACKAGE_ROOT=$package_root" >> "$GITHUB_ENV"
+          echo "E2E_INSTALL_ROOT=$package_root" >> "$GITHUB_ENV"
+
+      - name: Install all supported Playwright browser engines
+        run: npx playwright install chromium firefox webkit --with-deps
+
+      - name: Configure Apache for the packaged application
+        run: |
+          path="$PACKAGE_ROOT"
+          while [ "$path" != / ]; do sudo chmod o+x "$path"; path=$(dirname "$path"); done
+          sudo chmod 777 "$PACKAGE_ROOT"
+          sudo chmod -R 777 "$PACKAGE_ROOT/storage"
+          sudo mkdir -p "$PACKAGE_ROOT/public/uploads"
+          sudo chmod -R 777 "$PACKAGE_ROOT/public/uploads"
+          sudo tee /etc/apache2/sites-available/pinakes.conf >/dev/null <<EOF
+          Listen 8081
+          <VirtualHost *:8081>
+              ServerName localhost
+              DocumentRoot ${PACKAGE_ROOT}/public
+              SetEnv PINAKES_E2E_BYPASS_RATE_LIMIT 1
+              SetEnv PINAKES_E2E_SCRAPER_STUB 1
+              <Directory "${PACKAGE_ROOT}/public">
+                  Options -Indexes +FollowSymLinks
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+              ErrorLog \${APACHE_LOG_DIR}/pinakes-error.log
+              CustomLog \${APACHE_LOG_DIR}/pinakes-access.log combined
+          </VirtualHost>
+          EOF
+          sudo a2ensite pinakes
+          sudo apachectl configtest
+          sudo systemctl start apache2
+          for attempt in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:8081/installer/ && exit 0
+            echo "waiting for packaged installer ($attempt/30)"
+            sleep 1
+          done
+          exit 1
+
+      - name: Install and bootstrap the packaged application
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/package-bootstrap.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-bootstrap
+        run: npx playwright test tests/full-test.spec.js --config=tests/playwright.ci.config.js --workers=1
+
+      - name: Audit installer failures, flakes and skips
+        if: always()
+        run: node scripts/ci-audit-playwright-results.js test-results/package-bootstrap.json
+
+      - name: Test WCAG and runtime behavior in Chromium, Firefox and WebKit
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/cross-browser.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-cross-browser
+        run: npx playwright test --config=tests/playwright.cross-browser.config.js --workers=1
+
+      - name: Audit cross-browser failures, flakes and skips
+        if: always()
+        run: node scripts/ci-audit-playwright-results.js test-results/cross-browser.json
+
+      - name: Run OWASP ZAP passive baseline scan
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: http://localhost:8081
+          docker_name: ghcr.io/zaproxy/zaproxy:stable@sha256:781a2bdaea47324e7bab583e2263f21d257b0aee61ed51521a5be45f5f5081ef
+          cmd_options: -a -m 3 -J zap-report.json
+          fail_action: false
+          allow_issue_writing: false
+          artifact_name: zap-baseline-${{ github.run_id }}
+
+      - name: Fail on medium or high ZAP alerts
+        run: |
+          test -s zap-report.json || { echo "ZAP JSON report is missing"; exit 1; }
+          blocking=$(jq '[.site[]?.alerts[]? | select((.riskcode | tonumber) >= 2)] | length' zap-report.json)
+          if [ "$blocking" -gt 0 ]; then
+            jq -r '.site[]?.alerts[]? | select((.riskcode | tonumber) >= 2) | "[\(.riskdesc)] \(.alert): \(.desc)"' zap-report.json
+            exit 1
+          fi
+          echo "ZAP found no medium/high passive-scan alerts"
+
+      - name: Upload browser and server diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: browser-security-evidence-${{ github.run_id }}
+          path: |
+            playwright-report-bootstrap/
+            playwright-report-cross-browser/
+            test-results/
+            zap-report.json
+            /var/log/apache2/pinakes-error.log
+            /var/log/apache2/pinakes-access.log
+          if-no-files-found: warn
+          retention-days: 21

@@ -10,6 +10,10 @@
   ],
   "dedicated": [
     {
+      "file": "accessibility-cross-browser.spec.js",
+      "reason": "Runs against the packaged release in Chromium, Firefox and WebKit with axe-core in ci-browser-security.yml."
+    },
+    {
       "file": "multilang-install-i18n.spec.js",
       "reason": "Runs in the isolated fresh-database locale matrix in ci-deep-regression.yml."
     },

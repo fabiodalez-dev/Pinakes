@@ -198,7 +198,7 @@ run() {
     fi
 }
 
-cd "$ROOT"
+cd "$ROOT" || exit 1
 
 # ── 1. Create missing writable directories ──────────────────────────────────
 echo "${BOLD}› Ensuring writable data directories exist${NC}"

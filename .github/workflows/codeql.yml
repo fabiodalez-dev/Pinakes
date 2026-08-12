@@ -10,14 +10,20 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze (javascript-typescript)
     runs-on: ubuntu-latest
     permissions:
-      security-events: write
-      actions: read
-      contents: read
+      security-events: write # Upload CodeQL SARIF results.
+      actions: read # Read workflow metadata for private-repository analysis.
+      contents: read # Check out and analyze repository sources.
 
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

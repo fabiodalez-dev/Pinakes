@@ -69,10 +69,10 @@ done
 
 # 4a. code file still readable by owner, no +x added
 m="$(mode "$SB/app/Support/Foo.php")"
-case "$m" in 6??|644|664) ok "code file readable, not executable ($m)";; *) bad "code file mode is $m";; esac
+case "$m" in 6??) ok "code file readable, not executable ($m)";; *) bad "code file mode is $m";; esac
 
 # 4b. shell script keeps +x
-m="$(mode "$SB/bin/tool.sh")"; case "$m" in 7??|75?|55?) ok "shell script stays executable ($m)";; *) bad "tool.sh lost +x ($m)";; esac
+m="$(mode "$SB/bin/tool.sh")"; case "$m" in 7??|5??) ok "shell script stays executable ($m)";; *) bad "tool.sh lost +x ($m)";; esac
 
 # 4c. REGRESSION #205: .env's world-read must NOT be stripped
 m="$(mode "$SB/.env")"
@@ -86,7 +86,8 @@ if ls -ld "$SB/.env" | cut -c8 | grep -q 'r'; then ok ".env still world-readable
 # 4e. data dirs group-writable — BOTH tmp and backups (IFS split-bug regression)
 for d in storage/tmp storage/backups public/uploads; do
     m="$(mode "$SB/$d")"
-    case "$m" in *7?|*6?|2*7?|2*6?) ok "$d group-writable ($m)";; *) bad "$d not group-writable: $m";; esac
+    group_digit="${m: -2:1}"
+    case "$group_digit" in 2|3|6|7) ok "$d group-writable ($m)";; *) bad "$d not group-writable: $m";; esac
 done
 
 # 4f. nothing world-writable (no 777)
@@ -107,7 +108,6 @@ fi
 
 # ── 6. Idempotency ──────────────────────────────────────────────────────────
 bash "$SCRIPT" --apply --root "$SB" --user "$CUR_USER" >/dev/null 2>&1; rc=$?
-m1="$(mode "$SB/app/Support/Foo.php")"
 [ "$rc" -eq 0 ] && ok "idempotent (second apply OK)" || bad "second apply failed (rc=$rc)"
 
 rm -rf "$SB"

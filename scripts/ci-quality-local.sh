@@ -20,7 +20,8 @@
 set -uo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 
-readonly CIQ_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pinakes-ci-quality.XXXXXX")" || exit 2
+CIQ_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pinakes-ci-quality.XXXXXX")" || exit 2
+readonly CIQ_TMP_DIR
 cleanup_ciq_tmp() { rm -rf -- "$CIQ_TMP_DIR"; }
 trap cleanup_ciq_tmp EXIT HUP INT TERM
 

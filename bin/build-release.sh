@@ -182,6 +182,8 @@ verify_package_contents() {
         "NGINX_SETUP.md"
         "phpstan.neon"
         "phpstan-baseline.neon"
+        "package.json"
+        "package-lock.json"
         ".distignore"
         ".rsync-filter"
         "vectors.db"
@@ -422,11 +424,37 @@ create_release_package() {
         exit 1
     fi
 
-    # Create ZIP archive
-    log_info "Creating ZIP archive..."
+    # Create a deterministic ZIP. Normalize every packaged mtime to the source
+    # commit timestamp and feed zip a sorted path list. Without this, two builds
+    # of the same commit produce different checksums solely because build-tmp/
+    # was created at a different time.
+    log_info "Creating reproducible ZIP archive..."
+
+    local source_date_epoch
+    source_date_epoch="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct 2>/dev/null || date +%s)}"
+    if ! [[ "$source_date_epoch" =~ ^[0-9]+$ ]]; then
+        log_error "SOURCE_DATE_EPOCH must be an integer Unix timestamp"
+        exit 1
+    fi
+
+    PACKAGE_TREE="$package_dir" SOURCE_DATE_EPOCH="$source_date_epoch" php -r '
+        $root = getenv("PACKAGE_TREE");
+        $timestamp = (int) getenv("SOURCE_DATE_EPOCH");
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+        touch($root, $timestamp);
+        foreach ($iterator as $item) {
+            if (!$item->isLink() && !touch($item->getPathname(), $timestamp)) {
+                fwrite(STDERR, "Could not normalize mtime: {$item->getPathname()}\n");
+                exit(1);
+            }
+        }
+    '
 
     cd "$temp_dir"
-    zip -r "${package_name}.zip" "$package_name" -q
+    LC_ALL=C find "$package_name" -print | LC_ALL=C sort | zip -X -q "${package_name}.zip" -@
 
     # Generate SHA256 checksum
     log_info "Generating checksum..."
