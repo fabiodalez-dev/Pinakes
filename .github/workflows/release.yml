@@ -109,9 +109,11 @@ jobs:
 
       - name: Extract version changelog
         env:
-          VERSION: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          version=${VERSION#v}
+          # The value is supplied by the trusted push tag, not PR-controlled data.
+          # shellcheck disable=SC2153
+          version=${RELEASE_TAG#v}
           section=$(awk -v version="$version" \
             '$0 ~ "^## \\[" version "\\]" {flag=1; next} /^## \\[/ {flag=0} flag' \
             CHANGELOG.md)

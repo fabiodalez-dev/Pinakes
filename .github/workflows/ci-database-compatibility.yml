@@ -104,6 +104,13 @@ jobs:
           MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root pinakes_test < installer/database/schema.sql
           MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root pinakes_test < installer/database/data_it_IT.sql
           MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root pinakes_test < installer/database/triggers.sql
+          cat > .env <<'ENVEOF'
+          DB_HOST=127.0.0.1
+          DB_PORT=3306
+          DB_USER=root
+          DB_PASS=root
+          DB_NAME=pinakes_test
+          ENVEOF
 
       - name: Exercise all standalone behavioral tests in strict mode
         run: bash scripts/ci-run-unit-tests.sh
@@ -123,3 +130,7 @@ jobs:
           test "$trigger_count" -ge 1
           test "$default_languages" = 1
           echo "verified $table_count tables, $trigger_count triggers and one default language"
+
+      - name: Remove temporary database credentials
+        if: always()
+        run: rm -f .env
