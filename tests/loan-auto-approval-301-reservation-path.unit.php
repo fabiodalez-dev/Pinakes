@@ -74,50 +74,68 @@ if ($r = $db->query("SELECT setting_value FROM system_settings WHERE category='l
     }
 }
 
-$cleanup = static function () use ($db, $titlePrefix, $emailDomain, $origAuto, $origEmail): void {
-    $titleLike = $titlePrefix . '%';
-    $emailLike = '%' . $emailDomain;
-    foreach ([
-        'DELETE p FROM prestiti p JOIN libri l ON l.id = p.libro_id WHERE l.titolo LIKE ?',
-        'DELETE r FROM prenotazioni r JOIN libri l ON l.id = r.libro_id WHERE l.titolo LIKE ?',
-        'DELETE c FROM copie c JOIN libri l ON l.id = c.libro_id WHERE l.titolo LIKE ?',
-        'DELETE FROM libri WHERE titolo LIKE ?',
-    ] as $sql) {
-        $stmt = $db->prepare($sql);
-        $stmt->bind_param('s', $titleLike);
-        $stmt->execute();
-        $stmt->close();
-    }
-    $stmt = $db->prepare('DELETE FROM utenti WHERE email LIKE ?');
-    $stmt->bind_param('s', $emailLike);
-    $stmt->execute();
-    $stmt->close();
-    if ($origAuto === null) {
-        $db->query("DELETE FROM system_settings WHERE category='loans' AND setting_key='auto_approve_requests'");
-    } else {
-        $stmt = $db->prepare("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','auto_approve_requests',?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-        $stmt->bind_param('s', $origAuto);
-        $stmt->execute();
-        $stmt->close();
-    }
-    // Restore the email driver/type rows the setup overwrote. The setup used an
-    // UPDATE (never an INSERT), so only pre-existing rows were touched — a plain
-    // UPDATE back to the captured value fully restores the prior state.
+// Restoring the settings the setup mutated MUST be independent of the test-data
+// DELETEs: a failed DELETE must never leave email.driver_mode / email.type /
+// loans.auto_approve_requests changed for the tests that run after this one. Each
+// restore is best-effort (its own try) so one failure can't skip the others.
+$restoreSettings = static function () use ($db, $origAuto, $origEmail): void {
+    try {
+        if ($origAuto === null) {
+            $db->query("DELETE FROM system_settings WHERE category='loans' AND setting_key='auto_approve_requests'");
+        } else {
+            $stmt = $db->prepare("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','auto_approve_requests',?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+            $stmt->bind_param('s', $origAuto);
+            $stmt->execute();
+            $stmt->close();
+        }
+    } catch (Throwable) { /* best effort */ }
+    // The setup used an UPDATE (never an INSERT), so only pre-existing rows were
+    // touched — a plain UPDATE back to the captured value fully restores state.
     foreach ($origEmail as $emailKey => $emailValue) {
-        $stmt = $db->prepare("UPDATE system_settings SET setting_value = ? WHERE category='email' AND setting_key = ?");
-        $stmt->bind_param('ss', $emailValue, $emailKey);
-        $stmt->execute();
-        $stmt->close();
+        try {
+            $stmt = $db->prepare("UPDATE system_settings SET setting_value = ? WHERE category='email' AND setting_key = ?");
+            $stmt->bind_param('ss', $emailValue, $emailKey);
+            $stmt->execute();
+            $stmt->close();
+        } catch (Throwable) { /* best effort */ }
     }
 };
 
-$cleanup();
+$cleanup = static function () use ($db, $titlePrefix, $emailDomain, $restoreSettings): void {
+    // Settings restore runs in a finally: a DELETE that throws (strict mysqli
+    // mode) must not skip it and pollute later tests.
+    try {
+        $titleLike = $titlePrefix . '%';
+        $emailLike = '%' . $emailDomain;
+        foreach ([
+            'DELETE p FROM prestiti p JOIN libri l ON l.id = p.libro_id WHERE l.titolo LIKE ?',
+            'DELETE r FROM prenotazioni r JOIN libri l ON l.id = r.libro_id WHERE l.titolo LIKE ?',
+            'DELETE c FROM copie c JOIN libri l ON l.id = c.libro_id WHERE l.titolo LIKE ?',
+            'DELETE FROM libri WHERE titolo LIKE ?',
+        ] as $sql) {
+            $stmt = $db->prepare($sql);
+            $stmt->bind_param('s', $titleLike);
+            $stmt->execute();
+            $stmt->close();
+        }
+        $stmt = $db->prepare('DELETE FROM utenti WHERE email LIKE ?');
+        $stmt->bind_param('s', $emailLike);
+        $stmt->execute();
+        $stmt->close();
+    } finally {
+        $restoreSettings();
+    }
+};
+
+// Install the handler BEFORE the first cleanup so an exception in the initial
+// (pre-test) cleanup still restores settings and reports cleanly.
 set_exception_handler(static function (Throwable $e) use ($cleanup, $db): void {
     try { $cleanup(); } catch (Throwable) {}
     fwrite(STDERR, "FAIL: {$e->getMessage()}\n");
     $db->close();
     exit(1);
 });
+$cleanup();
 
 $pass = 0;
 $check = static function (bool $ok, string $label) use (&$pass): void {
@@ -225,6 +243,7 @@ $check($loanField($loanOnId, 'pickup_deadline') !== null, '10 immediate auto-app
 echo "C. createReservation with auto-approve ON and no physical copy\n";
 $legacyBookId = $makeBook(0);
 $db->query("UPDATE libri SET copie_totali = 1, copie_disponibili = 1 WHERE id = {$legacyBookId}");
+$dispBefore = (int) $db->query("SELECT copie_disponibili FROM libri WHERE id = {$legacyBookId}")->fetch_row()[0];
 $resNoCopy = $callCreate($legacyBookId, $makeUser());
 $check($resNoCopy['status'] === 200 && ($resNoCopy['payload']['success'] ?? false) === true, '11 request remains accepted when automatic approval cannot allocate a copy');
 $check(($resNoCopy['payload']['auto_approved'] ?? null) === false, '12 response auto_approved = false after allocation failure');
@@ -236,6 +255,11 @@ $check(
         && $loanField($loanNoCopyId, 'copia_id') === null,
     '14 request stays pendente without an assigned copy'
 );
+// A pending request with NO assigned copy must NOT decrement the aggregate
+// availability — otherwise a regression could hide behind the stato/copia_id
+// asserts while silently shrinking libri.copie_disponibili.
+$dispAfter = (int) $db->query("SELECT copie_disponibili FROM libri WHERE id = {$legacyBookId}")->fetch_row()[0];
+$check($dispAfter === $dispBefore, "15 aggregate availability is unchanged ({$dispBefore}) — a copy-less pending request occupies nothing");
 
 // ── D. Setting ON + FUTURE start date: the loan is SCHEDULED, not awaiting ───
 // F009: a future-dated request is auto-approved into stato 'prenotato' (no

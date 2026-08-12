@@ -123,5 +123,15 @@ $check($updaterRuns('0.7.58', '0.7.59-rc.1'), 'Updater runs it on 0.7.58 -> 0.7.
 $check($updaterRuns('0.7.58', '0.7.59'), 'Updater runs it on 0.7.58 -> 0.7.59 stable (RC never installed)');
 $check(!$updaterRuns('0.7.59-rc.1', '0.7.59'), 'Updater does NOT re-run it on 0.7.59-rc.1 -> 0.7.59 stable (already applied; migration is idempotent as a backstop)');
 
+// Drift guard: the predicate replicated above must stay in sync with the real
+// selection logic in Updater::runMigrations(). If someone changes the condition
+// there, this fails and forces the assertions above to be revisited.
+$updaterSrc = (string) file_get_contents($root . '/app/Support/Updater.php');
+$check(
+    str_contains($updaterSrc, "version_compare(\$migrationVersion, \$fromVersion, '>')")
+        && str_contains($updaterSrc, "version_compare(\$migrationVersion, \$toVersion, '<=')"),
+    'Updater::runMigrations still gates on migrationVersion > from AND <= to (mirrored predicate is current)'
+);
+
 echo "\n{$passed} PASS, {$failed} FAIL\n";
 exit($failed === 0 ? 0 : 1);

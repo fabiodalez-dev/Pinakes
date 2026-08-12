@@ -53,24 +53,30 @@ $check = static function (bool $ok, string $label) use (&$pass): void {
     echo "  OK  {$label}\n";
 };
 
-// A real plugin_id is needed (FK plugin_hooks.plugin_id -> plugins.id).
-$pluginId = (int) ($db->query('SELECT MIN(id) AS id FROM plugins')->fetch_assoc()['id'] ?? 0);
-if ($pluginId === 0) {
-    fwrite(STDERR, "FAIL: no plugins seeded — cannot exercise pruneOrphanHook\n");
-    exit(1);
-}
+// Self-sufficient: create a temporary ACTIVE plugin instead of relying on
+// seeded rows — a fresh CI database (pinakes_test) seeds no bundled plugins, so
+// SELECT MIN(id) FROM plugins would be empty there. FK plugin_hooks.plugin_id ->
+// plugins.id with ON DELETE CASCADE, so removing the plugin cleans its hooks.
+// Clear any leftover from a crashed prior run first (unique name per pid).
+$db->query("DELETE FROM plugins WHERE name LIKE 'zz_selfheal_test_%'");
+$pluginName = 'zz_selfheal_test_' . getmypid();
+$stmt = $db->prepare("INSERT INTO plugins (name, display_name, version, is_active, path, main_file, installed_at) VALUES (?, 'ZZ Selfheal Test', '1.0.0', 1, 'zz-selfheal-test', 'ZzSelfheal.php', NOW())");
+$stmt->bind_param('s', $pluginName);
+$stmt->execute();
+$pluginId = (int) $db->insert_id;
+$stmt->close();
 
 $orphanHook = 'zz.test.orphan.' . getmypid();
 $keeperHook = 'zz.test.keeper.' . getmypid();
 $class = 'ZzPruneTestPlugin';
 
-$cleanup = static function () use ($db, $pluginId, $orphanHook, $keeperHook): void {
-    $stmt = $db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ? AND hook_name IN (?, ?)');
-    $stmt->bind_param('iss', $pluginId, $orphanHook, $keeperHook);
+$cleanup = static function () use ($db, $pluginId): void {
+    // Deleting the plugin cascades to its plugin_hooks rows (FK ON DELETE CASCADE).
+    $stmt = $db->prepare('DELETE FROM plugins WHERE id = ?');
+    $stmt->bind_param('i', $pluginId);
     $stmt->execute();
     $stmt->close();
 };
-$cleanup();
 set_exception_handler(static function (Throwable $e) use ($cleanup, $db): void {
     try { $cleanup(); } catch (Throwable) {}
     fwrite(STDERR, "FAIL: {$e->getMessage()}\n");
@@ -101,9 +107,11 @@ $hookActive = static function (string $hook, string $method) use ($db, $pluginId
     $stmt->close();
     return $row === null ? -1 : (int) $row['is_active'];
 };
-// Mirrors the loader's WHERE clause: an active hook the loader would register.
+// Mirrors HookManager::loadHooks() exactly: INNER JOIN plugins and require BOTH
+// the hook row AND the plugin to be active — an inactive plugin's hooks are not
+// loaded even when the hook row itself is active.
 $loaderWouldLoad = static function (string $hook, string $method) use ($db, $pluginId): bool {
-    $stmt = $db->prepare('SELECT COUNT(*) AS n FROM plugin_hooks WHERE plugin_id = ? AND hook_name = ? AND callback_method = ? AND is_active = 1');
+    $stmt = $db->prepare('SELECT COUNT(*) AS n FROM plugin_hooks ph INNER JOIN plugins p ON p.id = ph.plugin_id WHERE ph.plugin_id = ? AND ph.hook_name = ? AND ph.callback_method = ? AND ph.is_active = 1 AND p.is_active = 1');
     $stmt->bind_param('iss', $pluginId, $hook, $method);
     $stmt->execute();
     $n = (int) $stmt->get_result()->fetch_assoc()['n'];
@@ -137,6 +145,12 @@ $disable->invoke($pm, $pluginId, $keeperHook, 'zzWrongMethod');
 $check($loaderWouldLoad($keeperHook, 'zzKeeperMethod'), '08 disable with a non-matching method does not touch the keeper');
 $disable->invoke($pm, $pluginId + 999999, $keeperHook, 'zzKeeperMethod');
 $check($loaderWouldLoad($keeperHook, 'zzKeeperMethod'), '09 disable scoped to a different plugin_id does not touch the keeper');
+
+// The loader also gates on the PLUGIN being active (HookManager JOINs plugins):
+// deactivating the plugin makes even an active hook row non-loadable.
+$db->query("UPDATE plugins SET is_active = 0 WHERE id = {$pluginId}");
+$check(!$loaderWouldLoad($keeperHook, 'zzKeeperMethod'), "10 an inactive plugin's active hook is not loadable (p.is_active gate)");
+$db->query("UPDATE plugins SET is_active = 1 WHERE id = {$pluginId}");
 
 $cleanup();
 $db->close();

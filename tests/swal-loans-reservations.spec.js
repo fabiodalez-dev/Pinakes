@@ -261,9 +261,14 @@ test.describe.serial('SweetAlert: loans & reservations cluster', () => {
     await expect(adminPage.locator('.swal2-popup')).toContainText('Rifiuta');
     await adminPage.locator('.swal2-confirm').click();
 
-    // success toast then #335 state transition: the row is kept as 'annullato'
+    // success then #335 state transition: the row is kept as 'annullato'
     // (audit + re-request), not deleted.
     await adminPage.waitForSelector('.swal2-icon.swal2-success', { timeout: 10000 });
+    // Convention: confirm/dismiss the success modal when it exposes a button.
+    const okBtn = adminPage.locator('.swal2-confirm');
+    if (await okBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await okBtn.click();
+    }
     await expect.poll(
       () => dbQuery(`SELECT stato FROM prestiti WHERE id = ${loanId}`).trim(),
       { timeout: 10000 }
