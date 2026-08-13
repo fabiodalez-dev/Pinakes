@@ -38,12 +38,16 @@ jobs:
         database:
           - name: MySQL 8.0 LTS baseline
             image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+            health_cmd: mysqladmin ping -h 127.0.0.1 -proot --silent
           - name: MySQL 8.4 LTS
             image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+            health_cmd: mysqladmin ping -h 127.0.0.1 -proot --silent
           - name: MariaDB 10.11 LTS
             image: mariadb:10.11@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
+            health_cmd: healthcheck.sh --connect --innodb_initialized
           - name: MariaDB 11.4 LTS
             image: mariadb:11.4@sha256:67873d30a17f6a9c331f06363b2fa15f38abca415529966d67c84f87f82439fe
+            health_cmd: healthcheck.sh --connect --innodb_initialized
 
     services:
       database:
@@ -54,10 +58,10 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-cmd="${{ matrix.database.health_cmd }}"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=12
+          --health-retries=20
 
     env:
       E2E_DB_HOST: 127.0.0.1
