@@ -46,17 +46,21 @@ Highlights of the latest release are below. The full version-by-version history 
 A maintenance release: UPC barcode support, a read-only availability field, and a PHP 8.5 scraping fix.
 
 ### New
+
 - **UPC-A barcodes are supported** — the barcode field now accepts a 12-digit UPC-A (board games and other non-book items) and stores it as its 13-digit GTIN, so it validates, searches and de-duplicates like an EAN-13. CSV and TSV import both handle it, and the field reads **EAN/UPC** in every locale (#348).
 
 ### Fixes
+
 - **ISBN scraping works on PHP 8.5 again** — a deprecated `curl_close()` notice was leaking into the JSON response and breaking the import with "Risposta non valida dal servizio ISBN.".
 - **The availability field in the book editor is now read-only** — it is derived from the physical copies, so editing it was a silent no-op (#351). Set a copy's status to make it unavailable.
 - **The scroll-to-top button no longer covers the Save button** at the bottom of the book form.
 
 ### Internal
+
 - The GitHub Actions security audit no longer breaks on upstream action tag drift, and the NCIP CheckOut regression test is now deterministic under sharded runs.
 
 ### Upgrade Notes
+
 - No database changes. Back up your database before updating anyway (the in-app updater does this automatically).
 
 > Older releases → **[CHANGELOG.md](CHANGELOG.md)**.

@@ -249,6 +249,8 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
     let createdLoanId = 0;
     /** Dedicated book created in beforeAll (0 if we fell back to a shared book) */
     let dedicatedBookId = 0;
+    /** Title suffix of the dedicated book, so cleanup can find it even if its id was never read back */
+    let dedicatedRunId = '';
     /** Track specific prestiti IDs created during these tests for targeted cleanup */
     let createdPrestitiIds = /** @type {number[]} */ ([]);
 
@@ -260,26 +262,37 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
         // `copie` row, and NCIP CheckOut needs a real available copy — otherwise
         // it returns "No copies available" and test 9 fails nondeterministically
         // depending on which shared book happens to sort first.
-        const runId = `${Date.now().toString(36)}${Math.floor(process.hrtime()[1] % 1e6)}`;
+        // Record the runId BEFORE inserting so afterAll can always remove the
+        // book by title — even if the SELECT that reads its id fails, leaving no
+        // dedicatedBookId. (LAST_INSERT_ID() is per-connection and each dbQuery
+        // opens a new mysql client, so we cannot read it back here.)
+        dedicatedRunId = `${Date.now().toString(36)}${Math.floor(process.hrtime()[1] % 1e6)}`;
         try {
             dbQuery(
                 "INSERT INTO libri (titolo, copie_totali, copie_disponibili, created_at, updated_at) " +
-                `VALUES ('NCIP Test Book ${runId}', 1, 1, NOW(), NOW())`
+                `VALUES ('NCIP Test Book ${dedicatedRunId}', 1, 1, NOW(), NOW())`
             );
             testBookId = parseInt(dbQuery(
-                `SELECT id FROM libri WHERE titolo = 'NCIP Test Book ${runId}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`
+                `SELECT id FROM libri WHERE titolo = 'NCIP Test Book ${dedicatedRunId}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`
             )) || 0;
-            if (testBookId > 0) {
-                dedicatedBookId = testBookId;
-                dbQuery(
-                    "INSERT INTO copie (libro_id, numero_inventario, stato, created_at) " +
-                    `VALUES (${testBookId}, 'NCIP-${runId}', 'disponibile', NOW())`
-                );
+            if (testBookId === 0) {
+                throw new Error('dedicated book insert did not yield an id');
             }
+            dedicatedBookId = testBookId;
+            dbQuery(
+                "INSERT INTO copie (libro_id, numero_inventario, stato, created_at) " +
+                `VALUES (${testBookId}, 'NCIP-${dedicatedRunId}', 'disponibile', NOW())`
+            );
         } catch {
-            // Fall back to any book with aggregate availability (older behaviour).
+            // Dedicated creation failed. Fall back to an existing book that has a
+            // REAL available copy row — never the bare `copie_disponibili > 0`
+            // aggregate, which is exactly the nondeterminism this setup avoids. If
+            // none exists, leave testBookId = 0 so the CheckOut tests skip rather
+            // than flake. (dedicatedRunId cleanup still removes any partial insert.)
             testBookId = parseInt(dbQuery(
-                "SELECT id FROM libri WHERE deleted_at IS NULL AND copie_disponibili > 0 ORDER BY id LIMIT 1"
+                "SELECT c.libro_id FROM copie c " +
+                "JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL " +
+                "WHERE c.stato = 'disponibile' ORDER BY c.libro_id LIMIT 1"
             )) || 0;
         }
 
@@ -530,18 +543,24 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
                 dbQuery(`DELETE FROM prestiti WHERE id IN (${idList})`);
             } catch { /* best-effort */ }
         }
-        // Remove the dedicated book + its copy. Delete EVERY prestito on its
-        // copies first (not only the tracked ids — RequestItem/CheckOut may
-        // leave an untracked loan), FK-safe: ncip_transactions → prestiti →
-        // copie → libri.
-        if (dedicatedBookId > 0) {
-            try {
-                const copiaSub = `SELECT id FROM copie WHERE libro_id = ${dedicatedBookId}`;
-                dbQuery(`DELETE FROM ncip_transactions WHERE prestito_id IN (SELECT id FROM prestiti WHERE copia_id IN (${copiaSub}))`);
-                dbQuery(`DELETE FROM prestiti WHERE copia_id IN (${copiaSub})`);
-                dbQuery(`DELETE FROM copie WHERE libro_id = ${dedicatedBookId}`);
-                dbQuery(`DELETE FROM libri WHERE id = ${dedicatedBookId}`);
-            } catch { /* best-effort */ }
+        // Remove the dedicated book + its copy. Find it by title so a partial
+        // setup (book inserted but its id never read back) is still cleaned up.
+        // Delete EVERY prestito on its copies first (not only the tracked ids —
+        // RequestItem/CheckOut may leave an untracked loan). FK-safe order:
+        // ncip_transactions → prestiti → copie → libri, and each step is its own
+        // best-effort so a mid-sequence failure does not leave the rest undone.
+        if (dedicatedRunId) {
+            const bookSub = `SELECT id FROM libri WHERE titolo = 'NCIP Test Book ${dedicatedRunId}'`;
+            const copiaSub = `SELECT id FROM copie WHERE libro_id IN (${bookSub})`;
+            const steps = [
+                `DELETE FROM ncip_transactions WHERE prestito_id IN (SELECT id FROM prestiti WHERE copia_id IN (${copiaSub}))`,
+                `DELETE FROM prestiti WHERE copia_id IN (${copiaSub})`,
+                `DELETE FROM copie WHERE libro_id IN (${bookSub})`,
+                `DELETE FROM libri WHERE titolo = 'NCIP Test Book ${dedicatedRunId}'`,
+            ];
+            for (const sql of steps) {
+                try { dbQuery(sql); } catch { /* best-effort: keep going */ }
+            }
         }
     });
 });
