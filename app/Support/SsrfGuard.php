@@ -131,7 +131,7 @@ final class SsrfGuard
             $body = curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $redirectUrl = (string) curl_getinfo($ch, CURLINFO_REDIRECT_URL);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
             if ($body === false) {
                 return null;

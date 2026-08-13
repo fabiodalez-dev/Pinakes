@@ -111,13 +111,15 @@ class SoggettarioClient
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 3,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_USERAGENT => 'Pinakes Library System/1.0',
             CURLOPT_HTTPHEADER => ['Accept: text/html', 'Accept-Language: it-IT,it;q=0.9'],
         ]);
         $response = $this->execute($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
-        curl_close($ch);
+        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
         if ($error !== '' || $httpCode !== 200 || !is_string($response) || $response === '') {
             \App\Support\SecureLogger::debug('[Soggettario] fetch failed', [
