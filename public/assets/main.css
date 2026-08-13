@@ -6537,6 +6537,15 @@ table {
   font-weight: 500;
 }
 
+.uppy-DragDrop-note {
+  color: var(--color-gray-600);
+}
+
+/* Secondary navigation copy must remain legible on the active rose surface. */
+.nav-link .text-gray-500 {
+  color: var(--color-gray-600);
+}
+
 .uppy-ProgressBar {
   height: 8px;
   background-color: var(--color-gray-200);
@@ -7759,6 +7768,7 @@ table.dataTable thead td {
 }
 .disabled\:hover\:bg-gray-800:hover:disabled {
   --tw-bg-opacity: 1;
+
   background-color: rgb(31 41 55 / var(--tw-bg-opacity, 1));
 }
 .group[open] .group-open\:rotate-180 {

@@ -294,13 +294,13 @@ $deadDb = $socket !== '' && file_exists($socket)
     ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
     : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
 $deadDb->close(); // connection lost right after the commit
-$faultController = new ReservationsController($deadDb);
-$faultMethod = new ReflectionMethod($faultController, 'autoApproveLoanRequest');
-$faultMethod->setAccessible(true);
 $faultRequest = (new ServerRequestFactory())->createServerRequest('POST', '/api/libro/1/reservation');
 $faultThrew = false;
 $faultResult = 'unset';
 try {
+    $faultController = new ReservationsController($deadDb);
+    $faultMethod = new ReflectionMethod($faultController, 'autoApproveLoanRequest');
+    $faultMethod->setAccessible(true);
     $faultResult = $faultMethod->invoke($faultController, $faultRequest, 12345);
 } catch (\Throwable $e) {
     $faultThrew = true;

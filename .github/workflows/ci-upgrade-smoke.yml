@@ -22,19 +22,6 @@ on:
       - '.github/workflows/ci-upgrade-smoke.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'installer/database/**'
-      - 'installer/classes/Installer.php'
-      - 'app/Models/AuthorRepository.php'
-      - 'app/Support/ContributorBackfill.php'
-      - 'app/Support/ContributorSync.php'
-      - 'app/Support/SearchIndexBuilder.php'
-      - 'app/Support/Updater.php'
-      - 'scripts/list-source-expectations.php'
-      - 'composer.json'
-      - 'composer.lock'
-      - 'version.json'
-      - '.github/workflows/ci-upgrade-smoke.yml'
   workflow_dispatch:
 
 permissions:

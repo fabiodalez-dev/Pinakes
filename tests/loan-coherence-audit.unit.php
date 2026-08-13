@@ -212,10 +212,10 @@ $bookDetail = $readSource('/app/Views/frontend/book-detail.php');
 $checks['book badge says "Non disponibile oggi" (today snapshot)'] =
     str_contains($bookDetail, '__("Non disponibile oggi")');
 
-// 16. i18n parity: the 5 locales share the same key count and all carry the
-//     new keys introduced by these fixes.
+// 16. i18n parity: the 5 locales share the exact, case-sensitive key set and
+//     all carry the new keys introduced by these fixes.
 $parityOk = true;
-$counts = [];
+$referenceKeys = null;
 $mustHave = ['Fuso orario', 'Prestito rinnovato', 'Non disponibile oggi'];
 foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $l10n) {
     $decoded = json_decode($readSource("/locale/{$l10n}.json"), true);
@@ -223,13 +223,16 @@ foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $l10n) {
         $parityOk = false;
         break;
     }
-    $counts[] = count($decoded);
+    $keys = array_keys($decoded);
+    sort($keys, SORT_STRING);
+    $referenceKeys ??= $keys;
+    $parityOk = $parityOk && $keys === $referenceKeys;
     foreach ($mustHave as $mk) {
         $parityOk = $parityOk && array_key_exists($mk, $decoded);
     }
 }
 $checks['i18n parity: 5 locales aligned and carrying the new keys'] =
-    $parityOk && count(array_unique($counts)) === 1;
+    $parityOk;
 
 // ── Adversarial-review findings (multi-agent workflow on this branch) ────────
 
@@ -282,11 +285,14 @@ $checks['loan edit fallback uses DateHelper::today()'] =
     && !str_contains($loanEditView, "prestito['data_prestito'] ?? date('Y-m-d')");
 
 // 22. Historical mobile loans retain the due date consumed by mapLoan().
-$mobileHistory = $extractSection($mobileActions, 'SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.data_restituzione', 'foreach ($this->fetchScoped($sql, $userId) as $r)');
+$mobileHistory = $extractMethod($mobileActions, 'public function myLoans(');
+$mobileMapLoan = $extractMethod($mobileActions, 'private function mapLoan(');
 $checks['mobile loan history selects data_scadenza for due_at'] =
     $mobileHistory !== ''
+    && $mobileMapLoan !== ''
     && str_contains($mobileHistory, 'pr.data_scadenza')
-    && str_contains($mobileActions, "'due_at'");
+    && str_contains($mobileMapLoan, "'due_at'")
+    && str_contains($mobileMapLoan, "['data_scadenza']");
 
 // 23. The authenticated availability endpoint must preserve the nullable
 //     soft-delete contract instead of converting a concurrent delete to a

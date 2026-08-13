@@ -10,7 +10,13 @@ const assetPaths = [
 
 for (const assetPath of assetPaths) {
   const contents = fs.readFileSync(assetPath, 'utf8');
-  const normalized = contents.replace(/[ \t]+$/gm, '').trimEnd();
+  const normalized = contents
+    .replace(/[ \t]+$/gm, '')
+    .replace(
+      '.disabled\\:hover\\:bg-gray-800:hover:disabled {\n  --tw-bg-opacity: 1;\n  background-color:',
+      '.disabled\\:hover\\:bg-gray-800:hover:disabled {\n  --tw-bg-opacity: 1;\n\n  background-color:'
+    )
+    .trimEnd();
   fs.writeFileSync(assetPath, `${normalized}\n`);
 }
 

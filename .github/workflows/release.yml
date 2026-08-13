@@ -73,7 +73,14 @@ jobs:
           npm run test:ci-policy
 
       - name: Require committed reproducible frontend assets
-        run: git diff --exit-code -- public/assets
+        run: |
+          git diff --exit-code -- public/assets
+          untracked_assets="$(git ls-files --others --exclude-standard -- public/assets)"
+          if [ -n "${untracked_assets}" ]; then
+            echo "Generated assets are untracked:"
+            echo "${untracked_assets}"
+            exit 1
+          fi
 
       - name: Build twice and prove byte-for-byte reproducibility
         run: |

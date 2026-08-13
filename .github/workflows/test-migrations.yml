@@ -8,11 +8,7 @@ on:
       - 'version.json'
       - '.github/workflows/test-migrations.yml'
   pull_request:
-    paths:
-      - 'installer/database/migrations/**'
-      - 'installer/database/schema.sql'
-      - 'version.json'
-      - '.github/workflows/test-migrations.yml'
+    branches: [main]
   workflow_dispatch:
 
 permissions:

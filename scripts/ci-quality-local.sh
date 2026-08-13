@@ -65,19 +65,28 @@ else
 fi
 
 # 3 ── npm audit ─────────────────────────────────────────────────────────────
-step "npm audit (blocking)"
+step "root npm audit (blocking)"
 if ! command -v npm >/dev/null; then
   bad "npm is required"
-elif [ ! -f package-lock.json ] || [ ! -f frontend/package-lock.json ]; then
-  bad "both package-lock.json and frontend/package-lock.json are required"
+elif [ ! -f package-lock.json ]; then
+  bad "package-lock.json is required; root dependency audit was not run"
+elif npm audit --audit-level=high >"$CIQ_TMP_DIR/npm-root.log" 2>&1; then
+  ok "no high/critical advisories in root dependencies"
 else
-  if npm audit --audit-level=high >"$CIQ_TMP_DIR/npm.log" 2>&1 \
-      && npm --prefix frontend audit --audit-level=high >>"$CIQ_TMP_DIR/npm.log" 2>&1; then
-    ok "no high/critical advisories in root or frontend dependencies"
-  else
-    bad "npm audit failed or reported high/critical advisories"
-    tail -20 "$CIQ_TMP_DIR/npm.log" | sed 's/^/    /'
-  fi
+  bad "root npm audit failed or reported high/critical advisories"
+  tail -20 "$CIQ_TMP_DIR/npm-root.log" | sed 's/^/    /'
+fi
+
+step "frontend npm audit (blocking)"
+if ! command -v npm >/dev/null; then
+  bad "npm is required"
+elif [ ! -f frontend/package-lock.json ]; then
+  bad "frontend/package-lock.json is required; frontend dependency audit was not run"
+elif npm --prefix frontend audit --audit-level=high >"$CIQ_TMP_DIR/npm-frontend.log" 2>&1; then
+  ok "no high/critical advisories in frontend dependencies"
+else
+  bad "frontend npm audit failed or reported high/critical advisories"
+  tail -20 "$CIQ_TMP_DIR/npm-frontend.log" | sed 's/^/    /'
 fi
 
 # 4 ── Translation, placeholder and route parity ─────────────────────────────

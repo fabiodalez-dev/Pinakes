@@ -76,7 +76,13 @@ try {
             AND COLUMN_NAME = 'is_completa'"
     )->fetch_assoc();
     $check($column !== null && $column['DATA_TYPE'] === 'tinyint', 'migration adds the tinyint completion flag');
-    $check($column !== null && $column['IS_NULLABLE'] === 'NO' && (int) $column['COLUMN_DEFAULT'] === 0, 'flag is non-null with a safe false default');
+    $check(
+        $column !== null
+            && $column['IS_NULLABLE'] === 'NO'
+            && $column['COLUMN_DEFAULT'] !== null
+            && (int) $column['COLUMN_DEFAULT'] === 0,
+        'flag is non-null with a safe false default'
+    );
 
     $db->query("INSERT INTO `{$sandboxTable}` (`nome`) VALUES ('Saga test')");
     $check((int) $db->query("SELECT is_completa FROM `{$sandboxTable}`")->fetch_row()[0] === 0, 'existing/default series remain incomplete');

@@ -3,16 +3,6 @@ name: Database Compatibility
 on:
   pull_request:
     branches: [main]
-    paths:
-      - '**.php'
-      - 'composer.json'
-      - 'composer.lock'
-      - 'installer/database/**'
-      - 'storage/plugins/**'
-      - 'scripts/ci-run-unit-tests.sh'
-      - 'scripts/verify-schema.sh'
-      - 'tests/**.unit.php'
-      - '.github/workflows/ci-database-compatibility.yml'
   push:
     branches: [main]
   schedule:
