@@ -2842,7 +2842,12 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     await page.waitForLoadState('domcontentloaded');
 
     const statoField = page.locator('#stato, select[name="stato"]');
-    if (await statoField.isVisible({ timeout: 2000 }).catch(() => false)) {
+    // #stato (availability) is a derived value and read-only by design (#351):
+    // the <select> is disabled. Only edit it when it is actually editable —
+    // selectOption()/fill() on a disabled control waits for actionability until
+    // the test times out (which closes the page and cascades in this serial file).
+    if (await statoField.isVisible({ timeout: 2000 }).catch(() => false)
+        && await statoField.isEditable().catch(() => false)) {
       // Select a value
       if (await statoField.evaluate(el => el.tagName === 'SELECT')) {
         const options = await statoField.locator('option').count();
