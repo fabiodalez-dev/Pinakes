@@ -111,7 +111,7 @@ elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
     exit 1
   fi
 
-  echo "Verified prerelease ${TAG_NAME}: PR #${pr_number} (${pr_branch}) is CLEAN and every required check passed"
+  echo "Verified prerelease ${TAG_NAME}: PR #${pr_number} (${pr_branch}) is merge-ready (mergeStateStatus=${merge_state}) and every required check passed"
 else
   echo "Unsupported release version '${version}': use X.Y.Z or X.Y.Z-(alpha|beta|rc).N" >&2
   exit 1

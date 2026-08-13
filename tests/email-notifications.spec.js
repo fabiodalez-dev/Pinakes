@@ -173,11 +173,19 @@ async function clearMailpit() {
     throw new Error('Mailpit purge did not settle: sentinel messages kept disappearing within 10000ms');
   }
 
-  const delRes = await fetch(`${MAILPIT_API}/messages`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ IDs: [sentinelId] }),
-  });
+  const delController = new AbortController();
+  const delTimer = setTimeout(() => delController.abort(), 5000);
+  let delRes;
+  try {
+    delRes = await fetch(`${MAILPIT_API}/messages`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ IDs: [sentinelId] }),
+      signal: delController.signal,
+    });
+  } finally {
+    clearTimeout(delTimer);
+  }
   if (!delRes.ok) {
     throw new Error(`Mailpit sentinel cleanup failed: HTTP ${delRes.status}`);
   }
