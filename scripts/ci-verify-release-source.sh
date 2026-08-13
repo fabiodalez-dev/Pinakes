@@ -59,23 +59,42 @@ elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
     echo "Prerelease PR #${pr_number} moved from tagged commit ${GITHUB_SHA} to ${pr_head}" >&2
     exit 1
   fi
-  if [[ "$merge_state" != "CLEAN" ]]; then
+  # Why UNSTABLE is accepted alongside CLEAN: this very script runs inside the
+  # tag-triggered "Verified Release" workflow, whose check run attaches to the
+  # tagged commit — which IS the PR head. While this job is in progress GitHub
+  # reports the PR as UNSTABLE ("mergeable, but a non-required status is
+  # pending/failing"), so demanding CLEAN here is circular: the check that must
+  # pass keeps the PR from ever being CLEAN. UNSTABLE by definition still means
+  # the PR is mergeable (no conflicts, branch protection satisfied); the only
+  # thing it relaxes versus CLEAN is non-required statuses — and the loop below
+  # closes exactly that gap by independently requiring every branch-protection
+  # REQUIRED check to be green, excluding only this release workflow's own
+  # check run (tag-triggered, so by construction never a PR-required check).
+  # BLOCKED, DIRTY, BEHIND and UNKNOWN remain fatal: merge conflicts, missing
+  # approvals or unmet branch protection still veto the prerelease.
+  if [[ "$merge_state" != "CLEAN" && "$merge_state" != "UNSTABLE" ]]; then
     echo "Prerelease PR #${pr_number} is not merge-ready (mergeStateStatus=${merge_state})" >&2
     exit 1
   fi
 
-  set +e
   checks_json="$(gh pr checks "$pr_number" --repo "$GITHUB_REPOSITORY" \
-    --required --json name,state,bucket)"
-  checks_exit=$?
-  set -e
+    --required --json name,state,bucket,workflow || true)"
   if ! jq -e 'type == "array" and length > 0' >/dev/null <<<"$checks_json"; then
     echo "Prerelease PR #${pr_number} has no readable required-check result" >&2
     exit 1
   fi
 
-  failing_checks="$(jq -r '.[] | select(.bucket != "pass") | "\(.name): \(.state)"' <<<"$checks_json")"
-  if [[ "$checks_exit" != "0" || -n "$failing_checks" ]]; then
+  # Every required check except this release workflow's own run must be in the
+  # "pass" bucket (pending/fail/cancel/skipping all veto). The self-exclusion
+  # is defense in depth for the circularity above: should someone ever mark
+  # the release workflow itself required, the gate must still judge only the
+  # OTHER required checks instead of deadlocking on its own in-progress run.
+  # The decision is computed from the filtered JSON, not from gh's exit code,
+  # because the exit code would also trip on the self check being "pending".
+  failing_checks="$(jq -r --arg self_workflow "Verified Release" \
+    '.[] | select(.workflow != $self_workflow) | select(.bucket != "pass") | "\(.name): \(.state)"' \
+    <<<"$checks_json")"
+  if [[ -n "$failing_checks" ]]; then
     echo "Prerelease PR #${pr_number} has required checks that did not pass:" >&2
     printf '%s\n' "$failing_checks" >&2
     exit 1
@@ -92,7 +111,7 @@ elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
     exit 1
   fi
 
-  echo "Verified prerelease ${TAG_NAME}: PR #${pr_number} (${pr_branch}) is CLEAN and every required check passed"
+  echo "Verified prerelease ${TAG_NAME}: PR #${pr_number} (${pr_branch}) is merge-ready (mergeStateStatus=${merge_state}) and every required check passed"
 else
   echo "Unsupported release version '${version}': use X.Y.Z or X.Y.Z-(alpha|beta|rc).N" >&2
   exit 1
