@@ -247,17 +247,41 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
     let testUserId = 0;
     /** @type {number} */
     let createdLoanId = 0;
+    /** Dedicated book created in beforeAll (0 if we fell back to a shared book) */
+    let dedicatedBookId = 0;
     /** Track specific prestiti IDs created during these tests for targeted cleanup */
     let createdPrestitiIds = /** @type {number[]} */ ([]);
 
     test.beforeAll(async ({ browser }) => {
         await ensureNcipPlugin(browser);
 
-        // Find a book with available copies.
-        const bookRow = dbQuery(
-            "SELECT id FROM libri WHERE deleted_at IS NULL AND copie_disponibili > 0 ORDER BY id LIMIT 1"
-        );
-        testBookId = parseInt(bookRow) || 0;
+        // Create a DEDICATED book with a real available copy row. A book with
+        // copie_disponibili > 0 at the aggregate level may have no individual
+        // `copie` row, and NCIP CheckOut needs a real available copy — otherwise
+        // it returns "No copies available" and test 9 fails nondeterministically
+        // depending on which shared book happens to sort first.
+        const runId = `${Date.now().toString(36)}${Math.floor(process.hrtime()[1] % 1e6)}`;
+        try {
+            dbQuery(
+                "INSERT INTO libri (titolo, copie_totali, copie_disponibili, created_at, updated_at) " +
+                `VALUES ('NCIP Test Book ${runId}', 1, 1, NOW(), NOW())`
+            );
+            testBookId = parseInt(dbQuery(
+                `SELECT id FROM libri WHERE titolo = 'NCIP Test Book ${runId}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`
+            )) || 0;
+            if (testBookId > 0) {
+                dedicatedBookId = testBookId;
+                dbQuery(
+                    "INSERT INTO copie (libro_id, numero_inventario, stato, created_at) " +
+                    `VALUES (${testBookId}, 'NCIP-${runId}', 'disponibile', NOW())`
+                );
+            }
+        } catch {
+            // Fall back to any book with aggregate availability (older behaviour).
+            testBookId = parseInt(dbQuery(
+                "SELECT id FROM libri WHERE deleted_at IS NULL AND copie_disponibili > 0 ORDER BY id LIMIT 1"
+            )) || 0;
+        }
 
         // Find any non-admin user; fall back to any user if none found.
         const userRow = dbQuery(
@@ -504,6 +528,19 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
                 // FK-safe: child table first (ncip_transactions → prestiti), then parent
                 dbQuery(`DELETE FROM ncip_transactions WHERE prestito_id IN (${idList})`);
                 dbQuery(`DELETE FROM prestiti WHERE id IN (${idList})`);
+            } catch { /* best-effort */ }
+        }
+        // Remove the dedicated book + its copy. Delete EVERY prestito on its
+        // copies first (not only the tracked ids — RequestItem/CheckOut may
+        // leave an untracked loan), FK-safe: ncip_transactions → prestiti →
+        // copie → libri.
+        if (dedicatedBookId > 0) {
+            try {
+                const copiaSub = `SELECT id FROM copie WHERE libro_id = ${dedicatedBookId}`;
+                dbQuery(`DELETE FROM ncip_transactions WHERE prestito_id IN (SELECT id FROM prestiti WHERE copia_id IN (${copiaSub}))`);
+                dbQuery(`DELETE FROM prestiti WHERE copia_id IN (${copiaSub})`);
+                dbQuery(`DELETE FROM copie WHERE libro_id = ${dedicatedBookId}`);
+                dbQuery(`DELETE FROM libri WHERE id = ${dedicatedBookId}`);
             } catch { /* best-effort */ }
         }
     });
