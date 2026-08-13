@@ -314,7 +314,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <div>
             <label for="stato" class="form-label"><?= __("Disponibilità") ?></label>
             <?php $statoCorrente = strtolower((string) ($book['stato'] ?? '')); ?>
-            <select id="stato" name="stato" class="form-input">
+            <select id="stato" name="stato" class="form-input" disabled aria-readonly="true">
               <option value="disponibile" <?php echo $statoCorrente === 'disponibile' ? 'selected' : ''; ?>><?= __("Disponibile") ?></option>
               <option value="non_disponibile" <?php echo $statoCorrente === 'non_disponibile' ? 'selected' : ''; ?>><?= __("Non Disponibile") ?></option>
               <option value="prestato" <?php echo $statoCorrente === 'prestato' ? 'selected' : ''; ?>><?= __("Prestato") ?></option>
@@ -1003,7 +1003,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       \App\Support\Hooks::do('book.form.fields', [$bookData, $bookId]);
       ?>
 
-      <div class="flex flex-col sm:flex-row gap-4 justify-end">
+      <div id="bookFormActions" class="flex flex-col sm:flex-row gap-4 justify-end">
         <button type="button" id="btnCancel" class="btn-secondary order-2 sm:order-1">
           <i class="fas fa-times mr-2"></i>
           <?= __("Annulla") ?>
@@ -1016,6 +1016,34 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
     </form>
   </div>
 </div>
+<!--
+  The global "scroll to top" button is position:fixed in the bottom-right
+  corner; the form's Save/Cancel row is right-aligned at the end of the page.
+  Scrolled all the way down to save, the floating button lands on top of the
+  Save button. While the action row is in view (i.e. you're already at the
+  bottom), hide the floating button. The rule is !important so it overrides the
+  inline opacity the scroll-to-top partial sets on scroll; scoped to this page
+  via the body class, so no other page is affected. Degrades to the old
+  behaviour where IntersectionObserver is unavailable.
+-->
+<style>
+  body.book-actions-visible #scroll-to-top {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+</style>
+<script>
+(function() {
+  var actions = document.getElementById('bookFormActions');
+  if (!actions || typeof IntersectionObserver === 'undefined') {
+    return;
+  }
+  var observer = new IntersectionObserver(function(entries) {
+    document.body.classList.toggle('book-actions-visible', entries[0].isIntersecting);
+  }, { rootMargin: '0px 0px -8px 0px' });
+  observer.observe(actions);
+})();
+</script>
 <!-- CSS and JavaScript Libraries - partial-specific assets only (vendor.css/vendor.bundle.js loaded by layout) -->
 <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.css'), ENT_QUOTES, 'UTF-8') ?>">
 <script src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
