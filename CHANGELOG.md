@@ -2,10 +2,11 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [0.7.59-rc.3]
+## [0.7.59]
 
-Release-candidate refresh containing the complete integration of PRs #335,
-#337, #339 and #340 plus the fixes found during their combined review.
+Consolidation release: the complete integration of PRs #335, #337, #339 and
+#340, hardened together with the fixes found during their combined review and a
+security pass. Validated through three release candidates.
 
 ### Fixes
 
@@ -32,7 +33,7 @@ Release-candidate refresh containing the complete integration of PRs #335,
 
 ---
 
-## What's New in v0.7.53
+## [0.7.53]
 
 A performance release: the whole application answers faster, with a dramatically lighter database footprint per request.
 
