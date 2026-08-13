@@ -1180,11 +1180,12 @@ class CsvImportController
         }
 
         // Strip only the separators a barcode may carry: ASCII space and dash.
-        // Not \s — that also removes TAB/CR/LF, which would let a field with an
-        // embedded newline collapse into a "valid" barcode. Any character left
-        // after this means the cell is not a bare barcode (e.g. "ABC036000291452"
-        // or "036000\n291452"), so reject it rather than extracting digits.
-        $normalized = str_replace([' ', '-'], '', trim($ean));
+        // Not \s and not trim() — those also remove TAB/CR/LF, which would let a
+        // field with a stray control character collapse into a "valid" barcode.
+        // Any character left after this means the cell is not a bare barcode
+        // (e.g. "ABC036000291452", "036000\n291452", "\t036000291452"), so
+        // reject it via the ctype_digit guard rather than extracting digits.
+        $normalized = str_replace([' ', '-'], '', $ean);
 
         if ($normalized === '' || !ctype_digit($normalized)) {
             return null;

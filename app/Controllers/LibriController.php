@@ -289,27 +289,6 @@ class LibriController
     }
 
     /**
-     * Validate a UPC-A (GTIN-12) barcode by its mod-10 check digit.
-     *
-     * UPC-A weights the first 11 digits 3,1,3,1,… (odd positions ×3), and the
-     * 12th is the check digit. Used to decide whether a 12-digit ean may be
-     * canonicalised to its GTIN-13 form ('0' + upc) — we only rewrite a code
-     * that is actually a valid UPC-A, never fabricate a GTIN from a bad value.
-     */
-    private static function isValidUpcA(string $code): bool
-    {
-        if (strlen($code) !== 12 || !ctype_digit($code)) {
-            return false;
-        }
-        $sum = 0;
-        for ($i = 0; $i < 11; $i++) {
-            $sum += (int) $code[$i] * ($i % 2 === 0 ? 3 : 1);
-        }
-        $check = (10 - ($sum % 10)) % 10;
-        return $check === (int) $code[11];
-    }
-
-    /**
      * Rotate log files to prevent unlimited growth
      * Keeps only last 7 days of logs, max 10MB per file
      */
@@ -831,27 +810,14 @@ class LibriController
             if (isset($fields[$codeKey])) {
                 $rawValue = (string) $fields[$codeKey];
 
-                // Input validation: bound length before the strip regex.
-                // ISBN-10: 13 (10 digits + 3 separators); ISBN-13: 17 (13 + 4).
-                // EAN/UPC: 20 (fits varchar(20)) — a separator-formatted UPC-A
-                // (e.g. "0 36000 29145 2") must NOT be truncated before the
-                // isValidUpcA() check below, or the check would see a corrupted
-                // value and skip a legitimate canonicalisation.
-                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 20);
+                // Input validation: prevent ReDoS by checking length before regex
+                // ISBN-10: max 13 chars (10 digits + 3 separators), ISBN-13: max 17 chars (13 digits + 4 separators), EAN: max 13
+                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 13);
                 if (strlen($rawValue) > $maxLength) {
                     $rawValue = substr($rawValue, 0, $maxLength);
                 }
 
                 $fields[$codeKey] = preg_replace('/[\s-]+/', '', $rawValue);
-
-                // A VALID UPC-A (12 digits) is EAN-13 with a leading zero, and
-                // the zero-padding preserves its check digit. Canonicalise it to
-                // the 13-digit GTIN so a UPC typed here dedups against the same
-                // barcode imported via CSV/TSV; an invalid or non-UPC value is
-                // left untouched (never fabricate a GTIN from a bad code). (#348)
-                if ($codeKey === 'ean' && self::isValidUpcA((string) $fields[$codeKey])) {
-                    $fields[$codeKey] = '0' . $fields[$codeKey];
-                }
             }
         }
 
@@ -1411,27 +1377,14 @@ class LibriController
             if (isset($fields[$codeKey])) {
                 $rawValue = (string) $fields[$codeKey];
 
-                // Input validation: bound length before the strip regex.
-                // ISBN-10: 13 (10 digits + 3 separators); ISBN-13: 17 (13 + 4).
-                // EAN/UPC: 20 (fits varchar(20)) — a separator-formatted UPC-A
-                // (e.g. "0 36000 29145 2") must NOT be truncated before the
-                // isValidUpcA() check below, or the check would see a corrupted
-                // value and skip a legitimate canonicalisation.
-                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 20);
+                // Input validation: prevent ReDoS by checking length before regex
+                // ISBN-10: max 13 chars (10 digits + 3 separators), ISBN-13: max 17 chars (13 digits + 4 separators), EAN: max 13
+                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 13);
                 if (strlen($rawValue) > $maxLength) {
                     $rawValue = substr($rawValue, 0, $maxLength);
                 }
 
                 $fields[$codeKey] = preg_replace('/[\s-]+/', '', $rawValue);
-
-                // A VALID UPC-A (12 digits) is EAN-13 with a leading zero, and
-                // the zero-padding preserves its check digit. Canonicalise it to
-                // the 13-digit GTIN so a UPC typed here dedups against the same
-                // barcode imported via CSV/TSV; an invalid or non-UPC value is
-                // left untouched (never fabricate a GTIN from a bad code). (#348)
-                if ($codeKey === 'ean' && self::isValidUpcA((string) $fields[$codeKey])) {
-                    $fields[$codeKey] = '0' . $fields[$codeKey];
-                }
             }
         }
 
