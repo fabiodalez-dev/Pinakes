@@ -343,11 +343,7 @@ jobs:
           npm --prefix frontend run build
       - name: Verify generated assets are committed and reproducible
         run: |
-          git diff --exit-code -- \
-            public/assets/main.css \
-            public/assets/main.bundle.js \
-            public/assets/vendor.bundle.js \
-            public/assets/copy-scanner.bundle.js
+          git diff --exit-code -- public/assets
           untracked_assets="$(git ls-files --others --exclude-standard -- public/assets)"
           if [ -n "${untracked_assets}" ]; then
             echo "Generated assets are untracked:"

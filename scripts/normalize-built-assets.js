@@ -4,6 +4,20 @@
 const fs = require('fs');
 const path = require('path');
 
+// Some browser helpers are intentionally shipped as standalone scripts rather
+// than bundled entry points. Keep their deployable copies derived from source
+// on every build so CI never validates stale browser code.
+const staticAssets = new Map([
+  [
+    path.resolve(__dirname, '../frontend/js/flatpickr-init.js'),
+    path.resolve(__dirname, '../public/assets/flatpickr-init.js'),
+  ],
+]);
+
+for (const [sourcePath, destinationPath] of staticAssets) {
+  fs.copyFileSync(sourcePath, destinationPath);
+}
+
 const assetPaths = [
   path.resolve(__dirname, '../public/assets/main.css'),
 ];
