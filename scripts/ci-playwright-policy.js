@@ -195,6 +195,32 @@ function checkPolicy() {
     }
   }
 
+  const releaseWorkflowPath = path.join(root, '.github', 'workflows', 'release.yml');
+  const releasePolicyPath = path.join(root, 'scripts', 'ci-verify-release-source.sh');
+  const releasePolicyTestPath = path.join(root, 'tests', 'release-source-policy.test.sh');
+  if (!fs.existsSync(releasePolicyPath) || !fs.existsSync(releasePolicyTestPath)) {
+    fail('release source policy and its regression test are required');
+  }
+  if (fs.existsSync(releaseWorkflowPath)) {
+    const releaseWorkflow = fs.readFileSync(releaseWorkflowPath, 'utf8');
+    if (!releaseWorkflow.includes('bash scripts/ci-verify-release-source.sh')) {
+      fail('release workflow does not enforce the stable/prerelease source policy');
+    }
+    for (const permission of ['checks: read', 'statuses: read', 'pull-requests: read']) {
+      if (!releaseWorkflow.includes(permission)) {
+        fail(`release workflow is missing permission: ${permission}`);
+      }
+    }
+  }
+
+  const qualityWorkflowPath = path.join(root, '.github', 'workflows', 'ci-quality.yml');
+  if (fs.existsSync(qualityWorkflowPath)) {
+    const qualityWorkflow = fs.readFileSync(qualityWorkflowPath, 'utf8');
+    if (!qualityWorkflow.includes('bash tests/release-source-policy.test.sh')) {
+      fail('code-quality workflow does not run release source policy regressions');
+    }
+  }
+
   const workflowDir = path.join(root, '.github', 'workflows');
   for (const workflow of fs.readdirSync(workflowDir)) {
     const workflowPath = path.join(workflowDir, workflow);

@@ -21,6 +21,7 @@ on:
       - 'frontend/**/*.css'
       - 'public/assets/**'
       - 'scripts/ci-*'
+      - 'tests/*.test.sh'
       - 'tests/ci-playwright-policy.json'
       - 'installer/database/schema.sql'
       - 'version.json'
@@ -124,6 +125,9 @@ jobs:
 
       - name: CI and Playwright coverage policy
         run: npm run test:ci-policy
+
+      - name: Release source policy regression tests
+        run: bash tests/release-source-policy.test.sh
 
       - name: Validate every active GitHub Actions workflow
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/*.yml

@@ -99,11 +99,13 @@ fi
 
 step "Playwright coverage policy + frontend lint"
 if node scripts/ci-playwright-policy.js check >"$CIQ_TMP_DIR/policy.log" 2>&1 \
+    && bash tests/release-source-policy.test.sh >"$CIQ_TMP_DIR/release-policy.log" 2>&1 \
     && npm --prefix frontend run lint >"$CIQ_TMP_DIR/frontend.log" 2>&1; then
-  ok "all browser specs classified; frontend lint clean"
+  ok "browser specs classified; release policy tested; frontend lint clean"
 else
-  bad "CI policy or frontend lint failed"
-  tail -20 "$CIQ_TMP_DIR/policy.log" "$CIQ_TMP_DIR/frontend.log" 2>/dev/null | sed 's/^/    /'
+  bad "CI policy, release policy or frontend lint failed"
+  tail -20 "$CIQ_TMP_DIR/policy.log" "$CIQ_TMP_DIR/release-policy.log" \
+    "$CIQ_TMP_DIR/frontend.log" 2>/dev/null | sed 's/^/    /'
 fi
 
 # 5 ── Route key integrity ────────────────────────────────────────────────────

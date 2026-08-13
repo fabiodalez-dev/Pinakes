@@ -18,6 +18,9 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: write # Create the GitHub Release and upload its assets.
+      checks: read # Require every protected-branch check before publishing an RC.
+      statuses: read # Read legacy commit-status based required checks.
+      pull-requests: read # Validate prereleases against the exact merge-ready PR head.
       id-token: write # Sign the artifact provenance with GitHub OIDC.
       attestations: write # Store the artifact provenance attestation.
 
@@ -28,21 +31,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify tag, version and main ancestry
+      - name: Verify stable or prerelease source policy
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ github.ref_name }}
-        run: |
-          version=$(jq -r .version version.json)
-          test "$TAG_NAME" = "v${version}" || {
-            echo "Tag/version mismatch: $TAG_NAME != v${version}"
-            exit 1
-          }
-          git fetch --no-tags origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
-            echo "Tagged commit is not contained in origin/main"
-            exit 1
-          }
-          test -z "$(git status --porcelain)"
+        run: bash scripts/ci-verify-release-source.sh
 
       - name: Setup PHP 8.2
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
