@@ -697,7 +697,7 @@ $applicationToday = \App\Support\DateHelper::today();
         <i class="fas fa-check-circle text-green-500 text-3xl"></i>
       </div>
       <h3 class="text-lg font-semibold text-green-800 mb-2"><?= __("Tutto sotto controllo!") ?></h3>
-      <p class="text-green-600"><?= __("Non ci sono azioni urgenti da completare.") ?></p>
+      <p class="text-green-700"><?= __("Non ci sono azioni urgenti da completare.") ?></p>
     </div>
     <?php endif; ?>
     <?php endif; ?>
@@ -790,6 +790,12 @@ unset($loanActionTranslations);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+#dashboard-calendar .fc-day-other .fc-daygrid-day-top {
+  opacity: 1;
+}
+#dashboard-calendar .fc-day-other .fc-daygrid-day-number {
+  color: #4b5563;
 }
 
 /* Responsive styles for mobile */

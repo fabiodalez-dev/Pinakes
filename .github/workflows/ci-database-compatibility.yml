@@ -111,6 +111,20 @@ jobs:
           DB_PASS=root
           DB_NAME=pinakes_test
           ENVEOF
+          # data_it_IT.sql provides bundled plugin metadata, but the runtime
+          # registry is populated by PluginManager. Exercise that real install
+          # step so self-healing tests cannot silently skip book-club.
+          # shellcheck disable=SC2016
+          php -r '
+            require "vendor/autoload.php";
+            $db = new mysqli("127.0.0.1", "root", "root", "pinakes_test", 3306);
+            $db->set_charset("utf8mb4");
+            $hooks = new App\Support\HookManager($db);
+            (new App\Support\PluginManager($db, $hooks))->autoRegisterBundledPlugins();
+          '
+          plugin_count=$(MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root -Nse \
+            "SELECT COUNT(*) FROM pinakes_test.plugins WHERE name='book-club'")
+          test "$plugin_count" = 1
 
       - name: Exercise all standalone behavioral tests in strict mode
         run: bash scripts/ci-run-unit-tests.sh
