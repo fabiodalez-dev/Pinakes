@@ -72,7 +72,7 @@ server {
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     # Uncomment and adjust CSP for production:
-    # add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https: http: blob:; connect-src 'self'; frame-src 'self' https://www.openstreetmap.org; frame-ancestors 'self';" always;
+    # Content-Security-Policy is emitted by the application with a unique nonce.
 
     # ========================================
     # Block access to sensitive/hidden files

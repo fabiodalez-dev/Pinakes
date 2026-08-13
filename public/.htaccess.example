@@ -28,7 +28,7 @@
 
     # Content Security Policy - restrictive but allows inline styles/scripts for compatibility
     # Allows Google Fonts for Inter font family
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https: http: blob:; connect-src 'self'; frame-src 'self' https://www.openstreetmap.org; frame-ancestors 'self';"
+    # Content-Security-Policy is emitted by the application with a unique nonce.
 
     # Referrer policy
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
@@ -79,4 +79,3 @@
     AddType application/pdf .pdf
     AddType application/epub+zip .epub
 </IfModule>
-

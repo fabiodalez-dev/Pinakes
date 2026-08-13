@@ -514,27 +514,22 @@ $app->addRoutingMiddleware();
 
 // Global security headers
 $app->add(function ($request, $handler) use ($httpsDetected) {
+    $cspNonce = \App\Support\ContentSecurityPolicy::createNonce();
     $response = $handler->handle($request);
 
-    // Content Security Policy - restrictive but allows inline scripts/styles (required by app)
-    // Permette asset da CDN esterni (cdnjs, Google Fonts) per funzionalità estese
-    $csp = "default-src 'self'; " .
-           "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com; " .
-           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " .
-           "img-src 'self' data: blob: http: https:; " .
-           "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; " .
-           "connect-src 'self' data: blob:; " .
-           "object-src 'none'; " .
-           "base-uri 'self'; " .
-           "form-action 'self'; " .
-           "frame-src 'self' data: blob: about: https://www.google.com https://www.google.it https://maps.google.com https://www.openstreetmap.org; " .
-           "child-src 'self' data: blob: about:; " .
-           "frame-ancestors 'self'";
-
-    // Add upgrade-insecure-requests only in production with HTTPS
-    if (getenv('APP_ENV') === 'production' && $httpsDetected) {
-        $csp .= "; upgrade-insecure-requests";
+    $contentType = strtolower($response->getHeaderLine('Content-Type'));
+    if (str_contains($contentType, 'text/html') || str_contains($contentType, 'application/xhtml+xml')) {
+        $html = (string) $response->getBody();
+        $html = \App\Support\ContentSecurityPolicy::addNonceAttributes($html, $cspNonce);
+        $response = $response
+            ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream($html))
+            ->withoutHeader('Content-Length');
     }
+
+    $csp = \App\Support\ContentSecurityPolicy::header(
+        $cspNonce,
+        getenv('APP_ENV') === 'production' && $httpsDetected
+    );
 
     $response = $response->withHeader('X-Frame-Options', 'SAMEORIGIN')
         ->withHeader('Content-Security-Policy', $csp)

@@ -79,24 +79,46 @@ async function mailpitJson(urlPath, timeoutMs = 5000) {
 /** Delete all messages in Mailpit */
 async function clearMailpit() {
   if (!mailpitAvailable) return;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
-  try {
-    const res = await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: controller.signal });
-    if (!res.ok) throw new Error(`Mailpit clear failed: HTTP ${res.status}`);
-  } catch (err) {
-    if (controller.signal.aborted) {
-      // Timeout — retry once with a shorter timeout
-      const retryCtrl = new AbortController();
-      const retryTimer = setTimeout(() => retryCtrl.abort(), 3000);
-      try { await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: retryCtrl.signal }); } catch { /* best effort */ } finally { clearTimeout(retryTimer); }
-      return;
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: controller.signal });
+      if (!res.ok) throw new Error(`Mailpit clear failed: HTTP ${res.status}`);
+      lastError = undefined;
+      break;
+    } catch (err) {
+      lastError = err;
+    } finally {
+      clearTimeout(timer);
     }
-    mailpitAvailable = false;
-    throw err;
-  } finally {
-    clearTimeout(timer);
   }
+
+  if (lastError) {
+    mailpitAvailable = false;
+    throw lastError;
+  }
+
+  // Mailpit can acknowledge DELETE before its recipient/full-text indexes have
+  // settled. Submitting the next form immediately can race the outstanding
+  // purge and delete the newly accepted message. Require two consecutive empty
+  // snapshots before the next test is allowed to send mail.
+  let consecutiveEmpty = 0;
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const data = await mailpitJson('/messages');
+    const count = Number(data.total ?? data.messages_count ?? data.messages?.length ?? 0);
+    if (count === 0) {
+      consecutiveEmpty++;
+      if (consecutiveEmpty === 2) return;
+    } else {
+      consecutiveEmpty = 0;
+    }
+    await new Promise(resolve => setTimeout(resolve, 150));
+  }
+
+  throw new Error('Mailpit inbox did not become stably empty within 5000ms');
 }
 
 function clearConfigCache() {
