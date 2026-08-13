@@ -34,5 +34,15 @@ $check(ContentSecurityPolicy::isHtmlResponse('text/html; charset=UTF-8', '<html>
 $check(!ContentSecurityPolicy::isHtmlResponse('application/json', '{"script":"<script>"}'), 'JSON is never nonce-rewritten');
 $check(!ContentSecurityPolicy::isHtmlResponse('', '<div>fragment</div>'), 'untyped non-document fragments are not rewritten');
 
+$frontController = file_get_contents(dirname(__DIR__) . '/public/index.php');
+$errorMiddlewarePosition = strpos((string) $frontController, '$app->addErrorMiddleware');
+$securityMiddlewarePosition = strpos((string) $frontController, '// Global security headers.');
+$check(
+    $errorMiddlewarePosition !== false
+        && $securityMiddlewarePosition !== false
+        && $securityMiddlewarePosition > $errorMiddlewarePosition,
+    'security middleware wraps error responses under Slim reverse registration order'
+);
+
 echo "\n{$passed} PASS, {$failed} FAIL\n";
 exit($failed === 0 ? 0 : 1);
