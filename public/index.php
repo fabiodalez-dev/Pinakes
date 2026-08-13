@@ -518,8 +518,8 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
     $response = $handler->handle($request);
 
     $contentType = strtolower($response->getHeaderLine('Content-Type'));
-    if (str_contains($contentType, 'text/html') || str_contains($contentType, 'application/xhtml+xml')) {
-        $html = (string) $response->getBody();
+    $html = (string) $response->getBody();
+    if (\App\Support\ContentSecurityPolicy::isHtmlResponse($contentType, $html)) {
         $html = \App\Support\ContentSecurityPolicy::addNonceAttributes($html, $cspNonce);
         $response = $response
             ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream($html))

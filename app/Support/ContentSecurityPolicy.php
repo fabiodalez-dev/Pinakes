@@ -66,4 +66,18 @@ final class ContentSecurityPolicy
             $html
         ) ?? $html;
     }
+
+    public static function isHtmlResponse(string $contentType, string $body): bool
+    {
+        $contentType = strtolower($contentType);
+        if (str_contains($contentType, 'text/html') || str_contains($contentType, 'application/xhtml+xml')) {
+            return true;
+        }
+
+        // Several legacy view controllers write a complete document without
+        // setting Content-Type. Detect only full HTML documents so JSON/text
+        // API responses are never rewritten accidentally.
+        return trim($contentType) === ''
+            && preg_match('/^\s*(?:<!doctype\s+html\b|<html\b)/i', $body) === 1;
+    }
 }

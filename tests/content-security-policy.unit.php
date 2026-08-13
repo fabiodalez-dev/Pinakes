@@ -29,6 +29,10 @@ $check(str_contains($header, "base-uri 'self'") && str_contains($header, "form-a
 $check(substr_count($rewritten, 'nonce="' . $nonce . '"') === 2, 'nonce is attached to every untrusted script/style element');
 $check(substr_count($rewritten, 'nonce="0123456789abcdef0123456789abcdef"') === 1, 'an existing nonce is never overwritten');
 $check(str_ends_with(ContentSecurityPolicy::header($nonce, true), '; upgrade-insecure-requests'), 'HTTPS production policy upgrades insecure requests');
+$check(ContentSecurityPolicy::isHtmlResponse('', "<!doctype html>\n<html></html>"), 'legacy HTML without Content-Type is detected');
+$check(ContentSecurityPolicy::isHtmlResponse('text/html; charset=UTF-8', '<html></html>'), 'declared HTML is detected');
+$check(!ContentSecurityPolicy::isHtmlResponse('application/json', '{"script":"<script>"}'), 'JSON is never nonce-rewritten');
+$check(!ContentSecurityPolicy::isHtmlResponse('', '<div>fragment</div>'), 'untyped non-document fragments are not rewritten');
 
 echo "\n{$passed} PASS, {$failed} FAIL\n";
 exit($failed === 0 ? 0 : 1);
