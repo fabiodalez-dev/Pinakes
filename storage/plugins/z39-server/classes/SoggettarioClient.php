@@ -117,7 +117,7 @@ class SoggettarioClient
         $response = $this->execute($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
-        curl_close($ch);
+        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
         if ($error !== '' || $httpCode !== 200 || !is_string($response) || $response === '') {
             \App\Support\SecureLogger::debug('[Soggettario] fetch failed', [

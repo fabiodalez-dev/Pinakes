@@ -203,7 +203,7 @@ class AiService
             $raw = curl_exec($ch);
             $httpCode = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             $curlError = curl_error($ch);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
             if ($raw === false || $raw === '') {
                 SecureLogger::error('[BookClub:ai] HTTP request failed: ' . ($curlError !== '' ? $curlError : 'empty response'));

@@ -601,7 +601,7 @@ class OpenLibraryPlugin
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
         $contentLength = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
-        curl_close($ch);
+        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
         if ($httpCode !== 200) {
             return false;
@@ -634,7 +634,7 @@ class OpenLibraryPlugin
                 ]);
                 $partial = curl_exec($ch2);
                 $httpCode2 = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
-                curl_close($ch2);
+                /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
                 return in_array($httpCode2, [200, 206], true)
                     && is_string($partial) && strlen($partial) > self::MIN_COVER_SIZE_BYTES;
             }

@@ -292,7 +292,7 @@ class SbnClient
             }
 
             curl_multi_remove_handle($multiHandle, $ch);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
         }
 
         curl_multi_close($multiHandle);
@@ -954,7 +954,7 @@ class SbnClient
         $error = curl_error($ch);
         $totalTime = curl_getinfo($ch, CURLINFO_TOTAL_TIME);
 
-        curl_close($ch);
+        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
         \App\Support\SecureLogger::debug('[SBN] HTTP Request', [
             'http_code' => $httpCode,

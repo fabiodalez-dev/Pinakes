@@ -2084,7 +2084,7 @@ class LibriController
             curl_exec($ch);
             $contentLength = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
             // Reject if size is known and exceeds limit (2MB)
             if ($contentLength > 0 && $contentLength > 2 * 1024 * 1024) {
@@ -2130,7 +2130,7 @@ class LibriController
             $img = curl_exec($ch);
             $curlError = curl_errno($ch);
             $curlHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
             // Handle abort from progress function
             if ($curlError === CURLE_ABORTED_BY_CALLBACK) {
