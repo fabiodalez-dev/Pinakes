@@ -100,7 +100,8 @@ class PublicApiController
 
         $whereClause = '(' . implode(' OR ', $conditions) . ') AND l.deleted_at IS NULL';
 
-        // Main query to get books with all related data
+        // Main query to get books with all related data.
+        // CI-SOFT-DELETE-EXEMPT: $whereClause above unconditionally ends with l.deleted_at IS NULL.
         $sql = "
             SELECT
                 l.id,

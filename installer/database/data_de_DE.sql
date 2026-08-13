@@ -229,6 +229,7 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('app', 'logo_path', '', 'Pfad zum Anwendungslogo', NOW()),
 ('app', 'footer_description', 'Ihr Pinakes-System zum Katalogisieren, Verwalten und Teilen Ihrer Büchersammlung.', 'Fußzeilenbeschreibung', NOW()),
 ('app', 'locale', 'de_DE', 'Standard-Spracheinstellung der Anwendung', NOW()),
+('app', 'timezone', 'Europe/Berlin', 'Application timezone (loan clock)', NOW()),
 ('app', 'social_facebook', '', 'Facebook-Profil-URL', NOW()),
 ('app', 'social_twitter', '', 'Twitter-Profil-URL', NOW()),
 ('app', 'social_instagram', '', 'Instagram-Profil-URL', NOW()),

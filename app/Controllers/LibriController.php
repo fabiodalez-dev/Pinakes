@@ -2252,7 +2252,7 @@ class LibriController
      */
     private function currentCoverUrl(mysqli $db, int $bookId): string
     {
-        $stmt = $db->prepare('SELECT copertina_url FROM libri WHERE id=?');
+        $stmt = $db->prepare('SELECT copertina_url FROM libri WHERE id=? AND deleted_at IS NULL');
         if (!$stmt) {
             return '';
         }
@@ -2858,6 +2858,7 @@ class LibriController
             $copie[] = $copyRow;
         }
         $copiesStmt->close();
+        $copie = \App\Models\CopyRepository::sortByInventoryNumber($copie);
 
         if (count($copie) === 0) {
             $_SESSION['error_message'] = __('Nessuna copia disponibile per la stampa delle etichette.');
@@ -3329,7 +3330,7 @@ class LibriController
             $bindValues[] = $autoreId;
         }
 
-        // Build the query
+        // Build the query. CI-SOFT-DELETE-EXEMPT: l.deleted_at IS NULL is appended to this exact export before prepare/query.
         $query = "
             SELECT
                 l.*,

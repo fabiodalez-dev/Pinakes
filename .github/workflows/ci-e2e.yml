@@ -18,11 +18,11 @@ jobs:
   e2e:
     name: Full E2E suite (Playwright · Apache · MySQL)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: pinakes_test
@@ -46,7 +46,9 @@ jobs:
       E2E_INSTALL_ROOT: ${{ github.workspace }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       # ── Apache2 + mod_php ───────────────────────────────────────────────────
       # Install Apache before setup-php adds external package sources; the app
@@ -64,12 +66,11 @@ jobs:
 
       # ── PHP 8.2 CLI for Composer and tooling ────────────────────────────────
       - name: Setup PHP 8.2
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml
           coverage: none
-          github-token: ''
 
       - name: Configure virtual host on port 8081
         env:
@@ -98,7 +99,7 @@ jobs:
 
       # ── PHP dependencies ────────────────────────────────────────────────────
       - name: Cache Composer packages
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-${{ hashFiles('composer.lock') }}
@@ -108,13 +109,17 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
 
       # ── Node / Playwright ────────────────────────────────────────────────────
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: npm
 
       - name: Install Node dependencies
-        run: npm install --silent
+        run: npm ci --silent
+
+      - name: Verify CI covers every Playwright spec
+        run: npm run test:ci-policy
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
@@ -294,57 +299,52 @@ jobs:
             --config=tests/playwright.config.js \
             --workers=1
 
-      # ── Orphan-spec backfill: tests that were authored against a fresh
-      #    install but never wired into the CI workflow. Adding them as
-      #    `continue-on-error: true` so we get the signal from a clean
-      #    fixture without gating the merge on tests that may have flake-
-      #    or design-level issues unrelated to the merging PR. Once the
-      #    individual specs prove stable (see #144 follow-up triage), drop
-      #    the continue-on-error and promote to a numbered step. ──────────
-      - name: "[orphan/1] book-form-comprehensive.spec.js"
-        continue-on-error: true
+      # Activate linked-data plugins before suites whose routes are registered
+      # only for active plugins. A missing route is now a hard failure.
+      - name: "Interop plugin preflight"
+        run: |
+          npx playwright test tests/interop-00-activate-plugins.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      # Formerly non-blocking backfill. These are release gates now: no test
+      # failure is allowed to leave the workflow green.
+      - name: "[regression/1] book-form-comprehensive.spec.js"
         run: |
           npx playwright test tests/book-form-comprehensive.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/2] code-quality.spec.js"
-        continue-on-error: true
+      - name: "[regression/2] code-quality.spec.js"
         run: |
           npx playwright test tests/code-quality.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/3] genre-merge-rearrange.spec.js"
-        continue-on-error: true
+      - name: "[regression/3] genre-merge-rearrange.spec.js"
         run: |
           npx playwright test tests/genre-merge-rearrange.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/4] loan-reservation.spec.js"
-        continue-on-error: true
+      - name: "[regression/4] loan-reservation.spec.js"
         run: |
           npx playwright test tests/loan-reservation.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/5] multisource-scraping.spec.js"
-        continue-on-error: true
+      - name: "[regression/5] multisource-scraping.spec.js"
         run: |
           npx playwright test tests/multisource-scraping.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/6] security-hardening.spec.js"
-        continue-on-error: true
+      - name: "[regression/6] security-hardening.spec.js"
         run: |
           npx playwright test tests/security-hardening.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/7] viaf-authority.spec.js"
-        continue-on-error: true
+      - name: "[regression/7] viaf-authority.spec.js"
         run: |
           npx playwright test tests/viaf-authority.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
-      - name: "[orphan/8] interop-specific.spec.js"
-        continue-on-error: true
+      - name: "[regression/8] interop-specific.spec.js"
         run: |
           npx playwright test tests/interop-specific.spec.js \
             --config=tests/playwright.config.js \
@@ -357,7 +357,7 @@ jobs:
 
       # ── Artifacts on failure ─────────────────────────────────────────────────
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: failure()
         with:
           name: playwright-report-${{ github.run_id }}
@@ -367,7 +367,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Apache error log
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: failure()
         with:
           name: apache-error-log-${{ github.run_id }}

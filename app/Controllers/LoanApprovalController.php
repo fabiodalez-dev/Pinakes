@@ -548,7 +548,13 @@ class LoanApprovalController
                 'success' => true,
                 'message' => $isFutureLoan
                     ? __('Prestito prenotato con successo')
-                    : __('Prestito approvato - in attesa di ritiro')
+                    : __('Prestito approvato - in attesa di ritiro'),
+                // Expose the state actually persisted so programmatic callers
+                // (autoApproveLoanRequest) can branch on 'prenotato' vs
+                // 'da_ritirare' instead of re-deriving it from the date and
+                // drifting from the authoritative computation above.
+                'loan_state' => $newState,
+                'is_future_loan' => $isFutureLoan,
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
@@ -577,14 +583,19 @@ class LoanApprovalController
             }
         }
         $loanId = (int) ($data['loan_id'] ?? 0);
-        $reason = $data['reason'] ?? '';
+        // Used both in the audit note and the rejection email: normalize scalar
+        // input once and apply the admin workflow's explicit 500-character bound.
+        // `prestiti.note` is TEXT: this is an input-policy limit, not a claim
+        // about the persistence column's capacity.
+        $rawReason = $data['reason'] ?? '';
+        $reason = is_scalar($rawReason) ? mb_substr(trim((string) $rawReason), 0, 500) : '';
 
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Start transaction for atomic delete + availability update
+        // Start transaction for the atomic terminal transition + availability update.
         $db->begin_transaction();
 
         try {
@@ -611,6 +622,7 @@ class LoanApprovalController
             // deliberata al soft-delete invariant): rifiutare una richiesta pendente
             // deve funzionare ANCHE se il libro è stato soft-eliminato nel frattempo —
             // filtrare renderebbe la query vuota e lascerebbe la richiesta orfana.
+            // CI-SOFT-DELETE-EXEMPT: rejection must release pending circulation state for a deleted book.
             $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             $lockBook->bind_param('i', $bookId);
             $lockBook->execute();
@@ -625,7 +637,8 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Fetch FULL loan data under lock before deletion (needed for email).
+            // Fetch full loan data under lock before changing state (needed for email).
+            // CI-SOFT-DELETE-EXEMPT: rejection needs the deleted book title while releasing its pending loan.
             $stmt = $db->prepare("
                 SELECT p.libro_id, p.utente_id, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
@@ -653,14 +666,29 @@ class LoanApprovalController
             if ((int) $loan['libro_id'] !== $bookId) {
                 throw new \RuntimeException('libro_id del prestito cambiato durante il lock (TOCTOU).');
             }
-            // Store data needed for rejection email BEFORE deletion
+            // Store data needed for the rejection email before changing state.
             $userEmail = $loan['utente_email'];
             $userName = $loan['utente_nome'];
             $bookTitle = $loan['libro_titolo'];
 
-            // Delete the loan
-            $stmt = $db->prepare("DELETE FROM prestiti WHERE id = ? AND stato = 'pendente'");
-            $stmt->bind_param('i', $loanId);
+            // Mark as annullato instead of deleting: the rejection was the only
+            // terminal transition that destroyed its row, leaving no audit of
+            // who rejected what and blinding the statistics. Same shape as the
+            // user cancel path (stato='annullato', attivo=0, processed_by, note);
+            // the duplicate-request checks ignore 'annullato', so the user can
+            // request the same book again.
+            $rejectedBy = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
+            $rejectNote = "\n[Admin] " . __('Richiesta rifiutata');
+            if ($reason !== '') {
+                $rejectNote .= ': ' . $reason;
+            }
+            $stmt = $db->prepare("
+                UPDATE prestiti
+                SET stato = 'annullato', attivo = 0, processed_by = ?,
+                    note = CONCAT(COALESCE(note, ''), ?), updated_at = NOW()
+                WHERE id = ? AND stato = 'pendente'
+            ");
+            $stmt->bind_param('isi', $rejectedBy, $rejectNote, $loanId);
             $stmt->execute();
 
             if ($db->affected_rows === 0) {
@@ -679,10 +707,30 @@ class LoanApprovalController
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            // Promote the waitlist: a rejected reservation-conversion 'pendente'
+            // held a copy, and every other release path (return, cancel, expiry)
+            // immediately converts the next queued reservation — rejectLoan was
+            // the only one that left the freed capacity idle until the next
+            // maintenance run. processBookAvailability() is a no-op for bare
+            // pendings (nothing was occupied) and for soft-deleted books.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($bookId); $promoGuard++) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
             $db->commit();
 
+            // Notifiche accodate durante la transazione esterna (P2): inviale ora
+            // che il commit è avvenuto, come fa MaintenanceService.
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $flushError) {
+                \App\Support\SecureLogger::warning("[rejectLoan] Deferred notification flush failed: " . $flushError->getMessage());
+            }
+
             // Send notification AFTER successful commit (outside transaction)
-            // Use pre-fetched data since loan is deleted
+            // Use the pre-fetched data because the row is now in a terminal state.
             try {
                 $notificationService = new \App\Support\NotificationService($db);
                 $notificationService->sendLoanRejectedNotificationDirect(
@@ -765,6 +813,7 @@ class LoanApprovalController
             // Lock della riga `libri` SENZA filtro deleted_at: come per le restituzioni
             // (vedi LoanRepository::close), l'evasione di un prestito già approvato deve
             // poter procedere anche se il libro è stato soft-deleted nel frattempo.
+            // CI-SOFT-DELETE-EXEMPT: pickup must finish an already-approved loan for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -954,6 +1003,7 @@ class LoanApprovalController
             // ritiro deve sempre poter procedere anche su libro soft-deleted (vedi
             // LoanRepository::close), altrimenti prestito e copia resterebbero
             // impegnati per sempre.
+            // CI-SOFT-DELETE-EXEMPT: cancellation must free circulation state for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -1126,6 +1176,7 @@ class LoanApprovalController
             // sempre poter procedere anche su libro soft-deleted (vedi il commento in
             // LoanRepository::close), altrimenti prestito e copia resterebbero
             // occupati per sempre.
+            // CI-SOFT-DELETE-EXEMPT: return must release an active loan and copy for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -1326,6 +1377,7 @@ class LoanApprovalController
             // Lock della riga `libri` SENZA filtro deleted_at: l'annullamento di una
             // prenotazione deve sempre poter procedere anche su libro soft-deleted
             // (vedi LoanRepository::close), per non lasciare la coda bloccata.
+            // CI-SOFT-DELETE-EXEMPT: reservation cancellation must unblock the queue for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -1334,6 +1386,7 @@ class LoanApprovalController
             // Poi lock + ri-verifica della prenotazione. Il JOIN recupera anche
             // destinatario e titolo per la notifica post-commit (M11), come fa
             // rejectLoan; niente filtro deleted_at sul libro (vedi sopra).
+            // CI-SOFT-DELETE-EXEMPT: cancellation notification needs the deleted book title for the affected user.
             $stmt = $db->prepare("
                 SELECT r.libro_id, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email

@@ -627,11 +627,11 @@ function scenarioProfileLocaleUpdate(mysqli $db): array
             ->withParsedBody([
                 'nome' => 'Codex',
                 'cognome' => 'Tester',
-                'telefono' => '',
+                'telefono' => '3331234567',
                 'data_nascita' => '',
                 'cod_fiscale' => '',
                 'sesso' => '',
-                'indirizzo' => '',
+                'indirizzo' => 'Via Test 1',
                 'locale' => 'it_IT',
             ]);
 
@@ -678,11 +678,11 @@ function scenarioProfileLocaleOmittedKeepsValue(mysqli $db): array
             ->withParsedBody([
                 'nome' => 'Codex',
                 'cognome' => 'Tester',
-                'telefono' => '',
+                'telefono' => '3331234567',
                 'data_nascita' => '',
                 'cod_fiscale' => '',
                 'sesso' => '',
-                'indirizzo' => '',
+                'indirizzo' => 'Via Test 1',
             ]);
 
         $response = $controller->update($request, new Response(), $db);

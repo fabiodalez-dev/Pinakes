@@ -1,0 +1,144 @@
+name: Database Compatibility
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '43 4 * * 3'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    name: ${{ matrix.database.name }} schema and behavior
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read # Read application, schema and test sources.
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - name: MySQL 8.0 LTS baseline
+            image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+            health_cmd: mysqladmin ping -h 127.0.0.1 -proot --silent
+          - name: MySQL 8.4 LTS
+            image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+            health_cmd: mysqladmin ping -h 127.0.0.1 -proot --silent
+          - name: MariaDB 10.11 LTS
+            image: mariadb:10.11@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
+            health_cmd: healthcheck.sh --connect --innodb_initialized
+          - name: MariaDB 11.4 LTS
+            image: mariadb:11.4@sha256:67873d30a17f6a9c331f06363b2fa15f38abca415529966d67c84f87f82439fe
+            health_cmd: healthcheck.sh --connect --innodb_initialized
+
+    services:
+      database:
+        image: ${{ matrix.database.image }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pinakes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.database.health_cmd }}"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: '3306'
+      E2E_DB_USER: root
+      E2E_DB_PASS: root
+      E2E_DB_NAME: pinakes_test
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_USER: root
+      DB_PASS: root
+      DB_NAME: pinakes_test
+      CI_STRICT_TESTS: '1'
+
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml
+          coverage: none
+
+      - name: Install locked production dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Wait for the database over TCP
+        run: |
+          for attempt in $(seq 1 45); do
+            if MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root -e 'SELECT VERSION()' 2>/dev/null; then
+              exit 0
+            fi
+            echo "database not ready ($attempt/45)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Import the complete install baseline
+        run: |
+          MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root pinakes_test < installer/database/schema.sql
+          MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root pinakes_test < installer/database/data_it_IT.sql
+          MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root pinakes_test < installer/database/triggers.sql
+          cat > .env <<'ENVEOF'
+          DB_HOST=127.0.0.1
+          DB_PORT=3306
+          DB_USER=root
+          DB_PASS=root
+          DB_NAME=pinakes_test
+          ENVEOF
+          # data_it_IT.sql provides bundled plugin metadata, but the runtime
+          # registry is populated by PluginManager. Exercise that real install
+          # step so self-healing tests cannot silently skip book-club.
+          # shellcheck disable=SC2016
+          php -r '
+            require "vendor/autoload.php";
+            $db = new mysqli("127.0.0.1", "root", "root", "pinakes_test", 3306);
+            $db->set_charset("utf8mb4");
+            $hooks = new App\Support\HookManager($db);
+            (new App\Support\PluginManager($db, $hooks))->autoRegisterBundledPlugins();
+          '
+          plugin_count=$(MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root -Nse \
+            "SELECT COUNT(*) FROM pinakes_test.plugins WHERE name='book-club'")
+          test "$plugin_count" = 1
+
+      - name: Exercise all standalone behavioral tests in strict mode
+        run: bash scripts/ci-run-unit-tests.sh
+
+      - name: Exercise migration and plugin self-healing contracts
+        run: bash scripts/verify-schema.sh
+
+      - name: Verify schema invariants after all tests
+        run: |
+          table_count=$(MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root -Nse \
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='pinakes_test'")
+          trigger_count=$(MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root -Nse \
+            "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema='pinakes_test'")
+          default_languages=$(MYSQL_PWD=root mysql -h 127.0.0.1 -P 3306 -u root -Nse \
+            "SELECT COUNT(*) FROM pinakes_test.languages WHERE is_default=1")
+          test "$table_count" -ge 40
+          test "$trigger_count" -ge 1
+          test "$default_languages" = 1
+          echo "verified $table_count tables, $trigger_count triggers and one default language"
+
+      - name: Remove temporary database credentials
+        if: always()
+        run: rm -f .env

@@ -165,7 +165,7 @@
       <div class="p-6" id="filters-container">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
-            <label class="form-label">
+            <label for="search_text" class="form-label">
               <i class="fas fa-search mr-1"></i>
               <?= __("Cerca testo") ?>
             </label>
@@ -173,7 +173,7 @@
           </div>
           
           <div>
-            <label class="form-label">
+            <label for="role_filter" class="form-label">
               <i class="fas fa-user-tag mr-1"></i>
               <?= __("Ruolo") ?>
             </label>
@@ -187,7 +187,7 @@
           </div>
           
           <div>
-            <label class="form-label">
+            <label for="status_filter" class="form-label">
               <i class="fas fa-info-circle mr-1"></i>
               <?= __("Stato") ?>
             </label>
@@ -200,7 +200,7 @@
           </div>
           
           <div>
-            <label class="form-label">
+            <label for="created_from" class="form-label">
               <i class="fas fa-calendar mr-1"></i>
               <?= __("Registrato da") ?>
             </label>
@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
       {
         data: 'email',
         render: function(data, type, row) {
-          if (!data) return '<span class="text-gray-400 text-sm">N/A</span>';
+          if (!data) return '<span class="text-gray-600 text-sm">N/A</span>';
           const emailText = escapeHtml(decodeHtml(String(data)));
           return `<a href="mailto:${emailText}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${emailText}</a>`;
         }
@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
       {
         data: 'telefono',
         render: function(data, type, row) {
-          if (!data) return '<span class="text-gray-400 text-sm">N/A</span>';
+          if (!data) return '<span class="text-gray-600 text-sm">N/A</span>';
           const telText = escapeHtml(decodeHtml(String(data)));
           return `<a href="tel:${telText}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${telText}</a>`;
         }

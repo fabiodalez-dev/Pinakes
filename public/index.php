@@ -512,48 +512,6 @@ if ($basePath !== '') {
 
 $app->addRoutingMiddleware();
 
-// Global security headers
-$app->add(function ($request, $handler) use ($httpsDetected) {
-    $response = $handler->handle($request);
-
-    // Content Security Policy - restrictive but allows inline scripts/styles (required by app)
-    // Permette asset da CDN esterni (cdnjs, Google Fonts) per funzionalità estese
-    $csp = "default-src 'self'; " .
-           "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com; " .
-           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " .
-           "img-src 'self' data: blob: http: https:; " .
-           "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; " .
-           "connect-src 'self' data: blob:; " .
-           "object-src 'none'; " .
-           "base-uri 'self'; " .
-           "form-action 'self'; " .
-           "frame-src 'self' data: blob: about: https://www.google.com https://www.google.it https://maps.google.com https://www.openstreetmap.org; " .
-           "child-src 'self' data: blob: about:; " .
-           "frame-ancestors 'self'";
-
-    // Add upgrade-insecure-requests only in production with HTTPS
-    if (getenv('APP_ENV') === 'production' && $httpsDetected) {
-        $csp .= "; upgrade-insecure-requests";
-    }
-
-    $response = $response->withHeader('X-Frame-Options', 'SAMEORIGIN')
-        ->withHeader('Content-Security-Policy', $csp)
-        ->withHeader('X-Content-Type-Options', 'nosniff')
-        ->withHeader('X-XSS-Protection', '1; mode=block')
-        ->withHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-        // camera=(self): the in-browser copy-code barcode scanner (zxing-wasm)
-        // needs getUserMedia on same-origin loan/return pages. Denying it
-        // (camera=()) blocked the scanner entirely. geolocation/microphone stay
-        // denied — nothing in the app uses them.
-        ->withHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(self)');
-
-    if (!$response->hasHeader('Strict-Transport-Security') && (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')) {
-        $response = $response->withHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-    }
-
-    return $response;
-});
-
 // Error middleware (dev-friendly by default; tune in settings)
 $displayErrorDetails = $container->get('settings')['displayErrorDetails'] ?? false;
 $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
@@ -618,6 +576,46 @@ if (!$displayErrorDetails) {
 
     $errorMiddleware->setDefaultErrorHandler($customErrorHandler);
 }
+
+// Global security headers. Slim executes middleware in reverse registration
+// order, so this MUST be added after ErrorMiddleware: otherwise exceptions and
+// 404/405 responses are rendered outside this layer and leave the application
+// without CSP precisely on attacker-controlled paths.
+$app->add(function ($request, $handler) use ($httpsDetected) {
+    $cspNonce = \App\Support\ContentSecurityPolicy::createNonce();
+    $response = $handler->handle($request);
+
+    $contentType = strtolower($response->getHeaderLine('Content-Type'));
+    $html = (string) $response->getBody();
+    if (\App\Support\ContentSecurityPolicy::isHtmlResponse($contentType, $html)) {
+        $html = \App\Support\ContentSecurityPolicy::addNonceAttributes($html, $cspNonce);
+        $response = $response
+            ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream($html))
+            ->withoutHeader('Content-Length');
+    }
+
+    $csp = \App\Support\ContentSecurityPolicy::header(
+        $cspNonce,
+        getenv('APP_ENV') === 'production' && $httpsDetected
+    );
+
+    $response = $response->withHeader('X-Frame-Options', 'SAMEORIGIN')
+        ->withHeader('Content-Security-Policy', $csp)
+        ->withHeader('X-Content-Type-Options', 'nosniff')
+        ->withHeader('X-XSS-Protection', '1; mode=block')
+        ->withHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+        // camera=(self): the in-browser copy-code barcode scanner (zxing-wasm)
+        // needs getUserMedia on same-origin loan/return pages. Denying it
+        // (camera=()) blocked the scanner entirely. geolocation/microphone stay
+        // denied — nothing in the app uses them.
+        ->withHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(self)');
+
+    if (!$response->hasHeader('Strict-Transport-Security') && (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')) {
+        $response = $response->withHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+    }
+
+    return $response;
+});
 
 // CSRF: for now use simple session token (see App\Support\Csrf)
 

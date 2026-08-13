@@ -12,10 +12,20 @@ on:
       - '**.js'
       - 'locale/**'
       - 'composer.json'
+      - 'composer.lock'
       - 'package.json'
+      - 'package-lock.json'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'frontend/**/*.js'
+      - 'frontend/**/*.css'
+      - 'public/assets/**'
+      - 'scripts/ci-*'
+      - 'tests/*.test.sh'
+      - 'tests/ci-playwright-policy.json'
       - 'installer/database/schema.sql'
       - 'version.json'
-      - '.github/workflows/ci-quality.yml'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -38,7 +48,7 @@ jobs:
     # updater.md, so CI provides a real database instead of skipping them.
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: pinakes_test
@@ -51,20 +61,47 @@ jobs:
           --health-retries=5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           extensions: mysqli, pdo_mysql
           coverage: none
-          github-token: ''
+
+      - name: Install pinned PHPStan with verified Composer transport
+        run: |
+          PHPSTAN_HOME=$(mktemp -d "${RUNNER_TEMP}/pinakes-phpstan.XXXXXX")
+          installed=0
+          for attempt in 1 2 3; do
+            if COMPOSER_HOME="$PHPSTAN_HOME" composer global require \
+              --no-interaction --prefer-dist --no-progress \
+              phpstan/phpstan:2.1.56; then
+              installed=1
+              break
+            fi
+            echo "PHPStan install attempt ${attempt}/3 failed"
+            sleep $((attempt * 2))
+          done
+          [ "$installed" -eq 1 ] || { echo "PHPStan installation failed after 3 attempts"; exit 1; }
+          PHPSTAN_BIN="${PHPSTAN_HOME}/vendor/bin/phpstan"
+          [ -x "$PHPSTAN_BIN" ] || { echo "PHPStan executable missing after install"; exit 1; }
+          "$PHPSTAN_BIN" --version
+          echo "PHPSTAN_BIN=$PHPSTAN_BIN" >> "$GITHUB_ENV"
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
+
+      - name: Setup Go for workflow validation
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.25.x'
+          cache: false
 
       # ── Dependency CVE scanning ───────────────────────────────────────────
       - name: composer audit (known CVEs)
@@ -74,52 +111,34 @@ jobs:
 
       - name: npm audit (known CVEs)
         run: |
-          npm ci --silent 2>/dev/null || npm install --silent
+          npm ci --silent
           npm audit --audit-level=high 2>&1 || { echo "⚠ npm audit: high/critical vulnerabilities found"; exit 1; }
-        continue-on-error: true  # Warn, don't block — js devDependencies may have unfixed advisories
+
+      - name: Root vendor assets are reproducible
+        run: |
+          git diff --exit-code -- public/assets/vendor/sortablejs
+          test -z "$(git ls-files --others --exclude-standard -- public/assets/vendor/sortablejs)" || {
+            echo "Generated vendor assets contain untracked files"
+            git ls-files --others --exclude-standard -- public/assets/vendor/sortablejs
+            exit 1
+          }
+
+      - name: CI and Playwright coverage policy
+        run: npm run test:ci-policy
+
+      - name: Release source policy regression tests
+        run: bash tests/release-source-policy.test.sh
+
+      - name: Validate every active GitHub Actions workflow
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/*.yml
 
       # ── Translation completeness ──────────────────────────────────────────
-      - name: Translation key parity (en_US ↔ de_DE, placeholders en/de/it)
+      - name: Translation and route parity (all supported locales)
+        run: python3 scripts/ci-check-locales.py
+
+      - name: PHPStan (level from phpstan.neon)
         run: |
-          FAILED=0
-          # 1. Exact key-set parity for non-Italian translations only.
-          # it_IT is intentionally sparse: __() falls back to the key itself
-          # (keys are native Italian text), so it_IT.json only needs overrides.
-          for PAIR in "en_US:de_DE"; do
-            A=${PAIR%%:*}; B=${PAIR##*:}
-            MISSING=$(comm -23 <(jq -r 'keys[]' locale/${A}.json | sort) <(jq -r 'keys[]' locale/${B}.json | sort))
-            EXTRA=$(comm -13 <(jq -r 'keys[]' locale/${A}.json | sort) <(jq -r 'keys[]' locale/${B}.json | sort))
-            if [ -n "$MISSING" ]; then
-              echo "✗ ${B}.json manca di chiavi presenti in ${A}.json:"
-              echo "$MISSING" | sed 's/^/    /'
-              FAILED=1
-            fi
-            if [ -n "$EXTRA" ]; then
-              echo "✗ ${B}.json ha chiavi extra non presenti in ${A}.json:"
-              echo "$EXTRA" | sed 's/^/    /'
-              FAILED=1
-            fi
-          done
-          # 2. Placeholder parity: %s / %d must match count between en_US, de_DE and it_IT
-          python3 - <<'PYEOF'
-          import json, re, sys
-          en = json.load(open('locale/en_US.json'))
-          de = json.load(open('locale/de_DE.json'))
-          it = json.load(open('locale/it_IT.json'))
-          ph = re.compile(r'%(?:\d+\$)?[sd]')
-          failed = 0
-          for locale_name, data in [('de_DE', de), ('it_IT', it)]:
-              for k in en:
-                  if k not in data:
-                      continue
-                  ep = sorted(ph.findall(str(en[k])))
-                  lp = sorted(ph.findall(str(data[k])))
-                  if ep != lp:
-                      print(f'✗ Placeholder mismatch for key "{k[:80]}": en={ep} {locale_name}={lp}')
-                      failed = 1
-          sys.exit(failed)
-          PYEOF
-          [ "$FAILED" -eq 0 ] && echo "✓ Parità chiavi e placeholder confermata" || exit 1
+          "$PHPSTAN_BIN" analyse --no-progress --memory-limit=512M
 
       # ── Route key integrity ───────────────────────────────────────────────
       - name: Route key integrity (route_path() keys exist in routes_it_IT.json)
@@ -160,18 +179,19 @@ jobs:
           FAILED=0
           for file in storage/plugins/*/*.php; do
             [ -f "$file" ] || continue
+            plugin_file="$(basename "$(dirname "$file")")/$(basename "$file")"
             if grep -q 'CREATE TABLE' "$file"; then
               if ! grep -q 'ensureSchema()' "$file"; then
-                echo "  ✗ $(basename $(dirname $file))/$(basename $file): CREATE TABLE senza ensureSchema()"
+                echo "  ✗ ${plugin_file}: CREATE TABLE senza ensureSchema()"
                 FAILED=1
-              elif ! awk '/function onActivate/,/^[[:space:]]*}/' "$file" | grep -q 'ensureSchema'; then
-                echo "  ✗ $(basename $(dirname $file))/$(basename $file): ensureSchema() non in onActivate()"
+              elif ! awk '/function onActivate/,/^    }$/' "$file" | grep -q 'ensureSchema'; then
+                echo "  ✗ ${plugin_file}: ensureSchema() non in onActivate()"
                 FAILED=1
-              elif ! awk '/function onInstall/,/^[[:space:]]*}/' "$file" | grep -q 'ensureSchema'; then
-                echo "  ✗ $(basename $(dirname $file))/$(basename $file): ensureSchema() non in onInstall()"
+              elif ! awk '/function onInstall/,/^    }$/' "$file" | grep -q 'ensureSchema'; then
+                echo "  ✗ ${plugin_file}: ensureSchema() non in onInstall()"
                 FAILED=1
               else
-                echo "  ✓ $(basename $(dirname $file))/$(basename $file)"
+                echo "  ✓ ${plugin_file}"
               fi
             fi
           done
@@ -179,28 +199,14 @@ jobs:
 
       # ── Soft-delete guard ─────────────────────────────────────────────────
       - name: Soft-delete guard (libri queries must include deleted_at IS NULL)
-        run: |
-          VIOLATIONS=0
-          while IFS= read -r file; do
-            if grep -qiE 'FROM[[:space:]]+`?libri`?[[:space:],)]' "$file" 2>/dev/null; then
-              if ! grep -qiE 'deleted_at[[:space:]]+IS[[:space:]]+NULL' "$file"; then
-                echo "  ⚠ $file: query FROM libri senza deleted_at IS NULL"
-                VIOLATIONS=$((VIOLATIONS + 1))
-              fi
-            fi
-          done < <(find app/ -name "*.php" -not -path "*/vendor/*")
-          if [ "$VIOLATIONS" -gt 0 ]; then
-            echo "⚠ $VIOLATIONS file potrebbero mancare del soft-delete guard"
-            echo "  Verificare manualmente se le query sono intentenzionali (query admin, conteggi, ecc.)"
-          else
-            echo "✓ Soft-delete guard presente in tutti i file con query su libri"
-          fi
+        run: python3 scripts/ci-check-soft-delete.py app storage/plugins installer
 
       # ── Autoloader safety ─────────────────────────────────────────────────
       - name: Autoloader phpstan-free
         run: |
           if [ -f vendor/composer/autoload_static.php ]; then
-            COUNT=$(grep -c "phpstan" vendor/composer/autoload_static.php || echo 0)
+            COUNT=$(grep -c "phpstan" vendor/composer/autoload_static.php || true)
+            COUNT=${COUNT:-0}
             if [ "$COUNT" -gt 0 ]; then
               echo "✗ autoload_static.php contiene $COUNT riferimenti a phpstan (run composer install --no-dev)"
               exit 1
@@ -216,9 +222,12 @@ jobs:
           TARGET=$(php -r "echo json_decode(file_get_contents('version.json'))->version;")
           FAILED=0
           for f in installer/database/migrations/migrate_*.sql; do
-            V=$(basename "$f" | sed 's/migrate_//;s/\.sql//')
-            if ! php -r "exit(version_compare('$V','$TARGET','<=') ? 0 : 1);"; then
-              echo "  ✗ $(basename $f): $V > $TARGET (sarebbe ignorata dall'updater)"
+            migration_file="$(basename "$f")"
+            V="${migration_file#migrate_}"
+            V="${V%.sql}"
+            if ! MIGRATION_VERSION="$V" RELEASE_VERSION="$TARGET" php -r \
+              'exit(version_compare(getenv("MIGRATION_VERSION"), getenv("RELEASE_VERSION"), "<=") ? 0 : 1);'; then
+              echo "  ✗ ${migration_file}: $V > $TARGET (sarebbe ignorata dall'updater)"
               FAILED=1
             fi
           done
@@ -238,24 +247,44 @@ jobs:
           DB_NAME=pinakes_test
           ENVEOF
           # Wait until MySQL answers, then import the base schema + triggers.
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             mysql -h 127.0.0.1 -u root -proot -e "SELECT 1" >/dev/null 2>&1 && break
             sleep 2
           done
           mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/schema.sql
+          # Exercise the unit suite against the same baseline as a completed
+          # Italian install. The schema alone contains no default language or
+          # bundled-plugin registrations, which used to turn real regressions
+          # into silent SKIP results.
+          mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/data_it_IT.sql
           # Copy-occupancy triggers live in a separate file (DELIMITER-based); the
           # mysql CLI handles DELIMITER natively. loan-edge-cases relies on them.
           mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/triggers.sql
+          # PHP variables must not expand in Bash.
+          # shellcheck disable=SC2016
+          php -r '
+            require "vendor/autoload.php";
+            $db = new mysqli("127.0.0.1", "root", "root", "pinakes_test", 3306);
+            $db->set_charset("utf8mb4");
+            $hooks = new App\Support\HookManager($db);
+            (new App\Support\PluginManager($db, $hooks))->autoRegisterBundledPlugins();
+          '
+          default_languages="$(mysql -h 127.0.0.1 -u root -proot -Nse \
+            'SELECT COUNT(*) FROM pinakes_test.languages WHERE is_default=1')"
+          book_club_plugins="$(mysql -h 127.0.0.1 -u root -proot -Nse \
+            'SELECT COUNT(*) FROM pinakes_test.plugins WHERE name=0x626f6f6b2d636c7562')"
+          test "${default_languages}" = "1"
+          test "${book_club_plugins}" = "1"
 
       - name: PHP unit tests (standalone .unit.php)
-        run: |
-          FAILED=0
-          shopt -s nullglob
-          for t in tests/*.unit.php; do
-            echo "── $t"
-            php "$t" || FAILED=1
-          done
-          [ "$FAILED" -eq 0 ] && echo "✓ Tutti gli unit test PHP passati" || { echo "✗ Unit test PHP falliti"; exit 1; }
+        env:
+          CI_STRICT_TESTS: '1'
+        run: bash scripts/ci-run-unit-tests.sh
+
+      - name: Schema and migration behavioral gate (strict no-skip mode)
+        env:
+          CI_STRICT_TESTS: '1'
+        run: bash scripts/verify-schema.sh
 
       - name: Shell test — bin/setup-permissions.sh
         run: bash tests/setup-permissions.test.sh
@@ -263,3 +292,65 @@ jobs:
       - name: Remove CI .env
         if: always()
         run: rm -f .env
+
+  php-compatibility:
+    name: PHP ${{ matrix.php }} compatibility
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml
+          coverage: none
+      - name: Validate and install locked dependencies
+        run: |
+          composer validate --strict
+          composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+          composer check-platform-reqs --no-dev
+      - name: PHP syntax check (application, installer, plugins, tests)
+        run: |
+          find app installer storage/plugins tests -type f -name '*.php' -print0 \
+            | xargs -0 -n1 php -l
+
+  frontend:
+    name: Frontend audit, lint and reproducible build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Setup Node 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - name: Install and audit locked dependencies
+        run: |
+          npm ci --silent
+          npm audit --audit-level=high
+          npm --prefix frontend ci --silent
+          npm --prefix frontend audit --audit-level=high
+      - name: Lint and production build
+        run: |
+          npm --prefix frontend run lint
+          npm --prefix frontend run build
+      - name: Verify generated assets are committed and reproducible
+        run: |
+          git diff --exit-code -- public/assets
+          untracked_assets="$(git ls-files --others --exclude-standard -- public/assets)"
+          if [ -n "${untracked_assets}" ]; then
+            echo "Generated assets are untracked:"
+            echo "${untracked_assets}"
+            exit 1
+          fi

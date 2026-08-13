@@ -138,11 +138,10 @@ test.beforeAll(() => {
   const jpegMagic = fs.readFileSync(files.jpg);
   fs.writeFileSync(files.big, Buffer.concat([jpegMagic, Buffer.alloc(6 * 1024 * 1024, 0x20)]));   // >5MB app limit
 
-  // Read PHP's two upload limits and decide whether the INI_SIZE sub-case is
-  // producible here. Size `huge` to sit strictly between them when it is.
-  const ini = execFileSync('php', ['-r', 'echo ini_get("upload_max_filesize")."|".ini_get("post_max_size");'],
-    { encoding: 'utf-8', timeout: 10000 }).trim();
-  [iniUploadMax, iniPostMax] = ini.split('|').map(phpBytes);
+  // CI publishes the Apache-SAPI limits explicitly. CLI php.ini can differ
+  // from Apache and must never be used to size a server upload assertion.
+  iniUploadMax = Number(process.env.E2E_PHP_UPLOAD_MAX_BYTES || 0);
+  iniPostMax = Number(process.env.E2E_PHP_POST_MAX_BYTES || 0);
   iniSizeTestable = iniUploadMax > 0 && iniPostMax > iniUploadMax;
   if (iniSizeTestable) {
     // Strictly > upload_max_filesize and strictly < post_max_size.

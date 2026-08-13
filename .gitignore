@@ -421,6 +421,7 @@ tests/*
 !tests/*.config.js
 !tests/*.unit.php
 !tests/*.test.sh
+!tests/ci-playwright-policy.json
 !tests/seeds/
 tests/seeds/*
 !tests/seeds/*.json

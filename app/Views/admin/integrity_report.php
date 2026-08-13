@@ -3,8 +3,10 @@
 ?>
 <!-- Report Integrità Dati -->
 <div class="flex-1 overflow-x-hidden">
-    <!-- Page Header -->
-    <div class="bg-white/50 backdrop-blur-sm border-b border-gray-200/80 dark:bg-gray-900/50 dark:border-gray-800/80 sticky top-0 z-30">
+    <!-- Page Header — non sticky: con sticky top-0 z-30 (stesso z-index dell'header
+         del layout, ma successivo nel DOM) copriva l'header dell'app e il dropdown
+         delle notifiche durante lo scroll (#334). -->
+    <div class="bg-white/50 backdrop-blur-sm border-b border-gray-200/80 dark:bg-gray-900/50 dark:border-gray-800/80">
         <div class="px-6 py-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">

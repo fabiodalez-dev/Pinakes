@@ -2,7 +2,38 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## What's New in v0.7.53
+## [0.7.59]
+
+Consolidation release: the complete integration of PRs #335, #337, #339 and
+#340, hardened together with the fixes found during their combined review and a
+security pass. Validated through three release candidates.
+
+### Fixes
+
+- Loan and reservation state, availability and date handling now use the same
+  guarded production paths across the web UI, mobile API and background jobs.
+- Orphan plugin hooks are disabled reversibly and the regression test creates
+  its own foreign-key-safe fixture, including on a completely fresh database.
+- Framework-generated error responses receive the same nonce-based Content
+  Security Policy as normal pages.
+- Review findings covering migration selection, fixture cleanup, SweetAlert
+  confirmation, localization parity, generated assets and accessibility have
+  regression coverage.
+
+### Release verification
+
+- The exact distributable is installed and exercised through the full E2E and
+  four-shard browser regression suites.
+- Chromium, Firefox and WebKit run accessibility/runtime checks; OWASP ZAP
+  blocks medium/high passive-scan findings.
+- PHP 8.2–8.5, MySQL 8.0/8.4 and MariaDB 10.11/11.4 are verified, together with
+  fresh installs in all five bundled locales and the complete upgrade chain.
+- Static analysis, dependency/secret/vulnerability scans, reproducible archive
+  checks, SPDX SBOM and provenance are mandatory release gates.
+
+---
+
+## [0.7.53]
 
 A performance release: the whole application answers faster, with a dramatically lighter database footprint per request.
 
@@ -1263,4 +1294,3 @@ third-party overwrite can slip through unnoticed. Full post-mortem in
 </details>
 
 ---
-

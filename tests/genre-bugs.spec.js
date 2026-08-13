@@ -187,7 +187,7 @@ test.describe('Issue #63: Genre Pre-population on Edit', () => {
     await page.waitForFunction(() => {
       const sel = document.getElementById('radice_select');
       return sel && sel.options.length > 1;
-    }, { timeout: 10000 });
+    }, null, { timeout: 10000 });
     await page.locator('#radice_select').selectOption(rootId);
 
     // Wait for L2 to load, then select our genre
@@ -327,19 +327,20 @@ test.describe('Issue #63: Genre Pre-population on Edit', () => {
 // ────────────────────────────────────────────────────────────────────────
 test.describe('Issue #67: Genre Filter in Book List', () => {
 
-  test('API: filtering by child genre does not error', async ({ request }) => {
-    const genreResp = await request.get(`${BASE}/api/generi?limit=50`);
+  test('API: filtering by child genre does not error', async ({ page }) => {
+    await loginAsAdmin(page);
+    const genreResp = await page.request.get(`${BASE}/api/generi?limit=50`);
     expect(genreResp.ok()).toBeTruthy();
     const genres = await genreResp.json();
 
     const childGenre = genres.find(g => g.parent_id !== null);
     if (!childGenre) {
-      test.skip();
+      test.skip(true, 'Catalog fixture contains no child genre');
       return;
     }
 
     // Filter books by child genre — should work (not crash)
-    const booksResp = await request.get(
+    const booksResp = await page.request.get(
       `${BASE}/api/libri?draw=1&start=0&length=10&genere_filter=${childGenre.id}`
     );
     expect(booksResp.ok()).toBeTruthy();
@@ -348,14 +349,15 @@ test.describe('Issue #67: Genre Filter in Book List', () => {
     expect(data).toHaveProperty('recordsFiltered');
   });
 
-  test('API: filtering by root genre does not error', async ({ request }) => {
-    const genreResp = await request.get(`${BASE}/api/generi?only_parents=1&limit=5`);
+  test('API: filtering by root genre does not error', async ({ page }) => {
+    await loginAsAdmin(page);
+    const genreResp = await page.request.get(`${BASE}/api/generi?only_parents=1&limit=5`);
     expect(genreResp.ok()).toBeTruthy();
     const genres = await genreResp.json();
     expect(genres.length).toBeGreaterThan(0);
 
     // Filter books by root genre — should also work
-    const booksResp = await request.get(
+    const booksResp = await page.request.get(
       `${BASE}/api/libri?draw=1&start=0&length=10&genere_filter=${genres[0].id}`
     );
     expect(booksResp.ok()).toBeTruthy();
@@ -394,7 +396,7 @@ test.describe('Issue #67: Genre Filter in Book List', () => {
 
     const rootWithChildren = roots.find(r => r.children_count > 0);
     if (!rootWithChildren) {
-      test.skip();
+      test.skip(true, 'Catalog fixture contains no root genre with children');
       return;
     }
 

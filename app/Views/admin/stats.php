@@ -348,13 +348,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Loans By Status Chart
   const loansByStatusData = <?php echo json_encode($loansByStatus, JSON_HEX_TAG); ?>;
   const statusLabels = loansByStatusData.map(item => {
-    const labels = {
-      'in_corso': <?= json_encode(__("In Corso"), JSON_HEX_TAG) ?>,
-      'pendente': <?= json_encode(__("Pendente"), JSON_HEX_TAG) ?>,
-      'in_ritardo': <?= json_encode(__("In Ritardo"), JSON_HEX_TAG) ?>,
-      'perso': <?= json_encode(__("Perso"), JSON_HEX_TAG) ?>,
-      'danneggiato': <?= json_encode(__("Danneggiato"), JSON_HEX_TAG) ?>
-    };
+    // Etichette canoniche degli stati prestito (loan_status_label_map, #333):
+    // niente mappa locale da tenere allineata all'enum.
+    const labels = <?= json_encode(loan_status_label_map(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     return labels[item.stato] || item.stato;
   });
   const statusValues = loansByStatusData.map(item => parseInt(item.totale));

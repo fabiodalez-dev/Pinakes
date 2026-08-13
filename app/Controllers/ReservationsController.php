@@ -104,7 +104,11 @@ class ReservationsController
 
     private function calculateAvailability($currentLoans, $existingReservations, int $totalCopies, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null)
     {
-        $start = $startDate ? new DateTime($startDate) : new DateTime(); // today by default
+        // Default start = "today" in the APP timezone (DateHelper), not the PHP
+        // process TZ (usually UTC): a bare `new DateTime()` made the mobile
+        // calendar (the only null-start caller) begin on "yesterday" between
+        // midnight and 2am Rome time, diverging from every web surface.
+        $start = new DateTime($startDate ?: \App\Support\DateHelper::today());
         $start->setTime(0, 0, 0);
 
         // Normalize intervals (#157, model A-refined):
@@ -154,10 +158,18 @@ class ReservationsController
             $loanIntervals[] = [$startDateLoan, $endDateLoan];
         }
 
+        // F040: does the excluded user already hold an active reservation on this
+        // book? Same predicate as the date-less duplicate guard in
+        // createReservation (prenotazioni WHERE libro_id AND utente_id AND
+        // stato='attiva'). Surfaced so the picker can warn instead of showing an
+        // all-green calendar that the guard would reject for every date.
+        $hasActiveReservation = false;
+
         $reservationIntervals = [];
         foreach ($existingReservations as $reservation) {
             // Skip reservation if it belongs to the excluded user (e.g. the user making the request)
             if ($excludeUserId !== null && isset($reservation['utente_id']) && (int) $reservation['utente_id'] === $excludeUserId) {
+                $hasActiveReservation = true;
                 continue;
             }
 
@@ -241,6 +253,7 @@ class ReservationsController
             'earliest_available' => $earliestAvailable,
             'days' => $daysData,
             'by_date' => array_column($daysData, null, 'date'),
+            'has_active_reservation' => $hasActiveReservation,
         ];
     }
 
@@ -467,23 +480,56 @@ class ReservationsController
             $stmt->bind_param('iiss', $bookId, $userId, $startDate, $endDate);
 
             if ($stmt->execute()) {
-                $loanRequestId = $this->db->insert_id;
+                $loanRequestId = (int) $this->db->insert_id;
                 $this->db->commit();
 
-                // Send notification to admins
-                try {
-                    $notificationService = new NotificationService($this->db);
-                    $notificationService->notifyLoanRequest($loanRequestId);
-                } catch (\Throwable $notifError) {
-                    \App\Support\SecureLogger::error('Error sending notification for loan request', ['error' => $notifError->getMessage()]);
-                    // Don't fail the loan request creation if notification fails
+                // #301: honour the automatic-approval setting on THIS entry point
+                // too. The book-detail modal posts here, but the auto-approve
+                // lived only in UserActionsController::loan() — so real users'
+                // requests always landed in the admin approval queue even with
+                // the option enabled. Same race-safe canonical pipeline: a
+                // failure deliberately leaves the request pending for an admin.
+                // ?string: the persisted state ('prenotato' scheduled loan /
+                // 'da_ritirare' immediate pickup) on success, null when the
+                // request stays pending (setting off / approval failed).
+                $loanState = $this->autoApproveLoanRequest($request, $loanRequestId);
+
+                if ($loanState === null) {
+                    // Send notification to admins (an auto-approved request no
+                    // longer needs admin action — the old "new request" email
+                    // would carry a stale approval link).
+                    try {
+                        $notificationService = new NotificationService($this->db);
+                        $notificationService->notifyLoanRequest($loanRequestId);
+                    } catch (\Throwable $notifError) {
+                        \App\Support\SecureLogger::error('Error sending notification for loan request', ['error' => $notifError->getMessage()]);
+                        // Don't fail the loan request creation if notification fails
+                    }
+                }
+
+                // The message/status must describe the state actually persisted:
+                // a future-dated auto-approved loan is SCHEDULED ('prenotato'),
+                // not awaiting pickup.
+                if ($loanState === 'prenotato') {
+                    $message = __('Prestito prenotato con successo');
+                    $status = 'scheduled';
+                } elseif ($loanState === 'da_ritirare') {
+                    $message = __('Prestito approvato - in attesa di ritiro');
+                    $status = 'approved';
+                } else {
+                    $message = __('Richiesta di prestito inviata con successo');
+                    $status = 'pending_approval';
                 }
 
                 $response->getBody()->write(json_encode([
                     'success' => true,
-                    'message' => __('Richiesta di prestito inviata con successo'),
+                    'message' => $message,
                     'loan_request_id' => $loanRequestId,
-                    'status' => 'pending_approval'
+                    // Keep auto_approved a real boolean: book-detail.php compares
+                    // it with === true.
+                    'auto_approved' => $loanState !== null,
+                    'status' => $status,
+                    'loan_state' => $loanState,
                 ]));
                 return $response->withHeader('Content-Type', 'application/json');
             } else {
@@ -501,8 +547,78 @@ class ReservationsController
         }
     }
 
-    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null)
+    /**
+     * Promote a newly-created request through the canonical approval pipeline
+     * when the automatic-approval setting is on (#301). Mirrors
+     * UserActionsController::autoApproveLoanRequest — a failure deliberately
+     * leaves the request pending so an administrator can still process it.
+     */
+    private function autoApproveLoanRequest($request, int $loanId): ?string
     {
+        // The settings read runs INSIDE the try: this helper is called AFTER the
+        // request is committed, so a DB hiccup in the SettingsRepository lookup
+        // must degrade to "left pending" (return null) rather than escape to the
+        // outer transaction catch, which would report a 500 for an already
+        // durable request and let the duplicate guard block the user's retry.
+        try {
+            $settings = new \App\Models\SettingsRepository($this->db);
+            if (!$settings->autoApproveLoanRequests()) {
+                // A disabled setting is not a failure: leave the request pending
+                // for an admin without logging any warning noise.
+                return null;
+            }
+
+            $approvalRequest = $request
+                ->withParsedBody(['loan_id' => $loanId])
+                ->withAttribute('automatic_loan_approval', true);
+            $result = (new \App\Controllers\LoanApprovalController())->approveLoan(
+                $approvalRequest,
+                new \Slim\Psr7\Response(),
+                $this->db
+            );
+
+            if ($result->getStatusCode() >= 200 && $result->getStatusCode() < 300) {
+                // Return the state approveLoan actually persisted ('prenotato'
+                // for a future-dated loan, 'da_ritirare' for an immediate one)
+                // so the response can describe the real outcome instead of
+                // assuming "awaiting pickup".
+                $body = json_decode((string) $result->getBody(), true);
+                return is_array($body) && isset($body['loan_state']) && is_string($body['loan_state'])
+                    ? $body['loan_state']
+                    : 'da_ritirare';
+            }
+
+            \App\Support\SecureLogger::warning('Automatic loan approval left request pending (createReservation)', [
+                'loan_id' => $loanId,
+                'status' => $result->getStatusCode(),
+            ]);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('Automatic loan approval failed; request left pending (createReservation)', [
+                'loan_id' => $loanId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Per-day availability payload for a book, or NULL when the book does not
+     * exist or is soft-deleted. Every caller must 404 on null: without this
+     * guard the method served real per-day occupancy for soft-deleted books
+     * (libri queries MUST honour deleted_at IS NULL).
+     */
+    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null): ?array
+    {
+        $bookStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL");
+        $bookStmt->bind_param('i', $bookId);
+        $bookStmt->execute();
+        $bookExists = $bookStmt->get_result()->fetch_assoc() !== null;
+        $bookStmt->close();
+        if (!$bookExists) {
+            return null;
+        }
+
         $totalCopies = $this->getBookTotalCopies($bookId);
 
         // Get current and future loans for this book. Approved states always

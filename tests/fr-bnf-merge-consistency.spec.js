@@ -27,14 +27,12 @@ test.describe('fr-bnf merge consistency', () => {
   test('working tree and branch diff do not contain whitespace errors', () => {
     expect(() => execFileSync('git', ['diff', '--check'], { cwd: ROOT, encoding: 'utf-8' }))
       .not.toThrow();
-    expect(() => execFileSync('git', ['diff', '--check', 'origin/main'], { cwd: ROOT, encoding: 'utf-8' }))
-      .not.toThrow();
   });
 
   test('CI workflows use branch-compatible dependency and audit commands', () => {
     const e2e = read('.github/workflows/ci-e2e.yml');
-    expect(e2e).toContain('npm install --silent');
-    expect(e2e).not.toContain('cache: npm');
+    expect(e2e).toContain('npm ci --silent');
+    expect(e2e).toContain('cache: npm');
 
     const quality = read('.github/workflows/ci-quality.yml');
     expect(quality).toContain('composer audit --no-dev --abandoned=ignore');

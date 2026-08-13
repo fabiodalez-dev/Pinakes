@@ -23,6 +23,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { appDateOffsetISO } = require('./helpers/app-date');
 
 const BASE        = process.env.E2E_BASE_URL  || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -62,8 +63,7 @@ function tryInsertLoan({ bookId, copyId, userId, start, end, stato, attivo, orig
 }
 
 function dISO(off) {
-  const d = new Date(); d.setDate(d.getDate() + off);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appDateOffsetISO(off);
 }
 
 test.describe.serial('Loan overlap model (#157) — 39 scenarios', () => {
@@ -503,11 +503,13 @@ test.describe.serial('Loan overlap model (#157) — 39 scenarios', () => {
     expect(freeCopies(b, dISO(3), dISO(8))).toBe(1);
   });
 
-  test('F.34 rejecting (deleting) a pending-with-copy frees its copy', () => {
+  test('F.34 rejecting a pending-with-copy loan (annullato) frees its copy', () => {
     const b = mkBook('F34'); const c = mkCopy(b, 1);
     tryInsertLoan({ bookId: b, copyId: c, userId: u1, start: dISO(1), end: dISO(10), stato: 'pendente', attivo: 0, origine: 'prenotazione' });
     expect(freeCopies(b, dISO(3), dISO(8))).toBe(0);
-    dbQuery(`DELETE FROM prestiti WHERE libro_id=${b} AND stato='pendente'`);
+    // #335: reject is a state transition to 'annullato', not a DELETE. The
+    // capacity sweep must treat a cancelled loan as no longer holding the copy.
+    dbQuery(`UPDATE prestiti SET stato='annullato', attivo=0 WHERE libro_id=${b} AND stato='pendente'`);
     expect(freeCopies(b, dISO(3), dISO(8))).toBe(1);
   });
 

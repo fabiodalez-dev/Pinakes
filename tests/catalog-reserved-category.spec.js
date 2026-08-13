@@ -14,22 +14,37 @@
 // Run: /tmp/run-e2e.sh tests/catalog-reserved-category.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS || '';
+const DB_HOST = process.env.E2E_DB_HOST || '';
+const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
+const INSTALL_ROOT = process.env.E2E_INSTALL_ROOT || path.resolve(__dirname, '..');
 
 test.skip(!DB_USER || !DB_NAME, 'DB credentials not configured (this spec seeds the catalogue)');
 
 function db(sql) {
   const args = [];
-  if (DB_SOCKET) args.push('-S', DB_SOCKET);
+  if (DB_HOST) { args.push('-h', DB_HOST); if (DB_PORT) args.push('-P', DB_PORT); }
+  else if (DB_SOCKET) args.push('-S', DB_SOCKET);
   args.push('-u', DB_USER, DB_NAME, '-N', '-B', '-e', sql);
   return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
 }
 function sqlq(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
+function clearCatalogCache() {
+  const dir = path.join(INSTALL_ROOT, 'storage', 'cache');
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir)) {
+    if (name.startsWith('pinakes_catalog_facets_')) {
+      try { fs.unlinkSync(path.join(dir, name)); } catch { /* best effort */ }
+    }
+  }
+}
 
 const TAG = 'ZZRESV310';
 const T_AVAIL = `${TAG} disponibile`;
@@ -39,7 +54,11 @@ const T_UNAV  = `${TAG} non disponibile`;
 const T_EMPTY = `${TAG} senza copie`;
 
 async function counts(page) {
-  await page.goto(`${BASE}/catalogo`);
+  // The unique search makes the facet query both isolated from unrelated
+  // suite data and intentionally uncached (free-text keys have unbounded
+  // cardinality). Direct SQL fixture writes must not rely on clearing APCu in
+  // Apache from the separate Node process.
+  await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}`);
   await page.waitForSelector('#borrowed-books-count', { timeout: 15000 });
   const read = async (id) => {
     const el = page.locator('#' + id).first();
@@ -58,11 +77,11 @@ async function counts(page) {
 function seed() {
   db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`);
   // (stato, copie_totali, copie_disponibili) mirror the recomputed post-loan state.
-  db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_AVAIL)}, 'disponibile', 1, 1)`);
-  db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_RESV)},  'prenotato',   1, 0)`);
-  db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_LOAN)},  'prestato',    1, 0)`);
-  db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_UNAV)},  'non_disponibile', 1, 0)`);
-  db(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_EMPTY)}, 'disponibile', 0, 0)`);
+  db(`INSERT INTO libri (titolo, search_index, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_AVAIL)}, ${sqlq(T_AVAIL)}, 'disponibile', 1, 1)`);
+  db(`INSERT INTO libri (titolo, search_index, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_RESV)},  ${sqlq(T_RESV)},  'prenotato',   1, 0)`);
+  db(`INSERT INTO libri (titolo, search_index, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_LOAN)},  ${sqlq(T_LOAN)},  'prestato',    1, 0)`);
+  db(`INSERT INTO libri (titolo, search_index, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_UNAV)},  ${sqlq(T_UNAV)},  'non_disponibile', 1, 0)`);
+  db(`INSERT INTO libri (titolo, search_index, stato, copie_totali, copie_disponibili) VALUES (${sqlq(T_EMPTY)}, ${sqlq(T_EMPTY)}, 'disponibile', 0, 0)`);
 }
 
 test.describe.serial('catalogue reserved category', () => {
@@ -71,12 +90,17 @@ test.describe.serial('catalogue reserved category', () => {
   test.beforeAll(async ({ browser }) => {
     const page = await browser.newPage();
     db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`);
+    clearCatalogCache();
     before = await counts(page);
     seed();
+    clearCatalogCache();
     await page.close();
   });
 
-  test.afterAll(() => { db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`); });
+  test.afterAll(() => {
+    db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`);
+    clearCatalogCache();
+  });
 
   test('Reserved count rises by exactly 1 (the prenotato book)', async ({ page }) => {
     const after = await counts(page);
@@ -106,48 +130,49 @@ test.describe.serial('catalogue reserved category', () => {
   });
 
   test('?disponibilita=prenotato shows the reserved book', async ({ page }) => {
-    await page.goto(`${BASE}/catalogo?disponibilita=prenotato`);
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}&disponibilita=prenotato`);
     await expect(page.locator('.book-card', { hasText: T_RESV })).toHaveCount(1);
   });
 
   test('?disponibilita=prenotato labels the active filter as reserved, not on loan', async ({ page }) => {
-    await page.goto(`${BASE}/catalogo?disponibilita=prenotato`);
-    const activeFilter = page.locator('#active-filters-list .filter-tag');
-    await expect(activeFilter).toContainText(/Prenotato/i);
-    await expect(activeFilter).not.toContainText(/In prestito/i);
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}&disponibilita=prenotato`);
+    const activeFilter = page.locator('#active-filters-list .filter-tag')
+      .filter({ hasText: /Prenotato|Reserved/i });
+    await expect(activeFilter).toHaveCount(1);
+    await expect(activeFilter).not.toContainText(/In prestito|On loan/i);
   });
 
   test('?disponibilita=prenotato does NOT show the on-loan book', async ({ page }) => {
-    await page.goto(`${BASE}/catalogo?disponibilita=prenotato`);
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}&disponibilita=prenotato`);
     await expect(page.locator('.book-card', { hasText: T_LOAN })).toHaveCount(0);
   });
 
   test('?disponibilita=prestato shows the on-loan book but not the reserved one', async ({ page }) => {
-    await page.goto(`${BASE}/catalogo?disponibilita=prestato`);
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}&disponibilita=prestato`);
     await expect(page.locator('.book-card', { hasText: T_LOAN })).toHaveCount(1);
     await expect(page.locator('.book-card', { hasText: T_RESV })).toHaveCount(0);
   });
 
   test('?disponibilita=disponibile shows the available book but not the reserved one', async ({ page }) => {
-    await page.goto(`${BASE}/catalogo?disponibilita=disponibile`);
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}&disponibilita=disponibile`);
     await expect(page.locator('.book-card', { hasText: T_AVAIL })).toHaveCount(1);
     await expect(page.locator('.book-card', { hasText: T_RESV })).toHaveCount(0);
   });
 
   test('reserved book card shows the "Prenotato" badge (not "In prestito")', async ({ page }) => {
-    await page.goto(`${BASE}/catalogo?disponibilita=prenotato`);
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}&disponibilita=prenotato`);
     const badge = page.locator('.book-card', { hasText: T_RESV }).locator('.book-status-badge');
     await expect(badge).toHaveText(/Prenotato/i);
   });
 
   test('on-loan book card shows the "In prestito" badge', async ({ page }) => {
-    await page.goto(`${BASE}/catalogo?disponibilita=prestato`);
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}&disponibilita=prestato`);
     const badge = page.locator('.book-card', { hasText: T_LOAN }).locator('.book-status-badge');
     await expect(badge).toHaveText(/In prestito/i);
   });
 
   test('non_disponibile book shows a distinct "Non disponibile" badge under "All"', async ({ page }) => {
-    await page.goto(`${BASE}/catalogo`);
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(TAG)}`);
     const card = page.locator('.book-card', { hasText: T_UNAV });
     // Present in the unfiltered catalogue…
     await expect(card).toHaveCount(1);

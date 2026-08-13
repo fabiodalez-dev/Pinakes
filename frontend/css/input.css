@@ -514,6 +514,15 @@ table {
   font-weight: 500;
 }
 
+.uppy-DragDrop-note {
+  color: var(--color-gray-600);
+}
+
+/* Secondary navigation copy must remain legible on the active rose surface. */
+.nav-link .text-gray-500 {
+  color: var(--color-gray-600);
+}
+
 .uppy-ProgressBar {
   height: 8px;
   background-color: var(--color-gray-200);
@@ -790,6 +799,11 @@ table.dataTable thead td {
   /* Book detail page - Remove negative margins on card header */
   .card-header {
     margin: 0 !important;
+  }
+
+  /* Keep textual book details aligned with the inset card header. */
+  .admin-book-detail .card-body:not(.p-0) {
+    padding: 1rem 1.5rem 1.5rem;
   }
 
   /* Contact page - Add vertical padding */

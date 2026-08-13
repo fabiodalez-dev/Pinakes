@@ -27,6 +27,8 @@ const BASE        = process.env.E2E_BASE_URL    || 'http://localhost:8081';
 const DB_USER     = process.env.E2E_DB_USER     || '';
 const DB_PASS     = process.env.E2E_DB_PASS     || '';
 const DB_NAME     = process.env.E2E_DB_NAME     || '';
+const DB_HOST     = process.env.E2E_DB_HOST     || '';
+const DB_PORT     = process.env.E2E_DB_PORT     || '';
 const DB_SOCKET   = process.env.E2E_DB_SOCKET   || '';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
@@ -37,7 +39,12 @@ const NCIP_NS = 'http://www.niso.org/2008/ncip';
 
 function mysqlArgs(sql, batch = false) {
     const args = [];
-    if (DB_SOCKET) args.push('-S', DB_SOCKET);
+    if (DB_HOST) {
+        args.push('-h', DB_HOST);
+        if (DB_PORT) args.push('-P', DB_PORT);
+    } else if (DB_SOCKET) {
+        args.push('-S', DB_SOCKET);
+    }
     args.push('-u', DB_USER, DB_NAME);
     if (batch) args.push('-N', '-B');
     if (sql !== '') args.push('-e', sql);
@@ -111,16 +118,27 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
     let checkoutItemId = 0;
     /** @type {number} */
     let checkoutLoanId = 0;
+    /** @type {number} */
+    let fixtureCopyId = 0;
 
     test.beforeAll(async () => {
         bookId = parseInt(dbQuery(
-            'SELECT id FROM libri WHERE deleted_at IS NULL AND copie_disponibili > 0 ORDER BY id LIMIT 1'
+            'SELECT id FROM libri WHERE deleted_at IS NULL ORDER BY id LIMIT 1'
         )) || 0;
         userId = parseInt(dbQuery(
             'SELECT id FROM utenti ORDER BY id LIMIT 1'
         )) || 0;
         if (ADMIN_EMAIL && ADMIN_PASS) {
             adminAuth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        }
+        if (bookId > 0) {
+            const inventory = `E2E-NCIP-${process.pid}-${Date.now()}`;
+            dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato, created_at)
+                     VALUES (${bookId}, '${inventory}', 'disponibile', NOW())`);
+            fixtureCopyId = parseInt(dbQuery(
+                `SELECT id FROM copie WHERE numero_inventario='${inventory}' LIMIT 1`
+            )) || 0;
+            expect(fixtureCopyId).toBeGreaterThan(0);
         }
     });
 
@@ -134,6 +152,9 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
                               SELECT id FROM prestiti WHERE libro_id = ${bookId} AND utente_id = ${userId}
                           )`);
                 dbQuery(`DELETE FROM prestiti WHERE libro_id = ${bookId} AND utente_id = ${userId} AND origine = 'ncip'`);
+                if (fixtureCopyId > 0) {
+                    dbQuery(`DELETE FROM copie WHERE id = ${fixtureCopyId}`);
+                }
             } catch { /* best-effort */ }
         }
     });

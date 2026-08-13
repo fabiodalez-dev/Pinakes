@@ -799,6 +799,7 @@ class ReservationManager
                 return 0;
             }
 
+            // CI-SOFT-DELETE-EXEMPT: expiry cleanup must release queues belonging to deleted books too.
             $bookLock = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             foreach ($affectedBooks as $bookId) {
                 $bookLock->bind_param('i', $bookId);

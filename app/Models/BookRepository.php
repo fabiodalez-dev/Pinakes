@@ -81,6 +81,7 @@ class BookRepository
             $sql .= ", NULL AS gruppo_serie, NULL AS ciclo_serie, NULL AS ordine_ciclo, NULL AS tipo_collana, NULL AS serie_padre";
         }
 
+        // CI-SOFT-DELETE-EXEMPT: this query fragment receives WHERE l.id=? AND l.deleted_at IS NULL before prepare below.
         $sql .= ", p.id AS posizione_id_join,
                        m.numero_livello AS mensola_livello,
                        s.codice AS scaffale_codice,

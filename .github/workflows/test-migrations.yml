@@ -8,11 +8,7 @@ on:
       - 'version.json'
       - '.github/workflows/test-migrations.yml'
   pull_request:
-    paths:
-      - 'installer/database/migrations/**'
-      - 'installer/database/schema.sql'
-      - 'version.json'
-      - '.github/workflows/test-migrations.yml'
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -30,14 +26,15 @@ jobs:
     name: Verify migration versions ≤ release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           coverage: none
-          github-token: ''
 
       - name: Check all migrate_*.sql ≤ version.json
         run: |
@@ -46,14 +43,15 @@ jobs:
           FAILED=0
           for f in installer/database/migrations/migrate_*.sql; do
             V=$(basename "$f" | sed 's/migrate_//;s/\.sql//')
-            if php -r "exit(version_compare('$V', '$TARGET', '<=') ? 0 : 1);"; then
-              echo "  ✓ $(basename $f)  ($V)"
+            if MIGRATION_VERSION="$V" RELEASE_VERSION="$TARGET" php -r \
+              'exit(version_compare(getenv("MIGRATION_VERSION"), getenv("RELEASE_VERSION"), "<=") ? 0 : 1);'; then
+              echo "  ✓ $(basename "$f")  ($V)"
             else
-              echo "  ✗ $(basename $f)  ($V > $TARGET) — would be silently skipped by updater!"
+              echo "  ✗ $(basename "$f")  ($V > $TARGET) — would be silently skipped by updater!"
               FAILED=1
             fi
           done
-          exit $FAILED
+          exit "$FAILED"
 
   # ─── Job 2: full migration chain — schema.sql + every migration in order ───
   # Tests idempotency: migrations use CREATE TABLE IF NOT EXISTS / SET @s := IF(@c=0,...)
@@ -67,7 +65,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: pinakes_test
@@ -80,15 +78,16 @@ jobs:
           --health-retries=5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           extensions: mysqli
           coverage: none
-          github-token: ''
 
       - name: Wait for MySQL
         run: until mysqladmin ping -h"127.0.0.1" --silent; do sleep 1; done
@@ -99,8 +98,9 @@ jobs:
       - name: Apply all migrations in version order
         run: |
           FAILED=0
-          for sql in $(ls installer/database/migrations/migrate_*.sql | sort -V); do
-            echo "→ $(basename $sql)"
+          mapfile -t MIGRATIONS < <(find installer/database/migrations -maxdepth 1 -type f -name 'migrate_*.sql' | sort -V)
+          for sql in "${MIGRATIONS[@]}"; do
+            echo "→ $(basename "$sql")"
             OUTPUT=$(mysql --force -h 127.0.0.1 -u root -proot pinakes_test < "$sql" 2>&1) || true
             # Check each ERROR line individually — skip only known-idempotent ones
             while IFS= read -r line; do
@@ -124,7 +124,12 @@ jobs:
               AND table_name IN ('archival_units','authority_records','collane','volumi','libri_collane');
           ")
           echo "Tables found: $COUNT / 5"
-          [ "$COUNT" -eq 5 ] && echo "✓ All expected tables present" || { echo "✗ Missing tables"; exit 1; }
+          if [ "$COUNT" -eq 5 ]; then
+            echo "✓ All expected tables present"
+          else
+            echo "✗ Missing tables"
+            exit 1
+          fi
 
       - name: Verify columns from 0.5.9.x migrations
         run: |
@@ -138,7 +143,12 @@ jobs:
               );
           ")
           echo "Columns found: $COUNT / 7"
-          [ "$COUNT" -eq 7 ] && echo "✓ All expected columns present" || { echo "✗ Missing columns"; exit 1; }
+          if [ "$COUNT" -eq 7 ]; then
+            echo "✓ All expected columns present"
+          else
+            echo "✗ Missing columns"
+            exit 1
+          fi
 
       - name: Verify ENUM values after full migration chain
         run: |
@@ -184,11 +194,12 @@ jobs:
 
   # ─── Job 3: existing single-migration test (upgrade 0.3.x → 0.4.0) ─────────
   test-migrations:
+    name: Legacy migration regression (0.3.x to 0.4.0)
     runs-on: ubuntu-latest
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: pinakes_test
@@ -201,14 +212,15 @@ jobs:
           --health-retries=5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
           extensions: mysqli, pdo_mysql
-          github-token: ''
 
       - name: Wait for MySQL
         run: |

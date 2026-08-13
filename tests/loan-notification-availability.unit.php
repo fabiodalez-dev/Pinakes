@@ -133,6 +133,9 @@ $check($service->hasActualAvailableCopy($legacyBook) === true, 'legacy title wit
 $check(DateHelper::isISODateFormat('2028-02-29'), 'valid leap-day ISO date accepted');
 $check(!DateHelper::isISODateFormat('2026-02-30'), 'impossible ISO-shaped date rejected');
 $check(!DateHelper::isISODateFormat('2026-13-01'), 'invalid month rejected');
+$check(!DateHelper::isISODateFormat("2026-01-01\n"), 'trailing newline rejected by the strict ISO boundary');
+$check(!DateHelper::isISODateFormat(' 2026-01-01'), 'leading whitespace rejected by the strict ISO boundary');
+$check(!DateHelper::isISODateFormat("2026-01-01\0"), 'embedded NUL rejected without throwing');
 
 $cleanup();
 $db->close();

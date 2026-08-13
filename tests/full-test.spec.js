@@ -763,25 +763,14 @@ test.describe.serial('Phase 4: ISBN Scraping', () => {
     const importInput = page.locator('#importIsbn');
 
     if (await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await importInput.fill('9788845292613');
+      // CI serves this ISBN from the explicit scraper fixture, so this
+      // lifecycle test never depends on an upstream catalogue being online.
+      await importInput.fill('9780140328721');
       await importBtn.click();
-      // Wait for title field to be populated or for a timeout (external API may fail)
-      // Playwright signature is waitForFunction(fn, arg, options) — the options
-      // object MUST be the third argument. Passing it in the second (arg) slot
-      // silently drops the 15s timeout, so if scraping doesn't populate the
-      // title (degraded external APIs) the wait hangs until the 120s test timeout.
-      await page.waitForFunction(
-        () => {
-          const el = document.querySelector('#titolo');
-          return el && el.value && el.value.length > 0;
-        },
-        undefined,
-        { timeout: 15000 },
-      ).catch(() => {});
-      await expect(page.locator('#titolo')).toBeVisible();
+      await expect(page.locator('#titolo')).toHaveValue('Fantastic Mr. Fox', { timeout: 15000 });
     } else {
       // Scraping not available — skip gracefully
-      test.skip();
+      test.skip(true, 'No scraping provider is available in this fixture');
     }
   });
 
@@ -1014,18 +1003,12 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
       return;
     }
 
-    await page.locator('#importIsbn').fill('9780061120084');
+    // A second deterministic fixture exercises the plugin-enabled path without
+    // converting provider outages or metadata drift into CI flakes.
+    await page.locator('#importIsbn').fill('9788804671664');
     await importBtn.click();
 
-    // Wait for title to populate (external API)
-    try {
-      await page.waitForFunction(() => {
-        const titleInput = document.querySelector('input[name="titolo"]');
-        return titleInput && titleInput.value && titleInput.value.trim().length > 0;
-      }, undefined, { timeout: 30000 });
-    } catch {
-      // External API may be down — acceptable
-    }
+    await expect(page.locator('#titolo')).toHaveValue('E2E Italian catalogue fixture', { timeout: 15000 });
   });
 
   test('5.4 Save scraped-pro book', async () => {
@@ -1624,6 +1607,42 @@ test.describe.serial('Phase 10: CSV/TSV Import & Export', () => {
   });
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
+  async function importDelimitedCsv(filePath) {
+    const statuses = [];
+    let lastChunk = null;
+    const captureImportResponse = async (response) => {
+      const responseUrl = response.url();
+      if (!responseUrl.includes('/admin/books/import/upload') && !responseUrl.includes('/admin/books/import/chunk')) return;
+      statuses.push(response.status());
+      if (responseUrl.includes('/admin/books/import/chunk')) {
+        try { lastChunk = JSON.parse(await response.text()); } catch { lastChunk = null; }
+      }
+    };
+    page.on('response', captureImportResponse);
+
+    try {
+      const fileInput = page.locator('#csv_file');
+      // Uppy adds its own native input, while #csv_file is the form fallback
+      // consumed by FormData. A broad input[type=file] locator is ambiguous.
+      await expect(fileInput).toHaveCount(1);
+      await fileInput.setInputFiles(filePath);
+      // Selecting the fallback does not emit Uppy's file-added event.
+      await page.evaluate(() => { document.getElementById('submitBtn').disabled = false; });
+      await page.locator('#submitBtn').click();
+
+      await expect.poll(
+        () => lastChunk?.complete === true,
+        { timeout: 30000, intervals: [250, 500, 1000] },
+      ).toBe(true);
+      expect(statuses.length).toBeGreaterThan(1);
+      expect(statuses.every((status) => status === 200)).toBe(true);
+      expect(lastChunk.errors).toBe(0);
+      return lastChunk;
+    } finally {
+      page.off('response', captureImportResponse);
+    }
+  }
+
   test('10.1 Navigate to import page', async () => {
     await page.goto(`${BASE}/admin/books/import`);
     await page.waitForLoadState('domcontentloaded');
@@ -1636,48 +1655,40 @@ test.describe.serial('Phase 10: CSV/TSV Import & Export', () => {
 
     // Create a test CSV file
     const csvContent = `titolo;autore;editore;isbn13;anno_pubblicazione
-CSV_Book1_${RUN_ID};CSV Author;CSV Publisher;9781234567890;2024
-CSV_Book2_${RUN_ID};CSV Author2;CSV Publisher2;9781234567906;2023`;
+CSV_Book1_${RUN_ID};CSV Author;CSV Publisher;9781234567897;2024
+CSV_Book2_${RUN_ID};CSV Author2;CSV Publisher2;9781234567903;2023`;
 
     const csvPath = path.join('/tmp', `e2e-import-${RUN_ID}.csv`);
     fs.writeFileSync(csvPath, csvContent, 'utf-8');
 
-    const fileInput = page.locator('input[type="file"]');
-    if (await fileInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await fileInput.setInputFiles(csvPath);
+    await importDelimitedCsv(csvPath);
 
-      // Submit import form
-      await page.locator('button[type="submit"]').first().click();
-      await page.waitForLoadState('domcontentloaded');
-
-      // Verify at least one book was imported
-      const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE 'CSV_%_${RUN_ID}' AND deleted_at IS NULL`);
-      expect(Number(count)).toBeGreaterThanOrEqual(1);
-    }
+    // Both deterministic, checksum-valid rows must be imported. A partial
+    // import is a regression, not sufficient setup for the export test below.
+    const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE 'CSV_%_${RUN_ID}' AND deleted_at IS NULL`);
+    expect(Number(count)).toBe(2);
 
     // Cleanup temp file
     fs.unlinkSync(csvPath);
   });
 
-  test('10.3 Upload TSV file', async () => {
+  test('10.3 Upload TAB-delimited CSV file', async () => {
     await page.goto(`${BASE}/admin/books/import`);
     await page.waitForLoadState('domcontentloaded');
 
     const tsvContent = `titolo\tautore\teditore\tanno_pubblicazione
 TSV_Book1_${RUN_ID}\tTSV Author\tTSV Publisher\t2024`;
 
-    const tsvPath = path.join('/tmp', `e2e-import-${RUN_ID}.tsv`);
+    // The standard importer requires a .csv extension but explicitly supports
+    // TAB as a delimiter. LibraryThing's native .tsv route has its own required
+    // 20-row browser test in import-librarything-e2e.spec.js.
+    const tsvPath = path.join('/tmp', `e2e-import-tab-${RUN_ID}.csv`);
     fs.writeFileSync(tsvPath, tsvContent, 'utf-8');
 
-    const fileInput = page.locator('input[type="file"]');
-    if (await fileInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await fileInput.setInputFiles(tsvPath);
-      await page.locator('button[type="submit"]').first().click();
-      await page.waitForLoadState('domcontentloaded');
+    await importDelimitedCsv(tsvPath);
 
-      const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE 'TSV_%_${RUN_ID}' AND deleted_at IS NULL`);
-      expect(Number(count)).toBeGreaterThanOrEqual(1);
-    }
+    const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE 'TSV_%_${RUN_ID}' AND deleted_at IS NULL`);
+    expect(Number(count)).toBe(1);
 
     fs.unlinkSync(tsvPath);
   });
@@ -2176,13 +2187,20 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     const actualLibroId = Number(await page.locator('#libro_id').inputValue());
     expect(actualLibroId).toBe(testBookId);
 
-    // Set loan date via Flatpickr API (altInput creates a visible input that may be empty)
-    await page.evaluate(() => {
+    // Preserve the ISO date generated by the application timezone. Using
+    // `new Date()` here is incorrect around midnight: the Ubuntu browser runs
+    // in UTC while Pinakes may already be on the next day (Europe/Rome), and
+    // Flatpickr then rejects the UTC date as being before minDate.
+    const appLoanDate = await page.locator('#data_prestito').inputValue();
+    expect(appLoanDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    await page.evaluate((loanDate) => {
       const el = document.getElementById('data_prestito');
       if (el && el._flatpickr) {
-        el._flatpickr.setDate(new Date(), true);
+        el._flatpickr.setDate(loanDate, true, 'Y-m-d');
+      } else if (el) {
+        el.value = loanDate;
       }
-    });
+    }, appLoanDate);
     await page.waitForTimeout(300);
 
     // Close any open Flatpickr calendar
@@ -2274,11 +2292,21 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     await page.locator('button[name="save_and_new"]').click();
     await page.waitForURL(url => url.pathname.endsWith('/admin/loans/create') && url.searchParams.get('created') === '1');
 
+    await expect(page.locator('#loan_created_alert')).toBeVisible();
     await expect(page.locator('#utente_id')).toHaveValue(String(state.userId));
     await expect(page.locator('#utente_search')).not.toHaveValue('');
     await expect(page.locator('#libro_id')).toHaveValue('0');
     await expect(page.locator('#libro_search')).toHaveValue('');
     await expect(page.locator('#copy_code')).toHaveValue('');
+
+    // The notice belongs to the loan just created. As soon as the operator starts
+    // the next one it must disappear, along with the URL flags that would otherwise
+    // resurrect it (and a PDF download) on refresh.
+    await page.locator('#copy_code').fill(`NEXT-${RUN_ID}`);
+    await expect(page.locator('#loan_created_alert')).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).searchParams.has('created')).toBe(false);
+    await expect.poll(() => new URL(page.url()).searchParams.has('pdf')).toBe(false);
+    await page.locator('#copy_code').fill('');
 
     // Leave the shared E2E database in an available state for later phases and
     // for focused reruns that omit the suite-wide cleanup phase.
@@ -2732,7 +2760,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     if (await scrollBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await scrollBtn.click();
       // Wait for smooth scroll animation to complete
-      await page.waitForFunction(() => window.scrollY < 100, { timeout: 5000 });
+      await page.waitForFunction(() => window.scrollY < 100, null, { timeout: 5000 });
     }
   });
 
@@ -2908,7 +2936,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const hasKeywords = dbQuery(
       `SELECT COUNT(*) FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave REGEXP '[^,[:space:]]' AND deleted_at IS NULL`
     );
-    if (Number(hasKeywords) === 0) { test.skip(); return; }
+    if (Number(hasKeywords) === 0) { test.skip(true, 'Catalog fixture contains no keywords'); return; }
 
     // Find a book with keywords and navigate to its detail page
     const bookId = dbQuery(
@@ -2940,9 +2968,9 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     // Find a ROOT genre and one of its direct children
     // This tests the chainLen===1 path in resolveGenreHierarchy
     const rootId = dbQuery("SELECT id FROM generi WHERE parent_id IS NULL LIMIT 1");
-    if (!rootId) { test.skip(); return; }
+    if (!rootId) { test.skip(true, 'Catalog fixture contains no root genre'); return; }
     const childRow = dbQuery(`SELECT id, nome FROM generi WHERE parent_id = ${rootId} LIMIT 1`);
-    if (!childRow) { test.skip(); return; }
+    if (!childRow) { test.skip(true, 'Catalog fixture contains no child genre'); return; }
     const [childId, childName] = childRow.split('\t');
 
     // Get a book to edit

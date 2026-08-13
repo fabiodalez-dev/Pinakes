@@ -93,7 +93,15 @@ class LoanRepository
         $utente_id = (int) ($data['utente_id'] ?? 0);
         // "Oggi" nel timezone applicativo (M9): mai date() (TZ processo, spesso UTC).
         $data_prestito = $data['data_prestito'] ?? DateHelper::today();
-        $data_scadenza = $data['data_scadenza'] ?? date('Y-m-d', strtotime(DateHelper::today() . ' +14 days'));
+        if (isset($data['data_scadenza'])) {
+            $data_scadenza = $data['data_scadenza'];
+        } else {
+            // Fallback dalla setting di durata prestito: il vecchio +14gg
+            // hardcoded era metà del default seminato (30) e ignorava la
+            // configurazione dell'admin — stesso fix M5b già applicato a renew().
+            $loanDays = (new SettingsRepository($this->db))->loanDurationDays();
+            $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
+        }
         $processed_by = $data['processed_by'] ?? null;
         $stmt->bind_param('issii', $utente_id, $data_prestito, $data_scadenza, $processed_by, $id);
         return $stmt->execute();
@@ -165,6 +173,7 @@ class LoanRepository
             // il libro è stato soft-deleted nel frattempo: la regola soft-delete
             // governa prestabilità/visibilità, non i rientri. Bloccare il close
             // lascerebbe il prestito attivo e la copia occupata per sempre.
+            // CI-SOFT-DELETE-EXEMPT: closing a loan must free its copy even after the book was deleted.
             $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id=? FOR UPDATE');
             $lockBook->bind_param('i', $bookId);
             $lockBook->execute();

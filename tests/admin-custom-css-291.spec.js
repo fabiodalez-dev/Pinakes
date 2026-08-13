@@ -42,9 +42,6 @@ test.beforeAll(() => {
   priorValue = hadPrior
     ? db("SELECT setting_value FROM system_settings WHERE category='advanced' AND setting_key='custom_header_css'")
     : '';
-  db(`INSERT INTO system_settings (category, setting_key, setting_value, updated_at)
-      VALUES ('advanced','custom_header_css',${sqlq(CUSTOM_CSS)}, NOW())
-      ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_at=NOW()`);
 });
 
 test.afterAll(() => {
@@ -56,6 +53,18 @@ test.afterAll(() => {
 });
 
 function sqlq(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
+
+async function saveCustomCss(page, value) {
+  await page.goto(`${BASE}/admin/settings?tab=advanced`);
+  const css = page.locator('#custom_header_css');
+  await css.waitFor({ state: 'visible', timeout: 10000 });
+  await css.fill(value);
+  await Promise.all([
+    page.waitForLoadState('networkidle'),
+    css.evaluate((element) => element.closest('form')?.requestSubmit()),
+  ]);
+  await expect(css).toHaveValue(value);
+}
 
 test('#291: admin custom CSS applies on the book edit form', async ({ page }) => {
   expect(bookId).toBeGreaterThan(0);
@@ -69,20 +78,27 @@ test('#291: admin custom CSS applies on the book edit form', async ({ page }) =>
     { timeout: 15000 },
   );
 
-  await page.goto(`${BASE}/admin/books/edit/${bookId}`);
-  await page.waitForLoadState('networkidle');
+  // Drive the real settings lifecycle. A direct DB update can bypass application
+  // cache invalidation and would not prove that the admin form actually works.
+  await saveCustomCss(page, CUSTOM_CSS);
+  try {
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
+    await page.waitForLoadState('networkidle');
 
-  // The sanitized custom CSS must be present in a <head> <style> block.
-  const inHead = await page.evaluate((marker) => {
-    return [...document.head.querySelectorAll('style')].some(s => s.textContent.includes(marker));
-  }, 'PINAKES291SPEC');
-  expect(inHead, 'custom CSS emitted in admin <head>').toBe(true);
+    // The sanitized custom CSS must be present in a <head> <style> block.
+    const inHead = await page.evaluate((marker) => {
+      return [...document.head.querySelectorAll('style')].some(s => s.textContent.includes(marker));
+    }, 'PINAKES291SPEC');
+    expect(inHead, 'custom CSS emitted in admin <head>').toBe(true);
 
-  // And it must actually take effect: #ean must exist on the book form AND be
-  // hidden by the custom CSS — the exact behaviour the issue asks for. No `if`
-  // guard: a redirect or a form that failed to render must fail the test, not
-  // silently skip the assertion.
-  const ean = page.locator('input#ean');
-  await expect(ean).toHaveCount(1);
-  await expect(ean).toHaveCSS('display', 'none');
+    // And it must actually take effect: #ean must exist on the book form AND be
+    // hidden by the custom CSS — the exact behaviour the issue asks for. No `if`
+    // guard: a redirect or a form that failed to render must fail the test, not
+    // silently skip the assertion.
+    const ean = page.locator('input#ean');
+    await expect(ean).toHaveCount(1);
+    await expect(ean).toHaveCSS('display', 'none');
+  } finally {
+    await saveCustomCss(page, priorValue);
+  }
 });

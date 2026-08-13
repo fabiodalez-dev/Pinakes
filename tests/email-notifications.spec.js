@@ -4,9 +4,11 @@ const { execFileSync, execSync } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
 
 // ── Environment ──────────────────────────────────────────────────────
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
+const INSTALL_ROOT = process.env.E2E_INSTALL_ROOT || path.resolve(__dirname, '..');
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 const MAILPIT_API = process.env.MAILPIT_API || 'http://localhost:8025/api/v1';
@@ -14,6 +16,8 @@ const MAILPIT_API = process.env.MAILPIT_API || 'http://localhost:8025/api/v1';
 const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
+const DB_HOST = process.env.E2E_DB_HOST || '';
+const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 let mailpitAvailable = true;
 const phpMailRoutesToMailpit = (() => {
@@ -48,7 +52,12 @@ const sqlEscape = (s) => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 function dbQuery(sql) {
   const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
-  if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
+  if (DB_HOST) {
+    args.splice(3, 0, '-h', DB_HOST);
+    if (DB_PORT) args.splice(5, 0, '-P', DB_PORT);
+  } else if (DB_SOCKET) {
+    args.splice(3, 0, '-S', DB_SOCKET);
+  }
   return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
 }
 
@@ -70,23 +79,55 @@ async function mailpitJson(urlPath, timeoutMs = 5000) {
 /** Delete all messages in Mailpit */
 async function clearMailpit() {
   if (!mailpitAvailable) return;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
-  try {
-    const res = await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: controller.signal });
-    if (!res.ok) throw new Error(`Mailpit clear failed: HTTP ${res.status}`);
-  } catch (err) {
-    if (controller.signal.aborted) {
-      // Timeout — retry once with a shorter timeout
-      const retryCtrl = new AbortController();
-      const retryTimer = setTimeout(() => retryCtrl.abort(), 3000);
-      try { await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: retryCtrl.signal }); } catch { /* best effort */ } finally { clearTimeout(retryTimer); }
-      return;
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: controller.signal });
+      if (!res.ok) throw new Error(`Mailpit clear failed: HTTP ${res.status}`);
+      lastError = undefined;
+      break;
+    } catch (err) {
+      lastError = err;
+    } finally {
+      clearTimeout(timer);
     }
+  }
+
+  if (lastError) {
     mailpitAvailable = false;
-    throw err;
-  } finally {
-    clearTimeout(timer);
+    throw lastError;
+  }
+
+  // Mailpit can acknowledge DELETE before its recipient/full-text indexes have
+  // settled. Submitting the next form immediately can race the outstanding
+  // purge and delete the newly accepted message. Require two consecutive empty
+  // snapshots before the next test is allowed to send mail.
+  let consecutiveEmpty = 0;
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const data = await mailpitJson('/messages');
+    const count = Number(data.total ?? data.messages_count ?? data.messages?.length ?? 0);
+    if (count === 0) {
+      consecutiveEmpty++;
+      if (consecutiveEmpty === 2) return;
+    } else {
+      consecutiveEmpty = 0;
+    }
+    await new Promise(resolve => setTimeout(resolve, 150));
+  }
+
+  throw new Error('Mailpit inbox did not become stably empty within 5000ms');
+}
+
+function clearConfigCache() {
+  const cacheDir = path.join(INSTALL_ROOT, 'storage', 'cache');
+  if (!fs.existsSync(cacheDir)) return;
+  for (const name of fs.readdirSync(cacheDir)) {
+    if (name.startsWith('pinakes_config_settings_raw_')) {
+      try { fs.unlinkSync(path.join(cacheDir, name)); } catch { /* best effort */ }
+    }
   }
 }
 
@@ -183,15 +224,12 @@ function clearRateLimits() {
 
 /** Return today's date as YYYY-MM-DD */
 function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appTodayISO();
 }
 
 /** Return a date offset from today as YYYY-MM-DD */
 function dateOffset(days) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appDateOffsetISO(days);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -273,6 +311,7 @@ test.describe.serial('Email Notifications E2E', () => {
         ('email', 'from_name', 'Pinakes Test')
       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
     `);
+    clearConfigCache();
 
     // Set contact notification email so contact form tests work
     dbQuery(`
@@ -493,21 +532,27 @@ test.describe.serial('Email Notifications E2E', () => {
             const el = document.querySelector('#swal-date-start');
             return el && /** @type {any} */ (el)._flatpickr;
           },
+          null,
           { timeout: 5000 },
         ).catch(() => {});
 
-        const today = todayISO();
-        await userPage.evaluate((iso) => {
-          const el = document.querySelector('#swal-date-start');
-          if (el && /** @type {any} */ (el)._flatpickr) {
-            /** @type {any} */ (el)._flatpickr.setDate(iso, true);
-          }
-        }, today);
+        // The application selects the first available date in its own
+        // timezone. Preserve that value instead of replacing it with Node's
+        // host date, which can be the previous calendar day around midnight.
+        const selectedStart = await userPage.locator('#swal-date-start').inputValue();
+        expect(selectedStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        const reservationResponse = userPage.waitForResponse(
+          (response) => response.request().method() === 'POST'
+            && new URL(response.url()).pathname.endsWith('/reservation'),
+          { timeout: 15000 },
+        );
         await userPage.locator('.swal2-confirm').click();
+        expect((await reservationResponse).status()).toBeLessThan(400);
         await userPage.waitForFunction(
           () => !!document.querySelector('.swal2-icon-success, .swal2-icon-error'),
+          null,
           { timeout: 15000 },
-        ).catch(() => {});
+        );
         // Dismiss the result SweetAlert
         const confirmBtn = userPage.locator('.swal2-confirm');
         if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -768,7 +813,11 @@ test.describe.serial('Email Notifications E2E', () => {
     await page.close();
 
     // Admin should receive contact notification
-    const contactMail = await waitForMail(`to:${ADMIN_EMAIL} subject:messaggio`);
+    // Mailpit updates recipient indexes immediately, while compound full-text
+    // subject searches can lag briefly after SMTP acceptance. The inbox was
+    // cleared above, so locate the admin delivery by envelope recipient and
+    // assert the subject from the canonical stored message below.
+    const contactMail = await waitForMail(`to:${ADMIN_EMAIL}`);
     expect(contactMail).toBeTruthy();
     const msg = await getMessage(contactMail.ID);
     expect(msg.Subject.toLowerCase()).toMatch(/messaggio|contact|contatt/);
@@ -842,6 +891,7 @@ test.describe.serial('Email Notifications E2E', () => {
     // Switch to PHP mail() driver
     dbQuery(`UPDATE system_settings SET setting_value = 'mail' WHERE category = 'email' AND setting_key = 'type'`);
     dbQuery(`UPDATE system_settings SET setting_value = 'mail' WHERE category = 'email' AND setting_key = 'driver_mode'`);
+    clearConfigCache();
 
     await clearMailpit();
 
@@ -975,6 +1025,7 @@ test.describe.serial('Email Notifications E2E', () => {
       if (originalSettings.contact_notification !== undefined) {
         restore('contacts', 'notification_email', originalSettings.contact_notification);
       }
+      clearConfigCache();
 
       // Clear Mailpit
       await clearMailpit();

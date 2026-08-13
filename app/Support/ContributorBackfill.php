@@ -87,8 +87,9 @@ final class ContributorBackfill
     private static function backfillColumn(mysqli $db, string $column, string $ruolo): array
     {
         $bookIds = [];
-        // Include soft-deleted books: they may be restored after this one-time
-        // migration and must not permanently miss their contributor entities.
+        // CI-SOFT-DELETE-EXEMPT: this migration deliberately includes deleted
+        // books; they may later be restored and must not permanently miss their
+        // contributor entities. The pseudonym rebuild below follows the same rule.
         $sql = "SELECT id, `{$column}` AS raw FROM libri
                 WHERE `{$column}` IS NOT NULL AND TRIM(`{$column}`) <> ''";
         $res = $db->query($sql);
@@ -113,6 +114,7 @@ final class ContributorBackfill
     private static function booksWithPseudonyms(mysqli $db): array
     {
         $bookIds = [];
+        // CI-SOFT-DELETE-EXEMPT: backfill indexes deleted books too because they may later be restored.
         $res = $db->query(
             "SELECT DISTINCT la.libro_id
                FROM libri_autori la

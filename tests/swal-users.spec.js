@@ -64,7 +64,7 @@ async function waitUsersTableReady(page) {
   await page.waitForFunction(() => {
     const info = document.querySelector('#utenti-table_info');
     return !!(info && info.textContent && info.textContent.trim().length > 0);
-  }, { timeout: 15000 }).catch(() => {});
+  }, null, { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(300);
 }
 

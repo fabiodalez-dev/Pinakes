@@ -14,15 +14,21 @@ class DashboardStats
     {
         $db = $this->db;
         return QueryCache::remember('dashboard_counts', function () use ($db): array {
+            // "Oggi" nel timezone APPLICATIVO (DateHelper), non la funzione data
+            // del server MySQL: il cron attiva i prestiti con DateHelper::today() e questa
+            // stessa card deve contare gli stessi ritiri pronti — con due orologi
+            // diversi, a cavallo della mezzanotte i due conteggi divergevano.
+            // Y-m-d validato da DateHelper: interpolazione sicura tra apici.
+            $today = \App\Support\DateHelper::today();
             $sql = "SELECT
                         (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) AS libri,
                         (SELECT COUNT(*) FROM utenti) AS utenti,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato IN ('in_corso','in_ritardo') AND attivo = 1) AS prestiti_in_corso,
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE p.stato IN ('in_corso','in_ritardo') AND p.attivo = 1) AS prestiti_in_corso,
                         (SELECT COUNT(*) FROM autori) AS autori,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente') AS prestiti_pendenti,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND origine = 'prenotazione') AS ritiri_da_confermare,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND (origine = 'richiesta' OR origine IS NULL)) AS richieste_manuali,
-                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= CURDATE())) AS pickup_pronti";
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE p.stato = 'pendente') AS prestiti_pendenti,
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE p.stato = 'pendente' AND p.origine = 'prenotazione') AS ritiri_da_confermare,
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE p.stato = 'pendente' AND (p.origine = 'richiesta' OR p.origine IS NULL)) AS richieste_manuali,
+                        (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE (p.stato = 'da_ritirare' OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}'))) AS pickup_pronti";
 
             $result = $db->query($sql);
             if ($result && $row = $result->fetch_assoc()) {
@@ -127,7 +133,7 @@ class DashboardStats
     public function pickupReadyLoans(int $limit = 6): array
     {
         $rows = [];
-        $today = date('Y-m-d');
+        $today = \App\Support\DateHelper::today();
         $sql = "SELECT p.id, p.libro_id, p.utente_id, p.stato, p.data_prestito, p.data_scadenza,
                        p.pickup_deadline, p.created_at,
                        l.titolo, l.copertina_url,
@@ -155,7 +161,7 @@ class DashboardStats
     public function scheduledLoans(int $limit = 6): array
     {
         $rows = [];
-        $today = date('Y-m-d');
+        $today = \App\Support\DateHelper::today();
         $sql = "SELECT p.id, p.libro_id, p.utente_id, p.stato, p.data_prestito, p.data_scadenza,
                        p.created_at,
                        l.titolo, l.copertina_url,

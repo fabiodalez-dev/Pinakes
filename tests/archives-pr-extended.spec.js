@@ -208,6 +208,18 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
                 const absPath = path.join(PUBLIC_DIR, relPath.trim());
                 const dir = path.dirname(absPath);
                 fs.mkdirSync(dir, { recursive: true });
+                // The test process runs as the GitHub runner while uploads are
+                // handled by Apache (www-data). A directory first created here
+                // with Node's default 0755 mode is not writable by Apache even
+                // though the shared public/uploads root was prepared correctly.
+                // Mirror the throwaway CI install's shared-runtime permissions.
+                // A prior HTTP suite may have created the directory as
+                // www-data. In that case CI already prepared it as 0777 and
+                // the runner is not its owner, so a redundant chmod is EPERM.
+                // Only change the mode when group/other write is actually absent.
+                if ((fs.statSync(dir).mode & 0o022) !== 0o022) {
+                    fs.chmodSync(dir, 0o777);
+                }
                 try {
                     fs.writeFileSync(absPath, Buffer.from('stub'), { flag: 'wx' });
                     stubFilePaths.push(absPath);
@@ -343,10 +355,13 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
              WHERE id = ${itemAId}`
         );
 
-        // Upload a new PDF via admin form
-        const pdfBuffer = makeMinimalPdf('legacy-migration-test');
-        const tmpPdf = path.join('/tmp', 'e2e-legacy-migrate.pdf');
-        fs.writeFileSync(tmpPdf, pdfBuffer);
+        // Upload a representative PDF via the admin form. The richer archive
+        // fixture includes a content stream and font object, avoiding
+        // libmagic-version differences seen with a 306-byte synthetic PDF.
+        const tmpPdf = path.join(PUBLIC_DIR, 'uploads', 'archives', 'e2e', 'letter.pdf');
+        expect(fs.existsSync(tmpPdf), 'committed PDF upload fixture').toBe(true);
+        const appLog = path.join(__dirname, '..', 'storage', 'logs', 'app.log');
+        const logOffset = fs.existsSync(appLog) ? fs.statSync(appLog).size : 0;
 
         await page.goto(`${BASE}/admin/archives/${itemAId}`);
         await page.waitForLoadState('domcontentloaded');
@@ -356,13 +371,15 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
             page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
             uploadForm.locator('button[type="submit"]').click(),
         ]);
-        fs.unlinkSync(tmpPdf);
 
         // document_path must now be NULL
         const docPath = dbQuery(
             `SELECT IFNULL(document_path, 'NULL') FROM archival_units WHERE id = ${itemAId}`
         );
-        expect(docPath).toBe('NULL');
+        const uploadDiagnostics = docPath === 'NULL' || !fs.existsSync(appLog)
+            ? ''
+            : fs.readFileSync(appLog, 'utf8').slice(logOffset).trim();
+        expect(docPath, uploadDiagnostics || 'document upload left no application diagnostic').toBe('NULL');
     });
 
     test('7. Upload PDF to unit with legacy doc → document_mime becomes NULL in DB', async () => {

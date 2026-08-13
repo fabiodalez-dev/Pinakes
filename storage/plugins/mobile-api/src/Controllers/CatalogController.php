@@ -198,6 +198,7 @@ final class CatalogController
                 ? ",\n                    {$relevance['score_sql']} AS relevance_score"
                 : '';
 
+            // CI-SOFT-DELETE-EXEMPT: $where is initialized above with l.deleted_at IS NULL before any optional filter.
             $sql = "
                 SELECT
                     l.id, l.titolo, l.sottotitolo, l.anno_pubblicazione, l.lingua,
@@ -732,6 +733,10 @@ final class CatalogController
 
             $avail = (new \App\Controllers\ReservationsController($this->db))
                 ->getBookAvailabilityData($bookId, null, 180, $userId > 0 ? $userId : null);
+            if ($avail === null) {
+                // Soft-deleted between the fetchBookCore() guard above and here.
+                return ResponseEnvelope::error($response, 'not_found', __('Libro non trovato.'), 404);
+            }
 
             return ResponseEnvelope::success($response, [
                 'total_copies'       => (int) ($avail['total_copies'] ?? 0),

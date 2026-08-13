@@ -122,6 +122,17 @@
 - scripts/clean-git-history.sh
 - scripts/copy-vendor-assets.js
 - scripts/export-email-templates-to-installer.php
+- /scripts/ci-*
+- /scripts/create-release*.sh
+- /scripts/list-source-expectations.php
+- /scripts/reinstall-test.sh
+- /scripts/remote-pr-verify.*
+- /scripts/verify-schema.sh
+
+# Root Node tooling exists only for Playwright/CI. The independently usable
+# frontend/ package remains available to installations that customize assets.
+- /package.json
+- /package-lock.json
 
 # Development dependencies
 # node_modules/ without leading / catches any level (intentional: vendor packages too)

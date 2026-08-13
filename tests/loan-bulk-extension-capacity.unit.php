@@ -2,9 +2,10 @@
 declare(strict_types=1);
 
 /**
- * End-to-end database contract for #281 bulk extension. It invokes the real
- * controller and proves book-capacity conflicts, physical-copy conflicts and
- * all-or-nothing rollback behavior.
+ * End-to-end database contract for #281 bulk extension and #336 manual date
+ * editing. It invokes the real controller and proves book-capacity conflicts,
+ * physical-copy conflicts, newly-claimed-window semantics and all-or-nothing
+ * rollback behavior.
  *
  * Run: php tests/loan-bulk-extension-capacity.unit.php
  */
@@ -156,6 +157,21 @@ $callBulk = static function (array $ids, int $days) use ($db) {
     return (new PrestitiController())->bulkExtend($request, $response, $db);
 };
 
+$callUpdate = static function (int $loanId, int $userId, mixed $start, mixed $due) use ($db) {
+    // The controller authorizes from the session, while processed_by must also
+    // reference a real user because of the FK. Reuse the fixture borrower.
+    $_SESSION['user'] = ['tipo_utente' => 'admin', 'id' => $userId];
+    $request = (new ServerRequestFactory())
+        ->createServerRequest('POST', '/admin/loans/edit/' . $loanId)
+        ->withParsedBody([
+            'utente_id' => $userId,
+            'data_prestito' => $start,
+            'data_scadenza' => $due,
+        ]);
+    $response = (new ResponseFactory())->createResponse();
+    return (new PrestitiController())->update($request, $response, $db, $loanId);
+};
+
 $today = new DateTimeImmutable(DateHelper::today());
 $start = $today->modify('-5 days')->format('Y-m-d');
 $due = $today->modify('+2 days')->format('Y-m-d');
@@ -189,14 +205,48 @@ $check($dueDate($cleanLoan) === $expectedDue && $dueDate($blockedLoan) === $expe
 
 echo "B. Physical-copy schedule remains exclusive\n";
 [$copyBook, [$scheduledCopy, $freeCopy]] = $makeBook(2);
-$currentLoan = $makeLoan($copyBook, $scheduledCopy, $makeUser(), $start, $due);
+$currentUser = $makeUser();
+$currentLoan = $makeLoan($copyBook, $scheduledCopy, $currentUser, $start, $due);
 $futureStart = $today->modify('+8 days')->format('Y-m-d');
 $futureEnd = $today->modify('+12 days')->format('Y-m-d');
 $futureLoan = $makeLoan($copyBook, $scheduledCopy, $makeUser(), $futureStart, $futureEnd, 'prenotato');
 $check($futureLoan > 0 && $freeCopy > 0, 'fixture has spare book capacity but a busy assigned copy');
+$updateResponse = $callUpdate($currentLoan, $currentUser, $start, $today->modify('+10 days')->format('Y-m-d'));
+$check(str_contains($updateResponse->getHeaderLine('Location'), 'error=loan_copy_conflict'), 'manual date edit reports the dedicated same-copy conflict');
+$check($dueDate($currentLoan) === $due, 'manual copy conflict leaves the original due date unchanged');
 $response = $callBulk([$currentLoan], 10);
 $check(str_contains($response->getHeaderLine('Location'), 'error=bulk_extend_conflict'), 'same-copy future schedule blocks the extension despite spare book capacity');
 $check($dueDate($currentLoan) === $due, 'copy conflict leaves the original due date unchanged');
+
+$warning = null;
+set_error_handler(static function (int $severity, string $message) use (&$warning): bool {
+    $warning = [$severity, $message];
+    return true;
+});
+$invalidTypeResponse = $callUpdate($currentLoan, $currentUser, [$start], $due);
+restore_error_handler();
+$check($warning === null, 'array date input is rejected before any Array to string warning');
+$check(str_contains($invalidTypeResponse->getHeaderLine('Location'), 'error=invalid_date_format'), 'array date input returns invalid_date_format');
+$check($dueDate($currentLoan) === $due, 'invalid date type leaves the loan unchanged');
+
+echo "C. Manual edit checks only newly claimed days (#336)\n";
+[$reservationBook, [$reservationCopy]] = $makeBook(1);
+$reservationHolder = $makeUser();
+$reservationLoan = $makeLoan($reservationBook, $reservationCopy, $reservationHolder, $start, $due);
+$queuedUser = $makeUser();
+$oldOverlapStart = $today->modify('-1 day')->format('Y-m-d');
+$oldOverlapEnd = $today->modify('+1 day')->format('Y-m-d');
+$stmt = $db->prepare(
+    "INSERT INTO prenotazioni (libro_id, utente_id, data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, stato, queue_position)
+     VALUES (?, ?, ?, ?, ?, 'attiva', 1)"
+);
+$stmt->bind_param('iisss', $reservationBook, $queuedUser, $oldOverlapStart, $oldOverlapEnd, $oldOverlapEnd);
+$stmt->execute();
+$stmt->close();
+$editedDue = $today->modify('+4 days')->format('Y-m-d');
+$updateResponse = $callUpdate($reservationLoan, $reservationHolder, $start, $editedDue);
+$check(!str_contains($updateResponse->getHeaderLine('Location'), 'error='), 'existing reservation on the old window does not block a free added-days segment');
+$check($dueDate($reservationLoan) === $editedDue, 'manual edit persists the conflict-free extension');
 
 // ── Area 4: overdue loans clear "Overdue" when extended (issue #281 gap) ─────
 echo "D. Extending an overdue loan clears the overdue status\n";

@@ -645,6 +645,14 @@ class FrontendController
         $shareUrl = absoluteUrl($canonicalPath);
         $shareTitle = $book['titolo'] ?? '';
 
+        // Keep the public request calendar aligned with the server-side default
+        // used when end_date is omitted. The reservation endpoint caps that
+        // default to max_loan_duration_days, so expose the same effective value
+        // to the view instead of hardcoding one calendar month in JavaScript.
+        $loanSettings = new \App\Models\SettingsRepository($db);
+        $maxRequestDays = max(1, (int) ($loanSettings->get('loans', 'max_loan_duration_days', '90') ?? 90));
+        $defaultRequestLoanDays = min($loanSettings->loanDurationDays(), $maxRequestDays);
+
         // Check whether the BIBFRAME Linked Data plugin is active.
         // Done before template include so the view can use $bibframePluginActive.
         // Uses PluginManager::isActive() which caches per-process — the raw

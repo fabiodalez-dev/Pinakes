@@ -28,6 +28,7 @@
 
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
 
 const BASE        = process.env.E2E_BASE_URL    || 'http://localhost:8081';
 const API         = `${BASE}/api/v1`;
@@ -112,9 +113,8 @@ async function setCatalogueModeThroughAdmin(browser, enabled) {
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
-function ymd(d) { return d.toISOString().slice(0, 10); }
-function todayYmd() { return ymd(new Date()); }
-function plusDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d); }
+function todayYmd() { return appTodayISO(); }
+function plusDays(n) { return appDateOffsetISO(n); }
 
 // ─── Borrower fixture ────────────────────────────────────────────────────────
 

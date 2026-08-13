@@ -12,6 +12,7 @@ test.skip(process.env.E2E_RUN_SEED !== '1', 'Seeder skipped: set E2E_RUN_SEED=1 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
+const OFFLINE_SEED = process.env.E2E_OFFLINE_SEED === '1';
 
 // 10 music records via Discogs barcode scraping
 const MUSIC_BARCODES = [
@@ -42,22 +43,24 @@ const MANUAL_ENTRIES = [
 ];
 
 /**
- * Try to save the current form and verify redirect to book detail page.
- * Returns true if saved, false on failure — does NOT throw (seeder resilience).
+ * Save the current form through its mandatory SweetAlert confirmation and
+ * verify the redirect to the book page. Missing UI or navigation is a hard
+ * fixture failure: continuing would make every downstream test untrustworthy.
  * @param {import('@playwright/test').Page} page
  * @param {string} label
  */
 async function trySave(page, label) {
   await page.locator('button[type="submit"]').first().click();
-  const swal = page.locator('.swal2-confirm');
-  if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-  const saved = await page.waitForURL(/\/admin\/books\/\d+/, { timeout: 15000 }).then(() => true).catch(() => false);
-  if (saved) {
-    console.log(`  ✓ ${label}`);
-  } else {
-    console.warn(`  ⚠ ${label} — save failed (URL: ${page.url()}), continuing`);
-  }
-  return saved;
+  const confirmation = page
+    .locator('.swal2-popup', { has: page.locator('.swal2-icon.swal2-question') })
+    .locator('.swal2-confirm');
+  await expect(confirmation).toBeVisible({ timeout: 10000 });
+  await Promise.all([
+    page.waitForURL(/\/admin\/books(?:\/\d+)?(?:[?#].*)?$/, { timeout: 15000 }),
+    confirmation.click(),
+  ]);
+  console.log(`  ✓ ${label}`);
+  return true;
 }
 
 test.describe.serial('Seed Catalog (books + music)', () => {
@@ -92,7 +95,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       await page.waitForLoadState('domcontentloaded');
 
       const importBtn = page.locator('#btnImportIsbn');
-      if (await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (!OFFLINE_SEED && await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await page.fill('#importIsbn', rec.barcode);
         await importBtn.click();
         // Wait for scraping AJAX to complete (network idle).
@@ -134,7 +137,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       await page.waitForLoadState('domcontentloaded');
 
       const importBtn = page.locator('#btnImportIsbn');
-      if (await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (!OFFLINE_SEED && await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await page.fill('#importIsbn', book.isbn);
         await importBtn.click();
         await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});

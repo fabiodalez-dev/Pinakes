@@ -1679,7 +1679,7 @@ class PluginManager
                 if ($prefetchedHooks === null) {
                     $this->registerPluginHooks($pluginId, $instances[$pluginId]);
                 } else {
-                    $this->registerPluginHookRows($instances[$pluginId], $prefetchedHooks);
+                    $this->registerPluginHookRows($pluginId, $instances[$pluginId], $prefetchedHooks);
                 }
             } catch (\Throwable $e) {
                 SecureLogger::error("[PluginManager] Failed to register hooks for '{$plugin['name']}'", ['error' => $e->getMessage()]);
@@ -1732,6 +1732,7 @@ class PluginManager
             SELECT plugin_id, hook_name, callback_method, priority
             FROM plugin_hooks
             WHERE plugin_id IN ({$placeholders})
+              AND is_active = 1
             ORDER BY priority ASC
         ");
         if ($stmt === false) {
@@ -1775,16 +1776,52 @@ class PluginManager
      *
      * @param array<int, array{hook_name:string, callback_method:string, priority:int}> $hookRows
      */
-    private function registerPluginHookRows(object $pluginInstance, array $hookRows): void
+    private function registerPluginHookRows(int $pluginId, object $pluginInstance, array $hookRows): void
     {
         foreach ($hookRows as $row) {
             $callbackMethod = $row['callback_method'];
             if (method_exists($pluginInstance, $callbackMethod) || $this->hasMagicMethod($pluginInstance, $callbackMethod)) {
                 $this->hookManager->addHook($row['hook_name'], [$pluginInstance, $callbackMethod], $row['priority']);
-            } else {
-                SecureLogger::warning("[PluginManager] Method not found: {$callbackMethod} for hook {$row['hook_name']}");
+            } elseif ($this->disableOrphanHook($pluginId, $row['hook_name'], $callbackMethod)) {
+                SecureLogger::warning("[PluginManager] Disabled orphan hook '{$row['hook_name']}' → {$callbackMethod} (method missing on plugin class; likely dropped by a plugin upgrade — row kept, re-enabled on re-activation)");
             }
         }
+    }
+
+    /**
+     * Disable a hook row whose callback method no longer exists on the plugin
+     * class. Upgrades replace plugin files but do NOT re-run a plugin's
+     * onActivate() (which resyncs hooks via deleteHooks + reinsert), so a hook
+     * registered by an OLD plugin version and dropped in a NEW one lingers in
+     * plugin_hooks and logs "Method not found" on every request.
+     *
+     * The row is DISABLED (is_active = 0), not deleted: the "method missing"
+     * signal is also what a partially-deployed upgrade or a transient class-load
+     * glitch would produce, and destroying the registration would be
+     * unrecoverable without a full re-activation. Disabling stops the loader from
+     * re-loading it (both hook SELECTs filter is_active = 1) — the same "stop
+     * logging every request" outcome — while keeping the row for audit; a
+     * legitimate re-activation (deleteHooks + reinsert) cleans or restores it.
+     * Reached only for an already-instantiated plugin, so the class did load.
+     *
+     * Returns true only when a row actually flipped 1 -> 0, so the caller logs
+     * once. Concurrent requests are safe: the WHERE is_active = 1 clause is
+     * re-evaluated under the row lock, so at most one request sees the
+     * transition (a cached hook list can re-present the orphan for up to the
+     * QueryCache TTL; the UPDATE then matches zero rows silently).
+     */
+    private function disableOrphanHook(int $pluginId, string $hookName, string $callbackMethod): bool
+    {
+        $stmt = $this->db->prepare('UPDATE plugin_hooks SET is_active = 0 WHERE plugin_id = ? AND hook_name = ? AND callback_method = ? AND is_active = 1');
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('iss', $pluginId, $hookName, $callbackMethod);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+
+        return $affected > 0;
     }
 
     private function instantiatePlugin(array $plugin): object
@@ -1836,6 +1873,7 @@ class PluginManager
             SELECT hook_name, callback_method, priority
             FROM plugin_hooks
             WHERE plugin_id = ?
+              AND is_active = 1
             ORDER BY priority ASC
         ");
         $stmt->bind_param('i', $pluginId);
@@ -1851,8 +1889,8 @@ class PluginManager
             // Support both direct methods and __call magic methods
             if (method_exists($pluginInstance, $callbackMethod) || $this->hasMagicMethod($pluginInstance, $callbackMethod)) {
                 $this->hookManager->addHook($hookName, [$pluginInstance, $callbackMethod], $priority);
-            } else {
-                SecureLogger::warning("[PluginManager] Method not found: {$callbackMethod} for hook {$hookName}");
+            } elseif ($this->disableOrphanHook($pluginId, $hookName, $callbackMethod)) {
+                SecureLogger::warning("[PluginManager] Disabled orphan hook '{$hookName}' → {$callbackMethod} (method missing on plugin class; likely dropped by a plugin upgrade — row kept, re-enabled on re-activation)");
             }
         }
 

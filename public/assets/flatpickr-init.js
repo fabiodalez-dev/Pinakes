@@ -80,6 +80,24 @@
       // Initialize flatpickr
       const fp = window.flatpickr(input, config);
 
+      // altInput replaces the visible native input. Preserve the original
+      // label relationship and accessible name on Flatpickr's generated field.
+      if (fp.altInput) {
+        const originalId = input.id;
+        const label = originalId
+          ? document.querySelector(`label[for="${CSS.escape(originalId)}"]`)
+          : null;
+        const accessibleName = input.getAttribute('aria-label')
+          || (label ? label.textContent.trim() : '')
+          || input.getAttribute('placeholder')
+          || '';
+        if (originalId) {
+          fp.altInput.id = `${originalId}-display`;
+          if (label) label.htmlFor = fp.altInput.id;
+        }
+        if (accessibleName) fp.altInput.setAttribute('aria-label', accessibleName);
+      }
+
       // Handle disabled state
       if (disabled) {
         fp._input.disabled = true;

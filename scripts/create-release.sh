@@ -95,9 +95,11 @@ echo -e "${GREEN}✓ version.json is correct: $VERSION${NC}"
 echo ""
 
 # ============================================================================
-# STEP 3: Verify autoloader has NO dev dependencies
+# STEP 3: Verify schema behavior and autoloader integrity
 # ============================================================================
-echo -e "${YELLOW}[3/9] Verifying autoloader is clean (no dev deps)...${NC}"
+echo -e "${YELLOW}[3/9] Verifying schema behavior and clean autoloader...${NC}"
+
+CI_STRICT_TESTS=1 bash scripts/verify-schema.sh
 
 # PHPStan was removed from composer.json — autoloader should never reference it
 if grep -q "phpstan" vendor/composer/autoload_files.php 2>/dev/null; then
@@ -111,7 +113,7 @@ if grep -q "phpstan" vendor/composer/autoload_static.php 2>/dev/null; then
     exit 1
 fi
 
-echo -e "${GREEN}✓ Autoloader clean (no PHPStan references)${NC}"
+echo -e "${GREEN}✓ Schema gate and autoloader checks passed${NC}"
 echo ""
 
 # ============================================================================
@@ -468,7 +470,6 @@ while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
     fi
 
     ASSET_ID=$(echo "$ASSET_META" | jq -r '.id')
-    REMOTE_SIZE=$(echo "$ASSET_META" | jq -r '.size')
     REMOTE_UPLOADER=$(echo "$ASSET_META" | jq -r '.uploader')
 
     # 2. Fail loudly if the uploader is a bot — means a workflow hijacked the release

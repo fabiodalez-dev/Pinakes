@@ -54,6 +54,7 @@ function t(key) {
  */
 function scanBarcode() {
   return new Promise((resolve) => {
+    const previouslyFocused = document.activeElement;
     let stream = null;
     let rafId = null;
     let scanning = true;
@@ -139,7 +140,18 @@ function scanBarcode() {
         stream.getTracks().forEach((track) => track.stop());
         stream = null;
       }
-      video.srcObject = null;
+      // Safari/iOS may keep the video element as the active media target even
+      // after its tracks are stopped. Explicitly pause and reset it before the
+      // dialog is removed, otherwise the first tap back on the form can be
+      // consumed merely to reactivate the page.
+      try {
+        video.pause();
+        video.srcObject = null;
+        video.removeAttribute('src');
+        video.load();
+      } catch (_e) {
+        /* best-effort media teardown */
+      }
       document.removeEventListener('keydown', onKeydown);
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     }
@@ -148,7 +160,26 @@ function scanBarcode() {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve(value);
+
+      // Let the browser paint one frame without the camera overlay, then restore
+      // focus to the control that opened it. In particular, do not focus the text
+      // input after a successful scan: on mobile that reopens the virtual keyboard
+      // and commonly swallows the next tap on "Save and register another copy".
+      const settleFocus = () => {
+        if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
+          try {
+            previouslyFocused.focus({ preventScroll: true });
+          } catch (_e) {
+            previouslyFocused.focus();
+          }
+        }
+        resolve(value);
+      };
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(settleFocus);
+      } else {
+        setTimeout(settleFocus, 0);
+      }
     }
 
     function onKeydown(e) {
@@ -163,6 +194,11 @@ function scanBarcode() {
     document.addEventListener('keydown', onKeydown);
 
     document.body.appendChild(overlay);
+    try {
+      closeBtn.focus({ preventScroll: true });
+    } catch (_e) {
+      closeBtn.focus();
+    }
 
     // --- Camera + decode loop ------------------------------------------------
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -241,11 +277,6 @@ function fillTarget(input, value) {
   input.value = value;
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
-  try {
-    input.focus();
-  } catch (_e) {
-    /* ignore */
-  }
 }
 
 function init() {
@@ -258,6 +289,14 @@ function init() {
       const targetId = btn.getAttribute('data-copy-scan-target');
       const input = targetId ? document.getElementById(targetId) : null;
       if (!input) return;
+      // Mobile Safari does not always focus a tapped button. Set it explicitly
+      // before scanBarcode captures document.activeElement, so teardown always
+      // has a live, non-keyboard control to restore.
+      try {
+        btn.focus({ preventScroll: true });
+      } catch (_e) {
+        btn.focus();
+      }
       const code = await scanBarcode();
       if (code) fillTarget(input, code);
     });

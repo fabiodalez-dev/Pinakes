@@ -15,6 +15,36 @@ class CopyRepository
     }
 
     /**
+     * Sort physical-copy rows by inventory code using human/natural ordering.
+     * VARCHAR ordering puts C10 before C2; labels and the admin table must instead
+     * follow the sequence staff see on the physical copies (#238).
+     *
+     * @param array<int, array<string, mixed>> $copies
+     * @return array<int, array<string, mixed>>
+     */
+    public static function sortByInventoryNumber(array $copies): array
+    {
+        usort($copies, static function (array $left, array $right): int {
+            $leftCode = (string) ($left['numero_inventario'] ?? '');
+            $rightCode = (string) ($right['numero_inventario'] ?? '');
+            $comparison = strnatcasecmp($leftCode, $rightCode);
+            if ($comparison !== 0) {
+                return $comparison;
+            }
+
+            // Make ties deterministic across collations/case variants and repeated
+            // calls, even though inventory codes are normally globally unique.
+            $comparison = strcmp($leftCode, $rightCode);
+            if ($comparison !== 0) {
+                return $comparison;
+            }
+            return ((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0));
+        });
+
+        return $copies;
+    }
+
+    /**
      * Ottiene tutte le copie di un libro
      */
     public function getByBookId(int $bookId): array
@@ -48,6 +78,7 @@ class CopyRepository
         }
 
         $stmt->close();
+        $copie = self::sortByInventoryNumber($copie);
 
         $copyIndexes = [];
         foreach ($copie as $index => $copy) {

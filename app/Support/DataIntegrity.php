@@ -30,6 +30,7 @@ class DataIntegrity {
             // Global maintenance still obeys the circulation lock order. Lock
             // every book deterministically before touching copies; otherwise a
             // bulk copies->books update crosses web requests using books->copies.
+            // CI-SOFT-DELETE-EXEMPT: global integrity maintenance locks every book, including restorable deleted rows.
             $lockBooks = $this->db->prepare('SELECT id FROM libri ORDER BY id FOR UPDATE');
             $lockBooks->execute();
             $lockBooks->get_result()->fetch_all(MYSQLI_NUM);
@@ -276,6 +277,7 @@ class DataIntegrity {
             // every circulation write path and making deadlocks possible. Callers
             // already inside a transaction follow the same order; taking the book
             // lock again is harmless and makes that contract explicit.
+            // CI-SOFT-DELETE-EXEMPT: targeted reconciliation must repair a deleted book before a later restore.
             $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             $lockBook->bind_param('i', $bookId);
             $lockBook->execute();
@@ -465,6 +467,7 @@ class DataIntegrity {
         $stmt->close();
 
         // 3. Verifica prestiti orfani (senza libro o utente)
+        // CI-SOFT-DELETE-EXEMPT: a soft-deleted but existing book is not an orphaned foreign-key target.
         $stmt = $this->db->prepare("
             SELECT p.id, p.libro_id, p.utente_id
             FROM prestiti p
@@ -554,14 +557,19 @@ class DataIntegrity {
         }
         $stmt->close();
 
-        // 8. Verifica prenotazioni scadute ancora attive
+        // 8. Verifica prenotazioni scadute ancora attive. Orologio APPLICATIVO
+        // (DateHelper), non NOW() del server MySQL: ReservationManager::
+        // cancelExpiredReservations valuta la stessa scadenza con DateHelper —
+        // due orologi diversi sulla stessa riga segnalavano/curavano in disaccordo.
         $stmt = $this->db->prepare("
             SELECT id, libro_id, utente_id, data_scadenza_prenotazione
             FROM prenotazioni
             WHERE stato = 'attiva'
             AND data_scadenza_prenotazione IS NOT NULL
-            AND data_scadenza_prenotazione < NOW()
+            AND data_scadenza_prenotazione < ?
         ");
+        $appNow = \App\Support\DateHelper::now();
+        $stmt->bind_param('s', $appNow);
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result && $result->num_rows > 0) {
@@ -1056,14 +1064,19 @@ class DataIntegrity {
             $results['fixed'] += $this->db->affected_rows;
             $stmt->close();
 
-            // 5. Annulla prenotazioni scadute (data_scadenza_prenotazione < NOW())
+            // 5. Annulla prenotazioni scadute — orologio APPLICATIVO (DateHelper),
+            // stesso clock di ReservationManager::cancelExpiredReservations e del
+            // check n.8 sopra: con NOW() del server la stessa riga poteva risultare
+            // scaduta per un percorso e valida per l'altro a cavallo di mezzanotte.
             $stmt = $this->db->prepare("
                 UPDATE prenotazioni
                 SET stato = 'annullata'
                 WHERE stato = 'attiva'
                 AND data_scadenza_prenotazione IS NOT NULL
-                AND data_scadenza_prenotazione < NOW()
+                AND data_scadenza_prenotazione < ?
             ");
+            $appNow = \App\Support\DateHelper::now();
+            $stmt->bind_param('s', $appNow);
             $stmt->execute();
             $results['fixed'] += $this->db->affected_rows;
             $stmt->close();

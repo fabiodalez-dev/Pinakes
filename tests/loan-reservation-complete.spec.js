@@ -23,6 +23,7 @@ const { execFileSync }    = require('child_process');
 const os                  = require('os');
 const path                = require('path');
 const fs                  = require('fs');
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
 
 // ── Environment ──────────────────────────────────────────────────────────────
 const BASE         = process.env.E2E_BASE_URL   || 'http://localhost:8081';
@@ -30,6 +31,8 @@ const ADMIN_EMAIL  = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS   = process.env.E2E_ADMIN_PASS  || '';
 const DB_USER      = process.env.E2E_DB_USER     || '';
 const DB_PASS      = process.env.E2E_DB_PASS     || '';
+const DB_HOST      = process.env.E2E_DB_HOST     || '';
+const DB_PORT      = process.env.E2E_DB_PORT     || '';
 const DB_SOCKET    = process.env.E2E_DB_SOCKET   || '';
 const DB_NAME      = process.env.E2E_DB_NAME     || '';
 const MAILPIT_API  = process.env.MAILPIT_API     || 'http://localhost:8025/api/v1';
@@ -61,14 +64,11 @@ function dbQuery(sql) {
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appTodayISO();
 }
 
 function dateISO(daysOffset) {
-  const d = new Date();
-  d.setDate(d.getDate() + daysOffset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return appDateOffsetISO(daysOffset);
 }
 
 // ── Rate-limit clearing ───────────────────────────────────────────────────────
@@ -140,6 +140,7 @@ async function dismissSwal(page) {
       }
       await page.waitForFunction(
         () => !document.querySelector('.swal2-popup'),
+        null,
         { timeout: 5_000 },
       ).catch(() => {});
     }
@@ -164,6 +165,7 @@ async function requestLoanViaSwal(page, dateISO_) {
       const el = document.querySelector('#swal-date-start');
       return el && /** @type {any} */ (el)._flatpickr;
     },
+    null,
     { timeout: 8_000 },
   );
 
@@ -178,6 +180,7 @@ async function requestLoanViaSwal(page, dateISO_) {
   // Wait for outcome icon
   await page.waitForFunction(
     () => !!document.querySelector('.swal2-icon-success, .swal2-icon-error'),
+    null,
     { timeout: 15_000 },
   );
 
@@ -306,11 +309,23 @@ function performMaintenance() {
   // Remove lock file so concurrent test runs don't skip
   try { fs.unlinkSync(`${projectRoot}/storage/cache/full-maintenance.lock`); } catch { /* ignore */ }
   try {
+    // The cron reads DB_* while browser helpers read E2E_DB_*. Pass the known
+    // isolated test endpoint explicitly so this test cannot accidentally depend
+    // on an .env file left behind (or removed) by an earlier deep-regression spec.
+    const maintenanceEnv = {
+      ...process.env,
+      DB_HOST,
+      DB_PORT: DB_PORT || '3306',
+      DB_USER,
+      DB_PASS,
+      DB_NAME,
+      DB_SOCKET,
+    };
     const output = execFileSync('php', ['cron/full-maintenance.php'], {
       encoding : 'utf-8',
       timeout  : 30_000,
       cwd      : projectRoot,
-      env      : { ...process.env },
+      env      : maintenanceEnv,
     });
     return { status: 0, output };
   } catch (err) {
@@ -633,6 +648,7 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
 
     await adminPage.waitForFunction(
       () => !!document.querySelector('.swal2-icon-success') || !document.querySelector('.swal2-popup'),
+      null,
       { timeout: 15_000 },
     );
     await dismissSwal(adminPage);
@@ -828,6 +844,7 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
       await adminPage.locator('.swal2-confirm').click();
       await adminPage.waitForFunction(
         () => !!document.querySelector('.swal2-icon-success') || !document.querySelector('.swal2-popup'),
+        null,
         { timeout: 15_000 }
       );
       await dismissSwal(adminPage);

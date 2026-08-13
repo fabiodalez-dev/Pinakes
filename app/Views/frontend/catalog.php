@@ -490,7 +490,7 @@ $additional_css = "
     }
 
     .availability-option.active .availability-desc {
-        opacity: 0.9;
+        opacity: 1;
     }
 
     .availability-count {
@@ -1616,7 +1616,8 @@ ob_start();
                             <i class="fas fa-filter-circle-xmark"></i>
                             <span class="clear-filters-text"><?= __("Pulisci filtri") ?></span>
                         </button>
-                        <select class="sort-select" onchange="updateFilter('sort', this.value)" id="sort-select">
+                        <select class="sort-select" onchange="updateFilter('sort', this.value)" id="sort-select"
+                            aria-label="<?= __('Ordina per') ?>">
                             <option value="newest" <?= ($filters['sort'] ?? 'newest') === 'newest' ? 'selected' : '' ?>><?= __("Più recenti") ?></option>
                             <option value="oldest" <?= ($filters['sort'] ?? 'newest') === 'oldest' ? 'selected' : '' ?>><?= __("Più vecchi") ?></option>
                             <option value="title_asc" <?= ($filters['sort'] ?? 'newest') === 'title_asc' ? 'selected' : '' ?>><?= __("Titolo A-Z") ?></option>

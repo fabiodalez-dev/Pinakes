@@ -136,7 +136,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             <div class="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
               <?= __("Library Management System") ?>
             </div>
-            <div class="text-[10px] text-gray-400 font-mono mt-0.5">v<?php echo HtmlHelper::e($appVersion); ?></div>
+            <div class="text-[10px] text-gray-600 font-mono mt-0.5">v<?php echo HtmlHelper::e($appVersion); ?></div>
           </div>
         </a>
 
@@ -161,7 +161,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
               <div class="ml-3">
                 <div class="font-medium text-sm"><?= __("Nuovo Libro") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Aggiungi alla collezione") ?></div>
+                <div class="text-xs text-gray-600"><?= __("Aggiungi alla collezione") ?></div>
               </div>
             </a>
 
@@ -173,7 +173,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 </div>
                 <div class="ml-3">
                   <div class="font-medium text-sm"><?= __("Nuovo Prestito") ?></div>
-                  <div class="text-xs text-gray-500"><?= __("Registra prestito") ?></div>
+                  <div class="text-xs text-gray-600"><?= __("Registra prestito") ?></div>
                 </div>
               </a>
 
@@ -184,7 +184,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 </div>
                 <div class="ml-3">
                   <div class="font-medium text-sm"><?= __("Approva Prestiti") ?></div>
-                  <div class="text-xs text-gray-500"><?= __("Richieste pendenti") ?></div>
+                  <div class="text-xs text-gray-600"><?= __("Richieste pendenti") ?></div>
                 </div>
               </a>
             <?php endif; ?>
@@ -196,7 +196,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
               <div class="ml-3">
                 <div class="font-medium text-sm"><?= __("Manutenzione") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Integrità dati") ?></div>
+                <div class="text-xs text-gray-600"><?= __("Integrità dati") ?></div>
               </div>
             </a>
 
@@ -207,7 +207,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
               <div class="ml-3">
                 <div class="font-medium text-sm"><?= __("Documentazione") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Guida online") ?></div>
+                <div class="text-xs text-gray-600"><?= __("Guida online") ?></div>
               </div>
             </a>
 
@@ -220,7 +220,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
               <div class="ml-3">
                 <div class="font-medium text-sm"><?= __("Aggiornamenti") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Verifica versioni") ?></div>
+                <div class="text-xs text-gray-600"><?= __("Verifica versioni") ?></div>
               </div>
             </a>
             <?php endif; ?>
@@ -241,7 +241,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
             <div class="ml-3">
               <div class="font-medium"><?= __("Dashboard") ?></div>
-              <div class="text-xs text-gray-500"><?= __("Panoramica generale") ?></div>
+              <div class="text-xs text-gray-600"><?= __("Panoramica generale") ?></div>
             </div>
           </a>
 
@@ -531,10 +531,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                   <div class="flex items-center space-x-2">
                     <i class="fas fa-search text-gray-400 group-focus-within:text-gray-600 transition-colors"></i>
                     <span
-                      class="hidden sm:inline text-xs text-gray-400 group-focus-within:text-gray-600 transition-colors"><?= __("Cerca libri, autori, editori, utenti...") ?></span>
+                      class="hidden sm:inline text-xs text-gray-600 transition-colors"><?= __("Cerca libri, autori, editori, utenti...") ?></span>
                   </div>
                 </div>
-                <input type="text" id="global-search"
+                <input type="text" id="global-search" aria-label="<?= __('Cerca libri, autori, editori, utenti...') ?>"
                   class="w-full pl-12 pr-4 py-3 lg:py-3.5 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl shadow-sm hover:shadow-md focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all duration-200 placeholder:text-gray-400"
                   autocomplete="off">
 
@@ -715,7 +715,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <i class="fas fa-search text-gray-400"></i>
               </div>
-              <input type="text" id="mobile-global-search"
+              <input type="text" id="mobile-global-search" aria-label="<?= __('Cerca libri, autori, editori, utenti...') ?>"
                 class="w-full pl-14 pr-12 py-3 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all"
                 placeholder="<?= __('Cerca libri, autori, editori, utenti...') ?>" autocomplete="off">
               <button id="mobile-search-close" class="absolute inset-y-0 right-0 pr-4 flex items-center">
@@ -1695,7 +1695,7 @@ $htmlLang = substr($currentLocale, 0, 2);
       navLinks.forEach(link => {
         const href = link.getAttribute('href');
         if (currentPath.startsWith(href) && href !== '/' && href !== basePath && href !== basePath + '/') {
-          link.classList.add('bg-rose-50', 'text-rose-600', 'border-r-2', 'border-rose-600');
+          link.classList.add('bg-rose-50', 'text-rose-700', 'border-r-2', 'border-rose-700');
           link.classList.remove('text-gray-700');
         }
       });

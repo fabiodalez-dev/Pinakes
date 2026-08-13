@@ -127,7 +127,11 @@ test.describe.serial('SweetAlert — settings-admin-tools cluster', () => {
     try {
       const dir = path.join(BACKUP_DIR, BACKUP_FIXTURE);
       fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, 'database.sql'), '-- e2e fixture backup\n');
+      const fixture = path.join(dir, 'database.sql');
+      fs.writeFileSync(fixture, '-- e2e fixture backup\n');
+      // Apache owns the deletion request; the CI runner owns the fixture.
+      fs.chmodSync(fixture, 0o666);
+      fs.chmodSync(dir, 0o777);
     } catch { /* best effort */ }
 
     context = await browser.newContext();

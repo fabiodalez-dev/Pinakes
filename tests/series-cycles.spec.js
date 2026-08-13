@@ -315,7 +315,7 @@ test.describe.serial('Series groups and cycles', () => {
     await page.goto(`${BASE}/admin/series/detail?nome=${encodeURIComponent(MAIN_SERIES)}`);
     await page.fill('#ciclo', 'Original series');
     await page.fill('#ordine_ciclo', '1');
-    await page.click('button:has-text("Salva descrizione")');
+    await page.locator('form[action*="/admin/series/description"] button[type="submit"]').click();
     await page.waitForLoadState('networkidle');
 
     const row = dbQuery(`SELECT CONCAT_WS('|', ciclo, ordine_ciclo) FROM collane WHERE nome = '${escapeSql(MAIN_SERIES)}'`);
@@ -421,7 +421,7 @@ test.describe.serial('Series groups and cycles', () => {
     await setSeriesAutocomplete(page, 'gruppo_serie', GROUP_FAIRY);
     await page.fill('#ciclo', 'Happy spin-off');
     await page.fill('#ordine_ciclo', '4');
-    await page.click('button:has-text("Salva descrizione")');
+    await page.locator('form[action*="/admin/series/description"] button[type="submit"]').click();
     await page.waitForLoadState('networkidle');
 
     const row = dbQuery(`SELECT CONCAT_WS('|', gruppo_serie, ciclo, ordine_ciclo) FROM collane WHERE nome = '${escapeSql(HAPPY_SERIES)}'`);

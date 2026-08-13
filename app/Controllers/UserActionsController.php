@@ -71,14 +71,17 @@ class UserActionsController
         }
         $stmt->close();
 
-        // Storico prestiti (ultimi 20) - solo prestiti conclusi
+        // Storico prestiti (ultimi 20) - tutti i prestiti conclusi, inclusi
+        // annullati e scaduti (prima sparivano dallo storico). Questi non hanno
+        // data_restituzione: ordina sul momento di chiusura (updated_at) così
+        // un annullamento recente non finisce in fondo alla lista.
         $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_restituzione, pr.stato,
                        l.titolo, l.copertina_url,
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) as has_review
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
-                WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato')
-                ORDER BY pr.data_restituzione DESC, pr.data_prestito DESC
+                WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato','annullato','scaduto')
+                ORDER BY COALESCE(pr.data_restituzione, pr.updated_at) DESC, pr.data_prestito DESC
                 LIMIT 20";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('ii', $uid, $uid);
@@ -159,6 +162,7 @@ class UserActionsController
 
             // Lock della riga libri per serializzare rilascio copia, promozione
             // coda e ricalcolo disponibilità con gli altri percorsi sullo stesso libro.
+            // CI-SOFT-DELETE-EXEMPT: user cancellation must release existing circulation state for a deleted book.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -218,6 +222,8 @@ class UserActionsController
             // queued reservations. Loop until none convert. Both queues (D5/BUG10).
             $reservationManager = new \App\Controllers\ReservationManager($db);
             $reservationManager->setExternalTransaction(true);
+            // Reassignment and every queue promotion share this outer transaction:
+            // any exception reaches the catch below and rolls all mutations back.
             for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability((int) $loan['libro_id']); $promoGuard++) {
                 // keep promoting while freed capacity converts the next queued reservation
             }
@@ -291,6 +297,7 @@ class UserActionsController
 
             // Lock the book row to serialize the queue reorder + availability
             // recalculation with other paths working on the same book's queue.
+            // CI-SOFT-DELETE-EXEMPT: reservation cancellation must unblock a deleted book's existing queue.
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -605,6 +612,8 @@ class UserActionsController
             // Promote immediately before performing slower email I/O, minimizing
             // the post-commit window in which another request could claim the
             // same copy. The canonical approval path re-checks every constraint.
+            // ?string: the persisted state ('prenotato'/'da_ritirare') on
+            // success, null when the request stays pending.
             $autoApproved = $this->autoApproveLoanRequest($request, $db, $newLoanId);
 
             // A successfully auto-approved request no longer needs admin action.
@@ -623,6 +632,10 @@ class UserActionsController
                 'loan_request_success' => 1,
                 'loan_id' => $newLoanId,
                 'auto_approved' => $autoApproved ? 1 : 0,
+                // Thread the persisted state through the redirect so the alert
+                // can distinguish a scheduled ('prenotato') loan from one
+                // awaiting pickup ('da_ritirare').
+                'loan_state' => $autoApproved ?? '',
             ]);
 
         } catch (\Throwable $e) {
@@ -784,14 +797,21 @@ class UserActionsController
      * A failure deliberately leaves the request pending, so an administrator can
      * still process it instead of losing an otherwise valid request.
      */
-    private function autoApproveLoanRequest(Request $request, mysqli $db, int $loanId): bool
+    private function autoApproveLoanRequest(Request $request, mysqli $db, int $loanId): ?string
     {
-        $settings = new \App\Models\SettingsRepository($db);
-        if (!$settings->autoApproveLoanRequests()) {
-            return false;
-        }
-
+        // The settings read runs INSIDE the try: this helper is called AFTER the
+        // request is committed, so a DB hiccup in the SettingsRepository lookup
+        // must degrade to "left pending" (return null) rather than escape to the
+        // outer transaction catch, which would roll back and report a failure for
+        // an already durable request.
         try {
+            $settings = new \App\Models\SettingsRepository($db);
+            if (!$settings->autoApproveLoanRequests()) {
+                // A disabled setting is not a failure: leave the request pending
+                // for an admin without logging any warning noise.
+                return null;
+            }
+
             $approvalRequest = $request
                 ->withParsedBody(['loan_id' => $loanId])
                 ->withAttribute('automatic_loan_approval', true);
@@ -802,7 +822,13 @@ class UserActionsController
             );
 
             if ($result->getStatusCode() >= 200 && $result->getStatusCode() < 300) {
-                return true;
+                // Return the state approveLoan actually persisted ('prenotato'
+                // for a future-dated loan, 'da_ritirare' for an immediate one)
+                // so the caller can describe the real outcome.
+                $body = json_decode((string) $result->getBody(), true);
+                return is_array($body) && isset($body['loan_state']) && is_string($body['loan_state'])
+                    ? $body['loan_state']
+                    : 'da_ritirare';
             }
 
             SecureLogger::warning('Automatic loan approval left request pending', [
@@ -816,7 +842,7 @@ class UserActionsController
             ]);
         }
 
-        return false;
+        return null;
     }
 
     /**

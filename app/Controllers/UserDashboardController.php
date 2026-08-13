@@ -45,8 +45,9 @@ class UserDashboardController
             $stats['preferiti'] = (int)($res->fetch_assoc()['c'] ?? 0);
             $stmt->close();
             
-            // Count user loan history (exclude soft-deleted books)
-            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti p JOIN libri l ON p.libro_id = l.id WHERE p.utente_id = ? AND p.attivo = 0 AND p.stato IN ('restituito','perso','danneggiato') AND l.deleted_at IS NULL");
+            // Count user loan history (exclude soft-deleted books) — includes
+            // cancelled/expired loans, same predicate as the history list below.
+            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti p JOIN libri l ON p.libro_id = l.id WHERE p.utente_id = ? AND p.attivo = 0 AND p.stato IN ('restituito','perso','danneggiato','annullato','scaduto') AND l.deleted_at IS NULL");
             $stmt->bind_param('i', $userId);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -181,15 +182,17 @@ class UserDashboardController
             }
             $stmt->close();
 
-            // Past loans (completed)
+            // Past loans (completed) — includes cancelled/expired loans, which have
+            // no data_restituzione: order on the closing moment (updated_at) so a
+            // recent cancellation doesn't sink to the bottom of the list.
             $stmt = $db->prepare("
                 SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_restituzione, pr.stato,
                        l.titolo, l.copertina_url,
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) AS has_review
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id
-                WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato') AND l.deleted_at IS NULL
-                ORDER BY pr.data_restituzione DESC, pr.data_prestito DESC
+                WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato','annullato','scaduto') AND l.deleted_at IS NULL
+                ORDER BY COALESCE(pr.data_restituzione, pr.updated_at) DESC, pr.data_prestito DESC
                 LIMIT 50
             ");
             $stmt->bind_param('ii', $userId, $userId);

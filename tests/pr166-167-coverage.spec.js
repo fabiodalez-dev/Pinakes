@@ -118,8 +118,9 @@ function apiPost(page, urlPath, params) {
   return page.evaluate(async ({ u, p }) => {
     const body = new URLSearchParams(Object.assign({ csrf_token: csrfToken }, p)).toString();
     const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
-    let j = null; try { j = await r.json(); } catch (e) {}
-    return { status: r.status, json: j };
+    const text = await r.text();
+    let j = null; try { j = JSON.parse(text); } catch (e) {}
+    return { status: r.status, json: j, text };
   }, { u: BASE + urlPath, p: params });
 }
 
@@ -256,7 +257,7 @@ test.describe.serial('G1 — Backup', () => {
       await page.waitForFunction(() => {
         const el = document.getElementById('backupListContainer');
         return el && !el.innerHTML.includes('fa-spinner');
-      }, { timeout: 15000 });
+      }, null, { timeout: 15000 });
 
       // The row for the legacy dir should contain the 'Formato legacy' text
       // and must NOT contain a btn-backup-restore element.
@@ -382,7 +383,7 @@ test.describe.serial('G2 — Restore', () => {
     await page.waitForFunction(() => {
       const el = document.getElementById('backupListContainer');
       return el && !el.innerHTML.includes('fa-spinner');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     const firstBackupName = await page.evaluate(() => {
       const btn = document.querySelector('.btn-backup-restore');
@@ -410,7 +411,7 @@ test.describe.serial('G2 — Restore', () => {
     await page.waitForFunction(() => {
       const el = document.getElementById('backupListContainer');
       return el && !el.innerHTML.includes('fa-spinner');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     // Track fetch calls to restore-upload.
     const restoreUploadRequests = [];
@@ -459,7 +460,7 @@ test.describe.serial('G2 — Restore', () => {
     await page.waitForFunction(() => {
       const el = document.getElementById('backupListContainer');
       return el && !el.innerHTML.includes('fa-spinner');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     // Find a real .zip backup to upload.
     const zipFiles = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.zip'));
@@ -505,7 +506,7 @@ test.describe.serial('G2 — Restore', () => {
     await page.waitForFunction(() => {
       const el = document.getElementById('backupListContainer');
       return el && !el.innerHTML.includes('fa-spinner');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     // Pick a backup name to use (doesn't matter which; fetch is monkeypatched).
     const backupName = CREATED_BACKUPS[0] || 'backup_fake.zip';
@@ -563,12 +564,21 @@ test.describe.serial('G2 — Restore', () => {
 test.describe.serial('G3 — Concurrency / lock', () => {
   /** @type {import('@playwright/test').Page} */
   let page;
+  let browserRef;
 
   test.beforeAll(async ({ browser }) => {
+    browserRef = browser;
     page = await browser.newPage();
     await login(page, ADMIN_EMAIL, ADMIN_PASS);
     await gotoUpdates(page);
     fs.mkdirSync(path.dirname(LOCK_FILE), { recursive: true });
+    // Standalone runs may not have created the persistent lock inode yet.
+    // Once Apache creates it, ownership deliberately remains with www-data;
+    // CLI probes below therefore open the shared inode read-only.
+    if (!fs.existsSync(LOCK_FILE)) {
+      fs.writeFileSync(LOCK_FILE, '', { mode: 0o666 });
+      fs.chmodSync(LOCK_FILE, 0o666);
+    }
   });
 
   test.afterAll(async () => {
@@ -576,45 +586,115 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     await page?.close();
   });
 
-  // Spawn a detached PHP process that holds an exclusive flock on update.lock
-  // for `seconds`, so concurrent restores deterministically hit the lock
-  // instead of racing the (fast) real restore.
-  function holdLock(seconds) {
+  function canAcquireLock() {
     const lf = LOCK_FILE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const code = `$f=fopen('${lf}','c'); if($f===false){exit(1);} flock($f,LOCK_EX); sleep(${seconds}); flock($f,LOCK_UN); fclose($f);`;
-    const child = spawn('php', ['-r', code], { detached: true, stdio: 'ignore' });
-    child.unref();
-    return child;
+    const code = `$f=fopen('${lf}','r'); if($f===false){exit(2);} if(!flock($f,LOCK_EX|LOCK_NB)){exit(1);} flock($f,LOCK_UN); fclose($f);`;
+    return spawnSync('php', ['-r', code], { stdio: 'ignore' }).status === 0;
+  }
+
+  async function waitForLock(acquirable, timeout = 8000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      if (canAcquireLock() === acquirable) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`update lock did not become ${acquirable ? 'available' : 'held'} within ${timeout} ms`);
+  }
+
+  // Spawn a supervised PHP process that holds an exclusive flock until stdin
+  // closes. The READY handshake proves acquisition, while awaiting process exit
+  // proves the OS released the descriptor before the next assertion.
+  function holdLock() {
+    const lf = LOCK_FILE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const code = `$f=fopen('${lf}','r'); if($f===false){fwrite(STDERR,"open failed\\n");exit(1);} if(!flock($f,LOCK_EX|LOCK_NB)){fwrite(STDERR,"flock failed\\n");exit(2);} fwrite(STDOUT,"READY\\n");fflush(STDOUT);fgets(STDIN);flock($f,LOCK_UN);fclose($f);`;
+    const child = spawn('php', ['-r', code], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    const exited = new Promise((resolve) => child.once('exit', resolve));
+    const ready = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`lock holder READY timeout: ${stderr.trim()}`)), 8000);
+      child.stdout.once('data', (chunk) => {
+        clearTimeout(timer);
+        if (chunk.toString().includes('READY')) resolve();
+        else reject(new Error(`unexpected lock holder output: ${chunk.toString()}`));
+      });
+      child.once('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.once('exit', (code) => {
+        clearTimeout(timer);
+        if (code !== 0) reject(new Error(`lock holder exited ${code}: ${stderr.trim()}`));
+      });
+    });
+    return {
+      ready,
+      release: async () => {
+        if (child.exitCode === null) child.stdin.end();
+        let timer;
+        try {
+          await Promise.race([
+            exited,
+            new Promise((_, reject) => {
+              timer = setTimeout(() => reject(new Error('lock holder exit timeout')), 8000);
+            }),
+          ]);
+        } catch (error) {
+          if (child.exitCode === null) child.kill('SIGKILL');
+          throw error;
+        } finally {
+          clearTimeout(timer);
+        }
+      },
+    };
+  }
+
+  async function releaseLock(holder) {
+    await holder.release();
   }
 
   test('13. Two concurrent restores are both rejected while the lock is held', async () => {
     const backup = await createBackup(page, 'full');
-    holdLock(3);
-    await new Promise((r) => setTimeout(r, 400)); // let the holder acquire the lock
-    expect(fs.existsSync(LOCK_FILE)).toBe(true);
 
-    const [a, b] = await Promise.all([
-      apiPost(page, '/admin/updates/backup/restore', { backup }),
-      apiPost(page, '/admin/updates/backup/restore', { backup }),
+    // Independent sessions prevent PHP's per-session lock from serialising the
+    // requests before they can exercise the shared update flock.
+    const ctxA = await browserRef.newContext();
+    const ctxB = await browserRef.newContext();
+    const pageA = await ctxA.newPage();
+    const pageB = await ctxB.newPage();
+    await Promise.all([
+      login(pageA, ADMIN_EMAIL, ADMIN_PASS).then(() => gotoUpdates(pageA)),
+      login(pageB, ADMIN_EMAIL, ADMIN_PASS).then(() => gotoUpdates(pageB)),
     ]);
-    const errs = [a, b].map((r) => (r.json && r.json.error) || '');
-    // Both concurrent restores are rejected by the held lock (not queued).
-    for (const e of errs) expect(e).toMatch(/già in corso/i);
+    const holder = holdLock();
+    try {
+      await holder.ready;
+      await waitForLock(false);
+      const [a, b] = await Promise.all([
+        apiPost(pageA, '/admin/updates/backup/restore', { backup }),
+        apiPost(pageB, '/admin/updates/backup/restore', { backup }),
+      ]);
+      // Both concurrent restores are rejected by the held lock (not queued).
+      for (const result of [a, b]) {
+        expect(result.status, result.text).toBe(409);
+        expect(result.json?.error || result.text).toMatch(/già in corso/i);
+      }
+    } finally {
+      await Promise.all([ctxA.close(), ctxB.close()]);
+      await releaseLock(holder);
+    }
 
-    // Wait for the holder to release, then a restore succeeds again.
-    await new Promise((r) => setTimeout(r, 3200));
+    // The supervised holder has exited; a real restore is the authoritative
+    // proof that the application can acquire the shared lock again. Avoid a
+    // redundant CLI probe here: after two concurrent Apache responses, an
+    // immediate third-party flock probe can race PHP request shutdown even
+    // though BackupManager has already returned both 409 responses.
     const ok = await apiPost(page, '/admin/updates/backup/restore', { backup });
     expect(ok.json?.success).toBe(true);
     if (ok.json?.safety_backup) CREATED_BACKUPS.push(ok.json.safety_backup);
   });
 
   test('14. Maintenance clears after restore; persistent lock inode is released', async () => {
-    const canAcquireLock = () => {
-      const lf = LOCK_FILE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      const code = `$f=fopen('${lf}','c'); if($f===false){exit(2);} if(!flock($f,LOCK_EX|LOCK_NB)){exit(1);} flock($f,LOCK_UN); fclose($f);`;
-      return spawnSync('php', ['-r', code], { stdio: 'ignore' }).status === 0;
-    };
-
     // (a) A real restore leaves no maintenance flag and releases the flock.
     const backup = await createBackup(page, 'full');
     const res = await apiPost(page, '/admin/updates/backup/restore', { backup });
@@ -625,24 +705,32 @@ test.describe.serial('G3 — Concurrency / lock', () => {
     expect(canAcquireLock()).toBe(true);
 
     // (b) While a holder owns the lock acquisition fails; afterwards it works.
-    holdLock(2);
-    await new Promise((r) => setTimeout(r, 400));
-    expect(fs.existsSync(LOCK_FILE)).toBe(true);
-    expect(canAcquireLock()).toBe(false);
-    await new Promise((r) => setTimeout(r, 2200));
+    const holder = holdLock();
+    try {
+      await holder.ready;
+      await waitForLock(false);
+      expect(fs.existsSync(LOCK_FILE)).toBe(true);
+      expect(canAcquireLock()).toBe(false);
+    } finally {
+      await releaseLock(holder);
+    }
     expect(fs.existsSync(LOCK_FILE)).toBe(true);
     expect(canAcquireLock()).toBe(true);
   });
 
   test('15. A restore is rejected while an update-style lock is held', async () => {
     const backup = await createBackup(page, 'full');
-    holdLock(3);
-    await new Promise((r) => setTimeout(r, 400));
-    const res = await apiPost(page, '/admin/updates/backup/restore', { backup });
-    expect((res.json && res.json.error) || '').toMatch(/già in corso/i);
+    const holder = holdLock();
+    try {
+      await holder.ready;
+      await waitForLock(false);
+      const res = await apiPost(page, '/admin/updates/backup/restore', { backup });
+      expect((res.json && res.json.error) || '').toMatch(/già in corso/i);
+    } finally {
+      await releaseLock(holder);
+    }
 
     // After release the same restore goes through.
-    await new Promise((r) => setTimeout(r, 3200));
     const ok = await apiPost(page, '/admin/updates/backup/restore', { backup });
     expect(ok.json?.success).toBe(true);
     if (ok.json?.safety_backup) CREATED_BACKUPS.push(ok.json.safety_backup);

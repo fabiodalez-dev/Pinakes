@@ -353,7 +353,17 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     await page.locator('input[name="copie_totali"]').fill('1');
     await page.locator('#tipo_media').selectOption('disco');
     await page.locator('input[name="formato"]').fill('cd_audio');
-    await page.locator('textarea[name="descrizione"]').fill('Manual test tracklist');
+    await page.evaluate((value) => {
+      const textarea = document.querySelector('textarea[name="descrizione"]');
+      const editor = window.tinymce?.get('descrizione');
+      if (editor) {
+        editor.setContent(value);
+        editor.save();
+      } else if (textarea) {
+        textarea.value = value;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }, 'Manual test tracklist');
 
     manualDiscId = await saveCurrentForm(page);
     expect(manualDiscId).toBeGreaterThan(0);

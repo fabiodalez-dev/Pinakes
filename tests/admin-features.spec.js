@@ -1,6 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -656,7 +657,7 @@ test.describe.serial('Book Creation & ISBN Scraping', () => {
       await page.waitForFunction(() => {
         const sel = document.querySelector('#radice_select');
         return sel && sel.options.length > 1;
-      }, { timeout: 10000 });
+      }, null, { timeout: 10000 });
       await genreSelect.selectOption({ index: 1 });
     }
 
@@ -740,8 +741,8 @@ test.describe.serial('Concurrent Loan Prevention', () => {
 
   test('Create loan requests for both users via DB', async () => {
     // Insert pending loan requests for both users on the same book (1 copy)
-    const today = new Date().toISOString().slice(0, 10);
-    const returnDate = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    const today = appTodayISO();
+    const returnDate = appDateOffsetISO(14);
 
     dbQuery(`INSERT INTO prestiti (utente_id, libro_id, data_prestito, data_scadenza, stato, attivo) VALUES (${testUserId1}, ${testBookId}, '${today}', '${returnDate}', 'pendente', 0)`);
     dbQuery(`INSERT INTO prestiti (utente_id, libro_id, data_prestito, data_scadenza, stato, attivo) VALUES (${testUserId2}, ${testBookId}, '${today}', '${returnDate}', 'pendente', 0)`);

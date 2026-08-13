@@ -1,28 +1,9 @@
 <?php
 use App\Support\HtmlHelper;
 
-// Helper function to generate status badges for the loan status
-function getLoanStatusBadge($status) {
-    $baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium';
-    switch ($status) {
-        case 'pendente':
-            return "<span class='$baseClasses bg-amber-100 text-amber-800'><i class='fas fa-hourglass-half mr-2'></i>" . __("In attesa") . "</span>";
-        case 'prenotato':
-            return "<span class='$baseClasses bg-purple-100 text-purple-800'><i class='fas fa-bookmark mr-2'></i>" . __("Prenotato") . "</span>";
-        case 'in_corso':
-            return "<span class='$baseClasses bg-blue-100 text-blue-800'><i class='fas fa-clock mr-2'></i>" . __("In Corso") . "</span>";
-        case 'in_ritardo':
-            return "<span class='$baseClasses bg-yellow-100 text-yellow-800'><i class='fas fa-exclamation-triangle mr-2'></i>" . __("In Ritardo") . "</span>";
-        case 'restituito':
-            return "<span class='$baseClasses bg-green-100 text-green-800'><i class='fas fa-check-circle mr-2'></i>" . __("Restituito") . "</span>";
-        case 'perso':
-            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Perso") . "</span>";
-        case 'danneggiato':
-            return "<span class='$baseClasses bg-red-100 text-red-800'><i class='fas fa-times-circle mr-2'></i>" . __("Danneggiato") . "</span>";
-        default:
-            return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . __("Sconosciuto") . "</span>";
-    }
-}
+// Badge canonico degli stati prestito (#333): colore/icona/etichetta arrivano
+// dal partial condiviso, niente mappa locale da tenere allineata.
+require_once __DIR__ . '/../partials/loan-status-badge.php';
 
 $id = (int)($utente['id'] ?? 0);
 $name = trim(($utente['nome'] ?? '') . ' ' . ($utente['cognome'] ?? ''));
@@ -309,7 +290,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
-                                <?= getLoanStatusBadge($prestito['stato']); ?>
+                                <?= loan_status_badge($prestito['stato'] ?? null); ?>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right">
                                 <a href="<?= htmlspecialchars(url('/admin/loans/details/' . (int)$prestito['id']), ENT_QUOTES, 'UTF-8') ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="Dettagli Prestito">

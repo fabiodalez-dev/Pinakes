@@ -20,6 +20,7 @@ use App\Support\AuthorName;
  * @var bool $userHasActiveWish Whether user has active wishlist item
  * @var array $seriesBooks Other books in the same series (collana)
  * @var string $collana Series/collection name
+ * @var int $defaultRequestLoanDays Effective configured default duration for loan requests
  */
 
 // Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
@@ -1581,12 +1582,16 @@ $additional_css = "
         min-width: 0;
     }
 
-    /* Phones and small tablets: the desktop grid packs 2+ partial, cut-off cards.
-       Switch to a horizontal snap-scroll strip that shows ONE whole book per view
-       and snaps book-by-book, so all related books are reachable by swiping.
-       Breakpoint raised to 767px so every phone (and small portrait tablet) gets
-       the one-book carousel instead of clipped grid cards. */
-    @media (max-width: 767px) {
+    /* Phones, tablets AND narrow desktop windows: the desktop grid packs one row
+       and vertically CLIPS every related book past the first row (grid-auto-rows:0
+       + overflow:hidden) with no hint that more exist. Switch to a horizontal
+       snap-scroll strip so all related books are reachable by swiping and the next
+       card peeks as the affordance. Breakpoint raised from 767px to 1023.98px so
+       the narrow/responsive range — where the grid used to clip in silence — also
+       gets the carousel, not just phones. Per-card width is tuned per sub-range
+       below (one dominant book on phones, ~2.5 denser books on tablet/narrow
+       desktop). */
+    @media (max-width: 1023.98px) {
         .related-books-grid {
             display: flex;
             flex-wrap: nowrap;
@@ -1624,6 +1629,17 @@ $additional_css = "
             flex: 0 0 85%;
             scroll-snap-align: start;
             scroll-snap-stop: always;
+        }
+    }
+
+    /* Tablet / narrow desktop (768–1023.98px): same snap-scroll strip as phones,
+       but denser — show two whole books with a third clearly half-visible instead
+       of one dominant cover. The half-card peek is an unmistakable scroll-for-more
+       cue at this width, where the old grid clipped extras out of sight.
+       Overrides only flex-basis; flex-grow/shrink stay 0 from the shorthand above. */
+    @media (min-width: 768px) and (max-width: 1023.98px) {
+        .related-book-cell {
+            flex-basis: 38%;
         }
     }
 
@@ -1894,7 +1910,7 @@ ob_start();
                                 ? ($book['copie_totali'] > 1
                                     ? "{$book['copie_disponibili']}/{$book['copie_totali']} " . __("Disponibili")
                                     : __("Disponibile"))
-                                : __("Non Disponibile") ?>
+                                : __("Non disponibile oggi") /* lo snapshot è di OGGI: il calendario può mostrare giorni futuri liberi */ ?>
                         </span>
                     </div>
 
@@ -1945,9 +1961,20 @@ ob_start();
                 <div id="book-alerts">
                     <?php if (!empty($_GET['loan_request_success'])): ?>
                         <div class="alert alert-success relative pr-12 fade show" role="alert">
-                            <i class="fas fa-check-circle mr-2"></i><?= !empty($_GET['auto_approved'])
-                              ? __("Prestito approvato. Il libro è in attesa di ritiro.")
-                              : __("Prestito richiesto con successo.") ?>
+                            <i class="fas fa-check-circle mr-2"></i><?php
+                              // Branch on the persisted state (F009): a future-dated
+                              // auto-approved loan is 'prenotato' (scheduled), not
+                              // awaiting pickup.
+                              $loanStateRaw = $_GET['loan_state'] ?? '';
+                              $loanStateKey = is_scalar($loanStateRaw) ? (string) $loanStateRaw : '';
+                              if (!empty($_GET['auto_approved'])) {
+                                  echo $loanStateKey === 'prenotato'
+                                      ? __("Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.")
+                                      : __("Prestito approvato. Il libro è in attesa di ritiro.");
+                              } else {
+                                  echo __("Prestito richiesto con successo.");
+                              }
+                            ?>
                             <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['loan_error'])): ?>
@@ -2435,7 +2462,7 @@ ob_start();
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
                                 <span class="book-status-inline <?= ($book['copie_disponibili'] > 0) ? 'is-available' : 'is-unavailable' ?>">
-                                    <?= ($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non Disponibile") ?>
+                                    <?= ($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non disponibile oggi") ?>
                                 </span>
                             </div>
                         </div>
@@ -2609,8 +2636,8 @@ ob_start();
   var cells = Array.prototype.slice.call(grid.querySelectorAll('.related-book-cell'));
   if (!cells.length) { return; }
   function sync() {
-    // Phone scroll mode (F003): the @media(max-width:480px) rule turns the grid
-    // into a horizontal snap-scroll strip (overflow-x:auto), where every card is
+    // Scroll mode: the @media(max-width:1023.98px) rule turns the grid into a
+    // horizontal snap-scroll strip (overflow-x:auto), where every card is
     // reachable by swiping — nothing is clipped. Clear any inert/aria-hidden/
     // tabindex the desktop path may have set and bail out. The desktop clip mode
     // uses overflow:hidden (overflow-x:hidden), so overflowX==='auto' unambiguously
@@ -2803,8 +2830,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     const csrf = meta ? meta.getAttribute('content') : '';
     const successRangeTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
-    const successOneMonthTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%s</strong> per 1 mese'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     const successFootnote = <?php echo json_encode(__('Riceverai una conferma via email appena la richiesta sarà approvata.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    // #301: con l'auto-approvazione attiva il server risponde auto_approved=true
+    // e il prestito è GIÀ in attesa di ritiro — il copy "appena sarà approvata"
+    // sarebbe falso e l'utente aspetterebbe un'approvazione già avvenuta.
+    const approvedTitle = <?php echo json_encode(__('Prestito approvato!'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const approvedFootnote = <?php echo json_encode(__('La tua richiesta è stata approvata automaticamente: riceverai una email con le istruzioni per il ritiro.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    // #301/F009: a future-dated request is auto-approved into stato 'prenotato'
+    // (scheduled, no pickup deadline yet) — the "pickup instructions" copy above
+    // would be false, so the scheduled case gets its own title/footnote.
+    const scheduledTitle = <?php echo json_encode(__('Prestito prenotato con successo'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const scheduledFootnote = <?php echo json_encode(__('Prestito prenotato: riceverai le istruzioni per il ritiro quando la data di inizio si avvicina.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    // F040: chi ha già una prenotazione attiva su questo libro vedrebbe un
+    // calendario tutto verde (il picker esclude la sua stessa prenotazione) ma
+    // la guardia anti-duplicato di createReservation rifiuterebbe ogni data.
+    // Meglio spiegarlo subito invece di aprire un picker destinato a fallire.
+    const alreadyReservedMsg = <?php echo json_encode(__('Hai già una prenotazione attiva per questo libro. Attendi che venga evasa prima di richiederne una nuova.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const appToday = <?php echo json_encode(\App\Support\DateHelper::today(), JSON_HEX_TAG); ?>;
+    const defaultRequestLoanDays = <?= (int) $defaultRequestLoanDays ?>;
+
+    function addDaysToIso(isoDate, days) {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate || '');
+      if (!match) return isoDate;
+      const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    }
 
     async function updateReservationsBadge() {
       const badge = document.getElementById('nav-res-count');
@@ -2834,16 +2885,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      // Note: Uses local timezone (getFullYear/getMonth/getDate) rather than UTC,
-      // which is intentional — loan dates should reflect the user's local date.
-      const iso = (dt) => {
-        const y = dt.getFullYear();
-        const m = String(dt.getMonth() + 1).padStart(2, '0');
-        const d = String(dt.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-      };
-      let earliestAvailable = new Date();
-      let suggestedDate = iso(earliestAvailable);
+      // Loan dates follow the library's configured clock, including for users
+      // whose browser is in a different timezone near the day boundary.
+      let suggestedDate = appToday;
 
       if (window.Swal) {
         // Fetch availability data for the calendar
@@ -2856,14 +2900,21 @@ document.addEventListener('DOMContentLoaded', function() {
           if (availRes.ok) {
             const availData = await availRes.json();
             if (availData.success && availData.availability) {
+              // F040: dead-end guard — a fully-green picker whose every date the
+              // duplicate guard rejects. Explain and stop instead of opening it.
+              if (availData.availability.has_active_reservation === true) {
+                await Swal.fire({
+                  icon: 'info',
+                  title: __('Richiesta Prestito'),
+                  text: alreadyReservedMsg,
+                  confirmButtonText: __('OK')
+                });
+                return;
+              }
               disabledDates = availData.availability.unavailable_dates || [];
               if (availData.availability.earliest_available) {
-                const parts = String(availData.availability.earliest_available).split('-').map(Number);
-                if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-                  earliestAvailable = new Date(parts[0], parts[1] - 1, parts[2]);
-                } else {
-                  earliestAvailable = new Date(); // fallback: today
-                }
+                const earliest = String(availData.availability.earliest_available);
+                suggestedDate = /^\d{4}-\d{2}-\d{2}$/.test(earliest) ? earliest : appToday;
               }
               if (Array.isArray(availData.availability.days)) {
                 availabilityByDate = availData.availability.days.reduce((acc, day) => {
@@ -2886,7 +2937,6 @@ document.addEventListener('DOMContentLoaded', function() {
           console.error('Error fetching availability:', e);
         }
 
-        suggestedDate = iso(earliestAvailable);
         const formatDateIT = (dateStr) => {
           if (!dateStr) { return ''; }
           const parts = dateStr.split('-');
@@ -2920,7 +2970,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `</div>`+
             `<div class="loan-request-field">`+
             `<label class="loan-request-label" data-for-picker="end">${__('Fino a quando? (opzionale):')}</label>`+
-            `<input id="swal-date-end" type="text" class="loan-date-input" placeholder="<?= __('Lascia vuoto per 1 mese') ?>">`+
+            `<input id="swal-date-end" type="text" class="loan-date-input" placeholder="<?= htmlspecialchars(__('Durata predefinita prestito') . ': ' . __('%d giorni', (int) $defaultRequestLoanDays), ENT_QUOTES, 'UTF-8') ?>">`+
             `</div>`+
             `<p class="loan-request-note">`+
             `<i class="fas fa-info-circle mr-1"></i>`+
@@ -2956,7 +3006,7 @@ document.addEventListener('DOMContentLoaded', function() {
               disableMobile: true,
               altInput: true,
               altFormat: forceEn ? 'm-d-Y' : 'd-m-Y',
-              minDate: 'today',
+              minDate: appToday,
               maxDate: maxAvailableDate || undefined,
               defaultDate: suggestedDate,
               locale: forceEn ? 'en' : (fpLocale || 'default'),
@@ -3009,14 +3059,11 @@ document.addEventListener('DOMContentLoaded', function() {
               startPicker = window.flatpickr(startEl, {
                 ...baseOpts,
                 onChange: function(selectedDates, dateStr, instance) {
-                  if (selectedDates.length > 0) {
-                    // Auto-set end date to 1 month after start date
-                    const startDate = new Date(selectedDates[0]);
-                    const endDate = new Date(startDate);
-                    endDate.setMonth(endDate.getMonth() + 1);
+                  if (selectedDates.length > 0 && dateStr) {
+                    const endDate = addDaysToIso(dateStr, defaultRequestLoanDays);
                     if (endPicker) {
                       endPicker.setDate(endDate, true);
-                      endPicker.set('minDate', startDate);
+                      endPicker.set('minDate', dateStr);
                     }
                   }
                 }
@@ -3024,7 +3071,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
               endPicker = window.flatpickr(endEl, {
                 ...baseOpts,
-                minDate: earliestAvailable,
+                minDate: suggestedDate,
                 maxDate: undefined // End date can extend beyond availability range
               });
 
@@ -3080,14 +3127,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (res.ok && result.success) {
               await updateReservationsBadge();
-              const successHtml = formValues.endDate
-                ? successRangeTpl.replace('%1$s', formatDateIT(formValues.startDate)).replace('%2$s', formatDateIT(formValues.endDate))
-                : successOneMonthTpl.replace('%s', formatDateIT(formValues.startDate));
+              const effectiveEndDate = formValues.endDate || addDaysToIso(formValues.startDate, defaultRequestLoanDays);
+              const successHtml = successRangeTpl
+                .replace('%1$s', formatDateIT(formValues.startDate))
+                .replace('%2$s', formatDateIT(effectiveEndDate));
 
+              const isAutoApproved = result.auto_approved === true;
+              // A scheduled ('prenotato') loan is not awaiting pickup yet: branch
+              // the footnote so it doesn't promise imminent pickup instructions.
+              const isScheduled = result.loan_state === 'prenotato';
+              const approvedFootnoteText = isScheduled ? scheduledFootnote : approvedFootnote;
               Swal.fire({
                 icon: 'success',
-                title: __('Richiesta Inviata!'),
-                html: `${successHtml}<br><small>${successFootnote}</small>`
+                title: isAutoApproved ? (isScheduled ? scheduledTitle : approvedTitle) : __('Richiesta Inviata!'),
+                html: `${successHtml}<br><small>${isAutoApproved ? approvedFootnoteText : successFootnote}</small>`
               });
               return;
             } else {

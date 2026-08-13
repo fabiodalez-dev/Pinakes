@@ -124,7 +124,7 @@ aContains("Hooks::add('scrape.isbn.validate', [\$this, 'validateBarcode']", $dis
     'T7  discogs registers validateBarcode on scrape.isbn.validate');
 
 if ($scrapingPro === null) {
-    fwrite(STDOUT, "SKIP: T8  scraping-pro premium plugin not present (not bundled) — cross-plugin emit check skipped\n");
+    fwrite(STDOUT, "INFO: T8  scraping-pro premium plugin is not bundled; its optional cross-plugin contract is out of scope\n");
 } else {
     aContains("Hooks::apply('scrape.data.modify'", $scrapingPro,
         'T8  scraping-pro still emits scrape.data.modify (cross-plugin enrichment path preserved)');

@@ -161,6 +161,7 @@ class ReservationReassignmentService
         // 2. Se abbiamo trovato una prenotazione da sbloccare, proviamo ad assegnarla alla nuova copia
         $ownTransaction = $this->beginTransactionIfNeeded();
         try {
+            // CI-SOFT-DELETE-EXEMPT: an existing hold must be released/reassigned even if its book is deleted.
             $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             $lockBook->bind_param('i', $libroId);
             $lockBook->execute();
@@ -318,6 +319,7 @@ class ReservationReassignmentService
             // Riassegna
             $ownTransaction = $this->beginTransactionIfNeeded();
             try {
+                // CI-SOFT-DELETE-EXEMPT: retrying an existing hold must serialize a deleted book's circulation rows.
                 $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
                 $lockBook->bind_param('i', $libroId);
                 $lockBook->execute();
@@ -443,6 +445,7 @@ class ReservationReassignmentService
 
         $ownTransaction = $this->beginTransactionIfNeeded();
         try {
+            // CI-SOFT-DELETE-EXEMPT: releasing an unassignable hold must work for a deleted book.
             $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             $lockBook->bind_param('i', $libroId);
             $lockBook->execute();

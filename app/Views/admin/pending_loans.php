@@ -1,7 +1,9 @@
 <!-- Main Content Area -->
 <div class="flex-1 overflow-x-hidden">
-    <!-- Page Header -->
-    <div class="bg-white/50 backdrop-blur-sm border-b border-gray-200/80 dark:bg-gray-900/50 dark:border-gray-800/80 sticky top-0 z-30">
+    <!-- Page Header — non sticky: con sticky top-0 z-30 (stesso z-index dell'header
+         del layout, ma successivo nel DOM) copriva l'header dell'app e il dropdown
+         delle notifiche durante lo scroll (#334). -->
+    <div class="bg-white/50 backdrop-blur-sm border-b border-gray-200/80 dark:bg-gray-900/50 dark:border-gray-800/80">
         <div class="px-6 py-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
@@ -56,7 +58,8 @@
 
     <!-- Content -->
     <div class="p-6 space-y-8">
-        <?php $today = date('Y-m-d'); ?>
+        <?php // "Oggi" nel timezone applicativo: stessa base del cron e della dashboard
+        $today = \App\Support\DateHelper::today(); ?>
 
         <!-- Section 1: Overdue Loans (in_ritardo) - Most Urgent -->
         <?php if (!empty($overdueLoans)): ?>
@@ -149,7 +152,7 @@
                                     <h3 class="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2"><?= htmlspecialchars($loan['titolo']) ?></h3>
                                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                                         <i class="fas fa-box text-[10px]"></i>
-                                        <?= __("Da Ritirare") ?>
+                                        <?= htmlspecialchars(translate_loan_status('da_ritirare'), ENT_QUOTES, 'UTF-8') ?>
                                     </span>
                                     <div class="space-y-1 text-xs mt-2">
                                         <p class="text-gray-600 dark:text-gray-400 flex items-center">
@@ -352,7 +355,7 @@
                                         <?php if ($isExpiringSoon): ?>
                                             <?= sprintf(__("Scade tra %d giorni"), max(0, $daysLeft)) ?>
                                         <?php else: ?>
-                                            <?= __("In Corso") ?>
+                                            <?= htmlspecialchars(translate_loan_status('in_corso'), ENT_QUOTES, 'UTF-8') ?>
                                         <?php endif; ?>
                                     </span>
                                     <div class="space-y-1 text-xs mt-2">

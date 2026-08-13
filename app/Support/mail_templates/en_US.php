@@ -187,6 +187,19 @@ return [
 </div>
 <p>Happy reading!</p>',
     ],
+    'loan_renewed' => [
+        'subject' => '🔄 Your loan has been renewed',
+        'body' => '<h2>Your loan has been renewed</h2>
+<p>Hi {{utente_nome}},</p>
+<p>Your loan of <strong>"{{libro_titolo}}"</strong> has been renewed.</p>
+<p><strong>Renewal details:</strong></p>
+<ul>
+    <li>New due date: {{data_fine}}</li>
+    <li>Renewals still available: {{rinnovi_rimanenti}}</li>
+</ul>
+<p><strong>Important:</strong> Please return the book by the new due date. You will receive a reminder a few days before.</p>
+<p>Happy reading!</p>',
+    ],
     'loan_rejected' => [
         'subject' => '❌ Your loan request was not approved',
         'body' => '<h2>Your loan request was not approved</h2>

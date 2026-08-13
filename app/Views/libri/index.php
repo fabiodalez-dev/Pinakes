@@ -125,7 +125,7 @@ $libri = $data['libri'];
         <div class="flex flex-wrap items-end gap-3">
           <!-- Search Text -->
           <div class="w-full md:flex-1 md:min-w-[200px] md:w-auto">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="search_text" class="block text-xs font-medium text-gray-500 mb-1">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
             <input id="search_text" type="text" placeholder="<?= __('Titolo, sottotitolo, descrizione...') ?>"
@@ -134,7 +134,7 @@ $libri = $data['libri'];
 
           <!-- ISBN/EAN -->
           <div class="w-full md:w-44">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="search_isbn" class="block text-xs font-medium text-gray-500 mb-1">
               <i class="fas fa-barcode mr-1"></i>ISBN/EAN
             </label>
             <input id="search_isbn" type="text" placeholder="<?= __('ISBN o EAN...') ?>"
@@ -143,7 +143,7 @@ $libri = $data['libri'];
 
           <!-- Author Autocomplete -->
           <div class="w-[calc(50%-0.375rem)] md:w-44 relative">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="filter_autore" class="block text-xs font-medium text-gray-500 mb-1">
               <i class="fas fa-user-edit mr-1"></i><?= __("Autore") ?>
             </label>
             <input id="filter_autore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
@@ -154,7 +154,7 @@ $libri = $data['libri'];
 
           <!-- Publisher Autocomplete -->
           <div class="w-[calc(50%-0.375rem)] md:w-44 relative">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="filter_editore" class="block text-xs font-medium text-gray-500 mb-1">
               <i class="fas fa-building mr-1"></i><?= __("Editore") ?>
             </label>
             <input id="filter_editore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
@@ -165,7 +165,7 @@ $libri = $data['libri'];
 
           <!-- Genre Autocomplete -->
           <div class="w-[calc(50%-0.375rem)] md:w-44 relative">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="filter_genere" class="block text-xs font-medium text-gray-500 mb-1">
               <i class="fas fa-tags mr-1"></i><?= __("Genere") ?>
             </label>
             <input id="filter_genere" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
@@ -176,7 +176,7 @@ $libri = $data['libri'];
 
           <!-- Status -->
           <div class="w-[calc(50%-0.375rem)] md:w-36">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="stato_filter" class="block text-xs font-medium text-gray-500 mb-1">
               <i class="fas fa-info-circle mr-1"></i><?= __("Stato") ?>
             </label>
             <select id="stato_filter" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
@@ -191,7 +191,7 @@ $libri = $data['libri'];
 
           <!-- Media Type -->
           <div class="w-[calc(50%-0.375rem)] md:w-36">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="tipo_media_filter" class="block text-xs font-medium text-gray-500 mb-1">
               <i class="fas fa-compact-disc mr-1"></i><?= __("Tipo Media") ?>
             </label>
             <select id="tipo_media_filter" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
@@ -308,7 +308,7 @@ $libri = $data['libri'];
             <thead>
               <tr>
                 <th class="text-center">
-                  <input type="checkbox" id="select-all" class="w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" />
+                  <input type="checkbox" id="select-all" aria-label="<?= __('Seleziona tutti') ?>" class="w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" />
                 </th>
                 <th><?= __("Stato") ?></th>
                 <th aria-label="<?= __("Tipo Media") ?>"><i class="fas fa-compact-disc text-gray-400" title="<?= __("Tipo Media") ?>" aria-hidden="true"></i></th>

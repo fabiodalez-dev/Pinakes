@@ -247,8 +247,8 @@ test.describe.serial('SweetAlert: loans & reservations cluster', () => {
     await expect(adminPage.locator('.swal2-icon.swal2-error')).toBeVisible();
   });
 
-  // index.php:543 (confirm-destructive reject) — server DELETEs the row
-  test('index widget: reject pending loan shows confirm + deletes the row', async () => {
+  // index.php:543 (confirm-destructive reject) — server sets stato='annullato' (#335)
+  test('index widget: reject pending loan shows confirm + cancels the row (annullato)', async () => {
     clearLoans();
     const loanId = makeLoan({ stato: 'pendente', attivo: 0 });
 
@@ -261,12 +261,16 @@ test.describe.serial('SweetAlert: loans & reservations cluster', () => {
     await expect(adminPage.locator('.swal2-popup')).toContainText('Rifiuta');
     await adminPage.locator('.swal2-confirm').click();
 
-    // success toast then DB row gone
+    // success then #335 state transition: the row is kept as 'annullato'
+    // (audit + re-request), not deleted.
     await adminPage.waitForSelector('.swal2-icon.swal2-success', { timeout: 10000 });
+    const okBtn = adminPage.locator('.swal2-confirm');
+    await expect(okBtn).toBeVisible();
+    await okBtn.click();
     await expect.poll(
-      () => dbQuery(`SELECT COUNT(*) FROM prestiti WHERE id = ${loanId}`),
+      () => dbQuery(`SELECT stato FROM prestiti WHERE id = ${loanId}`).trim(),
       { timeout: 10000 }
-    ).toBe('0');
+    ).toBe('annullato');
   });
 
   // index.php:583 (form-prompt export dialog) — error branch + redirect branch
@@ -358,7 +362,7 @@ test.describe.serial('SweetAlert: loans & reservations cluster', () => {
   });
 
   // dettagli_prestito.php:269 (form-prompt reject textarea) + :307 (success modal)
-  test('details page: reject pending loan prompts textarea + success modal, deletes row', async () => {
+  test('details page: reject pending loan prompts textarea + success modal, cancels row (annullato)', async () => {
     clearLoans();
     const loanId = makeLoan({ stato: 'pendente', attivo: 0 });
 
@@ -379,11 +383,11 @@ test.describe.serial('SweetAlert: loans & reservations cluster', () => {
     await adminPage.locator('.swal2-confirm').click();
     await adminPage.waitForURL(/\/admin\/loans$/, { timeout: 10000 });
 
-    // reject DELETEs the pending loan
+    // #335: reject cancels the pending loan (stato='annullato'), keeping the row
     await expect.poll(
-      () => dbQuery(`SELECT COUNT(*) FROM prestiti WHERE id = ${loanId}`),
+      () => dbQuery(`SELECT stato FROM prestiti WHERE id = ${loanId}`).trim(),
       { timeout: 10000 }
-    ).toBe('0');
+    ).toBe('annullato');
   });
 
   // ═══════════════════════════════════════════════════════════════════════

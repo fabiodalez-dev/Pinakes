@@ -9,17 +9,54 @@ const DB_USER   = process.env.E2E_DB_USER   || '';
 const DB_PASS   = process.env.E2E_DB_PASS   || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const DB_NAME   = process.env.E2E_DB_NAME   || '';
+const DB_HOST   = process.env.E2E_DB_HOST   || '';
+const DB_PORT   = process.env.E2E_DB_PORT   || '';
 
 function dbQuery(sql) {
-  const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
-  if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
-  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
+  const args = [];
+  if (DB_HOST) { args.push('-h', DB_HOST); if (DB_PORT) args.push('-P', DB_PORT); }
+  else if (DB_SOCKET) args.push('-S', DB_SOCKET);
+  args.push('-u', DB_USER, DB_NAME, '-N', '-B', '-e', sql);
+  return execFileSync('mysql', args, {
+    encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS },
+  }).trim();
 }
 
 function dbExec(sql) {
-  const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-e', sql];
-  if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
-  execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 });
+  const args = [];
+  if (DB_HOST) { args.push('-h', DB_HOST); if (DB_PORT) args.push('-P', DB_PORT); }
+  else if (DB_SOCKET) args.push('-S', DB_SOCKET);
+  args.push('-u', DB_USER, DB_NAME, '-e', sql);
+  execFileSync('mysql', args, {
+    encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS },
+  });
+}
+
+async function loginAsAdmin(page) {
+  await page.goto(`${BASE}/accedi`);
+  await page.fill('input[name="email"]', ADMIN_EMAIL);
+  await page.fill('input[name="password"]', ADMIN_PASS);
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL((url) => !url.toString().includes('/accedi'), { timeout: 15000 });
+}
+
+async function setLlmsTxt(page, enabled) {
+  await page.goto(`${BASE}/admin/settings?tab=advanced`);
+  const toggle = page.locator('#llms_txt_enabled');
+  await toggle.waitFor({ state: 'attached', timeout: 10000 });
+  const result = await toggle.evaluate(async (el, on) => {
+    el.checked = on;
+    const form = el.closest('form');
+    if (!form) return { status: 0, url: '' };
+    const response = await fetch(form.action, {
+      method: 'POST', body: new FormData(form), credentials: 'same-origin',
+    });
+    return { status: response.status, url: response.url };
+  }, enabled);
+  expect(result.status).toBe(200);
+  expect(new URL(result.url).pathname).toBe('/admin/settings');
+  expect(dbQuery("SELECT setting_value FROM system_settings WHERE category='seo' AND setting_key='llms_txt_enabled'"))
+    .toBe(enabled ? '1' : '0');
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -319,22 +356,26 @@ test.describe('Robots.txt', () => {
 // ────────────────────────────────────────────────────────────────────────
 test.describe.serial('llms.txt', () => {
   let llmsWasEnabled = false;
+  let adminContext;
+  let adminPage;
 
-  test.beforeAll(async () => {
-    test.skip(!DB_SOCKET, 'E2E DB credentials not configured');
-    // Enable llms.txt directly in DB (more reliable than UI toggle with sr-only checkbox)
+  test.beforeAll(async ({ browser }) => {
+    if (!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME) {
+      throw new Error('E2E admin and database credentials are required');
+    }
     const currentVal = dbQuery(`SELECT setting_value FROM system_settings WHERE category='seo' AND setting_key='llms_txt_enabled'`);
     llmsWasEnabled = currentVal === '1';
-    if (!llmsWasEnabled) {
-      dbExec(`INSERT INTO system_settings (category, setting_key, setting_value, updated_at) VALUES ('seo', 'llms_txt_enabled', '1', NOW()) ON DUPLICATE KEY UPDATE setting_value='1'`);
-    }
+    adminContext = await browser.newContext();
+    adminPage = await adminContext.newPage();
+    await loginAsAdmin(adminPage);
+    await setLlmsTxt(adminPage, true);
   });
 
   test.afterAll(async () => {
-    if (!llmsWasEnabled) {
-      try {
-        dbExec(`UPDATE system_settings SET setting_value='0' WHERE category='seo' AND setting_key='llms_txt_enabled'`);
-      } catch { /* ignore cleanup errors */ }
+    try {
+      if (adminPage) await setLlmsTxt(adminPage, llmsWasEnabled);
+    } finally {
+      await adminContext?.close();
     }
   });
 

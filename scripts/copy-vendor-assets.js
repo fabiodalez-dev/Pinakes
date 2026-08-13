@@ -47,11 +47,6 @@ function copyFile(src, dest) {
 // Define assets to copy
 const assets = [
     {
-        name: 'Green Audio Player',
-        from: 'node_modules/green-audio-player/dist',
-        to: 'public/assets/vendor/green-audio-player'
-    },
-    {
         name: 'Sortable.js',
         from: 'node_modules/sortablejs',
         to: 'public/assets/vendor/sortablejs'
@@ -88,7 +83,8 @@ for (const asset of assets) {
 console.log(`\n📊 Summary: ${successCount} copied, ${errorCount} failed\n`);
 
 if (errorCount > 0) {
-    console.log('⚠️  Some assets failed to copy. Plugin functionality may be limited.');
+    console.error('✗ Required vendor assets are missing; refusing a partial build.');
+    process.exit(1);
 }
 
 process.exit(0);

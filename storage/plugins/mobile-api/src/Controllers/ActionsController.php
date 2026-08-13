@@ -89,7 +89,7 @@ final class ActionsController
 
             // Active loans (scheduled / to-pickup / in-progress / overdue).
             $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.data_restituzione,
-                           pr.stato, pr.renewals, l.titolo, l.copertina_url
+                           pr.stato, pr.renewals, pr.created_at, l.titolo, l.copertina_url
                     FROM prestiti pr
                     JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
                     WHERE pr.utente_id = ? AND pr.attivo = 1
@@ -99,13 +99,17 @@ final class ActionsController
                 $active[] = $this->mapLoan($r);
             }
 
-            // Concluded history (most recent 30).
-            $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_restituzione, pr.stato,
-                           l.titolo, l.copertina_url
+            // Concluded history (most recent 30) — includes cancelled/expired
+            // loans like the web history. They have no data_restituzione: order
+            // on the closing moment (updated_at) so a recent cancellation does
+            // not sink to the bottom. `status` is documented as the raw
+            // prestiti.stato value, so the extra states are additive.
+            $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.data_restituzione,
+                           pr.stato, pr.created_at, l.titolo, l.copertina_url
                     FROM prestiti pr
                     JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
-                    WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato')
-                    ORDER BY pr.data_restituzione DESC, pr.data_prestito DESC
+                    WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato IN ('restituito','perso','danneggiato','annullato','scaduto')
+                    ORDER BY COALESCE(pr.data_restituzione, pr.updated_at) DESC, pr.data_prestito DESC
                     LIMIT 30";
             foreach ($this->fetchScoped($sql, $userId) as $r) {
                 $history[] = $this->mapLoan($r);
@@ -972,6 +976,16 @@ final class ActionsController
             'title'        => (string) ($r['titolo'] ?? ''),
             'cover_url'    => absoluteUrl($this->coverPath($r['copertina_url'] ?? null)),
             'status'       => $status,
+            // Additive since 1.4.3: server-localized label from the canonical
+            // translate_loan_status() helper (#333). For KNOWN states clients
+            // keep their own device-localized wording; this is the fallback for
+            // states a client version doesn't recognize yet.
+            'status_label' => translate_loan_status($status),
+            // Additive since 1.4.3: the date the loan request was created
+            // (DATE part of created_at). For cancelled/expired loans — which
+            // never went out — this is the only honest date to show; loaned_at
+            // is the *requested start*, not a borrow date.
+            'requested_at' => !empty($r['created_at']) ? substr((string) $r['created_at'], 0, 10) : null,
             'loaned_at'    => $this->nullableString($r['data_prestito'] ?? null),
             'due_at'       => $dueAt,
             // Server-authoritative visibility cue: the Android device may be in a

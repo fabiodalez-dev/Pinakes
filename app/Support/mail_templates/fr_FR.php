@@ -187,6 +187,19 @@ return [
 </div>
 <p>Bonne lecture !</p>',
     ],
+    'loan_renewed' => [
+        'subject' => '🔄 Votre prêt a été renouvelé',
+        'body' => '<h2>Votre prêt a été renouvelé</h2>
+<p>Bonjour {{utente_nome}},</p>
+<p>Le prêt du livre <strong>"{{libro_titolo}}"</strong> a été renouvelé.</p>
+<p><strong>Détails du renouvellement :</strong></p>
+<ul>
+    <li>Nouvelle date d\'échéance : {{data_fine}}</li>
+    <li>Renouvellements encore disponibles : {{rinnovi_rimanenti}}</li>
+</ul>
+<p><strong>Important :</strong> Pensez à rendre le livre avant la nouvelle date d\'échéance. Vous recevrez un rappel quelques jours avant.</p>
+<p>Bonne lecture !</p>',
+    ],
     'loan_rejected' => [
         'subject' => '❌ Votre demande de prêt n\'a pas été approuvée',
         'body' => '<h2>Votre demande de prêt n\'a pas été approuvée</h2>

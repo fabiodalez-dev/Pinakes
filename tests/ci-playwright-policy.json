@@ -1,0 +1,39 @@
+{
+  "bootstrap": [
+    "full-test.spec.js"
+  ],
+  "setup": [
+    "interop-00-activate-plugins.spec.js",
+    "archives-seed-50.spec.js",
+    "seed-catalog.spec.js",
+    "persistent-seed-crud.spec.js"
+  ],
+  "dedicated": [
+    {
+      "file": "accessibility-cross-browser.spec.js",
+      "reason": "Runs against the packaged release in Chromium, Firefox and WebKit with axe-core in ci-browser-security.yml."
+    },
+    {
+      "file": "multilang-install-i18n.spec.js",
+      "reason": "Runs in the isolated fresh-database locale matrix in ci-deep-regression.yml."
+    },
+    {
+      "file": "install-english-issue112.spec.js",
+      "reason": "The English fresh-install regression is covered by the isolated en_US locale matrix."
+    },
+    {
+      "file": "smoke-install.spec.js",
+      "reason": "The complete fresh-install lifecycle is the mandatory bootstrap; rerunning this suite after installation would skip installer assertions."
+    },
+    {
+      "file": "install-french.spec.js",
+      "reason": "The French fresh-install path is covered in the isolated fr_FR locale matrix; post-install execution would skip its installer assertions."
+    }
+  ],
+  "excluded": [
+    {
+      "file": "pr-136-archives-ric-cm-additional.spec.js",
+      "reason": "Historical branch-only review suite that reads origin/feat/ric-cm-archives; its merged behavior has dedicated archive suites."
+    }
+  ]
+}

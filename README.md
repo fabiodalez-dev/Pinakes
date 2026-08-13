@@ -39,17 +39,28 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New
 
-Highlights of the latest release are below. The full version-by-version history (v0.7.52 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
+Highlights of the latest release are below. The full version-by-version history (v0.7.58 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.52 — latest
+### v0.7.59 — latest
 
-A mobile alignment fix for the book page.
+A consolidation release: four feature/fix branches integrated and hardened together, with a security pass on top.
+
+### New
+- **"Complete series" indicator** — admins can mark a series as complete; the flag shows on the series list and detail pages (#338).
 
 ### Fixes
-- **The book info and share cards line up with the rest of the sheet on mobile** — their contents were inset by the cards' own horizontal padding, sitting further right than the title, the description and the section headings. On phones that padding is dropped so the metadata rows and the social buttons sit flush at the same edge as everything else.
+- **Loan editing from the admin page works again** — the availability re-check no longer bounces every edit, and dates are validated strictly (#336).
+- **Loan status no longer shows "Unknown"** — cancelled and expired loans render their real state through canonical status/label helpers (#333).
+- **The notifications panel is no longer overlapped** in the admin during scroll (#334).
+- **Loan & reservation coherence** — clocks, availability and date handling share the same guarded paths across the web UI, mobile API and background jobs; auto-approval now honours the setting on the book-detail request path too (#301).
+- **The barcode scanner keeps focus** on the loan form and copies sort in natural order (#238).
+- **Related books are reachable on narrow and tablet screens** — the strip now shows a scroll affordance instead of silently clipping cards.
+
+### Security
+- Framework-generated error responses now receive the same nonce-based Content Security Policy as normal pages.
 
 ### Database Changes
-- None — a view and the compiled layout CSS only.
+- Adds a `collane.is_completa` flag; the in-app updater applies the migration automatically on upgrade.
 
 ### Upgrade Notes
 - Back up your database before updating (the in-app updater does this automatically).

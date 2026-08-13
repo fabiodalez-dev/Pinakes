@@ -3163,6 +3163,17 @@ class Updater
     }
 
     /**
+     * Single migration-range rule used by the runner and its regression tests.
+     * Keeping this decision in production code prevents tests from mirroring a
+     * predicate that can silently drift away from runMigrations().
+     */
+    public static function shouldRunMigration(string $migrationVersion, string $fromVersion, string $toVersion): bool
+    {
+        return version_compare($migrationVersion, $fromVersion, '>')
+            && version_compare($migrationVersion, $toVersion, '<=');
+    }
+
+    /**
      * Run database migrations between versions
      * @return array{success: bool, executed: array<string>, error: string|null}
      */
@@ -3217,8 +3228,7 @@ class Updater
                         'is_lte_to' => version_compare($migrationVersion, $toVersion, '<=')
                     ]);
 
-                    if (version_compare($migrationVersion, $fromVersion, '>') &&
-                        version_compare($migrationVersion, $toVersion, '<=')) {
+                    if (self::shouldRunMigration($migrationVersion, $fromVersion, $toVersion)) {
 
                         if ($this->isMigrationExecuted($migrationVersion)) {
                             $this->debugLog('DEBUG', 'Migrazione già eseguita, skip', ['version' => $migrationVersion]);
