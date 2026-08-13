@@ -5034,9 +5034,9 @@ input:where([type='file']):focus {
 .border-red-500\/30 {
   border-color: rgb(239 68 68 / 0.3);
 }
-.border-rose-600 {
+.border-rose-700 {
   --tw-border-opacity: 1;
-  border-color: rgb(225 29 72 / var(--tw-border-opacity, 1));
+  border-color: rgb(190 18 60 / var(--tw-border-opacity, 1));
 }
 .border-slate-200 {
   --tw-border-opacity: 1;
@@ -6011,9 +6011,9 @@ input:where([type='file']):focus {
   --tw-text-opacity: 1;
   color: rgb(127 29 29 / var(--tw-text-opacity, 1));
 }
-.text-rose-600 {
+.text-rose-700 {
   --tw-text-opacity: 1;
-  color: rgb(225 29 72 / var(--tw-text-opacity, 1));
+  color: rgb(190 18 60 / var(--tw-text-opacity, 1));
 }
 .text-sky-800 {
   --tw-text-opacity: 1;
