@@ -60,5 +60,10 @@ $check($normalize('01234567890123') === null, '14-digit input is rejected');
 $check($normalize('') === null, 'empty input is rejected');
 $check($normalize('not-a-barcode') === null, 'non-numeric input is rejected');
 
+// A stray letter must not be silently stripped into a valid barcode: only
+// spaces and dashes are separators, anything else invalidates the cell.
+$check($normalize('ABC036000291452') === null, 'letters around a valid UPC-A do not make it valid');
+$check($normalize("978-88-04-76317-8") === '9788804763178', 'a dash-separated EAN-13 is accepted');
+
 echo PHP_EOL . "Passed: {$passed}, Failed: {$failed}" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);

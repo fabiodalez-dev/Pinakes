@@ -289,6 +289,27 @@ class LibriController
     }
 
     /**
+     * Validate a UPC-A (GTIN-12) barcode by its mod-10 check digit.
+     *
+     * UPC-A weights the first 11 digits 3,1,3,1,… (odd positions ×3), and the
+     * 12th is the check digit. Used to decide whether a 12-digit ean may be
+     * canonicalised to its GTIN-13 form ('0' + upc) — we only rewrite a code
+     * that is actually a valid UPC-A, never fabricate a GTIN from a bad value.
+     */
+    private static function isValidUpcA(string $code): bool
+    {
+        if (strlen($code) !== 12 || !ctype_digit($code)) {
+            return false;
+        }
+        $sum = 0;
+        for ($i = 0; $i < 11; $i++) {
+            $sum += (int) $code[$i] * ($i % 2 === 0 ? 3 : 1);
+        }
+        $check = (10 - ($sum % 10)) % 10;
+        return $check === (int) $code[11];
+    }
+
+    /**
      * Rotate log files to prevent unlimited growth
      * Keeps only last 7 days of logs, max 10MB per file
      */
@@ -819,12 +840,12 @@ class LibriController
 
                 $fields[$codeKey] = preg_replace('/[\s-]+/', '', $rawValue);
 
-                // UPC-A (12 digits) is EAN-13 with a leading zero. Canonicalise
-                // to the 13-digit GTIN so a UPC typed here dedups against the
-                // same barcode imported via CSV/TSV. (issue #348)
-                if ($codeKey === 'ean'
-                    && strlen((string) $fields[$codeKey]) === 12
-                    && ctype_digit((string) $fields[$codeKey])) {
+                // A VALID UPC-A (12 digits) is EAN-13 with a leading zero, and
+                // the zero-padding preserves its check digit. Canonicalise it to
+                // the 13-digit GTIN so a UPC typed here dedups against the same
+                // barcode imported via CSV/TSV; an invalid or non-UPC value is
+                // left untouched (never fabricate a GTIN from a bad code). (#348)
+                if ($codeKey === 'ean' && self::isValidUpcA((string) $fields[$codeKey])) {
                     $fields[$codeKey] = '0' . $fields[$codeKey];
                 }
             }
@@ -1395,12 +1416,12 @@ class LibriController
 
                 $fields[$codeKey] = preg_replace('/[\s-]+/', '', $rawValue);
 
-                // UPC-A (12 digits) is EAN-13 with a leading zero. Canonicalise
-                // to the 13-digit GTIN so a UPC typed here dedups against the
-                // same barcode imported via CSV/TSV. (issue #348)
-                if ($codeKey === 'ean'
-                    && strlen((string) $fields[$codeKey]) === 12
-                    && ctype_digit((string) $fields[$codeKey])) {
+                // A VALID UPC-A (12 digits) is EAN-13 with a leading zero, and
+                // the zero-padding preserves its check digit. Canonicalise it to
+                // the 13-digit GTIN so a UPC typed here dedups against the same
+                // barcode imported via CSV/TSV; an invalid or non-UPC value is
+                // left untouched (never fabricate a GTIN from a bad code). (#348)
+                if ($codeKey === 'ean' && self::isValidUpcA((string) $fields[$codeKey])) {
                     $fields[$codeKey] = '0' . $fields[$codeKey];
                 }
             }
