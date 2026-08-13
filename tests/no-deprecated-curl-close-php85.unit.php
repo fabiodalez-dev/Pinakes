@@ -13,11 +13,11 @@ declare(strict_types=1);
  * though the scrape succeeded. (The z39-server SBN/SRU clients sit in the ISBN
  * scrape path, which is how this first bit.)
  *
- * The fix is to drop the deprecated calls entirely. This guard keeps them out:
- * a real call passes a handle — `curl_close($ch)` — whereas the retained
- * marker comment is `curl_close(): no-op ...` with empty parens, so scanning
- * for `curl_close(` immediately followed by `$` catches every active call
- * without flagging the comments.
+ * The fix is to drop the deprecated calls entirely. This guard keeps them out.
+ * Detection is token-based (token_get_all), not line-based, so a call split
+ * across lines — curl_close(\n $ch \n) — is still caught. A call is flagged
+ * only when it passes at least one argument, so the retained marker comment
+ * `curl_close(): no-op ...` (a single T_COMMENT token) is never matched.
  */
 
 $roots = [
@@ -25,6 +25,40 @@ $roots = [
     dirname(__DIR__) . '/storage/plugins',
     dirname(__DIR__) . '/public',
 ];
+
+/**
+ * Return the index of the next semantically meaningful token at or after $from
+ * (skipping whitespace and comments), or null if none remains.
+ *
+ * @param array<int, array{0:int,1:string,2:int}|string> $tokens
+ */
+$nextMeaningful = static function (array $tokens, int $from): ?int {
+    $count = count($tokens);
+    for ($i = $from; $i < $count; $i++) {
+        $t = $tokens[$i];
+        if (is_array($t) && ($t[0] === T_WHITESPACE || $t[0] === T_COMMENT || $t[0] === T_DOC_COMMENT)) {
+            continue;
+        }
+        return $i;
+    }
+    return null;
+};
+
+/**
+ * Return the index of the previous meaningful token before $from, or null.
+ *
+ * @param array<int, array{0:int,1:string,2:int}|string> $tokens
+ */
+$prevMeaningful = static function (array $tokens, int $from): ?int {
+    for ($i = $from - 1; $i >= 0; $i--) {
+        $t = $tokens[$i];
+        if (is_array($t) && ($t[0] === T_WHITESPACE || $t[0] === T_COMMENT || $t[0] === T_DOC_COMMENT)) {
+            continue;
+        }
+        return $i;
+    }
+    return null;
+};
 
 $violations = [];
 foreach ($roots as $root) {
@@ -38,15 +72,37 @@ foreach ($roots as $root) {
         if ($file->getExtension() !== 'php') {
             continue;
         }
-        $lines = file($file->getPathname(), FILE_IGNORE_NEW_LINES) ?: [];
-        foreach ($lines as $n => $line) {
-            // A real call passes a handle: curl_close($...). The retained
-            // marker comment is `curl_close():` with empty parens, so it is
-            // never matched here.
-            if (preg_match('/curl_close\s*\(\s*\$/', $line)) {
-                $rel = str_replace(dirname(__DIR__) . '/', '', $file->getPathname());
-                $violations[] = $rel . ':' . ($n + 1) . '  ' . trim($line);
+        $src = file_get_contents($file->getPathname());
+        if ($src === false) {
+            continue;
+        }
+        $tokens = token_get_all($src);
+        $count = count($tokens);
+        for ($i = 0; $i < $count; $i++) {
+            $t = $tokens[$i];
+            if (!is_array($t) || $t[0] !== T_STRING || strcasecmp($t[1], 'curl_close') !== 0) {
+                continue;
             }
+            // Skip a method call ($obj->curl_close / Class::curl_close): the
+            // deprecated global function is a bare call, never a member access.
+            $prev = $prevMeaningful($tokens, $i);
+            if ($prev !== null && is_array($tokens[$prev])
+                && in_array($tokens[$prev][0], [T_OBJECT_OPERATOR, T_DOUBLE_COLON, T_NULLSAFE_OBJECT_OPERATOR], true)) {
+                continue;
+            }
+            // Must be a call: the next meaningful token is '('.
+            $open = $nextMeaningful($tokens, $i + 1);
+            if ($open === null || $tokens[$open] !== '(') {
+                continue;
+            }
+            // Flag only when at least one argument is passed — an empty
+            // curl_close() would be a no-op we do not care about.
+            $arg = $nextMeaningful($tokens, $open + 1);
+            if ($arg === null || $tokens[$arg] === ')') {
+                continue;
+            }
+            $rel = str_replace(dirname(__DIR__) . '/', '', $file->getPathname());
+            $violations[] = $rel . ':' . $t[2];
         }
     }
 }

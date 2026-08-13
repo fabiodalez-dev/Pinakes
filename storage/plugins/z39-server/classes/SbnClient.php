@@ -247,6 +247,8 @@ class SbnClient
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS => 3,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_USERAGENT => 'Pinakes Library System/1.0',
                 CURLOPT_HTTPHEADER => [
                     'Accept: application/json',
@@ -942,6 +944,8 @@ class SbnClient
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 3,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_USERAGENT => 'Pinakes Library System/1.0 (+https://github.com/biblioteche)',
             CURLOPT_HTTPHEADER => [
                 'Accept: application/json',

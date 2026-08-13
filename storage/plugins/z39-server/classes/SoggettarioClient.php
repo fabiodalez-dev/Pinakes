@@ -111,6 +111,8 @@ class SoggettarioClient
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 3,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_USERAGENT => 'Pinakes Library System/1.0',
             CURLOPT_HTTPHEADER => ['Accept: text/html', 'Accept-Language: it-IT,it;q=0.9'],
         ]);
