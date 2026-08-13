@@ -314,7 +314,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <div>
             <label for="stato" class="form-label"><?= __("Disponibilità") ?></label>
             <?php $statoCorrente = strtolower((string) ($book['stato'] ?? '')); ?>
-            <select id="stato" name="stato" class="form-input">
+            <select id="stato" name="stato" class="form-input" disabled aria-readonly="true">
               <option value="disponibile" <?php echo $statoCorrente === 'disponibile' ? 'selected' : ''; ?>><?= __("Disponibile") ?></option>
               <option value="non_disponibile" <?php echo $statoCorrente === 'non_disponibile' ? 'selected' : ''; ?>><?= __("Non Disponibile") ?></option>
               <option value="prestato" <?php echo $statoCorrente === 'prestato' ? 'selected' : ''; ?>><?= __("Prestato") ?></option>
