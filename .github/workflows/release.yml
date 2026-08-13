@@ -114,8 +114,14 @@ jobs:
           # The value is supplied by the trusted push tag, not PR-controlled data.
           # shellcheck disable=SC2153
           version=${RELEASE_TAG#v}
+          # The section ends at the NEXT second-level version heading in either
+          # supported format: the current "## [X.Y.Z]" or the legacy
+          # "## What's New in vX.Y.Z" (the "." matches the apostrophe so the
+          # single-quoted awk program needs no shell-quoting gymnastics).
+          # Bounding only on "## [" would capture the whole rest of the file
+          # whenever the neighbouring entry below is legacy-formatted.
           section=$(awk -v version="$version" \
-            '$0 ~ "^## \\[" version "\\]" {flag=1; next} /^## \[/ {flag=0} flag' \
+            '$0 ~ "^## \\[" version "\\]" {flag=1; next} /^## (\[|What.s New in v)/ {flag=0} flag' \
             CHANGELOG.md)
           if [ -z "$(printf '%s' "$section" | tr -d '[:space:]')" ]; then
             section="See CHANGELOG.md for details."
@@ -143,6 +149,33 @@ jobs:
             release_flags+=(--latest)
           fi
           gh release create "$TAG_NAME" "${assets[@]}" "${release_flags[@]}"
+
+      - name: Trigger the Docker image rebuild (stable only, non-fatal)
+        # This workflow replaced create-release.sh, which fired this dispatch so
+        # pinakes-docker rebuilds and republishes the image on a stable release —
+        # without it a stable published here never reaches Docker Hub/GHCR until
+        # pinakes-docker's daily poller catches it. The default GITHUB_TOKEN cannot
+        # dispatch to another repository, so this needs a PAT secret with dispatch
+        # (contents:write) access to fabiodalez-dev/pinakes-docker. Prereleases are
+        # skipped (matching create-release.sh); a missing token or a failed
+        # dispatch is non-fatal because the daily poller is the backstop.
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          GH_TOKEN: ${{ secrets.PINAKES_DOCKER_DISPATCH_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "PINAKES_DOCKER_DISPATCH_TOKEN is not set — relying on pinakes-docker's daily poller." >&2
+            exit 0
+          fi
+          version="${RELEASE_TAG#v}"
+          if gh api -X POST repos/fabiodalez-dev/pinakes-docker/dispatches \
+              -f event_type=pinakes_release \
+              -F "client_payload[pinakes_version]=${version}"; then
+            echo "Notified pinakes-docker to build v${version}."
+          else
+            echo "pinakes-docker dispatch failed (non-fatal; the daily poller is the backstop)." >&2
+          fi
 
       - name: Retain release evidence in Actions
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
