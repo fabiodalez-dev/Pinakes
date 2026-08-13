@@ -40,23 +40,22 @@ async function assertHealthyAndAccessible(page, route) {
 }
 
 test.describe('critical pages across supported browser engines', () => {
-  test('public pages have no serious WCAG violations or runtime errors', async ({ page }) => {
-    for (const route of publicRoutes) {
-      await test.step(route, () => assertHealthyAndAccessible(page, route));
-    }
-  });
+  for (const route of publicRoutes) {
+    test(`public ${route} has no serious WCAG violations or runtime errors`, async ({ page }) => {
+      await assertHealthyAndAccessible(page, route);
+    });
+  }
 
-  test('authenticated administration has no serious WCAG violations or runtime errors', async ({ page }) => {
-    test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'admin credentials are required');
+  for (const route of adminRoutes) {
+    test(`admin ${route} has no serious WCAG violations or runtime errors`, async ({ page }) => {
+      test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'admin credentials are required');
 
-    await page.goto(`${BASE}/accedi`);
-    await page.locator('input[name="email"]').fill(ADMIN_EMAIL);
-    await page.locator('input[name="password"]').fill(ADMIN_PASS);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL((url) => url.pathname.startsWith('/admin'), { timeout: 30_000 });
-
-    for (const route of adminRoutes) {
-      await test.step(route, () => assertHealthyAndAccessible(page, route));
-    }
-  });
+      await page.goto(`${BASE}/accedi`);
+      await page.locator('input[name="email"]').fill(ADMIN_EMAIL);
+      await page.locator('input[name="password"]').fill(ADMIN_PASS);
+      await page.locator('button[type="submit"]').click();
+      await page.waitForURL((url) => url.pathname.startsWith('/admin'), { timeout: 30_000 });
+      await assertHealthyAndAccessible(page, route);
+    });
+  }
 });
