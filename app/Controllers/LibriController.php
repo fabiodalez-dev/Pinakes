@@ -818,6 +818,15 @@ class LibriController
                 }
 
                 $fields[$codeKey] = preg_replace('/[\s-]+/', '', $rawValue);
+
+                // UPC-A (12 digits) is EAN-13 with a leading zero. Canonicalise
+                // to the 13-digit GTIN so a UPC typed here dedups against the
+                // same barcode imported via CSV/TSV. (issue #348)
+                if ($codeKey === 'ean'
+                    && strlen((string) $fields[$codeKey]) === 12
+                    && ctype_digit((string) $fields[$codeKey])) {
+                    $fields[$codeKey] = '0' . $fields[$codeKey];
+                }
             }
         }
 
@@ -1385,6 +1394,15 @@ class LibriController
                 }
 
                 $fields[$codeKey] = preg_replace('/[\s-]+/', '', $rawValue);
+
+                // UPC-A (12 digits) is EAN-13 with a leading zero. Canonicalise
+                // to the 13-digit GTIN so a UPC typed here dedups against the
+                // same barcode imported via CSV/TSV. (issue #348)
+                if ($codeKey === 'ean'
+                    && strlen((string) $fields[$codeKey]) === 12
+                    && ctype_digit((string) $fields[$codeKey])) {
+                    $fields[$codeKey] = '0' . $fields[$codeKey];
+                }
             }
         }
 
