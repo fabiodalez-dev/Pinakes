@@ -65,5 +65,21 @@ $check($normalize('not-a-barcode') === null, 'non-numeric input is rejected');
 $check($normalize('ABC036000291452') === null, 'letters around a valid UPC-A do not make it valid');
 $check($normalize("978-88-04-76317-8") === '9788804763178', 'a dash-separated EAN-13 is accepted');
 
+// ── LibriController::isValidUpcA() — the manual-save canonicalisation guard ──
+// store()/update() only zero-pad an ean when it is a valid UPC-A, so the
+// checksum logic is locked here (private static, exercised via reflection).
+$upcMethod = new ReflectionMethod(\App\Controllers\LibriController::class, 'isValidUpcA');
+$upcMethod->setAccessible(true);
+/** @return bool */
+$isValidUpcA = static fn (string $code) => $upcMethod->invoke(null, $code);
+
+$check($isValidUpcA('036000291452') === true, 'isValidUpcA accepts a valid UPC-A');
+$check($isValidUpcA('012345678905') === true, 'isValidUpcA accepts a second valid UPC-A');
+$check($isValidUpcA('036000291453') === false, 'isValidUpcA rejects a bad check digit');
+$check($isValidUpcA('999999999999') === false, 'isValidUpcA rejects a 12-digit number with a wrong check digit');
+$check($isValidUpcA('03600029145') === false, 'isValidUpcA rejects an 11-digit value');
+$check($isValidUpcA('0036000291452') === false, 'isValidUpcA rejects a 13-digit value');
+$check($isValidUpcA('ABC000291452') === false, 'isValidUpcA rejects a non-numeric value');
+
 echo PHP_EOL . "Passed: {$passed}, Failed: {$failed}" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);

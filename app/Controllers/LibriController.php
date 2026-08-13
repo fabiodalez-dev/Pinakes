@@ -831,9 +831,13 @@ class LibriController
             if (isset($fields[$codeKey])) {
                 $rawValue = (string) $fields[$codeKey];
 
-                // Input validation: prevent ReDoS by checking length before regex
-                // ISBN-10: max 13 chars (10 digits + 3 separators), ISBN-13: max 17 chars (13 digits + 4 separators), EAN: max 13
-                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 13);
+                // Input validation: bound length before the strip regex.
+                // ISBN-10: 13 (10 digits + 3 separators); ISBN-13: 17 (13 + 4).
+                // EAN/UPC: 20 (fits varchar(20)) — a separator-formatted UPC-A
+                // (e.g. "0 36000 29145 2") must NOT be truncated before the
+                // isValidUpcA() check below, or the check would see a corrupted
+                // value and skip a legitimate canonicalisation.
+                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 20);
                 if (strlen($rawValue) > $maxLength) {
                     $rawValue = substr($rawValue, 0, $maxLength);
                 }
@@ -1407,9 +1411,13 @@ class LibriController
             if (isset($fields[$codeKey])) {
                 $rawValue = (string) $fields[$codeKey];
 
-                // Input validation: prevent ReDoS by checking length before regex
-                // ISBN-10: max 13 chars (10 digits + 3 separators), ISBN-13: max 17 chars (13 digits + 4 separators), EAN: max 13
-                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 13);
+                // Input validation: bound length before the strip regex.
+                // ISBN-10: 13 (10 digits + 3 separators); ISBN-13: 17 (13 + 4).
+                // EAN/UPC: 20 (fits varchar(20)) — a separator-formatted UPC-A
+                // (e.g. "0 36000 29145 2") must NOT be truncated before the
+                // isValidUpcA() check below, or the check would see a corrupted
+                // value and skip a legitimate canonicalisation.
+                $maxLength = ($codeKey === 'isbn10') ? 13 : (($codeKey === 'isbn13') ? 17 : 20);
                 if (strlen($rawValue) > $maxLength) {
                     $rawValue = substr($rawValue, 0, $maxLength);
                 }

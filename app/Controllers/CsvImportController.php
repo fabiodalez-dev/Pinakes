@@ -1179,11 +1179,12 @@ class CsvImportController
             return null;
         }
 
-        // Strip only the separators a barcode may carry (spaces, dashes). Any
-        // other character means the cell is not a bare barcode — reject it
-        // rather than silently extracting digits (e.g. "ABC036000291452" must
-        // not become a valid UPC-A). Mirrors LibriController's ean sanitisation.
-        $normalized = preg_replace('/[\s-]+/', '', trim($ean));
+        // Strip only the separators a barcode may carry: ASCII space and dash.
+        // Not \s — that also removes TAB/CR/LF, which would let a field with an
+        // embedded newline collapse into a "valid" barcode. Any character left
+        // after this means the cell is not a bare barcode (e.g. "ABC036000291452"
+        // or "036000\n291452"), so reject it rather than extracting digits.
+        $normalized = str_replace([' ', '-'], '', trim($ean));
 
         if ($normalized === '' || !ctype_digit($normalized)) {
             return null;
