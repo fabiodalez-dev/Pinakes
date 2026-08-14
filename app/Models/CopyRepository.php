@@ -205,23 +205,35 @@ class CopyRepository
         $lockName = 'pinakes-copy-inventory-allocation';
         $this->acquireInventoryAllocatorLock($lockName);
         try {
-            return $this->createManyForBookWhileLocked(
+            $result = $this->insertAllocatedCopiesWhileLocked(
                 $bookId,
                 $base,
                 $howMany,
                 $stato,
-                $noteTemplate
+                $noteTemplate,
+                null
             );
+            return $result['count'];
         } finally {
             $this->releaseInventoryAllocatorLock($lockName);
         }
     }
 
     /**
-     * Insert a copy batch while the caller holds the inventory allocator lock.
+     * Insert allocated copies while the caller holds the inventory allocator
+     * lock. Both book creation and the single-copy form use this path, so code
+     * allocation, duplicate retries and INSERT behavior cannot drift apart.
+     *
+     * @return array{count: int, first_id: int}
      */
-    private function createManyForBookWhileLocked(int $bookId, string $base, int $howMany, string $stato, ?string $noteTemplate): int
-    {
+    private function insertAllocatedCopiesWhileLocked(
+        int $bookId,
+        string $base,
+        int $howMany,
+        string $stato,
+        ?string $noteTemplate,
+        ?string $singleNote
+    ): array {
         $likeParam = $base . '%';
         $maxAttempts = 5;
 
@@ -239,7 +251,9 @@ class CopyRepository
             $types = '';
             $params = [];
             foreach ($codes as $i => $code) {
-                $note = ($noteTemplate !== null && $total > 1) ? sprintf($noteTemplate, $i + 1, $total) : null;
+                $note = $total === 1
+                    ? $singleNote
+                    : ($noteTemplate !== null ? sprintf($noteTemplate, $i + 1, $total) : null);
                 $types .= 'isss';
                 $params[] = $bookId;
                 $params[] = $code;
@@ -259,10 +273,11 @@ class CopyRepository
                 }
                 throw $e;
             }
+            $firstInsertId = (int) $this->db->insert_id;
             $stmt->close();
 
             if ($inserted) {
-                return $total;
+                return ['count' => $total, 'first_id' => $firstInsertId];
             }
             if ($errno === 1062 && $attempt < $maxAttempts) {
                 continue;
@@ -281,49 +296,25 @@ class CopyRepository
     public function createWithAllocatedInventoryCode(int $bookId, string $base, string $stato = 'disponibile', ?string $note = null): int
     {
         $base = mb_substr($base, 0, 90);
-        $likeParam = $base . '%';
         $lockName = 'pinakes-copy-inventory-allocation';
-        $maxAttempts = 5;
 
         $this->acquireInventoryAllocatorLock($lockName);
         try {
-            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-                $codes = $this->allocateInventoryCodesWithCurrentRead($base, $likeParam, 1);
-                $numeroInventario = $codes[0] ?? ($base . '-C1');
-                $stmt = $this->db->prepare(
-                    'INSERT INTO copie (libro_id, numero_inventario, stato, note) VALUES (?, ?, ?, ?)'
-                );
-                if ($stmt === false) {
-                    throw new \RuntimeException('Unable to prepare copy insert: ' . $this->db->error);
-                }
-                $stmt->bind_param('isss', $bookId, $numeroInventario, $stato, $note);
-                try {
-                    $inserted = $stmt->execute();
-                    $errno = $stmt->errno;
-                    $error = $stmt->error;
-                } catch (\mysqli_sql_exception $e) {
-                    $stmt->close();
-                    if ($e->getCode() === 1062 && $attempt < $maxAttempts) {
-                        continue;
-                    }
-                    throw $e;
-                }
-                $insertId = (int) $this->db->insert_id;
-                $stmt->close();
-
-                if ($inserted && $insertId > 0) {
-                    return $insertId;
-                }
-                if ($errno === 1062 && $attempt < $maxAttempts) {
-                    continue;
-                }
-                throw new \RuntimeException('Unable to insert allocated copy: ' . $error);
+            $result = $this->insertAllocatedCopiesWhileLocked(
+                $bookId,
+                $base,
+                1,
+                $stato,
+                null,
+                $note
+            );
+            if ($result['count'] === 1 && $result['first_id'] > 0) {
+                return $result['first_id'];
             }
+            throw new \RuntimeException('Allocated copy insert did not affect exactly one row.');
         } finally {
             $this->releaseInventoryAllocatorLock($lockName);
         }
-
-        throw new \RuntimeException('Unable to allocate a unique inventory code after concurrent retries.');
     }
 
     /**

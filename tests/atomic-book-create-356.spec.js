@@ -294,7 +294,12 @@ test.describe.serial('atomic book+copies create (#356)', () => {
   });
 
   test('8) book.save.after fires post-commit: book-club reconciles by ISBN without corrupting the create', async ({ page }) => {
-    const bookClubActive = dbQuery(`SELECT is_active FROM plugins WHERE name='book-club'`) === '1';
+    let bookClubActive = false;
+    try {
+      bookClubActive = dbQuery(`SELECT is_active FROM plugins WHERE name='book-club'`) === '1';
+    } catch {
+      // Optional plugin infrastructure is absent in some supported installs.
+    }
     test.skip(!bookClubActive, 'book-club plugin not active in this environment');
 
     // Fixture: a club with an outstanding external proposal for HOOK_ISBN.

@@ -282,11 +282,15 @@ try {
      *    book.save.after hook (whose handlers, e.g. book-club, can open their
      *    own transaction) must remain after commit.
      * ------------------------------------------------------------------- */
-    $controller = (string) file_get_contents($root . '/app/Controllers/LibriController.php');
-    $storeStart = strpos($controller, 'public function store(');
-    $storeEnd = strpos($controller, 'public function editForm(');
-    $store = ($storeStart !== false && $storeEnd !== false && $storeEnd > $storeStart)
-        ? substr($controller, $storeStart, $storeEnd - $storeStart)
+    $controllerPath = $root . '/app/Controllers/LibriController.php';
+    $controllerLines = file($controllerPath);
+    $storeMethod = new \ReflectionMethod(\App\Controllers\LibriController::class, 'store');
+    $store = is_array($controllerLines)
+        ? implode('', array_slice(
+            $controllerLines,
+            $storeMethod->getStartLine() - 1,
+            $storeMethod->getEndLine() - $storeMethod->getStartLine() + 1
+        ))
         : '';
     $posBegin = strpos($store, '$db->begin_transaction()');
     $posCreate = strpos($store, 'createBasic($fields)');

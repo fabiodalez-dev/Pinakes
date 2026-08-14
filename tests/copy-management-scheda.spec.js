@@ -409,4 +409,22 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
       if (badId > 0) dbQuery(`DELETE FROM libri WHERE id=${badId}`);
     }
   });
+
+  test('21. add-copy rejects array-shaped status, note and inventory inputs (#356)', async ({ page }) => {
+    await loginAsAdmin(page);
+    for (const field of ['stato', 'note', 'numero_inventario']) {
+      await page.goto(`${BASE}/admin/books/${emptyBookId}`);
+      const before = copieCount(emptyBookId);
+      await page.evaluate(() => window.openAddCopyModal());
+      await expect(page.locator('#add-copy-modal')).toBeVisible();
+      await page.locator(`#add-copy-form [name="${field}"]`).evaluate((el) => {
+        el.name = `${el.name}[]`;
+      });
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+        page.click('#add-copy-form button[type="submit"]'),
+      ]);
+      expect(copieCount(emptyBookId)).toBe(before);
+    }
+  });
 });
