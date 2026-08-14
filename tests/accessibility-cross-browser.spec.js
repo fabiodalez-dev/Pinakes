@@ -32,10 +32,12 @@ async function assertHealthyAndAccessible(page, route) {
     expect(response.status(), `${route} returned HTTP ${response.status()}`).toBeLessThan(400);
     await expect(page.locator('body')).toBeVisible();
 
-    // Scan the stable visual state. WebKit can otherwise sample text midway
-    // through a fade-in and report the transient blended color as a violation.
-    // The longest entrance animation on these pages is 600 ms.
-    await page.waitForTimeout(750);
+    // Scan the stable visual state. Headless WebKit can pause animations and
+    // otherwise expose a transient blended text color to axe indefinitely.
+    await page.evaluate(() => {
+      document.getAnimations().forEach((animation) => animation.cancel());
+    });
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
