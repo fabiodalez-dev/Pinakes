@@ -34,10 +34,8 @@ async function assertHealthyAndAccessible(page, route) {
 
     // Scan the stable visual state. WebKit can otherwise sample text midway
     // through a fade-in and report the transient blended color as a violation.
-    await page.addStyleTag({
-      content: '*, *::before, *::after { animation: none !important; transition: none !important; }',
-    });
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
+    // The longest entrance animation on these pages is 600 ms.
+    await page.waitForTimeout(750);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
