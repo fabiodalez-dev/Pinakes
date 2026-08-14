@@ -76,119 +76,45 @@ async function mailpitJson(urlPath, timeoutMs = 5000) {
   }
 }
 
-/** Delete all messages in Mailpit */
+/** Delete existing Mailpit messages without starting an asynchronous global purge. */
 async function clearMailpit() {
   if (!mailpitAvailable) return;
-  let lastError;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    try {
-      const res = await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: controller.signal });
-      if (!res.ok) throw new Error(`Mailpit clear failed: HTTP ${res.status}`);
-      lastError = undefined;
-      break;
-    } catch (err) {
-      lastError = err;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  if (lastError) {
-    mailpitAvailable = false;
-    throw lastError;
-  }
-
-  // Mailpit can acknowledge DELETE before its recipient/full-text indexes have
-  // settled. Submitting the next form immediately can race the outstanding
-  // purge and delete the newly accepted message. Require two consecutive empty
-  // snapshots before the next test is allowed to send mail.
+  // DELETE without IDs starts a global purge that Mailpit may acknowledge
+  // before it has finished. A newly accepted SMTP message can then be removed
+  // by that outstanding purge. Delete only the IDs observed in each snapshot;
+  // targeted deletes do not remain active and cannot consume the next test's
+  // message. Loop because the listing is paginated and may change while the
+  // suite's notification workers finish.
   let consecutiveEmpty = 0;
-  const deadline = Date.now() + 5000;
-  let stablyEmpty = false;
+  const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
     const data = await mailpitJson('/messages');
-    const count = Number(data.total ?? data.messages_count ?? data.messages?.length ?? 0);
-    if (count === 0) {
+    const messages = Array.isArray(data.messages) ? data.messages : [];
+    const ids = messages.map(message => message.ID).filter(Boolean);
+
+    if (ids.length === 0) {
       consecutiveEmpty++;
-      if (consecutiveEmpty === 2) { stablyEmpty = true; break; }
+      if (consecutiveEmpty === 2) return;
     } else {
       consecutiveEmpty = 0;
-    }
-    await new Promise(resolve => setTimeout(resolve, 150));
-  }
-  if (!stablyEmpty) {
-    throw new Error('Mailpit inbox did not become stably empty within 5000ms');
-  }
-
-  // A stably-empty LISTING still does not prove the purge fully settled: in CI
-  // (deep-regression shard 4/4, runs 31657224674 and 31689284087 attempt 1)
-  // B.13's contact email was SMTP-accepted ~1s after the DELETE was
-  // acknowledged, yet never became visible — swallowed by the still-settling
-  // purge — so waitForMail timed out and only the serial-block retry passed.
-  // Prove Mailpit is accepting AND RETAINING new mail again before returning:
-  // store a sentinel via the HTTP send API, require it to stay retrievable in
-  // two consecutive reads, then delete just that sentinel by ID (a targeted
-  // delete — no second full purge to re-open the race).
-  const sentinelDeadline = Date.now() + 10000;
-  let sentinelId = null;
-  while (sentinelId === null && Date.now() < sentinelDeadline) {
-    let id = null;
-    try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 5000);
       try {
-        const res = await fetch(`${MAILPIT_API}/send`, {
-          method: 'POST',
+        const res = await fetch(`${MAILPIT_API}/messages`, {
+          method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
-          body: JSON.stringify({
-            From: { Email: 'purge-sentinel@pinakes.invalid' },
-            To: [{ Email: 'purge-sentinel@pinakes.invalid' }],
-            Subject: `clearMailpit retention sentinel ${Date.now()}`,
-            Text: 'Proves the delete-all purge has settled. Deleted by clearMailpit().',
-          }),
+          body: JSON.stringify({ IDs: ids }),
         });
-        if (!res.ok) throw new Error(`Mailpit send failed: HTTP ${res.status}`);
-        id = (await res.json()).ID;
+        if (!res.ok) throw new Error(`Mailpit targeted clear failed: HTTP ${res.status}`);
       } finally {
         clearTimeout(timer);
       }
-    } catch { /* Mailpit busy — try a fresh sentinel below */ }
-
-    if (id) {
-      let retainedReads = 0;
-      while (retainedReads < 2 && Date.now() < sentinelDeadline) {
-        const retained = await mailpitJson(`/message/${id}`).then(() => true).catch(() => false);
-        if (!retained) { retainedReads = -1; break; } // swallowed → purge still active
-        retainedReads++;
-        if (retainedReads < 2) await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      if (retainedReads === 2) { sentinelId = id; break; }
     }
-    await new Promise(resolve => setTimeout(resolve, 250));
-  }
-  if (sentinelId === null) {
-    throw new Error('Mailpit purge did not settle: sentinel messages kept disappearing within 10000ms');
+    await new Promise(resolve => setTimeout(resolve, 150));
   }
 
-  const delController = new AbortController();
-  const delTimer = setTimeout(() => delController.abort(), 5000);
-  let delRes;
-  try {
-    delRes = await fetch(`${MAILPIT_API}/messages`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ IDs: [sentinelId] }),
-      signal: delController.signal,
-    });
-  } finally {
-    clearTimeout(delTimer);
-  }
-  if (!delRes.ok) {
-    throw new Error(`Mailpit sentinel cleanup failed: HTTP ${delRes.status}`);
-  }
+  throw new Error('Mailpit inbox did not become stably empty within 10000ms');
 }
 
 function clearConfigCache() {
