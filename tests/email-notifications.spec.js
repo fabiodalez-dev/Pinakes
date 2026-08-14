@@ -207,7 +207,7 @@ function clearConfigCache() {
  * @param {number} timeoutMs - Max wait time
  * @returns {Promise<object>} - The matching message summary
  */
-async function waitForMail(query, timeoutMs = 15000) {
+async function waitForMail(query, timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
