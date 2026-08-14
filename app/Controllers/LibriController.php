@@ -1180,7 +1180,60 @@ class LibriController
             // Plugin hook: Before book save
             \App\Support\Hooks::do('book.save.before', [$fields, null]);
 
-            $id = $repo->createBasic($fields);
+            // Atomic create: the book row and its initial physical copies must
+            // persist together or not at all — a copy-creation failure used to
+            // leave an orphan book with no/partial holdings. The transaction
+            // wraps ONLY createBasic() + createManyForBook(): neither starts
+            // its own transaction (createBasic detects the open one via its
+            // savepoint probe and nests with SAVEPOINT), and no plugin hook
+            // fires inside it — book.save.after handlers (e.g. book-club)
+            // run their own begin_transaction(), which under mysqli implicitly
+            // commits an enclosing transaction and would silently destroy this
+            // atomicity. Hooks, series/LT metadata and the availability recalc
+            // therefore run strictly after the commit.
+            if (!$db->begin_transaction()) {
+                throw new \RuntimeException('Database error: unable to begin book create transaction');
+            }
+            try {
+                $id = $repo->createBasic($fields);
+
+                // Genera copie fisiche del libro
+                $copyRepo = new \App\Models\CopyRepository($db);
+                $copieTotali = (int) $fields['copie_totali'];
+                $baseInventario = !empty($fields['numero_inventario'])
+                    ? $fields['numero_inventario']
+                    : "LIB-{$id}";
+
+                // Create the requested holding set with one atomic multi-row INSERT:
+                // a request for three copies must never leave a partial 1/3 or 2/3
+                // result if one inventory code fails. Codes stay uniform (-C1, -C2,
+                // ...) and collision-free through the repository allocator.
+                $createdCopies = $copyRepo->createManyForBook(
+                    $id,
+                    $baseInventario,
+                    $copieTotali,
+                    'disponibile',
+                    __('Copia %d di %d')
+                );
+                if ($createdCopies !== $copieTotali) {
+                    throw new \RuntimeException('Unable to create the requested physical copies.');
+                }
+
+                if (!$db->commit()) {
+                    throw new \RuntimeException('Database error: unable to commit book create transaction');
+                }
+            } catch (\Throwable $atomicCreateError) {
+                try {
+                    $db->rollback();
+                } catch (\Throwable $rollbackError) {
+                    // best-effort — a dropped connection must not mask the original error
+                }
+                \App\Support\SecureLogger::error('LibriController::store atomic book+copies create failed', [
+                    'error' => $atomicCreateError->getMessage(),
+                ]);
+                throw $atomicCreateError;
+            }
+
             $this->syncSeriesMetadataFromBookForm($db, $id, $fields, $data);
 
             // Handle LibraryThing fields visibility preferences
@@ -1191,28 +1244,6 @@ class LibriController
 
             // Plugin hook: After book save
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
-
-            // Genera copie fisiche del libro
-            $copyRepo = new \App\Models\CopyRepository($db);
-            $copieTotali = (int) $fields['copie_totali'];
-            $baseInventario = !empty($fields['numero_inventario'])
-                ? $fields['numero_inventario']
-                : "LIB-{$id}";
-
-            // Create the requested holding set with one atomic multi-row INSERT:
-            // a request for three copies must never leave a partial 1/3 or 2/3
-            // result if one inventory code fails. Codes stay uniform (-C1, -C2,
-            // ...) and collision-free through the repository allocator.
-            $createdCopies = $copyRepo->createManyForBook(
-                $id,
-                $baseInventario,
-                $copieTotali,
-                'disponibile',
-                __('Copia %d di %d')
-            );
-            if ($createdCopies !== $copieTotali) {
-                throw new \RuntimeException('Unable to create the requested physical copies.');
-            }
 
             // Ricalcola disponibilità dopo aver generato le copie, come fa il
             // percorso di update. Senza questo, copie_disponibili/copie_totali e
