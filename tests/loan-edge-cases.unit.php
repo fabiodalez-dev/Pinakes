@@ -677,7 +677,7 @@ assertEq('disponibile', bookStato($b), 'recalc overwrites manually-wrong libri.s
 pass('misc: libri.stato is derived (recalc overwrites wrong value)');
 
 /* ==========================================================================
- * 53-60  Canonical capacity, schedules, integrity and calendars
+ * 53-64  Canonical capacity, schedules, integrity, calendars and reservation queues
  * ====================================================================== */
 // 53: an unreturned overdue loan is open-ended for future capacity decisions.
 $b = mkBook('capacity_overdue_open');
