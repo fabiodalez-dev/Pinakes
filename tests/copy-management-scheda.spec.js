@@ -387,4 +387,26 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     expect(html).toContain("__('Copie in circolazione')");
     expect(html).not.toContain("__('Copie totali:')");
   });
+
+  // CodeRabbit follow-up: store() must reject a non-integer copie_totali before
+  // casting — "7abc" must NOT be coerced to 7 copies (nor an array to 1).
+  test('20. store() rejects a non-integer copie_totali → zero copies, not coerced (#356)', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/create`);
+    const csrf = await page.locator('#bookForm input[name="csrf_token"]').first().inputValue();
+    const badTitle = `CopyMgmtBadCount ${RUN}`;
+    // A crafted POST that bypasses the numeric input and sends a non-integer.
+    const resp = await page.request.post(`${BASE}/admin/books/create`, {
+      form: { csrf_token: csrf, titolo: badTitle, copie_totali: '7abc' },
+    });
+    expect(resp.status()).toBeLessThan(400);
+    const badId = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(badTitle)}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`));
+    try {
+      expect(badId).toBeGreaterThan(0);          // the book was created …
+      expect(copieCount(badId)).toBe(0);         // … with ZERO copies (not 7)
+      expect(copieTotali(badId)).toBe(0);
+    } finally {
+      if (badId > 0) dbQuery(`DELETE FROM libri WHERE id=${badId}`);
+    }
+  });
 });

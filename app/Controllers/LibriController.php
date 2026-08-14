@@ -842,11 +842,15 @@ class LibriController
         $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int) $fields['editore_id'];
         $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int) $fields['genere_id'];
         $fields['sottogenere_id'] = empty($fields['sottogenere_id']) || $fields['sottogenere_id'] == 0 ? null : (int) $fields['sottogenere_id'];
-        $fields['copie_totali'] = (int) $fields['copie_totali'];
-        // Add bounds checking to prevent integer overflow
-        if ($fields['copie_totali'] < 0) {
-            $fields['copie_totali'] = 0;
-        } elseif ($fields['copie_totali'] > 9999) {
+        // Reject non-scalar or non-integer input BEFORE casting: (int) "abc" is 0
+        // and (int) (non-empty array) is 1, both of which would slip past the
+        // 0..9999 bounds as a silent, wrong copy count. Only a genuine integer
+        // string is honoured; anything else falls back to zero copies.
+        $rawCopie = $fields['copie_totali'] ?? 0;
+        $fields['copie_totali'] = (is_scalar($rawCopie) && preg_match('/^\d+$/', trim((string) $rawCopie)) === 1)
+            ? (int) trim((string) $rawCopie)
+            : 0;
+        if ($fields['copie_totali'] > 9999) {
             $fields['copie_totali'] = 9999;
         }
         // In creazione, copie_disponibili = copie_totali (le copie sono tutte nuove e disponibili)
