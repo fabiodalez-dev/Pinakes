@@ -291,6 +291,73 @@ class CopyController
     }
 
     /**
+     * Crea una nuova copia fisica per un libro, direttamente dalla scheda.
+     *
+     * Loan states ('prestato'/'prenotato') are never created here — those belong
+     * to the Prestiti system. A lost/damaged/maintenance copy is allowed: the
+     * availability recalculation then excludes it from copie_totali, so marking a
+     * copy lost reduces the book's total on its own.
+     */
+    public function createCopy(Request $request, Response $response, mysqli $db, int $bookId): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $stmt = $db->prepare("SELECT id, numero_inventario FROM libri WHERE id = ? AND deleted_at IS NULL");
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $book = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$book) {
+            $_SESSION['error_message'] = __('Libro non trovato.');
+            return $response->withHeader('Location', $this->safeReferer('/admin/books'))->withStatus(302);
+        }
+
+        // Only physical statuses a copy can be created in — loan states are
+        // managed by the Prestiti system, never set here.
+        $stato = (string) ($data['stato'] ?? 'disponibile');
+        $statiValidi = ['disponibile', 'manutenzione', 'in_restauro', 'perso', 'danneggiato', 'in_trasferimento'];
+        if (!in_array($stato, $statiValidi, true)) {
+            $_SESSION['error_message'] = __('Stato non valido.');
+            return $response->withHeader('Location', url("/admin/books/{$bookId}"))->withStatus(302);
+        }
+        $note = trim((string) ($data['note'] ?? ''));
+
+        $repo = new \App\Models\CopyRepository($db);
+
+        // Inventory code: honour an explicit value (must be unique), otherwise
+        // auto-allocate the next collision-free "{base}-C{N}" like book creation.
+        $numero = trim((string) ($data['numero_inventario'] ?? ''));
+        if ($numero !== '') {
+            $numero = preg_replace('/[\x00-\x1F]/', '', $numero);
+            if (mb_strlen($numero) > 100) {
+                $numero = mb_substr($numero, 0, 100);
+            }
+            if ($repo->inventoryCodeExists($numero)) {
+                $_SESSION['error_message'] = __('Esiste già una copia con questo numero di inventario.');
+                return $response->withHeader('Location', url("/admin/books/{$bookId}"))->withStatus(302);
+            }
+        } else {
+            $base = !empty($book['numero_inventario']) ? (string) $book['numero_inventario'] : "LIB-{$bookId}";
+            $codes = $repo->allocateInventoryCodes($base, 1);
+            $numero = $codes[0] ?? ($base . '-C1');
+        }
+
+        try {
+            $repo->create($bookId, $numero, $stato, $note !== '' ? $note : null);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[CopyController] createCopy failed', ['book' => $bookId, 'error' => $e->getMessage()]);
+            $_SESSION['error_message'] = __('Impossibile aggiungere la copia.');
+            return $response->withHeader('Location', url("/admin/books/{$bookId}"))->withStatus(302);
+        }
+
+        (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($bookId);
+
+        $_SESSION['success_message'] = __('Copia aggiunta con successo.');
+        return $response->withHeader('Location', url("/admin/books/{$bookId}"))->withStatus(302);
+    }
+
+    /**
      * Elimina una singola copia
      */
     public function deleteCopy(Request $request, Response $response, mysqli $db, int $copyId): Response

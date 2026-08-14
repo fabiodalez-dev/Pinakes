@@ -6783,5 +6783,16 @@
   "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Error: invalid date format. Enter dates in YYYY-MM-DD format.",
   "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.": "Change not saved: in the new period every copy is already taken by other loans or reservations.",
   "Rinnovo non riuscito. Riprova.": "Renewal failed. Please try again.",
-  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Change not saved: the assigned copy is already committed to another loan in the new period."
+  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Change not saved: the assigned copy is already committed to another loan in the new period.",
+  "Aggiungi copia": "Add copy",
+  "Aggiungi Copia": "Add Copy",
+  "Numero di inventario": "Inventory number",
+  "Lascia vuoto per assegnarlo automaticamente": "Leave empty to assign it automatically",
+  "In restauro": "Under restoration",
+  "Nessuna copia fisica registrata.": "No physical copies recorded.",
+  "Copia aggiunta con successo.": "Copy added successfully.",
+  "Impossibile aggiungere la copia.": "Unable to add the copy.",
+  "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "A lost or damaged copy lowers the total-copies count. For loans, use the Loans section.",
+  "Esiste già una copia con questo numero di inventario.": "A copy with this inventory number already exists.",
+  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Use \"Add copy\" to create one and set its status."
 }

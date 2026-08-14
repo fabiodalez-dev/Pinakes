@@ -1494,6 +1494,12 @@ return function (App $app): void {
         return $controller->deleteCopy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/books/{id:\d+}/copies/create', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\CopyController();
+        $db = $app->getContainer()->get('db');
+        return $controller->createCopy($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Series (Series) management
     $app->get('/admin/series', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();

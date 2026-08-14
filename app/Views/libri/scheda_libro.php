@@ -908,8 +908,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
   </div>
   <?php endif; ?>
 
-  <!-- Copies Section -->
-  <?php if (!empty($copie) && count($copie) > 0): ?>
+  <!-- Copies Section (always shown so copies can be added even to a book with none) -->
+  <?php $copie = $copie ?? []; ?>
   <div class="mt-6">
     <div class="card">
       <div class="card-header flex items-center justify-between gap-4 flex-wrap">
@@ -930,11 +930,19 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
             <?php endif; ?>
           </span>
         </h2>
-        <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/copy-labels-pdf'), ENT_QUOTES, 'UTF-8') ?>"
-           target="_blank" rel="noopener"
-           class="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-900 transition-colors font-medium">
-          <i class="fas fa-tags"></i><?= __("Stampa etichette copie") ?>
-        </a>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" onclick="openAddCopyModal()"
+                  class="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-900 transition-colors font-medium">
+            <i class="fas fa-plus"></i><?= __("Aggiungi copia") ?>
+          </button>
+          <?php if (!empty($copie)): ?>
+          <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/copy-labels-pdf'), ENT_QUOTES, 'UTF-8') ?>"
+             target="_blank" rel="noopener"
+             class="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-900 transition-colors font-medium">
+            <i class="fas fa-tags"></i><?= __("Stampa etichette copie") ?>
+          </a>
+          <?php endif; ?>
+        </div>
       </div>
       <div class="card-body p-0">
         <div class="overflow-x-auto">
@@ -951,6 +959,15 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
+              <?php if (empty($copie)): ?>
+              <tr>
+                <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">
+                  <i class="fas fa-clone text-gray-300 text-2xl mb-2 block"></i>
+                  <?= __("Nessuna copia fisica registrata.") ?>
+                  <?= __("Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.") ?>
+                </td>
+              </tr>
+              <?php endif; ?>
               <?php foreach ($copie as $copia): ?>
               <tr class="hover:bg-gray-50 transition-colors">
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -1120,7 +1137,6 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
       </div>
     </div>
   </div>
-  <?php endif; ?>
 
   <!-- Loan History Section -->
   <?php if (!empty($parentWork)): ?>
@@ -1865,6 +1881,77 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
       </form>
     </div>
   </div>
+
+  <!-- Modal Aggiungi Copia -->
+  <div id="add-copy-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+      <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+        <h3 class="text-lg font-semibold text-gray-900">
+          <i class="fas fa-plus text-gray-600 mr-2"></i>
+          <?= __("Aggiungi Copia") ?>
+        </h3>
+        <button type="button" id="close-add-copy-modal" class="text-gray-500 hover:text-gray-700">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form method="post" id="add-copy-form"
+            action="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/copies/create'), ENT_QUOTES, 'UTF-8') ?>"
+            class="px-6 py-5 space-y-4">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+
+        <div>
+          <label for="add-copy-inventario" class="form-label"><?= __("Numero di inventario") ?> (<?= __("opzionale") ?>)</label>
+          <input type="text" id="add-copy-inventario" name="numero_inventario" class="form-input" maxlength="100"
+                 placeholder="<?= __('Lascia vuoto per assegnarlo automaticamente') ?>">
+        </div>
+
+        <div>
+          <label for="add-copy-stato" class="form-label"><?= __("Stato della copia") ?></label>
+          <select id="add-copy-stato" name="stato" class="form-input" required aria-required="true">
+            <option value="disponibile"><?= __("Disponibile") ?></option>
+            <option value="manutenzione"><?= __("In manutenzione") ?></option>
+            <option value="danneggiato"><?= __("Danneggiato") ?></option>
+            <option value="perso"><?= __("Perso") ?></option>
+            <option value="in_restauro"><?= __("In restauro") ?></option>
+          </select>
+          <p class="text-xs text-gray-600 mt-1">
+            <i class="fas fa-info-circle text-blue-500 mr-1"></i>
+            <strong><?= __("Nota:") ?></strong> <?= __("Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.") ?>
+          </p>
+        </div>
+
+        <div>
+          <label for="add-copy-note" class="form-label"><?= __("Note") ?> (<?= __("opzionale") ?>)</label>
+          <textarea id="add-copy-note" name="note" rows="3" class="form-input" placeholder="<?= __('Aggiungi eventuali note...') ?>"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="button" id="close-add-copy-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
+          <button type="submit" class="<?php echo $btnPrimary; ?> justify-center">
+            <i class="fas fa-plus mr-2"></i><?= __("Aggiungi copia") ?>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Modal aggiungi copia
+    const addCopyModal = document.getElementById('add-copy-modal');
+    function openAddCopyModal() {
+      const f = document.getElementById('add-copy-form');
+      if (f) f.reset();
+      addCopyModal.classList.remove('hidden');
+      addCopyModal.classList.add('flex');
+    }
+    function closeAddCopyModal() {
+      addCopyModal.classList.add('hidden');
+      addCopyModal.classList.remove('flex');
+    }
+    document.getElementById('close-add-copy-modal')?.addEventListener('click', closeAddCopyModal);
+    document.getElementById('close-add-copy-modal-secondary')?.addEventListener('click', closeAddCopyModal);
+    addCopyModal?.addEventListener('click', (e) => { if (e.target === addCopyModal) closeAddCopyModal(); });
+  </script>
 
   <script>
     // Modal gestione copia

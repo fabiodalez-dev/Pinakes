@@ -6783,5 +6783,16 @@
   "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Erreur : format de date non valide. Saisissez les dates au format YYYY-MM-DD.",
   "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.": "Modification non enregistrée : sur la nouvelle période, tous les exemplaires sont déjà occupés par d'autres prêts ou réservations.",
   "Rinnovo non riuscito. Riprova.": "Échec du renouvellement. Veuillez réessayer.",
-  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Modification non enregistrée : l’exemplaire attribué est déjà affecté à un autre prêt pendant la nouvelle période."
+  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Modification non enregistrée : l’exemplaire attribué est déjà affecté à un autre prêt pendant la nouvelle période.",
+  "Aggiungi copia": "Ajouter une copie",
+  "Aggiungi Copia": "Ajouter une copie",
+  "Numero di inventario": "Numéro d'inventaire",
+  "Lascia vuoto per assegnarlo automaticamente": "Laisser vide pour l'attribuer automatiquement",
+  "In restauro": "En restauration",
+  "Nessuna copia fisica registrata.": "Aucune copie physique enregistrée.",
+  "Copia aggiunta con successo.": "Copie ajoutée avec succès.",
+  "Impossibile aggiungere la copia.": "Impossible d'ajouter la copie.",
+  "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Une copie perdue ou endommagée réduit le nombre total de copies. Pour les prêts, utilisez la section Prêts.",
+  "Esiste già una copia con questo numero di inventario.": "Une copie avec ce numéro d'inventaire existe déjà.",
+  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Utilisez « Ajouter une copie » pour en créer une et définir son état."
 }

@@ -6783,5 +6783,16 @@
   "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.",
   "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.": "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.",
   "Rinnovo non riuscito. Riprova.": "Rinnovo non riuscito. Riprova.",
-  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo."
+  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.",
+  "Aggiungi copia": "Aggiungi copia",
+  "Aggiungi Copia": "Aggiungi Copia",
+  "Numero di inventario": "Numero di inventario",
+  "Lascia vuoto per assegnarlo automaticamente": "Lascia vuoto per assegnarlo automaticamente",
+  "In restauro": "In restauro",
+  "Nessuna copia fisica registrata.": "Nessuna copia fisica registrata.",
+  "Copia aggiunta con successo.": "Copia aggiunta con successo.",
+  "Impossibile aggiungere la copia.": "Impossibile aggiungere la copia.",
+  "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.",
+  "Esiste già una copia con questo numero di inventario.": "Esiste già una copia con questo numero di inventario.",
+  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato."
 }

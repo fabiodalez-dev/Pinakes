@@ -6783,5 +6783,16 @@
   "Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.": "Fejl: ugyldigt datoformat. Indtast datoerne i formatet YYYY-MM-DD.",
   "Modifica non salvata: nel nuovo periodo tutte le copie sono già impegnate da altri prestiti o prenotazioni.": "Ændringen blev ikke gemt: I den nye periode er alle eksemplarer allerede optaget af andre udlån eller reservationer.",
   "Rinnovo non riuscito. Riprova.": "Fornyelsen mislykkedes. Prøv igen.",
-  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Ændringen blev ikke gemt: Det tildelte eksemplar er allerede optaget af et andet lån i den nye periode."
+  "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Ændringen blev ikke gemt: Det tildelte eksemplar er allerede optaget af et andet lån i den nye periode.",
+  "Aggiungi copia": "Tilføj eksemplar",
+  "Aggiungi Copia": "Tilføj eksemplar",
+  "Numero di inventario": "Inventarnummer",
+  "Lascia vuoto per assegnarlo automaticamente": "Lad stå tom for automatisk tildeling",
+  "In restauro": "Under restaurering",
+  "Nessuna copia fisica registrata.": "Ingen fysiske eksemplarer registreret.",
+  "Copia aggiunta con successo.": "Eksemplar tilføjet.",
+  "Impossibile aggiungere la copia.": "Kunne ikke tilføje eksemplaret.",
+  "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Et mistet eller beskadiget eksemplar reducerer det samlede antal eksemplarer. Brug Udlån-sektionen til udlån.",
+  "Esiste già una copia con questo numero di inventario.": "Der findes allerede et eksemplar med dette inventarnummer.",
+  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Brug \"Tilføj eksemplar\" til at oprette et og angive dets status."
 }
