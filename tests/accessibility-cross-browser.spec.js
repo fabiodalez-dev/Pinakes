@@ -24,19 +24,23 @@ async function assertHealthyAndAccessible(page, route) {
   const onPageError = (error) => pageErrors.push(error.message);
   page.on('pageerror', onPageError);
 
-  const response = await page.goto(`${BASE}${route}`, { waitUntil: 'networkidle' });
-  expect(response, `${route} did not return a response`).not.toBeNull();
-  expect(response.status(), `${route} returned HTTP ${response.status()}`).toBeLessThan(400);
-  await expect(page.locator('body')).toBeVisible();
+  try {
+    // DOMContentLoaded is the relevant readiness boundary for axe. Waiting for
+    // networkidle is unsafe here because admin pages perform background polling.
+    const response = await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded' });
+    expect(response, `${route} did not return a response`).not.toBeNull();
+    expect(response.status(), `${route} returned HTTP ${response.status()}`).toBeLessThan(400);
+    await expect(page.locator('body')).toBeVisible();
 
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  const blocking = results.violations.filter(({ impact }) => impact === 'critical' || impact === 'serious');
-  expect(blocking, `Accessibility violations on ${route}:\n${formatViolations(blocking)}`).toEqual([]);
-  expect(pageErrors, `Unhandled browser errors on ${route}`).toEqual([]);
-
-  page.off('pageerror', onPageError);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    const blocking = results.violations.filter(({ impact }) => impact === 'critical' || impact === 'serious');
+    expect(blocking, `Accessibility violations on ${route}:\n${formatViolations(blocking)}`).toEqual([]);
+    expect(pageErrors, `Unhandled browser errors on ${route}`).toEqual([]);
+  } finally {
+    page.off('pageerror', onPageError);
+  }
 }
 
 test.describe('critical pages across supported browser engines', () => {
@@ -55,6 +59,10 @@ test.describe('critical pages across supported browser engines', () => {
       await page.locator('input[name="password"]').fill(ADMIN_PASS);
       await page.locator('button[type="submit"]').click();
       await page.waitForURL((url) => url.pathname.startsWith('/admin'), { timeout: 30_000 });
+
+      // Use a clean authenticated page so late errors from the login redirect or
+      // dashboard cannot be misattributed to the route under test.
+      await page.goto('about:blank');
       await assertHealthyAndAccessible(page, route);
     });
   }
