@@ -50,20 +50,46 @@ test.describe('critical pages across supported browser engines', () => {
     });
   }
 
-  for (const route of adminRoutes) {
-    test(`admin ${route} has no serious WCAG violations or runtime errors`, async ({ page }) => {
-      test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'admin credentials are required');
+  test.describe('authenticated admin pages', () => {
+    let adminContext;
 
-      await page.goto(`${BASE}/accedi`);
-      await page.locator('input[name="email"]').fill(ADMIN_EMAIL);
-      await page.locator('input[name="password"]').fill(ADMIN_PASS);
-      await page.locator('button[type="submit"]').click();
-      await page.waitForURL((url) => url.pathname.startsWith('/admin'), { timeout: 30_000 });
+    test.beforeAll(async ({ browser }) => {
+      if (!ADMIN_EMAIL || !ADMIN_PASS) return;
 
-      // Use a clean authenticated page so late errors from the login redirect or
-      // dashboard cannot be misattributed to the route under test.
-      await page.goto('about:blank');
-      await assertHealthyAndAccessible(page, route);
+      // Authenticate once per browser project. Repeating the login for every
+      // route can exhaust the application rate limit after the package tests.
+      adminContext = await browser.newContext();
+      const loginPage = await adminContext.newPage();
+      try {
+        await loginPage.goto(`${BASE}/accedi`, { waitUntil: 'domcontentloaded' });
+        await loginPage.locator('input[name="email"]').fill(ADMIN_EMAIL);
+        await loginPage.locator('input[name="password"]').fill(ADMIN_PASS);
+        await Promise.all([
+          loginPage.waitForURL((url) => url.pathname.startsWith('/admin'), { timeout: 30_000 }),
+          loginPage.locator('button[type="submit"]').click(),
+        ]);
+      } finally {
+        await loginPage.close();
+      }
     });
-  }
+
+    test.afterAll(async () => {
+      await adminContext?.close();
+    });
+
+    for (const route of adminRoutes) {
+      test(`admin ${route} has no serious WCAG violations or runtime errors`, async () => {
+        test.skip(!adminContext, 'admin credentials are required');
+
+        // A new page avoids attributing late errors from the previous route to
+        // the route currently under audit while retaining the authenticated session.
+        const auditPage = await adminContext.newPage();
+        try {
+          await assertHealthyAndAccessible(auditPage, route);
+        } finally {
+          await auditPage.close();
+        }
+      });
+    }
+  });
 });
