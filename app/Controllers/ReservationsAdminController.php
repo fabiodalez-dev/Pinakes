@@ -280,7 +280,9 @@ class ReservationsAdminController
             }
 
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after reservation update.');
+            }
 
             // Cancelling/completing an active reservation frees a slot: promote the next
             // queued reservation(s) right away, exactly like every other release path
@@ -535,7 +537,9 @@ class ReservationsAdminController
             $stmt->close();
 
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after reservation creation.');
+            }
 
             $db->commit();
             return $response->withHeader('Location', url('/admin/reservations') . '?created=1')->withStatus(302);

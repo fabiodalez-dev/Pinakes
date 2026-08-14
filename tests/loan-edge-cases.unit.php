@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Behavioral integration suite — 60 loan ("prestiti") edge cases for Pinakes.
+ * Behavioral integration suite — 64 loan ("prestiti") edge cases for Pinakes.
  *
  * Runs against the LIVE local MySQL but only ever touches data it creates,
  * marked with: book titles `ZZ_LOANEDGE_%`, copy numero_inventario `ZZLE-%`,
@@ -17,15 +17,19 @@ declare(strict_types=1);
  *   - installer/database/triggers.sql (copy-occupancy invariants)
  *
  * Run:   php tests/loan-edge-cases.unit.php
- * Exit:  0 only if all 60 pass; prints "ALL 60 PASS".
+ * Exit:  0 only if all 64 pass; prints "ALL 64 PASS".
  */
 
 use App\Models\CopyRepository;
+use App\Controllers\ReservationManager;
+use App\Controllers\UserActionsController;
 use App\Services\CapacityService;
 use App\Services\ReservationReassignmentService;
 use App\Support\DataIntegrity;
 use App\Support\DateHelper;
 use App\Support\IcsGenerator;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response as SlimResponse;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
@@ -135,7 +139,7 @@ function pass(string $desc): void
 {
     global $TESTNO;
     $TESTNO++;
-    printf("[%02d/60] PASS: %s\n", $TESTNO, $desc);
+    printf("[%02d/64] PASS: %s\n", $TESTNO, $desc);
 }
 
 function assertEq($exp, $got, string $msg): void
@@ -794,9 +798,124 @@ foreach ($issues as $issue) {
 assertEq(true, $foundOverbook, 'integrity report must detect overbooking that involves overdue loans');
 pass('integrity: overbooked period with overdue loans is reported');
 
+// 61: copy-loss reassignment must inspect every viable physical copy, not give
+// up after five overlapping candidates while a later copy is free.
+$b = mkBook('reassign_after_five_conflicts');
+$copies = mkCopies($b, 7);
+$damagedCopy = array_shift($copies);
+$periodStart = date('Y-m-d', strtotime('+90 days'));
+$periodEnd = date('Y-m-d', strtotime('+100 days'));
+for ($i = 0; $i < 5; $i++) {
+    loan($b, $copies[$i], mkUser(), $periodStart, $periodEnd, 'prenotato', 1);
+}
+$freeReplacement = $copies[5];
+$hold = loan($b, $damagedCopy, mkUser(), $periodStart, $periodEnd, 'prenotato', 1);
+(new CopyRepository($db))->updateStatus($damagedCopy, 'danneggiato');
+(new ReservationReassignmentService($db))->reassignOnCopyLost($damagedCopy);
+$assignedCopy = (int) $db->query("SELECT COALESCE(copia_id, 0) FROM prestiti WHERE id = {$hold}")->fetch_row()[0];
+assertEq($freeReplacement, $assignedCopy, 'allocator must reach the free physical copy after five conflicts');
+pass('copies: reassignment searches beyond five overlapping candidates');
+
+// 62: a copy physically out today can still host a disjoint future hold. The
+// derived status must stay 'prestato' until the current loan is returned.
+$b = mkBook('reassign_to_currently_loaned_copy');
+[$damagedCopy, $loanedReplacement] = mkCopies($b, 2);
+$currentStart = date('Y-m-d', strtotime('-2 days'));
+$currentEnd = date('Y-m-d', strtotime('+5 days'));
+loan($b, $loanedReplacement, mkUser(), $currentStart, $currentEnd, 'in_corso', 1);
+(new CopyRepository($db))->updateStatus($loanedReplacement, 'prestato');
+$futureStart = date('Y-m-d', strtotime('+10 days'));
+$futureEnd = date('Y-m-d', strtotime('+20 days'));
+$futureHold = loan($b, $damagedCopy, mkUser(), $futureStart, $futureEnd, 'prenotato', 1);
+(new CopyRepository($db))->updateStatus($damagedCopy, 'danneggiato');
+(new ReservationReassignmentService($db))->reassignOnCopyLost($damagedCopy);
+$futureCopy = (int) $db->query("SELECT COALESCE(copia_id, 0) FROM prestiti WHERE id = {$futureHold}")->fetch_row()[0];
+assertEq($loanedReplacement, $futureCopy, 'disjoint future hold must reuse the currently loaned physical copy');
+assertEq('prestato', copyStato($loanedReplacement), 'current physical loan must retain status priority after future reassignment');
+pass('copies: disjoint future hold reuses a loaned copy without corrupting its current status');
+
+// 63: legacy reservations with NULL data_inizio_richiesta use the canonical
+// deadline fallback and must still promote to a copy-linked pending loan.
+$b = mkBook('legacy_null_start_promotion');
+$copy = mkCopies($b, 1)[0];
+$u = mkUser();
+$legacyStart = DateHelper::today();
+$legacyEnd = (new \DateTimeImmutable($legacyStart))->modify('+7 days')->format('Y-m-d');
+$legacyDeadline = $legacyStart . ' 23:59:59';
+$stmt = $db->prepare(
+    "INSERT INTO prenotazioni
+        (libro_id, utente_id, data_prenotazione, data_inizio_richiesta, data_fine_richiesta,
+         data_scadenza_prenotazione, queue_position, stato)
+     VALUES (?, ?, NOW(), NULL, ?, ?, 1, 'attiva')"
+);
+$stmt->bind_param('iiss', $b, $u, $legacyEnd, $legacyDeadline);
+$stmt->execute();
+$legacyReservation = (int) $db->insert_id;
+$stmt->close();
+$db->begin_transaction();
+$manager = new ReservationManager($db);
+$manager->setExternalTransaction(true);
+$promoted = $manager->processBookAvailability($b);
+$db->commit();
+$legacyState = (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$legacyReservation}")->fetch_row()[0];
+$legacyLoan = $db->query(
+    "SELECT stato, copia_id, data_prestito FROM prestiti
+     WHERE libro_id = {$b} AND utente_id = {$u} AND origine = 'prenotazione'
+     ORDER BY id DESC LIMIT 1"
+)->fetch_assoc();
+assertEq(true, $promoted, 'legacy NULL-start reservation must be selected for promotion');
+assertEq('completata', $legacyState, 'legacy reservation must become completed');
+assertEq($copy, (int) ($legacyLoan['copia_id'] ?? 0), 'promoted legacy reservation must link the physical copy');
+assertEq($legacyStart, (string) ($legacyLoan['data_prestito'] ?? ''), 'legacy fallback must become the loan start date');
+pass('reservations: legacy NULL start promotes into a physical-copy-linked loan');
+
+// 64: cancelling a queue reservation from the user frontend must immediately
+// promote the next eligible row and link the freed physical capacity.
+$b = mkBook('user_cancel_promotes_queue');
+$copy = mkCopies($b, 1)[0];
+$cancelUser = mkUser();
+$nextUser = mkUser();
+$queueStart = DateHelper::today();
+$queueEnd = (new \DateTimeImmutable($queueStart))->modify('+7 days')->format('Y-m-d');
+$queueStartDt = $queueStart . ' 00:00:00';
+$queueEndDt = $queueEnd . ' 23:59:59';
+$insertReservation = $db->prepare(
+    "INSERT INTO prenotazioni
+        (libro_id, utente_id, data_prenotazione, data_scadenza_prenotazione,
+         data_inizio_richiesta, data_fine_richiesta, queue_position, stato)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'attiva')"
+);
+$firstPosition = 1;
+$insertReservation->bind_param('iissssi', $b, $cancelUser, $queueStartDt, $queueEndDt, $queueStart, $queueEnd, $firstPosition);
+$insertReservation->execute();
+$cancelReservationId = (int) $db->insert_id;
+$secondPosition = 2;
+$insertReservation->bind_param('iissssi', $b, $nextUser, $queueStartDt, $queueEndDt, $queueStart, $queueEnd, $secondPosition);
+$insertReservation->execute();
+$nextReservationId = (int) $db->insert_id;
+$insertReservation->close();
+$_SESSION['user'] = ['id' => $cancelUser, 'tipo_utente' => 'standard'];
+$cancelRequest = (new ServerRequestFactory())
+    ->createServerRequest('POST', '/reservation/cancel')
+    ->withParsedBody(['reservation_id' => $cancelReservationId]);
+$cancelResponse = (new UserActionsController())->cancelReservation($cancelRequest, new SlimResponse(), $db);
+unset($_SESSION['user']);
+$cancelledState = (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$cancelReservationId}")->fetch_row()[0];
+$nextState = (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$nextReservationId}")->fetch_row()[0];
+$promotedLoan = $db->query(
+    "SELECT copia_id, stato FROM prestiti
+     WHERE libro_id = {$b} AND utente_id = {$nextUser} AND origine = 'prenotazione'
+     ORDER BY id DESC LIMIT 1"
+)->fetch_assoc();
+assertEq(302, $cancelResponse->getStatusCode(), 'user cancellation must complete with the normal redirect');
+assertEq('annullata', $cancelledState, 'cancelled reservation must be terminal');
+assertEq('completata', $nextState, 'next eligible reservation must be promoted immediately');
+assertEq($copy, (int) ($promotedLoan['copia_id'] ?? 0), 'promoted queue row must link the freed physical copy');
+pass('reservations: user cancellation immediately promotes and links the next queue row');
+
 /* ==========================================================================
  * Done
  * ====================================================================== */
 cleanup($db);
-echo "ALL 60 PASS\n";
+echo "ALL 64 PASS\n";
 $db->close();

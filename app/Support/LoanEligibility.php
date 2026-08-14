@@ -32,6 +32,7 @@ class LoanEligibility
      *
      * @return string|null Codice errore ('user_not_found', 'user_suspended',
      *                     'card_expired') oppure null se l'utente è idoneo.
+     * @phpstan-impure Reads mutable database state; repeated calls can differ.
      */
     public static function checkUser(\mysqli $db, int $userId): ?string
     {

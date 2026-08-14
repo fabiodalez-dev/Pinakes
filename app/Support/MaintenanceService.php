@@ -419,7 +419,9 @@ class MaintenanceService
 
                 // Recalculate book availability using DataIntegrity for consistency
                 // (da_ritirare counts as "slot occupied" even if copy is available)
-                $integrity->recalculateBookAvailability((int)$loan['libro_id'], true);
+                if (!$integrity->recalculateBookAvailability((int) $loan['libro_id'], true)) {
+                    throw new \RuntimeException('Failed to recalculate availability while activating a scheduled loan.');
+                }
 
                 $this->db->commit();
                 $activatedCount++;
@@ -471,7 +473,8 @@ class MaintenanceService
             FROM prenotazioni p
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'attiva'
-            AND p.data_inizio_richiesta <= ?
+            AND COALESCE(p.data_inizio_richiesta, DATE(p.data_scadenza_prenotazione)) IS NOT NULL
+            AND COALESCE(p.data_inizio_richiesta, DATE(p.data_scadenza_prenotazione)) <= ?
             ORDER BY p.libro_id, p.queue_position ASC
         ");
 
@@ -690,7 +693,9 @@ class MaintenanceService
                 }
 
                 // Recalculate book availability (inside transaction)
-                $integrity->recalculateBookAvailability($libroId, true);
+                if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after reservation expiry.');
+                }
 
                 $this->db->commit();
                 $expiredCount++;
@@ -872,7 +877,9 @@ class MaintenanceService
                 }
 
                 // Recalculate book availability (inside transaction)
-                $integrity->recalculateBookAvailability($libroId, true);
+                if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after pickup expiry.');
+                }
 
                 $this->db->commit();
                 $expiredCount++;

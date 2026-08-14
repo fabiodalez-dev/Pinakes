@@ -85,6 +85,18 @@ function dbExec(sql) {
     });
 }
 
+/**
+ * Direct SQL writes bypass SettingsRepository, so invalidate ConfigStore's
+ * cross-request file cache before asserting API-visible settings.
+ */
+function clearConfigCache() {
+    execFileSync(
+        'php',
+        ['-r', 'require "vendor/autoload.php"; \\App\\Support\\ConfigStore::clearCache();'],
+        { cwd: process.cwd(), encoding: 'utf-8', timeout: 15000, env: process.env }
+    );
+}
+
 function tableExists(name) {
     const n = parseInt(dbQuery(
         `SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${name.replace(/'/g, "''")}'`
@@ -335,6 +347,7 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
                  ON DUPLICATE KEY UPDATE setting_value='0'`
             );
         }
+        clearConfigCache();
         dbExec(
             `INSERT INTO registrazione_campi (etichetta, tipo, obbligatorio, attivo, ordine)
              SELECT '${CUSTOM_FIELD_LABEL}', 'text', 1, 1, ordering.next_order
@@ -393,6 +406,7 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
                     );
                 }
             }
+            clearConfigCache();
         } catch (_) { /* best-effort */ }
     });
 

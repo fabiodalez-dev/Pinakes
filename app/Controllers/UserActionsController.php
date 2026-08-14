@@ -232,7 +232,9 @@ class UserActionsController
             // siamo dentro la transazione aperta in questo metodo, evita il
             // commit implicito di una begin_transaction() annidata)
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability((int) $loan['libro_id'], insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability((int) $loan['libro_id'], insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after loan cancellation.');
+            }
 
             $db->commit();
 
@@ -347,11 +349,27 @@ class UserActionsController
             $updatePos->close();
             $reorderStmt->close();
 
-            // Recalculate book availability
+            // Cancelling a queue reservation frees a promised capacity unit.
+            // Promote every now-eligible row in the same transaction, matching
+            // the admin cancellation and physical-copy release paths.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // promote until the newly-freed capacity is exhausted
+            }
+
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after reservation cancellation.');
+            }
 
             $db->commit();
+
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $e) {
+                SecureLogger::warning('Failed to flush reservation notifications after user cancellation', ['error' => $e->getMessage()]);
+            }
 
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);
 
@@ -452,7 +470,9 @@ class UserActionsController
 
             // Recalculate book availability
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after reservation date change.');
+            }
 
             $db->commit();
 
@@ -568,19 +588,22 @@ class UserActionsController
             }
             $dupReservationStmt->close();
 
+            // Revalidate eligibility while holding the user row. The fast check
+            // before the transaction improves feedback, but an administrator can
+            // suspend the patron between that check and this INSERT.
+            $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+            $userLockStmt->bind_param('i', $utenteId);
+            $userLockStmt->execute();
+            $userLockStmt->get_result();
+            $userLockStmt->close();
+            if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+                $db->rollback();
+                return $this->back($response, ['loan_error' => 'not_eligible']);
+            }
+
             // Enforce max active loans per user (admin setting; 0 = no limit)
             $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
-                // Serialize concurrent loan requests by the SAME user: the per-book
-                // libri lock taken earlier does not mutually exclude two requests
-                // for *different* books, so without this both could read the same
-                // activeCount below the limit and both insert, exceeding it.
-                // Locking the user row forces them to run one at a time.
-                $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
-                $userLockStmt->bind_param('i', $utenteId);
-                $userLockStmt->execute();
-                $userLockStmt->close();
-
                 $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
                 $cntStmt->bind_param('i', $utenteId);
                 $cntStmt->execute();
@@ -729,6 +752,18 @@ class UserActionsController
             }
             $dupLoanStmt->close();
 
+            // Revalidate under the user lock so a concurrent suspension/card
+            // expiry cannot race the pre-transaction eligibility check.
+            $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+            $userLockStmt->bind_param('i', $utenteId);
+            $userLockStmt->execute();
+            $userLockStmt->get_result();
+            $userLockStmt->close();
+            if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => 'not_eligible']);
+            }
+
             // Canonical peak-capacity decision (same service as admin create,
             // approval, renew and audit), excluding this user defensively.
             $capacity = new \App\Services\CapacityService($db);
@@ -759,7 +794,9 @@ class UserActionsController
 
                 // Recalculate book availability after reservation
                 $integrity = new \App\Support\DataIntegrity($db);
-                $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+                if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after reservation creation.');
+                }
 
                 $db->commit();
                 $params = ['reserve_success' => 1];

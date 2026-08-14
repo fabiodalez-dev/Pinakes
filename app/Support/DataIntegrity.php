@@ -262,6 +262,8 @@ class DataIntegrity {
     /**
      * Ricalcola le copie disponibili per un singolo libro
      * Supports being called inside or outside a transaction
+     *
+     * @phpstan-impure Mutates and re-reads circulation state in the database.
      */
     public function recalculateBookAvailability(int $bookId, bool $insideTransaction = false, bool $skipCacheInvalidation = false): bool {
         // App-timezone "today" (see recalculateAllBookAvailability) — interpolated in place of
