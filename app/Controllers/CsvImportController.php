@@ -1157,13 +1157,21 @@ class CsvImportController
     }
 
     /**
-     * Validate and normalize EAN-13 barcode value
+     * Validate and normalize an EAN-13 or UPC-A barcode value
      *
-     * Unlike normalizeIsbn(), this only validates format and length (13 digits)
-     * without ISBN checksum checks, since valid EAN-13 barcodes may not be ISBNs.
+     * Unlike normalizeIsbn(), this only validates format and length without
+     * ISBN checksum checks, since valid EAN-13 barcodes may not be ISBNs.
      *
-     * @param string $ean Raw EAN value from CSV
-     * @return string|null Normalized EAN or null if invalid
+     * A UPC-A (GTIN-12, e.g. board games) is a GTIN-13/EAN-13 with a leading
+     * zero, and the zero-padding preserves its check digit (the EAN-13 weight
+     * pattern aligns once the leading zero occupies an odd position). So a
+     * 12-digit UPC-A is canonicalised to its 13-digit GTIN and then flows
+     * through the same EAN-13 validation, storage, dedup and search — the same
+     * barcode scanned as UPC-A or EAN-13 normalises to one value. (issue #348)
+     * Both CSV and TSV imports share this path (delimiter is auto-detected).
+     *
+     * @param string $ean Raw EAN/UPC value from CSV/TSV
+     * @return string|null Normalized 13-digit GTIN or null if invalid
      */
     private function normalizeEan(string $ean): ?string
     {
@@ -1171,11 +1179,22 @@ class CsvImportController
             return null;
         }
 
-        // Remove all non-digit characters
-        $normalized = preg_replace('/[^0-9]/', '', trim($ean));
+        // Strip only the separators a barcode may carry: ASCII space and dash.
+        // Not \s and not trim() — those also remove TAB/CR/LF, which would let a
+        // field with a stray control character collapse into a "valid" barcode.
+        // Any character left after this means the cell is not a bare barcode
+        // (e.g. "ABC036000291452", "036000\n291452", "\t036000291452"), so
+        // reject it via the ctype_digit guard rather than extracting digits.
+        $normalized = str_replace([' ', '-'], '', $ean);
 
-        if (empty($normalized)) {
+        if ($normalized === '' || !ctype_digit($normalized)) {
             return null;
+        }
+
+        // UPC-A (12 digits) is EAN-13 with a leading zero — canonicalise it so
+        // the shared EAN-13 checksum below validates it unchanged.
+        if (strlen($normalized) === 12) {
+            $normalized = '0' . $normalized;
         }
 
         // EAN-13 must be exactly 13 digits

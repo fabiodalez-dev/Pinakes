@@ -39,31 +39,29 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New
 
-Highlights of the latest release are below. The full version-by-version history (v0.7.58 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
+Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.59 — latest
+### v0.7.60 — latest
 
-A consolidation release: four feature/fix branches integrated and hardened together, with a security pass on top.
+A maintenance release: UPC barcode support, a read-only availability field, and a PHP 8.5 scraping fix.
 
 ### New
-- **"Complete series" indicator** — admins can mark a series as complete; the flag shows on the series list and detail pages (#338).
+
+- **UPC-A barcodes are supported** — the barcode field now accepts a 12-digit UPC-A (board games and other non-book items) and stores it as its 13-digit GTIN, so it validates, searches and de-duplicates like an EAN-13. CSV and TSV import both handle it, and the field reads **EAN/UPC** in every locale (#348).
 
 ### Fixes
-- **Loan editing from the admin page works again** — the availability re-check no longer bounces every edit, and dates are validated strictly (#336).
-- **Loan status no longer shows "Unknown"** — cancelled and expired loans render their real state through canonical status/label helpers (#333).
-- **The notifications panel is no longer overlapped** in the admin during scroll (#334).
-- **Loan & reservation coherence** — clocks, availability and date handling share the same guarded paths across the web UI, mobile API and background jobs; auto-approval now honours the setting on the book-detail request path too (#301).
-- **The barcode scanner keeps focus** on the loan form and copies sort in natural order (#238).
-- **Related books are reachable on narrow and tablet screens** — the strip now shows a scroll affordance instead of silently clipping cards.
 
-### Security
-- Framework-generated error responses now receive the same nonce-based Content Security Policy as normal pages.
+- **ISBN scraping works on PHP 8.5 again** — a deprecated `curl_close()` notice was leaking into the JSON response and breaking the import with "Risposta non valida dal servizio ISBN.".
+- **The availability field in the book editor is now read-only** — it is derived from the physical copies, so editing it was a silent no-op (#351). Set a copy's status to make it unavailable.
+- **The scroll-to-top button no longer covers the Save button** at the bottom of the book form.
 
-### Database Changes
-- Adds a `collane.is_completa` flag; the in-app updater applies the migration automatically on upgrade.
+### Internal
+
+- The GitHub Actions security audit no longer breaks on upstream action tag drift, and the NCIP CheckOut regression test is now deterministic under sharded runs.
 
 ### Upgrade Notes
-- Back up your database before updating (the in-app updater does this automatically).
+
+- No database changes. Back up your database before updating anyway (the in-app updater does this automatically).
 
 > Older releases → **[CHANGELOG.md](CHANGELOG.md)**.
 
