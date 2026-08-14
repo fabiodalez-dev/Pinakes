@@ -1453,15 +1453,15 @@ class LibriController
         $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int) $fields['editore_id'];
         $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int) $fields['genere_id'];
         $fields['sottogenere_id'] = empty($fields['sottogenere_id']) || $fields['sottogenere_id'] == 0 ? null : (int) $fields['sottogenere_id'];
-        // Clamp to the same 0..9999 range as store(): zero is a valid catalogue
-        // record with no physical holdings yet; an unbounded value would build
-        // a huge allocation loop / copy set. (#252 CodeRabbit)
-        $fields['copie_totali'] = (int) $fields['copie_totali'];
-        if ($fields['copie_totali'] < 0) {
-            $fields['copie_totali'] = 0;
-        } elseif ($fields['copie_totali'] > 9999) {
-            $fields['copie_totali'] = 9999;
-        }
+        // Copies are managed individually from the book summary (#physical-copies);
+        // the edit form's "Copie in circolazione" field is read-only. Ignore any
+        // submitted copie_totali — derive it from the copie table — so a crafted
+        // POST that bypasses the client-side readonly cannot drive the copy
+        // reconciliation below to silently add or delete copies. The derived value
+        // matches libri.copie_totali (same out-of-circulation exclusion as
+        // DataIntegrity), so the add/remove branches become guaranteed no-ops.
+        $copyRepoCount = new \App\Models\CopyRepository($db);
+        $fields['copie_totali'] = $copyRepoCount->countInCirculationByBookId($id);
 
         // Validazione copie: verifica che sia possibile ridurre il numero di copie.
         // Usa lo stesso conteggio "in circolazione" della gestione copie più sotto

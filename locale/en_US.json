@@ -3672,7 +3672,6 @@
   "Pulsanti \"Richiedi Prestito\" e \"Prenota\" nel catalogo": "\"Request Loan\" and \"Reserve\" buttons in the catalogue",
   "Puoi cambiare questa impostazione in qualsiasi momento da Impostazioni → Avanzate": "You can change this setting anytime from Settings → Advanced",
   "Puoi configurare o modificare queste impostazioni in seguito dalla sezione Impostazioni Email dell'admin.": "You can configure or modify these settings later from the admin Email Settings section.",
-  "Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.": "You can only delete lost, damaged or in maintenance copies. First change the copy status.",
   "Puoi modificare queste impostazioni in qualsiasi momento dalla sezione Impostazioni dell'admin.": "You can modify these settings at any time from the admin Settings section.",
   "Puoi ridurre le copie solo se non sono in prestito, perse o danneggiate.": "You can reduce copies only if they are not on loan, lost or damaged.",
   "Puoi scegliere un mirror suggerito oppure selezionare dominio personalizzato.": "You can choose a suggested mirror or select a custom domain.",
@@ -6785,7 +6784,6 @@
   "Rinnovo non riuscito. Riprova.": "Renewal failed. Please try again.",
   "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Change not saved: the assigned copy is already committed to another loan in the new period.",
   "Aggiungi copia": "Add copy",
-  "Aggiungi Copia": "Add Copy",
   "Numero di inventario": "Inventory number",
   "Lascia vuoto per assegnarlo automaticamente": "Leave empty to assign it automatically",
   "In restauro": "Under restoration",
@@ -6806,5 +6804,6 @@
   "Prefisso inventario copie": "Copy inventory prefix",
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Used only to generate codes for new copies automatically; existing codes do not change.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Initial copies receive sequential codes such as PREFIX-C1 and PREFIX-C2.",
-  "Invio notifica nuova copia fallito": "New-copy notification failed"
+  "Invio notifica nuova copia fallito": "New-copy notification failed",
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "You can only delete out-of-circulation copies (lost, damaged, under maintenance, under restoration or in transfer). Change the copy's status first."
 }

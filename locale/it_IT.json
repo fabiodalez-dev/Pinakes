@@ -3672,7 +3672,6 @@
   "Pulsanti \"Richiedi Prestito\" e \"Prenota\" nel catalogo": "Pulsanti \"Richiedi Prestito\" e \"Prenota\" nel catalogo",
   "Puoi cambiare questa impostazione in qualsiasi momento da Impostazioni → Avanzate": "Puoi cambiare questa impostazione in qualsiasi momento da Impostazioni → Avanzate",
   "Puoi configurare o modificare queste impostazioni in seguito dalla sezione Impostazioni Email dell'admin.": "Puoi configurare o modificare queste impostazioni in seguito dalla sezione Impostazioni Email dell'admin.",
-  "Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.": "Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.",
   "Puoi modificare queste impostazioni in qualsiasi momento dalla sezione Impostazioni dell'admin.": "Puoi modificare queste impostazioni in qualsiasi momento dalla sezione Impostazioni dell'admin.",
   "Puoi ridurre le copie solo se non sono in prestito, perse o danneggiate.": "Puoi ridurre le copie solo se non sono in prestito, perse o danneggiate.",
   "Puoi scegliere un mirror suggerito oppure selezionare dominio personalizzato.": "Puoi scegliere un mirror suggerito oppure selezionare dominio personalizzato.",
@@ -6785,7 +6784,6 @@
   "Rinnovo non riuscito. Riprova.": "Rinnovo non riuscito. Riprova.",
   "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.",
   "Aggiungi copia": "Aggiungi copia",
-  "Aggiungi Copia": "Aggiungi Copia",
   "Numero di inventario": "Numero di inventario",
   "Lascia vuoto per assegnarlo automaticamente": "Lascia vuoto per assegnarlo automaticamente",
   "In restauro": "In restauro",
@@ -6806,5 +6804,6 @@
   "Prefisso inventario copie": "Prefisso inventario copie",
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.",
-  "Invio notifica nuova copia fallito": "Invio notifica nuova copia fallito"
+  "Invio notifica nuova copia fallito": "Invio notifica nuova copia fallito",
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia."
 }

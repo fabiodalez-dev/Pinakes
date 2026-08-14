@@ -3672,7 +3672,6 @@
   "Pulsanti \"Richiedi Prestito\" e \"Prenota\" nel catalogo": "Knapperne \"Anmod om lån\" og \"Reserver\" i kataloget",
   "Puoi cambiare questa impostazione in qualsiasi momento da Impostazioni → Avanzate": "Du kan ændre denne indstilling når som helst under Indstillinger → Avanceret",
   "Puoi configurare o modificare queste impostazioni in seguito dalla sezione Impostazioni Email dell'admin.": "Du kan konfigurere eller ændre disse indstillinger senere i admin-sektionen for e-mailindstillinger.",
-  "Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.": "Du kan kun slette tabte, beskadigede eller vedligeholdte eksemplarer. Ændr eksemplarets status først.",
   "Puoi modificare queste impostazioni in qualsiasi momento dalla sezione Impostazioni dell'admin.": "Du kan til enhver tid ændre disse indstillinger i administrationens sektion Indstillinger.",
   "Puoi ridurre le copie solo se non sono in prestito, perse o danneggiate.": "Du kan kun reducere eksemplarer, hvis de ikke er udlånt, tabt eller beskadiget.",
   "Puoi scegliere un mirror suggerito oppure selezionare dominio personalizzato.": "Du kan vælge et foreslået spejl eller vælge et brugerdefineret domæne.",
@@ -6785,7 +6784,6 @@
   "Rinnovo non riuscito. Riprova.": "Fornyelsen mislykkedes. Prøv igen.",
   "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Ændringen blev ikke gemt: Det tildelte eksemplar er allerede optaget af et andet lån i den nye periode.",
   "Aggiungi copia": "Tilføj eksemplar",
-  "Aggiungi Copia": "Tilføj eksemplar",
   "Numero di inventario": "Inventarnummer",
   "Lascia vuoto per assegnarlo automaticamente": "Lad stå tom for automatisk tildeling",
   "In restauro": "Under restaurering",
@@ -6806,5 +6804,6 @@
   "Prefisso inventario copie": "Inventarpræfiks for eksemplarer",
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Bruges kun til automatisk at generere koder til nye eksemplarer; eksisterende koder ændres ikke.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Indledende eksemplarer får fortløbende koder som PRÆFIKS-C1 og PRÆFIKS-C2.",
-  "Invio notifica nuova copia fallito": "Notifikation om nyt eksemplar mislykkedes"
+  "Invio notifica nuova copia fallito": "Notifikation om nyt eksemplar mislykkedes",
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kan kun slette eksemplarer uden for cirkulation (mistede, beskadigede, under vedligeholdelse, under restaurering eller under overførsel). Ret først eksemplarets status."
 }

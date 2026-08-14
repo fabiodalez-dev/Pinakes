@@ -490,7 +490,8 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 <?= $mode === 'edit' ? __("Copie in circolazione") : __("Copie fisiche iniziali") ?>
                 <span class="text-xs text-gray-500">(<?= __("Le copie disponibili vengono calcolate automaticamente") ?>)</span>
               </label>
-              <input id="copie_totali" name="copie_totali" type="number" class="form-input"
+              <input id="copie_totali" name="copie_totali" type="number"
+                     class="form-input <?php echo $mode === 'edit' ? 'bg-gray-100 cursor-not-allowed' : ''; ?>"
                      value="<?php echo (int)($book['copie_totali'] ?? 1); ?>" min="0" max="9999"
                      <?php echo $mode === 'edit' ? 'readonly aria-readonly="true"' : ''; ?> />
               <?php if ($mode === 'edit' && !empty($book['id'])): ?>
@@ -3465,7 +3466,7 @@ async function increaseCopies(book) {
                     title: __('Copie Aggiunte!'),
                     html: `
                         <p class="mb-2">${__('Hai aggiunto %s copie a "%s"').replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
-                        <p class="text-sm text-gray-600">${__('Copie totali:')}: ${data.copie_totali}</p>
+                        <p class="text-sm text-gray-600">${__('Copie in circolazione')}: ${data.copie_totali}</p>
                         <p class="text-sm text-gray-600">${__('Copie disponibili:')}: ${data.copie_disponibili}</p>
                     `,
                     confirmButtonText: __('OK')

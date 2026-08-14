@@ -297,10 +297,12 @@ class CopyController
     /**
      * Crea una nuova copia fisica per un libro, direttamente dalla scheda.
      *
-     * Loan states ('prestato'/'prenotato') are never created here — those belong
-     * to the Prestiti system. A lost/damaged/maintenance copy is allowed: the
-     * availability recalculation then excludes it from copie_totali, so marking a
-     * copy lost reduces the book's total on its own.
+     * A copy is never *created* in a loan state here — 'prestato'/'prenotato'
+     * belong to the Prestiti system — but creating an available copy may promote a
+     * waiting reservation, which sets that new copy to 'prenotato' before commit.
+     * A copy created out of circulation ('perso'/'danneggiato'/'manutenzione'/
+     * 'in_restauro'/'in_trasferimento') is excluded from copie_totali by the
+     * availability recalculation, so marking a copy lost reduces the book's total.
      */
     public function createCopy(Request $request, Response $response, mysqli $db, int $bookId): Response
     {
@@ -316,6 +318,15 @@ class CopyController
             return $response->withHeader('Location', url("/admin/books/{$bookId}"))->withStatus(302);
         }
         $note = trim((string) ($data['note'] ?? ''));
+        if ($note !== '') {
+            // Consistency with numero_inventario below: drop control characters
+            // (keeping tab/newline for multi-line notes) and cap the length
+            // defensively before persisting.
+            $note = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $note);
+            if (mb_strlen($note) > 500) {
+                $note = mb_substr($note, 0, 500);
+            }
+        }
 
         // Inventory code: honour an explicit value (must be unique), otherwise
         // auto-allocate the next collision-free "{base}-C{N}" like book creation.
@@ -445,9 +456,11 @@ class CopyController
             return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
         }
 
-        // Permetti eliminazione solo per copie perse, danneggiate o in manutenzione
-        if (!in_array($stato, ['perso', 'danneggiato', 'manutenzione'])) {
-            $_SESSION['error_message'] = __('Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.');
+        // Permetti eliminazione solo per copie fuori circolazione (perse, danneggiate,
+        // in manutenzione, in restauro o in trasferimento). Una copia disponibile o
+        // impegnata non si elimina: prima se ne cambia lo stato.
+        if (!in_array($stato, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true)) {
+            $_SESSION['error_message'] = __('Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.');
             return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
         }
 

@@ -200,7 +200,7 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
       confirm.click(),
     ]);
     expect(dbQuery(`SELECT COUNT(*) FROM copie WHERE id=${targetId}`)).toBe('1'); // still there
-    await expect(page.locator('text=Puoi eliminare solo copie perse')).toBeVisible();
+    await expect(page.locator('text=Puoi eliminare solo copie fuori circolazione')).toBeVisible();
 
     // Mark it damaged, then it can be deleted → the row count drops by one.
     await page.goto(`${BASE}/admin/books/${bookId}`);
@@ -270,5 +270,121 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     expect(linked).toMatch(new RegExp(`^\\d+:${queueBookId}:prenotazione:pendente$`));
     expect(copieTotali(queueBookId)).toBe(1);
     expect(Number(dbQuery(`SELECT copie_disponibili FROM libri WHERE id=${queueBookId}`))).toBe(0);
+  });
+
+  // ---- PR #356 review fixes ---------------------------------------------
+
+  // #2: in_restauro / in_trasferimento are out-of-circulation states and must be
+  // deletable from the UI (with no loan history), like perso/danneggiato/manutenzione.
+  test('14. copies in_restauro and in_trasferimento are deletable from the UI (#356)', async ({ page }) => {
+    await loginAsAdmin(page);
+    const delTitle = `CopyMgmtDel ${RUN}`;
+    dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, created_at, updated_at) VALUES ('${sqlEscape(delTitle)}', 0, 0, NOW(), NOW())`);
+    const delBookId = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(delTitle)}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`));
+    try {
+      for (const stato of ['in_restauro', 'in_trasferimento']) {
+        dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato, created_at) VALUES (${delBookId}, 'DEL-${RUN}-${stato}', '${stato}', NOW())`);
+        const copyId = Number(dbQuery(`SELECT id FROM copie WHERE libro_id=${delBookId} AND stato='${stato}' ORDER BY id DESC LIMIT 1`));
+        await page.goto(`${BASE}/admin/books/${delBookId}`);
+        // The row exposes a delete button (view $canDelete now includes the state).
+        await expect(page.locator(`button[onclick^="confirmDeleteCopy(${copyId}"]`)).toBeVisible();
+        await page.evaluate((id) => window.confirmDeleteCopy(id, 'X'), copyId);
+        const confirm = page.locator('.swal2-confirm');
+        await expect(confirm).toBeVisible({ timeout: 3000 });
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+          confirm.click(),
+        ]);
+        // The controller allow-list now permits the delete → the row is gone.
+        expect(dbQuery(`SELECT COUNT(*) FROM copie WHERE id=${copyId}`)).toBe('0');
+      }
+    } finally {
+      dbQuery(`DELETE FROM libri WHERE id=${delBookId}`);
+    }
+  });
+
+  // #3: a zero-copy book (now a valid state) must pluralise the header as "0 copie".
+  test('15. a zero-copy book pluralises the header count as "0 copie" (#356)', async ({ page }) => {
+    await loginAsAdmin(page);
+    const zeroTitle = `CopyMgmtZero ${RUN}`;
+    dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, created_at, updated_at) VALUES ('${sqlEscape(zeroTitle)}', 0, 0, NOW(), NOW())`);
+    const zeroId = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(zeroTitle)}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`));
+    try {
+      await page.goto(`${BASE}/admin/books/${zeroId}`);
+      const header = page.locator('#physical-copies');
+      await expect(header).toContainText('0 copie');
+      expect(await header.innerText()).not.toContain('0 copia');
+    } finally {
+      dbQuery(`DELETE FROM libri WHERE id=${zeroId}`);
+    }
+  });
+
+  // #5: copie_totali is read-only + visibly disabled on edit, editable on create.
+  test('16. copie_totali is read-only and greyed on edit, editable on create (#356)', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
+    const input = page.locator('#copie_totali');
+    await expect(input).toHaveAttribute('readonly', '');
+    expect(await input.getAttribute('class')).toContain('cursor-not-allowed');
+    await page.goto(`${BASE}/admin/books/create`);
+    expect(await page.locator('#copie_totali').getAttribute('readonly')).toBeNull();
+  });
+
+  // #6: the Add-copy modal title matches the button label ("Aggiungi copia").
+  test('17. the Add-copy modal title matches the button label (#356)', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/${bookId}`);
+    await page.evaluate(() => window.openAddCopyModal());
+    await expect(page.locator('#add-copy-modal')).toBeVisible();
+    expect((await page.locator('#add-copy-modal h3').first().innerText()).trim()).toBe('Aggiungi copia');
+    // The old mixed-case "Aggiungi Copia" string is gone from the modal.
+    expect(await page.locator('#add-copy-modal').innerText()).not.toContain('Aggiungi Copia');
+  });
+
+  // #1: copie_totali is derived server-side on edit — a crafted POST that bypasses
+  // the client-side readonly and sends 0 must NOT delete the book's copies.
+  test('18. a tampered copie_totali=0 on edit does not delete copies (#356)', async ({ page }) => {
+    await loginAsAdmin(page);
+    const tamperTitle = `CopyMgmtTamper ${RUN}`;
+    dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, created_at, updated_at) VALUES ('${sqlEscape(tamperTitle)}', 2, 2, NOW(), NOW())`);
+    const tId = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(tamperTitle)}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`));
+    dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato, created_at) VALUES (${tId}, 'TMP-${RUN}-C1', 'disponibile', NOW()), (${tId}, 'TMP-${RUN}-C2', 'disponibile', NOW())`);
+    try {
+      await page.goto(`${BASE}/admin/books/edit/${tId}`);
+      const marker = `${tamperTitle} EDITED`;
+      // Simulate a crafted POST: strip the readonly guard and zero the field, plus
+      // a benign title change so we can prove the update ran to completion.
+      await page.evaluate((title) => {
+        const el = document.getElementById('copie_totali');
+        el.removeAttribute('readonly');
+        el.value = '0';
+        const t = document.querySelector('input[name="titolo"]');
+        if (t) t.value = title;
+      }, marker);
+      await page.click('#bookForm button[type="submit"]');
+      const confirm = page.locator('.swal2-confirm');
+      if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+          confirm.click(),
+        ]);
+      }
+      // The benign edit persisted (update ran) …
+      expect(dbQuery(`SELECT titolo FROM libri WHERE id=${tId}`)).toBe(marker);
+      // … but the copies survived and the derived total is intact.
+      expect(copieCount(tId)).toBe(2);
+      expect(copieTotali(tId)).toBe(2);
+    } finally {
+      dbQuery(`DELETE FROM libri WHERE id=${tId}`);
+    }
+  });
+
+  // #7: the bulk-import success dialog uses the new "Copie in circolazione" wording.
+  test('19. the copies-added dialog uses the "Copie in circolazione" wording (#356)', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/create`);
+    const html = await page.content();
+    expect(html).toContain("__('Copie in circolazione')");
+    expect(html).not.toContain("__('Copie totali:')");
   });
 });

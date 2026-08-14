@@ -3672,7 +3672,6 @@
   "Pulsanti \"Richiedi Prestito\" e \"Prenota\" nel catalogo": "Schaltflächen \"Ausleihe anfordern\" und \"Vormerken\" im Katalog",
   "Puoi cambiare questa impostazione in qualsiasi momento da Impostazioni → Avanzate": "Sie können diese Einstellung jederzeit unter Einstellungen → Erweitert ändern",
   "Puoi configurare o modificare queste impostazioni in seguito dalla sezione Impostazioni Email dell'admin.": "Sie können diese Einstellungen später im Bereich E-Mail-Einstellungen der Administration konfigurieren oder ändern.",
-  "Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.": "Sie können nur verlorene, beschädigte oder in Wartung befindliche Exemplare löschen. Ändern Sie zuerst den Status des Exemplars.",
   "Puoi modificare queste impostazioni in qualsiasi momento dalla sezione Impostazioni dell'admin.": "Sie können diese Einstellungen jederzeit im Bereich Einstellungen der Administration ändern.",
   "Puoi ridurre le copie solo se non sono in prestito, perse o danneggiate.": "Sie können Exemplare nur reduzieren, wenn sie nicht ausgeliehen, verloren oder beschädigt sind.",
   "Puoi scegliere un mirror suggerito oppure selezionare dominio personalizzato.": "Sie können einen vorgeschlagenen Mirror auswählen oder eine benutzerdefinierte Domain wählen.",
@@ -6785,7 +6784,6 @@
   "Rinnovo non riuscito. Riprova.": "Verlängerung fehlgeschlagen. Bitte erneut versuchen.",
   "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Änderung nicht gespeichert: Das zugewiesene Exemplar ist im neuen Zeitraum bereits durch eine andere Ausleihe belegt.",
   "Aggiungi copia": "Exemplar hinzufügen",
-  "Aggiungi Copia": "Exemplar hinzufügen",
   "Numero di inventario": "Inventarnummer",
   "Lascia vuoto per assegnarlo automaticamente": "Leer lassen für automatische Zuweisung",
   "In restauro": "In Restaurierung",
@@ -6806,5 +6804,6 @@
   "Prefisso inventario copie": "Inventarpräfix für Exemplare",
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Wird nur zur automatischen Erzeugung neuer Exemplarcodes verwendet; bestehende Codes bleiben unverändert.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Anfängliche Exemplare erhalten fortlaufende Codes wie PRÄFIX-C1 und PRÄFIX-C2.",
-  "Invio notifica nuova copia fallito": "Benachrichtigung über neues Exemplar fehlgeschlagen"
+  "Invio notifica nuova copia fallito": "Benachrichtigung über neues Exemplar fehlgeschlagen",
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kannst nur Exemplare außer Betrieb löschen (verloren, beschädigt, in Wartung, in Restaurierung oder im Transfer). Ändere zuerst den Status des Exemplars."
 }

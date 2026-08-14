@@ -917,7 +917,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
           <i class="fas fa-clone text-gray-900"></i>
           <?= __("Copie Fisiche") ?>
           <span class="ml-2 text-sm font-normal text-gray-500">
-            (<?php echo count($copie); ?> <?= count($copie) > 1 ? __("copie") : __("copia") ?>)
+            (<?php echo count($copie); ?> <?= count($copie) === 1 ? __("copia") : __("copie") ?>)
             <?php if (isset($libro['copie_totali']) || isset($libro['copie_disponibili'])): ?>
               <?php if (isset($libro['copie_totali'])): ?>
                 <span class="mx-2">•</span>
@@ -1099,7 +1099,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                     $loanStatusVal = $copia['prestito_stato'] ?? null;
                     $bookAtLibrary = in_array($loanStatusVal, ['da_ritirare', 'prenotato'], true);
                     $canEdit = empty($copia['prestito_id']) || $bookAtLibrary;
-                    $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione']);
+                    $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true);
                     ?>
                     <?php if ($canEdit): ?>
                     <button type="button"
@@ -1894,7 +1894,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
       <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
         <h3 class="text-lg font-semibold text-gray-900">
           <i class="fas fa-plus text-gray-600 mr-2"></i>
-          <?= __("Aggiungi Copia") ?>
+          <?= __("Aggiungi copia") ?>
         </h3>
         <button type="button" id="close-add-copy-modal" class="text-gray-500 hover:text-gray-700">
           <i class="fas fa-times"></i>

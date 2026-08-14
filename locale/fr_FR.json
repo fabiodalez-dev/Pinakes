@@ -3672,7 +3672,6 @@
   "Pulsanti \"Richiedi Prestito\" e \"Prenota\" nel catalogo": "Boutons \"Demander un emprunt\" et \"Réserver\" dans le catalogue",
   "Puoi cambiare questa impostazione in qualsiasi momento da Impostazioni → Avanzate": "Vous pouvez modifier ce paramètre à tout moment depuis Paramètres → Avancé",
   "Puoi configurare o modificare queste impostazioni in seguito dalla sezione Impostazioni Email dell'admin.": "Vous pouvez configurer ou modifier ces paramètres plus tard depuis la section Paramètres e-mail de l'admin.",
-  "Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.": "Vous pouvez uniquement supprimer les exemplaires perdus, endommagés ou en maintenance. Changez d'abord le statut de l'exemplaire.",
   "Puoi modificare queste impostazioni in qualsiasi momento dalla sezione Impostazioni dell'admin.": "Vous pouvez modifier ces paramètres à tout moment depuis la section Paramètres de l'admin.",
   "Puoi ridurre le copie solo se non sono in prestito, perse o danneggiate.": "Vous pouvez réduire les exemplaires uniquement s'ils ne sont pas empruntés, perdus ou endommagés.",
   "Puoi scegliere un mirror suggerito oppure selezionare dominio personalizzato.": "Vous pouvez choisir un miroir suggéré ou sélectionner un domaine personnalisé.",
@@ -6785,7 +6784,6 @@
   "Rinnovo non riuscito. Riprova.": "Échec du renouvellement. Veuillez réessayer.",
   "Modifica non salvata: la copia assegnata è già impegnata da un altro prestito nel nuovo periodo.": "Modification non enregistrée : l’exemplaire attribué est déjà affecté à un autre prêt pendant la nouvelle période.",
   "Aggiungi copia": "Ajouter une copie",
-  "Aggiungi Copia": "Ajouter une copie",
   "Numero di inventario": "Numéro d'inventaire",
   "Lascia vuoto per assegnarlo automaticamente": "Laisser vide pour l'attribuer automatiquement",
   "In restauro": "En restauration",
@@ -6806,5 +6804,6 @@
   "Prefisso inventario copie": "Préfixe d’inventaire des copies",
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Utilisé uniquement pour générer les codes des nouvelles copies ; les codes existants ne changent pas.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Les copies initiales recevront des codes séquentiels comme PRÉFIXE-C1 et PRÉFIXE-C2.",
-  "Invio notifica nuova copia fallito": "Échec de la notification de nouvelle copie"
+  "Invio notifica nuova copia fallito": "Échec de la notification de nouvelle copie",
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Vous ne pouvez supprimer que les copies hors circulation (perdues, endommagées, en maintenance, en restauration ou en transfert). Modifiez d'abord l'état de la copie."
 }
