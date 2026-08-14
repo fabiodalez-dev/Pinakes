@@ -1030,6 +1030,9 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
   body.book-actions-visible #scroll-to-top {
     opacity: 0 !important;
     pointer-events: none !important;
+    /* visibility:hidden also removes it from the tab order, so a keyboard user
+       can't Tab onto the invisible button while the Save/Cancel row is shown. */
+    visibility: hidden !important;
   }
 </style>
 <script>
