@@ -72,6 +72,9 @@ async function loginAdmin(page) {
 // Pick the fixture borrower via the user autocomplete.
 async function selectBorrower(page) {
   await page.fill('#utente_search', TEST_EMAIL);
+  // Let the 300ms Choices.js debounce (crea_prestito.php) fire and settle
+  // before reading the suggestion list, so we never latch onto a stale item.
+  await page.waitForTimeout(400);
   const userSug = page.locator('#utente_suggest .suggestion-item').first();
   await expect(userSug).toBeVisible({ timeout: 8000 });
   await userSug.click();
