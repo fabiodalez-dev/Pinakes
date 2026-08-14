@@ -128,7 +128,7 @@ class CopyController
             return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
         }
         $stato = $statoInput;
-        $note = $noteInput;
+        $note = $this->sanitizeNote($noteInput);
 
         // Validazione stato (deve corrispondere all'enum in copie.stato)
         $statiValidi = ['disponibile', 'prestato', 'prenotato', 'manutenzione', 'in_restauro', 'perso', 'danneggiato', 'in_trasferimento'];
@@ -340,16 +340,7 @@ class CopyController
             $_SESSION['error_message'] = __('Stato non valido.');
             return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
         }
-        $note = trim($noteInput);
-        if ($note !== '') {
-            // Consistency with numero_inventario below: drop control characters
-            // (keeping tab/newline for multi-line notes) and cap the length
-            // defensively before persisting.
-            $note = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $note);
-            if (mb_strlen($note) > 500) {
-                $note = mb_substr($note, 0, 500);
-            }
-        }
+        $note = $this->sanitizeNote($noteInput);
 
         // Inventory code: honour an explicit value (must be unique), otherwise
         // auto-allocate the next collision-free "{base}-C{N}" like book creation.
@@ -426,7 +417,9 @@ class CopyController
                 throw new \RuntimeException('Unable to recalculate book availability.');
             }
 
-            $db->commit();
+            if (!$db->commit()) {
+                throw new \RuntimeException('Unable to commit physical-copy creation.');
+            }
             $transactionStarted = false;
         } catch (\Throwable $e) {
             if ($transactionStarted) {
@@ -450,6 +443,21 @@ class CopyController
 
         $_SESSION['success_message'] = __('Copia aggiunta con successo.');
         return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
+    }
+
+    /**
+     * Normalize an administrator-entered copy note consistently in create/edit.
+     */
+    private function sanitizeNote(string $note): string
+    {
+        $note = trim($note);
+        if ($note === '') {
+            return '';
+        }
+
+        // Keep tab/newline for multi-line notes, drop other control characters.
+        $note = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $note);
+        return mb_strlen($note) > 500 ? mb_substr($note, 0, 500) : $note;
     }
 
     /**

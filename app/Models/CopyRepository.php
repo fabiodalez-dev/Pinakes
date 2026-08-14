@@ -251,7 +251,7 @@ class CopyRepository
             $types = '';
             $params = [];
             foreach ($codes as $i => $code) {
-                $note = $total === 1
+                $note = $total === 1 && $singleNote !== null
                     ? $singleNote
                     : ($noteTemplate !== null ? sprintf($noteTemplate, $i + 1, $total) : null);
                 $types .= 'isss';

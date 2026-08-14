@@ -144,6 +144,8 @@ try {
     $db->commit();
     $check($createdA === 1 && $bookCount($titleA) === 1, '1. committed create persists the book row');
     $check($copyCodes($idA) === ["{$baseA}-C1"], '1. exactly one copie row with the uniform -C1 code');
+    $singleNote = (string) $db->query("SELECT note FROM copie WHERE libro_id = {$idA} LIMIT 1")->fetch_row()[0];
+    $check($singleNote === 'Copy 1 of 1', '1. single-copy batch preserves its formatted note');
 
     /* ---------------------------------------------------------------------
      * 2. Three copies: uniform -C1/-C2/-C3 codes

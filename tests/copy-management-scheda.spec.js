@@ -424,7 +424,36 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
         page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
         page.click('#add-copy-form button[type="submit"]'),
       ]);
+      const errorAlert = page.getByRole('alert');
+      await expect(errorAlert).toBeVisible();
+      await expect(errorAlert).toContainText('Impossibile aggiungere la copia');
       expect(copieCount(emptyBookId)).toBe(before);
     }
+  });
+
+  test('22. edit-copy normalizes control characters and caps notes at 500 characters', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/${bookId}`);
+    const target = dbQuery(`SELECT id, stato FROM copie WHERE libro_id=${bookId} ORDER BY id LIMIT 1`).split('\t');
+    const targetId = Number(target[0]);
+    const currentStatus = target[1];
+    await page.evaluate(
+      ({ id, status }) => window.openEditCopyModal(id, status, ''),
+      { id: targetId, status: currentStatus }
+    );
+    await expect(page.locator('#edit-copy-modal')).toBeVisible();
+    await page.locator('#edit-copy-note').evaluate((element) => {
+      element.value = `  ${'x'.repeat(510)}\u0001  `;
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.click('#edit-copy-form button[type="submit"]');
+    const confirm = page.locator('.swal2-confirm');
+    if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+        confirm.click(),
+      ]);
+    }
+    expect(dbQuery(`SELECT note FROM copie WHERE id=${targetId}`)).toBe('x'.repeat(500));
   });
 });
