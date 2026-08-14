@@ -34,12 +34,20 @@ function dbQuery(sql) {
 const RUN = Date.now().toString(36);
 const TITLE = `CopyMgmt ${RUN}`;             // book that starts with one copy
 const TITLE_EMPTY = `CopyMgmtEmpty ${RUN}`;  // book with zero copie rows
+const TITLE_QUEUE = `CopyMgmtQueue ${RUN}`;  // zero-copy book with an active wait-list entry
+const QUEUE_EMAIL = `copy-mgmt-${RUN}@example.test`;
 let bookId = 0;
 let emptyBookId = 0;
+let queueBookId = 0;
+let queueUserId = 0;
 
 function cleanupByTitle() {
-  // copie cascade on libri delete (FK ON DELETE CASCADE).
-  dbQuery(`DELETE FROM libri WHERE titolo IN ('${sqlEscape(TITLE)}','${sqlEscape(TITLE_EMPTY)}')`);
+  const titles = [TITLE, TITLE_EMPTY, TITLE_QUEUE].map((title) => `'${sqlEscape(title)}'`).join(',');
+  // Loans/reservations restrict book deletion; copies cascade with the book.
+  dbQuery(`DELETE FROM prestiti WHERE libro_id IN (SELECT id FROM libri WHERE titolo IN (${titles}))`);
+  dbQuery(`DELETE FROM prenotazioni WHERE libro_id IN (SELECT id FROM libri WHERE titolo IN (${titles}))`);
+  dbQuery(`DELETE FROM libri WHERE titolo IN (${titles})`);
+  dbQuery(`DELETE FROM utenti WHERE email='${sqlEscape(QUEUE_EMAIL)}'`);
 }
 const copieCount = (id) => Number(dbQuery(`SELECT COUNT(*) FROM copie WHERE libro_id=${id}`));
 const copieTotali = (id) => Number(dbQuery(`SELECT copie_totali FROM libri WHERE id=${id}`));
@@ -70,8 +78,8 @@ async function addCopy(page, { inventario = '', stato = 'disponibile', note = ''
 }
 
 // Edit a copy's status via its row modal (with the SweetAlert confirm).
-async function editCopyStatus(page, copyId, stato) {
-  await page.evaluate((id) => window.openEditCopyModal(id, 'disponibile', ''), copyId);
+async function editCopyStatus(page, copyId, stato, currentStato = 'disponibile') {
+  await page.evaluate(({ id, current }) => window.openEditCopyModal(id, current, ''), { id: copyId, current: currentStato });
   await expect(page.locator('#edit-copy-modal')).toBeVisible();
   await page.selectOption('#edit-copy-stato', stato);
   await page.click('#edit-copy-form button[type="submit"]');
@@ -93,6 +101,12 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     // A second book with NO copie rows (legacy/never-loaned) for the empty-state test.
     dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, created_at, updated_at) VALUES ('${sqlEscape(TITLE_EMPTY)}', 1, 1, NOW(), NOW())`);
     emptyBookId = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(TITLE_EMPTY)}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`));
+
+    dbQuery(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili, created_at, updated_at) VALUES ('${sqlEscape(TITLE_QUEUE)}', 'non_disponibile', 0, 0, NOW(), NOW())`);
+    queueBookId = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(TITLE_QUEUE)}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`));
+    dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente, email_verificata, privacy_accettata) VALUES ('CM-${RUN}', 'Copy', 'Queue', '${sqlEscape(QUEUE_EMAIL)}', 'not-used', 'attivo', 'standard', 1, 1)`);
+    queueUserId = Number(dbQuery(`SELECT id FROM utenti WHERE email='${sqlEscape(QUEUE_EMAIL)}' LIMIT 1`));
+    dbQuery(`INSERT INTO prenotazioni (libro_id, utente_id, data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, queue_position, stato) VALUES (${queueBookId}, ${queueUserId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), DATE_ADD(NOW(), INTERVAL 14 DAY), 1, 'attiva')`);
   });
   test.afterAll(() => cleanupByTitle());
 
@@ -214,5 +228,47 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     await editCopyStatus(page, targetId, 'perso');
     expect(copieTotali(bookId)).toBe(0);
     expect(bookStato(bookId)).toBe('non_disponibile');
+  });
+
+  test('11. restoration and transfer states round-trip through add/edit and render readable badges', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/${emptyBookId}`);
+
+    await addCopy(page, { stato: 'in_restauro', note: 'restoration-roundtrip' });
+    const restorationId = Number(dbQuery(`SELECT id FROM copie WHERE libro_id=${emptyBookId} AND note='restoration-roundtrip' LIMIT 1`));
+    await expect(page.locator('#physical-copies')).toContainText('In restauro');
+    await editCopyStatus(page, restorationId, 'disponibile', 'in_restauro');
+    expect(dbQuery(`SELECT stato FROM copie WHERE id=${restorationId}`)).toBe('disponibile');
+
+    await page.goto(`${BASE}/admin/books/${emptyBookId}`);
+    await addCopy(page, { stato: 'in_trasferimento', note: 'transfer-readable' });
+    expect(dbQuery(`SELECT stato FROM copie WHERE libro_id=${emptyBookId} AND note='transfer-readable' LIMIT 1`)).toBe('in_trasferimento');
+    await expect(page.locator('#physical-copies')).toContainText('In trasferimento');
+  });
+
+  test('12. an inventory value emptied by sanitisation falls back to an automatic code', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/${emptyBookId}`);
+    await page.evaluate(() => window.openAddCopyModal());
+    await page.locator('#add-copy-inventario').evaluate((el) => { el.value = '\u0001\u0002'; });
+    await page.fill('#add-copy-note', 'sanitized-auto');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+      page.click('#add-copy-form button[type="submit"]'),
+    ]);
+    const code = dbQuery(`SELECT numero_inventario FROM copie WHERE libro_id=${emptyBookId} AND note='sanitized-auto' LIMIT 1`);
+    expect(code).toMatch(/-C\d+$/);
+  });
+
+  test('13. adding an available copy promotes the wait-list and links the loan to that physical copy', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/${queueBookId}`);
+    await addCopy(page, { stato: 'disponibile', note: 'queue-capacity' });
+
+    expect(dbQuery(`SELECT stato FROM prenotazioni WHERE libro_id=${queueBookId} AND utente_id=${queueUserId}`)).toBe('completata');
+    const linked = dbQuery(`SELECT CONCAT(p.copia_id, ':', c.libro_id, ':', p.origine, ':', p.stato) FROM prestiti p JOIN copie c ON c.id=p.copia_id WHERE p.libro_id=${queueBookId} AND p.utente_id=${queueUserId} ORDER BY p.id DESC LIMIT 1`);
+    expect(linked).toMatch(new RegExp(`^\\d+:${queueBookId}:prenotazione:pendente$`));
+    expect(copieTotali(queueBookId)).toBe(1);
+    expect(Number(dbQuery(`SELECT copie_disponibili FROM libri WHERE id=${queueBookId}`))).toBe(0);
   });
 });

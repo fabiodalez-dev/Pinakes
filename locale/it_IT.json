@@ -6794,5 +6794,17 @@
   "Impossibile aggiungere la copia.": "Impossibile aggiungere la copia.",
   "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.",
   "Esiste già una copia con questo numero di inventario.": "Esiste già una copia con questo numero di inventario.",
-  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato."
+  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.",
+  "In trasferimento": "In trasferimento",
+  "Le copie perse, danneggiate, in manutenzione, restauro o trasferimento non sono conteggiate tra le copie in circolazione. Per i prestiti usa la sezione Prestiti.": "Le copie perse, danneggiate, in manutenzione, restauro o trasferimento non sono conteggiate tra le copie in circolazione. Per i prestiti usa la sezione Prestiti.",
+  "La disponibilità del libro è calcolata automaticamente dalle copie fisiche e dai prestiti.": "La disponibilità del libro è calcolata automaticamente dalle copie fisiche e dai prestiti.",
+  "Copie in circolazione": "Copie in circolazione",
+  "Copie fisiche iniziali": "Copie fisiche iniziali",
+  "Aggiungi, modifica o rimuovi le singole copie dalla sezione Copie Fisiche della scheda libro.": "Aggiungi, modifica o rimuovi le singole copie dalla sezione Copie Fisiche della scheda libro.",
+  "Gestisci copie fisiche": "Gestisci copie fisiche",
+  "Puoi creare il record con zero copie e aggiungerle in seguito dalla scheda libro.": "Puoi creare il record con zero copie e aggiungerle in seguito dalla scheda libro.",
+  "Prefisso inventario copie": "Prefisso inventario copie",
+  "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.",
+  "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.",
+  "Invio notifica nuova copia fallito": "Invio notifica nuova copia fallito"
 }

@@ -844,8 +844,8 @@ class LibriController
         $fields['sottogenere_id'] = empty($fields['sottogenere_id']) || $fields['sottogenere_id'] == 0 ? null : (int) $fields['sottogenere_id'];
         $fields['copie_totali'] = (int) $fields['copie_totali'];
         // Add bounds checking to prevent integer overflow
-        if ($fields['copie_totali'] < 1) {
-            $fields['copie_totali'] = 1;
+        if ($fields['copie_totali'] < 0) {
+            $fields['copie_totali'] = 0;
         } elseif ($fields['copie_totali'] > 9999) {
             $fields['copie_totali'] = 9999;
         }
@@ -1195,14 +1195,19 @@ class LibriController
                 ? $fields['numero_inventario']
                 : "LIB-{$id}";
 
-            // Uniform "-C{N}" codes for every copy (#238): even a single copy is
-            // "{base}-C1", so later adding a 2nd copy yields a consistent C1/C2 pair
-            // instead of a bare base plus a "-C2". allocateInventoryCodes guarantees
-            // no collision with any existing numero_inventario.
-            $codes = $copyRepo->allocateInventoryCodes($baseInventario, $copieTotali);
-            foreach ($codes as $i => $numeroInventario) {
-                $note = "Copia " . ($i + 1) . " di {$copieTotali}";
-                $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
+            // Create the requested holding set with one atomic multi-row INSERT:
+            // a request for three copies must never leave a partial 1/3 or 2/3
+            // result if one inventory code fails. Codes stay uniform (-C1, -C2,
+            // ...) and collision-free through the repository allocator.
+            $createdCopies = $copyRepo->createManyForBook(
+                $id,
+                $baseInventario,
+                $copieTotali,
+                'disponibile',
+                __('Copia %d di %d')
+            );
+            if ($createdCopies !== $copieTotali) {
+                throw new \RuntimeException('Unable to create the requested physical copies.');
             }
 
             // Ricalcola disponibilità dopo aver generato le copie, come fa il
@@ -1448,11 +1453,12 @@ class LibriController
         $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int) $fields['editore_id'];
         $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int) $fields['genere_id'];
         $fields['sottogenere_id'] = empty($fields['sottogenere_id']) || $fields['sottogenere_id'] == 0 ? null : (int) $fields['sottogenere_id'];
-        // Clamp to the same 1..9999 range as store(): an unbounded value would build
+        // Clamp to the same 0..9999 range as store(): zero is a valid catalogue
+        // record with no physical holdings yet; an unbounded value would build
         // a huge allocation loop / copy set. (#252 CodeRabbit)
         $fields['copie_totali'] = (int) $fields['copie_totali'];
-        if ($fields['copie_totali'] < 1) {
-            $fields['copie_totali'] = 1;
+        if ($fields['copie_totali'] < 0) {
+            $fields['copie_totali'] = 0;
         } elseif ($fields['copie_totali'] > 9999) {
             $fields['copie_totali'] = 9999;
         }

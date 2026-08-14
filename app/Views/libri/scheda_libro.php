@@ -910,7 +910,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
 
   <!-- Copies Section (always shown so copies can be added even to a book with none) -->
   <?php $copie = $copie ?? []; ?>
-  <div class="mt-6">
+  <div class="mt-6" id="physical-copies">
     <div class="card">
       <div class="card-header flex items-center justify-between gap-4 flex-wrap">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -921,7 +921,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
             <?php if (isset($libro['copie_totali']) || isset($libro['copie_disponibili'])): ?>
               <?php if (isset($libro['copie_totali'])): ?>
                 <span class="mx-2">•</span>
-                <?= __("Copie totali") ?>: <strong><?php echo (int)$libro['copie_totali']; ?></strong>
+                <?= __("Copie in circolazione") ?>: <strong><?php echo (int)$libro['copie_totali']; ?></strong>
               <?php endif; ?>
               <?php if (isset($libro['copie_disponibili'])): ?>
                 <span class="mx-2">•</span>
@@ -1015,16 +1015,20 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                           'prestato'    => __('Prestato'),
                           'prenotato'   => __('Prenotato'),
                           'manutenzione' => __('In manutenzione'),
+                          'in_restauro' => __('In restauro'),
                           'perso'       => __('Perso'),
                           'danneggiato' => __('Danneggiato'),
+                          'in_trasferimento' => __('In trasferimento'),
                       ];
                       $copiaStatusClasses = [
                           'disponibile' => 'bg-green-100 text-green-800',
                           'prestato'    => 'bg-red-100 text-red-800',
                           'prenotato'   => 'bg-purple-100 text-purple-800',
                           'manutenzione' => 'bg-yellow-100 text-yellow-800',
+                          'in_restauro' => 'bg-indigo-100 text-indigo-800',
                           'perso'       => 'bg-gray-100 text-gray-800',
                           'danneggiato' => 'bg-orange-100 text-orange-800',
+                          'in_trasferimento' => 'bg-blue-100 text-blue-800',
                       ];
                       $effectiveLabel = $copiaStatusLabels[$effectiveStatus] ?? ucfirst($effectiveStatus);
                       $effectiveClass = $copiaStatusClasses[$effectiveStatus] ?? 'bg-gray-100 text-gray-800';
@@ -1860,6 +1864,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
             <option value="manutenzione"><?= __("In manutenzione") ?></option>
             <option value="danneggiato"><?= __("Danneggiato") ?></option>
             <option value="perso"><?= __("Perso") ?></option>
+            <option value="in_restauro"><?= __("In restauro") ?></option>
+            <option value="in_trasferimento"><?= __("In trasferimento") ?></option>
           </select>
           <p class="text-xs text-gray-600 mt-1">
             <i class="fas fa-info-circle text-blue-500 mr-1"></i>
@@ -1913,10 +1919,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
             <option value="danneggiato"><?= __("Danneggiato") ?></option>
             <option value="perso"><?= __("Perso") ?></option>
             <option value="in_restauro"><?= __("In restauro") ?></option>
+            <option value="in_trasferimento"><?= __("In trasferimento") ?></option>
           </select>
           <p class="text-xs text-gray-600 mt-1">
             <i class="fas fa-info-circle text-blue-500 mr-1"></i>
-            <strong><?= __("Nota:") ?></strong> <?= __("Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.") ?>
+            <strong><?= __("Nota:") ?></strong> <?= __("Le copie perse, danneggiate, in manutenzione, restauro o trasferimento non sono conteggiate tra le copie in circolazione. Per i prestiti usa la sezione Prestiti.") ?>
           </p>
         </div>
 

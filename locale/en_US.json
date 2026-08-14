@@ -6794,5 +6794,17 @@
   "Impossibile aggiungere la copia.": "Unable to add the copy.",
   "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "A lost or damaged copy lowers the total-copies count. For loans, use the Loans section.",
   "Esiste già una copia con questo numero di inventario.": "A copy with this inventory number already exists.",
-  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Use \"Add copy\" to create one and set its status."
+  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Use \"Add copy\" to create one and set its status.",
+  "In trasferimento": "In transfer",
+  "Le copie perse, danneggiate, in manutenzione, restauro o trasferimento non sono conteggiate tra le copie in circolazione. Per i prestiti usa la sezione Prestiti.": "Lost, damaged, maintenance, restoration, or transfer copies are not counted as circulating copies. For loans, use the Loans section.",
+  "La disponibilità del libro è calcolata automaticamente dalle copie fisiche e dai prestiti.": "Book availability is calculated automatically from physical copies and loans.",
+  "Copie in circolazione": "Circulating copies",
+  "Copie fisiche iniziali": "Initial physical copies",
+  "Aggiungi, modifica o rimuovi le singole copie dalla sezione Copie Fisiche della scheda libro.": "Add, edit, or remove individual copies in the Physical Copies section of the book page.",
+  "Gestisci copie fisiche": "Manage physical copies",
+  "Puoi creare il record con zero copie e aggiungerle in seguito dalla scheda libro.": "You can create the record with zero copies and add them later from the book page.",
+  "Prefisso inventario copie": "Copy inventory prefix",
+  "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Used only to generate codes for new copies automatically; existing codes do not change.",
+  "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Initial copies receive sequential codes such as PREFIX-C1 and PREFIX-C2.",
+  "Invio notifica nuova copia fallito": "New-copy notification failed"
 }

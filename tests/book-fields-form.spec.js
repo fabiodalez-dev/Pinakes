@@ -12,6 +12,9 @@
 //      derived libri.stato — LibriController unset()s it, the loan engine owns it;
 //   3. the book-detail badge renders a localized, underscore-free label for the
 //      new `non_disponibile` state with its own (non-fallback) colour.
+//   4. copy counts are managed from the book page after creation, while a new
+//      catalogue record creates exactly the requested initial physical copies
+//      (including the legitimate zero-copy case).
 //
 // Reusable: marker-scoped to titles `ZZ_BFTFORM_%`, cleans up in afterAll.
 
@@ -30,6 +33,9 @@ const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
 const RUN_ID = Date.now().toString(36);
 const TITLE = `ZZ_BFTFORM_${RUN_ID}`;
+const ZERO_TITLE = `ZZ_BFTFORM_ZERO_${RUN_ID}`;
+const THREE_TITLE = `ZZ_BFTFORM_THREE_${RUN_ID}`;
+const THREE_PREFIX = `ZZ3-${RUN_ID}`;
 
 test.skip(
   !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME,
@@ -139,11 +145,16 @@ test.describe.serial('book fields + derived status — form/controller behavior'
 
     await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     // #stato lives in a non-active form section, so it's attached but not
-    // "visible". We're testing the CONTROLLER (does it honour a submitted
-    // stato?), so set the hidden field's value directly and submit — the form
-    // POSTs stato=perso regardless of which tab is showing.
+    // "visible". We're testing the CONTROLLER (does it honour a crafted
+    // submitted stato?), so enable it, inject the per-copy value and submit.
     await page.locator('#stato').waitFor({ state: 'attached', timeout: 10000 });
     await page.locator('#stato').evaluate((el, v) => {
+      // The UI intentionally exposes only canonical BOOK states; inject an
+      // invalid per-copy state to verify that a crafted POST is still ignored.
+      if (![...el.options].some((option) => option.value === v)) {
+        el.add(new Option(v, v));
+      }
+      el.disabled = false;
       el.value = v;
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }, 'perso');
@@ -175,5 +186,41 @@ test.describe.serial('book fields + derived status — form/controller behavior'
     // Its colour is the dedicated non_disponibile shade, not the slate-500 fallback.
     const html = await page.content();
     expect(html).toContain('bg-gray-600');
+  });
+
+  test('4) edit delegates copy management; create persists exactly zero or three physical copies', async ({ page }) => {
+    expect(bookId).toBeGreaterThan(0);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
+    const editCopies = page.locator('#copie_totali');
+    await expect(editCopies).toHaveAttribute('readonly', '');
+    await expect(page.locator(`a[href$="/admin/books/${bookId}#physical-copies"]`)).toBeAttached();
+    await expect(page.locator('label[for="numero_inventario"]')).toContainText('Prefisso inventario copie');
+
+    await page.goto(`${BASE}/admin/books/create`);
+    const createCopies = page.locator('#copie_totali');
+    await expect(createCopies).not.toHaveAttribute('readonly', '');
+    await expect(createCopies).toHaveAttribute('min', '0');
+    await createCopies.fill('0');
+    expect(await createCopies.inputValue()).toBe('0');
+    await page.fill('#titolo', ZERO_TITLE);
+    await saveBookForm(page);
+
+    const zeroBookId = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${ZERO_TITLE}' AND deleted_at IS NULL LIMIT 1`));
+    expect(zeroBookId).toBeGreaterThan(0);
+    expect(dbQuery(`SELECT CONCAT(copie_totali, ':', copie_disponibili, ':', stato) FROM libri WHERE id=${zeroBookId}`)).toBe('0:0:non_disponibile');
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM copie WHERE libro_id=${zeroBookId}`))).toBe(0);
+
+    await page.goto(`${BASE}/admin/books/create`);
+    await page.fill('#titolo', THREE_TITLE);
+    await page.fill('#copie_totali', '3');
+    await page.fill('#numero_inventario', THREE_PREFIX);
+    await saveBookForm(page);
+
+    const threeBookId = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${THREE_TITLE}' AND deleted_at IS NULL LIMIT 1`));
+    expect(threeBookId).toBeGreaterThan(0);
+    expect(dbQuery(`SELECT CONCAT(copie_totali, ':', copie_disponibili, ':', stato) FROM libri WHERE id=${threeBookId}`)).toBe('3:3:disponibile');
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM copie WHERE libro_id=${threeBookId}`))).toBe(3);
+    expect(dbQuery(`SELECT GROUP_CONCAT(numero_inventario ORDER BY id SEPARATOR ',') FROM copie WHERE libro_id=${threeBookId}`))
+      .toBe(`${THREE_PREFIX}-C1,${THREE_PREFIX}-C2,${THREE_PREFIX}-C3`);
   });
 });

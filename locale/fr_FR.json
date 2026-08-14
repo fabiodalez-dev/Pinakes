@@ -6794,5 +6794,17 @@
   "Impossibile aggiungere la copia.": "Impossible d'ajouter la copie.",
   "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Une copie perdue ou endommagée réduit le nombre total de copies. Pour les prêts, utilisez la section Prêts.",
   "Esiste già una copia con questo numero di inventario.": "Une copie avec ce numéro d'inventaire existe déjà.",
-  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Utilisez « Ajouter une copie » pour en créer une et définir son état."
+  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Utilisez « Ajouter une copie » pour en créer une et définir son état.",
+  "In trasferimento": "En transfert",
+  "Le copie perse, danneggiate, in manutenzione, restauro o trasferimento non sono conteggiate tra le copie in circolazione. Per i prestiti usa la sezione Prestiti.": "Les copies perdues, endommagées, en maintenance, restauration ou transfert ne sont pas comptées parmi les copies en circulation. Pour les prêts, utilisez la section Prêts.",
+  "La disponibilità del libro è calcolata automaticamente dalle copie fisiche e dai prestiti.": "La disponibilité du livre est calculée automatiquement à partir des copies physiques et des prêts.",
+  "Copie in circolazione": "Copies en circulation",
+  "Copie fisiche iniziali": "Copies physiques initiales",
+  "Aggiungi, modifica o rimuovi le singole copie dalla sezione Copie Fisiche della scheda libro.": "Ajoutez, modifiez ou supprimez les copies dans la section Copies physiques de la fiche du livre.",
+  "Gestisci copie fisiche": "Gérer les copies physiques",
+  "Puoi creare il record con zero copie e aggiungerle in seguito dalla scheda libro.": "Vous pouvez créer la notice sans copie et en ajouter ensuite depuis la fiche du livre.",
+  "Prefisso inventario copie": "Préfixe d’inventaire des copies",
+  "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Utilisé uniquement pour générer les codes des nouvelles copies ; les codes existants ne changent pas.",
+  "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Les copies initiales recevront des codes séquentiels comme PRÉFIXE-C1 et PRÉFIXE-C2.",
+  "Invio notifica nuova copia fallito": "Échec de la notification de nouvelle copie"
 }

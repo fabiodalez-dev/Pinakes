@@ -6794,5 +6794,17 @@
   "Impossibile aggiungere la copia.": "Exemplar konnte nicht hinzugefügt werden.",
   "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Ein verlorenes oder beschädigtes Exemplar verringert die Gesamtzahl der Exemplare. Für Ausleihen den Bereich Ausleihen verwenden.",
   "Esiste già una copia con questo numero di inventario.": "Ein Exemplar mit dieser Inventarnummer existiert bereits.",
-  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Mit „Exemplar hinzufügen\" eines anlegen und dessen Status setzen."
+  "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Mit „Exemplar hinzufügen\" eines anlegen und dessen Status setzen.",
+  "In trasferimento": "Im Transfer",
+  "Le copie perse, danneggiate, in manutenzione, restauro o trasferimento non sono conteggiate tra le copie in circolazione. Per i prestiti usa la sezione Prestiti.": "Verlorene, beschädigte, in Wartung, Restaurierung oder Transfer befindliche Exemplare zählen nicht zu den zirkulierenden Exemplaren. Für Ausleihen verwenden Sie den Bereich Ausleihen.",
+  "La disponibilità del libro è calcolata automaticamente dalle copie fisiche e dai prestiti.": "Die Verfügbarkeit des Buches wird automatisch aus physischen Exemplaren und Ausleihen berechnet.",
+  "Copie in circolazione": "Zirkulierende Exemplare",
+  "Copie fisiche iniziali": "Anfängliche physische Exemplare",
+  "Aggiungi, modifica o rimuovi le singole copie dalla sezione Copie Fisiche della scheda libro.": "Fügen Sie einzelne Exemplare im Bereich Physische Exemplare der Buchseite hinzu, bearbeiten oder entfernen Sie sie.",
+  "Gestisci copie fisiche": "Physische Exemplare verwalten",
+  "Puoi creare il record con zero copie e aggiungerle in seguito dalla scheda libro.": "Sie können den Datensatz ohne Exemplare erstellen und diese später auf der Buchseite hinzufügen.",
+  "Prefisso inventario copie": "Inventarpräfix für Exemplare",
+  "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Wird nur zur automatischen Erzeugung neuer Exemplarcodes verwendet; bestehende Codes bleiben unverändert.",
+  "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Anfängliche Exemplare erhalten fortlaufende Codes wie PRÄFIX-C1 und PRÄFIX-C2.",
+  "Invio notifica nuova copia fallito": "Benachrichtigung über neues Exemplar fehlgeschlagen"
 }

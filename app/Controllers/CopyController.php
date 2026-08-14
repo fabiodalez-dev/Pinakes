@@ -5,6 +5,10 @@ namespace App\Controllers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Controllers\ReservationManager;
+use App\Models\CopyRepository;
+use App\Services\ReservationReassignmentService;
+use App\Support\DataIntegrity;
 use App\Support\SecureLogger;
 use mysqli;
 
@@ -303,16 +307,6 @@ class CopyController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
-        $stmt = $db->prepare("SELECT id, numero_inventario FROM libri WHERE id = ? AND deleted_at IS NULL");
-        $stmt->bind_param('i', $bookId);
-        $stmt->execute();
-        $book = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if (!$book) {
-            $_SESSION['error_message'] = __('Libro non trovato.');
-            return $response->withHeader('Location', $this->safeReferer('/admin/books'))->withStatus(302);
-        }
-
         // Only physical statuses a copy can be created in — loan states are
         // managed by the Prestiti system, never set here.
         $stato = (string) ($data['stato'] ?? 'disponibile');
@@ -323,35 +317,97 @@ class CopyController
         }
         $note = trim((string) ($data['note'] ?? ''));
 
-        $repo = new \App\Models\CopyRepository($db);
-
         // Inventory code: honour an explicit value (must be unique), otherwise
         // auto-allocate the next collision-free "{base}-C{N}" like book creation.
         $numero = trim((string) ($data['numero_inventario'] ?? ''));
         if ($numero !== '') {
-            $numero = preg_replace('/[\x00-\x1F]/', '', $numero);
+            $numero = trim((string) preg_replace('/[\x00-\x1F]/', '', $numero));
             if (mb_strlen($numero) > 100) {
                 $numero = mb_substr($numero, 0, 100);
             }
-            if ($repo->inventoryCodeExists($numero)) {
+        }
+
+        $repo = new CopyRepository($db);
+        $reassignmentService = null;
+        $reservationManager = null;
+        $transactionStarted = false;
+
+        try {
+            // Keep the same canonical lock order used by circulation writes:
+            // book first, then copies/loans. Copy creation, queue processing and
+            // derived counters must become visible as one atomic change.
+            $db->begin_transaction();
+            $transactionStarted = true;
+
+            $stmt = $db->prepare("SELECT id, numero_inventario FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $stmt->bind_param('i', $bookId);
+            $stmt->execute();
+            $book = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$book) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Libro non trovato.');
+                return $response->withHeader('Location', $this->safeReferer('/admin/books'))->withStatus(302);
+            }
+
+            // Re-evaluate after sanitisation: an explicit value made only of
+            // control characters must fall back to automatic allocation.
+            if ($numero === '') {
+                $base = !empty($book['numero_inventario']) ? (string) $book['numero_inventario'] : "LIB-{$bookId}";
+                $codes = $repo->allocateInventoryCodes($base, 1);
+                $numero = $codes[0] ?? ($base . '-C1');
+            } elseif ($repo->inventoryCodeExists($numero)) {
+                $db->rollback();
+                $transactionStarted = false;
                 $_SESSION['error_message'] = __('Esiste già una copia con questo numero di inventario.');
                 return $response->withHeader('Location', url("/admin/books/{$bookId}"))->withStatus(302);
             }
-        } else {
-            $base = !empty($book['numero_inventario']) ? (string) $book['numero_inventario'] : "LIB-{$bookId}";
-            $codes = $repo->allocateInventoryCodes($base, 1);
-            $numero = $codes[0] ?? ($base . '-C1');
-        }
 
-        try {
-            $repo->create($bookId, $numero, $stato, $note !== '' ? $note : null);
+            $newCopyId = $repo->create($bookId, $numero, $stato, $note !== '' ? $note : null);
+            if ($newCopyId <= 0) {
+                throw new \RuntimeException('Unable to create the physical copy.');
+            }
+
+            // A newly available copy is new circulation capacity. Mirror the
+            // existing book-edit path: first repair blocked copy assignments,
+            // then promote the next eligible wait-list entry.
+            if ($stato === 'disponibile') {
+                $reassignmentService = new ReservationReassignmentService($db);
+                $reassignmentService->setExternalTransaction(true);
+                $reassignmentService->reassignOnNewCopy($bookId, $newCopyId);
+
+                $reservationManager = new ReservationManager($db);
+                $reservationManager->setExternalTransaction(true);
+                $reservationManager->processBookAvailability($bookId);
+            }
+
+            $integrity = new DataIntegrity($db);
+            if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
+                throw new \RuntimeException('Unable to recalculate book availability.');
+            }
+
+            $db->commit();
+            $transactionStarted = false;
         } catch (\Throwable $e) {
+            if ($transactionStarted) {
+                $db->rollback();
+            }
             SecureLogger::error('[CopyController] createCopy failed', ['book' => $bookId, 'error' => $e->getMessage()]);
-            $_SESSION['error_message'] = __('Impossibile aggiungere la copia.');
+            $_SESSION['error_message'] = (int) $e->getCode() === 1062
+                ? __('Esiste già una copia con questo numero di inventario.')
+                : __('Impossibile aggiungere la copia.');
             return $response->withHeader('Location', url("/admin/books/{$bookId}"))->withStatus(302);
         }
 
-        (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($bookId);
+        // Notifications are deliberately emitted only after the transaction that
+        // made the new assignment/promotion durable.
+        try {
+            $reassignmentService?->flushDeferredNotifications();
+            $reservationManager?->flushDeferredNotifications();
+        } catch (\Throwable $e) {
+            SecureLogger::warning(__('Invio notifica nuova copia fallito'), ['error' => $e->getMessage()]);
+        }
 
         $_SESSION['success_message'] = __('Copia aggiunta con successo.');
         return $response->withHeader('Location', url("/admin/books/{$bookId}"))->withStatus(302);
