@@ -4,24 +4,24 @@ declare(strict_types=1);
 /**
  * Behavioural proof for the atomic book+copies create (PR #356).
  *
- * LibriController::store() wraps BookRepository::createBasic() and
- * CopyRepository::createManyForBook() in ONE mysqli transaction, committed
- * BEFORE any plugin hook / series sync / availability recalc runs. These
- * tests drive the exact same sequence against the real database and prove:
+ * LibriController::store() wraps BookRepository::createBasic(),
+ * CopyRepository::createManyForBook() and the SQL-only availability recalc in
+ * ONE mysqli transaction, committed BEFORE any plugin hook / series sync runs.
+ * These tests drive the exact same sequence against the real database and prove:
  *
  *   1. commit persists book + exactly 1 copy together;
  *   2. 3 copies get uniform, ordered -C1/-C2/-C3 codes;
  *   3. a zero-holding record commits with 0 copie rows;
- *   4. DataIntegrity derives copie_totali/copie_disponibili post-commit;
+ *   4. DataIntegrity derives copie_totali/copie_disponibili before commit;
  *   5. a REAL forced copy-insert failure (SIGNAL trigger) rolls back the
  *      book row — no orphan book, no orphan author links, no copies;
+ *   5b. a forced availability-recalc failure rolls the entire create back;
  *   6. createBasic() nests via SAVEPOINT inside the open transaction — an
  *      internal begin_transaction() would implicitly COMMIT the outer one
  *      (the mysqli nested-transaction trap) and this test would fail;
- *   7. source-order guard: in store() the commit happens BEFORE the
- *      book.save.after hook and the availability recalc, so plugin handlers
- *      that open their own transaction (book-club) can never destroy the
- *      atomicity by construction;
+ *   7. source-order guard: recalc happens before commit, while the
+ *      book.save.after hook stays after commit, so plugin handlers that open
+ *      their own transaction (book-club) cannot destroy the atomicity;
  *   8. two books sharing the same inventory base get collision-free codes.
  *
  * Run: php tests/atomic-book-create-356.unit.php   (exit 0 = pass)
@@ -73,6 +73,7 @@ $check = static function (bool $condition, string $label) use (&$passed, &$faile
 
 $prefix = 'U356_' . bin2hex(random_bytes(4));
 $trigger = 'zz_u356_fail_copy';
+$recalcTrigger = 'zz_u356_fail_recalc';
 
 /** Count libri rows by exact title, INCLUDING soft-deleted ones. */
 $bookCount = static function (string $title) use ($db): int {
@@ -108,9 +109,10 @@ $scalar = static function (string $sql, string $types = '', array $params = []) 
     return $row[0] ?? null;
 };
 
-$cleanup = static function () use ($db, $prefix, $trigger): void {
+$cleanup = static function () use ($db, $prefix, $trigger, $recalcTrigger): void {
     try {
         $db->query("DROP TRIGGER IF EXISTS {$trigger}");
+        $db->query("DROP TRIGGER IF EXISTS {$recalcTrigger}");
     } catch (Throwable) {
         // best-effort
     }
@@ -138,6 +140,7 @@ try {
     $db->begin_transaction();
     $idA = $repo->createBasic(['titolo' => $titleA, 'copie_totali' => 1, 'copie_disponibili' => 1]);
     $createdA = $copyRepo->createManyForBook($idA, $baseA, 1, 'disponibile', 'Copy %d of %d');
+    (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($idA, true);
     $db->commit();
     $check($createdA === 1 && $bookCount($titleA) === 1, '1. committed create persists the book row');
     $check($copyCodes($idA) === ["{$baseA}-C1"], '1. exactly one copie row with the uniform -C1 code');
@@ -150,6 +153,7 @@ try {
     $db->begin_transaction();
     $idB = $repo->createBasic(['titolo' => $titleB, 'copie_totali' => 3, 'copie_disponibili' => 3]);
     $createdB = $copyRepo->createManyForBook($idB, $baseB, 3, 'disponibile', 'Copy %d of %d');
+    (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($idB, true);
     $db->commit();
     $check(
         $createdB === 3 && $copyCodes($idB) === ["{$baseB}-C1", "{$baseB}-C2", "{$baseB}-C3"],
@@ -163,6 +167,7 @@ try {
     $db->begin_transaction();
     $idC = $repo->createBasic(['titolo' => $titleC, 'copie_totali' => 0, 'copie_disponibili' => 0]);
     $createdC = $copyRepo->createManyForBook($idC, "{$prefix}-C0", 0, 'disponibile', null);
+    (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($idC, true);
     $db->commit();
     $check(
         $createdC === 0 && $bookCount($titleC) === 1 && $copyCodes($idC) === [],
@@ -170,9 +175,8 @@ try {
     );
 
     /* ---------------------------------------------------------------------
-     * 4. DataIntegrity derives the counters from the committed copies
+     * 4. DataIntegrity derived the counters inside the create transaction
      * ------------------------------------------------------------------- */
-    (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($idB);
     $derived = $scalar(
         "SELECT CONCAT(copie_totali, ':', copie_disponibili, ':', stato) FROM libri WHERE id = ? AND deleted_at IS NULL",
         'i',
@@ -222,6 +226,42 @@ try {
     );
 
     /* ---------------------------------------------------------------------
+     * 5b. ROLLBACK PROOF — failure while deriving availability must also
+     *     remove the new book and its already-inserted physical copies.
+     * ------------------------------------------------------------------- */
+    $titleR = "{$prefix}_recalc_fail";
+    $recalcBase = "{$prefix}-RECALC";
+    $db->query("DROP TRIGGER IF EXISTS {$recalcTrigger}");
+    $escapedTitleR = $db->real_escape_string($titleR);
+    $db->query(
+        "CREATE TRIGGER {$recalcTrigger} BEFORE UPDATE ON libri FOR EACH ROW " .
+        "BEGIN IF NEW.titolo = '{$escapedTitleR}' THEN " .
+        "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced recalc failure (test)'; " .
+        "END IF; END"
+    );
+    $db->begin_transaction();
+    $idR = $repo->createBasic(['titolo' => $titleR, 'copie_totali' => 2, 'copie_disponibili' => 2]);
+    $copyRepo->createManyForBook($idR, $recalcBase, 2, 'disponibile', null);
+    $recalcThrew = false;
+    try {
+        (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($idR, true);
+    } catch (Throwable) {
+        $recalcThrew = true;
+    }
+    try {
+        $db->rollback();
+    } catch (Throwable) {
+        // best-effort
+    }
+    $db->query("DROP TRIGGER IF EXISTS {$recalcTrigger}");
+    $check($recalcThrew, '5b. forced availability-recalc failure actually throws');
+    $check(
+        $bookCount($titleR) === 0
+            && (int) $scalar("SELECT COUNT(*) FROM copie WHERE numero_inventario LIKE CONCAT(?, '%')", 's', [$recalcBase]) === 0,
+        '5b. rollback removes both the book and its already-inserted copies'
+    );
+
+    /* ---------------------------------------------------------------------
      * 6. NESTED-TRANSACTION TRAP PROOF — createBasic() must nest via
      *    SAVEPOINT. If it called begin_transaction() internally, mysqli
      *    would implicitly COMMIT the outer transaction and the row would
@@ -238,9 +278,9 @@ try {
     );
 
     /* ---------------------------------------------------------------------
-     * 7. SOURCE-ORDER GUARD — in store() the transaction must close BEFORE
-     *    the book.save.after hook (whose handlers, e.g. book-club, open
-     *    their own transaction) and before the availability recalc.
+     * 7. SOURCE-ORDER GUARD — recalc must happen before commit, while the
+     *    book.save.after hook (whose handlers, e.g. book-club, can open their
+     *    own transaction) must remain after commit.
      * ------------------------------------------------------------------- */
     $controller = (string) file_get_contents($root . '/app/Controllers/LibriController.php');
     $storeStart = strpos($controller, 'public function store(');
@@ -256,9 +296,9 @@ try {
     $posRecalc = strpos($store, 'recalculateBookAvailability(');
     $ordered = $posBegin !== false && $posCreate !== false && $posCopies !== false
         && $posCommit !== false && $posHook !== false && $posRecalc !== false
-        && $posBegin < $posCreate && $posCreate < $posCopies && $posCopies < $posCommit
-        && $posCommit < $posHook && $posCommit < $posRecalc;
-    $check($ordered, '7. store(): begin < createBasic < createManyForBook < commit < book.save.after hook & recalc');
+        && $posBegin < $posCreate && $posCreate < $posCopies && $posCopies < $posRecalc
+        && $posRecalc < $posCommit && $posCommit < $posHook;
+    $check($ordered, '7. store(): begin < createBasic < createManyForBook < recalc < commit < book.save.after hook');
 
     /* ---------------------------------------------------------------------
      * 8. Shared inventory base across two books: collision-free codes

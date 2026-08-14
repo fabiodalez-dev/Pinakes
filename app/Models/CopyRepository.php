@@ -171,11 +171,18 @@ class CopyRepository
 
     /**
      * Create $howMany copies for a book in a single round-trip: pre-load the
-     * existing codes of this base's family ONCE, generate collision-free
+     * existing codes of this base's family, generate collision-free
      * "{base}-C{N}" codes in memory, then batch-insert every row with one
-     * prepared statement. Replaces the per-copy inventoryCodeExists()+create()
-     * pair that turned a large copie_totali import into thousands of queries
-     * inside the per-row transaction (holding locks on `copie`).
+     * prepared statement. A connection-level advisory lock serializes inventory
+     * allocation even when a prefix's unique-index range is still empty (where
+     * gap locks alone can deadlock). A single allocator lock also respects the
+     * database's case/accent-insensitive uniqueness without trying to reproduce
+     * its collation rules in PHP. The locking current-read then sees rows
+     * committed after the transaction snapshot. A bounded duplicate-key retry
+     * remains as a final guard for external writers. A failed multi-row INSERT
+     * never leaves a partial batch. Replaces the per-copy
+     * inventoryCodeExists()+create() pair that turned a large copie_totali
+     * import into thousands of queries.
      *
      * @param string|null $noteTemplate already-translated sprintf template with
      *                                   two %d (index, total); null = no note.
@@ -190,10 +197,146 @@ class CopyRepository
         // numero_inventario is VARCHAR(100); leave room for the "-C{N}" suffix.
         $base = mb_substr($base, 0, 90);
 
-        // Pre-load, once, every existing code that could collide with this family.
-        $taken = [];
+        // GET_LOCK() is server-wide and connection-scoped. One short global
+        // allocator lock avoids mismatches with numero_inventario's
+        // case/accent-insensitive UNIQUE collation. It does not start, commit or
+        // roll back the caller's transaction and is released after the batch
+        // INSERT, not held for hooks or external services.
+        $lockName = 'pinakes-copy-inventory-allocation';
+        $this->acquireInventoryAllocatorLock($lockName);
+        try {
+            return $this->createManyForBookWhileLocked(
+                $bookId,
+                $base,
+                $howMany,
+                $stato,
+                $noteTemplate
+            );
+        } finally {
+            $this->releaseInventoryAllocatorLock($lockName);
+        }
+    }
+
+    /**
+     * Insert a copy batch while the caller holds the inventory allocator lock.
+     */
+    private function createManyForBookWhileLocked(int $bookId, string $base, int $howMany, string $stato, ?string $noteTemplate): int
+    {
         $likeParam = $base . '%';
-        $sel = $this->db->prepare("SELECT numero_inventario FROM copie WHERE numero_inventario LIKE ?");
+        $maxAttempts = 5;
+
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $codes = $this->allocateInventoryCodesWithCurrentRead($base, $likeParam, $howMany);
+
+            // Single multi-row INSERT. MySQL/MariaDB roll back the entire
+            // statement if any unique inventory code collides.
+            $total = count($codes);
+            $placeholders = implode(',', array_fill(0, $total, '(?, ?, ?, ?)'));
+            $stmt = $this->db->prepare("INSERT INTO copie (libro_id, numero_inventario, stato, note) VALUES {$placeholders}");
+            if ($stmt === false) {
+                throw new \RuntimeException('Unable to prepare copy batch insert: ' . $this->db->error);
+            }
+            $types = '';
+            $params = [];
+            foreach ($codes as $i => $code) {
+                $note = ($noteTemplate !== null && $total > 1) ? sprintf($noteTemplate, $i + 1, $total) : null;
+                $types .= 'isss';
+                $params[] = $bookId;
+                $params[] = $code;
+                $params[] = $stato;
+                $params[] = $note;
+            }
+            $stmt->bind_param($types, ...$params);
+
+            try {
+                $inserted = $stmt->execute();
+                $errno = $stmt->errno;
+                $error = $stmt->error;
+            } catch (\mysqli_sql_exception $e) {
+                $stmt->close();
+                if ($e->getCode() === 1062 && $attempt < $maxAttempts) {
+                    continue;
+                }
+                throw $e;
+            }
+            $stmt->close();
+
+            if ($inserted) {
+                return $total;
+            }
+            if ($errno === 1062 && $attempt < $maxAttempts) {
+                continue;
+            }
+            throw new \RuntimeException('Unable to insert copy batch: ' . $error);
+        }
+
+        throw new \RuntimeException('Unable to allocate unique inventory codes after concurrent retries.');
+    }
+
+    /**
+     * Create one copy with an automatically allocated inventory code and return
+     * its id. Allocation and INSERT share the same advisory-lock critical
+     * section, unlike allocateInventoryCodes() which is intentionally read-only.
+     */
+    public function createWithAllocatedInventoryCode(int $bookId, string $base, string $stato = 'disponibile', ?string $note = null): int
+    {
+        $base = mb_substr($base, 0, 90);
+        $likeParam = $base . '%';
+        $lockName = 'pinakes-copy-inventory-allocation';
+        $maxAttempts = 5;
+
+        $this->acquireInventoryAllocatorLock($lockName);
+        try {
+            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+                $codes = $this->allocateInventoryCodesWithCurrentRead($base, $likeParam, 1);
+                $numeroInventario = $codes[0] ?? ($base . '-C1');
+                $stmt = $this->db->prepare(
+                    'INSERT INTO copie (libro_id, numero_inventario, stato, note) VALUES (?, ?, ?, ?)'
+                );
+                if ($stmt === false) {
+                    throw new \RuntimeException('Unable to prepare copy insert: ' . $this->db->error);
+                }
+                $stmt->bind_param('isss', $bookId, $numeroInventario, $stato, $note);
+                try {
+                    $inserted = $stmt->execute();
+                    $errno = $stmt->errno;
+                    $error = $stmt->error;
+                } catch (\mysqli_sql_exception $e) {
+                    $stmt->close();
+                    if ($e->getCode() === 1062 && $attempt < $maxAttempts) {
+                        continue;
+                    }
+                    throw $e;
+                }
+                $insertId = (int) $this->db->insert_id;
+                $stmt->close();
+
+                if ($inserted && $insertId > 0) {
+                    return $insertId;
+                }
+                if ($errno === 1062 && $attempt < $maxAttempts) {
+                    continue;
+                }
+                throw new \RuntimeException('Unable to insert allocated copy: ' . $error);
+            }
+        } finally {
+            $this->releaseInventoryAllocatorLock($lockName);
+        }
+
+        throw new \RuntimeException('Unable to allocate a unique inventory code after concurrent retries.');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function allocateInventoryCodesWithCurrentRead(string $base, string $likeParam, int $howMany): array
+    {
+        // A locking current-read sees rows committed after this transaction's
+        // snapshot and locks matching unique-index rows/ranges until commit.
+        $taken = [];
+        $sel = $this->db->prepare(
+            'SELECT numero_inventario FROM copie WHERE numero_inventario LIKE ? FOR UPDATE'
+        );
         if ($sel === false) {
             throw new \RuntimeException('Unable to prepare inventory-code lookup: ' . $this->db->error);
         }
@@ -209,7 +352,6 @@ class CopyRepository
         }
         $sel->close();
 
-        // Generate collision-free codes in memory (walk up, filling gaps).
         $codes = [];
         for ($index = 1; count($codes) < $howMany; $index++) {
             $candidate = "{$base}-C{$index}";
@@ -218,33 +360,43 @@ class CopyRepository
                 $codes[] = $candidate;
             }
         }
+        return $codes;
+    }
 
-        // Single multi-row INSERT.
-        $total = count($codes);
-        $placeholders = implode(',', array_fill(0, $total, '(?, ?, ?, ?)'));
-        $stmt = $this->db->prepare("INSERT INTO copie (libro_id, numero_inventario, stato, note) VALUES {$placeholders}");
+    private function acquireInventoryAllocatorLock(string $lockName): void
+    {
+        $stmt = $this->db->prepare('SELECT GET_LOCK(?, 30)');
         if ($stmt === false) {
-            throw new \RuntimeException('Unable to prepare copy batch insert: ' . $this->db->error);
+            throw new \RuntimeException('Unable to prepare inventory allocator lock: ' . $this->db->error);
         }
-        $types = '';
-        $params = [];
-        foreach ($codes as $i => $code) {
-            $note = ($noteTemplate !== null && $total > 1) ? sprintf($noteTemplate, $i + 1, $total) : null;
-            $types .= 'isss';
-            $params[] = $bookId;
-            $params[] = $code;
-            $params[] = $stato;
-            $params[] = $note;
-        }
-        $stmt->bind_param($types, ...$params);
-        if (!$stmt->execute()) {
-            $error = $stmt->error;
+        $stmt->bind_param('s', $lockName);
+        try {
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Unable to acquire inventory allocator lock: ' . $stmt->error);
+            }
+            $acquired = (int) ($stmt->get_result()->fetch_row()[0] ?? 0);
+        } finally {
             $stmt->close();
-            throw new \RuntimeException('Unable to insert copy batch: ' . $error);
         }
-        $stmt->close();
+        if ($acquired !== 1) {
+            throw new \RuntimeException('Timed out while waiting to allocate inventory codes.');
+        }
+    }
 
-        return $total;
+    private function releaseInventoryAllocatorLock(string $lockName): void
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT RELEASE_LOCK(?)');
+            if ($stmt === false) {
+                return;
+            }
+            $stmt->bind_param('s', $lockName);
+            $stmt->execute();
+            $stmt->close();
+        } catch (\Throwable $e) {
+            // A broken connection releases its advisory locks server-side. Do
+            // not hide the original copy-allocation error from the caller.
+        }
     }
 
     /**

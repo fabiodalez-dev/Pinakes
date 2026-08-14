@@ -1183,13 +1183,14 @@ class LibriController
             // Atomic create: the book row and its initial physical copies must
             // persist together or not at all — a copy-creation failure used to
             // leave an orphan book with no/partial holdings. The transaction
-            // wraps ONLY createBasic() + createManyForBook(): neither starts
-            // its own transaction (createBasic detects the open one via its
-            // savepoint probe and nests with SAVEPOINT), and no plugin hook
-            // fires inside it — book.save.after handlers (e.g. book-club)
-            // run their own begin_transaction(), which under mysqli implicitly
-            // commits an enclosing transaction and would silently destroy this
-            // atomicity. Hooks, series/LT metadata and the availability recalc
+            // wraps ONLY createBasic() + createManyForBook() + the SQL-only
+            // availability reconciliation. createBasic detects the open
+            // transaction via its savepoint probe and nests with SAVEPOINT;
+            // DataIntegrity is explicitly told that this transaction belongs
+            // to the caller. No plugin hook fires inside it — book.save.after
+            // handlers (e.g. book-club) can open their own transaction, which
+            // under mysqli would implicitly commit the enclosing transaction
+            // and silently destroy this atomicity. Hooks and series/LT metadata
             // therefore run strictly after the commit.
             if (!$db->begin_transaction()) {
                 throw new \RuntimeException('Database error: unable to begin book create transaction');
@@ -1219,6 +1220,16 @@ class LibriController
                     throw new \RuntimeException('Unable to create the requested physical copies.');
                 }
 
+                // Counters and canonical state are part of the same invariant as
+                // the book and its holdings. If reconciliation fails, rolling
+                // back here prevents a committed book whose summary/API fields
+                // disagree with the physical copies just created.
+                $availabilityUpdated = (new \App\Support\DataIntegrity($db))
+                    ->recalculateBookAvailability($id, true);
+                if (!$availabilityUpdated) {
+                    throw new \RuntimeException('Unable to recalculate availability for the new book.');
+                }
+
                 if (!$db->commit()) {
                     throw new \RuntimeException('Database error: unable to commit book create transaction');
                 }
@@ -1244,14 +1255,6 @@ class LibriController
 
             // Plugin hook: After book save
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
-
-            // Ricalcola disponibilità dopo aver generato le copie, come fa il
-            // percorso di update. Senza questo, copie_disponibili/copie_totali e
-            // lo stato canonico non vengono derivati dalle copie appena create:
-            // ogni superficie OPAC calcola la disponibilità da copie_disponibili,
-            // quindi un nuovo libro resterebbe con i contatori a zero (o con lo
-            // stato grezzo scritto dal form) finché non passa un altro salvataggio.
-            (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($id);
 
             // Persist all fields first, then apply an explicitly chosen cover
             // (file upload or scraped URL) on top so it isn't reverted by the

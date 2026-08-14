@@ -2,22 +2,27 @@
 //
 // E2E proof for the atomic book+copies create in LibriController::store()
 // (PR #356): the book row and its initial physical copies now persist in ONE
-// transaction, committed before any plugin hook fires. Driven through the
+// transaction, including availability reconciliation and committed before any
+// plugin hook fires. Driven through the
 // REAL admin create form + controller + DB:
 //
 //   1. creating with 1 copy persists exactly one copie row and derived
 //      counters (DataIntegrity) of 1:1:disponibile;
 //   2. creating with 3 copies persists exactly three uniform -C1/-C2/-C3 codes;
 //   3. creating with 0 copies persists a valid zero-holding record;
-//   4. ROLLBACK PROOF: a forced copy-insert failure (SIGNAL trigger on copie)
+//   4. ROLLBACK PROOF: a forced copy-insert failure (DB trigger on copie)
 //      makes the real POST fail AND leaves no orphan book, no partial copies,
 //      and no orphan series (collane) metadata;
-//   5. a non-integer copie_totali still falls back to zero copies;
-//   6. copie_totali is still clamped to the 9999 upper bound;
-//   7. book.save.after still fires post-commit: with the book-club plugin
+//   5. ROLLBACK PROOF: a forced availability-recalc failure removes the book
+//      and the physical copies that had already been inserted;
+//   6. a non-integer copie_totali still falls back to zero copies;
+//   7. copie_totali is still clamped to the 9999 upper bound;
+//   8. book.save.after still fires post-commit: with the book-club plugin
 //      active, an external club proposal with the same ISBN is reconciled
 //      (acquired_libro_id set) by the hook handler — which runs its own
 //      transaction — without corrupting the created book or its copies.
+//   9. two concurrent creates sharing an inventory prefix both succeed and
+//      receive four globally unique, gap-free physical-copy codes.
 //
 // Reusable: marker-scoped to titles `ZZ_ATOMIC356_%`, cleans up in afterAll.
 const { test, expect } = require('@playwright/test');
@@ -57,15 +62,22 @@ const TITLE_ONE = `${MARKER}ONE_${RUN}`;
 const TITLE_THREE = `${MARKER}THREE_${RUN}`;
 const TITLE_ZERO = `${MARKER}ZERO_${RUN}`;
 const TITLE_FAIL = `${MARKER}FAIL_${RUN}`;
+const TITLE_RECALC_FAIL = `${MARKER}RECALC_FAIL_${RUN}`;
 const TITLE_NONINT = `${MARKER}NONINT_${RUN}`;
 const TITLE_CLAMP = `${MARKER}CLAMP_${RUN}`;
 const TITLE_HOOK = `${MARKER}HOOK_${RUN}`;
+const TITLE_RACE_A = `${MARKER}RACE_A_${RUN}`;
+const TITLE_RACE_B = `${MARKER}RACE_B_${RUN}`;
 const PREFIX_ONE = `A356A-${RUN}`;
 const PREFIX_THREE = `A356B-${RUN}`;
 const PREFIX_FAIL = `A356F-${RUN}`;
+const PREFIX_RECALC_FAIL = `A356R-${RUN}`;
+const PREFIX_RACE = `A356C-${RUN}`;
 const SERIES_FAIL = `${MARKER}SERIES_${RUN}`;
 const CLUB_SLUG = `zz-atomic356-${RUN}`;
 const TRIGGER = 'zz_atomic356_fail_copy';
+const RECALC_TRIGGER = 'zz_atomic356_fail_recalc';
+const SLOW_COPY_TRIGGER = 'zz_atomic356_slow_copy';
 
 /** Valid ISBN-13 unique to this run (per-run digits + computed check digit). */
 function makeIsbn13() {
@@ -78,6 +90,8 @@ const HOOK_ISBN = makeIsbn13();
 
 function cleanup() {
   try { dbQuery(`DROP TRIGGER IF EXISTS ${TRIGGER}`); } catch { /* best-effort */ }
+  try { dbQuery(`DROP TRIGGER IF EXISTS ${RECALC_TRIGGER}`); } catch { /* best-effort */ }
+  try { dbQuery(`DROP TRIGGER IF EXISTS ${SLOW_COPY_TRIGGER}`); } catch { /* best-effort */ }
   // Book-club fixture rows (ignore errors if the plugin tables are absent).
   try {
     dbQuery(`DELETE FROM bookclub_books WHERE club_id IN (SELECT id FROM bookclub_clubs WHERE slug='${CLUB_SLUG}')`);
@@ -146,6 +160,8 @@ test.describe.serial('atomic book+copies create (#356)', () => {
     // Pre-clean leftovers from a previous aborted run.
     dbQuery(`DELETE FROM libri WHERE titolo LIKE '${MARKER}%'`);
     try { dbQuery(`DROP TRIGGER IF EXISTS ${TRIGGER}`); } catch { /* best-effort */ }
+    try { dbQuery(`DROP TRIGGER IF EXISTS ${RECALC_TRIGGER}`); } catch { /* best-effort */ }
+    try { dbQuery(`DROP TRIGGER IF EXISTS ${SLOW_COPY_TRIGGER}`); } catch { /* best-effort */ }
   });
 
   test.beforeEach(async ({ page }) => {
@@ -164,7 +180,7 @@ test.describe.serial('atomic book+copies create (#356)', () => {
     const id = bookIdByTitle(TITLE_ONE);
     expect(id).toBeGreaterThan(0);
     expect(copieCodes(id)).toEqual([`${PREFIX_ONE}-C1`]);
-    // DataIntegrity ran post-commit and derived the canonical counters.
+    // DataIntegrity ran inside the transaction and derived canonical counters.
     expect(dbQuery(`SELECT CONCAT(copie_totali, ':', copie_disponibili, ':', stato) FROM libri WHERE id=${id}`))
       .toBe('1:1:disponibile');
   });
@@ -191,13 +207,16 @@ test.describe.serial('atomic book+copies create (#356)', () => {
     const id = bookIdByTitle(TITLE_ZERO);
     expect(id).toBeGreaterThan(0);
     expect(copieCount(id)).toBe(0);
-    expect(dbQuery(`SELECT CONCAT(copie_totali, ':', copie_disponibili) FROM libri WHERE id=${id}`)).toBe('0:0');
+    expect(dbQuery(`SELECT CONCAT(copie_totali, ':', copie_disponibili, ':', stato) FROM libri WHERE id=${id}`))
+      .toBe('0:0:non_disponibile');
   });
 
   test('4) ROLLBACK: forced copy failure leaves no orphan book, copies or series rows', async ({ page }) => {
     // Force the multi-row copie INSERT to fail server-side, exactly like a
     // production insert error would, through the REAL controller path.
-    dbQuery(`CREATE TRIGGER ${TRIGGER} BEFORE INSERT ON copie FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced copy failure (e2e)'`);
+    // A single-statement trigger stays marker-scoped, so this spec remains safe
+    // when Playwright runs other files against the same database in parallel.
+    dbQuery(`CREATE TRIGGER ${TRIGGER} BEFORE INSERT ON copie FOR EACH ROW SET NEW.numero_inventario=IF(NEW.numero_inventario LIKE '${PREFIX_FAIL}%', NULL, NEW.numero_inventario)`);
     try {
       await openCreateForm(page, TITLE_FAIL);
       await page.fill('#copie_totali', '2');
@@ -220,7 +239,26 @@ test.describe.serial('atomic book+copies create (#356)', () => {
     expect(Number(dbQuery(`SELECT COUNT(*) FROM collane WHERE nome='${SERIES_FAIL}'`))).toBe(0);
   });
 
-  test('5) non-integer copie_totali still falls back to zero copies', async ({ page }) => {
+  test('5) ROLLBACK: forced availability-recalc failure removes book and copies', async ({ page }) => {
+    // Fail only the marked book's DataIntegrity UPDATE. Assigning NULL to the
+    // non-null primary key is a portable one-statement trigger failure and does
+    // not disturb parallel specs updating unrelated books.
+    dbQuery(`CREATE TRIGGER ${RECALC_TRIGGER} BEFORE UPDATE ON libri FOR EACH ROW SET NEW.id=IF(NEW.titolo='${TITLE_RECALC_FAIL}', NULL, NEW.id)`);
+    try {
+      await openCreateForm(page, TITLE_RECALC_FAIL);
+      await page.fill('#copie_totali', '2');
+      await page.fill('#numero_inventario', PREFIX_RECALC_FAIL);
+      const status = await submitBookForm(page);
+      expect(status).toBeGreaterThanOrEqual(500);
+    } finally {
+      dbQuery(`DROP TRIGGER IF EXISTS ${RECALC_TRIGGER}`);
+    }
+
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo='${TITLE_RECALC_FAIL}'`))).toBe(0);
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM copie WHERE numero_inventario LIKE '${PREFIX_RECALC_FAIL}%'`))).toBe(0);
+  });
+
+  test('6) non-integer copie_totali still falls back to zero copies', async ({ page }) => {
     await openCreateForm(page, TITLE_NONINT);
     // Bypass the number input to deliver a genuinely non-integer POST value
     // (the form is novalidate; the controller must reject it, not the browser).
@@ -238,7 +276,7 @@ test.describe.serial('atomic book+copies create (#356)', () => {
     expect(dbQuery(`SELECT CONCAT(copie_totali, ':', copie_disponibili) FROM libri WHERE id=${id}`)).toBe('0:0');
   });
 
-  test('6) copie_totali above the bound is clamped to 9999', async ({ page }) => {
+  test('7) copie_totali above the bound is clamped to 9999', async ({ page }) => {
     test.setTimeout(120000); // 9999 copie rows: one multi-row INSERT + recalc
     await openCreateForm(page, TITLE_CLAMP);
     await page.evaluate(() => {
@@ -255,7 +293,7 @@ test.describe.serial('atomic book+copies create (#356)', () => {
     expect(Number(dbQuery(`SELECT copie_totali FROM libri WHERE id=${id}`))).toBe(9999);
   });
 
-  test('7) book.save.after fires post-commit: book-club reconciles by ISBN without corrupting the create', async ({ page }) => {
+  test('8) book.save.after fires post-commit: book-club reconciles by ISBN without corrupting the create', async ({ page }) => {
     const bookClubActive = dbQuery(`SELECT is_active FROM plugins WHERE name='book-club'`) === '1';
     test.skip(!bookClubActive, 'book-club plugin not active in this environment');
 
@@ -282,5 +320,44 @@ test.describe.serial('atomic book+copies create (#356)', () => {
     // counters are exactly what the form requested.
     expect(copieCount(id)).toBe(1);
     expect(dbQuery(`SELECT CONCAT(copie_totali, ':', copie_disponibili) FROM libri WHERE id=${id}`)).toBe('1:1');
+  });
+
+  test('9) concurrent creates sharing an inventory prefix allocate unique physical copies', async ({ page, browser }) => {
+    test.setTimeout(90000);
+    const secondContext = await browser.newContext();
+    const secondPage = await secondContext.newPage();
+    try {
+      await loginAsAdmin(secondPage);
+      await Promise.all([
+        openCreateForm(page, TITLE_RACE_A),
+        openCreateForm(secondPage, TITLE_RACE_B),
+      ]);
+      await page.fill('#copie_totali', '2');
+      await page.fill('#numero_inventario', PREFIX_RACE);
+      await secondPage.fill('#copie_totali', '2');
+      await secondPage.fill('#numero_inventario', PREFIX_RACE);
+
+      // Keep both INSERT statements overlapped. Without locking/retry, both
+      // requests can select the same free C1/C2 codes and one fails on UNIQUE.
+      dbQuery(`CREATE TRIGGER ${SLOW_COPY_TRIGGER} BEFORE INSERT ON copie FOR EACH ROW DO IF(NEW.numero_inventario LIKE '${PREFIX_RACE}%', SLEEP(0.35), 0)`);
+      const firstSubmit = submitBookForm(page);
+      await page.waitForTimeout(100);
+      const secondSubmit = submitBookForm(secondPage);
+      const statuses = await Promise.all([firstSubmit, secondSubmit]);
+      expect(statuses.every((status) => status < 400)).toBe(true);
+    } finally {
+      dbQuery(`DROP TRIGGER IF EXISTS ${SLOW_COPY_TRIGGER}`);
+      await secondContext.close();
+    }
+
+    const firstId = bookIdByTitle(TITLE_RACE_A);
+    const secondId = bookIdByTitle(TITLE_RACE_B);
+    expect(firstId).toBeGreaterThan(0);
+    expect(secondId).toBeGreaterThan(0);
+    const allCodes = [...copieCodes(firstId), ...copieCodes(secondId)].sort();
+    expect(allCodes).toEqual([
+      `${PREFIX_RACE}-C1`, `${PREFIX_RACE}-C2`,
+      `${PREFIX_RACE}-C3`, `${PREFIX_RACE}-C4`,
+    ]);
   });
 });

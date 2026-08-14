@@ -366,16 +366,21 @@ class CopyController
             // control characters must fall back to automatic allocation.
             if ($numero === '') {
                 $base = !empty($book['numero_inventario']) ? (string) $book['numero_inventario'] : "LIB-{$bookId}";
-                $codes = $repo->allocateInventoryCodes($base, 1);
-                $numero = $codes[0] ?? ($base . '-C1');
+                $newCopyId = $repo->createWithAllocatedInventoryCode(
+                    $bookId,
+                    $base,
+                    $stato,
+                    $note !== '' ? $note : null
+                );
             } elseif ($repo->inventoryCodeExists($numero)) {
                 $db->rollback();
                 $transactionStarted = false;
                 $_SESSION['error_message'] = __('Esiste già una copia con questo numero di inventario.');
                 return $response->withHeader('Location', url("/admin/books/{$bookId}"))->withStatus(302);
+            } else {
+                $newCopyId = $repo->create($bookId, $numero, $stato, $note !== '' ? $note : null);
             }
 
-            $newCopyId = $repo->create($bookId, $numero, $stato, $note !== '' ? $note : null);
             if ($newCopyId <= 0) {
                 throw new \RuntimeException('Unable to create the physical copy.');
             }
@@ -431,74 +436,109 @@ class CopyController
     {
         // CSRF validated by CsrfMiddleware
 
-        // Recupera la copia per ottenere il libro_id e verificare lo stato
-        $stmt = $db->prepare("SELECT libro_id, stato FROM copie WHERE id = ?");
+        // Resolve the parent first; the transaction below then follows the
+        // canonical circulation lock order (book -> copy -> loans).
+        $stmt = $db->prepare('SELECT libro_id FROM copie WHERE id = ?');
         $stmt->bind_param('i', $copyId);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $copy = $result->fetch_assoc();
+        $copy = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-
         if (!$copy) {
             $_SESSION['error_message'] = __('Copia non trovata.');
             return $response->withHeader('Location', $this->safeReferer('/admin/books'))->withStatus(302);
         }
 
         $libroId = (int) $copy['libro_id'];
-        $stato = $copy['stato'];
-
-        // Verifica se la copia è trattenuta da QUALSIASI impegno HOLDING (prestito
-        // attivo o pendente-con-copia, incluse prenotazioni future e ritiri in attesa).
-        $hasPrestito = $this->isCopyHeld($db, $copyId);
-
-        if ($hasPrestito) {
-            $_SESSION['error_message'] = __('Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.');
-            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
-        }
-
-        // Permetti eliminazione solo per copie fuori circolazione (perse, danneggiate,
-        // in manutenzione, in restauro o in trasferimento). Una copia disponibile o
-        // impegnata non si elimina: prima se ne cambia lo stato.
-        if (!in_array($stato, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true)) {
-            $_SESSION['error_message'] = __('Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.');
-            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
-        }
-
-        // Anche i prestiti CHIUSI referenziano copia_id e il FK fk_prestiti_copia
-        // è ON DELETE RESTRICT: senza questo check la DELETE esplode con
-        // mysqli_sql_exception (500). Una copia con storico non si elimina, si
-        // mette fuori circolazione cambiandone lo stato.
-        $stmt = $db->prepare("SELECT 1 FROM prestiti WHERE copia_id = ? LIMIT 1");
-        $stmt->bind_param('i', $copyId);
-        $stmt->execute();
-        $hasHistory = (bool) $stmt->get_result()->fetch_row();
-        $stmt->close();
-
-        if ($hasHistory) {
-            $_SESSION['error_message'] = __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.');
-            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
-        }
-
-        // Elimina la copia. Difesa in profondità: un prestito creato tra il check
-        // e la DELETE fa comunque scattare il FK — intercetta e degrada a errore
-        // gestito invece di propagare un 500.
+        $transactionStarted = false;
         try {
-            $stmt = $db->prepare("DELETE FROM copie WHERE id = ?");
+            if (!$db->begin_transaction()) {
+                throw new \RuntimeException('Unable to begin copy-delete transaction.');
+            }
+            $transactionStarted = true;
+
+            $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
+            $lockBook->bind_param('i', $libroId);
+            $lockBook->execute();
+            $bookExists = (bool) $lockBook->get_result()->fetch_row();
+            $lockBook->close();
+            if (!$bookExists) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Libro non trovato o non più disponibile.');
+                return $response->withHeader('Location', $this->safeReferer('/admin/books'))->withStatus(302);
+            }
+
+            // Re-read under lock: state and commitments may have changed since
+            // the initial parent lookup.
+            $stmt = $db->prepare('SELECT stato FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
+            $stmt->bind_param('ii', $copyId, $libroId);
+            $stmt->execute();
+            $lockedCopy = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$lockedCopy) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Copia non trovata.');
+                return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+            }
+
+            // A copy with any current/future commitment or historical loan is
+            // retained permanently; operators can only move it out of circulation.
+            if ($this->isCopyHeld($db, $copyId)) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.');
+                return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+            }
+            if (!in_array($lockedCopy['stato'], ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true)) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.');
+                return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+            }
+
+            $stmt = $db->prepare('SELECT 1 FROM prestiti WHERE copia_id = ? LIMIT 1 FOR UPDATE');
             $stmt->bind_param('i', $copyId);
             $stmt->execute();
+            $hasHistory = (bool) $stmt->get_result()->fetch_row();
             $stmt->close();
-        } catch (\mysqli_sql_exception $e) {
-            // 1451 = Cannot delete or update a parent row (vincolo FK)
-            if ((int) $e->getCode() !== 1451) {
-                throw $e;
+            if ($hasHistory) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.');
+                return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
             }
-            $_SESSION['error_message'] = __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.');
+
+            $stmt = $db->prepare('DELETE FROM copie WHERE id = ?');
+            $stmt->bind_param('i', $copyId);
+            $stmt->execute();
+            $deleted = $stmt->affected_rows;
+            $stmt->close();
+            if ($deleted !== 1) {
+                throw new \RuntimeException('Physical copy delete did not affect exactly one row.');
+            }
+
+            if (!(new DataIntegrity($db))->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Unable to recalculate availability after copy delete.');
+            }
+            if (!$db->commit()) {
+                throw new \RuntimeException('Unable to commit copy-delete transaction.');
+            }
+            $transactionStarted = false;
+        } catch (\Throwable $e) {
+            if ($transactionStarted) {
+                try {
+                    $db->rollback();
+                } catch (\Throwable $rollbackError) {
+                    // best-effort
+                }
+            }
+            SecureLogger::error('[CopyController] deleteCopy failed', ['copy' => $copyId, 'error' => $e->getMessage()]);
+            $_SESSION['error_message'] = (int) $e->getCode() === 1451
+                ? __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.')
+                : __('Impossibile aggiornare la copia senza lasciare dati incoerenti. Nessuna modifica è stata salvata.');
             return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
         }
-
-        // Ricalcola disponibilità del libro
-        $integrity = new \App\Support\DataIntegrity($db);
-        $integrity->recalculateBookAvailability($libroId);
 
         $_SESSION['success_message'] = __('Copia eliminata con successo.');
         return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
