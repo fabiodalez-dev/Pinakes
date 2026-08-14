@@ -482,6 +482,15 @@ test.describe.serial('Phase 2: Login and Dashboard', () => {
     await page.locator('button[type="submit"]').click();
     await page.waitForURL(/admin/, { timeout: 30000 });
     await expect(page).toHaveURL(/admin/);
+    // waitForURL resolves at navigation commit, while the post-login landing
+    // page (the dashboard) is still evaluating parser-inserted scripts —
+    // FullCalendar injects its stylesheet at module load. If 2.2 navigates
+    // away before that finishes, the document is detached mid-evaluation,
+    // style.sheet is null, and the resulting uncaught
+    // "Cannot read properties of null (reading 'cssRules')" lands in the
+    // pageerror listener 2.2 just attached (seen in CI run 31658701424,
+    // shard 4/4). Wait for the landing page to finish loading first.
+    await page.waitForLoadState('load');
   });
 
   test('2.2 Dashboard loads with content', async () => {
@@ -2842,7 +2851,12 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     await page.waitForLoadState('domcontentloaded');
 
     const statoField = page.locator('#stato, select[name="stato"]');
-    if (await statoField.isVisible({ timeout: 2000 }).catch(() => false)) {
+    // #stato (availability) is a derived value and read-only by design (#351):
+    // the <select> is disabled. Only edit it when it is actually editable —
+    // selectOption()/fill() on a disabled control waits for actionability until
+    // the test times out (which closes the page and cascades in this serial file).
+    if (await statoField.isVisible({ timeout: 2000 }).catch(() => false)
+        && await statoField.isEditable().catch(() => false)) {
       // Select a value
       if (await statoField.evaluate(el => el.tagName === 'SELECT')) {
         const options = await statoField.locator('option').count();

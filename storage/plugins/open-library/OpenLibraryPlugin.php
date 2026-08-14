@@ -590,18 +590,30 @@ class OpenLibraryPlugin
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
+            // SSRF hardening: http/https only, even across redirects.
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_NOBODY => true,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 3,
+            CURLOPT_CONNECTTIMEOUT => 2,
             CURLOPT_TIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_USERAGENT => self::USER_AGENT,
         ]);
 
-        curl_exec($ch);
+        $headResponse = curl_exec($ch);
+        $curlError = curl_error($ch);
+        if ($headResponse === false || $curlError !== '') {
+            \App\Support\SecureLogger::warning('[OpenLibrary] Cover HEAD request failed', ['error' => $curlError]);
+            return false;
+        }
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
         $contentLength = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
-        curl_close($ch);
+        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
         if ($httpCode !== 200) {
             return false;
@@ -626,15 +638,27 @@ class OpenLibraryPlugin
                 $ch2 = curl_init();
                 curl_setopt_array($ch2, [
                     CURLOPT_URL => $url,
+                    // SSRF hardening: http/https only, even across redirects.
+                    CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                    CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_MAXREDIRS => 3,
+                    CURLOPT_CONNECTTIMEOUT => 2,
                     CURLOPT_TIMEOUT => 3,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_SSL_VERIFYHOST => 2,
                     CURLOPT_USERAGENT => self::USER_AGENT,
                     CURLOPT_RANGE => '0-1023',
                 ]);
                 $partial = curl_exec($ch2);
+                $curlError2 = curl_error($ch2);
+                if ($partial === false || $curlError2 !== '') {
+                    \App\Support\SecureLogger::warning('[OpenLibrary] Cover range request failed', ['error' => $curlError2]);
+                    return false;
+                }
                 $httpCode2 = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
-                curl_close($ch2);
+                /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
                 return in_array($httpCode2, [200, 206], true)
                     && is_string($partial) && strlen($partial) > self::MIN_COVER_SIZE_BYTES;
             }

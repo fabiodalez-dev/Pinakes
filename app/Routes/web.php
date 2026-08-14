@@ -2837,7 +2837,7 @@ return function (App $app): void {
 
         $img = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
         if ($img === false || $httpCode !== 200) {
             return $response->withStatus(404);
@@ -2983,7 +2983,7 @@ return function (App $app): void {
 
         $img = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
         // A 3xx means the origin tried to redirect us (potentially to an
         // internal target); with FOLLOWLOCATION off we simply refuse it.

@@ -247,6 +247,8 @@ class SbnClient
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS => 3,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_USERAGENT => 'Pinakes Library System/1.0',
                 CURLOPT_HTTPHEADER => [
                     'Accept: application/json',
@@ -292,7 +294,7 @@ class SbnClient
             }
 
             curl_multi_remove_handle($multiHandle, $ch);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
         }
 
         curl_multi_close($multiHandle);
@@ -942,6 +944,8 @@ class SbnClient
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 3,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_USERAGENT => 'Pinakes Library System/1.0 (+https://github.com/biblioteche)',
             CURLOPT_HTTPHEADER => [
                 'Accept: application/json',
@@ -954,7 +958,7 @@ class SbnClient
         $error = curl_error($ch);
         $totalTime = curl_getinfo($ch, CURLINFO_TOTAL_TIME);
 
-        curl_close($ch);
+        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
         \App\Support\SecureLogger::debug('[SBN] HTTP Request', [
             'http_code' => $httpCode,

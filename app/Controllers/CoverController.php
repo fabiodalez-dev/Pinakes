@@ -353,7 +353,7 @@ class CoverController
             $rawResponse = curl_exec($ch);
             if ($rawResponse === false) {
                 $err = curl_error($ch) ?: 'Errore sconosciuto';
-                curl_close($ch);
+                /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
                 throw new \RuntimeException('Errore download immagine: ' . $err);
             }
 
@@ -361,7 +361,7 @@ class CoverController
             $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
             $headers = substr($rawResponse, 0, $headerSize);
             $body = substr($rawResponse, $headerSize);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
             if ($status >= 300 && $status < 400) {
                 if ($redirects === 3) {

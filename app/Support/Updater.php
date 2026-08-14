@@ -939,7 +939,7 @@ class Updater
             $curlResult = curl_exec($ch);
             $curlInfo = curl_getinfo($ch);
             $curlError = curl_error($ch);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
             $this->debugLog('DEBUG', 'cURL test result', [
                 'success' => $curlResult !== false,
@@ -1040,7 +1040,7 @@ class Updater
 
             $curlResult = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
             if ($curlResult !== false && $httpCode >= 200 && $httpCode < 300) {
                 $response = $curlResult;
@@ -1062,7 +1062,7 @@ class Updater
                 ]);
                 $retryResult = curl_exec($ch2);
                 $retryCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
-                curl_close($ch2);
+                /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
                 if ($retryResult !== false && $retryCode >= 200 && $retryCode < 300) {
                     $response = $retryResult;
                 }
@@ -1243,7 +1243,7 @@ class Updater
                 $curlInfo = curl_getinfo($ch);
                 $curlError = curl_error($ch);
                 $curlErrno = curl_errno($ch);
-                curl_close($ch);
+                /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
                 $httpCode = is_array($curlInfo) ? $curlInfo['http_code'] : 0;
                 $this->debugLog('DEBUG', 'Risultato cURL', [
@@ -1276,7 +1276,7 @@ class Updater
                         ]);
                         $retryContent = curl_exec($ch2);
                         $retryCode = (int)(curl_getinfo($ch2, CURLINFO_HTTP_CODE));
-                        curl_close($ch2);
+                        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
                         if ($retryContent !== false && $retryCode >= 200 && $retryCode < 400) {
                             $fileContent = $retryContent;
                         }
@@ -4398,7 +4398,7 @@ class Updater
             $content = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $error = curl_error($ch);
-            curl_close($ch);
+            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
             if ($httpCode === 404) {
                 // File not found - this is normal (no patch needed)

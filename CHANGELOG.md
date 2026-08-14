@@ -2,6 +2,35 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.60]
+
+Maintenance release: UPC barcode support, a read-only availability field, and a
+PHP 8.5 scraping fix, bundled with CI hardening.
+
+### Features
+
+- The barcode field accepts a 12-digit **UPC-A** (board games and other
+  non-book items), canonicalised to its 13-digit GTIN so it validates, stores,
+  searches and de-duplicates exactly like an EAN-13. CSV and TSV import both go
+  through the same path. The field is relabelled EAN → EAN/UPC across all five
+  locales.
+
+### Fixes
+
+- ISBN scraping no longer fails with "Risposta non valida dal servizio ISBN." on
+  PHP 8.5: the deprecated `curl_close()` calls that leaked a notice into the JSON
+  response body were removed.
+- The book editor's availability field is now read-only, matching the fact that
+  it is a value derived from the physical copies; editing it was a silent no-op.
+- The floating scroll-to-top button no longer overlaps the Save button at the
+  bottom of the book form.
+
+### Internal
+
+- The GitHub Actions security audit no longer breaks on upstream tag drift, and
+  the NCIP CheckOut regression test provisions its own available copy so it is
+  deterministic under sharded runs.
+
 ## [0.7.59]
 
 Consolidation release: the complete integration of PRs #335, #337, #339 and
