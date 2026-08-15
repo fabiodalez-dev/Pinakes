@@ -133,7 +133,11 @@ class CopyController
         $note = $this->sanitizeNote($noteInput);
 
         // Validazione stato (deve corrispondere all'enum in copie.stato)
-        $statiValidi = ['disponibile', 'prestato', 'prenotato', 'manutenzione', 'in_restauro', 'perso', 'danneggiato', 'in_trasferimento'];
+        // 'prestato'/'prenotato' are owned by the loan/reservation system and must
+        // never be set directly here. 'prestato' is still listed so the explicit
+        // guard below can emit its dedicated message; 'prenotato' is not settable
+        // at all and is rejected as an invalid state.
+        $statiValidi = ['disponibile', 'prestato', 'manutenzione', 'in_restauro', 'perso', 'danneggiato', 'in_trasferimento'];
         if (!in_array($stato, $statiValidi, true)) {
             $_SESSION['error_message'] = __('Stato non valido.');
             return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
@@ -363,7 +367,9 @@ class CopyController
             // Keep the same canonical lock order used by circulation writes:
             // book first, then copies/loans. Copy creation, queue processing and
             // derived counters must become visible as one atomic change.
-            $db->begin_transaction();
+            if (!$db->begin_transaction()) {
+                throw new \RuntimeException('Unable to begin the physical-copy creation transaction.');
+            }
             $transactionStarted = true;
 
             $stmt = $db->prepare("SELECT id, numero_inventario FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
@@ -569,7 +575,7 @@ class CopyController
             SecureLogger::error('[CopyController] deleteCopy failed', ['copy' => $copyId, 'error' => $e->getMessage()]);
             $_SESSION['error_message'] = (int) $e->getCode() === 1451
                 ? __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.')
-                : __('Impossibile aggiornare la copia senza lasciare dati incoerenti. Nessuna modifica è stata salvata.');
+                : __('Impossibile eliminare la copia.');
             return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
         }
 

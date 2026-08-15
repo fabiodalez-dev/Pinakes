@@ -1501,45 +1501,6 @@ class LibriController
         $copyRepoCount = new \App\Models\CopyRepository($db);
         $fields['copie_totali'] = $copyRepoCount->countInCirculationByBookId($id);
 
-        // Validazione copie: verifica che sia possibile ridurre il numero di copie.
-        // Usa lo stesso conteggio "in circolazione" della gestione copie più sotto
-        // (e di libri.copie_totali via DataIntegrity): con il conteggio grezzo,
-        // un libro con copie fuori circolazione divergerebbe dalla logica reale e
-        // bloccherebbe il salvataggio con un messaggio errato.
-        $copyRepo = new \App\Models\CopyRepository($db);
-        $currentCopieCount = $copyRepo->countInCirculationByBookId($id);
-        $newCopieCount = $fields['copie_totali'];
-
-        if ($newCopieCount < $currentCopieCount) {
-            // Conta quante copie sono disponibili per la rimozione
-            $copie = $copyRepo->getByBookId($id);
-            $removableCopies = 0;
-
-            foreach ($copie as $copia) {
-                if ($copia['stato'] === 'disponibile' && empty($copia['prestito_id'])) {
-                    $removableCopies++;
-                }
-            }
-
-            $requiredReduction = $currentCopieCount - $newCopieCount;
-
-            if ($requiredReduction > $removableCopies) {
-                // The floor is the in-circulation count minus what we can remove.
-                // Deriving it from $currentCopieCount (which already excludes
-                // out-of-circulation copies) keeps the message consistent with the
-                // canonical libri.copie_totali, instead of counting perso/danneggiato
-                // copies that aren't part of that total at all.
-                $minimumCopies = $currentCopieCount - $removableCopies;
-                $_SESSION['error_message'] = sprintf(
-                    __('Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.'),
-                    $newCopieCount,
-                    $minimumCopies,
-                    $minimumCopies
-                );
-                return $response->withHeader('Location', url('/admin/books/edit/' . $id))->withStatus(302);
-            }
-        }
-
         // Non aggiorniamo disponibilità/stato dall'utente: sono derivati dalle copie.
         unset($fields['copie_disponibili']);
         unset($fields['stato']);
@@ -1901,79 +1862,6 @@ class LibriController
 
             // Plugin hook: After book save (update)
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
-
-            // Gestione copie: aggiorna il numero di copie se cambiato.
-            // Il conteggio di riferimento DEVE escludere le copie fuori
-            // circolazione (perso/danneggiato/manutenzione/in_restauro/
-            // in_trasferimento), perché `$fields['copie_totali']` arriva dal
-            // form pre-compilato con `libri.copie_totali`, che DataIntegrity
-            // calcola con la stessa esclusione. Con il conteggio grezzo
-            // (countByBookId) un libro con una copia fuori circolazione avrebbe
-            // current > form a ogni salvataggio e cancellerebbe una copia buona.
-            $copyRepo = new \App\Models\CopyRepository($db);
-            $currentCopieCount = $copyRepo->countInCirculationByBookId($id);
-            $newCopieCount = (int) $fields['copie_totali'];
-
-            if ($newCopieCount > $currentCopieCount) {
-                // Aggiungi nuove copie. #238: generate gap-filling, collision-free
-                // "-C{N}" codes instead of "-C{count+1}" (which duplicated an existing
-                // code after a copy had been removed). allocateInventoryCodes checks
-                // every candidate against the whole `copie` table.
-                $baseInventario = !empty($fields['numero_inventario'])
-                    ? $fields['numero_inventario']
-                    : "LIB-{$id}";
-
-                $howMany = $newCopieCount - $currentCopieCount;
-                $codes = $copyRepo->allocateInventoryCodes($baseInventario, $howMany);
-                foreach ($codes as $numeroInventario) {
-                    $note = "Copia {$numeroInventario}";
-                    $newCopyId = $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
-
-                    // Case 1: Reassign pending reservations to this new copy
-                    try {
-                        $reassignmentService = new \App\Services\ReservationReassignmentService($db);
-                        $reassignmentService->reassignOnNewCopy($id, $newCopyId);
-                    } catch (\Throwable $e) {
-                        SecureLogger::error(__('Riassegnazione prenotazione nuova copia fallita') . ': ' . $e->getMessage(), [
-                            'copia_id' => $newCopyId,
-                        ]);
-                    }
-
-                    // Also process waitlist (prenotazioni -> prestiti) as we have more capacity now
-                    try {
-                        $reservationManager = new \App\Controllers\ReservationManager($db);
-                        $reservationManager->processBookAvailability($id);
-                    } catch (\Throwable $e) {
-                        SecureLogger::error(__('Elaborazione lista attesa fallita') . ': ' . $e->getMessage(), [
-                            'libro_id' => $id,
-                        ]);
-                    }
-                }
-            } elseif ($newCopieCount < $currentCopieCount) {
-                // Rimuovi copie in eccesso DALLA CODA (le ultime aggiunte), solo quelle
-                // disponibili e senza impegni (#238: prima si rimuoveva la PRIMA della
-                // lista ASC, lasciando codici col suffisso più alto → collisioni dopo).
-                $removable = $copyRepo->getRemovableCopiesNewestFirst($id);
-                $toRemove = $currentCopieCount - $newCopieCount;
-                $removed = 0;
-
-                foreach ($removable as $copia) {
-                    if ($removed >= $toRemove) {
-                        break;
-                    }
-                    // Conditional delete: only counts if the copy is still removable
-                    // (a loan may have claimed it since the SELECT). Miscounting is
-                    // thus impossible; the FK RESTRICT is the hard backstop.
-                    if ($copyRepo->deleteIfRemovable($copia['id'])) {
-                        $removed++;
-                    }
-                }
-
-                // Se non riusciamo a rimuovere abbastanza copie, avvisa l'utente
-                if ($removed < $toRemove) {
-                    $_SESSION['warning_message'] = __("Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.");
-                }
-            }
 
             // Ricalcola disponibilità dopo aver modificato le copie
             $integrity = new \App\Support\DataIntegrity($db);

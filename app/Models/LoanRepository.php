@@ -278,7 +278,7 @@ class LoanRepository
             // have vanished (recalculateBookAvailability only returns false when the
             // book row is missing).
             if (!$integrity->recalculateBookAvailability($bookId, true)) {
-                throw new \RuntimeException(__('Impossibile ricalcolare la disponibilità finale del libro.'));
+                throw new \RuntimeException('Unable to recalculate final book availability.');
             }
 
             $this->db->commit();

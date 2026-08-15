@@ -363,7 +363,6 @@
   "Attenzione: %d prestiti in ritardo": "Achtung: %d überfällige Ausleihen",
   "Attenzione: %d prestito in ritardo": "Achtung: %d überfällige Ausleihe",
   "Attenzione: Azione Manuale Richiesta": "Achtung: Manueller Eingriff erforderlich",
-  "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.": "Achtung: Es konnten nicht alle angeforderten Exemplare entfernt werden. Einige Exemplare sind derzeit ausgeliehen.",
   "Attiva": "Aktiv",
   "Attiva API key": "API-Schlüssel aktivieren",
   "Attiva Direttamente": "Direkt aktivieren",
@@ -2321,7 +2320,6 @@
   "Impossibile revocare la sessione": "Sitzung kann nicht widerrufen werden",
   "Impossibile riaprire il file ZIP": "ZIP-Datei kann nicht erneut geöffnet werden",
   "Impossibile ricalcolare la disponibilità del libro.": "Buchverfügbarkeit kann nicht neu berechnet werden.",
-  "Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.": "Die Exemplare können nicht auf %d reduziert werden. Es gibt %d nicht verfügbare Exemplare (ausgeliehen, verloren oder beschädigt). Die Mindestanzahl der Gesamtexemplare beträgt %d.",
   "Impossibile rifiutare la recensione": "Die Rezension konnte nicht abgelehnt werden",
   "Impossibile rigenerare la sitemap.": "Sitemap kann nicht neu generiert werden.",
   "Impossibile rigenerare la sitemap: %s": "Die Sitemap konnte nicht regeneriert werden: %s",
@@ -6790,7 +6788,6 @@
   "Nessuna copia fisica registrata.": "Keine physischen Exemplare erfasst.",
   "Copia aggiunta con successo.": "Exemplar erfolgreich hinzugefügt.",
   "Impossibile aggiungere la copia.": "Exemplar konnte nicht hinzugefügt werden.",
-  "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Ein verlorenes oder beschädigtes Exemplar verringert die Gesamtzahl der Exemplare. Für Ausleihen den Bereich Ausleihen verwenden.",
   "Esiste già una copia con questo numero di inventario.": "Ein Exemplar mit dieser Inventarnummer existiert bereits.",
   "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Mit „Exemplar hinzufügen\" eines anlegen und dessen Status setzen.",
   "In trasferimento": "Im Transfer",
@@ -6806,5 +6803,6 @@
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Anfängliche Exemplare erhalten fortlaufende Codes wie PRÄFIX-C1 und PRÄFIX-C2.",
   "Invio notifica nuova copia fallito": "Benachrichtigung über neues Exemplar fehlgeschlagen",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kannst nur Exemplare außer Betrieb löschen (verloren, beschädigt, in Wartung, in Restaurierung oder im Transfer). Ändere zuerst den Status des Exemplars.",
-  "Impossibile aggiungere le copie.": "Exemplare konnten nicht hinzugefügt werden."
+  "Impossibile aggiungere le copie.": "Exemplare konnten nicht hinzugefügt werden.",
+  "Impossibile eliminare la copia.": "Exemplar konnte nicht gelöscht werden."
 }

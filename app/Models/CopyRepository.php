@@ -234,7 +234,10 @@ class CopyRepository
         ?string $noteTemplate,
         ?string $singleNote
     ): array {
-        $likeParam = $base . '%';
+        // Escape LIKE metacharacters in the base before appending the wildcard.
+        // A base ending in a backslash would otherwise escape the trailing '%',
+        // making the taken-set miss the whole -C{N} family and loop into 1062.
+        $likeParam = addcslashes($base, '%_\\') . '%';
         $maxAttempts = 5;
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
@@ -356,7 +359,7 @@ class CopyRepository
 
     private function acquireInventoryAllocatorLock(string $lockName): void
     {
-        $stmt = $this->db->prepare('SELECT GET_LOCK(?, 30)');
+        $stmt = $this->db->prepare('SELECT GET_LOCK(?, 10)');
         if ($stmt === false) {
             throw new \RuntimeException('Unable to prepare inventory allocator lock: ' . $this->db->error);
         }

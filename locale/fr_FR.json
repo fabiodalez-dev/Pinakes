@@ -363,7 +363,6 @@
   "Attenzione: %d prestiti in ritardo": "Attention : %d emprunts en retard",
   "Attenzione: %d prestito in ritardo": "Attention : %d emprunt en retard",
   "Attenzione: Azione Manuale Richiesta": "Attention : action manuelle requise",
-  "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.": "Attention : impossible de supprimer tous les exemplaires demandés. Certains exemplaires sont actuellement empruntés.",
   "Attiva": "Actif",
   "Attiva API key": "Activer la clé API",
   "Attiva Direttamente": "Activer directement",
@@ -2321,7 +2320,6 @@
   "Impossibile revocare la sessione": "Impossible de révoquer la session",
   "Impossibile riaprire il file ZIP": "Impossible de rouvrir le fichier ZIP",
   "Impossibile ricalcolare la disponibilità del libro.": "Impossible de recalculer la disponibilité du livre.",
-  "Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.": "Impossible de réduire les exemplaires à %d. Il y a %d exemplaires indisponibles (empruntés, perdus ou endommagés). Le nombre minimum d'exemplaires total est %d.",
   "Impossibile rifiutare la recensione": "Impossible de refuser l'avis",
   "Impossibile rigenerare la sitemap.": "Impossible de régénérer le sitemap.",
   "Impossibile rigenerare la sitemap: %s": "Impossible de régénérer le sitemap : %s",
@@ -6790,7 +6788,6 @@
   "Nessuna copia fisica registrata.": "Aucune copie physique enregistrée.",
   "Copia aggiunta con successo.": "Copie ajoutée avec succès.",
   "Impossibile aggiungere la copia.": "Impossible d'ajouter la copie.",
-  "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Une copie perdue ou endommagée réduit le nombre total de copies. Pour les prêts, utilisez la section Prêts.",
   "Esiste già una copia con questo numero di inventario.": "Une copie avec ce numéro d'inventaire existe déjà.",
   "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Utilisez « Ajouter une copie » pour en créer une et définir son état.",
   "In trasferimento": "En transfert",
@@ -6806,5 +6803,6 @@
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Les copies initiales recevront des codes séquentiels comme PRÉFIXE-C1 et PRÉFIXE-C2.",
   "Invio notifica nuova copia fallito": "Échec de la notification de nouvelle copie",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Vous ne pouvez supprimer que les copies hors circulation (perdues, endommagées, en maintenance, en restauration ou en transfert). Modifiez d'abord l'état de la copie.",
-  "Impossibile aggiungere le copie.": "Impossible d'ajouter les copies."
+  "Impossibile aggiungere le copie.": "Impossible d'ajouter les copies.",
+  "Impossibile eliminare la copia.": "Impossible de supprimer la copie."
 }

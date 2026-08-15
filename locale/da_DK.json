@@ -363,7 +363,6 @@
   "Attenzione: %d prestiti in ritardo": "Advarsel: %d forsinkede udlån",
   "Attenzione: %d prestito in ritardo": "Advarsel: %d forsinket udlån",
   "Attenzione: Azione Manuale Richiesta": "Advarsel: Manuel handling påkrævet",
-  "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.": "Advarsel: Det var ikke muligt at fjerne alle de ønskede eksemplarer. Nogle eksemplarer er i øjeblikket udlånt.",
   "Attiva": "Aktivér",
   "Attiva API key": "Aktivér API-nøgle",
   "Attiva Direttamente": "Aktivér direkte",
@@ -2321,7 +2320,6 @@
   "Impossibile revocare la sessione": "Kan ikke tilbagekalde sessionen",
   "Impossibile riaprire il file ZIP": "Kan ikke genåbne ZIP-filen",
   "Impossibile ricalcolare la disponibilità del libro.": "Bogtilgængelighed kan ikke genberegnes.",
-  "Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.": "Kan ikke reducere eksemplarerne til %d. Der er %d utilgængelige eksemplarer (udlånte, tabte eller beskadigede). Minimumsantallet af samlede eksemplarer er %d.",
   "Impossibile rifiutare la recensione": "Anmeldelsen kunne ikke afvises",
   "Impossibile rigenerare la sitemap.": "Sitemap kan ikke genereres igen.",
   "Impossibile rigenerare la sitemap: %s": "Sitemap kunne ikke genereres igen: %s",
@@ -6790,7 +6788,6 @@
   "Nessuna copia fisica registrata.": "Ingen fysiske eksemplarer registreret.",
   "Copia aggiunta con successo.": "Eksemplar tilføjet.",
   "Impossibile aggiungere la copia.": "Kunne ikke tilføje eksemplaret.",
-  "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Et mistet eller beskadiget eksemplar reducerer det samlede antal eksemplarer. Brug Udlån-sektionen til udlån.",
   "Esiste già una copia con questo numero di inventario.": "Der findes allerede et eksemplar med dette inventarnummer.",
   "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Brug \"Tilføj eksemplar\" til at oprette et og angive dets status.",
   "In trasferimento": "Under overførsel",
@@ -6806,5 +6803,6 @@
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Indledende eksemplarer får fortløbende koder som PRÆFIKS-C1 og PRÆFIKS-C2.",
   "Invio notifica nuova copia fallito": "Notifikation om nyt eksemplar mislykkedes",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kan kun slette eksemplarer uden for cirkulation (mistede, beskadigede, under vedligeholdelse, under restaurering eller under overførsel). Ret først eksemplarets status.",
-  "Impossibile aggiungere le copie.": "Kunne ikke tilføje eksemplarerne."
+  "Impossibile aggiungere le copie.": "Kunne ikke tilføje eksemplarerne.",
+  "Impossibile eliminare la copia.": "Kunne ikke slette eksemplaret."
 }

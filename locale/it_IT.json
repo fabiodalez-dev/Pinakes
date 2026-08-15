@@ -363,7 +363,6 @@
   "Attenzione: %d prestiti in ritardo": "Attenzione: %d prestiti in ritardo",
   "Attenzione: %d prestito in ritardo": "Attenzione: %d prestito in ritardo",
   "Attenzione: Azione Manuale Richiesta": "Attenzione: Azione Manuale Richiesta",
-  "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.": "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.",
   "Attiva": "Attiva",
   "Attiva API key": "Attiva API key",
   "Attiva Direttamente": "Attiva Direttamente",
@@ -2321,7 +2320,6 @@
   "Impossibile revocare la sessione": "Impossibile revocare la sessione",
   "Impossibile riaprire il file ZIP": "Impossibile riaprire il file ZIP",
   "Impossibile ricalcolare la disponibilità del libro.": "Impossibile ricalcolare la disponibilità del libro.",
-  "Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.": "Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.",
   "Impossibile rifiutare la recensione": "Impossibile rifiutare la recensione",
   "Impossibile rigenerare la sitemap.": "Impossibile rigenerare la sitemap.",
   "Impossibile rigenerare la sitemap: %s": "Impossibile rigenerare la sitemap: %s",
@@ -6790,7 +6788,6 @@
   "Nessuna copia fisica registrata.": "Nessuna copia fisica registrata.",
   "Copia aggiunta con successo.": "Copia aggiunta con successo.",
   "Impossibile aggiungere la copia.": "Impossibile aggiungere la copia.",
-  "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.",
   "Esiste già una copia con questo numero di inventario.": "Esiste già una copia con questo numero di inventario.",
   "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.",
   "In trasferimento": "In trasferimento",
@@ -6806,5 +6803,6 @@
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.",
   "Invio notifica nuova copia fallito": "Invio notifica nuova copia fallito",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.",
-  "Impossibile aggiungere le copie.": "Impossibile aggiungere le copie."
+  "Impossibile aggiungere le copie.": "Impossibile aggiungere le copie.",
+  "Impossibile eliminare la copia.": "Impossibile eliminare la copia."
 }

@@ -363,7 +363,6 @@
   "Attenzione: %d prestiti in ritardo": "Warning: %d overdue loans",
   "Attenzione: %d prestito in ritardo": "Warning: %d overdue loan",
   "Attenzione: Azione Manuale Richiesta": "Warning: Manual Action Required",
-  "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.": "Warning: Could not remove all requested copies. Some copies are currently on loan.",
   "Attiva": "Active",
   "Attiva API key": "Activate API key",
   "Attiva Direttamente": "Activate Directly",
@@ -2321,7 +2320,6 @@
   "Impossibile revocare la sessione": "Unable to revoke session",
   "Impossibile riaprire il file ZIP": "Unable to reopen ZIP file",
   "Impossibile ricalcolare la disponibilità del libro.": "Unable to recalculate book availability.",
-  "Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.": "Cannot reduce the copies to %d. There are %d unavailable copies (on loan, lost, or damaged). The minimum total number of copies is %d.",
   "Impossibile rifiutare la recensione": "Unable to reject the review",
   "Impossibile rigenerare la sitemap.": "Unable to regenerate the sitemap.",
   "Impossibile rigenerare la sitemap: %s": "Unable to regenerate sitemap: %s",
@@ -6790,7 +6788,6 @@
   "Nessuna copia fisica registrata.": "No physical copies recorded.",
   "Copia aggiunta con successo.": "Copy added successfully.",
   "Impossibile aggiungere la copia.": "Unable to add the copy.",
-  "Una copia persa o danneggiata riduce il conteggio delle copie totali. Per i prestiti usa la sezione Prestiti.": "A lost or damaged copy lowers the total-copies count. For loans, use the Loans section.",
   "Esiste già una copia con questo numero di inventario.": "A copy with this inventory number already exists.",
   "Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.": "Use \"Add copy\" to create one and set its status.",
   "In trasferimento": "In transfer",
@@ -6806,5 +6803,6 @@
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Initial copies receive sequential codes such as PREFIX-C1 and PREFIX-C2.",
   "Invio notifica nuova copia fallito": "New-copy notification failed",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "You can only delete out-of-circulation copies (lost, damaged, under maintenance, under restoration or in transfer). Change the copy's status first.",
-  "Impossibile aggiungere le copie.": "Unable to add the copies."
+  "Impossibile aggiungere le copie.": "Unable to add the copies.",
+  "Impossibile eliminare la copia.": "Unable to delete the copy."
 }

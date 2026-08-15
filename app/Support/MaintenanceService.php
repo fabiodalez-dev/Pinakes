@@ -473,8 +473,22 @@ class MaintenanceService
             FROM prenotazioni p
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'attiva'
-            AND COALESCE(p.data_inizio_richiesta, DATE(p.data_scadenza_prenotazione)) IS NOT NULL
-            AND COALESCE(p.data_inizio_richiesta, DATE(p.data_scadenza_prenotazione)) <= ?
+            AND (
+                -- Real requested start that has arrived. '1000-01-01' is MySQL's
+                -- minimum valid DATE: the floor rejects 0000-00-00 dump rows
+                -- (which would otherwise be promoted back-dated) without
+                -- embedding the literal '0000-00-00', which a NO_ZERO_DATE
+                -- server refuses even at prepare time.
+                (p.data_inizio_richiesta >= '1000-01-01' AND p.data_inizio_richiesta <= ?)
+                -- Legacy row with no requested start: promote only while the
+                -- reservation deadline is still valid (today or future). An
+                -- already-expired deadline must be left for the expiry /
+                -- cancellation path, never converted into a loan back-dated to
+                -- the past.
+                OR (p.data_inizio_richiesta IS NULL
+                    AND p.data_scadenza_prenotazione IS NOT NULL
+                    AND DATE(p.data_scadenza_prenotazione) >= ?)
+            )
             ORDER BY p.libro_id, p.queue_position ASC
         ");
 
@@ -482,7 +496,7 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare scheduled reservations query');
         }
 
-        $stmt->bind_param('s', $today);
+        $stmt->bind_param('ss', $today, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $reservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
