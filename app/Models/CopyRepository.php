@@ -175,12 +175,12 @@ class CopyRepository
      * "{base}-C{N}" codes in memory, then batch-insert every row with one
      * prepared statement. A connection-level advisory lock serializes inventory
      * allocation even when a prefix's unique-index range is still empty (where
-     * gap locks alone can deadlock). A single allocator lock also respects the
-     * database's case/accent-insensitive uniqueness without trying to reproduce
-     * its collation rules in PHP. The locking current-read then sees rows
-     * committed after the transaction snapshot. A bounded duplicate-key retry
-     * remains as a final guard for external writers. A failed multi-row INSERT
-     * never leaves a partial batch. Replaces the per-copy
+     * gap locks alone can deadlock). Candidate membership is evaluated by SQL,
+     * using numero_inventario's case/accent-insensitive collation rather than a
+     * case-sensitive PHP array. The locking current-read then sees rows committed
+     * after the transaction snapshot. A bounded duplicate-key retry remains as a
+     * final guard for external writers. A failed multi-row INSERT never leaves a
+     * partial batch. Replaces the per-copy
      * inventoryCodeExists()+create() pair that turned a large copie_totali
      * import into thousands of queries.
      *
@@ -190,22 +190,48 @@ class CopyRepository
      */
     public function createManyForBook(int $bookId, string $base, int $howMany, string $stato = 'disponibile', ?string $noteTemplate = null): int
     {
+        return $this->createManyForBookResult($bookId, $base, $howMany, $stato, $noteTemplate, false)['count'];
+    }
+
+    /**
+     * Create a batch and return every generated copy id. Circulation callers use
+     * this variant so each new physical copy can repair a copy-less HOLDING row
+     * before the reservation queue consumes the remaining capacity.
+     *
+     * @return list<int>
+     */
+    public function createManyForBookWithIds(int $bookId, string $base, int $howMany, string $stato = 'disponibile', ?string $noteTemplate = null): array
+    {
+        $result = $this->createManyForBookResult($bookId, $base, $howMany, $stato, $noteTemplate, true);
+        return $result['ids'];
+    }
+
+    /**
+     * @return array{count: int, ids: list<int>}
+     */
+    private function createManyForBookResult(
+        int $bookId,
+        string $base,
+        int $howMany,
+        string $stato,
+        ?string $noteTemplate,
+        bool $resolveIds
+    ): array
+    {
         $howMany = max(0, $howMany);
         if ($howMany === 0) {
-            return 0;
+            return ['count' => 0, 'ids' => []];
         }
         // numero_inventario is VARCHAR(100); leave room for the "-C{N}" suffix.
         $base = mb_substr($base, 0, 90);
 
-        // GET_LOCK() is server-wide and connection-scoped. One short global
-        // allocator lock avoids mismatches with numero_inventario's
-        // case/accent-insensitive UNIQUE collation. It does not start, commit or
-        // roll back the caller's transaction and is released after the batch
-        // INSERT, not held for hooks or external services.
+        // GET_LOCK() is server-wide and connection-scoped. It does not start,
+        // commit or roll back the caller's transaction and is released after the
+        // INSERT and id lookup, never held for hooks or external services.
         $lockName = 'pinakes-copy-inventory-allocation';
         $this->acquireInventoryAllocatorLock($lockName);
         try {
-            $result = $this->insertAllocatedCopiesWhileLocked(
+            $inserted = $this->insertAllocatedCopiesWhileLocked(
                 $bookId,
                 $base,
                 $howMany,
@@ -213,7 +239,14 @@ class CopyRepository
                 $noteTemplate,
                 null
             );
-            return $result['count'];
+            $ids = [];
+            if ($resolveIds) {
+                $ids = $this->copyIdsForInventoryCodes($inserted['codes']);
+                if (count($ids) !== $inserted['count']) {
+                    throw new \RuntimeException('Unable to resolve every inserted physical-copy id.');
+                }
+            }
+            return ['count' => $inserted['count'], 'ids' => $ids];
         } finally {
             $this->releaseInventoryAllocatorLock($lockName);
         }
@@ -224,7 +257,7 @@ class CopyRepository
      * lock. Both book creation and the single-copy form use this path, so code
      * allocation, duplicate retries and INSERT behavior cannot drift apart.
      *
-     * @return array{count: int, first_id: int}
+     * @return array{count: int, first_id: int, codes: list<string>}
      */
     private function insertAllocatedCopiesWhileLocked(
         int $bookId,
@@ -280,7 +313,7 @@ class CopyRepository
             $stmt->close();
 
             if ($inserted) {
-                return ['count' => $total, 'first_id' => $firstInsertId];
+                return ['count' => $total, 'first_id' => $firstInsertId, 'codes' => $codes];
             }
             if ($errno === 1062 && $attempt < $maxAttempts) {
                 continue;
@@ -327,7 +360,7 @@ class CopyRepository
     {
         // A locking current-read sees rows committed after this transaction's
         // snapshot and locks matching unique-index rows/ranges until commit.
-        $taken = [];
+        $existingCount = 0;
         $sel = $this->db->prepare(
             'SELECT numero_inventario FROM copie WHERE numero_inventario LIKE ? FOR UPDATE'
         );
@@ -341,20 +374,111 @@ class CopyRepository
             throw new \RuntimeException('Unable to load inventory codes: ' . $error);
         }
         $res = $sel->get_result();
-        while ($row = $res->fetch_assoc()) {
-            $taken[$row['numero_inventario']] = true;
+        while ($res->fetch_assoc()) {
+            $existingCount++;
         }
         $sel->close();
 
         $codes = [];
-        for ($index = 1; count($codes) < $howMany; $index++) {
-            $candidate = "{$base}-C{$index}";
-            if (!isset($taken[$candidate])) {
-                $taken[$candidate] = true;
+        $nextIndex = 1;
+        // Among existingCount + howMany candidates there must be at least
+        // howMany free values. Check them in bounded chunks so even a 9,999-copy
+        // import does not create an enormous UNION or one query per candidate.
+        $lastIndex = $existingCount + $howMany;
+        while (count($codes) < $howMany && $nextIndex <= $lastIndex) {
+            $candidates = [];
+            while (count($candidates) < 250 && $nextIndex <= $lastIndex) {
+                $candidates[] = "{$base}-C{$nextIndex}";
+                $nextIndex++;
+            }
+            foreach ($this->inventoryCodesMissingUnderDatabaseCollation($candidates) as $candidate) {
                 $codes[] = $candidate;
+                if (count($codes) === $howMany) {
+                    break;
+                }
             }
         }
+        if (count($codes) !== $howMany) {
+            throw new \RuntimeException('Unable to allocate the requested inventory-code batch.');
+        }
         return $codes;
+    }
+
+    /**
+     * Return candidates that do not compare equal to an existing inventory code.
+     * The JOIN deliberately delegates equality to the database column collation.
+     *
+     * @param list<string> $candidates
+     * @return list<string>
+     */
+    private function inventoryCodesMissingUnderDatabaseCollation(array $candidates): array
+    {
+        if ($candidates === []) {
+            return [];
+        }
+        $rows = [];
+        foreach (array_keys($candidates) as $ordinal) {
+            $rows[] = 'SELECT ? AS inventory_code, ' . (int) $ordinal . ' AS ordinal';
+        }
+        $sql = 'SELECT candidates.ordinal FROM (' . implode(' UNION ALL ', $rows) . ') candidates '
+            // FOR UPDATE is essential here: createBasic() may already have
+            // established an older transaction snapshot. A plain JOIN could
+            // miss a competing batch committed while GET_LOCK() was awaited
+            // and select C1 again; a locking read sees the latest committed row.
+            . 'JOIN copie c ON c.numero_inventario = candidates.inventory_code FOR UPDATE';
+        $stmt = $this->db->prepare($sql);
+        if ($stmt === false) {
+            throw new \RuntimeException('Unable to prepare collation-aware inventory lookup: ' . $this->db->error);
+        }
+        $stmt->bind_param(str_repeat('s', count($candidates)), ...$candidates);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('Unable to compare inventory codes: ' . $error);
+        }
+        $taken = [];
+        foreach ($stmt->get_result()->fetch_all(MYSQLI_NUM) as $row) {
+            $taken[(int) $row[0]] = true;
+        }
+        $stmt->close();
+
+        $missing = [];
+        foreach ($candidates as $ordinal => $candidate) {
+            if (!isset($taken[$ordinal])) {
+                $missing[] = $candidate;
+            }
+        }
+        return $missing;
+    }
+
+    /**
+     * @param list<string> $codes
+     * @return list<int>
+     */
+    private function copyIdsForInventoryCodes(array $codes): array
+    {
+        if ($codes === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT id FROM copie WHERE numero_inventario IN ({$placeholders}) ORDER BY id"
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException('Unable to prepare inserted-copy lookup: ' . $this->db->error);
+        }
+        $stmt->bind_param(str_repeat('s', count($codes)), ...$codes);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('Unable to resolve inserted-copy ids: ' . $error);
+        }
+        $ids = array_map(
+            static fn (array $row): int => (int) $row[0],
+            $stmt->get_result()->fetch_all(MYSQLI_NUM)
+        );
+        $stmt->close();
+        return $ids;
     }
 
     private function acquireInventoryAllocatorLock(string $lockName): void

@@ -489,4 +489,107 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
       dbQuery(`DELETE FROM libri WHERE id=${id}`);
     }
   });
+
+  test('24. increase-copies respects the case/accent-insensitive inventory collation', async ({ page }) => {
+    await loginAsAdmin(page);
+    const base = `COLL-${RUN}-CAFÉ`;
+    const existingCode = `coll-${RUN}-cafe-c1`;
+    const title = `CopyMgmtCollation ${RUN}`;
+    dbQuery(`INSERT INTO libri (titolo, numero_inventario, copie_totali, copie_disponibili) VALUES ('${sqlEscape(title)}', '${sqlEscape(base)}', 1, 1)`);
+    const id = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(title)}' ORDER BY id DESC LIMIT 1`));
+    dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${id}, '${sqlEscape(existingCode)}', 'disponibile')`);
+    try {
+      await page.goto(`${BASE}/admin/books/edit/${id}`);
+      const csrf = await page.locator('#bookForm input[name="csrf_token"]').first().inputValue();
+      const resp = await page.request.post(`${BASE}/api/libri/${id}/increase-copies`, {
+        headers: { 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+        data: { copies: 1 },
+      });
+      expect(resp.status()).toBe(200);
+      expect(dbQuery(`SELECT numero_inventario FROM copie WHERE libro_id=${id} ORDER BY id`)).toBe(`${existingCode}\n${base}-C2`);
+    } finally {
+      dbQuery(`DELETE FROM libri WHERE id=${id}`);
+    }
+  });
+
+  test('25. increase-copies assigns a blocked copy-less HOLDING before exposing capacity', async ({ page }) => {
+    await loginAsAdmin(page);
+    const title = `CopyMgmtBlockedHold ${RUN}`;
+    const email = `copy-mgmt-blocked-${RUN}@example.test`;
+    dbQuery(`INSERT INTO libri (titolo, numero_inventario, stato, copie_totali, copie_disponibili) VALUES ('${sqlEscape(title)}', 'BH-${RUN}', 'non_disponibile', 0, 0)`);
+    const id = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(title)}' ORDER BY id DESC LIMIT 1`));
+    dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente, email_verificata, privacy_accettata) VALUES ('BH-${RUN}', 'Blocked', 'Holder', '${sqlEscape(email)}', 'not-used', 'attivo', 'standard', 1, 1)`);
+    const userId = Number(dbQuery(`SELECT id FROM utenti WHERE email='${sqlEscape(email)}'`));
+    dbQuery(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${id}, NULL, ${userId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'prenotato', 'prenotazione', 1)`);
+    const loanId = Number(dbQuery(`SELECT id FROM prestiti WHERE libro_id=${id} AND utente_id=${userId} ORDER BY id DESC LIMIT 1`));
+    try {
+      await page.goto(`${BASE}/admin/books/edit/${id}`);
+      const csrf = await page.locator('#bookForm input[name="csrf_token"]').first().inputValue();
+      const resp = await page.request.post(`${BASE}/api/libri/${id}/increase-copies`, {
+        headers: { 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+        data: { copies: 1 },
+      });
+      expect(resp.status()).toBe(200);
+      const linked = dbQuery(`SELECT CONCAT(p.copia_id, ':', c.libro_id, ':', c.stato) FROM prestiti p JOIN copie c ON c.id=p.copia_id WHERE p.id=${loanId}`);
+      expect(linked).toMatch(new RegExp(`^\\d+:${id}:prenotato$`));
+      expect(Number(dbQuery(`SELECT copie_disponibili FROM libri WHERE id=${id}`))).toBe(0);
+    } finally {
+      dbQuery(`DELETE FROM prestiti WHERE libro_id=${id}`);
+      dbQuery(`DELETE FROM libri WHERE id=${id}`);
+      dbQuery(`DELETE FROM utenti WHERE id=${userId}`);
+    }
+  });
+
+  test('26. increase-copies rejects non-scalar, fractional and oversized batches', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/edit/${emptyBookId}`);
+    const csrf = await page.locator('#bookForm input[name="csrf_token"]').first().inputValue();
+    const before = copieCount(emptyBookId);
+    for (const copies of [['1'], '1.5', 101]) {
+      const resp = await page.request.post(`${BASE}/api/libri/${emptyBookId}/increase-copies`, {
+        headers: { 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+        data: { copies },
+      });
+      expect(resp.status()).toBe(400);
+    }
+    expect(copieCount(emptyBookId)).toBe(before);
+  });
+
+  test('27. a reserved copy accepts note edits but cannot cancel its HOLDING via copy status', async ({ page }) => {
+    await loginAsAdmin(page);
+    const title = `CopyMgmtReservedNote ${RUN}`;
+    const email = `copy-mgmt-reserved-${RUN}@example.test`;
+    dbQuery(`INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES ('${sqlEscape(title)}', 'prenotato', 1, 0)`);
+    const id = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(title)}' ORDER BY id DESC LIMIT 1`));
+    dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${id}, 'RN-${RUN}-C1', 'prenotato')`);
+    const copyId = Number(dbQuery(`SELECT id FROM copie WHERE libro_id=${id}`));
+    dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente, email_verificata, privacy_accettata) VALUES ('RN-${RUN}', 'Reserved', 'Holder', '${sqlEscape(email)}', 'not-used', 'attivo', 'standard', 1, 1)`);
+    const userId = Number(dbQuery(`SELECT id FROM utenti WHERE email='${sqlEscape(email)}'`));
+    dbQuery(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${id}, ${copyId}, ${userId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'prenotato', 'prenotazione', 1)`);
+    try {
+      await page.goto(`${BASE}/admin/books/${id}`);
+      await page.evaluate((copy) => window.openEditCopyModal(copy, 'prenotato', ''), copyId);
+      await expect(page.locator('#edit-copy-modal')).toBeVisible();
+      await page.fill('#edit-copy-note', 'reserved-note-saved');
+      await page.click('#edit-copy-form button[type="submit"]');
+      let confirm = page.locator('.swal2-confirm');
+      if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+          confirm.click(),
+        ]);
+      }
+      expect(dbQuery(`SELECT CONCAT(stato, ':', note) FROM copie WHERE id=${copyId}`)).toBe('prenotato:reserved-note-saved');
+
+      await page.goto(`${BASE}/admin/books/${id}`);
+      await editCopyStatus(page, copyId, 'disponibile', 'prenotato');
+      expect(dbQuery(`SELECT stato FROM copie WHERE id=${copyId}`)).toBe('prenotato');
+      expect(Number(dbQuery(`SELECT copia_id FROM prestiti WHERE libro_id=${id} AND utente_id=${userId} AND attivo=1`))).toBe(copyId);
+      await expect(page.getByRole('alert')).toContainText('utilizza il sistema Prestiti');
+    } finally {
+      dbQuery(`DELETE FROM prestiti WHERE libro_id=${id}`);
+      dbQuery(`DELETE FROM libri WHERE id=${id}`);
+      dbQuery(`DELETE FROM utenti WHERE id=${userId}`);
+    }
+  });
 });

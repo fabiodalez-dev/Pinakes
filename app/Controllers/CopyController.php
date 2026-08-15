@@ -133,11 +133,11 @@ class CopyController
         $note = $this->sanitizeNote($noteInput);
 
         // Validazione stato (deve corrispondere all'enum in copie.stato)
-        // 'prestato'/'prenotato' are owned by the loan/reservation system and must
-        // never be set directly here. 'prestato' is still listed so the explicit
-        // guard below can emit its dedicated message; 'prenotato' is not settable
-        // at all and is rejected as an invalid state.
-        $statiValidi = ['disponibile', 'prestato', 'manutenzione', 'in_restauro', 'perso', 'danneggiato', 'in_trasferimento'];
+        // 'prestato'/'prenotato' are owned by the loan/reservation system. They
+        // remain valid only so an existing loan-owned state can be preserved
+        // while staff update the copy note; transitions into them are rejected
+        // explicitly after loading the current row.
+        $statiValidi = ['disponibile', 'prestato', 'prenotato', 'manutenzione', 'in_restauro', 'perso', 'danneggiato', 'in_trasferimento'];
         if (!in_array($stato, $statiValidi, true)) {
             $_SESSION['error_message'] = __('Stato non valido.');
             return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
@@ -158,6 +158,15 @@ class CopyController
 
         $libroId = (int) $copy['libro_id'];
         $statoCorrente = $copy['stato'];
+
+        if ($stato === 'prenotato' && $statoCorrente !== 'prenotato') {
+            $_SESSION['error_message'] = __('Per prenotare una copia, utilizza il sistema Prestiti. Non è possibile impostare manualmente lo stato "Prenotato".');
+            return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+        }
+        if ($statoCorrente === 'prenotato' && $stato === 'disponibile') {
+            $_SESSION['error_message'] = __('Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.');
+            return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+        }
 
         // Prestito "in carico" su questa copia (in_corso/in_ritardo): usato per la
         // chiusura automatica quando la copia torna 'disponibile'.

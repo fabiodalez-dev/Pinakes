@@ -1994,7 +1994,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
       toggleLoanOption(
         prenotatoOption,
         stato === 'prenotato',
-        __('Prenotato (imposta "Disponibile" per cancellare)'),
+        __('Prenotato (gestisci dal sistema Prestiti)'),
         __('Prenotato (prestito in attesa)')
       );
 

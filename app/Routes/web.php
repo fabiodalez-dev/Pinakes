@@ -2392,13 +2392,20 @@ return function (App $app): void {
 
         // Get request body
         $body = $request->getParsedBody();
-        if (!$body) {
-            $body = json_decode((string) $request->getBody(), true);
+        if (!is_array($body) || $body === []) {
+            $decodedBody = json_decode((string) $request->getBody(), true);
+            $body = is_array($decodedBody) ? $decodedBody : [];
         }
 
-        $copiesToAdd = (int) ($body['copies'] ?? 0);
+        // Keep the server-side contract aligned with the admin prompt. Avoid
+        // PHP's surprising casts ((int) ['anything'] === 1) and cap the batch so
+        // one request cannot build an unbounded multi-row INSERT.
+        $rawCopies = $body['copies'] ?? null;
+        $copiesToAdd = is_int($rawCopies)
+            ? $rawCopies
+            : (is_string($rawCopies) && preg_match('/^[1-9]\d*$/D', $rawCopies) === 1 ? (int) $rawCopies : 0);
 
-        if ($copiesToAdd < 1) {
+        if ($copiesToAdd < 1 || $copiesToAdd > 100) {
             $response->getBody()->write(json_encode([
                 'error' => true,
                 'message' => __('Numero di copie non valido.')
@@ -2434,8 +2441,14 @@ return function (App $app): void {
             ? $book['numero_inventario']
             : "LIB-{$bookId}";
 
+        $reassignmentService = null;
+        $reservationManager = null;
+        $transactionStarted = false;
         try {
-            $db->begin_transaction();
+            if (!$db->begin_transaction()) {
+                throw new \RuntimeException('Unable to begin the increase-copies transaction.');
+            }
+            $transactionStarted = true;
 
             // Canonical lock order: book row first, then copies.
             $lock = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
@@ -2447,13 +2460,20 @@ return function (App $app): void {
                 throw new \RuntimeException('Book not found.');
             }
 
-            $created = $copyRepo->createManyForBook($bookId, $baseInventario, $copiesToAdd, 'disponibile', __('Copia %d di %d'));
-            if ($created !== $copiesToAdd) {
+            $createdCopyIds = $copyRepo->createManyForBookWithIds($bookId, $baseInventario, $copiesToAdd, 'disponibile', __('Copia %d di %d'));
+            if (count($createdCopyIds) !== $copiesToAdd) {
                 throw new \RuntimeException('Unable to create the requested physical copies.');
             }
 
-            // New available copies are new circulation capacity: promote as many
-            // wait-list entries as they allow (same as createCopy()).
+            // First repair copy-less/blocked HOLDING assignments, exactly like
+            // CopyController::createCopy(). Only the capacity left after those
+            // repairs may promote wait-list rows from prenotazioni.
+            $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+            $reassignmentService->setExternalTransaction(true);
+            foreach ($createdCopyIds as $createdCopyId) {
+                $reassignmentService->reassignOnNewCopy($bookId, $createdCopyId);
+            }
+
             $reservationManager = new \App\Controllers\ReservationManager($db);
             $reservationManager->setExternalTransaction(true);
             for ($guard = 0; $guard < 1000 && $reservationManager->processBookAvailability($bookId); $guard++) {
@@ -2465,9 +2485,18 @@ return function (App $app): void {
                 throw new \RuntimeException('Unable to recalculate book availability.');
             }
 
-            $db->commit();
+            if (!$db->commit()) {
+                throw new \RuntimeException('Unable to commit the increase-copies transaction.');
+            }
+            $transactionStarted = false;
         } catch (\Throwable $e) {
-            $db->rollback();
+            if ($transactionStarted) {
+                try {
+                    $db->rollback();
+                } catch (\Throwable $rollbackError) {
+                    // best-effort — preserve the original failure
+                }
+            }
             \App\Support\SecureLogger::error('[increase-copies] failed to add copies', [
                 'book' => $bookId,
                 'error' => $e->getMessage(),
@@ -2477,6 +2506,19 @@ return function (App $app): void {
                 'message' => __('Impossibile aggiungere le copie.')
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Both services defer I/O while the transaction is open. Flush only
+        // after the assignment/promotion has become durable; notification errors
+        // must not turn a committed copy batch into an apparent API failure.
+        try {
+            $reassignmentService->flushDeferredNotifications();
+            $reservationManager->flushDeferredNotifications();
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[increase-copies] deferred notification failed', [
+                'book' => $bookId,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         // Read the derived counters (post-commit) for the response.

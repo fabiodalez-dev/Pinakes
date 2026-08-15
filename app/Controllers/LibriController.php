@@ -868,12 +868,21 @@ class LibriController
         // scraped_cover_url; this flag lets the scraped-cover branch skip the
         // redundant second download that would orphan a file on disk (#F009).
         $scrapedCoverAlreadySaved = false;
+        // A localised external cover is written before the DB transaction. Keep
+        // its path so an atomic book/copies rollback can remove that request's
+        // file as well as its database rows.
+        $coverCreatedBeforeAtomicInsert = '';
         if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
         } else {
             // Auto-download external cover URLs
             $originalCoverUrl = (string) $fields['copertina_url'];
             $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
+            if (preg_match('#^https?://#i', $originalCoverUrl) === 1
+                && is_string($fields['copertina_url'])
+                && strpos($fields['copertina_url'], '/uploads/copertine/') === 0) {
+                $coverCreatedBeforeAtomicInsert = $fields['copertina_url'];
+            }
             if (is_string($fields['copertina_url'])
                 && strpos($fields['copertina_url'], '/uploads/copertine/') === 0
                 && isset($data['scraped_cover_url'])
@@ -1238,6 +1247,16 @@ class LibriController
                     $db->rollback();
                 } catch (\Throwable $rollbackError) {
                     // best-effort — a dropped connection must not mask the original error
+                }
+                // The cover download is filesystem I/O and cannot participate in
+                // mysqli's transaction. Delete only the file localised by this
+                // request; raw external URLs and pre-existing local files no-op.
+                try {
+                    $this->deleteLocalCoverFile($coverCreatedBeforeAtomicInsert);
+                } catch (\Throwable $coverCleanupError) {
+                    \App\Support\SecureLogger::warning('Unable to clean up cover after atomic book rollback', [
+                        'error' => $coverCleanupError->getMessage(),
+                    ]);
                 }
                 \App\Support\SecureLogger::error('LibriController::store atomic book+copies create failed', [
                     'error' => $atomicCreateError->getMessage(),

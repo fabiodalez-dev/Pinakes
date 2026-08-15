@@ -22,7 +22,9 @@ declare(strict_types=1);
  *   7. source-order guard: recalc happens before commit, while the
  *      book.save.after hook stays after commit, so plugin handlers that open
  *      their own transaction (book-club) cannot destroy the atomicity;
- *   8. two books sharing the same inventory base get collision-free codes.
+ *   8. two books sharing the same inventory base get collision-free codes;
+ *   9. allocation follows the DB collation and returns every inserted copy id;
+ *  10. a localised external cover is cleaned up on atomic rollback.
  *
  * Run: php tests/atomic-book-create-356.unit.php   (exit 0 = pass)
  */
@@ -326,6 +328,36 @@ try {
             && $copyCodes($idS1) === ["{$baseS}-C1", "{$baseS}-C2"]
             && $copyCodes($idS2) === ["{$baseS}-C3", "{$baseS}-C4"],
         '8. two books on the same base get collision-free -C1..-C4 codes'
+    );
+
+    /* ---------------------------------------------------------------------
+     * 9. DB COLLATION — PHP comparisons are case-sensitive, while the unique
+     *    inventory index is utf8mb4_unicode_ci. A differently-cased/accented C1
+     *    must be detected and the new batch must start at C2.
+     * ------------------------------------------------------------------- */
+    $titleCollation = "{$prefix}_collation";
+    $baseCollation = "{$prefix}-CAFÉ";
+    $idCollation = $repo->createBasic(['titolo' => $titleCollation, 'copie_totali' => 1, 'copie_disponibili' => 1]);
+    $existingCollationCode = strtolower(str_replace('É', 'e', $baseCollation)) . '-c1';
+    $copyRepo->create($idCollation, $existingCollationCode, 'disponibile');
+    $createdCollationIds = $copyRepo->createManyForBookWithIds($idCollation, $baseCollation, 2, 'disponibile', null);
+    $collationCodes = $copyCodes($idCollation);
+    $check(
+        count($createdCollationIds) === 2
+            && count(array_unique($createdCollationIds)) === 2
+            && $collationCodes === [$existingCollationCode, "{$baseCollation}-C2", "{$baseCollation}-C3"],
+        '9. allocator follows utf8mb4_unicode_ci and returns both inserted copy ids'
+    );
+
+    /* ---------------------------------------------------------------------
+     * 10. FILESYSTEM ROLLBACK GUARD — the local cover created before the DB
+     *     transaction must be removed in the atomic catch before rethrow.
+     * ------------------------------------------------------------------- */
+    $posCoverCleanup = strpos($store, 'deleteLocalCoverFile($coverCreatedBeforeAtomicInsert)');
+    $posAtomicRethrow = strpos($store, 'throw $atomicCreateError;');
+    $check(
+        $posCoverCleanup !== false && $posAtomicRethrow !== false && $posCoverCleanup < $posAtomicRethrow,
+        '10. atomic rollback cleans the request-localised cover before rethrow'
     );
 
     $exitCode = $failed === 0 ? 0 : 1;
