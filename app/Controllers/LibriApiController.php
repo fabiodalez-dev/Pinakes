@@ -488,105 +488,22 @@ class LibriApiController
     }
 
     /**
-     * Bulk update status for multiple books
+     * Compatibility endpoint retained for older admin clients.
+     *
+     * Book status is derived from physical copies, loans and reservations. It
+     * must never be accepted as a user-authored field: fabricating "prestato" or
+     * "prenotato" would create no matching commitment, while marking a title
+     * "perso"/"danneggiato" would leave its actual copies lendable.
      */
     public function bulkStatus(Request $request, Response $response, mysqli $db): Response
     {
-        $body = $request->getParsedBody();
-        if (!$body) {
-            $body = json_decode((string) $request->getBody(), true);
-        }
-
         // CSRF validated by CsrfMiddleware
-
-        $ids = $body['ids'] ?? [];
-        $stato = trim((string) ($body['stato'] ?? ''));
-
-        // Validate input
-        if (empty($ids) || !is_array($ids)) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Nessun libro selezionato')
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
-        }
-
-        // Map frontend labels to database ENUM values
-        // Database ENUM: 'disponibile', 'prestato', 'prenotato', 'perso', 'danneggiato'
-        $stateMap = [
-            'disponibile' => 'disponibile',
-            'prestato' => 'prestato',
-            'in_prestito' => 'prestato',
-            'prenotato' => 'prenotato',
-            'riservato' => 'prenotato',
-            'perso' => 'perso',
-            'smarrito' => 'perso',
-            'danneggiato' => 'danneggiato',
-            'in_manutenzione' => 'danneggiato',
-            'non disponibile' => 'prestato'
-        ];
-        $statoLower = strtolower($stato);
-        if (!isset($stateMap[$statoLower])) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Stato non valido')
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
-        }
-
-        // Filter and sanitize IDs
-        $cleanIds = array_filter(array_map('intval', $ids), fn($id) => $id > 0);
-        if (empty($cleanIds)) {
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('ID libri non validi')
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
-        }
-
-        // Build placeholders for IN clause
-        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
-        $types = str_repeat('i', count($cleanIds));
-
-        $sql = "UPDATE libri SET stato = ? WHERE id IN ($placeholders) AND deleted_at IS NULL";
-        $stmt = $db->prepare($sql);
-        if (!$stmt) {
-            AppLog::error('libri.bulk_status.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Errore interno del database')
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
-        }
-
-        // Bind normalized stato + all IDs
-        $normalizedStato = $stateMap[$statoLower];
-        $params = array_merge([$normalizedStato], $cleanIds);
-        $stmt->bind_param('s' . $types, ...$params);
-        if (!$stmt->execute()) {
-            AppLog::error('libri.bulk_status.execute_failed', ['error' => $stmt->error]);
-            $stmt->close();
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Errore durante l\'aggiornamento dello stato')
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
-        }
-        $affected = $stmt->affected_rows;
-        $stmt->close();
-
-        if ($affected > 0) {
-            ContentCache::booksChanged();
-        }
-
-        AppLog::info('libri.bulk_status', ['ids' => $cleanIds, 'stato' => $normalizedStato, 'affected' => $affected]);
-
         $response->getBody()->write(json_encode([
-            'success' => true,
-            'affected' => $affected,
-            'message' => sprintf(__('Stato aggiornato per %d libri'), $affected)
+            'success' => false,
+            'code' => 'derived_book_state',
+            'error' => __('Lo stato del libro è calcolato automaticamente. Modifica lo stato delle singole copie dalla scheda del libro.')
         ], JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json');
+        return $response->withStatus(409)->withHeader('Content-Type', 'application/json');
     }
 
     /**

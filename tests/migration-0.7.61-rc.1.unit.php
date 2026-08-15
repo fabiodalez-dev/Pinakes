@@ -12,6 +12,7 @@ declare(strict_types=1);
  * runs the REAL migration file against it, asserting:
  *   - the derived total (circulating copie rows) matches the legacy counter;
  *   - active loans get bound to distinct free copies (none orphaned/duplicated);
+ *   - active book-level reservations still consume the same availability;
  *   - copy-bound loans and out-of-circulation copies are untouched;
  *   - soft-deleted and zero-copy books get nothing;
  *   - inventory codes never collide, including duplicate-base books;
@@ -56,6 +57,7 @@ try {
 $tLibri = 'zz_mig0761_libri';
 $tCopie = 'zz_mig0761_copie';
 $tPrestiti = 'zz_mig0761_prestiti';
+$tPrenotazioni = 'zz_mig0761_prenotazioni';
 
 $migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.61-rc.1.sql');
 $sandboxMigration = static fn(string $sql): string => str_replace(
@@ -70,7 +72,8 @@ $runMigration = static function () use ($db, $migration, $sandboxMigration): voi
         $db->query($statement);
     }
 };
-$cleanup = static function () use ($db, $tLibri, $tCopie, $tPrestiti): void {
+$cleanup = static function () use ($db, $tLibri, $tCopie, $tPrestiti, $tPrenotazioni): void {
+    $db->query("DROP TABLE IF EXISTS `{$tPrenotazioni}`");
     $db->query("DROP TABLE IF EXISTS `{$tPrestiti}`");
     $db->query("DROP TABLE IF EXISTS `{$tCopie}`");
     $db->query("DROP TABLE IF EXISTS `{$tLibri}`");
@@ -118,6 +121,15 @@ try {
         KEY `idx_zz0761_copia` (`copia_id`),
         CONSTRAINT `fk_zz0761_prestiti_copia` FOREIGN KEY (`copia_id`) REFERENCES `{$tCopie}` (`id`) ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $db->query("CREATE TABLE `{$tPrenotazioni}` (
+        `id` INT NOT NULL AUTO_INCREMENT,
+        `libro_id` INT NOT NULL,
+        `data_scadenza_prenotazione` DATETIME DEFAULT NULL,
+        `data_inizio_richiesta` DATE DEFAULT NULL,
+        `data_fine_richiesta` DATE DEFAULT NULL,
+        `stato` ENUM('attiva','completata','annullata','scaduta') DEFAULT 'attiva',
+        PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // ── Seed the OLD state ────────────────────────────────────────────────
     // 1: legacy book, counters 3/1, NO copie rows, two unbound active loans.
@@ -128,6 +140,8 @@ try {
     // 6/7: duplicate numero_inventario base 'DUP' (code-collision case).
     // 8: empty numero_inventario (falls back to LIB-{id}).
     // 9: unbound active 'prenotato' loan + counter 1.
+    // 10: a valid high-volume legacy counter above the old 1,000-row sequence.
+    // 11: two legacy copies, one occupied by a book-level reservation today.
     $db->query("INSERT INTO `{$tLibri}` (id, titolo, numero_inventario, copie_totali, copie_disponibili, stato, deleted_at) VALUES
         (1, 'Legacy with loans',   'INV-A', 3, 1, 'disponibile', NULL),
         (2, 'Healthy per-copy',    'PC',    2, 1, 'disponibile', NULL),
@@ -137,7 +151,9 @@ try {
         (6, 'Duplicate base one',  'DUP',   1, 1, 'disponibile', NULL),
         (7, 'Duplicate base two',  'DUP',   1, 1, 'disponibile', NULL),
         (8, 'No inventory code',   '',      2, 2, 'disponibile', NULL),
-        (9, 'Reserved legacy',     'RES',   1, 1, 'disponibile', NULL)");
+        (9, 'Reserved legacy',     'RES',   1, 1, 'disponibile', NULL),
+        (10, 'Large legacy set',   'LARGE', 2001, 2001, 'disponibile', NULL),
+        (11, 'Legacy reservation', 'BOOKRES', 2, 1, 'disponibile', NULL)");
     $db->query("INSERT INTO `{$tCopie}` (id, libro_id, numero_inventario, stato) VALUES
         (1, 2, 'PC-C1',  'disponibile'),
         (2, 2, 'PC-C2',  'prestato'),
@@ -148,6 +164,8 @@ try {
         (3, 2, 2,    12, '2026-07-10', '2026-08-10', 'in_corso',   1),
         (4, 1, NULL, 13, '2026-08-01', '2026-08-20', 'pendente',   0),
         (5, 9, NULL, 14, '2026-09-01', '2026-09-20', 'prenotato',  1)");
+    $db->query("INSERT INTO `{$tPrenotazioni}` (id, libro_id, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta, stato)
+        VALUES (1, 11, '2030-12-31 23:59:59', '2020-01-01', '2030-12-31', 'attiva')");
 
     $runMigration();
 
@@ -185,14 +203,32 @@ try {
     // Book 9: active future reservation-loan gets its copy too.
     $check($scalar("SELECT COUNT(*) FROM `{$tPrestiti}` p JOIN `{$tCopie}` c ON c.id = p.copia_id AND c.libro_id = 9 WHERE p.id = 5") === 1, 'book 9: active prenotato loan bound to the backfilled copy');
 
+    // Book 10: regression for the former three-digit sequence cap.
+    $check($scalar("SELECT COUNT(*) FROM `{$tCopie}` WHERE libro_id = 10") === 2001, 'book 10: counters above 1,000 are fully materialised');
+    $check($scalar("SELECT COUNT(*) FROM `{$tCopie}` WHERE libro_id = 10 AND numero_inventario = 'LARGE-C2001'") === 1, 'book 10: high ordinal inventory code is generated');
+
+    // Book 11: reservations remain book-level by design. The backfill creates
+    // physical capacity but does not rewrite/delete the reservation; the same
+    // canonical read formula still yields the legacy 2 total / 1 available.
+    $book11Free = $scalar("SELECT GREATEST(
+        (SELECT COUNT(*) FROM `{$tCopie}` c WHERE c.libro_id = 11 AND c.stato IN ('disponibile','prenotato'))
+        - (SELECT COUNT(*) FROM `{$tPrenotazioni}` pr WHERE pr.libro_id = 11 AND pr.stato = 'attiva' AND pr.data_inizio_richiesta <= '2026-08-16' AND pr.data_fine_richiesta >= '2026-08-16'),
+        0
+    )");
+    $check($scalar("SELECT COUNT(*) FROM `{$tCopie}` WHERE libro_id = 11") === 2 && $book11Free === 1, 'book 11: active reservation preserves legacy total and availability');
+    $check($scalar("SELECT COUNT(*) FROM `{$tPrenotazioni}` WHERE id = 1 AND libro_id = 11 AND stato = 'attiva'") === 1, 'book 11: book-level reservation is untouched');
+
     // ── Idempotency: a second run must be a no-op ─────────────────────────
     $before = $db->query("SELECT id, libro_id, numero_inventario, stato FROM `{$tCopie}` ORDER BY id")->fetch_all(MYSQLI_ASSOC);
     $loansBefore = $db->query("SELECT id, copia_id, stato, attivo FROM `{$tPrestiti}` ORDER BY id")->fetch_all(MYSQLI_ASSOC);
+    $reservationsBefore = $db->query("SELECT id, libro_id, stato FROM `{$tPrenotazioni}` ORDER BY id")->fetch_all(MYSQLI_ASSOC);
     $runMigration();
     $after = $db->query("SELECT id, libro_id, numero_inventario, stato FROM `{$tCopie}` ORDER BY id")->fetch_all(MYSQLI_ASSOC);
     $loansAfter = $db->query("SELECT id, copia_id, stato, attivo FROM `{$tPrestiti}` ORDER BY id")->fetch_all(MYSQLI_ASSOC);
+    $reservationsAfter = $db->query("SELECT id, libro_id, stato FROM `{$tPrenotazioni}` ORDER BY id")->fetch_all(MYSQLI_ASSOC);
     $check($before === $after, 'idempotent: second run creates/renames no copies');
     $check($loansBefore === $loansAfter, 'idempotent: second run rebinds no loans');
+    $check($reservationsAfter === $reservationsBefore, 'idempotent: reservations remain untouched');
 } catch (Throwable $e) {
     $failed++;
     echo "  FAIL exception: {$e->getMessage()}\n";
@@ -216,6 +252,16 @@ $migrationsPos = strpos($updaterSrc, '$migrationResult = $this->runMigrations(')
 $recalcPos = strpos($updaterSrc, '$this->recalculateAfterMigrations()');
 $check($migrationsPos !== false && $recalcPos !== false && $migrationsPos < $recalcPos, 'Updater runs migrations BEFORE recalculateAfterMigrations (backfill precedes the zeroing recalc)');
 $check(str_contains($updaterSrc, 'self::shouldRunMigration($migrationVersion, $fromVersion, $toVersion)'), 'Updater::runMigrations uses the tested production range predicate');
+
+$transactionStart = strpos($migration, 'START TRANSACTION;');
+$firstInsert = strpos($migration, 'INSERT IGNORE INTO `copie`');
+$loanBinding = strpos($migration, 'UPDATE `prestiti` p');
+$transactionCommit = strrpos($migration, 'COMMIT;');
+$check(
+    $transactionStart !== false && $firstInsert !== false && $loanBinding !== false && $transactionCommit !== false
+        && $transactionStart < $firstInsert && $firstInsert < $loanBinding && $loanBinding < $transactionCommit,
+    'backfill copies and loan binding are enclosed in one explicit transaction'
+);
 
 echo "\n{$passed} PASS, {$failed} FAIL\n";
 exit($failed === 0 ? 0 : 1);

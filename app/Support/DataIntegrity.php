@@ -1006,25 +1006,15 @@ class DataIntegrity {
         try {
             $this->db->begin_transaction();
 
-            // 1. Ricalcola tutte le copie disponibili
-            $availabilityResult = $this->recalculateAllBookAvailability(insideTransaction: true);
-            $results['fixed'] += $availabilityResult['updated'];
-            $results['errors'] = array_merge($results['errors'], $availabilityResult['errors']);
-
-            // 2. Correggi stati libri attivi basandosi sulle copie correnti
-            $stmt = $this->db->prepare("
-                UPDATE libri SET stato = CASE
-                    WHEN copie_disponibili > 0 THEN 'disponibile'
-                    WHEN EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = libri.id AND c.stato = 'prestato') THEN 'prestato'
-                    WHEN EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = libri.id) THEN 'non_disponibile'
-                    ELSE 'non_disponibile'
-                END
-                WHERE stato IN ('disponibile', 'prestato', 'non_disponibile')
-                AND deleted_at IS NULL
-            ");
-            $stmt->execute();
-            $results['fixed'] += $this->db->affected_rows;
-            $stmt->close();
+            // Circulation writes use the canonical libri -> prestiti/copie lock
+            // order. Maintenance changes loans and reservations below, so lock
+            // every book first and keep those locks until the final canonical
+            // recalculation. This avoids crossing concurrent web requests.
+            // CI-SOFT-DELETE-EXEMPT: global maintenance locks restorable rows too.
+            $lockBooks = $this->db->prepare('SELECT id FROM libri ORDER BY id FOR UPDATE');
+            $lockBooks->execute();
+            $lockBooks->get_result()->fetch_all(MYSQLI_NUM);
+            $lockBooks->close();
 
             // 3. Aggiorna prestiti in ritardo
             $stmt = $this->db->prepare("
@@ -1124,6 +1114,14 @@ class DataIntegrity {
                 }
                 $upd->close();
             }
+
+            // Recalculate only after every loan/reservation repair. This is the
+            // sole writer of libri.stato/copie_* and guarantees the committed
+            // read model describes this transaction's final circulation rows,
+            // including active reservation occupancy.
+            $availabilityResult = $this->recalculateAllBookAvailability(insideTransaction: true);
+            $results['fixed'] += $availabilityResult['updated'];
+            $results['errors'] = array_merge($results['errors'], $availabilityResult['errors']);
 
             $this->db->commit();
 

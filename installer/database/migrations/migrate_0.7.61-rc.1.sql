@@ -29,37 +29,57 @@
 -- danneggiato, manutenzione, in_restauro, in_trasferimento), never rebinds a
 -- loan that already has a copia_id, and never subtracts anything.
 
+-- Keep the three data-repair passes atomic. The migration runners execute SQL
+-- files statement-by-statement, so without an explicit transaction a failure in
+-- Pass B/C could leave a partially materialised holding set visible to the app.
+START TRANSACTION;
+
 -- Pass A: create the missing copies using the book's own inventory base.
 INSERT IGNORE INTO `copie` (libro_id, numero_inventario, stato, note)
-SELECT l.id,
+SELECT legacy.id,
        CONCAT(
            CASE
-               WHEN l.numero_inventario IS NULL OR TRIM(l.numero_inventario) = ''
-                   THEN CONCAT('LIB-', l.id)
-               ELSE TRIM(l.numero_inventario)
+               WHEN legacy.numero_inventario IS NULL OR TRIM(legacy.numero_inventario) = ''
+                   THEN CONCAT('LIB-', legacy.id)
+               ELSE TRIM(legacy.numero_inventario)
            END,
            '-C',
-           seq.n + (SELECT COUNT(*) FROM `copie` c0 WHERE c0.libro_id = l.id)
+           seq.n + legacy.existing_rows
        ),
        'disponibile',
        'Backfilled from the pre-0.7.61 copy counter during upgrade'
-FROM `libri` l
+FROM (
+    -- Aggregate once per book. Keeping these counts out of the sequence join
+    -- avoids re-running correlated COUNTs up to 9,999 times per legacy book.
+    SELECT l.id,
+           l.numero_inventario,
+           COALESCE(l.copie_totali, 0) AS legacy_total,
+           COUNT(c.id) AS existing_rows,
+           COALESCE(SUM(
+               CASE
+                   WHEN c.id IS NOT NULL
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                       THEN 1
+                   ELSE 0
+               END
+           ), 0) AS circulating_rows
+    FROM `libri` l
+    LEFT JOIN `copie` c ON c.libro_id = l.id
+    WHERE l.deleted_at IS NULL
+    GROUP BY l.id, l.numero_inventario, l.copie_totali
+) legacy
 JOIN (
-    SELECT h.d * 100 + t.d * 10 + u.d + 1 AS n
-    FROM (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) h
+    -- The book form accepts up to 9,999 initial copies. Generate that complete
+    -- domain rather than silently stopping at 1,000 and letting the following
+    -- availability recalculation lower a legacy counter.
+    SELECT th.d * 1000 + h.d * 100 + t.d * 10 + u.d + 1 AS n
+    FROM (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) th
+    CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) h
     CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) t
     CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) u
+    WHERE th.d * 1000 + h.d * 100 + t.d * 10 + u.d < 9999
 ) seq
-    ON seq.n <= GREATEST(
-        COALESCE(l.copie_totali, 0) - (
-            SELECT COUNT(*)
-            FROM `copie` c1
-            WHERE c1.libro_id = l.id
-              AND c1.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
-        ),
-        0
-    )
-WHERE l.deleted_at IS NULL;
+    ON seq.n <= GREATEST(legacy.legacy_total - legacy.circulating_rows, 0);
 
 -- Pass B: fill any deficit Pass A could not cover because of an inventory-code
 -- collision (e.g. two books sharing the same numero_inventario base). The
@@ -67,34 +87,43 @@ WHERE l.deleted_at IS NULL;
 -- highest numeric suffix already present for that exact base, so the produced
 -- codes are collision-free by construction.
 INSERT IGNORE INTO `copie` (libro_id, numero_inventario, stato, note)
-SELECT l.id,
+SELECT legacy.id,
        CONCAT(
-           'LIB-', l.id, '-C',
+           'LIB-', legacy.id, '-C',
            seq.n + COALESCE((
-               SELECT MAX(CAST(SUBSTRING(c3.numero_inventario, CHAR_LENGTH(CONCAT('LIB-', l.id, '-C')) + 1) AS UNSIGNED))
+               SELECT MAX(CAST(SUBSTRING(c3.numero_inventario, CHAR_LENGTH(CONCAT('LIB-', legacy.id, '-C')) + 1) AS UNSIGNED))
                FROM `copie` c3
-               WHERE c3.numero_inventario LIKE CONCAT('LIB-', l.id, '-C%')
+               WHERE c3.numero_inventario LIKE CONCAT('LIB-', legacy.id, '-C%')
            ), 0)
        ),
        'disponibile',
        'Backfilled from the pre-0.7.61 copy counter during upgrade'
-FROM `libri` l
+FROM (
+    -- Recompute after Pass A: only collision deficits remain.
+    SELECT l.id,
+           COALESCE(l.copie_totali, 0) AS legacy_total,
+           COALESCE(SUM(
+               CASE
+                   WHEN c.id IS NOT NULL
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                       THEN 1
+                   ELSE 0
+               END
+           ), 0) AS circulating_rows
+    FROM `libri` l
+    LEFT JOIN `copie` c ON c.libro_id = l.id
+    WHERE l.deleted_at IS NULL
+    GROUP BY l.id, l.copie_totali
+) legacy
 JOIN (
-    SELECT h.d * 100 + t.d * 10 + u.d + 1 AS n
-    FROM (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) h
+    SELECT th.d * 1000 + h.d * 100 + t.d * 10 + u.d + 1 AS n
+    FROM (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) th
+    CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) h
     CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) t
     CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) u
+    WHERE th.d * 1000 + h.d * 100 + t.d * 10 + u.d < 9999
 ) seq
-    ON seq.n <= GREATEST(
-        COALESCE(l.copie_totali, 0) - (
-            SELECT COUNT(*)
-            FROM `copie` c1
-            WHERE c1.libro_id = l.id
-              AND c1.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
-        ),
-        0
-    )
-WHERE l.deleted_at IS NULL;
+    ON seq.n <= GREATEST(legacy.legacy_total - legacy.circulating_rows, 0);
 
 -- Pass C: bind legacy book-level active loans to distinct free copies.
 -- Loans are ranked per book by id; free 'disponibile' copies (not already held
@@ -107,15 +136,7 @@ UPDATE `prestiti` p
 JOIN (
     SELECT p1.id AS prestito_id,
            p1.libro_id AS libro_id,
-           (
-               SELECT COUNT(*)
-               FROM `prestiti` p2
-               WHERE p2.libro_id = p1.libro_id
-                 AND p2.attivo = 1
-                 AND p2.copia_id IS NULL
-                 AND p2.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
-                 AND p2.id < p1.id
-           ) AS rn
+           ROW_NUMBER() OVER (PARTITION BY p1.libro_id ORDER BY p1.id) AS rn
     FROM `prestiti` p1
     WHERE p1.attivo = 1
       AND p1.copia_id IS NULL
@@ -124,19 +145,17 @@ JOIN (
 JOIN (
     SELECT c1.id AS copia_id,
            c1.libro_id AS libro_id,
-           (
-               SELECT COUNT(*)
-               FROM `copie` c2
-               WHERE c2.libro_id = c1.libro_id
-                 AND c2.stato = 'disponibile'
-                 AND c2.id < c1.id
-                 AND NOT EXISTS (
-                     SELECT 1 FROM `prestiti` p3
-                     WHERE p3.copia_id = c2.id
-                       AND (p3.attivo = 1 OR (p3.attivo = 0 AND p3.stato = 'pendente'))
-                 )
-           ) AS rn
+           ROW_NUMBER() OVER (PARTITION BY c1.libro_id ORDER BY c1.id) AS rn
     FROM `copie` c1
+    JOIN (
+        -- Do not rank every copy in the catalogue: only books that actually
+        -- have a legacy unbound active loan can participate in this pairing.
+        SELECT DISTINCT p5.libro_id
+        FROM `prestiti` p5
+        WHERE p5.attivo = 1
+          AND p5.copia_id IS NULL
+          AND p5.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
+    ) needed ON needed.libro_id = c1.libro_id
     WHERE c1.stato = 'disponibile'
       AND NOT EXISTS (
           SELECT 1 FROM `prestiti` p4
@@ -145,3 +164,5 @@ JOIN (
       )
 ) cr ON cr.libro_id = lr.libro_id AND cr.rn = lr.rn
 SET p.copia_id = cr.copia_id;
+
+COMMIT;

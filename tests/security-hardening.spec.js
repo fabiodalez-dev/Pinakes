@@ -110,9 +110,9 @@ test.describe('C-2: bulkDelete uses soft-delete', () => {
   });
 });
 
-test.describe('H-1: bulkStatus respects deleted_at', () => {
+test.describe('H-1: book status is derived from physical circulation', () => {
 
-  test('bulk status update returns success for existing books', async ({ page }) => {
+  test('legacy bulk-status endpoint rejects direct book-state writes', async ({ page }) => {
     await loginAsAdmin(page);
 
     // Find an existing book via API
@@ -124,14 +124,16 @@ test.describe('H-1: bulkStatus respects deleted_at', () => {
     await page.goto(`${BASE}/admin/books`);
     const csrf = await getCsrfToken(page);
 
-    // Change status to 'disponibile'
+    // A compatibility endpoint remains for old clients, but status is now a
+    // projection of copies/loans/reservations and cannot be authored directly.
     const statusResp = await page.request.post(`${BASE}/api/libri/bulk-status`, {
       headers: { 'Content-Type': 'application/json' },
       data: JSON.stringify({ ids: [bookId], stato: 'disponibile', csrf_token: csrf }),
     });
-    expect(statusResp.ok()).toBeTruthy();
+    expect(statusResp.status()).toBe(409);
     const statusData = await statusResp.json();
-    expect(statusData.success).toBeTruthy();
+    expect(statusData.success).toBeFalsy();
+    expect(statusData.code).toBe('derived_book_state');
   });
 });
 

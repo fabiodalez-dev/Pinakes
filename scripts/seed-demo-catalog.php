@@ -109,7 +109,7 @@ $findDemoByTitle = $db->prepare("SELECT id FROM libri WHERE titolo = ? AND sourc
 $findReusableE2e = $db->prepare("SELECT id FROM libri WHERE titolo LIKE 'E2E %' AND isbn13 IS NULL AND deleted_at IS NULL ORDER BY id LIMIT 1");
 $updateBook = $db->prepare(
     "UPDATE libri SET titolo=?, sottotitolo=?, isbn13=?, anno_pubblicazione=?, lingua=?, numero_pagine=?, " .
-    "genere_id=?, stato='disponibile', copertina_url=?, descrizione=?, descrizione_plain=?, formato='cartaceo', " .
+    "genere_id=?, copertina_url=?, descrizione=?, descrizione_plain=?, formato='cartaceo', " .
     "tipo_media='libro', editore_id=?, classificazione_dewey=?, source='demo-restyling', deleted_at=NULL WHERE id=?"
 );
 $insertBook = $db->prepare(
@@ -207,6 +207,13 @@ try {
             $insertCopy->execute();
         }
 
+        // The seed may reuse a row whose copies carry real circulation state.
+        // Derive the book projection from those rows before committing instead
+        // of forcing libri.stato='disponibile' and repairing it post-commit.
+        if (!(new DataIntegrity($db))->recalculateBookAvailability($bookId, insideTransaction: true)) {
+            throw new RuntimeException("Impossibile ricalcolare la disponibilità del libro {$bookId}.");
+        }
+
         $seededIds[] = $bookId;
     }
 
@@ -215,14 +222,6 @@ try {
     $db->rollback();
     fwrite(STDERR, "Seed annullato: {$exception->getMessage()}\n");
     exit(1);
-}
-
-$integrity = new DataIntegrity($db);
-foreach ($seededIds as $bookId) {
-    if (!$integrity->recalculateBookAvailability($bookId)) {
-        fwrite(STDERR, "Impossibile ricalcolare la disponibilità del libro {$bookId}.\n");
-        exit(1);
-    }
 }
 
 // The demo seed updates books and their author/publisher relations directly,

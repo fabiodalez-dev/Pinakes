@@ -1199,6 +1199,10 @@ class Repo
             throw new \RuntimeException('catalog copy creation failed');
         }
 
+        if (!(new \App\Support\DataIntegrity($this->db))->recalculateBookAvailability($libroId, insideTransaction: true)) {
+            throw new \RuntimeException('catalog availability derivation failed');
+        }
+
         return $libroId;
     }
 
