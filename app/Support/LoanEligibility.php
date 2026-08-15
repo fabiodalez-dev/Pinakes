@@ -81,4 +81,29 @@ class LoanEligibility
                 return __('Utente non idoneo al prestito');
         }
     }
+
+    /**
+     * Shared WHERE fragment selecting reservations eligible for promotion, used
+     * by both the single-book path (ReservationManager::processBookAvailability)
+     * and the batch path (MaintenanceService::processScheduledReservations) so a
+     * future edge-case fix cannot drift between them.
+     *
+     * Matches a real requested start that has arrived — with a '1000-01-01'
+     * floor (MySQL's minimum valid DATE) that rejects 0000-00-00 dump rows
+     * without embedding the literal a NO_ZERO_DATE server refuses at prepare
+     * time — OR a legacy no-start row while its deadline is still today or in
+     * the future.
+     *
+     * Requires TWO positional placeholders bound in order (today, today).
+     * $alias is the `prenotazioni` table alias: a fixed literal, never user input.
+     */
+    public static function promotableReservationWhere(string $alias): string
+    {
+        return "(
+                    ({$alias}.data_inizio_richiesta >= '1000-01-01' AND {$alias}.data_inizio_richiesta <= ?)
+                    OR ({$alias}.data_inizio_richiesta IS NULL
+                        AND {$alias}.data_scadenza_prenotazione IS NOT NULL
+                        AND DATE({$alias}.data_scadenza_prenotazione) >= ?)
+                )";
+    }
 }

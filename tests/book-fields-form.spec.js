@@ -80,9 +80,14 @@ async function loginAsAdmin(page) {
 /** Submit #bookForm, tolerate a SweetAlert confirm, wait to leave the form. */
 async function saveBookForm(page) {
   await page.locator('#bookForm button[type="submit"]').click();
+  // isVisible() ignores its timeout (one-shot). Wait deterministically for the
+  // confirmation to appear; click it when present, proceed when there is none.
   const confirm = page.locator('.swal2-confirm:visible');
-  if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) {
+  try {
+    await confirm.waitFor({ state: 'visible', timeout: 3000 });
     await confirm.click();
+  } catch {
+    // No confirmation dialog on this submit.
   }
   await page.waitForFunction(
     () => !window.location.pathname.endsWith('/admin/books/create')
@@ -98,7 +103,7 @@ test.describe.serial('book fields + derived status — form/controller behavior'
 
   test.beforeAll(async () => {
     // Pre-clean any leftover from a previous aborted run.
-    dbQuery(`DELETE FROM libri WHERE titolo LIKE 'ZZ_BFTFORM_%'`);
+    dbQuery(`DELETE FROM libri WHERE titolo IN ('${TITLE}', '${ZERO_TITLE}', '${THREE_TITLE}')`);
   });
 
   // Playwright gives each test a fresh context (no shared cookies), so every
@@ -111,7 +116,7 @@ test.describe.serial('book fields + derived status — form/controller behavior'
     if (bookId) {
       dbQuery(`DELETE FROM copie WHERE libro_id = ${bookId}`);
     }
-    dbQuery(`DELETE FROM libri WHERE titolo LIKE 'ZZ_BFTFORM_%'`);
+    dbQuery(`DELETE FROM libri WHERE titolo IN ('${TITLE}', '${ZERO_TITLE}', '${THREE_TITLE}')`);
   });
 
   test('1) free-text tipo_acquisizione round-trips through the real form', async ({ page }) => {

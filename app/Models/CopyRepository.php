@@ -360,9 +360,15 @@ class CopyRepository
     {
         // A locking current-read sees rows committed after this transaction's
         // snapshot and locks matching unique-index rows/ranges until commit.
-        $existingCount = 0;
+        // Only the COUNT feeds the pigeonhole bound below, so COUNT(*) avoids
+        // materialising every matching row; FOR UPDATE keeps the locking
+        // current-read that gap-locks the base family until commit. The count
+        // stays GLOBAL (no libro_id filter) because numero_inventario is globally
+        // unique — scoping it to one book would undercount a base shared across
+        // books and break the "at least howMany free among existingCount+howMany"
+        // guarantee.
         $sel = $this->db->prepare(
-            'SELECT numero_inventario FROM copie WHERE numero_inventario LIKE ? FOR UPDATE'
+            'SELECT COUNT(*) AS n FROM copie WHERE numero_inventario LIKE ? FOR UPDATE'
         );
         if ($sel === false) {
             throw new \RuntimeException('Unable to prepare inventory-code lookup: ' . $this->db->error);
@@ -373,10 +379,7 @@ class CopyRepository
             $sel->close();
             throw new \RuntimeException('Unable to load inventory codes: ' . $error);
         }
-        $res = $sel->get_result();
-        while ($res->fetch_assoc()) {
-            $existingCount++;
-        }
+        $existingCount = (int) ($sel->get_result()->fetch_assoc()['n'] ?? 0);
         $sel->close();
 
         $codes = [];

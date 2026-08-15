@@ -21,6 +21,16 @@ const {
 const { appDateOffsetISO } = require('./helpers/app-date');
 
 test.describe.serial('issues #333, #336 and #338', () => {
+  // This suite drives the admin login and reads/writes the DB directly, so skip
+  // (rather than fail in beforeAll) when the CI-injected credentials are absent.
+  test.skip(
+    !process.env.E2E_ADMIN_EMAIL ||
+      !process.env.E2E_ADMIN_PASS ||
+      !process.env.E2E_DB_USER ||
+      !process.env.E2E_DB_NAME,
+    'E2E admin and database credentials are required',
+  );
+
   /** @type {import('@playwright/test').BrowserContext} */
   let context;
   /** @type {import('@playwright/test').Page} */

@@ -25,10 +25,12 @@ test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME, 'E2E 
 
 const sqlEscape = (s) => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 function dbQuery(sql) {
-  const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
-  if (DB_HOST) { args.splice(3, 0, '-h', DB_HOST); if (DB_PORT) args.splice(5, 0, '-P', DB_PORT); }
-  else if (DB_SOCKET) { args.splice(3, 0, '-S', DB_SOCKET); }
-  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
+  // Pass the password via MYSQL_PWD, never -p… on argv (visible in the CI process list).
+  const args = ['-N', '-B', '-e', sql];
+  if (DB_HOST) { args.push('-h', DB_HOST); if (DB_PORT) args.push('-P', DB_PORT); }
+  else if (DB_SOCKET) { args.push('-S', DB_SOCKET); }
+  args.push('-u', DB_USER, DB_NAME);
+  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
 }
 
 const RUN = Date.now().toString(36);
@@ -379,14 +381,10 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     }
   });
 
-  // #7: the bulk-import success dialog uses the new "Copie in circolazione" wording.
-  test('19. the copies-added dialog uses the "Copie in circolazione" wording (#356)', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/books/create`);
-    const html = await page.content();
-    expect(html).toContain("__('Copie in circolazione')");
-    expect(html).not.toContain("__('Copie totali:')");
-  });
+  // (The bulk-import dialog wording "Copie in circolazione" is a static view
+  // string covered by the locale-parity gate; the increase-copies behaviour
+  // itself is exercised by test 23, so the brittle page.content() source-check
+  // that used to live here was removed.)
 
   // CodeRabbit follow-up: store() must reject a non-integer copie_totali before
   // casting — "7abc" must NOT be coerced to 7 copies (nor an array to 1).
