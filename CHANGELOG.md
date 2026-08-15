@@ -2,6 +2,41 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.61-rc.1]
+
+Physical-copy management from the book summary, with the whole holding and
+circulation lifecycle made atomic and derived from the copies.
+
+### Features
+
+- The book page (`/admin/books/{id}`) now shows a **Copie Fisiche** section for
+  every book — even one with no copies — with an "Aggiungi copia" modal, per-copy
+  status editing, and per-copy delete. Copy status covers the physical states
+  (available, maintenance, under restoration, in transfer, lost, damaged); an
+  out-of-circulation copy lowers the derived total on its own.
+- A book can be created with zero physical copies and have them added later from
+  the summary. On the edit form the copy count is read-only and delegates to the
+  per-copy management, so availability is always derived from the copies.
+
+### Fixes
+
+- Book creation is now atomic: the book row and its initial copies are committed
+  together, so a copy-creation failure can no longer leave an orphan book with no
+  holdings. The bulk `increase-copies` endpoint is likewise transactional,
+  allocates collision-free inventory codes, promotes the wait-list, and validates
+  its input.
+- Adding an available copy repairs blocked reservations and promotes the next
+  wait-list entry into a physical-copy-linked loan, mirroring the loan engine.
+- Copies under restoration or in transfer can now be deleted from the UI; the
+  loan/reservation system keeps exclusive ownership of the `prestato`/`prenotato`
+  states.
+- Legacy reservations with a missing or past start date are no longer promoted
+  into back-dated loans.
+- Admin copy routes stay fixed English literals (not routed through the i18n
+  system), inventory-code allocation escapes LIKE metacharacters, and the copy
+  note is sanitised and length-capped like the inventory number.
+- All new copy-management strings are translated across the five locales.
+
 ## [0.7.60]
 
 Maintenance release: UPC barcode support, a read-only availability field, and a
