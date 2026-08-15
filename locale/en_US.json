@@ -3530,7 +3530,6 @@
   "Prenota questo libro": "Reserve this book",
   "Prenotabile per date future": "Reservable for future dates",
   "Prenotato": "Reserved",
-  "Prenotato (imposta \"Disponibile\" per cancellare)": "Reserved (set \"Available\" to cancel)",
   "Prenotato (prestito in attesa)": "Reserved (loan pending)",
   "Prenotazione": "Reservation",
   "Prenotazione Annullata": "Reservation Cancelled",
@@ -6804,5 +6803,8 @@
   "Invio notifica nuova copia fallito": "New-copy notification failed",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "You can only delete out-of-circulation copies (lost, damaged, under maintenance, under restoration or in transfer). Change the copy's status first.",
   "Impossibile aggiungere le copie.": "Unable to add the copies.",
-  "Impossibile eliminare la copia.": "Unable to delete the copy."
+  "Impossibile eliminare la copia.": "Unable to delete the copy.",
+  "Per prenotare una copia, utilizza il sistema Prestiti. Non è possibile impostare manualmente lo stato \"Prenotato\".": "To reserve a copy, use the Loans system. The \"Reserved\" status cannot be set manually.",
+  "Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.": "To cancel or move a reservation, use the Loans system.",
+  "Prenotato (gestisci dal sistema Prestiti)": "Reserved (manage from the Loans system)"
 }

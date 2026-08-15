@@ -342,11 +342,25 @@ try {
     $copyRepo->create($idCollation, $existingCollationCode, 'disponibile');
     $createdCollationIds = $copyRepo->createManyForBookWithIds($idCollation, $baseCollation, 2, 'disponibile', null);
     $collationCodes = $copyCodes($idCollation);
+    // Bind the returned ids to the actual -C2/-C3 rows: a regression returning two
+    // distinct-but-wrong ids would otherwise slip past the count/uniqueness checks.
+    $expectedCollationIds = [];
+    $resCollationIds = $db->query(
+        "SELECT id FROM copie WHERE libro_id = {$idCollation}"
+        . " AND numero_inventario IN ('{$baseCollation}-C2', '{$baseCollation}-C3')"
+    );
+    while ($row = $resCollationIds->fetch_assoc()) {
+        $expectedCollationIds[] = (int) $row['id'];
+    }
+    $gotCollationIds = array_map('intval', $createdCollationIds);
+    sort($gotCollationIds);
+    sort($expectedCollationIds);
     $check(
         count($createdCollationIds) === 2
             && count(array_unique($createdCollationIds)) === 2
-            && $collationCodes === [$existingCollationCode, "{$baseCollation}-C2", "{$baseCollation}-C3"],
-        '9. allocator follows utf8mb4_unicode_ci and returns both inserted copy ids'
+            && $collationCodes === [$existingCollationCode, "{$baseCollation}-C2", "{$baseCollation}-C3"]
+            && $gotCollationIds === $expectedCollationIds,
+        '9. allocator follows utf8mb4_unicode_ci and returns the -C2/-C3 copy ids'
     );
 
     /* ---------------------------------------------------------------------

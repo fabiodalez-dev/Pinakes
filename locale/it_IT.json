@@ -3530,7 +3530,6 @@
   "Prenota questo libro": "Prenota questo libro",
   "Prenotabile per date future": "Prenotabile per date future",
   "Prenotato": "Prenotato",
-  "Prenotato (imposta \"Disponibile\" per cancellare)": "Prenotato (imposta \"Disponibile\" per cancellare)",
   "Prenotato (prestito in attesa)": "Prenotato (prestito in attesa)",
   "Prenotazione": "Prenotazione",
   "Prenotazione Annullata": "Prenotazione Annullata",
@@ -6804,5 +6803,8 @@
   "Invio notifica nuova copia fallito": "Invio notifica nuova copia fallito",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.",
   "Impossibile aggiungere le copie.": "Impossibile aggiungere le copie.",
-  "Impossibile eliminare la copia.": "Impossibile eliminare la copia."
+  "Impossibile eliminare la copia.": "Impossibile eliminare la copia.",
+  "Per prenotare una copia, utilizza il sistema Prestiti. Non è possibile impostare manualmente lo stato \"Prenotato\".": "Per prenotare una copia, utilizza il sistema Prestiti. Non è possibile impostare manualmente lo stato \"Prenotato\".",
+  "Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.": "Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.",
+  "Prenotato (gestisci dal sistema Prestiti)": "Prenotato (gestisci dal sistema Prestiti)"
 }

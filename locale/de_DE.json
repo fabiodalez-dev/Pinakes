@@ -3530,7 +3530,6 @@
   "Prenota questo libro": "Dieses Buch vormerken",
   "Prenotabile per date future": "Für zukünftige Termine vormerkbar",
   "Prenotato": "Vorgemerkt",
-  "Prenotato (imposta \"Disponibile\" per cancellare)": "Vorgemerkt (setzen Sie \"Verfügbar\" zum Stornieren)",
   "Prenotato (prestito in attesa)": "Vorgemerkt (Ausleihe ausstehend)",
   "Prenotazione": "Vormerkung",
   "Prenotazione Annullata": "Reservierung storniert",
@@ -6804,5 +6803,8 @@
   "Invio notifica nuova copia fallito": "Benachrichtigung über neues Exemplar fehlgeschlagen",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kannst nur Exemplare außer Betrieb löschen (verloren, beschädigt, in Wartung, in Restaurierung oder im Transfer). Ändere zuerst den Status des Exemplars.",
   "Impossibile aggiungere le copie.": "Exemplare konnten nicht hinzugefügt werden.",
-  "Impossibile eliminare la copia.": "Exemplar konnte nicht gelöscht werden."
+  "Impossibile eliminare la copia.": "Exemplar konnte nicht gelöscht werden.",
+  "Per prenotare una copia, utilizza il sistema Prestiti. Non è possibile impostare manualmente lo stato \"Prenotato\".": "Um ein Exemplar vorzumerken, verwende das Ausleihsystem. Der Status „Vorgemerkt\" kann nicht manuell gesetzt werden.",
+  "Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.": "Um eine Vormerkung zu stornieren oder zu verschieben, verwende das Ausleihsystem.",
+  "Prenotato (gestisci dal sistema Prestiti)": "Vorgemerkt (über das Ausleihsystem verwalten)"
 }

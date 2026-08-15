@@ -3530,7 +3530,6 @@
   "Prenota questo libro": "Reserver denne bog",
   "Prenotabile per date future": "Kan reserveres til fremtidige datoer",
   "Prenotato": "Reserveret",
-  "Prenotato (imposta \"Disponibile\" per cancellare)": "Reserveret (indstil til \"Tilgængelig\" for at annullere)",
   "Prenotato (prestito in attesa)": "Reserveret (lån afventer)",
   "Prenotazione": "Reservation",
   "Prenotazione Annullata": "Reservation annulleret",
@@ -6804,5 +6803,8 @@
   "Invio notifica nuova copia fallito": "Notifikation om nyt eksemplar mislykkedes",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kan kun slette eksemplarer uden for cirkulation (mistede, beskadigede, under vedligeholdelse, under restaurering eller under overførsel). Ret først eksemplarets status.",
   "Impossibile aggiungere le copie.": "Kunne ikke tilføje eksemplarerne.",
-  "Impossibile eliminare la copia.": "Kunne ikke slette eksemplaret."
+  "Impossibile eliminare la copia.": "Kunne ikke slette eksemplaret.",
+  "Per prenotare una copia, utilizza il sistema Prestiti. Non è possibile impostare manualmente lo stato \"Prenotato\".": "Brug udlånssystemet for at reservere et eksemplar. Status \"Reserveret\" kan ikke angives manuelt.",
+  "Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.": "Brug udlånssystemet for at annullere eller flytte en reservation.",
+  "Prenotato (gestisci dal sistema Prestiti)": "Reserveret (administrér fra udlånssystemet)"
 }

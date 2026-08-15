@@ -3530,7 +3530,6 @@
   "Prenota questo libro": "Réserver ce livre",
   "Prenotabile per date future": "Réservable pour des dates futures",
   "Prenotato": "Réservé",
-  "Prenotato (imposta \"Disponibile\" per cancellare)": "Réservé (définir \"Disponible\" pour annuler)",
   "Prenotato (prestito in attesa)": "Réservé (emprunt en attente)",
   "Prenotazione": "Réservation",
   "Prenotazione Annullata": "Réservation annulée",
@@ -6804,5 +6803,8 @@
   "Invio notifica nuova copia fallito": "Échec de la notification de nouvelle copie",
   "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Vous ne pouvez supprimer que les copies hors circulation (perdues, endommagées, en maintenance, en restauration ou en transfert). Modifiez d'abord l'état de la copie.",
   "Impossibile aggiungere le copie.": "Impossible d'ajouter les copies.",
-  "Impossibile eliminare la copia.": "Impossible de supprimer la copie."
+  "Impossibile eliminare la copia.": "Impossible de supprimer la copie.",
+  "Per prenotare una copia, utilizza il sistema Prestiti. Non è possibile impostare manualmente lo stato \"Prenotato\".": "Pour réserver une copie, utilisez le système de prêts. L'état « Réservé » ne peut pas être défini manuellement.",
+  "Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.": "Pour annuler ou déplacer une réservation, utilisez le système de prêts.",
+  "Prenotato (gestisci dal sistema Prestiti)": "Réservé (gérer depuis le système de prêts)"
 }
