@@ -87,8 +87,18 @@ test.describe('#173 — external covers download & save as a local file', () => 
     await page.goto(`${BASE}/admin/books/create`);
     await page.fill('#titolo', title);
     await submitBook();
-    const id = parseInt(dbQuery(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`), 10);
-    expect(id).toBeGreaterThan(0);
+    // Poll for the row instead of reading once: submitBook()'s waits are
+    // best-effort (all swallow with .catch), so under parallel workers the
+    // SELECT can race the post-confirm commit and read 0. Retry until the book
+    // is visible.
+    let id = 0;
+    await expect.poll(
+      () => {
+        id = parseInt(dbQuery(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`), 10) || 0;
+        return id;
+      },
+      { timeout: 10000 },
+    ).toBeGreaterThan(0);
     createdIds.push(id);
     return id;
   }
