@@ -2,7 +2,7 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [0.7.61-rc.1]
+## [0.7.61-rc.2]
 
 Physical-copy management from the book summary, with the whole holding and
 circulation lifecycle made atomic and derived from the copies.
