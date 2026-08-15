@@ -333,8 +333,9 @@ $checks['demo seed never authors book state and recalculates before commit'] =
     && str_contains($demoSeed, 'recalculateBookAvailability($bookId, insideTransaction: true)')
     && strpos($demoSeed, 'recalculateBookAvailability($bookId, insideTransaction: true)')
         < strpos($demoSeed, '$db->commit()');
+$createCatalogueBook = $extractMethod($bookClubRepo, 'private function createCatalogueBookFromExternal(');
 $checks['Book Club acquisition derives availability inside its transaction'] =
-    str_contains($bookClubRepo, 'recalculateBookAvailability($libroId, insideTransaction: true)')
+    str_contains($createCatalogueBook, 'recalculateBookAvailability($libroId, insideTransaction: true)')
     && strpos($bookClubRepo, '$this->createCatalogueBookFromExternal(')
         < strpos($bookClubRepo, '$this->db->commit()', strpos($bookClubRepo, 'public function acquireExternalBook('));
 $checks['manual upgrader performs the post-migration availability pass'] =

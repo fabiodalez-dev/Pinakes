@@ -210,7 +210,7 @@ $totalBefore = $col($id, 'copie_totali');
 $availableBefore = $col($id, 'copie_disponibili');
 $repo->updateBasic($id, [
     'titolo' => 'ZZ_BFT_derived_guard_' . bin2hex(random_bytes(3)),
-    'stato' => 'disponibile',
+    'stato' => 'prestato',
     'copie_totali' => 9999,
     'copie_disponibili' => 9999,
 ]);

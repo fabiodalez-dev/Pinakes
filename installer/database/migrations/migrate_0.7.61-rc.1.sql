@@ -35,6 +35,24 @@
 START TRANSACTION;
 
 -- Pass A: create the missing copies using the book's own inventory base.
+SET @zz_max_deficit := (
+    SELECT LEAST(9999, COALESCE(MAX(deficit), 0))
+    FROM (
+        SELECT GREATEST(
+                   COALESCE(l.copie_totali, 0) - COALESCE(SUM(
+                       CASE WHEN c.id IS NOT NULL
+                                  AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                            THEN 1 ELSE 0 END
+                   ), 0),
+                   0
+               ) AS deficit
+        FROM `libri` l
+        LEFT JOIN `copie` c ON c.libro_id = l.id
+        WHERE l.deleted_at IS NULL
+        GROUP BY l.id, l.copie_totali
+    ) deficits
+);
+
 INSERT IGNORE INTO `copie` (libro_id, numero_inventario, stato, note)
 SELECT legacy.id,
        CONCAT(
@@ -78,6 +96,7 @@ JOIN (
     CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) t
     CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) u
     WHERE th.d * 1000 + h.d * 100 + t.d * 10 + u.d < 9999
+      AND th.d * 1000 + h.d * 100 + t.d * 10 + u.d + 1 <= @zz_max_deficit
 ) seq
     ON seq.n <= GREATEST(legacy.legacy_total - legacy.circulating_rows, 0);
 
@@ -86,6 +105,24 @@ JOIN (
 -- "LIB-{id}-C{N}" base embeds the book id and numbering starts above the
 -- highest numeric suffix already present for that exact base, so the produced
 -- codes are collision-free by construction.
+SET @zz_max_deficit := (
+    SELECT LEAST(9999, COALESCE(MAX(deficit), 0))
+    FROM (
+        SELECT GREATEST(
+                   COALESCE(l.copie_totali, 0) - COALESCE(SUM(
+                       CASE WHEN c.id IS NOT NULL
+                                  AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                            THEN 1 ELSE 0 END
+                   ), 0),
+                   0
+               ) AS deficit
+        FROM `libri` l
+        LEFT JOIN `copie` c ON c.libro_id = l.id
+        WHERE l.deleted_at IS NULL
+        GROUP BY l.id, l.copie_totali
+    ) deficits
+);
+
 INSERT IGNORE INTO `copie` (libro_id, numero_inventario, stato, note)
 SELECT legacy.id,
        CONCAT(
@@ -122,6 +159,7 @@ JOIN (
     CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) t
     CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) u
     WHERE th.d * 1000 + h.d * 100 + t.d * 10 + u.d < 9999
+      AND th.d * 1000 + h.d * 100 + t.d * 10 + u.d + 1 <= @zz_max_deficit
 ) seq
     ON seq.n <= GREATEST(legacy.legacy_total - legacy.circulating_rows, 0);
 
@@ -132,37 +170,71 @@ JOIN (
 -- already carry a copia_id are untouched. If a book has fewer free copies than
 -- unbound active loans (inconsistent legacy counters), the surplus loans keep
 -- copia_id NULL exactly as before this migration.
+DROP TEMPORARY TABLE IF EXISTS `_pinakes_0761_legacy_loans`;
+CREATE TEMPORARY TABLE `_pinakes_0761_legacy_loans` (
+    prestito_id INT NOT NULL PRIMARY KEY,
+    libro_id INT NOT NULL,
+    rn INT NOT NULL,
+    KEY idx_book_rank (libro_id, rn)
+) ENGINE=InnoDB;
+
+INSERT INTO `_pinakes_0761_legacy_loans` (prestito_id, libro_id, rn)
+SELECT p1.id,
+       p1.libro_id,
+       (
+           SELECT COUNT(*)
+           FROM `prestiti` p2
+           WHERE p2.libro_id = p1.libro_id
+             AND p2.id <= p1.id
+             AND p2.attivo = 1
+             AND p2.copia_id IS NULL
+             AND p2.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
+       )
+FROM `prestiti` p1
+WHERE p1.attivo = 1
+  AND p1.copia_id IS NULL
+  AND p1.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato');
+
+DROP TEMPORARY TABLE IF EXISTS `_pinakes_0761_free_copies`;
+CREATE TEMPORARY TABLE `_pinakes_0761_free_copies` (
+    copia_id INT NOT NULL PRIMARY KEY,
+    libro_id INT NOT NULL,
+    rn INT NOT NULL,
+    KEY idx_book_rank (libro_id, rn)
+) ENGINE=InnoDB;
+
+INSERT INTO `_pinakes_0761_free_copies` (copia_id, libro_id, rn)
+SELECT c1.id,
+       c1.libro_id,
+       (
+           SELECT COUNT(*)
+           FROM `copie` c2
+           WHERE c2.libro_id = c1.libro_id
+             AND c2.id <= c1.id
+             AND c2.stato = 'disponibile'
+             AND NOT EXISTS (
+                 SELECT 1 FROM `prestiti` p3
+                 WHERE p3.copia_id = c2.id
+                   AND (p3.attivo = 1 OR (p3.attivo = 0 AND p3.stato = 'pendente'))
+             )
+       )
+FROM `copie` c1
+JOIN (SELECT DISTINCT libro_id FROM `_pinakes_0761_legacy_loans`) needed
+  ON needed.libro_id = c1.libro_id
+WHERE c1.stato = 'disponibile'
+  AND NOT EXISTS (
+      SELECT 1 FROM `prestiti` p4
+      WHERE p4.copia_id = c1.id
+        AND (p4.attivo = 1 OR (p4.attivo = 0 AND p4.stato = 'pendente'))
+  );
+
 UPDATE `prestiti` p
-JOIN (
-    SELECT p1.id AS prestito_id,
-           p1.libro_id AS libro_id,
-           ROW_NUMBER() OVER (PARTITION BY p1.libro_id ORDER BY p1.id) AS rn
-    FROM `prestiti` p1
-    WHERE p1.attivo = 1
-      AND p1.copia_id IS NULL
-      AND p1.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
-) lr ON lr.prestito_id = p.id
-JOIN (
-    SELECT c1.id AS copia_id,
-           c1.libro_id AS libro_id,
-           ROW_NUMBER() OVER (PARTITION BY c1.libro_id ORDER BY c1.id) AS rn
-    FROM `copie` c1
-    JOIN (
-        -- Do not rank every copy in the catalogue: only books that actually
-        -- have a legacy unbound active loan can participate in this pairing.
-        SELECT DISTINCT p5.libro_id
-        FROM `prestiti` p5
-        WHERE p5.attivo = 1
-          AND p5.copia_id IS NULL
-          AND p5.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
-    ) needed ON needed.libro_id = c1.libro_id
-    WHERE c1.stato = 'disponibile'
-      AND NOT EXISTS (
-          SELECT 1 FROM `prestiti` p4
-          WHERE p4.copia_id = c1.id
-            AND (p4.attivo = 1 OR (p4.attivo = 0 AND p4.stato = 'pendente'))
-      )
-) cr ON cr.libro_id = lr.libro_id AND cr.rn = lr.rn
+JOIN `_pinakes_0761_legacy_loans` lr ON lr.prestito_id = p.id
+JOIN `_pinakes_0761_free_copies` cr
+  ON cr.libro_id = lr.libro_id AND cr.rn = lr.rn
 SET p.copia_id = cr.copia_id;
+
+DROP TEMPORARY TABLE IF EXISTS `_pinakes_0761_free_copies`;
+DROP TEMPORARY TABLE IF EXISTS `_pinakes_0761_legacy_loans`;
 
 COMMIT;

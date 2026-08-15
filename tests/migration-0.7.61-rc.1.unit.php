@@ -262,6 +262,16 @@ $check(
         && $transactionStart < $firstInsert && $firstInsert < $loanBinding && $loanBinding < $transactionCommit,
     'backfill copies and loan binding are enclosed in one explicit transaction'
 );
+$check(
+    substr_count($migration, '+ 1 <= @zz_max_deficit') === 2,
+    'both copy-backfill passes cap their sequence domain at the real maximum deficit'
+);
+$check(
+    !str_contains($migration, 'ROW_NUMBER()')
+        && str_contains($migration, 'CREATE TEMPORARY TABLE `_pinakes_0761_legacy_loans`')
+        && str_contains($migration, 'CREATE TEMPORARY TABLE `_pinakes_0761_free_copies`'),
+    'legacy loan-to-copy pairing remains deterministic without MySQL 8 window functions'
+);
 
 echo "\n{$passed} PASS, {$failed} FAIL\n";
 exit($failed === 0 ? 0 : 1);
