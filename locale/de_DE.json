@@ -6805,5 +6805,6 @@
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Wird nur zur automatischen Erzeugung neuer Exemplarcodes verwendet; bestehende Codes bleiben unverändert.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Anfängliche Exemplare erhalten fortlaufende Codes wie PRÄFIX-C1 und PRÄFIX-C2.",
   "Invio notifica nuova copia fallito": "Benachrichtigung über neues Exemplar fehlgeschlagen",
-  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kannst nur Exemplare außer Betrieb löschen (verloren, beschädigt, in Wartung, in Restaurierung oder im Transfer). Ändere zuerst den Status des Exemplars."
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kannst nur Exemplare außer Betrieb löschen (verloren, beschädigt, in Wartung, in Restaurierung oder im Transfer). Ändere zuerst den Status des Exemplars.",
+  "Impossibile aggiungere le copie.": "Exemplare konnten nicht hinzugefügt werden."
 }

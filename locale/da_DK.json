@@ -6805,5 +6805,6 @@
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Bruges kun til automatisk at generere koder til nye eksemplarer; eksisterende koder ændres ikke.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Indledende eksemplarer får fortløbende koder som PRÆFIKS-C1 og PRÆFIKS-C2.",
   "Invio notifica nuova copia fallito": "Notifikation om nyt eksemplar mislykkedes",
-  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kan kun slette eksemplarer uden for cirkulation (mistede, beskadigede, under vedligeholdelse, under restaurering eller under overførsel). Ret først eksemplarets status."
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Du kan kun slette eksemplarer uden for cirkulation (mistede, beskadigede, under vedligeholdelse, under restaurering eller under overførsel). Ret først eksemplarets status.",
+  "Impossibile aggiungere le copie.": "Kunne ikke tilføje eksemplarerne."
 }

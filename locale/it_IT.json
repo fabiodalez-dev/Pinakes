@@ -6805,5 +6805,6 @@
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.",
   "Invio notifica nuova copia fallito": "Invio notifica nuova copia fallito",
-  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia."
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.",
+  "Impossibile aggiungere le copie.": "Impossibile aggiungere le copie."
 }

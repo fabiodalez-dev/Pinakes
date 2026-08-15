@@ -6805,5 +6805,6 @@
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Utilisé uniquement pour générer les codes des nouvelles copies ; les codes existants ne changent pas.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Les copies initiales recevront des codes séquentiels comme PRÉFIXE-C1 et PRÉFIXE-C2.",
   "Invio notifica nuova copia fallito": "Échec de la notification de nouvelle copie",
-  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Vous ne pouvez supprimer que les copies hors circulation (perdues, endommagées, en maintenance, en restauration ou en transfert). Modifiez d'abord l'état de la copie."
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "Vous ne pouvez supprimer que les copies hors circulation (perdues, endommagées, en maintenance, en restauration ou en transfert). Modifiez d'abord l'état de la copie.",
+  "Impossibile aggiungere le copie.": "Impossible d'ajouter les copies."
 }

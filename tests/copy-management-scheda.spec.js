@@ -456,4 +456,37 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     }
     expect(dbQuery(`SELECT note FROM copie WHERE id=${targetId}`)).toBe('x'.repeat(500));
   });
+
+  // M2: /api/libri/{id}/increase-copies must allocate collision-free codes and stay
+  // atomic. With an out-of-circulation copy present, copie_totali excludes it, so the
+  // old "{base}-C{copie_totali+i}" scheme reused an existing code → 1062 → 500 with an
+  // inflated counter. The allocator + transaction fix that.
+  test('23. increase-copies allocates collision-free codes with an out-of-circulation copy (M2)', async ({ page }) => {
+    await loginAsAdmin(page);
+    const base = `M2-${RUN}`;
+    const title = `CopyMgmtM2 ${RUN}`;
+    // Book whose inventory base matches its copies; C2 is "perso" so copie_totali=1
+    // while the code -C2 already exists — the exact collision precondition.
+    dbQuery(`INSERT INTO libri (titolo, numero_inventario, copie_totali, copie_disponibili, created_at, updated_at) VALUES ('${sqlEscape(title)}', '${base}', 1, 1, NOW(), NOW())`);
+    const id = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(title)}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`));
+    dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato, created_at) VALUES (${id}, '${base}-C1', 'disponibile', NOW()), (${id}, '${base}-C2', 'perso', NOW())`);
+    try {
+      await page.goto(`${BASE}/admin/books/edit/${id}`);
+      const csrf = await page.locator('#bookForm input[name="csrf_token"]').first().inputValue();
+      const resp = await page.request.post(`${BASE}/api/libri/${id}/increase-copies`, {
+        headers: { 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+        data: { copies: 1 },
+      });
+      // Old code raised an unhandled 1062 → 500; the fix returns 200.
+      expect(resp.status()).toBe(200);
+      // The new copy skipped the colliding -C2 and took the next free code.
+      expect(copieCount(id)).toBe(3);
+      expect(dbQuery(`SELECT numero_inventario FROM copie WHERE libro_id=${id} AND stato='disponibile' AND numero_inventario NOT IN ('${base}-C1') ORDER BY id DESC LIMIT 1`)).toBe(`${base}-C3`);
+      // No duplicate codes, and the counter is derived (C1 + C3 available; C2 excluded).
+      expect(Number(dbQuery(`SELECT COUNT(*) - COUNT(DISTINCT numero_inventario) FROM copie WHERE libro_id=${id}`))).toBe(0);
+      expect(copieTotali(id)).toBe(2);
+    } finally {
+      dbQuery(`DELETE FROM libri WHERE id=${id}`);
+    }
+  });
 });

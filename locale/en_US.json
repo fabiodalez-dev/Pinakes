@@ -6805,5 +6805,6 @@
   "Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.": "Used only to generate codes for new copies automatically; existing codes do not change.",
   "Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.": "Initial copies receive sequential codes such as PREFIX-C1 and PREFIX-C2.",
   "Invio notifica nuova copia fallito": "New-copy notification failed",
-  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "You can only delete out-of-circulation copies (lost, damaged, under maintenance, under restoration or in transfer). Change the copy's status first."
+  "Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.": "You can only delete out-of-circulation copies (lost, damaged, under maintenance, under restoration or in transfer). Change the copy's status first.",
+  "Impossibile aggiungere le copie.": "Unable to add the copies."
 }

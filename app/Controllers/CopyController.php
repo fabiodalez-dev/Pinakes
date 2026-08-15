@@ -9,7 +9,6 @@ use App\Controllers\ReservationManager;
 use App\Models\CopyRepository;
 use App\Services\ReservationReassignmentService;
 use App\Support\DataIntegrity;
-use App\Support\RouteTranslator;
 use App\Support\SecureLogger;
 use mysqli;
 
@@ -25,13 +24,16 @@ class CopyController
         // than the previous same-host comparison and port-agnostic.
         return \App\Support\RefererGuard::localPath(
             (string) ($_SERVER['HTTP_REFERER'] ?? ''),
-            $default ?? RouteTranslator::route('admin_books')
+            // Admin routes are fixed English literals — never routed through the
+            // i18n system (CLAUDE.md rule #4 / decision #145).
+            $default ?? '/admin/books'
         );
     }
 
     private function adminBookPath(int $bookId): string
     {
-        return str_replace('{id}', (string) $bookId, RouteTranslator::route('admin_book'));
+        // Fixed admin literal, not an i18n route (CLAUDE.md rule #4).
+        return '/admin/books/' . $bookId;
     }
 
     /**
