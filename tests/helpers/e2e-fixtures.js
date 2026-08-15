@@ -219,6 +219,7 @@ module.exports = {
   BASE_URL,
   createTempAdminUser,
   createTempBook,
+  dbQuery,
   dbExec,
   deleteTempAdminUser,
   deleteTempBook,
