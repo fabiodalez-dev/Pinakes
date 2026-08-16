@@ -37,6 +37,25 @@ circulation lifecycle made atomic and derived from the copies.
   note is sanitised and length-capped like the inventory number.
 - All new copy-management strings are translated across the five locales.
 
+### Upgrade notes
+
+- **Legacy availability is migrated automatically.** Books that predate copy
+  tracking (only the old counters, no per-copy rows) are backfilled into real
+  copies *before* availability is recalculated, so availability carries over
+  from the old counter model to the new copy-derived one without being zeroed.
+  Active loans and reservations are preserved, and copies already marked
+  lost/damaged/maintenance/under-restoration/in-transfer are left untouched.
+- A book whose only record of unavailability was the legacy counter (marked
+  unavailable with no active loan) becomes available again after the upgrade:
+  the new model derives availability from physical copies, and a physically
+  missing book with no loan leaves no machine-readable trace to preserve.
+  Re-mark those copies from the book page after upgrading.
+- If you upgraded through an intermediate version that had already zeroed a
+  legacy book's counters before this release, the backfill cannot reconstruct
+  the lost count. Restore `libri.copie_totali` from the automatic pre-upgrade
+  backup under `storage/backups/`, then re-run the availability recalculation
+  from Maintenance, or re-add the copies from the book page.
+
 ## [0.7.60]
 
 Maintenance release: UPC barcode support, a read-only availability field, and a

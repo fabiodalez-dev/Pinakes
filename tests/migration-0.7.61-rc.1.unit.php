@@ -266,11 +266,19 @@ $check(
     substr_count($migration, '+ 1 <= @zz_max_deficit') === 2,
     'both copy-backfill passes cap their sequence domain at the real maximum deficit'
 );
+// Executable SQL only (strip full-line comments the way Updater::runMigrations
+// does): the loan-to-copy pairing must avoid BOTH window functions (unsupported
+// on the declared MySQL 5.7 floor) AND temporary tables (CREATE TEMPORARY TABLE
+// inside a transaction is rejected under enforce_gtid_consistency=ON and needs
+// the CREATE TEMPORARY TABLES privilege, often denied on shared hosting). Ranks
+// come from materialised derived tables instead (paired on cr.rn = lr.rn).
+$executableSql = preg_replace('/^\s*--.*$/m', '', $migration) ?? $migration;
 $check(
-    !str_contains($migration, 'ROW_NUMBER()')
-        && str_contains($migration, 'CREATE TEMPORARY TABLE `_pinakes_0761_legacy_loans`')
-        && str_contains($migration, 'CREATE TEMPORARY TABLE `_pinakes_0761_free_copies`'),
-    'legacy loan-to-copy pairing remains deterministic without MySQL 8 window functions'
+    stripos($executableSql, 'ROW_NUMBER(') === false
+        && preg_match('/\bOVER\s*\(/i', $executableSql) !== 1
+        && stripos($executableSql, 'CREATE TEMPORARY TABLE') === false
+        && str_contains($executableSql, 'cr.rn = lr.rn'),
+    'legacy loan-to-copy pairing uses derived-table ranks — no window functions (MySQL 5.7) and no temporary tables (GTID / shared-hosting privilege)'
 );
 
 echo "\n{$passed} PASS, {$failed} FAIL\n";

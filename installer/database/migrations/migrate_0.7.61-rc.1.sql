@@ -170,71 +170,57 @@ JOIN (
 -- already carry a copia_id are untouched. If a book has fewer free copies than
 -- unbound active loans (inconsistent legacy counters), the surplus loans keep
 -- copia_id NULL exactly as before this migration.
-DROP TEMPORARY TABLE IF EXISTS `_pinakes_0761_legacy_loans`;
-CREATE TEMPORARY TABLE `_pinakes_0761_legacy_loans` (
-    prestito_id INT NOT NULL PRIMARY KEY,
-    libro_id INT NOT NULL,
-    rn INT NOT NULL,
-    KEY idx_book_rank (libro_id, rn)
-) ENGINE=InnoDB;
-
-INSERT INTO `_pinakes_0761_legacy_loans` (prestito_id, libro_id, rn)
-SELECT p1.id,
-       p1.libro_id,
-       (
-           SELECT COUNT(*)
-           FROM `prestiti` p2
-           WHERE p2.libro_id = p1.libro_id
-             AND p2.id <= p1.id
-             AND p2.attivo = 1
-             AND p2.copia_id IS NULL
-             AND p2.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
-       )
-FROM `prestiti` p1
-WHERE p1.attivo = 1
-  AND p1.copia_id IS NULL
-  AND p1.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato');
-
-DROP TEMPORARY TABLE IF EXISTS `_pinakes_0761_free_copies`;
-CREATE TEMPORARY TABLE `_pinakes_0761_free_copies` (
-    copia_id INT NOT NULL PRIMARY KEY,
-    libro_id INT NOT NULL,
-    rn INT NOT NULL,
-    KEY idx_book_rank (libro_id, rn)
-) ENGINE=InnoDB;
-
-INSERT INTO `_pinakes_0761_free_copies` (copia_id, libro_id, rn)
-SELECT c1.id,
-       c1.libro_id,
-       (
-           SELECT COUNT(*)
-           FROM `copie` c2
-           WHERE c2.libro_id = c1.libro_id
-             AND c2.id <= c1.id
-             AND c2.stato = 'disponibile'
-             AND NOT EXISTS (
-                 SELECT 1 FROM `prestiti` p3
-                 WHERE p3.copia_id = c2.id
-                   AND (p3.attivo = 1 OR (p3.attivo = 0 AND p3.stato = 'pendente'))
-             )
-       )
-FROM `copie` c1
-JOIN (SELECT DISTINCT libro_id FROM `_pinakes_0761_legacy_loans`) needed
-  ON needed.libro_id = c1.libro_id
-WHERE c1.stato = 'disponibile'
-  AND NOT EXISTS (
-      SELECT 1 FROM `prestiti` p4
-      WHERE p4.copia_id = c1.id
-        AND (p4.attivo = 1 OR (p4.attivo = 0 AND p4.stato = 'pendente'))
-  );
-
+-- Ranks come from materialised derived tables (correlated COUNTs), NOT
+-- temporary tables: CREATE TEMPORARY TABLE inside a transaction is rejected
+-- when enforce_gtid_consistency=ON (error 1787, common on managed/replicated
+-- MySQL) and needs the CREATE TEMPORARY TABLES privilege (often denied on
+-- shared hosting, error 1044) — neither is in the updater's ignorable-error
+-- list, so it would abort the whole upgrade. Derived tables need neither
+-- privilege nor GTID exception, and avoid window functions, so this stays
+-- MySQL 5.7 / MariaDB 10.3 compatible. The derived tables carry correlated
+-- subqueries, so MySQL materialises them and the "target table in FROM"
+-- restriction on the UPDATE target does not apply.
 UPDATE `prestiti` p
-JOIN `_pinakes_0761_legacy_loans` lr ON lr.prestito_id = p.id
-JOIN `_pinakes_0761_free_copies` cr
-  ON cr.libro_id = lr.libro_id AND cr.rn = lr.rn
+JOIN (
+    SELECT p1.id AS prestito_id,
+           p1.libro_id AS libro_id,
+           (
+               SELECT COUNT(*)
+               FROM `prestiti` p2
+               WHERE p2.libro_id = p1.libro_id
+                 AND p2.id <= p1.id
+                 AND p2.attivo = 1
+                 AND p2.copia_id IS NULL
+                 AND p2.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
+           ) AS rn
+    FROM `prestiti` p1
+    WHERE p1.attivo = 1
+      AND p1.copia_id IS NULL
+      AND p1.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
+) lr ON lr.prestito_id = p.id
+JOIN (
+    SELECT c1.id AS copia_id,
+           c1.libro_id AS libro_id,
+           (
+               SELECT COUNT(*)
+               FROM `copie` c2
+               WHERE c2.libro_id = c1.libro_id
+                 AND c2.id <= c1.id
+                 AND c2.stato = 'disponibile'
+                 AND NOT EXISTS (
+                     SELECT 1 FROM `prestiti` p3
+                     WHERE p3.copia_id = c2.id
+                       AND (p3.attivo = 1 OR (p3.attivo = 0 AND p3.stato = 'pendente'))
+                 )
+           ) AS rn
+    FROM `copie` c1
+    WHERE c1.stato = 'disponibile'
+      AND NOT EXISTS (
+          SELECT 1 FROM `prestiti` p4
+          WHERE p4.copia_id = c1.id
+            AND (p4.attivo = 1 OR (p4.attivo = 0 AND p4.stato = 'pendente'))
+      )
+) cr ON cr.libro_id = lr.libro_id AND cr.rn = lr.rn
 SET p.copia_id = cr.copia_id;
-
-DROP TEMPORARY TABLE IF EXISTS `_pinakes_0761_free_copies`;
-DROP TEMPORARY TABLE IF EXISTS `_pinakes_0761_legacy_loans`;
 
 COMMIT;

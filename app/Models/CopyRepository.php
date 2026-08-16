@@ -514,7 +514,11 @@ class CopyRepository
 
     private function acquireInventoryAllocatorLock(string $lockName): void
     {
-        $stmt = $this->db->prepare('SELECT GET_LOCK(?, 10)');
+        // GET_LOCK() is server-wide, not per-database — scope the name to the
+        // current schema (computed server-side via CONCAT + DATABASE()) so two
+        // Pinakes installs sharing one MySQL server do not serialise each other's
+        // copy allocation. Matches ContributorBackfill / book-club Repo.
+        $stmt = $this->db->prepare("SELECT GET_LOCK(CONCAT(?, ':', DATABASE()), 10)");
         if ($stmt === false) {
             throw new \RuntimeException('Unable to prepare inventory allocator lock: ' . $this->db->error);
         }
@@ -535,7 +539,7 @@ class CopyRepository
     private function releaseInventoryAllocatorLock(string $lockName): void
     {
         try {
-            $stmt = $this->db->prepare('SELECT RELEASE_LOCK(?)');
+            $stmt = $this->db->prepare("SELECT RELEASE_LOCK(CONCAT(?, ':', DATABASE()))");
             if ($stmt === false) {
                 return;
             }

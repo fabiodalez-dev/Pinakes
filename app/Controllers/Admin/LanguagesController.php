@@ -382,8 +382,18 @@ class LanguagesController
             $previous = $languageModel->getByCode($code);
             $wasInactive = ($previous !== null && (int)($previous['is_active'] ?? 0) === 0);
 
+            // Capture the outgoing default BEFORE the flip so the propagation can
+            // move only the accounts still on it (preserving per-user choices).
+            $previousDefault = null;
+            $prevDefaultRes = $db->query("SELECT code FROM `languages` WHERE is_default = 1 LIMIT 1");
+            if ($prevDefaultRes instanceof \mysqli_result) {
+                $prevDefaultRow = $prevDefaultRes->fetch_assoc();
+                $previousDefault = is_array($prevDefaultRow) ? ($prevDefaultRow['code'] ?? null) : null;
+                $prevDefaultRes->free();
+            }
+
             $languageModel->setDefault($code);
-            $this->synchronizeGlobalLocale($db, $code);
+            $this->synchronizeGlobalLocale($db, $code, $previousDefault);
             $_SESSION['flash_success'] = __("Lingua predefinita impostata con successo");
 
             if ($wasInactive) {
@@ -681,7 +691,7 @@ class LanguagesController
         ];
     }
 
-    private function synchronizeGlobalLocale(\mysqli $db, string $code): void
+    private function synchronizeGlobalLocale(\mysqli $db, string $code, ?string $previousDefault = null): void
     {
         $normalized = I18n::normalizeLocaleCode($code);
         if (!I18n::isValidLocaleCode($normalized)) {
@@ -706,16 +716,24 @@ class LanguagesController
         I18n::setLocale($normalized);
         $_SESSION['locale'] = $normalized;
 
-        // Propagate the new default to every user account so that
-        // AuthController and RememberMeMiddleware pick it up on the
-        // next login/token refresh.
-        try {
-            $stmt = $db->prepare("UPDATE utenti SET locale = ?");
-            $stmt->bind_param('s', $normalized);
-            $stmt->execute();
-            $stmt->close();
-        } catch (\Throwable $e) {
-            SecureLogger::error('LanguagesController: Unable to propagate locale to users: ' . $e->getMessage());
+        // Move ONLY accounts still sitting on the previous default (i.e. users
+        // who never customised their language) to the new default. A deliberate
+        // per-user choice made via the language switcher/profile (#238, Option B)
+        // must be preserved — the old unscoped `UPDATE utenti SET locale = ?`
+        // wiped every account. When the previous default is unknown, touch
+        // nothing rather than overwriting everyone.
+        $previousNormalized = ($previousDefault !== null && $previousDefault !== '')
+            ? I18n::normalizeLocaleCode($previousDefault)
+            : null;
+        if ($previousNormalized !== null && $previousNormalized !== $normalized) {
+            try {
+                $stmt = $db->prepare("UPDATE utenti SET locale = ? WHERE locale = ?");
+                $stmt->bind_param('ss', $normalized, $previousNormalized);
+                $stmt->execute();
+                $stmt->close();
+            } catch (\Throwable $e) {
+                SecureLogger::error('LanguagesController: Unable to move previous-default users to the new locale: ' . $e->getMessage());
+            }
         }
     }
 
