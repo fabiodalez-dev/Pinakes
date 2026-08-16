@@ -2,9 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Regression guard for discussion #238: user rows must inherit the language
- * selected for the installation, never the historical it_IT schema default or
- * a client-controlled form value.
+ * Regression guard for discussion #238: new users inherit the installation
+ * language, while each user can subsequently keep a validated preference.
  *
  * Run: php tests/installation-locale-users-238.unit.php
  */
@@ -14,6 +13,11 @@ $registration = (string) file_get_contents($root . '/app/Controllers/Registratio
 $users = (string) file_get_contents($root . '/app/Controllers/UsersController.php');
 $mobileRegistration = (string) file_get_contents($root . '/storage/plugins/mobile-api/src/Controllers/AuthController.php');
 $editView = (string) file_get_contents($root . '/app/Views/utenti/modifica_utente.php');
+$createView = (string) file_get_contents($root . '/app/Views/utenti/crea_utente.php');
+$auth = (string) file_get_contents($root . '/app/Controllers/AuthController.php');
+$rememberMe = (string) file_get_contents($root . '/app/Middleware/RememberMeMiddleware.php');
+$languageController = (string) file_get_contents($root . '/app/Controllers/LanguageController.php');
+$profileController = (string) file_get_contents($root . '/app/Controllers/ProfileController.php');
 
 $passed = 0;
 $failed = 0;
@@ -38,12 +42,22 @@ $check(
     'public registration does not hard-code Italian as the normal path'
 );
 $check(
-    substr_count($users, '$locale = $this->installationLocale();') === 2,
-    'admin create and update both use the installation locale'
+    str_contains($users, "\$locale = \$this->localeFromInput(\$data['locale'] ?? null, \$this->installationLocale());"),
+    'admin create accepts an active per-user locale with installation fallback'
 );
 $check(
-    !str_contains($users, "\$data['locale']"),
-    'admin endpoints ignore client-controlled locale values'
+    str_contains($users, "\$this->localeFromInput(\$data['locale'] ?? null, (string) (\$original['locale'] ?? ''))"),
+    'admin update preserves the current user locale for omitted or invalid input'
+);
+$check(
+    str_contains($users, 'isset($availableLocales[$requested])')
+        && str_contains($users, 'isset($availableLocales[$current])'),
+    'admin locale input and fallback are restricted to active languages'
+);
+$check(
+    str_contains($users, "\$_SESSION['locale'] = \$locale;")
+        && str_contains($users, "\$_SESSION['user']['locale'] = \$locale;"),
+    'admin self-edit applies the selected locale immediately'
 );
 $check(
     str_contains($mobileRegistration, 'I18n::getInstallationLocale()')
@@ -51,15 +65,34 @@ $check(
     'Android/API registration explicitly persists the installation locale'
 );
 $check(
-    str_contains($editView, 'id="installation_locale"')
-        && str_contains($editView, 'readonly')
-        && !str_contains($editView, 'name="locale"'),
-    'admin edit exposes installation language as read-only information'
+    str_contains($editView, '<select id="locale" name="locale"')
+        && str_contains($editView, '$code === $selectedLocale')
+        && !str_contains($editView, 'id="installation_locale"'),
+    'admin edit exposes an editable per-user locale selector'
+);
+$check(
+    str_contains($createView, '<select id="locale" name="locale"')
+        && str_contains($createView, '$code === $selectedLocale'),
+    'admin create can choose the new user initial locale'
+);
+$check(
+    str_contains($auth, 'I18n::resolveUserLocale($row[\'locale\'] ?? null)')
+        && str_contains($rememberMe, 'I18n::resolveUserLocale($row[\'locale\'] ?? null)'),
+    'password and remember-me login both restore the per-user locale'
+);
+$check(
+    str_contains($languageController, "\$_SESSION['user']['locale'] = \$locale;"),
+    'runtime language switch keeps the authenticated session coherent'
+);
+$check(
+    str_contains($profileController, "elseif (!isset(\$availableLocales[\$locale]))")
+        && str_contains($profileController, '$localeProvided = false;'),
+    'profile update ignores unknown locale values instead of resetting the preference'
 );
 
 $keys = [
-    "Lingua dell'applicazione",
-    "È una configurazione globale: viene scelta durante l'installazione e può essere modificata dall'amministratore.",
+    "Lingua dell'interfaccia",
+    "L'utente potrà cambiarla in qualsiasi momento.",
 ];
 foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
     $catalogue = json_decode(
@@ -72,7 +105,7 @@ foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
         isset($catalogue[$keys[0]], $catalogue[$keys[1]])
             && trim((string) $catalogue[$keys[0]]) !== ''
             && trim((string) $catalogue[$keys[1]]) !== '',
-        "{$locale} contains the installation-language labels"
+        "{$locale} contains the per-user interface-language labels"
     );
 }
 

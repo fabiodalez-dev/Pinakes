@@ -51,6 +51,8 @@ class UsersController
         if ($guard = $this->guardAdminStaff($response)) {
             return $guard;
         }
+        $availableLocales = \App\Support\I18n::getAvailableLocales();
+        $selectedLocale = $this->installationLocale();
         ob_start();
         require __DIR__ . '/../Views/utenti/crea_utente.php';
         $content = ob_get_clean();
@@ -148,8 +150,9 @@ class UsersController
 
         $note = trim(strip_tags((string) ($data['note_utente'] ?? '')));
         $note = $note !== '' ? $note : null;
-        // Language is installation-wide: never trust a per-user form value.
-        $locale = $this->installationLocale();
+        // New accounts start from the installation language unless the admin
+        // explicitly selects another active interface language.
+        $locale = $this->localeFromInput($data['locale'] ?? null, $this->installationLocale());
 
         $codiceTesseraInput = trim((string) ($data['codice_tessera'] ?? ''));
         $dataScadenzaInput = trim((string) ($data['data_scadenza_tessera'] ?? ''));
@@ -278,9 +281,11 @@ class UsersController
         $utente = $result->fetch_assoc();
         $stmt->close();
 
-        $installationLocale = $this->installationLocale();
-        $installationLocaleName = \App\Support\I18n::getAvailableLocales()[$installationLocale]
-            ?? $installationLocale;
+        $availableLocales = \App\Support\I18n::getAvailableLocales();
+        $selectedLocale = $this->localeFromInput(
+            $utente['locale'] ?? null,
+            $this->installationLocale()
+        );
 
         // Custom registration field values (issue #255) — shown read-only so the
         // admin can see community handles (e.g. Telegram) alongside the account.
@@ -420,9 +425,9 @@ class UsersController
 
         $note = trim(strip_tags((string) ($data['note_utente'] ?? '')));
         $note = $note !== '' ? $note : null;
-        // Saving an existing account also repairs legacy rows that inherited
-        // the old it_IT column default on a non-Italian installation.
-        $locale = $this->installationLocale();
+        // Locale is a per-user preference. Invalid or omitted input preserves
+        // the user's current value instead of resetting it to the site default.
+        $locale = $this->localeFromInput($data['locale'] ?? null, (string) ($original['locale'] ?? ''));
 
         $telefono = $telefono !== '' ? $telefono : null;
 
@@ -723,6 +728,22 @@ class UsersController
         );
 
         return \App\Support\I18n::isValidLocaleCode($locale) ? $locale : 'it_IT';
+    }
+
+    private function localeFromInput(mixed $input, string $fallback): string
+    {
+        $availableLocales = \App\Support\I18n::getAvailableLocales();
+        $requested = \App\Support\I18n::normalizeLocaleCode(is_string($input) ? trim($input) : '');
+        if ($requested !== '' && isset($availableLocales[$requested])) {
+            return $requested;
+        }
+
+        $current = \App\Support\I18n::normalizeLocaleCode($fallback);
+        if ($current !== '' && isset($availableLocales[$current])) {
+            return $current;
+        }
+
+        return $this->installationLocale();
     }
 
     private function generateTessera(mysqli $db): string

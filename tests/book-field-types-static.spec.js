@@ -26,10 +26,11 @@ test.describe('book field-type consistency', () => {
 
   test('2) BookRepository derives availability on create and never writes it on update', () => {
     const repository = read('app/Models/BookRepository.php');
-    const updateBasic = repository.slice(
-      repository.indexOf('public function updateBasic'),
-      repository.indexOf('public function updateOptionals')
-    );
+    const updateBasicStart = repository.indexOf('public function updateBasic');
+    const updateOptionalsStart = repository.indexOf('public function updateOptionals');
+    expect(updateBasicStart).toBeGreaterThanOrEqual(0);
+    expect(updateOptionalsStart).toBeGreaterThan(updateBasicStart);
+    const updateBasic = repository.slice(updateBasicStart, updateOptionalsStart);
 
     expect(repository).toContain('private function sanitizeAcquisitionType(mixed $value): string');
     expect(repository).toContain('private function normalizeEnumValue(mixed $value, string $column, string $default): string');

@@ -40,6 +40,7 @@ class LanguageController
                 $stmt->bind_param('si', $locale, $userId);
                 $stmt->execute();
                 $stmt->close();
+                $_SESSION['user']['locale'] = $locale;
             }
         }
 

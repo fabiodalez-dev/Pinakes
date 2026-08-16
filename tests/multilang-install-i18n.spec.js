@@ -219,6 +219,8 @@ test.describe.serial(`multilang install — ${LOCALE}`, () => {
     const fresh = await page.context().browser().newContext();
     const registrationPage = await fresh.newPage();
     const email = `locale-${LOCALE.toLowerCase()}@example.test`;
+    const safeEmail = email.replace(/[^A-Za-z0-9._@+\-]/g, '');
+    expect(safeEmail).toBe(email);
     try {
       await registrationPage.goto(`${BASE}/${REGISTER_SLUGS[LOCALE]}`);
       await registrationPage.fill('input[name="nome"]', 'Locale');
@@ -232,13 +234,14 @@ test.describe.serial(`multilang install — ${LOCALE}`, () => {
       await registrationPage.locator('button[type="submit"]').click();
       await registrationPage.waitForURL(url => !url.pathname.endsWith(`/${REGISTER_SLUGS[LOCALE]}`), { timeout: 15000 });
 
-      const safeEmail = email.replace(/[^A-Za-z0-9._@+\-]/g, '');
-      expect(safeEmail).toBe(email);
       const locale = dbQuery(`SELECT locale FROM utenti WHERE email = '${safeEmail}' LIMIT 1`);
       expect(locale).toBe(LOCALE);
     } finally {
-      dbQuery(`DELETE FROM utenti WHERE email = '${email}'`);
-      await fresh.close();
+      try {
+        dbQuery(`DELETE FROM utenti WHERE email = '${safeEmail}'`);
+      } finally {
+        await fresh.close();
+      }
     }
   });
 

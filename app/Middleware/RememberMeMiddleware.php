@@ -104,15 +104,13 @@ class RememberMeMiddleware implements MiddlewareInterface
         // the misleading "session expired" screen even though they are logged in.
         \App\Support\Csrf::ensureToken();
 
-        // Load and apply user's preferred locale (only persist if setLocale succeeds)
-        if (!empty($row['locale'])) {
-            $locale = (string) $row['locale'];
-            // Ensure language cache is loaded (middleware may run before bootstrap i18n)
-            \App\Support\I18n::loadFromDatabase($this->db);
-            if (\App\Support\I18n::setLocale($locale)) {
-                $_SESSION['locale'] = $locale;
-            }
-        }
+        // Ensure language cache is loaded (middleware may run before bootstrap i18n),
+        // then apply the per-user preference or the installation default.
+        \App\Support\I18n::loadFromDatabase($this->db);
+        $locale = \App\Support\I18n::resolveUserLocale($row['locale'] ?? null);
+        \App\Support\I18n::setLocale($locale);
+        $_SESSION['locale'] = $locale;
+        $_SESSION['user']['locale'] = $locale;
 
         // Log auto-login for security auditing (no PII logged per GDPR)
         \App\Support\Log::security('login.remember_me', [

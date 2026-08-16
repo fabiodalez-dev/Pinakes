@@ -281,8 +281,12 @@ test.describe.serial('Email Notifications E2E', () => {
       originalSettings.from_name = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='from_name' LIMIT 1");
     } catch { originalSettings.from_name = ''; }
     try {
+      originalSettings.contact_notification_exists = dbQuery("SELECT COUNT(*) FROM system_settings WHERE category='contacts' AND setting_key='notification_email'") === '1';
       originalSettings.contact_notification = dbQuery("SELECT setting_value FROM system_settings WHERE category='contacts' AND setting_key='notification_email' LIMIT 1");
-    } catch { originalSettings.contact_notification = ''; }
+    } catch {
+      originalSettings.contact_notification_exists = false;
+      originalSettings.contact_notification = '';
+    }
   });
 
   test.afterAll(async () => {
@@ -305,7 +309,11 @@ test.describe.serial('Email Notifications E2E', () => {
       );
       formData.notification_email = notificationEmail;
 
-      const result = await page.request.post(`${BASE}/admin/settings/contacts`, { form: formData });
+      const result = await page.request.post(`${BASE}/admin/settings/contacts`, {
+        form: formData,
+        maxRedirects: 0,
+      });
+      expect(result.status()).toBeGreaterThanOrEqual(300);
       expect(result.status()).toBeLessThan(400);
       expect(result.headers().location || '').not.toContain('error=');
     });
@@ -1037,7 +1045,7 @@ test.describe.serial('Email Notifications E2E', () => {
       restore('email', 'from_email', originalSettings.from_email);
       restore('email', 'from_name', originalSettings.from_name);
 
-      if (originalSettings.contact_notification !== undefined) {
+      if (originalSettings.contact_notification_exists) {
         restore('contacts', 'notification_email', originalSettings.contact_notification);
       }
       clearConfigCache();
@@ -1045,9 +1053,14 @@ test.describe.serial('Email Notifications E2E', () => {
       // Invalidate the web process' APCu copy after the direct SQL restore.
       // This also prevents the following E2E shard from inheriting Mailpit SMTP.
       try {
-        await persistContactNotificationThroughApp(originalSettings.contact_notification || '');
+        await persistContactNotificationThroughApp(originalSettings.contact_notification);
       } catch (err) {
         console.error('[Cleanup] Could not invalidate web settings cache:', err.message);
+      } finally {
+        if (!originalSettings.contact_notification_exists) {
+          dbQuery("DELETE FROM system_settings WHERE category='contacts' AND setting_key='notification_email'");
+          clearConfigCache();
+        }
       }
 
       // Clear Mailpit
