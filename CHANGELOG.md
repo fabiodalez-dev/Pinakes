@@ -2,11 +2,6 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [0.7.61-rc.3]
-
-Release candidate for 0.7.61 — see the [0.7.61] notes below. Cut for
-verification on the reference install before the stable release.
-
 ## [0.7.61]
 
 Physical-copy management from the book summary, with the whole holding and
