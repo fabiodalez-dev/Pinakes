@@ -256,7 +256,7 @@ class CopyRepository
         // GET_LOCK() is server-wide and connection-scoped. It does not start,
         // commit or roll back the caller's transaction and is released after the
         // INSERT and id lookup, never held for hooks or external services.
-        $lockName = 'pinakes-copy-inventory-allocation';
+        $lockName = $this->inventoryAllocatorLockName();
         $this->acquireInventoryAllocatorLock($lockName);
         try {
             $inserted = $this->insertAllocatedCopiesWhileLocked(
@@ -360,7 +360,7 @@ class CopyRepository
     public function createWithAllocatedInventoryCode(int $bookId, string $base, string $stato = 'disponibile', ?string $note = null): int
     {
         $base = mb_substr($base, 0, 90);
-        $lockName = 'pinakes-copy-inventory-allocation';
+        $lockName = $this->inventoryAllocatorLockName();
 
         $this->acquireInventoryAllocatorLock($lockName);
         try {
@@ -512,13 +512,35 @@ class CopyRepository
         return $ids;
     }
 
+    /**
+     * Advisory-lock name for inventory-code allocation, scoped to the current
+     * schema so two Pinakes installs on one MySQL server don't serialise each
+     * other's copy allocation. GET_LOCK() is server-wide and its name is capped
+     * at 64 chars (since MySQL 5.7.5), and a database name can itself be up to
+     * 64 chars — so the schema is folded through a PHP md5 (fixed 32 hex):
+     * 'pinakes-copy:' + 32 = 45 chars, always bounded, and independent of any
+     * server-side hash function.
+     */
+    private function inventoryAllocatorLockName(): string
+    {
+        $dbName = '';
+        $res = $this->db->query('SELECT DATABASE()');
+        if ($res instanceof \mysqli_result) {
+            $row = $res->fetch_row();
+            $dbName = (string) ($row[0] ?? '');
+            $res->free();
+        }
+        return 'pinakes-copy:' . md5($dbName);
+    }
+
     private function acquireInventoryAllocatorLock(string $lockName): void
     {
-        // GET_LOCK() is server-wide, not per-database — scope the name to the
-        // current schema (computed server-side via CONCAT + DATABASE()) so two
-        // Pinakes installs sharing one MySQL server do not serialise each other's
-        // copy allocation. Matches ContributorBackfill / book-club Repo.
-        $stmt = $this->db->prepare("SELECT GET_LOCK(CONCAT(?, ':', DATABASE()), 10)");
+        // $lockName is already schema-scoped and length-bounded in PHP
+        // (see inventoryAllocatorLockName) — bind it verbatim. Hashing in PHP,
+        // not via a SQL MD5(DATABASE()), keeps this working on servers whose
+        // MySQL build does not expose MD5() and stays under MySQL's 64-char
+        // GET_LOCK limit regardless of the database name length.
+        $stmt = $this->db->prepare('SELECT GET_LOCK(?, 10)');
         if ($stmt === false) {
             throw new \RuntimeException('Unable to prepare inventory allocator lock: ' . $this->db->error);
         }
@@ -539,7 +561,7 @@ class CopyRepository
     private function releaseInventoryAllocatorLock(string $lockName): void
     {
         try {
-            $stmt = $this->db->prepare("SELECT RELEASE_LOCK(CONCAT(?, ':', DATABASE()))");
+            $stmt = $this->db->prepare('SELECT RELEASE_LOCK(?)');
             if ($stmt === false) {
                 return;
             }

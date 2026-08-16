@@ -3389,6 +3389,13 @@ test.describe.serial('Phase 21: Language Switch', () => {
   });
 
   test('21.2 Book form LibraryThing section renders in French', async () => {
+    // The installation default is a GLOBAL setting and no longer changes the
+    // admin's own UI language (#238, Option B). To render French the admin
+    // switches THEIR OWN language via the switcher (persists utenti.locale +
+    // session) — set-default must NOT do it for them.
+    await page.goto(`${BASE}/language/fr_FR`);
+    await page.waitForLoadState('domcontentloaded');
+
     // Navigate to the book create form — has the same LibraryThing section as edit,
     // and does not require an existing book ID.
     await page.goto(`${BASE}/admin/books/create`);
@@ -3422,7 +3429,12 @@ test.describe.serial('Phase 21: Language Switch', () => {
 
     let dbCode = dbQuery("SELECT code FROM languages WHERE is_default = 1 LIMIT 1");
     expect(dbCode).toBe('en_US');
-    // The admin languages list should now render in English
+    // set-default no longer touches the admin's own UI language — switch it via
+    // the switcher, then the admin list renders in English.
+    await page.goto(`${BASE}/language/en_US`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.goto(`${BASE}/admin/languages`);
+    await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('body')).toContainText('Languages');
 
     // ── German ───────────────────────────────────────────────────────────
@@ -3430,7 +3442,9 @@ test.describe.serial('Phase 21: Language Switch', () => {
 
     dbCode = dbQuery("SELECT code FROM languages WHERE is_default = 1 LIMIT 1");
     expect(dbCode).toBe('de_DE');
-    // Page should load without errors regardless of locale
+    // Switch the admin's own UI to German too; the page should render without errors.
+    await page.goto(`${BASE}/language/de_DE`);
+    await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('body')).not.toBeEmpty();
   });
 
@@ -3442,6 +3456,12 @@ test.describe.serial('Phase 21: Language Switch', () => {
 
     const dbCode = dbQuery("SELECT code FROM languages WHERE is_default = 1 LIMIT 1");
     expect(dbCode).toBe('it_IT');
+
+    // 21.2/21.3 switched the admin's OWN language via the switcher (persisting
+    // utenti.locale); restore it to Italian so later phases render in the
+    // install locale.
+    await page.goto(`${BASE}/language/it_IT`);
+    await page.waitForLoadState('domcontentloaded');
   });
 });
 
