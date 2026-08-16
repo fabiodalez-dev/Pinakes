@@ -215,6 +215,18 @@ JOIN (
            ) AS rn
     FROM `copie` c1
     WHERE c1.stato = 'disponibile'
+      -- Only rank copies of books that actually have an unbound active legacy
+      -- loan to pair. Books absent from `lr` can never satisfy
+      -- cr.libro_id = lr.libro_id, so this changes no pairing while avoiding the
+      -- whole-catalogue correlated scan on large holdings. The filter lives in
+      -- the outer WHERE, NOT in the rank COUNT, to preserve rank density.
+      AND EXISTS (
+          SELECT 1 FROM `prestiti` p5
+          WHERE p5.libro_id = c1.libro_id
+            AND p5.attivo = 1
+            AND p5.copia_id IS NULL
+            AND p5.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
+      )
       AND NOT EXISTS (
           SELECT 1 FROM `prestiti` p4
           WHERE p4.copia_id = c1.id
