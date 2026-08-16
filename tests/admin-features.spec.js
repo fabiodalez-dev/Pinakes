@@ -543,9 +543,11 @@ test.describe.serial('User Self-Registration', () => {
     await userPage.locator('button[type="submit"]').click();
     await userPage.waitForURL(/successo|registrat/, { timeout: 15000 });
 
-    // DB verify: user created with stato=sospeso
-    const stato = dbQuery(`SELECT stato FROM utenti WHERE email='${testEmail}'`);
+    // DB verify: user created suspended and inherits the installation-wide locale.
+    const [stato, locale] = dbQuery(`SELECT stato, locale FROM utenti WHERE email='${testEmail}'`).split('\t');
     expect(stato).toBe('sospeso');
+    const installationLocale = dbQuery('SELECT code FROM languages WHERE is_default = 1 LIMIT 1');
+    expect(locale).toBe(installationLocale);
 
     const emailVerified = dbQuery(`SELECT email_verificata FROM utenti WHERE email='${testEmail}'`);
     expect(emailVerified).toBe('0');

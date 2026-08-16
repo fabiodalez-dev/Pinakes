@@ -148,6 +148,8 @@ class UsersController
 
         $note = trim(strip_tags((string) ($data['note_utente'] ?? '')));
         $note = $note !== '' ? $note : null;
+        // Language is installation-wide: never trust a per-user form value.
+        $locale = $this->installationLocale();
 
         $codiceTesseraInput = trim((string) ($data['codice_tessera'] ?? ''));
         $dataScadenzaInput = trim((string) ($data['data_scadenza_tessera'] ?? ''));
@@ -184,7 +186,7 @@ class UsersController
         $telefono = $telefono !== '' ? $telefono : null;
         $emailVerificata = $isAdmin ? 1 : 1; // l'admin crea utenti già verificati
 
-        $types = str_repeat('s', 14) . 'i' . str_repeat('s', 2);
+        $types = str_repeat('s', 15) . 'i' . str_repeat('s', 2);
 
         // Exception mode: a failed INSERT throws. prepare()/bind_param() can throw too under
         // MYSQLI_REPORT_STRICT, so they're inside the try — map a UNIQUE violation (1062) to
@@ -194,9 +196,9 @@ class UsersController
         try {
             $stmt = $db->prepare("INSERT INTO utenti (
                 nome, cognome, email, telefono, password, indirizzo, cod_fiscale, data_nascita, sesso,
-                codice_tessera, data_scadenza_tessera, stato, tipo_utente, note_utente,
+                codice_tessera, data_scadenza_tessera, stato, tipo_utente, note_utente, locale,
                 email_verificata, token_reset_password, data_token_reset
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
             $stmt->bind_param(
                 $types,
                 $nome,
@@ -213,6 +215,7 @@ class UsersController
                 $stato,
                 $role,
                 $note,
+                $locale,
                 $emailVerificata,
                 $tokenReset,
                 $dataTokenReset
@@ -274,6 +277,10 @@ class UsersController
         }
         $utente = $result->fetch_assoc();
         $stmt->close();
+
+        $installationLocale = $this->installationLocale();
+        $installationLocaleName = \App\Support\I18n::getAvailableLocales()[$installationLocale]
+            ?? $installationLocale;
 
         // Custom registration field values (issue #255) — shown read-only so the
         // admin can see community handles (e.g. Telegram) alongside the account.
@@ -413,6 +420,9 @@ class UsersController
 
         $note = trim(strip_tags((string) ($data['note_utente'] ?? '')));
         $note = $note !== '' ? $note : null;
+        // Saving an existing account also repairs legacy rows that inherited
+        // the old it_IT column default on a non-Italian installation.
+        $locale = $this->installationLocale();
 
         $telefono = $telefono !== '' ? $telefono : null;
 
@@ -451,7 +461,7 @@ class UsersController
             $dataTokenReset = null;
         }
 
-        $types = str_repeat('s', 14) . 'i' . str_repeat('s', 2) . 'i';
+        $types = str_repeat('s', 15) . 'i' . str_repeat('s', 2) . 'i';
 
         // Exception mode: a failed UPDATE throws. prepare()/bind_param() can throw too under
         // MYSQLI_REPORT_STRICT, so they're inside the try — map a UNIQUE violation (1062) to the
@@ -461,7 +471,7 @@ class UsersController
             $stmt = $db->prepare("UPDATE utenti SET
                 nome = ?, cognome = ?, email = ?, telefono = ?, password = ?, indirizzo = ?, cod_fiscale = ?,
                 data_nascita = ?, sesso = ?, codice_tessera = ?, data_scadenza_tessera = ?,
-                stato = ?, tipo_utente = ?, note_utente = ?, email_verificata = ?,
+                stato = ?, tipo_utente = ?, note_utente = ?, locale = ?, email_verificata = ?,
                 token_reset_password = ?, data_token_reset = ?
                 WHERE id = ?");
             $stmt->bind_param(
@@ -480,6 +490,7 @@ class UsersController
                 $stato,
                 $role,
                 $note,
+                $locale,
                 $emailVerificata,
                 $tokenReset,
                 $dataTokenReset,
@@ -498,6 +509,14 @@ class UsersController
             return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=' . $code))->withStatus(302);
         }
         $stmt->close();
+
+        // Keep the current browser session coherent when an administrator edits
+        // their own account; other users pick up the persisted locale at login.
+        if ($currentUserId === $id) {
+            $_SESSION['locale'] = $locale;
+            $_SESSION['user']['locale'] = $locale;
+            \App\Support\I18n::setLocale($locale);
+        }
 
         // Hardening: when an admin sets a non-active state, invalidate any
         // pending email-verification token so a stale verification link cannot
@@ -695,6 +714,15 @@ class UsersController
         } while ($exists);
 
         return $code;
+    }
+
+    private function installationLocale(): string
+    {
+        $locale = \App\Support\I18n::normalizeLocaleCode(
+            \App\Support\I18n::getInstallationLocale()
+        );
+
+        return \App\Support\I18n::isValidLocaleCode($locale) ? $locale : 'it_IT';
     }
 
     private function generateTessera(mysqli $db): string

@@ -2719,6 +2719,8 @@
   "Limite pagina: 500.": "Sidelimite: 500.",
   "Limiti: massimo 50 libri con scraping attivo, timeout 5 minuti": "Grænser: maks. 50 bøger med aktiv scraping, timeout 5 minutter",
   "Lingua": "Sprog",
+  "Lingua dell'applicazione": "Applikationssprog",
+  "È una configurazione globale: viene scelta durante l'installazione e può essere modificata dall'amministratore.": "Dette er en global indstilling: den vælges under installationen og kan ændres af en administrator.",
   "Lingua App": "App-sprog",
   "Lingua Attiva": "Aktivt sprog",
   "Lingua Predefinita": "Standardsprog",
@@ -6806,5 +6808,16 @@
   "Impossibile eliminare la copia.": "Kunne ikke slette eksemplaret.",
   "Per prenotare una copia, utilizza il sistema Prestiti. Non è possibile impostare manualmente lo stato \"Prenotato\".": "Brug udlånssystemet for at reservere et eksemplar. Status \"Reserveret\" kan ikke angives manuelt.",
   "Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.": "Brug udlånssystemet for at annullere eller flytte en reservation.",
-  "Prenotato (gestisci dal sistema Prestiti)": "Reserveret (administrér fra udlånssystemet)"
+  "Prenotato (gestisci dal sistema Prestiti)": "Reserveret (administrér fra udlånssystemet)",
+  "Aggiungi copie": "Tilføj eksemplarer",
+  "Aggiungi copie fisiche": "Tilføj fysiske eksemplarer",
+  "Quantità": "Antal",
+  "Puoi aggiungere fino a 100 copie in un'unica operazione atomica.": "Du kan tilføje op til 100 eksemplarer i én atomisk handling.",
+  "Disponibile solo per una copia. Se lo lasci vuoto, il numero viene assegnato automaticamente.": "Kun tilgængeligt, når ét eksemplar tilføjes. Lad feltet stå tomt for automatisk nummerering.",
+  "I numeri di inventario saranno generati automaticamente dal prefisso del libro, uno diverso per ogni copia.": "Inventarnumrene genereres automatisk ud fra bogens præfiks med et forskelligt nummer til hvert eksemplar.",
+  "La nota verrà applicata a tutte le copie del gruppo.": "Noten anvendes på alle eksemplarer i gruppen.",
+  "Aggiungi %s copie": "Tilføj %s eksemplarer",
+  "Per aggiungere più copie, lascia vuoto il numero di inventario: verrà assegnato automaticamente a ogni copia.": "For at tilføje flere eksemplarer skal inventarnummeret stå tomt: det tildeles automatisk til hvert eksemplar.",
+  "%d copie aggiunte con successo.": "%d eksemplarer blev tilføjet.",
+  "Usa \"Aggiungi copie\" per crearne una o più e impostarne lo stato.": "Brug \"Tilføj eksemplarer\" til at oprette et eller flere eksemplarer og angive deres status."
 }

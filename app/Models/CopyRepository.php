@@ -207,6 +207,33 @@ class CopyRepository
     }
 
     /**
+     * Create a batch whose copies all share the same administrator-entered
+     * note. This is deliberately separate from the sprintf-based import helper:
+     * a literal '%' in an operator note must never be interpreted as a format
+     * placeholder.
+     *
+     * @return list<int>
+     */
+    public function createManyForBookWithIdsAndNote(
+        int $bookId,
+        string $base,
+        int $howMany,
+        string $stato = 'disponibile',
+        ?string $note = null
+    ): array {
+        $result = $this->createManyForBookResult(
+            $bookId,
+            $base,
+            $howMany,
+            $stato,
+            null,
+            true,
+            $note
+        );
+        return $result['ids'];
+    }
+
+    /**
      * @return array{count: int, ids: list<int>}
      */
     private function createManyForBookResult(
@@ -215,7 +242,8 @@ class CopyRepository
         int $howMany,
         string $stato,
         ?string $noteTemplate,
-        bool $resolveIds
+        bool $resolveIds,
+        ?string $sharedNote = null
     ): array
     {
         $howMany = max(0, $howMany);
@@ -237,7 +265,7 @@ class CopyRepository
                 $howMany,
                 $stato,
                 $noteTemplate,
-                null
+                $sharedNote
             );
             $ids = [];
             if ($resolveIds) {
@@ -254,8 +282,8 @@ class CopyRepository
 
     /**
      * Insert allocated copies while the caller holds the inventory allocator
-     * lock. Both book creation and the single-copy form use this path, so code
-     * allocation, duplicate retries and INSERT behavior cannot drift apart.
+     * lock. Book creation and both single/batch copy forms use this path, so
+     * code allocation, duplicate retries and INSERT behavior cannot drift apart.
      *
      * @return array{count: int, first_id: int, codes: list<string>}
      */
@@ -265,7 +293,7 @@ class CopyRepository
         int $howMany,
         string $stato,
         ?string $noteTemplate,
-        ?string $singleNote
+        ?string $sharedNote
     ): array {
         // Escape LIKE metacharacters in the base before appending the wildcard.
         // A base ending in a backslash would otherwise escape the trailing '%',
@@ -287,8 +315,8 @@ class CopyRepository
             $types = '';
             $params = [];
             foreach ($codes as $i => $code) {
-                $note = $total === 1 && $singleNote !== null
-                    ? $singleNote
+                $note = $sharedNote !== null
+                    ? $sharedNote
                     : ($noteTemplate !== null ? sprintf($noteTemplate, $i + 1, $total) : null);
                 $types .= 'isss';
                 $params[] = $bookId;

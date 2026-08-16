@@ -1,8 +1,9 @@
 // E2E: manage physical copies from the book summary page (admin).
 //
 // New capability: /admin/books/{id} always shows the "Copie Fisiche" section
-// with an "Aggiungi copia" button (even when the book has no copies), a create
-// modal, and per-copy status editing. A lost/damaged/maintenance copy is
+// with an "Aggiungi copie" button (even when the book has no copies), a create
+// modal supporting atomic batches, and per-copy status editing. A
+// lost/damaged/maintenance copy is
 // excluded from libri.copie_totali (DataIntegrity::recalculateBookAvailability),
 // so marking a copy lost lowers the total.
 //
@@ -66,11 +67,16 @@ async function loginAsAdmin(page) {
   }
 }
 
-// Open the "Aggiungi copia" modal, fill it, submit, wait for the reload.
-async function addCopy(page, { inventario = '', stato = 'disponibile', note = '' } = {}) {
+// Open the add-copy modal, fill one copy or a batch, submit, wait for reload.
+async function addCopy(page, { quantita = 1, inventario = '', stato = 'disponibile', note = '' } = {}) {
   await page.evaluate(() => window.openAddCopyModal());
   await expect(page.locator('#add-copy-modal')).toBeVisible();
-  await page.fill('#add-copy-inventario', inventario);
+  await page.fill('#add-copy-quantita', String(quantita));
+  if (quantita === 1) {
+    await page.fill('#add-copy-inventario', inventario);
+  } else {
+    await expect(page.locator('#add-copy-inventario')).toBeDisabled();
+  }
   await page.selectOption('#add-copy-stato', stato);
   if (note) await page.fill('#add-copy-note', note);
   await Promise.all([
@@ -112,18 +118,18 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
   });
   test.afterAll(() => cleanupByTitle());
 
-  test('1. book summary shows the Copie Fisiche section and Aggiungi copia button', async ({ page }) => {
+  test('1. book summary shows the Copie Fisiche section and Aggiungi copie button', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(`${BASE}/admin/books/${bookId}`);
-    await expect(page.locator('text=Copie Fisiche')).toBeVisible();
-    await expect(page.locator('button:has-text("Aggiungi copia")').first()).toBeVisible();
+    await expect(page.locator('#physical-copies h2').filter({ hasText: 'Copie Fisiche' })).toBeVisible();
+    await expect(page.locator('button:has-text("Aggiungi copie")').first()).toBeVisible();
   });
 
   test('2. a book with no copies shows the empty-state and the add button', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(`${BASE}/admin/books/${emptyBookId}`);
     await expect(page.locator('text=Nessuna copia fisica')).toBeVisible();
-    await expect(page.locator('button:has-text("Aggiungi copia")').first()).toBeVisible();
+    await expect(page.locator('button:has-text("Aggiungi copie")').first()).toBeVisible();
     expect(copieCount(emptyBookId)).toBe(0);
   });
 
@@ -144,6 +150,20 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     const code = `CM-${RUN}-EXPLICIT`;
     await addCopy(page, { inventario: code, stato: 'disponibile', note: 'explicit' });
     expect(dbQuery(`SELECT COUNT(*) FROM copie WHERE libro_id=${bookId} AND numero_inventario='${code}'`)).toBe('1');
+  });
+
+  test('4b. add three copies atomically with unique automatic inventories and a shared literal note', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/${bookId}`);
+    const beforeRows = copieCount(bookId);
+    const beforeTotal = copieTotali(bookId);
+    const note = `batch-100%-${RUN}`;
+    await addCopy(page, { quantita: 3, stato: 'disponibile', note });
+
+    expect(copieCount(bookId)).toBe(beforeRows + 3);
+    expect(copieTotali(bookId)).toBe(beforeTotal + 3);
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM copie WHERE libro_id=${bookId} AND note='${sqlEscape(note)}'`))).toBe(3);
+    expect(Number(dbQuery(`SELECT COUNT(DISTINCT numero_inventario) FROM copie WHERE libro_id=${bookId} AND note='${sqlEscape(note)}'`))).toBe(3);
   });
 
   test('5. a duplicate inventory number is rejected (no new copy)', async ({ page }) => {
@@ -274,6 +294,36 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     expect(Number(dbQuery(`SELECT copie_disponibili FROM libri WHERE id=${queueBookId}`))).toBe(0);
   });
 
+  test('13b. a batch of three available copies promotes three queued reservations onto distinct copies', async ({ page }) => {
+    await loginAsAdmin(page);
+    const title = `CopyMgmtBatchQueue ${RUN}`;
+    const emailPrefix = `copy-mgmt-batch-${RUN}`;
+    dbQuery(`INSERT INTO libri (titolo, numero_inventario, stato, copie_totali, copie_disponibili) VALUES ('${sqlEscape(title)}', 'BQ-${RUN}', 'non_disponibile', 0, 0)`);
+    const id = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(title)}' ORDER BY id DESC LIMIT 1`));
+    try {
+      for (let position = 1; position <= 3; position++) {
+        const email = `${emailPrefix}-${position}@example.test`;
+        dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente, email_verificata, privacy_accettata) VALUES ('BQ-${RUN}-${position}', 'Batch', 'Queue ${position}', '${sqlEscape(email)}', 'not-used', 'attivo', 'standard', 1, 1)`);
+        const userId = Number(dbQuery(`SELECT id FROM utenti WHERE email='${sqlEscape(email)}'`));
+        dbQuery(`INSERT INTO prenotazioni (libro_id, utente_id, data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, queue_position, stato) VALUES (${id}, ${userId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), DATE_ADD(NOW(), INTERVAL 14 DAY), ${position}, 'attiva')`);
+      }
+
+      await page.goto(`${BASE}/admin/books/${id}`);
+      await addCopy(page, { quantita: 3, stato: 'disponibile', note: 'batch-queue-capacity' });
+
+      expect(Number(dbQuery(`SELECT COUNT(*) FROM prenotazioni WHERE libro_id=${id} AND stato='completata'`))).toBe(3);
+      expect(Number(dbQuery(`SELECT COUNT(*) FROM prestiti WHERE libro_id=${id} AND origine='prenotazione' AND stato='pendente' AND copia_id IS NOT NULL`))).toBe(3);
+      expect(Number(dbQuery(`SELECT COUNT(DISTINCT copia_id) FROM prestiti WHERE libro_id=${id}`))).toBe(3);
+      expect(copieTotali(id)).toBe(3);
+      expect(Number(dbQuery(`SELECT copie_disponibili FROM libri WHERE id=${id}`))).toBe(0);
+    } finally {
+      dbQuery(`DELETE FROM prestiti WHERE libro_id=${id}`);
+      dbQuery(`DELETE FROM prenotazioni WHERE libro_id=${id}`);
+      dbQuery(`DELETE FROM libri WHERE id=${id}`);
+      dbQuery(`DELETE FROM utenti WHERE email LIKE '${sqlEscape(emailPrefix)}-%@example.test'`);
+    }
+  });
+
   // ---- PR #356 review fixes ---------------------------------------------
 
   // #2: in_restauro / in_trasferimento are out-of-circulation states and must be
@@ -332,15 +382,27 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     expect(await page.locator('#copie_totali').getAttribute('readonly')).toBeNull();
   });
 
-  // #6: the Add-copy modal title matches the button label ("Aggiungi copia").
-  test('17. the Add-copy modal title matches the button label (#356)', async ({ page }) => {
+  // The modal exposes the batch size directly and makes the exact inventory
+  // field unavailable when more than one code must be allocated.
+  test('17. the add-copy modal exposes an accessible 1-100 batch control', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(`${BASE}/admin/books/${bookId}`);
     await page.evaluate(() => window.openAddCopyModal());
     await expect(page.locator('#add-copy-modal')).toBeVisible();
-    expect((await page.locator('#add-copy-modal h3').first().innerText()).trim()).toBe('Aggiungi copia');
-    // The old mixed-case "Aggiungi Copia" string is gone from the modal.
-    expect(await page.locator('#add-copy-modal').innerText()).not.toContain('Aggiungi Copia');
+    expect((await page.locator('#add-copy-modal h3').first().innerText()).trim()).toBe('Aggiungi copie fisiche');
+    await expect(page.locator('#add-copy-quantita')).toHaveValue('1');
+    await expect(page.locator('#add-copy-quantita')).toHaveAttribute('max', '100');
+    await page.fill('#add-copy-quantita', '3');
+    await expect(page.locator('#add-copy-inventario')).toBeDisabled();
+    await expect(page.locator('#add-copy-inventario-group')).toBeHidden();
+    await expect(page.locator('#add-copy-batch-inventario-help')).toBeVisible();
+    await expect(page.locator('#add-copy-submit-label')).toHaveText('Aggiungi 3 copie');
+    await expect(page.locator('#add-copy-note-help')).toBeVisible();
+    await page.fill('#add-copy-quantita', '1');
+    await expect(page.locator('#add-copy-inventario')).toBeEnabled();
+    await expect(page.locator('#add-copy-inventario-group')).toBeVisible();
+    await expect(page.locator('#add-copy-batch-inventario-help')).toBeHidden();
+    await expect(page.locator('#add-copy-submit-label')).toHaveText('Aggiungi copia');
   });
 
   // #1: copie_totali is derived server-side on edit — a crafted POST that bypasses
@@ -408,9 +470,9 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     }
   });
 
-  test('21. add-copy rejects array-shaped status, note and inventory inputs (#356)', async ({ page }) => {
+  test('21. add-copy rejects array-shaped status, note, inventory and quantity inputs (#356)', async ({ page }) => {
     await loginAsAdmin(page);
-    for (const field of ['stato', 'note', 'numero_inventario']) {
+    for (const field of ['stato', 'note', 'numero_inventario', 'quantita']) {
       await page.goto(`${BASE}/admin/books/${emptyBookId}`);
       const before = copieCount(emptyBookId);
       await page.evaluate(() => window.openAddCopyModal());
@@ -424,8 +486,44 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
       ]);
       const errorAlert = page.getByRole('alert');
       await expect(errorAlert).toBeVisible();
-      await expect(errorAlert).toContainText('Impossibile aggiungere la copia');
+      await expect(errorAlert).toContainText(field === 'quantita' ? 'Numero di copie non valido' : 'Impossibile aggiungere la copia');
       expect(copieCount(emptyBookId)).toBe(before);
+    }
+  });
+
+  test('21b. batch creation rejects a manually supplied exact inventory code server-side', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/books/${emptyBookId}`);
+    const before = copieCount(emptyBookId);
+    await page.evaluate(() => window.openAddCopyModal());
+    await page.fill('#add-copy-quantita', '3');
+    await page.locator('#add-copy-inventario').evaluate((element) => {
+      element.disabled = false;
+      element.value = 'CRAFTED-BATCH-CODE';
+    });
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+      page.click('#add-copy-form button[type="submit"]'),
+    ]);
+    await expect(page.getByRole('alert')).toContainText('lascia vuoto il numero di inventario');
+    expect(copieCount(emptyBookId)).toBe(before);
+  });
+
+  test('21c. a failed batch insert rolls back every requested copy', async ({ page }) => {
+    await loginAsAdmin(page);
+    const trigger = `trg_cm_batch_${RUN.replace(/[^a-z0-9]/gi, '').slice(0, 20)}`;
+    const note = `batch-fail-${RUN}`;
+    const before = copieCount(emptyBookId);
+    dbQuery(`DROP TRIGGER IF EXISTS ${trigger}`);
+    dbQuery(`CREATE TRIGGER ${trigger} BEFORE INSERT ON copie FOR EACH ROW SET NEW.numero_inventario=IF(NEW.note='${sqlEscape(note)}', NULL, NEW.numero_inventario)`);
+    try {
+      await page.goto(`${BASE}/admin/books/${emptyBookId}`);
+      await addCopy(page, { quantita: 3, stato: 'disponibile', note });
+      await expect(page.getByRole('alert')).toContainText('Impossibile aggiungere le copie');
+      expect(copieCount(emptyBookId)).toBe(before);
+      expect(Number(dbQuery(`SELECT COUNT(*) FROM copie WHERE libro_id=${emptyBookId} AND note='${sqlEscape(note)}'`))).toBe(0);
+    } finally {
+      dbQuery(`DROP TRIGGER IF EXISTS ${trigger}`);
     }
   });
 

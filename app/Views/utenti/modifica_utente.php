@@ -18,6 +18,12 @@ $dataScadenzaTessera = HtmlHelper::e($utente['data_scadenza_tessera'] ?? '');
 $stato = (string)($utente['stato'] ?? 'attivo');
 $ruolo = (string)($utente['tipo_utente'] ?? 'standard');
 $note = HtmlHelper::e($utente['note_utente'] ?? '');
+$installationLocale = isset($installationLocale) && is_string($installationLocale)
+    ? $installationLocale
+    : \App\Support\I18n::getInstallationLocale();
+$installationLocaleName = isset($installationLocaleName) && is_string($installationLocaleName)
+    ? $installationLocaleName
+    : (\App\Support\I18n::getAvailableLocales()[$installationLocale] ?? $installationLocale);
 ?>
 <div class="py-8">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -139,6 +145,18 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
         <div>
           <label for="password" class="block text-sm font-medium text-gray-700"><?= __("Nuova password") ?></label>
           <input type="password" autocomplete="new-password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("Lascia vuoto per non modificare") ?>">
+        </div>
+        <div>
+          <label for="installation_locale" class="block text-sm font-medium text-gray-700"><?= __("Lingua dell'applicazione") ?></label>
+          <input
+            type="text"
+            id="installation_locale"
+            value="<?= HtmlHelper::e($installationLocaleName . ' (' . $installationLocale . ')'); ?>"
+            readonly
+            aria-readonly="true"
+            class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 text-gray-700"
+          >
+          <p class="text-xs text-gray-500 mt-1"><?= __("È una configurazione globale: viene scelta durante l'installazione e può essere modificata dall'amministratore.") ?></p>
         </div>
       </section>
 

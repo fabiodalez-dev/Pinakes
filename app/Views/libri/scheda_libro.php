@@ -932,8 +932,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
         </h2>
         <div class="flex items-center gap-2 flex-wrap">
           <button type="button" onclick="openAddCopyModal()"
-                  class="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-900 transition-colors font-medium">
-            <i class="fas fa-plus"></i><?= __("Aggiungi copia") ?>
+                  class="inline-flex min-h-11 items-center gap-2 px-4 py-2.5 bg-gray-800 text-white text-sm rounded hover:bg-gray-900 transition-colors font-medium">
+            <i class="fas fa-plus"></i><?= __("Aggiungi copie") ?>
           </button>
           <?php if (!empty($copie)): ?>
           <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/copy-labels-pdf'), ENT_QUOTES, 'UTF-8') ?>"
@@ -964,7 +964,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                 <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">
                   <i class="fas fa-clone text-gray-300 text-2xl mb-2 block"></i>
                   <?= __("Nessuna copia fisica registrata.") ?>
-                  <?= __("Usa \"Aggiungi copia\" per crearne una e poterne impostare lo stato.") ?>
+                  <?= __("Usa \"Aggiungi copie\" per crearne una o più e impostarne lo stato.") ?>
                 </td>
               </tr>
               <?php endif; ?>
@@ -1888,15 +1888,16 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
     </div>
   </div>
 
-  <!-- Modal Aggiungi Copia -->
-  <div id="add-copy-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+  <!-- Modal Aggiungi Copie -->
+  <div id="add-copy-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50"
+       role="dialog" aria-modal="true" aria-labelledby="add-copy-modal-title">
+    <div class="bg-white rounded shadow-2xl w-full max-w-lg mx-4">
       <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-        <h3 class="text-lg font-semibold text-gray-900">
+        <h3 id="add-copy-modal-title" class="text-lg font-semibold text-gray-900">
           <i class="fas fa-plus text-gray-600 mr-2"></i>
-          <?= __("Aggiungi copia") ?>
+          <?= __("Aggiungi copie fisiche") ?>
         </h3>
-        <button type="button" id="close-add-copy-modal" class="text-gray-500 hover:text-gray-700">
+        <button type="button" id="close-add-copy-modal" class="min-h-11 min-w-11 text-gray-500 hover:text-gray-700" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -1906,10 +1907,28 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
         <div>
+          <label for="add-copy-quantita" class="form-label"><?= __("Quantità") ?></label>
+          <input type="number" id="add-copy-quantita" name="quantita" class="form-input" value="1"
+                 min="1" max="100" step="1" inputmode="numeric" required aria-required="true"
+                 aria-describedby="add-copy-quantita-help">
+          <p id="add-copy-quantita-help" class="text-sm text-gray-700 mt-1">
+            <?= __("Puoi aggiungere fino a 100 copie in un'unica operazione atomica.") ?>
+          </p>
+        </div>
+
+        <div id="add-copy-inventario-group">
           <label for="add-copy-inventario" class="form-label"><?= __("Numero di inventario") ?> (<?= __("opzionale") ?>)</label>
           <input type="text" id="add-copy-inventario" name="numero_inventario" class="form-input" maxlength="100"
-                 placeholder="<?= __('Lascia vuoto per assegnarlo automaticamente') ?>">
+                 placeholder="<?= htmlspecialchars(__('Lascia vuoto per assegnarlo automaticamente'), ENT_QUOTES, 'UTF-8') ?>"
+                 aria-describedby="add-copy-inventario-help">
+          <p id="add-copy-inventario-help" class="text-sm text-gray-700 mt-1">
+            <?= __("Disponibile solo per una copia. Se lo lasci vuoto, il numero viene assegnato automaticamente.") ?>
+          </p>
         </div>
+
+        <p id="add-copy-batch-inventario-help" class="hidden rounded bg-gray-100 px-4 py-3 text-sm text-gray-700" role="status">
+          <i class="fas fa-info-circle mr-2" aria-hidden="true"></i><?= __("I numeri di inventario saranno generati automaticamente dal prefisso del libro, uno diverso per ogni copia.") ?>
+        </p>
 
         <div>
           <label for="add-copy-stato" class="form-label"><?= __("Stato della copia") ?></label>
@@ -1929,13 +1948,18 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
 
         <div>
           <label for="add-copy-note" class="form-label"><?= __("Note") ?> (<?= __("opzionale") ?>)</label>
-          <textarea id="add-copy-note" name="note" rows="3" class="form-input" placeholder="<?= __('Aggiungi eventuali note...') ?>"></textarea>
+          <textarea id="add-copy-note" name="note" rows="3" class="form-input"
+                    placeholder="<?= htmlspecialchars(__('Aggiungi eventuali note...'), ENT_QUOTES, 'UTF-8') ?>"
+                    aria-describedby="add-copy-note-help"></textarea>
+          <p id="add-copy-note-help" class="hidden text-sm text-gray-700 mt-1">
+            <?= __("La nota verrà applicata a tutte le copie del gruppo.") ?>
+          </p>
         </div>
 
         <div class="flex items-center justify-end gap-3 pt-2">
           <button type="button" id="close-add-copy-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
           <button type="submit" class="<?php echo $btnPrimary; ?> justify-center">
-            <i class="fas fa-plus mr-2"></i><?= __("Aggiungi copia") ?>
+            <i class="fas fa-plus mr-2"></i><span id="add-copy-submit-label"><?= __("Aggiungi copia") ?></span>
           </button>
         </div>
       </form>
@@ -1945,11 +1969,38 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
   <script>
     // Modal aggiungi copia
     const addCopyModal = document.getElementById('add-copy-modal');
+    const addCopyQuantity = document.getElementById('add-copy-quantita');
+    const addCopyInventory = document.getElementById('add-copy-inventario');
+    const addCopyInventoryGroup = document.getElementById('add-copy-inventario-group');
+    const addCopyBatchInventoryHelp = document.getElementById('add-copy-batch-inventario-help');
+    const addCopyNoteHelp = document.getElementById('add-copy-note-help');
+    const addCopySubmitLabel = document.getElementById('add-copy-submit-label');
+
+    function syncAddCopyBatchFields() {
+      const quantity = Math.min(100, Math.max(1, Number.parseInt(addCopyQuantity?.value || '1', 10) || 1));
+      const isBatch = quantity > 1;
+      if (addCopyInventory) {
+        addCopyInventory.disabled = isBatch;
+        addCopyInventory.setAttribute('aria-disabled', isBatch ? 'true' : 'false');
+        if (isBatch) addCopyInventory.value = '';
+      }
+      addCopyInventoryGroup?.classList.toggle('hidden', isBatch);
+      addCopyBatchInventoryHelp?.classList.toggle('hidden', !isBatch);
+      addCopyNoteHelp?.classList.toggle('hidden', !isBatch);
+      if (addCopySubmitLabel) {
+        addCopySubmitLabel.textContent = isBatch
+          ? __('Aggiungi %s copie').replace('%s', String(quantity))
+          : __('Aggiungi copia');
+      }
+    }
+
     function openAddCopyModal() {
       const f = document.getElementById('add-copy-form');
       if (f) f.reset();
+      syncAddCopyBatchFields();
       addCopyModal.classList.remove('hidden');
       addCopyModal.classList.add('flex');
+      addCopyQuantity?.focus();
     }
     function closeAddCopyModal() {
       addCopyModal.classList.add('hidden');
@@ -1957,6 +2008,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
     }
     document.getElementById('close-add-copy-modal')?.addEventListener('click', closeAddCopyModal);
     document.getElementById('close-add-copy-modal-secondary')?.addEventListener('click', closeAddCopyModal);
+    addCopyQuantity?.addEventListener('input', syncAddCopyBatchFields);
     addCopyModal?.addEventListener('click', (e) => { if (e.target === addCopyModal) closeAddCopyModal(); });
   </script>
 

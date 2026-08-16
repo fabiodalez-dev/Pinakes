@@ -326,7 +326,7 @@ class CopyController
     }
 
     /**
-     * Crea una nuova copia fisica per un libro, direttamente dalla scheda.
+     * Crea una o più copie fisiche per un libro, direttamente dalla scheda.
      *
      * A copy is never *created* in a loan state here — 'prestato'/'prenotato'
      * belong to the Prestiti system — but creating an available copy may promote a
@@ -345,8 +345,18 @@ class CopyController
         $statoInput = $data['stato'] ?? 'disponibile';
         $noteInput = $data['note'] ?? '';
         $numeroInput = $data['numero_inventario'] ?? '';
+        $quantitaInput = $data['quantita'] ?? '1';
         if (!is_string($statoInput) || !is_string($noteInput) || !is_string($numeroInput)) {
             $_SESSION['error_message'] = __('Impossibile aggiungere la copia.');
+            return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
+        }
+        $quantita = is_int($quantitaInput)
+            ? $quantitaInput
+            : (is_string($quantitaInput) && preg_match('/^[1-9]\d*$/D', $quantitaInput) === 1
+                ? (int) $quantitaInput
+                : 0);
+        if ($quantita < 1 || $quantita > 100) {
+            $_SESSION['error_message'] = __('Numero di copie non valido.');
             return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
         }
         $stato = $statoInput;
@@ -365,6 +375,10 @@ class CopyController
             if (mb_strlen($numero) > 100) {
                 $numero = mb_substr($numero, 0, 100);
             }
+        }
+        if ($quantita > 1 && $numero !== '') {
+            $_SESSION['error_message'] = __('Per aggiungere più copie, lascia vuoto il numero di inventario: verrà assegnato automaticamente a ogni copia.');
+            return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
         }
 
         $repo = new CopyRepository($db);
@@ -397,9 +411,10 @@ class CopyController
             // control characters must fall back to automatic allocation.
             if ($numero === '') {
                 $base = !empty($book['numero_inventario']) ? (string) $book['numero_inventario'] : "LIB-{$bookId}";
-                $newCopyId = $repo->createWithAllocatedInventoryCode(
+                $newCopyIds = $repo->createManyForBookWithIdsAndNote(
                     $bookId,
                     $base,
+                    $quantita,
                     $stato,
                     $note !== '' ? $note : null
                 );
@@ -410,10 +425,11 @@ class CopyController
                 return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
             } else {
                 $newCopyId = $repo->create($bookId, $numero, $stato, $note !== '' ? $note : null);
+                $newCopyIds = $newCopyId > 0 ? [$newCopyId] : [];
             }
 
-            if ($newCopyId <= 0) {
-                throw new \RuntimeException('Unable to create the physical copy.');
+            if (count($newCopyIds) !== $quantita) {
+                throw new \RuntimeException('Unable to create every requested physical copy.');
             }
 
             // A newly available copy is new circulation capacity. Mirror the
@@ -422,11 +438,15 @@ class CopyController
             if ($stato === 'disponibile') {
                 $reassignmentService = new ReservationReassignmentService($db);
                 $reassignmentService->setExternalTransaction(true);
-                $reassignmentService->reassignOnNewCopy($bookId, $newCopyId);
+                foreach ($newCopyIds as $newCopyId) {
+                    $reassignmentService->reassignOnNewCopy($bookId, $newCopyId);
+                }
 
                 $reservationManager = new ReservationManager($db);
                 $reservationManager->setExternalTransaction(true);
-                $reservationManager->processBookAvailability($bookId);
+                for ($guard = 0; $guard < 1000 && $reservationManager->processBookAvailability($bookId); $guard++) {
+                    // Promote every date-eligible reservation allowed by the new capacity.
+                }
             }
 
             $integrity = new DataIntegrity($db);
@@ -445,7 +465,7 @@ class CopyController
             SecureLogger::error('[CopyController] createCopy failed', ['book' => $bookId, 'error' => $e->getMessage()]);
             $_SESSION['error_message'] = (int) $e->getCode() === 1062
                 ? __('Esiste già una copia con questo numero di inventario.')
-                : __('Impossibile aggiungere la copia.');
+                : ($quantita === 1 ? __('Impossibile aggiungere la copia.') : __('Impossibile aggiungere le copie.'));
             return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
         }
 
@@ -458,7 +478,9 @@ class CopyController
             SecureLogger::warning(__('Invio notifica nuova copia fallito'), ['error' => $e->getMessage()]);
         }
 
-        $_SESSION['success_message'] = __('Copia aggiunta con successo.');
+        $_SESSION['success_message'] = $quantita === 1
+            ? __('Copia aggiunta con successo.')
+            : sprintf(__('%d copie aggiunte con successo.'), $quantita);
         return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
     }
 

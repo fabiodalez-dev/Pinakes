@@ -607,10 +607,11 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         const body = await envelope(res, 201);
         expect(body.error).toBeNull();
         const stored = dbQuery(
-            `SELECT CONCAT(cognome, '|', COALESCE(telefono, 'NULL'), '|', COALESCE(indirizzo, 'NULL'))
+            `SELECT CONCAT(cognome, '|', COALESCE(telefono, 'NULL'), '|', COALESCE(indirizzo, 'NULL'), '|', locale)
              FROM utenti WHERE email='${REGISTRATION_EMAIL}' LIMIT 1`
         );
-        expect(stored).toBe('|NULL|NULL');
+        const installationLocale = dbQuery('SELECT code FROM languages WHERE is_default = 1 LIMIT 1');
+        expect(stored).toBe(`|NULL|NULL|${installationLocale}`);
         const storedCustom = dbQuery(
             `SELECT v.valore FROM utenti_campi_valori v
              JOIN utenti u ON u.id=v.utente_id

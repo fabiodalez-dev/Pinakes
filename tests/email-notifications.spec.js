@@ -290,6 +290,27 @@ test.describe.serial('Email Notifications E2E', () => {
     await cleanupAndRestore();
   });
 
+  /**
+   * Persisting one settings group through the application invalidates the
+   * web server's APCu-backed ConfigStore cache. File deletion alone cannot do
+   * that because Playwright's Node process and Apache do not share memory.
+   */
+  async function persistContactNotificationThroughApp(notificationEmail) {
+    await withAdminPage(browserRef, async (page) => {
+      await page.goto(`${BASE}/admin/settings?tab=contacts`, { waitUntil: 'domcontentloaded' });
+      const form = page.locator('form[action$="/admin/settings/contacts"]');
+      await expect(form).toHaveCount(1);
+      const formData = await form.evaluate((element) =>
+        Object.fromEntries(new FormData(/** @type {HTMLFormElement} */ (element)).entries()),
+      );
+      formData.notification_email = notificationEmail;
+
+      const result = await page.request.post(`${BASE}/admin/settings/contacts`, { form: formData });
+      expect(result.status()).toBeLessThan(400);
+      expect(result.headers().location || '').not.toContain('error=');
+    });
+  }
+
   // ── A.1: Configure SMTP driver → Mailpit ────────────────────────
   test('A.1 — Configure SMTP driver to Mailpit', async () => {
     // Set email settings via DB to point at Mailpit
@@ -309,12 +330,10 @@ test.describe.serial('Email Notifications E2E', () => {
     `);
     clearConfigCache();
 
-    // Set contact notification email so contact form tests work
-    dbQuery(`
-      INSERT INTO system_settings (category, setting_key, setting_value)
-      VALUES ('contacts', 'notification_email', '${sqlEscape(ADMIN_EMAIL)}')
-      ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
-    `);
+    // Use the real settings endpoint for the final write. Besides storing the
+    // contact recipient, ConfigStore::set() invalidates APCu in Apache so the
+    // directly seeded SMTP values are visible on the very next request.
+    await persistContactNotificationThroughApp(ADMIN_EMAIL);
 
     // Verify settings are stored
     const type = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='type'");
@@ -1022,6 +1041,14 @@ test.describe.serial('Email Notifications E2E', () => {
         restore('contacts', 'notification_email', originalSettings.contact_notification);
       }
       clearConfigCache();
+
+      // Invalidate the web process' APCu copy after the direct SQL restore.
+      // This also prevents the following E2E shard from inheriting Mailpit SMTP.
+      try {
+        await persistContactNotificationThroughApp(originalSettings.contact_notification || '');
+      } catch (err) {
+        console.error('[Cleanup] Could not invalidate web settings cache:', err.message);
+      }
 
       // Clear Mailpit
       await clearMailpit();

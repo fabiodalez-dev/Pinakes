@@ -4,7 +4,8 @@
 //   1. Installer wizard accepts the requested locale
 //   2. Post-install DB seeds match the chosen locale (`generi` table)
 //   3. utenti.locale row matches the chosen locale
-//   4. First login renders the correct locale (URL + UI strings)
+//   4. Public registrations inherit the installation locale
+//   5. First login renders the correct locale (URL + UI strings)
 
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
@@ -51,6 +52,13 @@ const LOGIN_SLUGS = {
   de_DE: 'anmelden',
   fr_FR: 'connexion',
   da_DK: 'log-ind',
+};
+const REGISTER_SLUGS = {
+  it_IT: 'registrati',
+  en_US: 'register',
+  de_DE: 'registrieren',
+  fr_FR: 'inscription',
+  da_DK: 'registrer',
 };
 const LOGIN_URL_PATTERNS = {
   it_IT: /\/accedi/,
@@ -204,6 +212,34 @@ test.describe.serial(`multilang install — ${LOCALE}`, () => {
     expect(out.length).toBeGreaterThan(0);
     const [, locale] = out.split('\t');
     expect(locale).toBe(LOCALE);
+  });
+
+  test(`Public registration inherits installation locale ${LOCALE}`, async () => {
+    test.skip(!appReady, 'Install did not complete');
+    const fresh = await page.context().browser().newContext();
+    const registrationPage = await fresh.newPage();
+    const email = `locale-${LOCALE.toLowerCase()}@example.test`;
+    try {
+      await registrationPage.goto(`${BASE}/${REGISTER_SLUGS[LOCALE]}`);
+      await registrationPage.fill('input[name="nome"]', 'Locale');
+      await registrationPage.fill('input[name="cognome"]', 'Installation');
+      await registrationPage.fill('input[name="email"]', email);
+      await registrationPage.fill('input[name="telefono"]', '3331234567');
+      await registrationPage.fill('textarea[name="indirizzo"]', 'Test address 1');
+      await registrationPage.fill('input[name="password"]', 'LocaleTest123!');
+      await registrationPage.fill('input[name="password_confirm"]', 'LocaleTest123!');
+      await registrationPage.locator('input[name="privacy_acceptance"]').check();
+      await registrationPage.locator('button[type="submit"]').click();
+      await registrationPage.waitForURL(url => !url.pathname.endsWith(`/${REGISTER_SLUGS[LOCALE]}`), { timeout: 15000 });
+
+      const safeEmail = email.replace(/[^A-Za-z0-9._@+\-]/g, '');
+      expect(safeEmail).toBe(email);
+      const locale = dbQuery(`SELECT locale FROM utenti WHERE email = '${safeEmail}' LIMIT 1`);
+      expect(locale).toBe(LOCALE);
+    } finally {
+      dbQuery(`DELETE FROM utenti WHERE email = '${email}'`);
+      await fresh.close();
+    }
   });
 
   test(`Locale-routed login URL responds 200 (${LOCALE})`, async () => {
