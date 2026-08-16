@@ -41,7 +41,25 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.60 — latest
+### v0.7.61 — latest
+
+Physical-copy management from the book page, with availability derived from the copies — plus a per-user interface language and a safe upgrade path for existing catalogues.
+
+### New
+
+- **Manage physical copies from the book page** — every book now has a *Copie Fisiche* section (even one with no copies) to add copies, edit each copy's status (available, maintenance, under restoration, in transfer, lost, damaged), and delete copies. Availability is derived from the copies; an out-of-circulation copy lowers the total on its own.
+- **Per-user interface language** — each account keeps its own language, set from the profile/language switcher or by an admin from the *Edit user* form, instead of everyone being forced to Italian regardless of the install language ([#238](https://github.com/fabiodalez-dev/Pinakes/discussions/238)).
+
+### Fixes
+
+- **Book creation and copy changes are atomic** — a book and its initial copies are committed together, and the bulk *increase copies* endpoint allocates collision-free inventory codes, promotes the wait-list, and validates its input.
+- **New users inherit the installation language** instead of the old hard-coded Italian default; an admin can set any user's language from the *Edit user* form (#238).
+
+### Upgrade Notes
+
+- **Legacy availability is migrated automatically** (`migrate_0.7.61-rc.1.sql`). Books that predate copy tracking are backfilled into real copies *before* availability is recalculated, so availability carries over from the old counters to the new copy-derived model without being zeroed. Active loans and reservations are preserved, and out-of-circulation copies are left untouched. See **[CHANGELOG.md](CHANGELOG.md)** for the full notes, including how to recover a catalogue already zeroed by an intermediate version.
+
+### v0.7.60
 
 A maintenance release: UPC barcode support, a read-only availability field, and a PHP 8.5 scraping fix.
 
