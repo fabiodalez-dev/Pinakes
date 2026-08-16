@@ -180,7 +180,8 @@ class Repo
             return null;
         }
 
-        $this->acquirePublisherLock();
+        $lockName = $this->scopedPublisherLockName();
+        $this->acquirePublisherLock($lockName);
         try {
             $sel = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id ASC LIMIT 1');
             if ($sel === false) {
@@ -220,7 +221,7 @@ class Repo
             }
             return $publisherId;
         } finally {
-            $this->releasePublisherLock();
+            $this->releasePublisherLock($lockName);
         }
     }
 
@@ -243,9 +244,8 @@ class Repo
         return 'pinakes-bc-pub:' . md5($dbName);
     }
 
-    private function acquirePublisherLock(): void
+    private function acquirePublisherLock(string $lockName): void
     {
-        $lockName = $this->scopedPublisherLockName();
         $timeout = self::PUBLISHER_LOCK_TIMEOUT_SECONDS;
         // GET_LOCK is server-wide, not per-database — the name is schema-scoped
         // and length-bounded in PHP (see scopedPublisherLockName) so independent
@@ -272,32 +272,39 @@ class Repo
         }
     }
 
-    private function releasePublisherLock(): void
+    private function releasePublisherLock(string $lockName): void
     {
-        $lockName = $this->scopedPublisherLockName();
-        $stmt = $this->db->prepare('SELECT RELEASE_LOCK(?) AS released');
-        if ($stmt === false) {
-            SecureLogger::error('[BookClub] publisher lock release prepare failed: ' . $this->db->error);
-            return;
-        }
-        $stmt->bind_param('s', $lockName);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[BookClub] publisher lock release failed: ' . $stmt->error);
-            $stmt->close();
-            return;
-        }
-        // Guard get_result() === false here especially: this runs inside the
-        // finally of findOrCreatePublisher(), so an uncaught Error would mask a
-        // propagating exception — the very thing this lock protocol avoids.
-        $result = $stmt->get_result();
-        $stmt->close();
-        if ($result === false) {
-            SecureLogger::error('[BookClub] publisher lock release get_result failed: ' . $this->db->error);
-            return;
-        }
-        $row = $result->fetch_assoc();
-        if ((int) ($row['released'] ?? 0) !== 1) {
-            SecureLogger::error('[BookClub] publisher lock was not owned by this connection');
+        $stmt = null;
+        try {
+            $stmt = $this->db->prepare('SELECT RELEASE_LOCK(?) AS released');
+            if ($stmt === false) {
+                throw new \RuntimeException('publisher lock release prepare failed: ' . $this->db->error);
+            }
+            $stmt->bind_param('s', $lockName);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('publisher lock release failed: ' . $stmt->error);
+            }
+            $result = $stmt->get_result();
+            if ($result === false) {
+                throw new \RuntimeException('publisher lock release get_result failed: ' . $this->db->error);
+            }
+            $row = $result->fetch_assoc();
+            if ((int) ($row['released'] ?? 0) !== 1) {
+                SecureLogger::error('[BookClub] publisher lock was not owned by this connection');
+            }
+        } catch (\Throwable $e) {
+            // A broken connection releases its advisory locks server-side. This
+            // is finally-block housekeeping and must never mask the publisher
+            // lookup/insert exception that is already propagating.
+            SecureLogger::error('[BookClub] publisher lock release failed: ' . $e->getMessage());
+        } finally {
+            if ($stmt instanceof \mysqli_stmt) {
+                try {
+                    $stmt->close();
+                } catch (\Throwable $closeError) {
+                    // best-effort cleanup on a possibly broken connection
+                }
+            }
         }
     }
 

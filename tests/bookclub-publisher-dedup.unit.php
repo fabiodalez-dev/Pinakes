@@ -196,10 +196,19 @@ try {
         'production Repo scopes the advisory lock per database via a PHP-hashed schema name (scopedPublisherLockName → md5(DATABASE()))'
     );
     $check(
-        substr_count($repoSource, '$this->scopedPublisherLockName()') >= 2
+        substr_count($repoSource, '$this->scopedPublisherLockName()') === 1
+            && str_contains($repoSource, '$this->acquirePublisherLock($lockName)')
+            && str_contains($repoSource, '$this->releasePublisherLock($lockName)')
+            && str_contains($repoSource, 'private function acquirePublisherLock(string $lockName)')
+            && str_contains($repoSource, 'private function releasePublisherLock(string $lockName)')
             && str_contains($repoSource, 'GET_LOCK(?')
             && str_contains($repoSource, 'RELEASE_LOCK(?)'),
-        'production Repo acquires and releases the same schema-scoped, length-bounded lock name'
+        'production Repo computes once, then acquires and releases the exact same schema-scoped bounded lock name'
+    );
+    $check(
+        str_contains($repoSource, "catch (\\Throwable \$e)")
+            && str_contains($repoSource, "A broken connection releases its advisory locks server-side"),
+        'production Repo release cleanup cannot mask a propagating publisher error'
     );
 } finally {
     // Advisory locks are connection-scoped; make cleanup idempotent after a failed assertion/query.

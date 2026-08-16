@@ -686,6 +686,103 @@ class LibriController
     }
 
     /**
+     * Build one bounded advisory-lock name per identifier value. Field names are
+     * intentionally irrelevant: ISBN-13 and EAN are cross-compared by the
+     * duplicate query, so the same value must map to the same lock whichever
+     * field carried it. Sorting makes multi-lock acquisition deadlock-safe.
+     *
+     * @param array<string,string> $codes
+     * @return list<string>
+     */
+    private static function bookIdentifierLockNames(string $databaseName, array $codes): array
+    {
+        if ($databaseName === '') {
+            throw new \RuntimeException('Unable to resolve the current database for identifier locking.');
+        }
+
+        $values = [];
+        foreach ($codes as $value) {
+            // Identifier input is ASCII by definition. Normalise the ISBN-10
+            // check digit as well: the database collation compares x/X as the
+            // same value, so their advisory-lock identity must do the same.
+            $normalized = strtoupper(trim((string) $value));
+            if ($normalized !== '') {
+                $values[$normalized] = true;
+            }
+        }
+        $values = array_keys($values);
+        sort($values, SORT_STRING);
+
+        return array_map(
+            static fn(string $value): string => 'pinakes-book-id:' . md5($databaseName . "\0" . $value),
+            $values
+        );
+    }
+
+    /** @param array<string,string> $codes @return list<string> */
+    private function acquireBookIdentifierLocks(mysqli $db, array $codes): array
+    {
+        $databaseName = '';
+        $databaseResult = $db->query('SELECT DATABASE()');
+        if ($databaseResult instanceof \mysqli_result) {
+            $databaseName = (string) ($databaseResult->fetch_row()[0] ?? '');
+            $databaseResult->free();
+        }
+
+        $lockNames = self::bookIdentifierLockNames($databaseName, $codes);
+        $acquired = [];
+        try {
+            foreach ($lockNames as $lockName) {
+                $stmt = $db->prepare('SELECT GET_LOCK(?, 10)');
+                if ($stmt === false) {
+                    throw new \RuntimeException('Unable to prepare book-identifier lock.');
+                }
+                $stmt->bind_param('s', $lockName);
+                try {
+                    if (!$stmt->execute()) {
+                        throw new \RuntimeException('Unable to acquire book-identifier lock: ' . $stmt->error);
+                    }
+                    $result = $stmt->get_result();
+                    $locked = $result instanceof \mysqli_result
+                        && (int) ($result->fetch_row()[0] ?? 0) === 1;
+                } finally {
+                    $stmt->close();
+                }
+                if (!$locked) {
+                    throw new \RuntimeException('Timed out while waiting for a book-identifier lock.');
+                }
+                $acquired[] = $lockName;
+            }
+            return $acquired;
+        } catch (\Throwable $e) {
+            $this->releaseBookIdentifierLocks($db, $acquired);
+            throw $e;
+        }
+    }
+
+    /** @param list<string> $lockNames */
+    private function releaseBookIdentifierLocks(mysqli $db, array $lockNames): void
+    {
+        foreach (array_reverse($lockNames) as $lockName) {
+            try {
+                $stmt = $db->prepare('SELECT RELEASE_LOCK(?)');
+                if ($stmt === false) {
+                    continue;
+                }
+                $stmt->bind_param('s', $lockName);
+                try {
+                    $stmt->execute();
+                } finally {
+                    $stmt->close();
+                }
+            } catch (\Throwable $e) {
+                // Advisory locks are connection-scoped and a broken connection
+                // releases them server-side. Never mask the original save error.
+            }
+        }
+    }
+
+    /**
      * Create a book from the admin form: validates input, resolves authors and
      * publishers (multi-publisher, issue #143), handles cover + scraping data,
      * then persists via BookRepository.
@@ -941,30 +1038,20 @@ class LibriController
             }
         }
 
-        // Acquire advisory lock to make duplicate check + insert atomic
-        $lockKey = null;
+        // Acquire one schema-scoped advisory lock per normalized identifier.
+        // Create and update deliberately share this protocol: locking the whole
+        // submitted tuple would not serialize partially-overlapping sets (for
+        // example isbn13=X versus ean=X), while different create/update prefixes
+        // would not serialize at all.
+        $lockKeys = [];
         if (!empty($codes)) {
-            // Create unique lock key from identifiers
-            $lockKey = 'book_create_' . md5(implode('|', array_values($codes)));
-            $lockStmt = $db->prepare("SELECT GET_LOCK(?, 10)");
-            if (!$lockStmt) {
+            try {
+                $lockKeys = $this->acquireBookIdentifierLocks($db, $codes);
+            } catch (\Throwable $e) {
+                SecureLogger::error('LibriController::store identifier lock failed: ' . $e->getMessage());
                 $response->getBody()->write(json_encode([
                     'error' => 'lock_error',
                     'message' => __('Errore interno durante acquisizione lock.')
-                ], JSON_UNESCAPED_UNICODE));
-                return $response->withStatus(503)->withHeader('Content-Type', 'application/json');
-            }
-            $lockStmt->bind_param('s', $lockKey);
-            $lockStmt->execute();
-            $lockResult = $lockStmt->get_result();
-            $locked = $lockResult ? (int) $lockResult->fetch_row()[0] : 0;
-            $lockStmt->close();
-
-            if (!$locked) {
-                // Failed to acquire lock (timeout or error)
-                $response->getBody()->write(json_encode([
-                    'error' => 'lock_timeout',
-                    'message' => __('Impossibile acquisire il lock. Riprova tra qualche secondo.')
                 ], JSON_UNESCAPED_UNICODE));
                 return $response->withStatus(503)->withHeader('Content-Type', 'application/json');
             }
@@ -997,10 +1084,6 @@ class LibriController
                 $stmt->execute();
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
-                    // Release lock before returning
-                    if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
-
-
                     // Build location string
                     $location = '';
                     if (!empty($dup['scaffale_codice']) && !empty($dup['mensola_livello']) && !empty($dup['posizione_progressiva'])) {
@@ -1281,6 +1364,11 @@ class LibriController
             // Optionals (numero_pagine, ean, data_pubblicazione, traduttore)
             // Merge normalized $fields over $data so NULL isbn/ean values are preserved
             (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
+            // Every identifier write is now committed and visible. Release before
+            // cover I/O/search-index work so a duplicate request can fail fast
+            // instead of waiting behind unrelated post-save processing.
+            $this->releaseBookIdentifierLocks($db, $lockKeys);
+            $lockKeys = [];
             // The cover persisted just above may be a local file that
             // downloadExternalCover() saved during this submit; capture it so
             // it can be cleaned up if the branches below replace it (#F002).
@@ -1326,10 +1414,7 @@ class LibriController
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
 
         } finally {
-            // Release advisory lock
-            if ($lockKey) {
-                if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
-            }
+            $this->releaseBookIdentifierLocks($db, $lockKeys);
         }
     }
 
@@ -1628,25 +1713,15 @@ class LibriController
             }
         }
 
-        // Acquire advisory lock to make duplicate check + update atomic
-        $lockKey = null;
+        // Same per-identifier protocol as store(): create/update and partially
+        // overlapping ISBN/EAN sets must contend on the same lock names.
+        $lockKeys = [];
         if (!empty($codes)) {
-            // Create unique lock key from identifiers
-            $lockKey = 'book_update_' . md5(implode('|', array_values($codes)));
-            $lockStmt = $db->prepare("SELECT GET_LOCK(?, 10)");
-            if (!$lockStmt) {
+            try {
+                $lockKeys = $this->acquireBookIdentifierLocks($db, $codes);
+            } catch (\Throwable $e) {
+                SecureLogger::error('LibriController::update identifier lock failed: ' . $e->getMessage());
                 $_SESSION['error_message'] = __('Errore del server. Riprova.');
-                return $response->withHeader('Location', url('/admin/books/edit/' . $id))->withStatus(302);
-            }
-            $lockStmt->bind_param('s', $lockKey);
-            $lockStmt->execute();
-            $lockResult = $lockStmt->get_result();
-            $locked = $lockResult ? (int) $lockResult->fetch_row()[0] : 0;
-            $lockStmt->close();
-
-            if (!$locked) {
-                // Failed to acquire lock (timeout or error)
-                $_SESSION['error_message'] = __('Impossibile acquisire il lock. Riprova tra qualche secondo.');
                 return $response->withHeader('Location', url('/admin/books/edit/' . $id))->withStatus(302);
             }
         }
@@ -1679,10 +1754,6 @@ class LibriController
                 $stmt->execute();
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
-                    // Release lock before returning
-                    if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
-
-
                     // Build location string
                     $location = '';
                     if (!empty($dup['scaffale_codice']) && !empty($dup['mensola_livello']) && !empty($dup['posizione_progressiva'])) {
@@ -1893,6 +1964,8 @@ class LibriController
             // dance to swap an auto-imported cover (#165).
             // Merge normalized $fields over $data so NULL isbn/ean values are preserved
             (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
+            $this->releaseBookIdentifierLocks($db, $lockKeys);
+            $lockKeys = [];
             // The cover persisted just above may be a local file that
             // downloadExternalCover() saved during this submit; capture it so
             // the cleanup below can also remove it when a file upload or a
@@ -1943,10 +2016,7 @@ class LibriController
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
 
         } finally {
-            // Release advisory lock
-            if ($lockKey) {
-                if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
-            }
+            $this->releaseBookIdentifierLocks($db, $lockKeys);
         }
     }
 
