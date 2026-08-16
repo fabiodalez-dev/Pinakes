@@ -1317,7 +1317,9 @@ class PrestitiController
             // delle prenotazioni: solo così copie_disponibili e libri.stato riflettono lo
             // stato finale e un libro restituito torna correttamente prestabile (TXN-002,
             // TXN-005, A2). insideTransaction:true mantiene l'atomicità della transazione.
-            $integrity->recalculateBookAvailability($libro_id, insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability($libro_id, insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after loan return.');
+            }
 
             $db->commit();
 

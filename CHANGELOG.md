@@ -2,6 +2,60 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.61]
+
+Physical-copy management from the book summary, with the whole holding and
+circulation lifecycle made atomic and derived from the copies.
+
+### Features
+
+- The book page (`/admin/books/{id}`) now shows a **Copie Fisiche** section for
+  every book — even one with no copies — with an "Aggiungi copia" modal, per-copy
+  status editing, and per-copy delete. Copy status covers the physical states
+  (available, maintenance, under restoration, in transfer, lost, damaged); an
+  out-of-circulation copy lowers the derived total on its own.
+- A book can be created with zero physical copies and have them added later from
+  the summary. On the edit form the copy count is read-only and delegates to the
+  per-copy management, so availability is always derived from the copies.
+
+### Fixes
+
+- Book creation is now atomic: the book row and its initial copies are committed
+  together, so a copy-creation failure can no longer leave an orphan book with no
+  holdings. The bulk `increase-copies` endpoint is likewise transactional,
+  allocates collision-free inventory codes, promotes the wait-list, and validates
+  its input.
+- Adding an available copy repairs blocked reservations and promotes the next
+  wait-list entry into a physical-copy-linked loan, mirroring the loan engine.
+- Copies under restoration or in transfer can now be deleted from the UI; the
+  loan/reservation system keeps exclusive ownership of the `prestato`/`prenotato`
+  states.
+- Legacy reservations with a missing or past start date are no longer promoted
+  into back-dated loans.
+- Admin copy routes stay fixed English literals (not routed through the i18n
+  system), inventory-code allocation escapes LIKE metacharacters, and the copy
+  note is sanitised and length-capped like the inventory number.
+- All new copy-management strings are translated across the five locales.
+
+### Upgrade notes
+
+- **Legacy availability is migrated automatically.** Books that predate copy
+  tracking (only the old counters, no per-copy rows) are backfilled into real
+  copies *before* availability is recalculated, so availability carries over
+  from the old counter model to the new copy-derived one without being zeroed.
+  Active loans and reservations are preserved, and copies already marked
+  lost/damaged/maintenance/under-restoration/in-transfer are left untouched.
+- A book whose only record of unavailability was the legacy counter (marked
+  unavailable with no active loan) becomes available again after the upgrade:
+  the new model derives availability from physical copies, and a physically
+  missing book with no loan leaves no machine-readable trace to preserve.
+  Re-mark those copies from the book page after upgrading.
+- If you upgraded through an intermediate version that had already zeroed a
+  legacy book's counters before this release, the backfill cannot reconstruct
+  the lost count. Restore `libri.copie_totali` from the automatic pre-upgrade
+  backup under `storage/backups/`, then re-run the availability recalculation
+  from Maintenance, or re-add the copies from the book page.
+
 ## [0.7.60]
 
 Maintenance release: UPC barcode support, a read-only availability field, and a

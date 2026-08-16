@@ -230,20 +230,6 @@ class LoanRepository
                 return false;
             }
 
-            // Determina se il libro ha altri prestiti attivi (include 'prenotato' for scheduled future loans)
-            $activeCount = 0;
-            $countStmt = $this->db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE libro_id=? AND attivo=1 AND stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')");
-            $countStmt->bind_param('i', $bookId);
-            $countStmt->execute();
-            $activeCount = (int)($countStmt->get_result()->fetch_assoc()['c'] ?? 0);
-            $countStmt->close();
-
-            $newStatus = $activeCount > 0 ? 'prestato' : 'disponibile';
-            $updateBookStmt = $this->db->prepare('UPDATE libri SET stato = ? WHERE id = ?');
-            $updateBookStmt->bind_param('si', $newStatus, $bookId);
-            $updateBookStmt->execute();
-            $updateBookStmt->close();
-
             // Recalculate availability and process reservations INSIDE the transaction
             // This ensures FOR UPDATE locks in processBookAvailability are effective
             $integrity = new DataIntegrity($this->db);
@@ -277,7 +263,9 @@ class LoanRepository
             // recalculated successfully above in this same transaction, so it cannot
             // have vanished (recalculateBookAvailability only returns false when the
             // book row is missing).
-            $integrity->recalculateBookAvailability($bookId, true);
+            if (!$integrity->recalculateBookAvailability($bookId, true)) {
+                throw new \RuntimeException('Unable to recalculate final book availability.');
+            }
 
             $this->db->commit();
 

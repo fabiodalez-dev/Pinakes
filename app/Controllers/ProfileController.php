@@ -156,10 +156,17 @@ class ProfileController
             $sesso = null; // Invalid value, set to null
         }
 
-        // Validate locale - only allow known locales
+        // Validate locale. An empty value explicitly means "site default";
+        // an unknown non-empty value is ignored instead of resetting the user.
         if ($localeProvided) {
             $availableLocales = \App\Support\I18n::getAvailableLocales();
-            $locale = ($locale !== '' && isset($availableLocales[$locale])) ? $locale : null;
+            $locale = \App\Support\I18n::normalizeLocaleCode((string) $locale);
+            if ($locale === '') {
+                $locale = null;
+            } elseif (!isset($availableLocales[$locale])) {
+                $localeProvided = false;
+                $locale = null;
+            }
         }
 
         // Validate required fields. Surname/phone/address follow the admin
@@ -245,14 +252,10 @@ class ProfileController
             $_SESSION['user']['name'] = trim($nome . ' ' . $cognome);
             // Apply locale change immediately (only when locale was in the form)
             if ($localeProvided) {
-                if ($locale !== null) {
-                    \App\Support\I18n::setLocale($locale);
-                    $_SESSION['locale'] = $locale;
-                } else {
-                    // Reset runtime locale to site default so flash renders correctly
-                    \App\Support\I18n::setLocale(\App\Support\I18n::getInstallationLocale());
-                    unset($_SESSION['locale']);
-                }
+                $runtimeLocale = \App\Support\I18n::resolveUserLocale($locale);
+                \App\Support\I18n::setLocale($runtimeLocale);
+                $_SESSION['locale'] = $runtimeLocale;
+                $_SESSION['user']['locale'] = $locale;
             }
             // Flash message AFTER locale switch so it renders in the new language
             $_SESSION['success_message'] = __('Profilo aggiornato con successo.');

@@ -345,6 +345,28 @@ final class I18n
     }
 
     /**
+     * Resolve a stored user preference to an active locale.
+     *
+     * NULL, empty and obsolete locale codes inherit the installation default.
+     */
+    public static function resolveUserLocale(mixed $locale): string
+    {
+        $availableLocales = self::getAvailableLocales();
+        $requested = self::normalizeLocaleCode(is_string($locale) ? trim($locale) : '');
+        if ($requested !== '' && isset($availableLocales[$requested])) {
+            return $requested;
+        }
+
+        $installationLocale = self::normalizeLocaleCode(self::getInstallationLocale());
+        if ($installationLocale !== '' && isset($availableLocales[$installationLocale])) {
+            return $installationLocale;
+        }
+
+        $firstAvailable = array_key_first($availableLocales);
+        return is_string($firstAvailable) ? $firstAvailable : 'it_IT';
+    }
+
+    /**
      * Normalize locale codes to canonical format (xx_YY)
      */
     public static function normalizeLocaleCode(string $locale): string

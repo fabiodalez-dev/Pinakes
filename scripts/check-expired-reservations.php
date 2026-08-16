@@ -5,6 +5,7 @@
  */
 
 use App\Services\ReservationReassignmentService;
+use App\Support\DataIntegrity;
 use Dotenv\Dotenv;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -130,6 +131,13 @@ while ($reservation = $result->fetch_assoc()) {
                 // This will find the next reservation in line and assign the copy to it
                 $reassignmentService->reassignOnReturn($copiaId);
             }
+        }
+
+        // reassignOnReturn() is intentionally a no-op when nobody is waiting.
+        // The released copy and expired commitment still change the canonical
+        // book projection, so derive it before the same transaction commits.
+        if (!(new DataIntegrity($db))->recalculateBookAvailability($libroId, insideTransaction: true)) {
+            throw new RuntimeException("Failed to recalculate availability for libro_id={$libroId}");
         }
 
         $db->commit();

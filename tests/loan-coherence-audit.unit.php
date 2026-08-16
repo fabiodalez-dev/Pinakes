@@ -30,6 +30,8 @@ declare(strict_types=1);
  *     and the active reservation queue (it contradicted first_available).
  * 10. User dashboard overdue displays must use the app clock, matching the
  *     cron's `data_scadenza < today` semantics.
+ * 11. Every peripheral physical-copy writer must derive the book projection
+ *     inside the same transaction instead of forcing or repairing it later.
  */
 
 $root = dirname(__DIR__);
@@ -84,6 +86,10 @@ $pendingView  = $readSource('/app/Views/admin/pending_loans.php');
 $loanCreateView = $readSource('/app/Views/prestiti/crea_prestito.php');
 $loanEditView = $readSource('/app/Views/prestiti/modifica_prestito.php');
 $mobileActions = $readSource('/storage/plugins/mobile-api/src/Controllers/ActionsController.php');
+$expiredCron = $readSource('/scripts/check-expired-reservations.php');
+$demoSeed = $readSource('/scripts/seed-demo-catalog.php');
+$bookClubRepo = $readSource('/storage/plugins/book-club/src/Repo.php');
+$manualUpgrade = $readSource('/scripts/manual-upgrade.php');
 
 $checks = [];
 
@@ -302,6 +308,41 @@ $checks['disponibilita endpoint 404s a concurrent soft-delete'] =
     $disponibilitaSection !== ''
     && str_contains($disponibilitaSection, 'if ($availability === null)')
     && !str_contains($disponibilitaSection, 'getBookAvailabilityData($libroId, $today, 180) ?? []');
+
+// 24. The global repair must calculate the read model only after it finishes
+//     repairing loans/reservations; a preliminary/direct book-state UPDATE can
+//     neither represent prenotato correctly nor be committed independently.
+$fixIntegrity = $extractMethod($integrity, 'public function fixDataInconsistencies(');
+$lastReservationRepair = strrpos($fixIntegrity, 'UPDATE prenotazioni');
+$finalAvailability = strrpos($fixIntegrity, 'recalculateAllBookAvailability(insideTransaction: true)');
+$checks['integrity repair has one final canonical availability write'] =
+    $fixIntegrity !== ''
+    && !str_contains($fixIntegrity, 'UPDATE libri SET stato')
+    && $lastReservationRepair !== false
+    && $finalAvailability !== false
+    && $lastReservationRepair < $finalAvailability;
+
+// 25. Peripheral writers that bypass the main controllers still keep
+//     copies/commitments and the derived libri projection in one transaction.
+$checks['expired-reservation cron recalculates before commit'] =
+    str_contains($expiredCron, 'recalculateBookAvailability($libroId, insideTransaction: true)')
+    && strpos($expiredCron, 'recalculateBookAvailability($libroId, insideTransaction: true)')
+        < strrpos($expiredCron, '$db->commit()');
+$checks['demo seed never authors book state and recalculates before commit'] =
+    !str_contains($demoSeed, "genere_id=?, stato='disponibile'")
+    && str_contains($demoSeed, 'recalculateBookAvailability($bookId, insideTransaction: true)')
+    && strpos($demoSeed, 'recalculateBookAvailability($bookId, insideTransaction: true)')
+        < strpos($demoSeed, '$db->commit()');
+$createCatalogueBook = $extractMethod($bookClubRepo, 'private function createCatalogueBookFromExternal(');
+$checks['Book Club acquisition derives availability inside its transaction'] =
+    str_contains($createCatalogueBook, 'recalculateBookAvailability($libroId, insideTransaction: true)')
+    && strpos($bookClubRepo, '$this->createCatalogueBookFromExternal(')
+        < strpos($bookClubRepo, '$this->db->commit()', strpos($bookClubRepo, 'public function acquireExternalBook('));
+$migrationLoopPos = strpos($manualUpgrade, 'foreach ($migrationFiles as $migFile)');
+$checks['manual upgrader performs the post-migration availability pass'] =
+    str_contains($manualUpgrade, 'recalculateAllBookAvailability()')
+    && $migrationLoopPos !== false
+    && strpos($manualUpgrade, 'recalculateAllBookAvailability()') > $migrationLoopPos;
 
 $failed = 0;
 foreach ($checks as $label => $ok) {

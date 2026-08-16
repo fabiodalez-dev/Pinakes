@@ -3349,6 +3349,15 @@ class Updater
             ];
 
         } catch (\Throwable $e) {
+            // A data-only migration may explicitly START TRANSACTION so all of
+            // its statements remain atomic. If any statement fails before its
+            // COMMIT, close that transaction here instead of returning the
+            // connection to the updater with partial uncommitted state.
+            try {
+                $this->db->rollback();
+            } catch (\Throwable $rollbackError) {
+                // Best effort: preserve the migration error that caused the abort.
+            }
             $this->debugLog('ERROR', 'Errore durante migrazioni', [
                 'error' => $e->getMessage(),
                 'executed_so_far' => $executed

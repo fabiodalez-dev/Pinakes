@@ -21,7 +21,6 @@ class Repo
      * catalogue permits homonyms. Serialize Book Club publisher resolution on
      * the database server instead, so separate PHP workers share the same lock.
      */
-    private const PUBLISHER_LOCK_NAME = 'pinakes:bookclub:publisher';
     private const PUBLISHER_LOCK_TIMEOUT_SECONDS = 10;
 
     private mysqli $db;
@@ -181,7 +180,8 @@ class Repo
             return null;
         }
 
-        $this->acquirePublisherLock();
+        $lockName = $this->scopedPublisherLockName();
+        $this->acquirePublisherLock($lockName);
         try {
             $sel = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id ASC LIMIT 1');
             if ($sel === false) {
@@ -221,19 +221,37 @@ class Repo
             }
             return $publisherId;
         } finally {
-            $this->releasePublisherLock();
+            $this->releasePublisherLock($lockName);
         }
     }
 
-    private function acquirePublisherLock(): void
+    /**
+     * Schema-scoped, length-bounded advisory-lock name for publisher creation.
+     * Hashing the schema through a PHP md5 keeps the name within MySQL's 64-char
+     * GET_LOCK limit for ANY database name (a raw CONCAT(?, ':', DATABASE())
+     * overflows past a ~35-char schema) and needs no server-side MD5():
+     * 'pinakes-bc-pub:' + 32 hex = 47 chars, always bounded. Acquire and release
+     * must build the exact same name.
+     */
+    private function scopedPublisherLockName(): string
     {
-        $lockName = self::PUBLISHER_LOCK_NAME;
+        $dbName = '';
+        $res = $this->db->query('SELECT DATABASE()');
+        if ($res instanceof \mysqli_result) {
+            $dbName = (string) ($res->fetch_row()[0] ?? '');
+            $res->free();
+        }
+        return 'pinakes-bc-pub:' . md5($dbName);
+    }
+
+    private function acquirePublisherLock(string $lockName): void
+    {
         $timeout = self::PUBLISHER_LOCK_TIMEOUT_SECONDS;
-        // GET_LOCK is server-wide, not per-database — scope the name to the
-        // current schema (computed server-side via CONCAT + DATABASE()) so
-        // independent Pinakes installs sharing one MySQL server don't serialize
-        // each other's imports. Mirrors ContributorBackfill's lock naming.
-        $stmt = $this->db->prepare("SELECT GET_LOCK(CONCAT(?, ':', DATABASE()), ?) AS acquired");
+        // GET_LOCK is server-wide, not per-database — the name is schema-scoped
+        // and length-bounded in PHP (see scopedPublisherLockName) so independent
+        // Pinakes installs sharing one MySQL server don't serialize each other's
+        // imports without risking MySQL's 64-char lock-name limit.
+        $stmt = $this->db->prepare('SELECT GET_LOCK(?, ?) AS acquired');
         if ($stmt === false) {
             throw new \RuntimeException('publisher lock prepare failed');
         }
@@ -254,32 +272,39 @@ class Repo
         }
     }
 
-    private function releasePublisherLock(): void
+    private function releasePublisherLock(string $lockName): void
     {
-        $lockName = self::PUBLISHER_LOCK_NAME;
-        $stmt = $this->db->prepare("SELECT RELEASE_LOCK(CONCAT(?, ':', DATABASE())) AS released");
-        if ($stmt === false) {
-            SecureLogger::error('[BookClub] publisher lock release prepare failed: ' . $this->db->error);
-            return;
-        }
-        $stmt->bind_param('s', $lockName);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[BookClub] publisher lock release failed: ' . $stmt->error);
-            $stmt->close();
-            return;
-        }
-        // Guard get_result() === false here especially: this runs inside the
-        // finally of findOrCreatePublisher(), so an uncaught Error would mask a
-        // propagating exception — the very thing this lock protocol avoids.
-        $result = $stmt->get_result();
-        $stmt->close();
-        if ($result === false) {
-            SecureLogger::error('[BookClub] publisher lock release get_result failed: ' . $this->db->error);
-            return;
-        }
-        $row = $result->fetch_assoc();
-        if ((int) ($row['released'] ?? 0) !== 1) {
-            SecureLogger::error('[BookClub] publisher lock was not owned by this connection');
+        $stmt = null;
+        try {
+            $stmt = $this->db->prepare('SELECT RELEASE_LOCK(?) AS released');
+            if ($stmt === false) {
+                throw new \RuntimeException('publisher lock release prepare failed: ' . $this->db->error);
+            }
+            $stmt->bind_param('s', $lockName);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('publisher lock release failed: ' . $stmt->error);
+            }
+            $result = $stmt->get_result();
+            if ($result === false) {
+                throw new \RuntimeException('publisher lock release get_result failed: ' . $this->db->error);
+            }
+            $row = $result->fetch_assoc();
+            if ((int) ($row['released'] ?? 0) !== 1) {
+                SecureLogger::error('[BookClub] publisher lock was not owned by this connection');
+            }
+        } catch (\Throwable $e) {
+            // A broken connection releases its advisory locks server-side. This
+            // is finally-block housekeeping and must never mask the publisher
+            // lookup/insert exception that is already propagating.
+            SecureLogger::error('[BookClub] publisher lock release failed: ' . $e->getMessage());
+        } finally {
+            if ($stmt instanceof \mysqli_stmt) {
+                try {
+                    $stmt->close();
+                } catch (\Throwable $closeError) {
+                    // best-effort cleanup on a possibly broken connection
+                }
+            }
         }
     }
 
@@ -1197,6 +1222,10 @@ class Repo
             [$libroId, 'LIB-' . $libroId]
         )) {
             throw new \RuntimeException('catalog copy creation failed');
+        }
+
+        if (!(new \App\Support\DataIntegrity($this->db))->recalculateBookAvailability($libroId, insideTransaction: true)) {
+            throw new \RuntimeException('catalog availability derivation failed');
         }
 
         return $libroId;

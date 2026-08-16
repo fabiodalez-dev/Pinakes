@@ -189,11 +189,11 @@ class ReservationManager
                 FROM prenotazioni r
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.libro_id = ? AND r.stato = 'attiva'
-                AND r.data_inizio_richiesta <= ?
+                AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
                 ORDER BY r.queue_position ASC
                 LIMIT 1
             ");
-            $stmt->bind_param('is', $bookId, $today);
+            $stmt->bind_param('iss', $bookId, $today, $today);
             $stmt->execute();
             $result = $stmt->get_result();
             $nextReservation = $result->fetch_assoc();
@@ -204,13 +204,19 @@ class ReservationManager
                 // R_END once: a legacy prenotazione may have data_fine_richiesta NULL but
                 // data_scadenza_prenotazione set — passing the raw NULL would make
                 // isDateRangeAvailable() return false and the row would never promote.
-                $startDate = $nextReservation['data_inizio_richiesta'];
+                $startDate = $nextReservation['data_inizio_richiesta']
+                    ?: (!empty($nextReservation['data_scadenza_prenotazione'])
+                        ? substr((string) $nextReservation['data_scadenza_prenotazione'], 0, 10)
+                        : null);
                 $endDate = $nextReservation['data_fine_richiesta']
                     ?: (!empty($nextReservation['data_scadenza_prenotazione'])
                         ? substr((string) $nextReservation['data_scadenza_prenotazione'], 0, 10)
                         : $startDate);
-                // Feed the resolved end to createLoanFromReservation() too (it reads
-                // $reservation['data_fine_richiesta'] for the loan period).
+                // Feed both resolved bounds to createLoanFromReservation() too.
+                // Legacy rows can have a NULL requested start but a valid legacy
+                // deadline; selecting them without normalising the start would
+                // still make isDateRangeAvailable() reject them forever.
+                $nextReservation['data_inizio_richiesta'] = $startDate;
                 $nextReservation['data_fine_richiesta'] = $endDate;
 
                 // #157: pass the promoted reservation's queue_position so the
@@ -246,7 +252,9 @@ class ReservationManager
                     // counted. Recalc again now that the reservation is 'completata', so the
                     // commitment is counted exactly once.
                     $integrity = new \App\Support\DataIntegrity($this->db);
-                    $integrity->recalculateBookAvailability($bookId, true);
+                    if (!$integrity->recalculateBookAvailability($bookId, true)) {
+                        throw new \RuntimeException('Failed to recalculate availability after reservation promotion.');
+                    }
 
                     // Update queue positions for remaining reservations.
                     // Pass the completed reservation's position: the converted
@@ -359,8 +367,10 @@ class ReservationManager
         $ownTransaction = $this->beginTransactionIfNeeded();
 
         try {
-            // Find an available copy for this date range (no overlapping loans)
-            // Consider 'disponibile' and 'prenotato' copies (exclude perso/danneggiato/manutenzione)
+            // Find an available copy for this date range (no overlapping loans).
+            // Promotion happens only when the requested start has arrived, so a
+            // physically-out ('prestato') copy is intentionally excluded here;
+            // it becomes eligible through the return/reassignment path.
             // The NOT EXISTS clause ensures no overlapping loans for the requested dates
             // Note: 'da_ritirare' copies are still 'disponibile' but have a loan reservation
             $copyStmt = $this->db->prepare("
@@ -452,7 +462,9 @@ class ReservationManager
 
             // Update book availability (inside transaction)
             $integrity = new \App\Support\DataIntegrity($this->db);
-            $integrity->recalculateBookAvailability($bookId, true);
+            if (!$integrity->recalculateBookAvailability($bookId, true)) {
+                throw new \RuntimeException('Failed to recalculate availability for the promoted reservation.');
+            }
 
             $this->commitIfOwned($ownTransaction);
             return $loanId;
@@ -883,7 +895,9 @@ class ReservationManager
             $integrity = new \App\Support\DataIntegrity($this->db);
             foreach ($affectedBooks as $bookId) {
                 $this->reorderQueuePositions($bookId);
-                $integrity->recalculateBookAvailability($bookId, true);
+                if (!$integrity->recalculateBookAvailability($bookId, true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after reservation expiry.');
+                }
             }
 
             $this->commitIfOwned($ownTransaction);

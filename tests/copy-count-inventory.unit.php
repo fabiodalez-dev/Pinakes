@@ -158,6 +158,17 @@ try {
     check(count(array_intersect($next, $existing)) === 0, "allocate never collides with existing codes");
     check($next === ["{$base}-C3", "{$base}-C4", "{$base}-C5"], "allocate continues past the highest used index");
 
+    // Step 7: the admin batch helper inserts every row in one call, returns all
+    // ids, and treats an operator-entered '%' as literal note text.
+    $sharedNote = 'Batch note 100% literal';
+    $db->begin_transaction();
+    $batchIds = $repo->createManyForBookWithIdsAndNote($bookId, $base, 3, 'disponibile', $sharedNote);
+    $db->commit();
+    check(count($batchIds) === 3 && count(array_unique($batchIds)) === 3, 'batch helper returns three distinct inserted ids');
+    $escapedNote = $db->real_escape_string($sharedNote);
+    $noteCount = (int) ($db->query("SELECT COUNT(*) FROM copie WHERE libro_id = {$bookId} AND note = '{$escapedNote}'")->fetch_row()[0] ?? 0);
+    check($noteCount === 3, 'batch helper stores the shared note literally on every copy');
+
 } catch (\Throwable $e) {
     $cleanup();
     fwrite(STDERR, 'FAIL: ' . $e->getMessage() . "\n");

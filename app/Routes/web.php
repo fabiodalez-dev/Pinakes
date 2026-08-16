@@ -1494,6 +1494,12 @@ return function (App $app): void {
         return $controller->deleteCopy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/books/{id:\d+}/copies/create', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\CopyController();
+        $db = $app->getContainer()->get('db');
+        return $controller->createCopy($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Series (Series) management
     $app->get('/admin/series', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
@@ -2386,13 +2392,20 @@ return function (App $app): void {
 
         // Get request body
         $body = $request->getParsedBody();
-        if (!$body) {
-            $body = json_decode((string) $request->getBody(), true);
+        if (!is_array($body) || $body === []) {
+            $decodedBody = json_decode((string) $request->getBody(), true);
+            $body = is_array($decodedBody) ? $decodedBody : [];
         }
 
-        $copiesToAdd = (int) ($body['copies'] ?? 0);
+        // Keep the server-side contract aligned with the admin prompt. Avoid
+        // PHP's surprising casts ((int) ['anything'] === 1) and cap the batch so
+        // one request cannot build an unbounded multi-row INSERT.
+        $rawCopies = $body['copies'] ?? null;
+        $copiesToAdd = is_int($rawCopies)
+            ? $rawCopies
+            : (is_string($rawCopies) && preg_match('/^[1-9]\d*$/D', $rawCopies) === 1 ? (int) $rawCopies : 0);
 
-        if ($copiesToAdd < 1) {
+        if ($copiesToAdd < 1 || $copiesToAdd > 100) {
             $response->getBody()->write(json_encode([
                 'error' => true,
                 'message' => __('Numero di copie non valido.')
@@ -2416,39 +2429,100 @@ return function (App $app): void {
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
 
-        // Calculate new total
-        $currentCopieTotali = (int) $book['copie_totali'];
-        $newCopieTotali = $currentCopieTotali + $copiesToAdd;
-
-        // Update copie_totali counter in libri table
-        $stmt = $db->prepare('UPDATE libri SET copie_totali = ? WHERE id = ?');
-        $stmt->bind_param('ii', $newCopieTotali, $bookId);
-        $stmt->execute();
-        $stmt->close();
-
-        // Create physical copies in copie table
+        // Create the copies atomically and let DataIntegrity derive the counters,
+        // mirroring CopyController::createCopy(). The allocator produces
+        // collision-free "{base}-C{N}" codes: the previous "-C{copie_totali+i}"
+        // scheme collided with an existing code as soon as a copy was out of
+        // circulation (copie_totali excludes those), raising a 1062 that left the
+        // manually-inflated copie_totali and a partial copy set behind. No manual
+        // UPDATE, one transaction, rolled back on any failure.
         $copyRepo = new \App\Models\CopyRepository($db);
         $baseInventario = !empty($book['numero_inventario'])
             ? $book['numero_inventario']
             : "LIB-{$bookId}";
 
-        // Start from current total + 1 for new copies
-        for ($i = 1; $i <= $copiesToAdd; $i++) {
-            $copyNumber = $currentCopieTotali + $i;
-            $numeroInventario = $newCopieTotali > 1
-                ? "{$baseInventario}-C{$copyNumber}"
-                : $baseInventario;
+        $reassignmentService = null;
+        $reservationManager = null;
+        $transactionStarted = false;
+        try {
+            if (!$db->begin_transaction()) {
+                throw new \RuntimeException('Unable to begin the increase-copies transaction.');
+            }
+            $transactionStarted = true;
 
-            $note = "Copia {$copyNumber} di {$newCopieTotali}";
-            $copyRepo->create($bookId, $numeroInventario, 'disponibile', $note);
+            // Canonical lock order: book row first, then copies.
+            $lock = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
+            $lock->bind_param('i', $bookId);
+            $lock->execute();
+            $stillExists = (bool) $lock->get_result()->fetch_assoc();
+            $lock->close();
+            if (!$stillExists) {
+                throw new \RuntimeException('Book not found.');
+            }
+
+            $createdCopyIds = $copyRepo->createManyForBookWithIds($bookId, $baseInventario, $copiesToAdd, 'disponibile', __('Copia %d di %d'));
+            if (count($createdCopyIds) !== $copiesToAdd) {
+                throw new \RuntimeException('Unable to create the requested physical copies.');
+            }
+
+            // First repair copy-less/blocked HOLDING assignments, exactly like
+            // CopyController::createCopy(). Only the capacity left after those
+            // repairs may promote wait-list rows from prenotazioni.
+            $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+            $reassignmentService->setExternalTransaction(true);
+            foreach ($createdCopyIds as $createdCopyId) {
+                $reassignmentService->reassignOnNewCopy($bookId, $createdCopyId);
+            }
+
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($guard = 0; $guard < 1000 && $reservationManager->processBookAvailability($bookId); $guard++) {
+                // promote the next eligible reservation into a pending loan
+            }
+
+            $integrity = new \App\Support\DataIntegrity($db);
+            if (!$integrity->recalculateBookAvailability($bookId, true)) {
+                throw new \RuntimeException('Unable to recalculate book availability.');
+            }
+
+            if (!$db->commit()) {
+                throw new \RuntimeException('Unable to commit the increase-copies transaction.');
+            }
+            $transactionStarted = false;
+        } catch (\Throwable $e) {
+            if ($transactionStarted) {
+                try {
+                    $db->rollback();
+                } catch (\Throwable $rollbackError) {
+                    // best-effort — preserve the original failure
+                }
+            }
+            \App\Support\SecureLogger::error('[increase-copies] failed to add copies', [
+                'book' => $bookId,
+                'error' => $e->getMessage(),
+            ]);
+            $response->getBody()->write(json_encode([
+                'error' => true,
+                'message' => __('Impossibile aggiungere le copie.')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
-        // Recalculate availability using DataIntegrity
-        $integrity = new \App\Support\DataIntegrity($db);
-        $integrity->recalculateBookAvailability($bookId);
+        // Both services defer I/O while the transaction is open. Flush only
+        // after the assignment/promotion has become durable; notification errors
+        // must not turn a committed copy batch into an apparent API failure.
+        try {
+            $reassignmentService->flushDeferredNotifications();
+            $reservationManager->flushDeferredNotifications();
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[increase-copies] deferred notification failed', [
+                'book' => $bookId,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
-        // Get updated availability
-        $stmt = $db->prepare('SELECT copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL');
+        // Read the derived counters (post-commit) for the response.
+        $stmt = $db->prepare('SELECT copie_totali, copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL');
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -2457,8 +2531,8 @@ return function (App $app): void {
 
         $response->getBody()->write(json_encode([
             'success' => true,
-            'copie_totali' => $newCopieTotali,
-            'copie_disponibili' => (int) $updatedBook['copie_disponibili'],
+            'copie_totali' => (int) ($updatedBook['copie_totali'] ?? 0),
+            'copie_disponibili' => (int) ($updatedBook['copie_disponibili'] ?? 0),
             'added' => $copiesToAdd
         ], JSON_UNESCAPED_UNICODE));
 

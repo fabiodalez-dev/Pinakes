@@ -362,13 +362,16 @@ class BookRepository
         $sottogenere_id_val = $data['sottogenere_id'] ?? null;
         $editore_id_val = $data['editore_id'] ?? null;
 
-        $copie_totali = isset($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
-        $copie_disponibili = isset($data['copie_disponibili']) ? (int) $data['copie_disponibili'] : 1;
+        // On create, copie_totali is a requested physical-holding count, not a
+        // writable availability cache. New copies start available; the caller
+        // must materialise them and run DataIntegrity in the same transaction.
+        // Never trust a submitted copie_disponibili/stato value.
+        $copie_totali = max(0, isset($data['copie_totali']) ? (int) $data['copie_totali'] : 1);
+        $copie_disponibili = $copie_totali;
 
         $tipo_acquisizione = $this->sanitizeAcquisitionType($data['tipo_acquisizione'] ?? null);
-        $stato = array_key_exists('stato', $data)
-            ? $this->normalizeEnumValue($data['stato'], 'stato', 'disponibile')
-            : null;
+        $initialState = $copie_totali > 0 ? 'disponibile' : 'non_disponibile';
+        $stato = $this->normalizeEnumValue($initialState, 'stato', 'disponibile');
 
         $fields = [];
         $placeholders = [];
@@ -615,6 +618,10 @@ class BookRepository
                 'editore_id' => $editore_id_val,
                 'tipo_acquisizione' => $tipo_acquisizione,
                 'stato' => $stato,
+                'derived_fields_ignored' => array_values(array_intersect(
+                    ['stato', 'copie_disponibili'],
+                    array_keys($data)
+                )),
                 'posizione_id' => $posizione_id_val,
                 'scaffale_id' => $scaffale_id_val,
                 'mensola_id' => $mensola_id_val,
@@ -723,11 +730,7 @@ class BookRepository
         $sottogenere_id_val = $data['sottogenere_id'] ?? null;
         $editore_id_val = $data['editore_id'] ?? null;
 
-        $copie_totali = isset($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
-        $copie_disponibili = isset($data['copie_disponibili']) ? (int) $data['copie_disponibili'] : 1;
-
         $tipo_acquisizione = $this->sanitizeAcquisitionType($data['tipo_acquisizione'] ?? null);
-        $stato = $this->normalizeEnumValue($data['stato'] ?? null, 'stato', 'disponibile');
 
         $setParts = [];
         $typeParts = [];
@@ -792,12 +795,9 @@ class BookRepository
         if ($this->hasColumn('posizione_progressiva')) {
             $addSet('posizione_progressiva', 'i', $posizione_progressiva_val);
         }
-        if ($this->hasColumn('copie_totali')) {
-            $addSet('copie_totali', 'i', $copie_totali);
-        }
-        if ($this->hasColumn('copie_disponibili')) {
-            $addSet('copie_disponibili', 'i', $copie_disponibili);
-        }
+        // Availability fields are a read model derived atomically by
+        // DataIntegrity from copie/prestiti/prenotazioni. Never accept them from
+        // a form, plugin or direct repository caller.
         if ($this->hasColumn('numero_inventario')) {
             $addSet('numero_inventario', 's', $data['numero_inventario'] ?? null);
         }
@@ -824,9 +824,6 @@ class BookRepository
         }
         if ($this->hasColumn('posizione_id')) {
             $addSet('posizione_id', 'i', $posizione_id_val);
-        }
-        if ($this->hasColumn('stato') && array_key_exists('stato', $data)) {
-            $addSet('stato', 's', $stato);
         }
         if ($this->hasColumn('lingua')) {
             $addSet('lingua', 's', $data['lingua'] ?? null);
@@ -964,7 +961,10 @@ class BookRepository
             'preview' => [
                 'titolo' => $data['titolo'] ?? null,
                 'tipo_acquisizione' => $tipo_acquisizione,
-                'stato' => $stato,
+                'derived_fields_ignored' => array_values(array_intersect(
+                    ['stato', 'copie_totali', 'copie_disponibili'],
+                    array_keys($data)
+                )),
                 'posizione_id' => $posizione_id_val,
                 'scaffale_id' => $scaffale_id_val,
                 'mensola_id' => $mensola_id_val,

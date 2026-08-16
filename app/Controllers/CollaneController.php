@@ -574,69 +574,77 @@ class CollaneController
             }
         }
 
-        // Create the parent book
-        $stmt = $db->prepare("INSERT INTO libri (titolo, collana, copie_totali, copie_disponibili, created_at, updated_at) VALUES (?, ?, 0, 0, NOW(), NOW())");
-        if (!$stmt) {
-            $_SESSION['error_message'] = __('Errore database');
-            return $response->withHeader('Location', url('/admin/series'))->withStatus(302);
-        }
-        $stmt->bind_param('ss', $parentTitle, $collana);
-        $stmt->execute();
-        $parentId = (int) $db->insert_id;
-        $stmt->close();
-
-        // SEC1-1 (review): bail BEFORE calling assignPrimarySeries on a
-        // failed insert (parentId == 0). Pre-fix the check was after the
-        // mutation and the early-return was dead code.
-        if ($parentId <= 0) {
-            $_SESSION['error_message'] = __('Errore nella creazione dell\'opera');
-            return $response->withHeader('Location', url('/admin/series'))->withStatus(302);
-        }
-
-        $seriesRepo = new SeriesRepository($db);
-        $seriesRepo->assignPrimarySeries($parentId, $collana);
-
-        // Link all books in the collana as volumes
+        // The zero-copy parent row, its series membership, volume links and
+        // canonical availability projection are one logical write.
+        $parentId = 0;
         $linkedCount = 0;
-        $rows = array_values(array_filter(
-            $seriesRepo->getBooksForSeries($collana),
-            static fn(array $row): bool => (int) ($row['id'] ?? 0) !== $parentId
-        ));
-        if ($rows !== []) {
-            // Build set of used numero_serie values
-            $usedNumbers = [];
-            foreach ($rows as $row) {
-                if (!empty($row['numero_serie'])) {
-                    $usedNumbers[(int) $row['numero_serie']] = true;
-                }
+        $db->begin_transaction();
+        try {
+            $stmt = $db->prepare("INSERT INTO libri (titolo, collana, copie_totali, copie_disponibili, created_at, updated_at) VALUES (?, ?, 0, 0, NOW(), NOW())");
+            if (!$stmt) {
+                throw new \RuntimeException('Unable to prepare parent-work insert');
+            }
+            $stmt->bind_param('ss', $parentTitle, $collana);
+            $stmt->execute();
+            $parentId = (int) $db->insert_id;
+            $stmt->close();
+
+            if ($parentId <= 0) {
+                throw new \RuntimeException('Unable to create parent work');
             }
 
-            $stmtInsert = $db->prepare("INSERT IGNORE INTO volumi (opera_id, volume_id, numero_volume) VALUES (?, ?, ?)");
-            $nextFree = 1;
-            foreach ($rows as $row) {
-                $bookId = (int) $row['id'];
-                if (!empty($row['numero_serie'])) {
-                    $num = (int) $row['numero_serie'];
-                } else {
-                    // Find next free number not already used
-                    while (isset($usedNumbers[$nextFree])) {
+            $seriesRepo = new SeriesRepository($db);
+            $seriesRepo->assignPrimarySeries($parentId, $collana);
+
+            // Link all books in the collana as volumes.
+            $rows = array_values(array_filter(
+                $seriesRepo->getBooksForSeries($collana),
+                static fn(array $row): bool => (int) ($row['id'] ?? 0) !== $parentId
+            ));
+            if ($rows !== []) {
+                $usedNumbers = [];
+                foreach ($rows as $row) {
+                    if (!empty($row['numero_serie'])) {
+                        $usedNumbers[(int) $row['numero_serie']] = true;
+                    }
+                }
+
+                $stmtInsert = $db->prepare("INSERT IGNORE INTO volumi (opera_id, volume_id, numero_volume) VALUES (?, ?, ?)");
+                if (!$stmtInsert) {
+                    throw new \RuntimeException('Unable to prepare parent-work volume links');
+                }
+                $nextFree = 1;
+                foreach ($rows as $row) {
+                    $bookId = (int) $row['id'];
+                    if (!empty($row['numero_serie'])) {
+                        $num = (int) $row['numero_serie'];
+                    } else {
+                        while (isset($usedNumbers[$nextFree])) {
+                            $nextFree++;
+                        }
+                        $num = $nextFree;
+                        $usedNumbers[$nextFree] = true;
                         $nextFree++;
                     }
-                    $num = $nextFree;
-                    $usedNumbers[$nextFree] = true;
-                    $nextFree++;
-                }
-                if ($stmtInsert) {
                     $stmtInsert->bind_param('iii', $parentId, $bookId, $num);
                     $stmtInsert->execute();
                     if ($stmtInsert->affected_rows > 0) {
                         $linkedCount++;
                     }
                 }
-            }
-            if ($stmtInsert) {
                 $stmtInsert->close();
             }
+
+            if (!(new \App\Support\DataIntegrity($db))->recalculateBookAvailability($parentId, insideTransaction: true)) {
+                throw new \RuntimeException('Unable to derive parent-work availability');
+            }
+
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
+            \App\Support\SecureLogger::error('CollaneController::createParentWork failed', ['error' => $e->getMessage()]);
+            $_SESSION['error_message'] = __('Errore nella creazione dell\'opera');
+            return $response->withHeader('Location', url('/admin/series'))->withStatus(302);
         }
 
         // Build the new parent book's denormalized search_index — otherwise it

@@ -686,6 +686,103 @@ class LibriController
     }
 
     /**
+     * Build one bounded advisory-lock name per identifier value. Field names are
+     * intentionally irrelevant: ISBN-13 and EAN are cross-compared by the
+     * duplicate query, so the same value must map to the same lock whichever
+     * field carried it. Sorting makes multi-lock acquisition deadlock-safe.
+     *
+     * @param array<string,string> $codes
+     * @return list<string>
+     */
+    private static function bookIdentifierLockNames(string $databaseName, array $codes): array
+    {
+        if ($databaseName === '') {
+            throw new \RuntimeException('Unable to resolve the current database for identifier locking.');
+        }
+
+        $values = [];
+        foreach ($codes as $value) {
+            // Identifier input is ASCII by definition. Normalise the ISBN-10
+            // check digit as well: the database collation compares x/X as the
+            // same value, so their advisory-lock identity must do the same.
+            $normalized = strtoupper(trim((string) $value));
+            if ($normalized !== '') {
+                $values[$normalized] = true;
+            }
+        }
+        $values = array_keys($values);
+        sort($values, SORT_STRING);
+
+        return array_map(
+            static fn(string $value): string => 'pinakes-book-id:' . md5($databaseName . "\0" . $value),
+            $values
+        );
+    }
+
+    /** @param array<string,string> $codes @return list<string> */
+    private function acquireBookIdentifierLocks(mysqli $db, array $codes): array
+    {
+        $databaseName = '';
+        $databaseResult = $db->query('SELECT DATABASE()');
+        if ($databaseResult instanceof \mysqli_result) {
+            $databaseName = (string) ($databaseResult->fetch_row()[0] ?? '');
+            $databaseResult->free();
+        }
+
+        $lockNames = self::bookIdentifierLockNames($databaseName, $codes);
+        $acquired = [];
+        try {
+            foreach ($lockNames as $lockName) {
+                $stmt = $db->prepare('SELECT GET_LOCK(?, 10)');
+                if ($stmt === false) {
+                    throw new \RuntimeException('Unable to prepare book-identifier lock.');
+                }
+                $stmt->bind_param('s', $lockName);
+                try {
+                    if (!$stmt->execute()) {
+                        throw new \RuntimeException('Unable to acquire book-identifier lock: ' . $stmt->error);
+                    }
+                    $result = $stmt->get_result();
+                    $locked = $result instanceof \mysqli_result
+                        && (int) ($result->fetch_row()[0] ?? 0) === 1;
+                } finally {
+                    $stmt->close();
+                }
+                if (!$locked) {
+                    throw new \RuntimeException('Timed out while waiting for a book-identifier lock.');
+                }
+                $acquired[] = $lockName;
+            }
+            return $acquired;
+        } catch (\Throwable $e) {
+            $this->releaseBookIdentifierLocks($db, $acquired);
+            throw $e;
+        }
+    }
+
+    /** @param list<string> $lockNames */
+    private function releaseBookIdentifierLocks(mysqli $db, array $lockNames): void
+    {
+        foreach (array_reverse($lockNames) as $lockName) {
+            try {
+                $stmt = $db->prepare('SELECT RELEASE_LOCK(?)');
+                if ($stmt === false) {
+                    continue;
+                }
+                $stmt->bind_param('s', $lockName);
+                try {
+                    $stmt->execute();
+                } finally {
+                    $stmt->close();
+                }
+            } catch (\Throwable $e) {
+                // Advisory locks are connection-scoped and a broken connection
+                // releases them server-side. Never mask the original save error.
+            }
+        }
+    }
+
+    /**
      * Create a book from the admin form: validates input, resolves authors and
      * publishers (multi-publisher, issue #143), handles cover + scraping data,
      * then persists via BookRepository.
@@ -842,11 +939,15 @@ class LibriController
         $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int) $fields['editore_id'];
         $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int) $fields['genere_id'];
         $fields['sottogenere_id'] = empty($fields['sottogenere_id']) || $fields['sottogenere_id'] == 0 ? null : (int) $fields['sottogenere_id'];
-        $fields['copie_totali'] = (int) $fields['copie_totali'];
-        // Add bounds checking to prevent integer overflow
-        if ($fields['copie_totali'] < 1) {
-            $fields['copie_totali'] = 1;
-        } elseif ($fields['copie_totali'] > 9999) {
+        // Reject non-scalar or non-integer input BEFORE casting: (int) "abc" is 0
+        // and (int) (non-empty array) is 1, both of which would slip past the
+        // 0..9999 bounds as a silent, wrong copy count. Only a genuine integer
+        // string is honoured; anything else falls back to zero copies.
+        $rawCopie = $fields['copie_totali'] ?? 0;
+        $fields['copie_totali'] = (is_scalar($rawCopie) && preg_match('/^\d+$/', trim((string) $rawCopie)) === 1)
+            ? (int) trim((string) $rawCopie)
+            : 0;
+        if ($fields['copie_totali'] > 9999) {
             $fields['copie_totali'] = 9999;
         }
         // In creazione, copie_disponibili = copie_totali (le copie sono tutte nuove e disponibili)
@@ -864,12 +965,21 @@ class LibriController
         // scraped_cover_url; this flag lets the scraped-cover branch skip the
         // redundant second download that would orphan a file on disk (#F009).
         $scrapedCoverAlreadySaved = false;
+        // A localised external cover is written before the DB transaction. Keep
+        // its path so an atomic book/copies rollback can remove that request's
+        // file as well as its database rows.
+        $coverCreatedBeforeAtomicInsert = '';
         if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
         } else {
             // Auto-download external cover URLs
             $originalCoverUrl = (string) $fields['copertina_url'];
             $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
+            if (preg_match('#^https?://#i', $originalCoverUrl) === 1
+                && is_string($fields['copertina_url'])
+                && strpos($fields['copertina_url'], '/uploads/copertine/') === 0) {
+                $coverCreatedBeforeAtomicInsert = $fields['copertina_url'];
+            }
             if (is_string($fields['copertina_url'])
                 && strpos($fields['copertina_url'], '/uploads/copertine/') === 0
                 && isset($data['scraped_cover_url'])
@@ -928,30 +1038,20 @@ class LibriController
             }
         }
 
-        // Acquire advisory lock to make duplicate check + insert atomic
-        $lockKey = null;
+        // Acquire one schema-scoped advisory lock per normalized identifier.
+        // Create and update deliberately share this protocol: locking the whole
+        // submitted tuple would not serialize partially-overlapping sets (for
+        // example isbn13=X versus ean=X), while different create/update prefixes
+        // would not serialize at all.
+        $lockKeys = [];
         if (!empty($codes)) {
-            // Create unique lock key from identifiers
-            $lockKey = 'book_create_' . md5(implode('|', array_values($codes)));
-            $lockStmt = $db->prepare("SELECT GET_LOCK(?, 10)");
-            if (!$lockStmt) {
+            try {
+                $lockKeys = $this->acquireBookIdentifierLocks($db, $codes);
+            } catch (\Throwable $e) {
+                SecureLogger::error('LibriController::store identifier lock failed: ' . $e->getMessage());
                 $response->getBody()->write(json_encode([
                     'error' => 'lock_error',
                     'message' => __('Errore interno durante acquisizione lock.')
-                ], JSON_UNESCAPED_UNICODE));
-                return $response->withStatus(503)->withHeader('Content-Type', 'application/json');
-            }
-            $lockStmt->bind_param('s', $lockKey);
-            $lockStmt->execute();
-            $lockResult = $lockStmt->get_result();
-            $locked = $lockResult ? (int) $lockResult->fetch_row()[0] : 0;
-            $lockStmt->close();
-
-            if (!$locked) {
-                // Failed to acquire lock (timeout or error)
-                $response->getBody()->write(json_encode([
-                    'error' => 'lock_timeout',
-                    'message' => __('Impossibile acquisire il lock. Riprova tra qualche secondo.')
                 ], JSON_UNESCAPED_UNICODE));
                 return $response->withStatus(503)->withHeader('Content-Type', 'application/json');
             }
@@ -984,10 +1084,6 @@ class LibriController
                 $stmt->execute();
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
-                    // Release lock before returning
-                    if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
-
-
                     // Build location string
                     $location = '';
                     if (!empty($dup['scaffale_codice']) && !empty($dup['mensola_livello']) && !empty($dup['posizione_progressiva'])) {
@@ -1176,7 +1272,81 @@ class LibriController
             // Plugin hook: Before book save
             \App\Support\Hooks::do('book.save.before', [$fields, null]);
 
-            $id = $repo->createBasic($fields);
+            // Atomic create: the book row and its initial physical copies must
+            // persist together or not at all — a copy-creation failure used to
+            // leave an orphan book with no/partial holdings. The transaction
+            // wraps ONLY createBasic() + createManyForBook() + the SQL-only
+            // availability reconciliation. createBasic detects the open
+            // transaction via its savepoint probe and nests with SAVEPOINT;
+            // DataIntegrity is explicitly told that this transaction belongs
+            // to the caller. No plugin hook fires inside it — book.save.after
+            // handlers (e.g. book-club) can open their own transaction, which
+            // under mysqli would implicitly commit the enclosing transaction
+            // and silently destroy this atomicity. Hooks and series/LT metadata
+            // therefore run strictly after the commit.
+            if (!$db->begin_transaction()) {
+                throw new \RuntimeException('Database error: unable to begin book create transaction');
+            }
+            try {
+                $id = $repo->createBasic($fields);
+
+                // Genera copie fisiche del libro
+                $copyRepo = new \App\Models\CopyRepository($db);
+                $copieTotali = (int) $fields['copie_totali'];
+                $baseInventario = !empty($fields['numero_inventario'])
+                    ? $fields['numero_inventario']
+                    : "LIB-{$id}";
+
+                // Create the requested holding set with one atomic multi-row INSERT:
+                // a request for three copies must never leave a partial 1/3 or 2/3
+                // result if one inventory code fails. Codes stay uniform (-C1, -C2,
+                // ...) and collision-free through the repository allocator.
+                $createdCopies = $copyRepo->createManyForBook(
+                    $id,
+                    $baseInventario,
+                    $copieTotali,
+                    'disponibile',
+                    __('Copia %d di %d')
+                );
+                if ($createdCopies !== $copieTotali) {
+                    throw new \RuntimeException('Unable to create the requested physical copies.');
+                }
+
+                // Counters and canonical state are part of the same invariant as
+                // the book and its holdings. If reconciliation fails, rolling
+                // back here prevents a committed book whose summary/API fields
+                // disagree with the physical copies just created.
+                $availabilityUpdated = (new \App\Support\DataIntegrity($db))
+                    ->recalculateBookAvailability($id, true);
+                if (!$availabilityUpdated) {
+                    throw new \RuntimeException('Unable to recalculate availability for the new book.');
+                }
+
+                if (!$db->commit()) {
+                    throw new \RuntimeException('Database error: unable to commit book create transaction');
+                }
+            } catch (\Throwable $atomicCreateError) {
+                try {
+                    $db->rollback();
+                } catch (\Throwable $rollbackError) {
+                    // best-effort — a dropped connection must not mask the original error
+                }
+                // The cover download is filesystem I/O and cannot participate in
+                // mysqli's transaction. Delete only the file localised by this
+                // request; raw external URLs and pre-existing local files no-op.
+                try {
+                    $this->deleteLocalCoverFile($coverCreatedBeforeAtomicInsert);
+                } catch (\Throwable $coverCleanupError) {
+                    \App\Support\SecureLogger::warning('Unable to clean up cover after atomic book rollback', [
+                        'error' => $coverCleanupError->getMessage(),
+                    ]);
+                }
+                \App\Support\SecureLogger::error('LibriController::store atomic book+copies create failed', [
+                    'error' => $atomicCreateError->getMessage(),
+                ]);
+                throw $atomicCreateError;
+            }
+
             $this->syncSeriesMetadataFromBookForm($db, $id, $fields, $data);
 
             // Handle LibraryThing fields visibility preferences
@@ -1188,37 +1358,17 @@ class LibriController
             // Plugin hook: After book save
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
-            // Genera copie fisiche del libro
-            $copyRepo = new \App\Models\CopyRepository($db);
-            $copieTotali = (int) $fields['copie_totali'];
-            $baseInventario = !empty($fields['numero_inventario'])
-                ? $fields['numero_inventario']
-                : "LIB-{$id}";
-
-            // Uniform "-C{N}" codes for every copy (#238): even a single copy is
-            // "{base}-C1", so later adding a 2nd copy yields a consistent C1/C2 pair
-            // instead of a bare base plus a "-C2". allocateInventoryCodes guarantees
-            // no collision with any existing numero_inventario.
-            $codes = $copyRepo->allocateInventoryCodes($baseInventario, $copieTotali);
-            foreach ($codes as $i => $numeroInventario) {
-                $note = "Copia " . ($i + 1) . " di {$copieTotali}";
-                $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
-            }
-
-            // Ricalcola disponibilità dopo aver generato le copie, come fa il
-            // percorso di update. Senza questo, copie_disponibili/copie_totali e
-            // lo stato canonico non vengono derivati dalle copie appena create:
-            // ogni superficie OPAC calcola la disponibilità da copie_disponibili,
-            // quindi un nuovo libro resterebbe con i contatori a zero (o con lo
-            // stato grezzo scritto dal form) finché non passa un altro salvataggio.
-            (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($id);
-
             // Persist all fields first, then apply an explicitly chosen cover
             // (file upload or scraped URL) on top so it isn't reverted by the
             // field update (mirrors update(); see #165).
             // Optionals (numero_pagine, ean, data_pubblicazione, traduttore)
             // Merge normalized $fields over $data so NULL isbn/ean values are preserved
             (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
+            // Every identifier write is now committed and visible. Release before
+            // cover I/O/search-index work so a duplicate request can fail fast
+            // instead of waiting behind unrelated post-save processing.
+            $this->releaseBookIdentifierLocks($db, $lockKeys);
+            $lockKeys = [];
             // The cover persisted just above may be a local file that
             // downloadExternalCover() saved during this submit; capture it so
             // it can be cleaned up if the branches below replace it (#F002).
@@ -1264,10 +1414,7 @@ class LibriController
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
 
         } finally {
-            // Release advisory lock
-            if ($lockKey) {
-                if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
-            }
+            $this->releaseBookIdentifierLocks($db, $lockKeys);
         }
     }
 
@@ -1448,53 +1595,15 @@ class LibriController
         $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int) $fields['editore_id'];
         $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int) $fields['genere_id'];
         $fields['sottogenere_id'] = empty($fields['sottogenere_id']) || $fields['sottogenere_id'] == 0 ? null : (int) $fields['sottogenere_id'];
-        // Clamp to the same 1..9999 range as store(): an unbounded value would build
-        // a huge allocation loop / copy set. (#252 CodeRabbit)
-        $fields['copie_totali'] = (int) $fields['copie_totali'];
-        if ($fields['copie_totali'] < 1) {
-            $fields['copie_totali'] = 1;
-        } elseif ($fields['copie_totali'] > 9999) {
-            $fields['copie_totali'] = 9999;
-        }
-
-        // Validazione copie: verifica che sia possibile ridurre il numero di copie.
-        // Usa lo stesso conteggio "in circolazione" della gestione copie più sotto
-        // (e di libri.copie_totali via DataIntegrity): con il conteggio grezzo,
-        // un libro con copie fuori circolazione divergerebbe dalla logica reale e
-        // bloccherebbe il salvataggio con un messaggio errato.
-        $copyRepo = new \App\Models\CopyRepository($db);
-        $currentCopieCount = $copyRepo->countInCirculationByBookId($id);
-        $newCopieCount = $fields['copie_totali'];
-
-        if ($newCopieCount < $currentCopieCount) {
-            // Conta quante copie sono disponibili per la rimozione
-            $copie = $copyRepo->getByBookId($id);
-            $removableCopies = 0;
-
-            foreach ($copie as $copia) {
-                if ($copia['stato'] === 'disponibile' && empty($copia['prestito_id'])) {
-                    $removableCopies++;
-                }
-            }
-
-            $requiredReduction = $currentCopieCount - $newCopieCount;
-
-            if ($requiredReduction > $removableCopies) {
-                // The floor is the in-circulation count minus what we can remove.
-                // Deriving it from $currentCopieCount (which already excludes
-                // out-of-circulation copies) keeps the message consistent with the
-                // canonical libri.copie_totali, instead of counting perso/danneggiato
-                // copies that aren't part of that total at all.
-                $minimumCopies = $currentCopieCount - $removableCopies;
-                $_SESSION['error_message'] = sprintf(
-                    __('Impossibile ridurre le copie a %d. Ci sono %d copie non disponibili (in prestito, perse o danneggiate). Il numero minimo di copie totali è %d.'),
-                    $newCopieCount,
-                    $minimumCopies,
-                    $minimumCopies
-                );
-                return $response->withHeader('Location', url('/admin/books/edit/' . $id))->withStatus(302);
-            }
-        }
+        // Copies are managed individually from the book summary (#physical-copies);
+        // the edit form's "Copie in circolazione" field is read-only. Ignore any
+        // submitted copie_totali — derive it from the copie table — so a crafted
+        // POST that bypasses the client-side readonly cannot drive the copy
+        // reconciliation below to silently add or delete copies. The derived value
+        // matches libri.copie_totali (same out-of-circulation exclusion as
+        // DataIntegrity), so the add/remove branches become guaranteed no-ops.
+        $copyRepoCount = new \App\Models\CopyRepository($db);
+        $fields['copie_totali'] = $copyRepoCount->countInCirculationByBookId($id);
 
         // Non aggiorniamo disponibilità/stato dall'utente: sono derivati dalle copie.
         unset($fields['copie_disponibili']);
@@ -1604,25 +1713,15 @@ class LibriController
             }
         }
 
-        // Acquire advisory lock to make duplicate check + update atomic
-        $lockKey = null;
+        // Same per-identifier protocol as store(): create/update and partially
+        // overlapping ISBN/EAN sets must contend on the same lock names.
+        $lockKeys = [];
         if (!empty($codes)) {
-            // Create unique lock key from identifiers
-            $lockKey = 'book_update_' . md5(implode('|', array_values($codes)));
-            $lockStmt = $db->prepare("SELECT GET_LOCK(?, 10)");
-            if (!$lockStmt) {
+            try {
+                $lockKeys = $this->acquireBookIdentifierLocks($db, $codes);
+            } catch (\Throwable $e) {
+                SecureLogger::error('LibriController::update identifier lock failed: ' . $e->getMessage());
                 $_SESSION['error_message'] = __('Errore del server. Riprova.');
-                return $response->withHeader('Location', url('/admin/books/edit/' . $id))->withStatus(302);
-            }
-            $lockStmt->bind_param('s', $lockKey);
-            $lockStmt->execute();
-            $lockResult = $lockStmt->get_result();
-            $locked = $lockResult ? (int) $lockResult->fetch_row()[0] : 0;
-            $lockStmt->close();
-
-            if (!$locked) {
-                // Failed to acquire lock (timeout or error)
-                $_SESSION['error_message'] = __('Impossibile acquisire il lock. Riprova tra qualche secondo.');
                 return $response->withHeader('Location', url('/admin/books/edit/' . $id))->withStatus(302);
             }
         }
@@ -1655,10 +1754,6 @@ class LibriController
                 $stmt->execute();
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
-                    // Release lock before returning
-                    if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
-
-
                     // Build location string
                     $location = '';
                     if (!empty($dup['scaffale_codice']) && !empty($dup['mensola_livello']) && !empty($dup['posizione_progressiva'])) {
@@ -1858,79 +1953,6 @@ class LibriController
             // Plugin hook: After book save (update)
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
-            // Gestione copie: aggiorna il numero di copie se cambiato.
-            // Il conteggio di riferimento DEVE escludere le copie fuori
-            // circolazione (perso/danneggiato/manutenzione/in_restauro/
-            // in_trasferimento), perché `$fields['copie_totali']` arriva dal
-            // form pre-compilato con `libri.copie_totali`, che DataIntegrity
-            // calcola con la stessa esclusione. Con il conteggio grezzo
-            // (countByBookId) un libro con una copia fuori circolazione avrebbe
-            // current > form a ogni salvataggio e cancellerebbe una copia buona.
-            $copyRepo = new \App\Models\CopyRepository($db);
-            $currentCopieCount = $copyRepo->countInCirculationByBookId($id);
-            $newCopieCount = (int) $fields['copie_totali'];
-
-            if ($newCopieCount > $currentCopieCount) {
-                // Aggiungi nuove copie. #238: generate gap-filling, collision-free
-                // "-C{N}" codes instead of "-C{count+1}" (which duplicated an existing
-                // code after a copy had been removed). allocateInventoryCodes checks
-                // every candidate against the whole `copie` table.
-                $baseInventario = !empty($fields['numero_inventario'])
-                    ? $fields['numero_inventario']
-                    : "LIB-{$id}";
-
-                $howMany = $newCopieCount - $currentCopieCount;
-                $codes = $copyRepo->allocateInventoryCodes($baseInventario, $howMany);
-                foreach ($codes as $numeroInventario) {
-                    $note = "Copia {$numeroInventario}";
-                    $newCopyId = $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
-
-                    // Case 1: Reassign pending reservations to this new copy
-                    try {
-                        $reassignmentService = new \App\Services\ReservationReassignmentService($db);
-                        $reassignmentService->reassignOnNewCopy($id, $newCopyId);
-                    } catch (\Throwable $e) {
-                        SecureLogger::error(__('Riassegnazione prenotazione nuova copia fallita') . ': ' . $e->getMessage(), [
-                            'copia_id' => $newCopyId,
-                        ]);
-                    }
-
-                    // Also process waitlist (prenotazioni -> prestiti) as we have more capacity now
-                    try {
-                        $reservationManager = new \App\Controllers\ReservationManager($db);
-                        $reservationManager->processBookAvailability($id);
-                    } catch (\Throwable $e) {
-                        SecureLogger::error(__('Elaborazione lista attesa fallita') . ': ' . $e->getMessage(), [
-                            'libro_id' => $id,
-                        ]);
-                    }
-                }
-            } elseif ($newCopieCount < $currentCopieCount) {
-                // Rimuovi copie in eccesso DALLA CODA (le ultime aggiunte), solo quelle
-                // disponibili e senza impegni (#238: prima si rimuoveva la PRIMA della
-                // lista ASC, lasciando codici col suffisso più alto → collisioni dopo).
-                $removable = $copyRepo->getRemovableCopiesNewestFirst($id);
-                $toRemove = $currentCopieCount - $newCopieCount;
-                $removed = 0;
-
-                foreach ($removable as $copia) {
-                    if ($removed >= $toRemove) {
-                        break;
-                    }
-                    // Conditional delete: only counts if the copy is still removable
-                    // (a loan may have claimed it since the SELECT). Miscounting is
-                    // thus impossible; the FK RESTRICT is the hard backstop.
-                    if ($copyRepo->deleteIfRemovable($copia['id'])) {
-                        $removed++;
-                    }
-                }
-
-                // Se non riusciamo a rimuovere abbastanza copie, avvisa l'utente
-                if ($removed < $toRemove) {
-                    $_SESSION['warning_message'] = __("Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.");
-                }
-            }
-
             // Ricalcola disponibilità dopo aver modificato le copie
             $integrity = new \App\Support\DataIntegrity($db);
             $integrity->recalculateBookAvailability($id);
@@ -1942,6 +1964,8 @@ class LibriController
             // dance to swap an auto-imported cover (#165).
             // Merge normalized $fields over $data so NULL isbn/ean values are preserved
             (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
+            $this->releaseBookIdentifierLocks($db, $lockKeys);
+            $lockKeys = [];
             // The cover persisted just above may be a local file that
             // downloadExternalCover() saved during this submit; capture it so
             // the cleanup below can also remove it when a file upload or a
@@ -1992,10 +2016,7 @@ class LibriController
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
 
         } finally {
-            // Release advisory lock
-            if ($lockKey) {
-                if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
-            }
+            $this->releaseBookIdentifierLocks($db, $lockKeys);
         }
     }
 

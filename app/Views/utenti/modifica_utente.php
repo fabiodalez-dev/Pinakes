@@ -18,6 +18,12 @@ $dataScadenzaTessera = HtmlHelper::e($utente['data_scadenza_tessera'] ?? '');
 $stato = (string)($utente['stato'] ?? 'attivo');
 $ruolo = (string)($utente['tipo_utente'] ?? 'standard');
 $note = HtmlHelper::e($utente['note_utente'] ?? '');
+$availableLocales = isset($availableLocales) && is_array($availableLocales)
+    ? $availableLocales
+    : \App\Support\I18n::getAvailableLocales();
+$selectedLocale = isset($selectedLocale) && is_string($selectedLocale)
+    ? $selectedLocale
+    : \App\Support\I18n::getInstallationLocale();
 ?>
 <div class="py-8">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -139,6 +145,17 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
         <div>
           <label for="password" class="block text-sm font-medium text-gray-700"><?= __("Nuova password") ?></label>
           <input type="password" autocomplete="new-password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("Lascia vuoto per non modificare") ?>">
+        </div>
+        <div>
+          <label for="locale" class="block text-sm font-medium text-gray-700"><?= __("Lingua dell'interfaccia") ?></label>
+          <select id="locale" name="locale" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
+            <?php foreach ($availableLocales as $code => $name): ?>
+              <option value="<?= htmlspecialchars((string) $code, ENT_QUOTES, 'UTF-8') ?>" <?= $code === $selectedLocale ? 'selected' : '' ?>>
+                <?= htmlspecialchars((string) $name, ENT_QUOTES, 'UTF-8') ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <p class="text-xs text-gray-500 mt-1"><?= __("L'utente potrà cambiarla in qualsiasi momento.") ?></p>
         </div>
       </section>
 

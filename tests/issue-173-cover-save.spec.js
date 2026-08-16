@@ -39,6 +39,11 @@ function dbQuery(sql){
   try{ return execFileSync('mysql',[`--defaults-extra-file=${cnf}`,...args],{encoding:'utf-8',timeout:10000}).trim(); } finally { try{fs.unlinkSync(cnf);}catch{} }
 }
 
+// Encode dynamic text as a MySQL hex literal. Besides avoiding quoting bugs,
+// this keeps the helper safe for titles containing apostrophes or slashes.
+// BINARY comparison below also avoids connection/table collation drift.
+const sqlHex = (value) => `0x${Buffer.from(String(value), 'utf8').toString('hex')}`;
+
 const ROOT = path.resolve(__dirname, '..');
 // nosemgrep -- url is our own /uploads/copertine path read back from the DB, test-only
 const coverFile = (url) => path.join(ROOT, 'public', String(url).replace(/^\//, ''));
@@ -87,8 +92,26 @@ test.describe('#173 — external covers download & save as a local file', () => 
     await page.goto(`${BASE}/admin/books/create`);
     await page.fill('#titolo', title);
     await submitBook();
-    const id = parseInt(dbQuery(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`), 10);
-    expect(id).toBeGreaterThan(0);
+    // Poll for the row instead of reading once: submitBook()'s waits are
+    // best-effort (all swallow with .catch), so under parallel workers the
+    // SELECT can race the post-confirm commit and read 0. Retry until the book
+    // is visible.
+    let id = 0;
+    await expect.poll(
+      () => {
+        id = parseInt(dbQuery(`SELECT id FROM libri WHERE BINARY titolo=${sqlHex(title)} AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`), 10) || 0;
+        return id;
+      },
+      { timeout: 10000 },
+    ).toBeGreaterThan(0);
+    // The DB row can become visible a few milliseconds before the create flow's
+    // browser redirect reaches the summary page. Settle that navigation before
+    // a caller starts /edit, otherwise the late /books/{id} redirect can abort
+    // page.goto(/edit/{id}) (the shard-4 failure seen on both CI attempts).
+    await page.waitForURL(
+      (url) => url.pathname.replace(/\/$/, '').endsWith(`/admin/books/${id}`),
+      { timeout: 10000 },
+    );
     createdIds.push(id);
     return id;
   }
@@ -123,7 +146,7 @@ test.describe('#173 — external covers download & save as a local file', () => 
 
   test('1. Editing a book with an OpenLibrary cover saves it as a LOCAL file (the #173 regression)', async () => {
     test.skip(!netOk, 'external cover host unreachable');
-    const id = await createBook(`C173a_${Date.now().toString(36)}`);
+    const id = await createBook(`C173a_L'arte_${Date.now().toString(36)}`);
     expect(cover(id)).toBe('');                         // starts with no cover
     await saveWithExternalCover(id, OPENLIBRARY_COVER);
 

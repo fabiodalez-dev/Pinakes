@@ -908,20 +908,20 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
   </div>
   <?php endif; ?>
 
-  <!-- Copies Section -->
-  <?php if (!empty($copie) && count($copie) > 0): ?>
-  <div class="mt-6">
+  <!-- Copies Section (always shown so copies can be added even to a book with none) -->
+  <?php $copie = $copie ?? []; ?>
+  <div class="mt-6" id="physical-copies">
     <div class="card">
       <div class="card-header flex items-center justify-between gap-4 flex-wrap">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-clone text-gray-900"></i>
           <?= __("Copie Fisiche") ?>
           <span class="ml-2 text-sm font-normal text-gray-500">
-            (<?php echo count($copie); ?> <?= count($copie) > 1 ? __("copie") : __("copia") ?>)
+            (<?php echo count($copie); ?> <?= count($copie) === 1 ? __("copia") : __("copie") ?>)
             <?php if (isset($libro['copie_totali']) || isset($libro['copie_disponibili'])): ?>
               <?php if (isset($libro['copie_totali'])): ?>
                 <span class="mx-2">•</span>
-                <?= __("Copie totali") ?>: <strong><?php echo (int)$libro['copie_totali']; ?></strong>
+                <?= __("Copie in circolazione") ?>: <strong><?php echo (int)$libro['copie_totali']; ?></strong>
               <?php endif; ?>
               <?php if (isset($libro['copie_disponibili'])): ?>
                 <span class="mx-2">•</span>
@@ -930,11 +930,19 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
             <?php endif; ?>
           </span>
         </h2>
-        <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/copy-labels-pdf'), ENT_QUOTES, 'UTF-8') ?>"
-           target="_blank" rel="noopener"
-           class="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-900 transition-colors font-medium">
-          <i class="fas fa-tags"></i><?= __("Stampa etichette copie") ?>
-        </a>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" onclick="openAddCopyModal()"
+                  class="inline-flex min-h-11 items-center gap-2 px-4 py-2.5 bg-gray-800 text-white text-sm rounded hover:bg-gray-900 transition-colors font-medium">
+            <i class="fas fa-plus"></i><?= __("Aggiungi copie") ?>
+          </button>
+          <?php if (!empty($copie)): ?>
+          <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/copy-labels-pdf'), ENT_QUOTES, 'UTF-8') ?>"
+             target="_blank" rel="noopener"
+             class="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-900 transition-colors font-medium">
+            <i class="fas fa-tags"></i><?= __("Stampa etichette copie") ?>
+          </a>
+          <?php endif; ?>
+        </div>
       </div>
       <div class="card-body p-0">
         <div class="overflow-x-auto">
@@ -951,6 +959,15 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
+              <?php if (empty($copie)): ?>
+              <tr>
+                <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">
+                  <i class="fas fa-clone text-gray-300 text-2xl mb-2 block"></i>
+                  <?= __("Nessuna copia fisica registrata.") ?>
+                  <?= __("Usa \"Aggiungi copie\" per crearne una o più e impostarne lo stato.") ?>
+                </td>
+              </tr>
+              <?php endif; ?>
               <?php foreach ($copie as $copia): ?>
               <tr class="hover:bg-gray-50 transition-colors">
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -998,16 +1015,20 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                           'prestato'    => __('Prestato'),
                           'prenotato'   => __('Prenotato'),
                           'manutenzione' => __('In manutenzione'),
+                          'in_restauro' => __('In restauro'),
                           'perso'       => __('Perso'),
                           'danneggiato' => __('Danneggiato'),
+                          'in_trasferimento' => __('In trasferimento'),
                       ];
                       $copiaStatusClasses = [
                           'disponibile' => 'bg-green-100 text-green-800',
                           'prestato'    => 'bg-red-100 text-red-800',
                           'prenotato'   => 'bg-purple-100 text-purple-800',
                           'manutenzione' => 'bg-yellow-100 text-yellow-800',
+                          'in_restauro' => 'bg-indigo-100 text-indigo-800',
                           'perso'       => 'bg-gray-100 text-gray-800',
                           'danneggiato' => 'bg-orange-100 text-orange-800',
+                          'in_trasferimento' => 'bg-blue-100 text-blue-800',
                       ];
                       $effectiveLabel = $copiaStatusLabels[$effectiveStatus] ?? ucfirst($effectiveStatus);
                       $effectiveClass = $copiaStatusClasses[$effectiveStatus] ?? 'bg-gray-100 text-gray-800';
@@ -1078,7 +1099,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                     $loanStatusVal = $copia['prestito_stato'] ?? null;
                     $bookAtLibrary = in_array($loanStatusVal, ['da_ritirare', 'prenotato'], true);
                     $canEdit = empty($copia['prestito_id']) || $bookAtLibrary;
-                    $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione']);
+                    $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true);
                     ?>
                     <?php if ($canEdit): ?>
                     <button type="button"
@@ -1120,7 +1141,6 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
       </div>
     </div>
   </div>
-  <?php endif; ?>
 
   <!-- Loan History Section -->
   <?php if (!empty($parentWork)): ?>
@@ -1844,6 +1864,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
             <option value="manutenzione"><?= __("In manutenzione") ?></option>
             <option value="danneggiato"><?= __("Danneggiato") ?></option>
             <option value="perso"><?= __("Perso") ?></option>
+            <option value="in_restauro"><?= __("In restauro") ?></option>
+            <option value="in_trasferimento"><?= __("In trasferimento") ?></option>
           </select>
           <p class="text-xs text-gray-600 mt-1">
             <i class="fas fa-info-circle text-blue-500 mr-1"></i>
@@ -1865,6 +1887,130 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
       </form>
     </div>
   </div>
+
+  <!-- Modal Aggiungi Copie -->
+  <div id="add-copy-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50"
+       role="dialog" aria-modal="true" aria-labelledby="add-copy-modal-title">
+    <div class="bg-white rounded shadow-2xl w-full max-w-lg mx-4">
+      <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+        <h3 id="add-copy-modal-title" class="text-lg font-semibold text-gray-900">
+          <i class="fas fa-plus text-gray-600 mr-2"></i>
+          <?= __("Aggiungi copie fisiche") ?>
+        </h3>
+        <button type="button" id="close-add-copy-modal" class="min-h-11 min-w-11 text-gray-500 hover:text-gray-700" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form method="post" id="add-copy-form"
+            action="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/copies/create'), ENT_QUOTES, 'UTF-8') ?>"
+            class="px-6 py-5 space-y-4">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+
+        <div>
+          <label for="add-copy-quantita" class="form-label"><?= __("Quantità") ?></label>
+          <input type="number" id="add-copy-quantita" name="quantita" class="form-input" value="1"
+                 min="1" max="100" step="1" inputmode="numeric" required aria-required="true"
+                 aria-describedby="add-copy-quantita-help">
+          <p id="add-copy-quantita-help" class="text-sm text-gray-700 mt-1">
+            <?= __("Puoi aggiungere fino a 100 copie in un'unica operazione atomica.") ?>
+          </p>
+        </div>
+
+        <div id="add-copy-inventario-group">
+          <label for="add-copy-inventario" class="form-label"><?= __("Numero di inventario") ?> (<?= __("opzionale") ?>)</label>
+          <input type="text" id="add-copy-inventario" name="numero_inventario" class="form-input" maxlength="100"
+                 placeholder="<?= htmlspecialchars(__('Lascia vuoto per assegnarlo automaticamente'), ENT_QUOTES, 'UTF-8') ?>"
+                 aria-describedby="add-copy-inventario-help">
+          <p id="add-copy-inventario-help" class="text-sm text-gray-700 mt-1">
+            <?= __("Disponibile solo per una copia. Se lo lasci vuoto, il numero viene assegnato automaticamente.") ?>
+          </p>
+        </div>
+
+        <p id="add-copy-batch-inventario-help" class="hidden rounded bg-gray-100 px-4 py-3 text-sm text-gray-700" role="status">
+          <i class="fas fa-info-circle mr-2" aria-hidden="true"></i><?= __("I numeri di inventario saranno generati automaticamente dal prefisso del libro, uno diverso per ogni copia.") ?>
+        </p>
+
+        <div>
+          <label for="add-copy-stato" class="form-label"><?= __("Stato della copia") ?></label>
+          <select id="add-copy-stato" name="stato" class="form-input" required aria-required="true">
+            <option value="disponibile"><?= __("Disponibile") ?></option>
+            <option value="manutenzione"><?= __("In manutenzione") ?></option>
+            <option value="danneggiato"><?= __("Danneggiato") ?></option>
+            <option value="perso"><?= __("Perso") ?></option>
+            <option value="in_restauro"><?= __("In restauro") ?></option>
+            <option value="in_trasferimento"><?= __("In trasferimento") ?></option>
+          </select>
+          <p class="text-xs text-gray-600 mt-1">
+            <i class="fas fa-info-circle text-blue-500 mr-1"></i>
+            <strong><?= __("Nota:") ?></strong> <?= __("Le copie perse, danneggiate, in manutenzione, restauro o trasferimento non sono conteggiate tra le copie in circolazione. Per i prestiti usa la sezione Prestiti.") ?>
+          </p>
+        </div>
+
+        <div>
+          <label for="add-copy-note" class="form-label"><?= __("Note") ?> (<?= __("opzionale") ?>)</label>
+          <textarea id="add-copy-note" name="note" rows="3" class="form-input"
+                    placeholder="<?= htmlspecialchars(__('Aggiungi eventuali note...'), ENT_QUOTES, 'UTF-8') ?>"
+                    aria-describedby="add-copy-note-help"></textarea>
+          <p id="add-copy-note-help" class="hidden text-sm text-gray-700 mt-1">
+            <?= __("La nota verrà applicata a tutte le copie del gruppo.") ?>
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="button" id="close-add-copy-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
+          <button type="submit" class="<?php echo $btnPrimary; ?> justify-center">
+            <i class="fas fa-plus mr-2"></i><span id="add-copy-submit-label"><?= __("Aggiungi copia") ?></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Modal aggiungi copia
+    const addCopyModal = document.getElementById('add-copy-modal');
+    const addCopyQuantity = document.getElementById('add-copy-quantita');
+    const addCopyInventory = document.getElementById('add-copy-inventario');
+    const addCopyInventoryGroup = document.getElementById('add-copy-inventario-group');
+    const addCopyBatchInventoryHelp = document.getElementById('add-copy-batch-inventario-help');
+    const addCopyNoteHelp = document.getElementById('add-copy-note-help');
+    const addCopySubmitLabel = document.getElementById('add-copy-submit-label');
+
+    function syncAddCopyBatchFields() {
+      const quantity = Math.min(100, Math.max(1, Number.parseInt(addCopyQuantity?.value || '1', 10) || 1));
+      const isBatch = quantity > 1;
+      if (addCopyInventory) {
+        addCopyInventory.disabled = isBatch;
+        addCopyInventory.setAttribute('aria-disabled', isBatch ? 'true' : 'false');
+        if (isBatch) addCopyInventory.value = '';
+      }
+      addCopyInventoryGroup?.classList.toggle('hidden', isBatch);
+      addCopyBatchInventoryHelp?.classList.toggle('hidden', !isBatch);
+      addCopyNoteHelp?.classList.toggle('hidden', !isBatch);
+      if (addCopySubmitLabel) {
+        addCopySubmitLabel.textContent = isBatch
+          ? __('Aggiungi %s copie').replace('%s', String(quantity))
+          : __('Aggiungi copia');
+      }
+    }
+
+    function openAddCopyModal() {
+      const f = document.getElementById('add-copy-form');
+      if (f) f.reset();
+      syncAddCopyBatchFields();
+      addCopyModal.classList.remove('hidden');
+      addCopyModal.classList.add('flex');
+      addCopyQuantity?.focus();
+    }
+    function closeAddCopyModal() {
+      addCopyModal.classList.add('hidden');
+      addCopyModal.classList.remove('flex');
+    }
+    document.getElementById('close-add-copy-modal')?.addEventListener('click', closeAddCopyModal);
+    document.getElementById('close-add-copy-modal-secondary')?.addEventListener('click', closeAddCopyModal);
+    addCopyQuantity?.addEventListener('input', syncAddCopyBatchFields);
+    addCopyModal?.addEventListener('click', (e) => { if (e.target === addCopyModal) closeAddCopyModal(); });
+  </script>
 
   <script>
     // Modal gestione copia
@@ -1900,7 +2046,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
       toggleLoanOption(
         prenotatoOption,
         stato === 'prenotato',
-        __('Prenotato (imposta "Disponibile" per cancellare)'),
+        __('Prenotato (gestisci dal sistema Prestiti)'),
         __('Prenotato (prestito in attesa)')
       );
 

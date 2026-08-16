@@ -454,6 +454,7 @@ test.describe.serial('User Self-Registration', () => {
 
   const testEmail = `reg-${RUN_ID}@example.com`;
   const testPass = 'TestPass1234!';
+  let preferredLocale = '';
 
   test.beforeAll(async ({ browser }) => {
     userContext = await browser.newContext();
@@ -543,9 +544,11 @@ test.describe.serial('User Self-Registration', () => {
     await userPage.locator('button[type="submit"]').click();
     await userPage.waitForURL(/successo|registrat/, { timeout: 15000 });
 
-    // DB verify: user created with stato=sospeso
-    const stato = dbQuery(`SELECT stato FROM utenti WHERE email='${testEmail}'`);
+    // DB verify: user created suspended and inherits the installation-wide locale.
+    const [stato, locale] = dbQuery(`SELECT stato, locale FROM utenti WHERE email='${testEmail}'`).split('\t');
     expect(stato).toBe('sospeso');
+    const installationLocale = dbQuery('SELECT code FROM languages WHERE is_default = 1 LIMIT 1');
+    expect(locale).toBe(installationLocale);
 
     const emailVerified = dbQuery(`SELECT email_verificata FROM utenti WHERE email='${testEmail}'`);
     expect(emailVerified).toBe('0');
@@ -557,6 +560,34 @@ test.describe.serial('User Self-Registration', () => {
 
     const stato = dbQuery(`SELECT stato FROM utenti WHERE email='${testEmail}'`);
     expect(stato).toBe('attivo');
+  });
+
+  test('Admin can set a per-user locale and invalid input preserves it', async () => {
+    const userId = Number(dbQuery(`SELECT id FROM utenti WHERE email='${testEmail}' LIMIT 1`));
+    const installationLocale = dbQuery('SELECT code FROM languages WHERE is_default = 1 LIMIT 1');
+    preferredLocale = dbQuery(`SELECT code FROM languages WHERE is_active = 1 AND code != '${installationLocale}' ORDER BY code LIMIT 1`);
+    expect(userId).toBeGreaterThan(0);
+    expect(preferredLocale).not.toBe('');
+
+    await adminPage.goto(`${BASE}/admin/users/edit/${userId}`);
+    await expect(adminPage.locator('select[name="locale"]')).toHaveValue(installationLocale);
+    await adminPage.selectOption('select[name="locale"]', preferredLocale);
+    await adminPage.locator('#user-form button[type="submit"]').click();
+    await adminPage.waitForURL(/\/admin\/users(?:\?|$)/, { timeout: 15000 });
+    expect(dbQuery(`SELECT locale FROM utenti WHERE id=${userId}`)).toBe(preferredLocale);
+
+    await adminPage.goto(`${BASE}/admin/users/edit/${userId}`);
+    const form = adminPage.locator('#user-form');
+    const action = await form.getAttribute('action');
+    expect(action).toBeTruthy();
+    const formData = await form.evaluate((element) =>
+      Object.fromEntries(new FormData(/** @type {HTMLFormElement} */ (element)).entries()),
+    );
+    formData.locale = 'xx_INVALID';
+    const response = await adminPage.request.post(action || '', { form: formData, maxRedirects: 0 });
+    expect(response.status()).toBeGreaterThanOrEqual(300);
+    expect(response.status()).toBeLessThan(400);
+    expect(dbQuery(`SELECT locale FROM utenti WHERE id=${userId}`)).toBe(preferredLocale);
   });
 
   test('Activated user can login', async () => {
@@ -572,6 +603,32 @@ test.describe.serial('User Self-Registration', () => {
     // Should not be on login page anymore
     const finalUrl = userPage.url();
     expect(finalUrl).not.toMatch(/accedi.*error/);
+    await expect(userPage.locator('html')).toHaveAttribute('lang', preferredLocale.split('_')[0]);
+  });
+
+  test('Language switch persists across logout and login', async () => {
+    const activeLocales = dbQuery('SELECT code FROM languages WHERE is_active = 1 ORDER BY code').split('\n').filter(Boolean);
+    const switchedLocale = activeLocales.find(locale => locale !== preferredLocale) || '';
+    expect(switchedLocale).not.toBe('');
+
+    await userPage.goto(`${BASE}/language/${switchedLocale}?redirect=/`);
+    await userPage.waitForLoadState('domcontentloaded');
+    expect(dbQuery(`SELECT locale FROM utenti WHERE email='${testEmail}'`)).toBe(switchedLocale);
+    await expect(userPage.locator('html')).toHaveAttribute('lang', switchedLocale.split('_')[0]);
+
+    const logoutPaths = /** @type {Record<string, string>} */ ({ it_IT: '/esci', en_US: '/logout', de_DE: '/abmelden', fr_FR: '/deconnexion', da_DK: '/log-ud' });
+    await userPage.getByRole('button', { name: /UserE2E/ }).click();
+    const logoutForm = userPage.locator(`form[action$="${logoutPaths[switchedLocale]}"]`).first();
+    await expect(logoutForm).toBeVisible();
+    await logoutForm.locator('a, button').first().click();
+
+    const loginPaths = /** @type {Record<string, string>} */ ({ it_IT: '/accedi', en_US: '/login', de_DE: '/anmelden', fr_FR: '/connexion', da_DK: '/log-ind' });
+    await userPage.goto(`${BASE}${loginPaths[switchedLocale]}`);
+    await userPage.fill('input[name="email"]', testEmail);
+    await userPage.fill('input[name="password"]', testPass);
+    await userPage.locator('button[type="submit"]').click();
+    await userPage.waitForURL(url => !url.pathname.endsWith(loginPaths[switchedLocale]), { timeout: 15000 });
+    await expect(userPage.locator('html')).toHaveAttribute('lang', switchedLocale.split('_')[0]);
   });
 });
 

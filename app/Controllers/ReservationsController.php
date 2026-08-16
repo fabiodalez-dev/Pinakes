@@ -434,17 +434,27 @@ class ReservationsController
             }
             $dupReservationStmt->close();
 
+            // The pre-transaction eligibility check is only a fast fail. Lock
+            // and re-check the patron before creating the durable request so a
+            // concurrent suspension/card expiry cannot slip through the gap.
+            $userLockStmt = $this->db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+            $userLockStmt->bind_param('i', $userId);
+            $userLockStmt->execute();
+            $userLockStmt->get_result();
+            $userLockStmt->close();
+            $eligibilityError = \App\Support\LoanEligibility::checkUser($this->db, $userId);
+            if ($eligibilityError !== null) {
+                $this->db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => \App\Support\LoanEligibility::errorMessage($eligibilityError),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
             // Enforce max active loans per user (admin setting; 0 = no limit)
             $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
-                // Serialize concurrent same-user requests on different books: the
-                // per-book libri lock taken earlier does not mutually-exclude them,
-                // so without this both could pass the limit check and both commit.
-                $userLockStmt = $this->db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
-                $userLockStmt->bind_param('i', $userId);
-                $userLockStmt->execute();
-                $userLockStmt->close();
-
                 $cntStmt = $this->db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
                 $cntStmt->bind_param('i', $userId);
                 $cntStmt->execute();

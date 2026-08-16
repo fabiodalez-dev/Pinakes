@@ -231,10 +231,12 @@ class ReservationReassignmentService
             $stmt->execute();
             $stmt->close();
 
-            // Block the copy for the reserved loan period
-            $copyRepo = new \App\Models\CopyRepository($this->db);
-            if (!$copyRepo->updateStatus($newCopiaId, 'prenotato')) {
-                throw new \RuntimeException("Failed to update copy status for copia_id={$newCopiaId}");
+            // Derive the physical-copy state from every commitment instead of
+            // forcing 'prenotato'. This matters when a copy has another,
+            // non-overlapping current loan: 'prestato' has priority until that
+            // loan is returned, while the future hold remains linked correctly.
+            if (!(new \App\Support\DataIntegrity($this->db))->recalculateBookAvailability($libroId, true)) {
+                throw new \RuntimeException("Failed to recalculate availability for libro_id={$libroId}");
             }
 
             // Se la prenotazione aveva una vecchia copia assegnata, dobbiamo verificare
@@ -304,11 +306,21 @@ class ReservationReassignmentService
         $resStart = (string) $reservation['data_prestito'];
         $resEnd = (string) $reservation['data_scadenza'];
         $excludedCopies = [$copiaId]; // Copie da escludere dalla ricerca
-        $maxRetries = 5; // Limite tentativi per evitare loop infiniti
+        // The allocator pre-filters overlaps, so retries are only needed when a
+        // concurrent transaction claims a candidate between lookup and lock.
+        // A fixed limit of five used to give up even when a sixth physical copy
+        // was free for the requested period.
+        $maxRetries = 1000;
 
         for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             // Cerca un'altra copia disponibile per questo libro
-            $nextCopyId = $this->findAvailableCopyExcluding($libroId, $excludedCopies);
+            $nextCopyId = $this->findAvailableCopyExcluding(
+                $libroId,
+                $excludedCopies,
+                $reservationId,
+                $resStart,
+                $resEnd
+            );
 
             if (!$nextCopyId) {
                 // Nessuna copia disponibile
@@ -351,8 +363,9 @@ class ReservationReassignmentService
                 $copyStatus = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
 
-                // Verifica che la copia sia ancora disponibile (potrebbe essere cambiata)
-                if (!$copyStatus || !in_array($copyStatus['stato'], ['disponibile', 'prenotato'], true)) {
+                // A copy currently 'prestato' is a valid target for a disjoint
+                // future hold. Operationally unavailable states never are.
+                if (!$copyStatus || in_array($copyStatus['stato'], ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true)) {
                     $this->rollbackIfOwned($ownTransaction);
                     // Aggiungi questa copia alle escluse e riprova
                     $excludedCopies[] = $nextCopyId;
@@ -386,10 +399,11 @@ class ReservationReassignmentService
                 $stmt->execute();
                 $stmt->close();
 
-                // Block the copy for the reserved loan period
-                $copyRepo = new \App\Models\CopyRepository($this->db);
-                if (!$copyRepo->updateStatus($nextCopyId, 'prenotato')) {
-                    throw new \RuntimeException("Failed to update copy status for copia_id={$nextCopyId}");
+                // Recompute instead of forcing 'prenotato': if the replacement
+                // is physically out on a non-overlapping current loan it must
+                // remain 'prestato' until return.
+                if (!(new \App\Support\DataIntegrity($this->db))->recalculateBookAvailability($libroId, true)) {
+                    throw new \RuntimeException("Failed to recalculate availability for libro_id={$libroId}");
                 }
 
                 $this->commitIfOwned($ownTransaction);
@@ -522,27 +536,45 @@ class ReservationReassignmentService
      * @param int $libroId ID del libro
      * @param array<int> $excludeCopiaIds Array di ID copie da escludere
      */
-    private function findAvailableCopyExcluding(int $libroId, array $excludeCopiaIds): ?int
+    private function findAvailableCopyExcluding(
+        int $libroId,
+        array $excludeCopiaIds,
+        int $reservationId,
+        string $startDate,
+        string $endDate
+    ): ?int
     {
         $sql = "
-            SELECT id
-            FROM copie
-            WHERE libro_id = ?
-            AND stato IN ('disponibile', 'prenotato')
+            SELECT c.id
+            FROM copie c
+            WHERE c.libro_id = ?
+            AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+            AND NOT EXISTS (
+                SELECT 1
+                FROM prestiti p
+                WHERE p.copia_id = c.id
+                  AND p.id <> ?
+                  AND p.data_prestito <= ?
+                  AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                  AND (
+                      (p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                      OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL)
+                  )
+            )
         ";
-        $params = [$libroId];
-        $types = "i";
+        $params = [$libroId, $reservationId, $endDate, $startDate];
+        $types = 'iiss';
 
         if (!empty($excludeCopiaIds)) {
             $placeholders = implode(',', array_fill(0, count($excludeCopiaIds), '?'));
-            $sql .= " AND id NOT IN ($placeholders)";
+            $sql .= " AND c.id NOT IN ($placeholders)";
             foreach ($excludeCopiaIds as $id) {
                 $params[] = $id;
                 $types .= "i";
             }
         }
 
-        $sql .= " LIMIT 1";
+        $sql .= " ORDER BY c.id ASC LIMIT 1";
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param($types, ...$params);

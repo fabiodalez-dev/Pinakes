@@ -236,13 +236,19 @@ final class AuthController
             $privacyVersion  = '1.0';
             $stato           = 'sospeso';   // requires admin approval (same as web)
             $ruolo           = 'standard';
+            $locale          = \App\Support\I18n::normalizeLocaleCode(
+                \App\Support\I18n::getInstallationLocale()
+            );
+            if (!\App\Support\I18n::isValidLocaleCode($locale)) {
+                $locale = 'it_IT';
+            }
 
-            $columns = 'nome, cognome, email, password, codice_tessera, stato, tipo_utente, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera, privacy_accettata, data_accettazione_privacy, privacy_policy_version';
-            $placeholders = '?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?';
-            $types  = 'ssssssssssss';
+            $columns = 'nome, cognome, email, password, codice_tessera, stato, tipo_utente, locale, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera, privacy_accettata, data_accettazione_privacy, privacy_policy_version';
+            $placeholders = '?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?';
+            $types  = 'sssssssssssss';
             $values = [
                 $nome, $cognome, $email, $hash, $codiceTessera, $stato, $ruolo,
-                $token, $scadenzaToken, $scadenzaTessera, $accettazione, $privacyVersion,
+                $locale, $token, $scadenzaToken, $scadenzaTessera, $accettazione, $privacyVersion,
             ];
             if ($telefono !== '') {
                 $columns .= ', telefono';

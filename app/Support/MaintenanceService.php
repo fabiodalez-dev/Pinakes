@@ -419,7 +419,9 @@ class MaintenanceService
 
                 // Recalculate book availability using DataIntegrity for consistency
                 // (da_ritirare counts as "slot occupied" even if copy is available)
-                $integrity->recalculateBookAvailability((int)$loan['libro_id'], true);
+                if (!$integrity->recalculateBookAvailability((int) $loan['libro_id'], true)) {
+                    throw new \RuntimeException('Failed to recalculate availability while activating a scheduled loan.');
+                }
 
                 $this->db->commit();
                 $activatedCount++;
@@ -471,7 +473,7 @@ class MaintenanceService
             FROM prenotazioni p
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'attiva'
-            AND p.data_inizio_richiesta <= ?
+            AND " . \App\Support\LoanEligibility::promotableReservationWhere('p') . "
             ORDER BY p.libro_id, p.queue_position ASC
         ");
 
@@ -479,7 +481,7 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare scheduled reservations query');
         }
 
-        $stmt->bind_param('s', $today);
+        $stmt->bind_param('ss', $today, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $reservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -690,7 +692,9 @@ class MaintenanceService
                 }
 
                 // Recalculate book availability (inside transaction)
-                $integrity->recalculateBookAvailability($libroId, true);
+                if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after reservation expiry.');
+                }
 
                 $this->db->commit();
                 $expiredCount++;
@@ -872,7 +876,9 @@ class MaintenanceService
                 }
 
                 // Recalculate book availability (inside transaction)
-                $integrity->recalculateBookAvailability($libroId, true);
+                if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after pickup expiry.');
+                }
 
                 $this->db->commit();
                 $expiredCount++;

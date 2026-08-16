@@ -5,6 +5,10 @@ namespace App\Controllers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Controllers\ReservationManager;
+use App\Models\CopyRepository;
+use App\Services\ReservationReassignmentService;
+use App\Support\DataIntegrity;
 use App\Support\SecureLogger;
 use mysqli;
 
@@ -13,12 +17,23 @@ class CopyController
     /**
      * SECURITY: Validate and sanitize HTTP_REFERER to prevent open redirect
      */
-    private function safeReferer(string $default = '/admin/books'): string
+    private function safeReferer(?string $default = null): string
     {
         // Delegate to the single audited implementation. localPath() uses only
         // the referer's path (never its scheme/host), which is strictly safer
         // than the previous same-host comparison and port-agnostic.
-        return \App\Support\RefererGuard::localPath((string) ($_SERVER['HTTP_REFERER'] ?? ''), $default);
+        return \App\Support\RefererGuard::localPath(
+            (string) ($_SERVER['HTTP_REFERER'] ?? ''),
+            // Admin routes are fixed English literals — never routed through the
+            // i18n system (CLAUDE.md rule #4 / decision #145).
+            $default ?? '/admin/books'
+        );
+    }
+
+    private function adminBookPath(int $bookId): string
+    {
+        // Fixed admin literal, not an i18n route (CLAUDE.md rule #4).
+        return '/admin/books/' . $bookId;
     }
 
     /**
@@ -56,7 +71,8 @@ class CopyController
     public function byCode(Request $request, Response $response, mysqli $db): Response
     {
         $params = $request->getQueryParams();
-        $code = trim((string) ($params['code'] ?? ''));
+        $rawCode = $params['code'] ?? '';
+        $code = is_string($rawCode) ? trim($rawCode) : '';
 
         if ($code === '') {
             $response->getBody()->write((string) json_encode(['found' => false]));
@@ -107,14 +123,24 @@ class CopyController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
-        $stato = $data['stato'] ?? 'disponibile';
-        $note = $data['note'] ?? '';
+        $statoInput = $data['stato'] ?? 'disponibile';
+        $noteInput = $data['note'] ?? '';
+        if (!is_string($statoInput) || !is_string($noteInput)) {
+            $_SESSION['error_message'] = __('Impossibile aggiornare la copia senza lasciare dati incoerenti. Nessuna modifica è stata salvata.');
+            return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
+        }
+        $stato = $statoInput;
+        $note = $this->sanitizeNote($noteInput);
 
         // Validazione stato (deve corrispondere all'enum in copie.stato)
+        // 'prestato'/'prenotato' are owned by the loan/reservation system. They
+        // remain valid only so an existing loan-owned state can be preserved
+        // while staff update the copy note; transitions into them are rejected
+        // explicitly after loading the current row.
         $statiValidi = ['disponibile', 'prestato', 'prenotato', 'manutenzione', 'in_restauro', 'perso', 'danneggiato', 'in_trasferimento'];
-        if (!in_array($stato, $statiValidi)) {
+        if (!in_array($stato, $statiValidi, true)) {
             $_SESSION['error_message'] = __('Stato non valido.');
-            return $response->withHeader('Location', $this->safeReferer('/admin/books'))->withStatus(302);
+            return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
         }
 
         // Recupera la copia per ottenere il libro_id
@@ -127,11 +153,20 @@ class CopyController
 
         if (!$copy) {
             $_SESSION['error_message'] = __('Copia non trovata.');
-            return $response->withHeader('Location', $this->safeReferer('/admin/books'))->withStatus(302);
+            return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
         }
 
         $libroId = (int) $copy['libro_id'];
         $statoCorrente = $copy['stato'];
+
+        if ($stato === 'prenotato' && $statoCorrente !== 'prenotato') {
+            $_SESSION['error_message'] = __('Per prenotare una copia, utilizza il sistema Prestiti. Non è possibile impostare manualmente lo stato "Prenotato".');
+            return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+        }
+        if ($statoCorrente === 'prenotato' && $stato === 'disponibile') {
+            $_SESSION['error_message'] = __('Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.');
+            return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+        }
 
         // Prestito "in carico" su questa copia (in_corso/in_ritardo): usato per la
         // chiusura automatica quando la copia torna 'disponibile'.
@@ -155,7 +190,7 @@ class CopyController
         // Non permettere cambio diretto a "prestato", deve usare il sistema prestiti
         if ($stato === 'prestato' && $statoCorrente !== 'prestato') {
             $_SESSION['error_message'] = __('Per prestare una copia, utilizza il sistema Prestiti dalla sezione dedicata. Non è possibile impostare manualmente lo stato "Prestato".');
-            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+            return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
         }
 
         // GESTIONE CAMBIO STATO DA "PRESTATO" A "DISPONIBILE"
@@ -173,7 +208,7 @@ class CopyController
             $delegated = $request->withParsedBody([
                 'stato' => 'restituito',
                 'note' => $returnNote,
-                'redirect_to' => "/admin/books/{$libroId}",
+                'redirect_to' => $this->adminBookPath($libroId),
                 'csrf_token' => $data['csrf_token'] ?? '',
             ]);
             return (new PrestitiController())->processReturn($delegated, $response, $db, (int) $prestito['id']);
@@ -184,7 +219,7 @@ class CopyController
             // copy still in the library may instead be reassigned atomically below.
             if ($copyHeld && $prestito) {
                 $_SESSION['error_message'] = __('La copia è fisicamente in prestito: registra prima la restituzione o l’esito perso/danneggiato dal sistema Prestiti.');
-                return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+                return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
             }
 
             // L'aggiornamento avviene sotto lock del libro (ordine di lock canonico,
@@ -203,7 +238,7 @@ class CopyController
                 if (!$bookLocked) {
                     $db->rollback();
                     $_SESSION['error_message'] = __('Libro non trovato o non più disponibile.');
-                    return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+                    return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
                 }
 
                 // Recheck only physical possession after the book lock. Scheduled
@@ -216,7 +251,7 @@ class CopyController
                 if ($physicallyOut) {
                     $db->rollback();
                     $_SESSION['error_message'] = __('La copia è fisicamente in prestito: usa il flusso di restituzione.');
-                    return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+                    return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
                 }
 
                 $stmt = $db->prepare("UPDATE copie SET stato = ?, note = ?, updated_at = NOW() WHERE id = ?");
@@ -271,7 +306,7 @@ class CopyController
                     'error' => $e->getMessage()
                 ]);
                 $_SESSION['error_message'] = __('Impossibile aggiornare la copia senza lasciare dati incoerenti. Nessuna modifica è stata salvata.');
-                return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+                return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
             }
 
             try {
@@ -287,7 +322,181 @@ class CopyController
         if (!isset($_SESSION['success_message'])) {
             $_SESSION['success_message'] = __('Stato della copia aggiornato con successo.');
         }
-        return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+        return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+    }
+
+    /**
+     * Crea una o più copie fisiche per un libro, direttamente dalla scheda.
+     *
+     * A copy is never *created* in a loan state here — 'prestato'/'prenotato'
+     * belong to the Prestiti system — but creating an available copy may promote a
+     * waiting reservation, which sets that new copy to 'prenotato' before commit.
+     * A copy created out of circulation ('perso'/'danneggiato'/'manutenzione'/
+     * 'in_restauro'/'in_trasferimento') is excluded from copie_totali by the
+     * availability recalculation, so marking a copy lost reduces the book's total.
+     */
+    public function createCopy(Request $request, Response $response, mysqli $db, int $bookId): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        // Only physical statuses a copy can be created in — loan states are
+        // managed by the Prestiti system, never set here.
+        $statoInput = $data['stato'] ?? 'disponibile';
+        $noteInput = $data['note'] ?? '';
+        $numeroInput = $data['numero_inventario'] ?? '';
+        $quantitaInput = $data['quantita'] ?? '1';
+        if (!is_string($statoInput) || !is_string($noteInput) || !is_string($numeroInput)) {
+            $_SESSION['error_message'] = __('Impossibile aggiungere la copia.');
+            return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
+        }
+        $quantita = is_int($quantitaInput)
+            ? $quantitaInput
+            : (is_string($quantitaInput) && preg_match('/^[1-9]\d*$/D', $quantitaInput) === 1
+                ? (int) $quantitaInput
+                : 0);
+        if ($quantita < 1 || $quantita > 100) {
+            $_SESSION['error_message'] = __('Numero di copie non valido.');
+            return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
+        }
+        $stato = $statoInput;
+        $statiValidi = ['disponibile', 'manutenzione', 'in_restauro', 'perso', 'danneggiato', 'in_trasferimento'];
+        if (!in_array($stato, $statiValidi, true)) {
+            $_SESSION['error_message'] = __('Stato non valido.');
+            return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
+        }
+        $note = $this->sanitizeNote($noteInput);
+
+        // Inventory code: honour an explicit value (must be unique), otherwise
+        // auto-allocate the next collision-free "{base}-C{N}" like book creation.
+        $numero = trim($numeroInput);
+        if ($numero !== '') {
+            $numero = trim((string) preg_replace('/[\x00-\x1F]/', '', $numero));
+            if (mb_strlen($numero) > 100) {
+                $numero = mb_substr($numero, 0, 100);
+            }
+        }
+        if ($quantita > 1 && $numero !== '') {
+            $_SESSION['error_message'] = __('Per aggiungere più copie, lascia vuoto il numero di inventario: verrà assegnato automaticamente a ogni copia.');
+            return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
+        }
+
+        $repo = new CopyRepository($db);
+        $reassignmentService = null;
+        $reservationManager = null;
+        $transactionStarted = false;
+
+        try {
+            // Keep the same canonical lock order used by circulation writes:
+            // book first, then copies/loans. Copy creation, queue processing and
+            // derived counters must become visible as one atomic change.
+            if (!$db->begin_transaction()) {
+                throw new \RuntimeException('Unable to begin the physical-copy creation transaction.');
+            }
+            $transactionStarted = true;
+
+            $stmt = $db->prepare("SELECT id, numero_inventario FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $stmt->bind_param('i', $bookId);
+            $stmt->execute();
+            $book = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$book) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Libro non trovato.');
+                return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
+            }
+
+            // Re-evaluate after sanitisation: an explicit value made only of
+            // control characters must fall back to automatic allocation.
+            if ($numero === '') {
+                $base = !empty($book['numero_inventario']) ? (string) $book['numero_inventario'] : "LIB-{$bookId}";
+                $newCopyIds = $repo->createManyForBookWithIdsAndNote(
+                    $bookId,
+                    $base,
+                    $quantita,
+                    $stato,
+                    $note !== '' ? $note : null
+                );
+            } elseif ($repo->inventoryCodeExists($numero)) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Esiste già una copia con questo numero di inventario.');
+                return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
+            } else {
+                $newCopyId = $repo->create($bookId, $numero, $stato, $note !== '' ? $note : null);
+                $newCopyIds = $newCopyId > 0 ? [$newCopyId] : [];
+            }
+
+            if (count($newCopyIds) !== $quantita) {
+                throw new \RuntimeException('Unable to create every requested physical copy.');
+            }
+
+            // A newly available copy is new circulation capacity. Mirror the
+            // existing book-edit path: first repair blocked copy assignments,
+            // then promote the next eligible wait-list entry.
+            if ($stato === 'disponibile') {
+                $reassignmentService = new ReservationReassignmentService($db);
+                $reassignmentService->setExternalTransaction(true);
+                foreach ($newCopyIds as $newCopyId) {
+                    $reassignmentService->reassignOnNewCopy($bookId, $newCopyId);
+                }
+
+                $reservationManager = new ReservationManager($db);
+                $reservationManager->setExternalTransaction(true);
+                for ($guard = 0; $guard < 1000 && $reservationManager->processBookAvailability($bookId); $guard++) {
+                    // Promote every date-eligible reservation allowed by the new capacity.
+                }
+            }
+
+            $integrity = new DataIntegrity($db);
+            if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
+                throw new \RuntimeException('Unable to recalculate book availability.');
+            }
+
+            if (!$db->commit()) {
+                throw new \RuntimeException('Unable to commit physical-copy creation.');
+            }
+            $transactionStarted = false;
+        } catch (\Throwable $e) {
+            if ($transactionStarted) {
+                $db->rollback();
+            }
+            SecureLogger::error('[CopyController] createCopy failed', ['book' => $bookId, 'error' => $e->getMessage()]);
+            $_SESSION['error_message'] = (int) $e->getCode() === 1062
+                ? __('Esiste già una copia con questo numero di inventario.')
+                : ($quantita === 1 ? __('Impossibile aggiungere la copia.') : __('Impossibile aggiungere le copie.'));
+            return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
+        }
+
+        // Notifications are deliberately emitted only after the transaction that
+        // made the new assignment/promotion durable.
+        try {
+            $reassignmentService?->flushDeferredNotifications();
+            $reservationManager?->flushDeferredNotifications();
+        } catch (\Throwable $e) {
+            SecureLogger::warning(__('Invio notifica nuova copia fallito'), ['error' => $e->getMessage()]);
+        }
+
+        $_SESSION['success_message'] = $quantita === 1
+            ? __('Copia aggiunta con successo.')
+            : sprintf(__('%d copie aggiunte con successo.'), $quantita);
+        return $response->withHeader('Location', url($this->adminBookPath($bookId)))->withStatus(302);
+    }
+
+    /**
+     * Normalize an administrator-entered copy note consistently in create/edit.
+     */
+    private function sanitizeNote(string $note): string
+    {
+        $note = trim($note);
+        if ($note === '') {
+            return '';
+        }
+
+        // Keep tab/newline for multi-line notes, drop other control characters.
+        $note = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $note);
+        return mb_strlen($note) > 500 ? mb_substr($note, 0, 500) : $note;
     }
 
     /**
@@ -297,74 +506,111 @@ class CopyController
     {
         // CSRF validated by CsrfMiddleware
 
-        // Recupera la copia per ottenere il libro_id e verificare lo stato
-        $stmt = $db->prepare("SELECT libro_id, stato FROM copie WHERE id = ?");
+        // Resolve the parent first; the transaction below then follows the
+        // canonical circulation lock order (book -> copy -> loans).
+        $stmt = $db->prepare('SELECT libro_id FROM copie WHERE id = ?');
         $stmt->bind_param('i', $copyId);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $copy = $result->fetch_assoc();
+        $copy = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-
         if (!$copy) {
             $_SESSION['error_message'] = __('Copia non trovata.');
-            return $response->withHeader('Location', $this->safeReferer('/admin/books'))->withStatus(302);
+            return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
         }
 
         $libroId = (int) $copy['libro_id'];
-        $stato = $copy['stato'];
-
-        // Verifica se la copia è trattenuta da QUALSIASI impegno HOLDING (prestito
-        // attivo o pendente-con-copia, incluse prenotazioni future e ritiri in attesa).
-        $hasPrestito = $this->isCopyHeld($db, $copyId);
-
-        if ($hasPrestito) {
-            $_SESSION['error_message'] = __('Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.');
-            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
-        }
-
-        // Permetti eliminazione solo per copie perse, danneggiate o in manutenzione
-        if (!in_array($stato, ['perso', 'danneggiato', 'manutenzione'])) {
-            $_SESSION['error_message'] = __('Puoi eliminare solo copie perse, danneggiate o in manutenzione. Prima modifica lo stato della copia.');
-            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
-        }
-
-        // Anche i prestiti CHIUSI referenziano copia_id e il FK fk_prestiti_copia
-        // è ON DELETE RESTRICT: senza questo check la DELETE esplode con
-        // mysqli_sql_exception (500). Una copia con storico non si elimina, si
-        // mette fuori circolazione cambiandone lo stato.
-        $stmt = $db->prepare("SELECT 1 FROM prestiti WHERE copia_id = ? LIMIT 1");
-        $stmt->bind_param('i', $copyId);
-        $stmt->execute();
-        $hasHistory = (bool) $stmt->get_result()->fetch_row();
-        $stmt->close();
-
-        if ($hasHistory) {
-            $_SESSION['error_message'] = __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.');
-            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
-        }
-
-        // Elimina la copia. Difesa in profondità: un prestito creato tra il check
-        // e la DELETE fa comunque scattare il FK — intercetta e degrada a errore
-        // gestito invece di propagare un 500.
+        $transactionStarted = false;
         try {
-            $stmt = $db->prepare("DELETE FROM copie WHERE id = ?");
+            if (!$db->begin_transaction()) {
+                throw new \RuntimeException('Unable to begin copy-delete transaction.');
+            }
+            $transactionStarted = true;
+
+            $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
+            $lockBook->bind_param('i', $libroId);
+            $lockBook->execute();
+            $bookExists = (bool) $lockBook->get_result()->fetch_row();
+            $lockBook->close();
+            if (!$bookExists) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Libro non trovato o non più disponibile.');
+                return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
+            }
+
+            // Re-read under lock: state and commitments may have changed since
+            // the initial parent lookup.
+            $stmt = $db->prepare('SELECT stato FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
+            $stmt->bind_param('ii', $copyId, $libroId);
+            $stmt->execute();
+            $lockedCopy = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$lockedCopy) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Copia non trovata.');
+                return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+            }
+
+            // A copy with any current/future commitment or historical loan is
+            // retained permanently; operators can only move it out of circulation.
+            if ($this->isCopyHeld($db, $copyId)) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.');
+                return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+            }
+            if (!in_array($lockedCopy['stato'], ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true)) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Puoi eliminare solo copie fuori circolazione (perse, danneggiate, in manutenzione, in restauro o in trasferimento). Prima modifica lo stato della copia.');
+                return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+            }
+
+            $stmt = $db->prepare('SELECT 1 FROM prestiti WHERE copia_id = ? LIMIT 1 FOR UPDATE');
             $stmt->bind_param('i', $copyId);
             $stmt->execute();
+            $hasHistory = (bool) $stmt->get_result()->fetch_row();
             $stmt->close();
-        } catch (\mysqli_sql_exception $e) {
-            // 1451 = Cannot delete or update a parent row (vincolo FK)
-            if ((int) $e->getCode() !== 1451) {
-                throw $e;
+            if ($hasHistory) {
+                $db->rollback();
+                $transactionStarted = false;
+                $_SESSION['error_message'] = __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.');
+                return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
             }
-            $_SESSION['error_message'] = __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.');
-            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+
+            $stmt = $db->prepare('DELETE FROM copie WHERE id = ?');
+            $stmt->bind_param('i', $copyId);
+            $stmt->execute();
+            $deleted = $stmt->affected_rows;
+            $stmt->close();
+            if ($deleted !== 1) {
+                throw new \RuntimeException('Physical copy delete did not affect exactly one row.');
+            }
+
+            if (!(new DataIntegrity($db))->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Unable to recalculate availability after copy delete.');
+            }
+            if (!$db->commit()) {
+                throw new \RuntimeException('Unable to commit copy-delete transaction.');
+            }
+            $transactionStarted = false;
+        } catch (\Throwable $e) {
+            if ($transactionStarted) {
+                try {
+                    $db->rollback();
+                } catch (\Throwable $rollbackError) {
+                    // best-effort
+                }
+            }
+            SecureLogger::error('[CopyController] deleteCopy failed', ['copy' => $copyId, 'error' => $e->getMessage()]);
+            $_SESSION['error_message'] = (int) $e->getCode() === 1451
+                ? __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.')
+                : __('Impossibile eliminare la copia.');
+            return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
         }
 
-        // Ricalcola disponibilità del libro
-        $integrity = new \App\Support\DataIntegrity($db);
-        $integrity->recalculateBookAvailability($libroId);
-
         $_SESSION['success_message'] = __('Copia eliminata con successo.');
-        return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+        return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
     }
 }

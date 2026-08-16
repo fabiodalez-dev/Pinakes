@@ -783,6 +783,11 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 }
 
                 if ($migrationFailed) {
+                    try {
+                        $db->rollback();
+                    } catch (\Throwable $rollbackError) {
+                        // Preserve the SQL error that aborted the migration.
+                    }
                     throw new RuntimeException('Migrazione ' . $migVersion . ' fallita: [' . $lastErrno . '] ' . $lastError);
                 } else {
                     // Record migration
@@ -818,6 +823,26 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 throw new RuntimeException('Backfill contributor non completato');
             }
             $log[] = '[OK] Backfill contributor completato';
+        }
+
+        // Match Updater::installUpdate(): migrations may materialise or repair
+        // physical-copy rows, so refresh the derived book/copy projection before
+        // reporting the manual upgrade complete. Keep this non-fatal just like
+        // the web updater; the migration itself is already committed and the
+        // idempotent maintenance pass can retry later.
+        try {
+            $autoload = $rootPath . '/vendor/autoload.php';
+            if (!is_file($autoload)) {
+                throw new RuntimeException('Autoloader non trovato per il ricalcolo disponibilità');
+            }
+            require_once $autoload;
+            $availability = (new \App\Support\DataIntegrity($db))->recalculateAllBookAvailability();
+            if (!empty($availability['errors'])) {
+                throw new RuntimeException(implode('; ', $availability['errors']));
+            }
+            $log[] = '[OK] Disponibilità libri ricalcolata dalle copie fisiche';
+        } catch (Throwable $availabilityError) {
+            $log[] = '[WARN] Ricalcolo disponibilità rinviato: ' . $availabilityError->getMessage();
         }
 
         // 11. Clear cache

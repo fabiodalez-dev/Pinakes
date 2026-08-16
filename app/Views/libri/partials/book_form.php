@@ -319,10 +319,8 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <option value="non_disponibile" <?php echo $statoCorrente === 'non_disponibile' ? 'selected' : ''; ?>><?= __("Non Disponibile") ?></option>
               <option value="prestato" <?php echo $statoCorrente === 'prestato' ? 'selected' : ''; ?>><?= __("Prestato") ?></option>
               <option value="prenotato" <?php echo $statoCorrente === 'prenotato' ? 'selected' : ''; ?>><?= __("Prenotato") ?></option>
-              <option value="danneggiato" <?php echo $statoCorrente === 'danneggiato' ? 'selected' : ''; ?>><?= __("Danneggiato") ?></option>
-              <option value="perso" <?php echo $statoCorrente === 'perso' ? 'selected' : ''; ?>><?= __("Perso") ?></option>
             </select>
-            <p class="text-xs text-gray-500 mt-1"><?= __("Status attuale di questa copia del libro") ?></p>
+            <p class="text-xs text-gray-500 mt-1"><?= __("La disponibilità del libro è calcolata automaticamente dalle copie fisiche e dai prestiti.") ?></p>
           </div>
 
           <!-- Description -->
@@ -488,13 +486,25 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           
           <div class="form-grid-3">
             <div>
-              <label for="copie_totali" class="form-label"><?= __("Copie Totali") ?> <span class="text-xs text-gray-500">(<?= __("Le copie disponibili vengono calcolate automaticamente") ?>)</span></label>
-              <input id="copie_totali" name="copie_totali" type="number" class="form-input" value="<?php echo (int)($book['copie_totali'] ?? 1); ?>" min="<?php echo $mode === 'edit' ? (int)($book['copie_totali'] ?? 1) : 1; ?>" />
-              <?php if ($mode === 'edit'): ?>
+              <label for="copie_totali" class="form-label">
+                <?= $mode === 'edit' ? __("Copie in circolazione") : __("Copie fisiche iniziali") ?>
+                <span class="text-xs text-gray-500">(<?= __("Le copie disponibili vengono calcolate automaticamente") ?>)</span>
+              </label>
+              <input id="copie_totali" name="copie_totali" type="number"
+                     class="form-input <?php echo $mode === 'edit' ? 'bg-gray-100 cursor-not-allowed' : ''; ?>"
+                     value="<?php echo (int)($book['copie_totali'] ?? 1); ?>" min="0" max="9999"
+                     <?php echo $mode === 'edit' ? 'readonly aria-readonly="true"' : ''; ?> />
+              <?php if ($mode === 'edit' && !empty($book['id'])): ?>
               <p class="text-xs text-gray-600 mt-1">
                 <i class="fas fa-info-circle text-blue-500 mr-1"></i>
-                Puoi ridurre le copie solo se non sono in prestito, perse o danneggiate.
+                <?= __("Aggiungi, modifica o rimuovi le singole copie dalla sezione Copie Fisiche della scheda libro.") ?>
+                <a class="text-blue-600 hover:text-blue-800 underline"
+                   href="<?= htmlspecialchars(url('/admin/books/' . (int)$book['id'] . '#physical-copies'), ENT_QUOTES, 'UTF-8') ?>">
+                  <?= __("Gestisci copie fisiche") ?>
+                </a>
               </p>
+              <?php else: ?>
+              <p class="text-xs text-gray-600 mt-1"><?= __("Puoi creare il record con zero copie e aggiungerle in seguito dalla scheda libro.") ?></p>
               <?php endif; ?>
             </div>
           </div>
@@ -511,8 +521,13 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
         <div class="card-body form-section">
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label for="numero_inventario" class="form-label"><?= __("Numero Inventario") ?></label>
+              <label for="numero_inventario" class="form-label"><?= __("Prefisso inventario copie") ?></label>
               <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="<?= __('es. INV-2024-001') ?>" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
+              <p class="text-xs text-gray-500 mt-1">
+                <?= $mode === 'edit'
+                  ? __("Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.")
+                  : __("Le copie iniziali riceveranno codici progressivi come PREFISSO-C1, PREFISSO-C2.") ?>
+              </p>
             </div>
           </div>
 
@@ -3451,7 +3466,7 @@ async function increaseCopies(book) {
                     title: __('Copie Aggiunte!'),
                     html: `
                         <p class="mb-2">${__('Hai aggiunto %s copie a "%s"').replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
-                        <p class="text-sm text-gray-600">${__('Copie totali:')}: ${data.copie_totali}</p>
+                        <p class="text-sm text-gray-600">${__('Copie in circolazione')}: ${data.copie_totali}</p>
                         <p class="text-sm text-gray-600">${__('Copie disponibili:')}: ${data.copie_disponibili}</p>
                     `,
                     confirmButtonText: __('OK')
