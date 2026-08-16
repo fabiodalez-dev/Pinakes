@@ -21,7 +21,6 @@ class Repo
      * catalogue permits homonyms. Serialize Book Club publisher resolution on
      * the database server instead, so separate PHP workers share the same lock.
      */
-    private const PUBLISHER_LOCK_NAME = 'pinakes:bookclub:publisher';
     private const PUBLISHER_LOCK_TIMEOUT_SECONDS = 10;
 
     private mysqli $db;
@@ -225,15 +224,34 @@ class Repo
         }
     }
 
+    /**
+     * Schema-scoped, length-bounded advisory-lock name for publisher creation.
+     * Hashing the schema through a PHP md5 keeps the name within MySQL's 64-char
+     * GET_LOCK limit for ANY database name (a raw CONCAT(?, ':', DATABASE())
+     * overflows past a ~35-char schema) and needs no server-side MD5():
+     * 'pinakes-bc-pub:' + 32 hex = 47 chars, always bounded. Acquire and release
+     * must build the exact same name.
+     */
+    private function scopedPublisherLockName(): string
+    {
+        $dbName = '';
+        $res = $this->db->query('SELECT DATABASE()');
+        if ($res instanceof \mysqli_result) {
+            $dbName = (string) ($res->fetch_row()[0] ?? '');
+            $res->free();
+        }
+        return 'pinakes-bc-pub:' . md5($dbName);
+    }
+
     private function acquirePublisherLock(): void
     {
-        $lockName = self::PUBLISHER_LOCK_NAME;
+        $lockName = $this->scopedPublisherLockName();
         $timeout = self::PUBLISHER_LOCK_TIMEOUT_SECONDS;
-        // GET_LOCK is server-wide, not per-database — scope the name to the
-        // current schema (computed server-side via CONCAT + DATABASE()) so
-        // independent Pinakes installs sharing one MySQL server don't serialize
-        // each other's imports. Mirrors ContributorBackfill's lock naming.
-        $stmt = $this->db->prepare("SELECT GET_LOCK(CONCAT(?, ':', DATABASE()), ?) AS acquired");
+        // GET_LOCK is server-wide, not per-database — the name is schema-scoped
+        // and length-bounded in PHP (see scopedPublisherLockName) so independent
+        // Pinakes installs sharing one MySQL server don't serialize each other's
+        // imports without risking MySQL's 64-char lock-name limit.
+        $stmt = $this->db->prepare('SELECT GET_LOCK(?, ?) AS acquired');
         if ($stmt === false) {
             throw new \RuntimeException('publisher lock prepare failed');
         }
@@ -256,8 +274,8 @@ class Repo
 
     private function releasePublisherLock(): void
     {
-        $lockName = self::PUBLISHER_LOCK_NAME;
-        $stmt = $this->db->prepare("SELECT RELEASE_LOCK(CONCAT(?, ':', DATABASE())) AS released");
+        $lockName = $this->scopedPublisherLockName();
+        $stmt = $this->db->prepare('SELECT RELEASE_LOCK(?) AS released');
         if ($stmt === false) {
             SecureLogger::error('[BookClub] publisher lock release prepare failed: ' . $this->db->error);
             return;

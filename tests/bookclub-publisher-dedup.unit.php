@@ -182,13 +182,25 @@ try {
     // SQL, so it can't be driven directly here without polluting real data — the
     // protocol above is proven on a sandbox replica. Bind the sandbox proof to
     // production by asserting the real code keeps the exact protocol invariants:
-    // acquire/release AND the per-database scoping (GET_LOCK is server-wide, so a
-    // regression that drops DATABASE() would reintroduce cross-tenant contention).
+    // acquire/release AND the per-database scoping. GET_LOCK is server-wide and
+    // its name is capped at 64 chars, so the schema is folded through a PHP md5
+    // in scopedPublisherLockName() (a raw CONCAT(?, ':', DATABASE()) overflows on
+    // long schema names). A regression that dropped the per-schema hash would
+    // reintroduce cross-tenant contention; one that dropped the PHP hashing would
+    // reintroduce the 64-char overflow.
     $repoSource = (string) file_get_contents($root . '/storage/plugins/book-club/src/Repo.php');
-    $check(str_contains($repoSource, 'GET_LOCK(CONCAT(') && str_contains($repoSource, 'DATABASE()'),
-        'production Repo scopes the advisory lock per database (GET_LOCK(CONCAT(?, DATABASE())))');
-    $check(str_contains($repoSource, 'RELEASE_LOCK(CONCAT('),
-        'production Repo releases the same per-database-scoped lock');
+    $check(
+        str_contains($repoSource, 'private function scopedPublisherLockName')
+            && str_contains($repoSource, 'DATABASE()')
+            && str_contains($repoSource, 'md5('),
+        'production Repo scopes the advisory lock per database via a PHP-hashed schema name (scopedPublisherLockName → md5(DATABASE()))'
+    );
+    $check(
+        substr_count($repoSource, '$this->scopedPublisherLockName()') >= 2
+            && str_contains($repoSource, 'GET_LOCK(?')
+            && str_contains($repoSource, 'RELEASE_LOCK(?)'),
+        'production Repo acquires and releases the same schema-scoped, length-bounded lock name'
+    );
 } finally {
     // Advisory locks are connection-scoped; make cleanup idempotent after a failed assertion/query.
     try { $releaseLock($db); } catch (Throwable) {}

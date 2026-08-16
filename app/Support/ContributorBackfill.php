@@ -38,15 +38,27 @@ final class ContributorBackfill
     public static function run(mysqli $db): bool
     {
         $lockAcquired = false;
+        // Schema-scoped advisory-lock name, hashed in PHP so it stays within
+        // MySQL's 64-char GET_LOCK limit for ANY database name (a raw
+        // CONCAT('pinakes-contributor-backfill:', DATABASE()) overflows past a
+        // ~35-char schema name) and does not depend on a server-side MD5().
+        $dbNameRes = $db->query('SELECT DATABASE()');
+        $lockName = 'pinakes-cb:' . md5(
+            $dbNameRes instanceof \mysqli_result ? (string) ($dbNameRes->fetch_row()[0] ?? '') : ''
+        );
         try {
             // The updater and maintenance recovery can run concurrently. The
             // marker alone is not a lock: both processes could resolve the same
             // new name before either writes it (autori.nome is not unique).
-            $lockResult = $db->query(
-                "SELECT GET_LOCK(CONCAT('pinakes-contributor-backfill:', DATABASE()), 30)"
-            );
-            $lockAcquired = $lockResult instanceof \mysqli_result
-                && (int) ($lockResult->fetch_row()[0] ?? 0) === 1;
+            $lockStmt = $db->prepare('SELECT GET_LOCK(?, 30)');
+            if ($lockStmt !== false) {
+                $lockStmt->bind_param('s', $lockName);
+                $lockStmt->execute();
+                $lockRow = $lockStmt->get_result();
+                $lockAcquired = $lockRow instanceof \mysqli_result
+                    && (int) ($lockRow->fetch_row()[0] ?? 0) === 1;
+                $lockStmt->close();
+            }
             if (!$lockAcquired) {
                 throw new \RuntimeException('Unable to acquire contributor backfill lock');
             }
@@ -78,7 +90,12 @@ final class ContributorBackfill
             return false;
         } finally {
             if ($lockAcquired) {
-                $db->query("SELECT RELEASE_LOCK(CONCAT('pinakes-contributor-backfill:', DATABASE()))");
+                $rel = $db->prepare('SELECT RELEASE_LOCK(?)');
+                if ($rel !== false) {
+                    $rel->bind_param('s', $lockName);
+                    $rel->execute();
+                    $rel->close();
+                }
             }
         }
     }
