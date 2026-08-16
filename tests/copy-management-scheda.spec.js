@@ -43,6 +43,27 @@ let bookId = 0;
 let emptyBookId = 0;
 let queueBookId = 0;
 let queueUserId = 0;
+const temporaryTriggers = new Set();
+
+function dropTemporaryTrigger(trigger) {
+  if (!/^trg_cm_batch_[a-z0-9]+$/i.test(trigger)) {
+    throw new Error(`Unsafe temporary trigger name: ${trigger}`);
+  }
+  dbQuery(`DROP TRIGGER IF EXISTS \`${trigger}\``);
+  temporaryTriggers.delete(trigger);
+}
+
+function cleanupTemporaryTriggers() {
+  let firstError = null;
+  for (const trigger of [...temporaryTriggers]) {
+    try {
+      dropTemporaryTrigger(trigger);
+    } catch (error) {
+      firstError ||= error;
+    }
+  }
+  if (firstError) throw firstError;
+}
 
 function cleanupByTitle() {
   const titles = [TITLE, TITLE_EMPTY, TITLE_QUEUE].map((title) => `'${sqlEscape(title)}'`).join(',');
@@ -116,7 +137,13 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     queueUserId = Number(dbQuery(`SELECT id FROM utenti WHERE email='${sqlEscape(QUEUE_EMAIL)}' LIMIT 1`));
     dbQuery(`INSERT INTO prenotazioni (libro_id, utente_id, data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, queue_position, stato) VALUES (${queueBookId}, ${queueUserId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), DATE_ADD(NOW(), INTERVAL 14 DAY), 1, 'attiva')`);
   });
-  test.afterAll(() => cleanupByTitle());
+  test.afterAll(() => {
+    try {
+      cleanupTemporaryTriggers();
+    } finally {
+      cleanupByTitle();
+    }
+  });
 
   test('1. book summary shows the Copie Fisiche section and Aggiungi copie button', async ({ page }) => {
     await loginAsAdmin(page);
@@ -514,8 +541,10 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
     const trigger = `trg_cm_batch_${RUN.replace(/[^a-z0-9]/gi, '').slice(0, 20)}`;
     const note = `batch-fail-${RUN}`;
     const before = copieCount(emptyBookId);
-    dbQuery(`DROP TRIGGER IF EXISTS ${trigger}`);
-    dbQuery(`CREATE TRIGGER ${trigger} BEFORE INSERT ON copie FOR EACH ROW SET NEW.numero_inventario=IF(NEW.note='${sqlEscape(note)}', NULL, NEW.numero_inventario)`);
+    temporaryTriggers.add(trigger);
+    dropTemporaryTrigger(trigger);
+    temporaryTriggers.add(trigger);
+    dbQuery(`CREATE TRIGGER \`${trigger}\` BEFORE INSERT ON copie FOR EACH ROW SET NEW.numero_inventario=IF(NEW.note='${sqlEscape(note)}', NULL, NEW.numero_inventario)`);
     try {
       await page.goto(`${BASE}/admin/books/${emptyBookId}`);
       await addCopy(page, { quantita: 3, stato: 'disponibile', note });
@@ -523,7 +552,7 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
       expect(copieCount(emptyBookId)).toBe(before);
       expect(Number(dbQuery(`SELECT COUNT(*) FROM copie WHERE libro_id=${emptyBookId} AND note='${sqlEscape(note)}'`))).toBe(0);
     } finally {
-      dbQuery(`DROP TRIGGER IF EXISTS ${trigger}`);
+      dropTemporaryTrigger(trigger);
     }
   });
 
