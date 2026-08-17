@@ -917,7 +917,7 @@ class PluginManager
             // row exists. Clean up before returning.
             $this->deleteDirectory($pluginPath);
             SecureLogger::error('[PluginManager] Failed to prepare plugin INSERT', [
-                'plugin'   => $pluginMeta['name'] ?? 'unknown',
+                'plugin'   => $pluginMeta['name'],
                 'db_error' => $this->db->error,
             ]);
             return [
