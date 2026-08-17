@@ -151,6 +151,31 @@ require_once __DIR__ . '/../partials/loan-status-badge.php';
           <i class="fas fa-file-pdf mr-2"></i>
           <?= __("Scarica Ricevuta PDF") ?>
       </a>
+      <?php
+        // #360: email actions. The receipt can go out for any loan whose user
+        // has an email; the recall only for an active, physically-out loan
+        // whose due date is already past (app-timezone "today", M9).
+        $hasUserEmail = trim((string) ($prestito['utente_email'] ?? '')) !== '';
+        $isRecallable = $hasUserEmail
+            && (int) ($prestito['attivo'] ?? 0) === 1
+            && in_array((string) ($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true)
+            && (string) ($prestito['data_scadenza'] ?? '') !== ''
+            && (string) $prestito['data_scadenza'] < \App\Support\DateHelper::today();
+      ?>
+      <?php if ($hasUserEmail): ?>
+        <button type="button" id="email-receipt-btn" data-loan-id="<?= (int)$prestito['id']; ?>"
+                class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-500 rounded-lg transition-colors duration-200 inline-flex items-center">
+          <i class="fas fa-envelope mr-2"></i>
+          <?= __("Invia Ricevuta via Email") ?>
+        </button>
+      <?php endif; ?>
+      <?php if ($isRecallable): ?>
+        <button type="button" id="send-recall-btn" data-loan-id="<?= (int)$prestito['id']; ?>"
+                class="px-4 py-2 bg-amber-600 text-white hover:bg-amber-500 rounded-lg transition-colors duration-200 inline-flex items-center">
+          <i class="fas fa-bullhorn mr-2"></i>
+          <?= __("Invia Sollecito") ?>
+        </button>
+      <?php endif; ?>
       <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-white text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
         <i class="fas fa-arrow-left mr-2"></i><?= __("Torna ai Prestiti") ?></a>
     </div>
@@ -175,7 +200,16 @@ $jsTranslationKeys = [
     'Rifiuta',
     'Rifiutato',
     'Il prestito è stato rifiutato.',
-    'Errore durante il rifiuto'
+    'Errore durante il rifiuto',
+    'Inviare un sollecito per questo prestito?',
+    'L\'utente riceverà un\'email di sollecito per la restituzione.',
+    'Sì, invia',
+    'Sollecito inviato',
+    'Invio del sollecito non riuscito.',
+    'Inviare la ricevuta del prestito via email?',
+    'L\'utente riceverà un\'email con la ricevuta PDF in allegato.',
+    'Ricevuta inviata',
+    'Invio della ricevuta non riuscito.'
 ];
 $jsTranslations = [];
 foreach ($jsTranslationKeys as $key) {
@@ -332,6 +366,91 @@ foreach ($jsTranslationKeys as $key) {
                     confirmButtonColor: '#111827'
                 });
             }
+        });
+    }
+
+    // #360: shared POST-and-report helper for the recall / email-receipt buttons.
+    async function postLoanEmailAction(url, confirmTitle, confirmText, successTitle, failureText, button) {
+        const result = await Swal.fire({
+            title: confirmTitle,
+            text: confirmText,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: __('Sì, invia'),
+            cancelButtonText: __('Annulla'),
+            confirmButtonColor: '#111827',
+            cancelButtonColor: '#6b7280'
+        });
+        if (!result.isConfirmed) {
+            return;
+        }
+        button.disabled = true;
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrf
+                },
+                body: JSON.stringify({})
+            });
+            const data = await response.json();
+            if (data.success) {
+                Swal.fire({
+                    title: successTitle,
+                    text: data.message || '',
+                    icon: 'success',
+                    confirmButtonText: __('OK'),
+                    confirmButtonColor: '#111827'
+                });
+            } else {
+                Swal.fire({
+                    title: __('Errore'),
+                    text: data.message || failureText,
+                    icon: 'error',
+                    confirmButtonText: __('OK'),
+                    confirmButtonColor: '#111827'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+                title: __('Errore'),
+                text: __('Errore nella comunicazione con il server'),
+                icon: 'error',
+                confirmButtonText: __('OK'),
+                confirmButtonColor: '#111827'
+            });
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    const recallBtn = document.getElementById('send-recall-btn');
+    if (recallBtn) {
+        recallBtn.addEventListener('click', function() {
+            postLoanEmailAction(
+                window.BASE_PATH + '/admin/loans/' + parseInt(this.dataset.loanId, 10) + '/recall',
+                __('Inviare un sollecito per questo prestito?'),
+                __('L\'utente riceverà un\'email di sollecito per la restituzione.'),
+                __('Sollecito inviato'),
+                __('Invio del sollecito non riuscito.'),
+                this
+            );
+        });
+    }
+
+    const receiptBtn = document.getElementById('email-receipt-btn');
+    if (receiptBtn) {
+        receiptBtn.addEventListener('click', function() {
+            postLoanEmailAction(
+                window.BASE_PATH + '/admin/loans/' + parseInt(this.dataset.loanId, 10) + '/email-pdf',
+                __('Inviare la ricevuta del prestito via email?'),
+                __('L\'utente riceverà un\'email con la ricevuta PDF in allegato.'),
+                __('Ricevuta inviata'),
+                __('Invio della ricevuta non riuscito.'),
+                this
+            );
         });
     }
 })();

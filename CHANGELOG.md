@@ -2,6 +2,27 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [Unreleased]
+
+Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
+
+### Features
+
+- **Loan recalls (solleciti)**: overdue loans can now be chased beyond the
+  single overdue notification. Automatic recalls repeat at a configurable
+  interval up to a configurable cap (Settings → Loans → "Solleciti automatici",
+  off by default; sent by the notifications cron or on admin login). Staff can
+  also send a manual recall for one loan from the loan detail page, or for many
+  at once from the loans list via the bulk action bar — manual recalls ignore
+  the automatic schedule but share the same per-loan counter
+  (`prestiti.recall_count` / `last_recall_at`, added by
+  `migrate_0.7.62.sql` and self-healed at runtime). New editable email
+  template `loan_recall_notification` in all five locales.
+- **Email the loan receipt PDF**: next to "Scarica Ricevuta PDF", the loan
+  detail page now has "Invia Ricevuta via Email", which sends the same PDF as
+  an attachment to the loan's user (new editable template
+  `loan_receipt_email`; the mailer gained in-memory attachment support).
+
 ## [0.7.61]
 
 Physical-copy management from the book summary, with the whole holding and

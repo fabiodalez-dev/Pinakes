@@ -45,6 +45,7 @@ class EmailService {
         'loan_days' => 'giorni_prestito',
         'loan_id' => 'prestito_id',
         'stars' => 'stelle',
+        'recall_number' => 'numero_sollecito',
 
         // Review fields
         'review_date' => 'data_recensione',
@@ -158,8 +159,9 @@ class EmailService {
      * @param string $templateName Template name
      * @param array $variables Variables to replace in template
      * @param string|null $locale Locale (it_IT, en_US). If null, uses current user's locale
+     * @param array $attachments Each entry: ['content' => binary string, 'filename' => string, 'type' => MIME type]
      */
-    public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null): bool {
+    public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null, array $attachments = []): bool {
         try {
             $template = $this->getEmailTemplate($templateName, $locale);
             if (!$template) {
@@ -172,7 +174,7 @@ class EmailService {
             $subject = $this->replaceVariables($template['subject'], $variables, false);
             $body = $this->replaceVariables($template['body'], $variables);
 
-            return $this->sendEmail($to, $subject, $body, '', $locale);
+            return $this->sendEmail($to, $subject, $body, '', $locale, $attachments);
 
         } catch (\Throwable $e) {
             error_log("Failed to send template email '{$templateName}' to {$to}: " . $e->getMessage());
@@ -182,18 +184,40 @@ class EmailService {
 
     /**
      * Send plain email
+     *
+     * @param array $attachments Each entry: ['content' => binary string, 'filename' => string, 'type' => MIME type].
+     *                           In-memory attachments (addStringAttachment): no temp files on disk.
      */
-    public function sendEmail(string $to, string $subject, string $body, string $toName = '', ?string $locale = null): bool {
+    public function sendEmail(string $to, string $subject, string $body, string $toName = '', ?string $locale = null, array $attachments = []): bool {
         try {
             $this->mailer->clearAddresses();
+            // The PHPMailer instance is reused across sends (e.g. sendToAdmins
+            // loops): clear attachments from any previous message so they don't
+            // leak into this one.
+            $this->mailer->clearAttachments();
             $this->mailer->addAddress($to, $toName);
+            foreach ($attachments as $attachment) {
+                $content = (string) ($attachment['content'] ?? '');
+                if ($content === '') {
+                    continue;
+                }
+                $this->mailer->addStringAttachment(
+                    $content,
+                    (string) ($attachment['filename'] ?? 'allegato'),
+                    PHPMailer::ENCODING_BASE64,
+                    (string) ($attachment['type'] ?? 'application/octet-stream')
+                );
+            }
             $this->mailer->Subject = $subject;
             $this->mailer->Body = $this->wrapInBaseTemplate($body, $subject, $locale);
             $this->mailer->AltBody = EmailLayout::plainText($body);
 
-            return $this->mailer->send();
+            $sent = $this->mailer->send();
+            $this->mailer->clearAttachments();
+            return $sent;
 
         } catch (\Throwable $e) {
+            $this->mailer->clearAttachments();
             error_log("Failed to send email to {$to}: " . $e->getMessage());
             return false;
         }

@@ -142,6 +142,36 @@ return [
 </div>
 <p>Please return the book as soon as possible.</p>',
     ],
+    'loan_recall_notification' => [
+        'subject' => '📢 Reminder no. {{numero_sollecito}} - Return required',
+        'body' => '<h2>Return reminder</h2>
+<p>Hi {{utente_nome}},</p>
+<p>Despite previous notices, the following loan is still overdue and the book has not been returned:</p>
+<ul>
+    <li>Book: {{libro_titolo}}</li>
+    <li>Due date: {{data_scadenza}}</li>
+    <li>Days overdue: {{giorni_ritardo}}</li>
+    <li>Reminder number: {{numero_sollecito}}</li>
+</ul>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>❗️ Action required</strong></p>
+    <p>Please return the book as soon as possible or contact the library. Failure to return it may result in the suspension of your account and penalties.</p>
+</div>
+<p>If you have already returned the book, please disregard this message.</p>',
+    ],
+    'loan_receipt_email' => [
+        'subject' => '📄 Loan receipt #{{prestito_id}}',
+        'body' => '<h2>Loan receipt</h2>
+<p>Hi {{utente_nome}},</p>
+<p>Please find attached the PDF receipt for your loan:</p>
+<ul>
+    <li>Book: {{libro_titolo}}</li>
+    <li>Loan date: {{data_prestito}}</li>
+    <li>Due date: {{data_scadenza}}</li>
+</ul>
+<p>Keep this receipt as a reminder of the due date.</p>
+<p>Happy reading!</p>',
+    ],
     'loan_pickup_cancelled' => [
         'subject' => '❌ Pickup Cancelled',
         'body' => '<h2>Pickup Cancelled</h2>

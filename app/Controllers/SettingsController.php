@@ -1294,6 +1294,10 @@ class SettingsController
             'max_active_loans_per_user' => (int) ($repository->get('loans', 'max_active_loans_per_user', '0') ?? 0),
             'max_loan_duration_days'   => (int) ($repository->get('loans', 'max_loan_duration_days', '90') ?? 90),
             'auto_approve_requests'    => $repository->autoApproveLoanRequests(),
+            // #360: automatic recall (sollecito) schedule for overdue loans.
+            'recall_auto_enabled'      => (string) ($repository->get('loans', 'recall_auto_enabled', '0') ?? '0') === '1',
+            'recall_interval_days'     => (int) ($repository->get('loans', 'recall_interval_days', '7') ?? 7),
+            'recall_max_count'         => (int) ($repository->get('loans', 'recall_max_count', '3') ?? 3),
             // App-wide clock for due dates and automatisms (DateHelper reads it).
             'app_timezone'             => (string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome'),
         ];
@@ -1322,6 +1326,13 @@ class SettingsController
         $autoApprove      = isset($data['auto_approve_requests'])
             && is_scalar($data['auto_approve_requests'])
             && (string) $data['auto_approve_requests'] === '1';
+        // #360: automatic recall schedule. The same clamps are re-applied at
+        // read time by NotificationService::sendLoanRecalls().
+        $recallEnabled    = isset($data['recall_auto_enabled'])
+            && is_scalar($data['recall_auto_enabled'])
+            && (string) $data['recall_auto_enabled'] === '1';
+        $recallInterval   = min(365, max(1, (int) ($data['recall_interval_days'] ?? 7)));   // 1 … 365 days
+        $recallMaxCount   = min(50,  max(1, (int) ($data['recall_max_count'] ?? 3)));       // 1 … 50 recalls
 
         $repository->set('loans', 'loan_duration_days', (string) $loanDurationDays);
         $repository->set('loans', 'pickup_expiry_days', (string) $pickupExpiryDays);
@@ -1329,6 +1340,9 @@ class SettingsController
         $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
         $repository->set('loans', 'max_loan_duration_days', (string) $maxLoanDuration);
         $repository->set('loans', 'auto_approve_requests', $autoApprove ? '1' : '0');
+        $repository->set('loans', 'recall_auto_enabled', $recallEnabled ? '1' : '0');
+        $repository->set('loans', 'recall_interval_days', (string) $recallInterval);
+        $repository->set('loans', 'recall_max_count', (string) $recallMaxCount);
 
         // App timezone: DateHelper computes the loan clock ("today"/"now") from
         // this. Validate against the canonical identifier list — an invalid or
