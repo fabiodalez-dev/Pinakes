@@ -426,7 +426,7 @@ $applicationToday = \App\Support\DateHelper::today();
         <i class="fas fa-calendar-plus mr-1"></i><?= __('Estendi prestiti selezionati') ?>
       </button>
       <button id="loans-bulk-recall" type="button"
-              class="inline-flex items-center px-4 py-2 bg-amber-600 text-white hover:bg-amber-500 rounded-lg transition-colors text-sm">
+              class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors text-sm">
         <i class="fas fa-bullhorn mr-1"></i><?= __('Invia sollecito ai selezionati') ?>
       </button>
       <button id="loans-bulk-clear" type="button"
