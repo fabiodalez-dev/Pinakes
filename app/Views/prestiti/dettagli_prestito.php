@@ -164,14 +164,14 @@ require_once __DIR__ . '/../partials/loan-status-badge.php';
       ?>
       <?php if ($hasUserEmail): ?>
         <button type="button" id="email-receipt-btn" data-loan-id="<?= (int)$prestito['id']; ?>"
-                class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-500 rounded-lg transition-colors duration-200 inline-flex items-center">
+                class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
           <i class="fas fa-envelope mr-2"></i>
           <?= __("Invia Ricevuta via Email") ?>
         </button>
       <?php endif; ?>
       <?php if ($isRecallable): ?>
         <button type="button" id="send-recall-btn" data-loan-id="<?= (int)$prestito['id']; ?>"
-                class="px-4 py-2 bg-amber-600 text-white hover:bg-amber-500 rounded-lg transition-colors duration-200 inline-flex items-center">
+                class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
           <i class="fas fa-bullhorn mr-2"></i>
           <?= __("Invia Sollecito") ?>
         </button>
