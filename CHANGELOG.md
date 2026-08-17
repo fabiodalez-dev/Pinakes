@@ -22,6 +22,14 @@ Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
   detail page now has "Invia Ricevuta via Email", which sends the same PDF as
   an attachment to the loan's user (new editable template
   `loan_receipt_email`; the mailer gained in-memory attachment support).
+- **Emails in the recipient's language**: user-facing notification emails
+  (loan warnings/overdue/recalls, receipt, approvals, pickups, returns,
+  reservations, wishlist, registration and account emails — and per-admin for
+  admin alerts) now render in the recipient's preferred language
+  (`utenti.locale`, the same value that drives their UI language), including
+  date formats and translated labels, falling back to the installation locale
+  when the user has none. Password-reset mail already followed the
+  requester's session language.
 
 ## [0.7.61]
 
