@@ -109,6 +109,31 @@ $check(
     'recall claim is atomic (counter re-asserted in the UPDATE guard)'
 );
 
+// --- Recipient-language emails ----------------------------------------------
+
+$formatParams = array_map(
+    static fn (ReflectionParameter $p): string => $p->getName(),
+    (new ReflectionMethod(NotificationService::class, 'formatEmailDate'))->getParameters()
+);
+$check(in_array('locale', $formatParams, true), 'formatEmailDate accepts a per-recipient locale');
+
+$check(
+    method_exists(NotificationService::class, 'resolveRecipientLocale')
+        && str_contains((string) $runSource, 'SELECT locale FROM utenti WHERE email = ?'),
+    'recipient locale resolves from utenti.locale'
+);
+// The retry sender must use the recipient's language, not the installation's.
+$sendWithRetrySrc = substr(
+    (string) $runSource,
+    (int) strpos((string) $runSource, 'private function sendWithRetry'),
+    1200
+);
+$check(
+    str_contains($sendWithRetrySrc, 'resolveRecipientLocale')
+        && !str_contains($sendWithRetrySrc, 'getInstallationLocale'),
+    'sendWithRetry renders templates in the recipient locale'
+);
+
 // --- Controller + routes ----------------------------------------------------
 
 foreach (['sendRecall', 'bulkRecall', 'emailPdf'] as $method) {
