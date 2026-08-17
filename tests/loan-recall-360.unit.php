@@ -142,5 +142,18 @@ $check(
     'upgrade migration adds the recall columns idempotently'
 );
 
+foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
+    $seed = file_get_contents(__DIR__ . '/../installer/database/data_' . $locale . '.sql');
+    $check(
+        $seed !== false
+            && str_contains((string) $seed, "'loan_recall_notification'")
+            && str_contains((string) $seed, "'loan_receipt_email'")
+            && str_contains((string) $seed, "'recall_auto_enabled'")
+            && str_contains((string) $seed, "'recall_interval_days'")
+            && str_contains((string) $seed, "'recall_max_count'"),
+        "installer data_{$locale}.sql seeds the recall templates and settings"
+    );
+}
+
 echo "\nPassed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);
