@@ -6862,5 +6862,7 @@
   "%s prestiti saltati (non scaduti, senza email o invio non riuscito).": "%s prestiti saltati (non scaduti, senza email o invio non riuscito).",
   "Solleciti inviati": "Solleciti inviati",
   "Nessun sollecito inviato": "Nessun sollecito inviato",
-  "Selezione non valida per il sollecito.": "Selezione non valida per il sollecito."
+  "Selezione non valida per il sollecito.": "Selezione non valida per il sollecito.",
+  "Lingua preferita": "Lingua preferita",
+  "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Usata per l'interfaccia e per le email che riceverai dalla biblioteca."
 }

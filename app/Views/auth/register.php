@@ -282,6 +282,35 @@ $registerRoute = route_path('register');
           </div>
         <?php endforeach; ?>
 
+        <?php
+          // #360: language preference — drives the account's UI language and
+          // the language of every email the library sends. Rendered only on
+          // multi-language installs (same rule as the profile page); defaults
+          // to the language the visitor is browsing the form in.
+          $availableLocales = \App\Support\I18n::getAvailableLocales();
+          $currentLocale = \App\Support\I18n::getLocale();
+          if (count($availableLocales) > 1):
+        ?>
+        <div>
+          <label for="locale" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __('Lingua preferita') ?>
+          </label>
+          <select
+            id="locale"
+            name="locale"
+            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+          >
+            <?php foreach ($availableLocales as $code => $name): ?>
+              <option value="<?= htmlspecialchars($code, ENT_QUOTES, 'UTF-8') ?>"
+                <?= $code === $currentLocale ? 'selected' : '' ?>>
+                <?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <p class="mt-1 text-xs text-gray-500"><?= __('Usata per l\'interfaccia e per le email che riceverai dalla biblioteca.') ?></p>
+        </div>
+        <?php endif; ?>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label for="password" class="block text-sm font-medium text-gray-700 mb-2">

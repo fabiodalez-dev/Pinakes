@@ -30,6 +30,11 @@ Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
   date formats and translated labels, falling back to the installation locale
   when the user has none. Password-reset mail already followed the
   requester's session language.
+- **Language choice at registration**: on multi-language installs the
+  registration form now offers a "Lingua preferita" select (defaulting to the
+  language the visitor is browsing in), validated server-side against the
+  shipped locales. The profile page and the admin user forms already offered
+  the same choice; together they cover registration, self-service and admin.
 
 ## [0.7.61]
 

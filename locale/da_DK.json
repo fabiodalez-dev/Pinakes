@@ -6862,5 +6862,7 @@
   "%s prestiti saltati (non scaduti, senza email o invio non riuscito).": "%s lån sprunget over (ikke udløbet, ingen e-mail eller afsendelse mislykkedes).",
   "Solleciti inviati": "Rykkere sendt",
   "Nessun sollecito inviato": "Ingen rykker sendt",
-  "Selezione non valida per il sollecito.": "Ugyldigt valg til rykkeren."
+  "Selezione non valida per il sollecito.": "Ugyldigt valg til rykkeren.",
+  "Lingua preferita": "Foretrukket sprog",
+  "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Bruges til grænsefladen og til de e-mails, biblioteket sender dig."
 }
