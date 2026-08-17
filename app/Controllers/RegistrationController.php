@@ -146,12 +146,21 @@ class RegistrationController
         // Default stato: sospeso (richiede approvazione admin). Email da verificare
         $stato = 'sospeso';
         $ruolo = 'standard';
-        // The application language is selected for the whole installation.
-        // Persist it explicitly instead of relying on the historical it_IT
-        // schema default, which is wrong on installations using another locale.
-        $locale = \App\Support\I18n::normalizeLocaleCode(
-            \App\Support\I18n::getInstallationLocale()
-        );
+        // #360: the registrant picks their language on the form (the select is
+        // rendered only on multi-language installs). Validate against the
+        // locales this installation actually ships; anything missing or
+        // invalid falls back to the installation locale — the historical
+        // behaviour. The stored value drives the user's UI language and the
+        // language of every email the app sends them.
+        $locale = '';
+        if (isset($data['locale']) && is_scalar($data['locale'])) {
+            $locale = \App\Support\I18n::normalizeLocaleCode(trim((string) $data['locale']));
+        }
+        if ($locale === '' || !isset(\App\Support\I18n::getAvailableLocales()[$locale])) {
+            $locale = \App\Support\I18n::normalizeLocaleCode(
+                \App\Support\I18n::getInstallationLocale()
+            );
+        }
         if (!\App\Support\I18n::isValidLocaleCode($locale)) {
             $locale = 'it_IT';
         }

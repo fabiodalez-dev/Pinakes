@@ -6862,5 +6862,7 @@
   "%s prestiti saltati (non scaduti, senza email o invio non riuscito).": "%s Ausleihen übersprungen (nicht überfällig, keine E-Mail-Adresse oder Versand fehlgeschlagen).",
   "Solleciti inviati": "Mahnungen gesendet",
   "Nessun sollecito inviato": "Keine Mahnung gesendet",
-  "Selezione non valida per il sollecito.": "Ungültige Auswahl für die Mahnung."
+  "Selezione non valida per il sollecito.": "Ungültige Auswahl für die Mahnung.",
+  "Lingua preferita": "Bevorzugte Sprache",
+  "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Wird für die Oberfläche und für die E-Mails der Bibliothek verwendet."
 }

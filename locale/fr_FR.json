@@ -6862,5 +6862,7 @@
   "%s prestiti saltati (non scaduti, senza email o invio non riuscito).": "%s prêts ignorés (non en retard, sans e-mail ou envoi échoué).",
   "Solleciti inviati": "Rappels envoyés",
   "Nessun sollecito inviato": "Aucun rappel envoyé",
-  "Selezione non valida per il sollecito.": "Sélection non valide pour le rappel."
+  "Selezione non valida per il sollecito.": "Sélection non valide pour le rappel.",
+  "Lingua preferita": "Langue préférée",
+  "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Utilisée pour l'interface et pour les e-mails que la bibliothèque vous envoie."
 }

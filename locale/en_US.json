@@ -6862,5 +6862,7 @@
   "%s prestiti saltati (non scaduti, senza email o invio non riuscito).": "%s loans skipped (not overdue, no email address, or send failed).",
   "Solleciti inviati": "Reminders sent",
   "Nessun sollecito inviato": "No reminder sent",
-  "Selezione non valida per il sollecito.": "Invalid selection for the reminder."
+  "Selezione non valida per il sollecito.": "Invalid selection for the reminder.",
+  "Lingua preferita": "Preferred language",
+  "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Used for the interface and for the emails the library sends you."
 }

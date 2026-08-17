@@ -134,6 +134,21 @@ $check(
     'sendWithRetry renders templates in the recipient locale'
 );
 
+// The registrant can pick their language on the form; the controller
+// validates it against the shipped locales (installation locale fallback).
+$registerView = file_get_contents(__DIR__ . '/../app/Views/auth/register.php');
+$registerCtrl = file_get_contents(__DIR__ . '/../app/Controllers/RegistrationController.php');
+$check(
+    str_contains((string) $registerView, 'name="locale"')
+        && str_contains((string) $registerView, 'getAvailableLocales'),
+    'registration form offers the language choice on multi-language installs'
+);
+$check(
+    str_contains((string) $registerCtrl, "\$data['locale']")
+        && str_contains((string) $registerCtrl, 'getAvailableLocales'),
+    'registration stores a validated user-chosen locale'
+);
+
 // --- Controller + routes ----------------------------------------------------
 
 foreach (['sendRecall', 'bulkRecall', 'emailPdf'] as $method) {
