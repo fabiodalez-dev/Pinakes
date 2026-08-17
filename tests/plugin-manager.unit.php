@@ -36,6 +36,16 @@ $check($source !== false && str_contains($source, '$syncInstance->onActivate();'
 $hasWarn = $source !== false && str_contains($source, 'Schema/hook self-heal skipped');
 $check($hasWarn, 'same-version failure is non-fatal (warning, no rethrow)');
 
+echo "\nPlugin ZIP update lifecycle:\n";
+$check($source !== false && str_contains($source, 'updatePluginFromStaging('), 'existing plugin ZIPs use the update path');
+$check($source !== false && str_contains($source, 'createPluginStagingDirectory('), 'ZIPs are extracted to a staging directory first');
+$check($source !== false && str_contains($source, "rename(\$pluginPath, \$backupPath)"), 'existing package is backed up before replacement');
+$check($source !== false && str_contains($source, "rename(\$stagingPath, \$pluginPath)"), 'staging package is atomically promoted');
+$check($source !== false && str_contains($source, 'Failed to restore plugin after update rollback'), 'failed update restores the prior package');
+$check($source !== false && str_contains($source, 'UPDATE plugins SET display_name'), 'update persists new manifest metadata');
+$check($source !== false && str_contains($source, "'updated' => true"), 'update response identifies a successful update');
+$check($source !== false && str_contains($source, 'isSafePluginFilePath'), 'manifest main_file is validated against traversal');
+
 echo "\n================================\n";
 echo "Passed: $passed   Failed: $failed\n";
 exit($failed > 0 ? 1 : 0);
