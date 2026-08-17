@@ -1,0 +1,146 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * DB-free contract test for issue #360 — overdue-loan recalls (solleciti) and
+ * emailing the loan receipt PDF.
+ *
+ * Locks:
+ *  - the two new mail templates exist for every shipped locale, with the
+ *    placeholders the senders actually bind;
+ *  - the English alias map covers the new {{numero_sollecito}} placeholder;
+ *  - the mailers expose the attachment path the receipt email relies on;
+ *  - NotificationService / PrestitiController expose the recall + receipt API
+ *    and the routes/UI wire them up.
+ *
+ * Run:  php tests/loan-recall-360.unit.php   (exit 0 iff all pass)
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use App\Support\EmailService;
+use App\Support\NotificationService;
+use App\Support\SettingsMailTemplates;
+
+$passed = 0;
+$failed = 0;
+$check = static function (bool $condition, string $label) use (&$passed, &$failed): void {
+    if ($condition) {
+        $passed++;
+        echo "  OK  {$label}\n";
+        return;
+    }
+    $failed++;
+    echo "  FAIL {$label}\n";
+};
+
+// --- Templates -------------------------------------------------------------
+
+$recallPlaceholders = ['utente_nome', 'libro_titolo', 'data_scadenza', 'giorni_ritardo', 'numero_sollecito'];
+$receiptPlaceholders = ['utente_nome', 'libro_titolo', 'data_prestito', 'data_scadenza'];
+
+foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
+    $recall = SettingsMailTemplates::get('loan_recall_notification', $locale);
+    $ok = $recall !== null;
+    foreach ($recallPlaceholders as $token) {
+        $ok = $ok && str_contains((string) ($recall['body'] ?? ''), '{{' . $token . '}}');
+    }
+    $check($ok, "{$locale}: loan_recall_notification exists and binds every recall placeholder");
+
+    $receipt = SettingsMailTemplates::get('loan_receipt_email', $locale);
+    $ok = $receipt !== null;
+    foreach ($receiptPlaceholders as $token) {
+        $ok = $ok && str_contains((string) ($receipt['body'] ?? ''), '{{' . $token . '}}');
+    }
+    $ok = $ok && str_contains((string) ($receipt['subject'] ?? ''), '{{prestito_id}}');
+    $check($ok, "{$locale}: loan_receipt_email exists and binds every receipt placeholder");
+}
+
+$check(
+    array_key_exists('numero_sollecito', SettingsMailTemplates::placeholderDescriptions()),
+    'placeholderDescriptions documents numero_sollecito for the template editor'
+);
+
+// --- Placeholder alias -----------------------------------------------------
+
+$aliases = (new ReflectionClassConstant(EmailService::class, 'PLACEHOLDER_ALIASES'))->getValue();
+$check(
+    ($aliases['recall_number'] ?? null) === 'numero_sollecito',
+    'EmailService maps the recall_number alias to numero_sollecito'
+);
+
+// --- Attachment support ----------------------------------------------------
+
+foreach (['sendTemplate', 'sendEmail'] as $method) {
+    $params = array_map(
+        static fn (ReflectionParameter $p): string => $p->getName(),
+        (new ReflectionMethod(EmailService::class, $method))->getParameters()
+    );
+    $check(in_array('attachments', $params, true), "EmailService::{$method} accepts attachments");
+}
+
+// --- NotificationService API ------------------------------------------------
+
+foreach (['sendLoanRecalls', 'sendManualRecall', 'sendLoanReceiptEmail'] as $method) {
+    $check(
+        method_exists(NotificationService::class, $method)
+            && (new ReflectionMethod(NotificationService::class, $method))->isPublic(),
+        "NotificationService::{$method} is part of the public API"
+    );
+}
+
+$runSource = file_get_contents(__DIR__ . '/../app/Support/NotificationService.php');
+$check(
+    str_contains((string) $runSource, "'loan_recalls'")
+        && str_contains((string) $runSource, 'sendLoanRecalls()'),
+    'runAutomaticNotifications reports and runs the recall pass'
+);
+$check(
+    str_contains((string) $runSource, 'loans.recall_auto_enabled')
+        && str_contains((string) $runSource, 'loans.recall_interval_days')
+        && str_contains((string) $runSource, 'loans.recall_max_count'),
+    'automatic recalls read the loans.recall_* settings'
+);
+// The atomic claim must re-assert due date + counter so a concurrent
+// renew()/recall claims at most once (#252/M3 pattern).
+$check(
+    str_contains((string) $runSource, 'SET recall_count = recall_count + 1')
+        && str_contains((string) $runSource, 'AND recall_count = ?'),
+    'recall claim is atomic (counter re-asserted in the UPDATE guard)'
+);
+
+// --- Controller + routes ----------------------------------------------------
+
+foreach (['sendRecall', 'bulkRecall', 'emailPdf'] as $method) {
+    $check(
+        method_exists(\App\Controllers\PrestitiController::class, $method),
+        "PrestitiController::{$method} exists"
+    );
+}
+
+$routes = file_get_contents(__DIR__ . '/../app/Routes/web.php');
+$check(
+    str_contains((string) $routes, "/admin/loans/{id:\\d+}/recall")
+        && str_contains((string) $routes, "/admin/loans/bulk-recall")
+        && str_contains((string) $routes, "/admin/loans/{id:\\d+}/email-pdf"),
+    'recall + email-pdf routes are registered'
+);
+
+// --- Schema artifacts -------------------------------------------------------
+
+$schema = file_get_contents(__DIR__ . '/../installer/database/schema.sql');
+$check(
+    str_contains((string) $schema, '`recall_count`') && str_contains((string) $schema, '`last_recall_at`'),
+    'fresh-install schema ships the recall tracking columns'
+);
+$migration = file_get_contents(__DIR__ . '/../installer/database/migrations/migrate_0.7.62.sql');
+$check(
+    $migration !== false
+        && str_contains((string) $migration, 'recall_count')
+        && str_contains((string) $migration, 'last_recall_at')
+        && str_contains((string) $migration, 'INFORMATION_SCHEMA.COLUMNS'),
+    'upgrade migration adds the recall columns idempotently'
+);
+
+echo "\nPassed: {$passed}   Failed: {$failed}\n";
+exit($failed > 0 ? 1 : 0);

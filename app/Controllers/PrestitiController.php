@@ -2159,6 +2159,91 @@ class PrestitiController
             ->withHeader('Pragma', 'no-cache');
     }
 
+    /**
+     * #360: manual recall (sollecito) for a single overdue loan — JSON endpoint
+     * behind the "Invia Sollecito" button on the loan detail page.
+     */
+    public function sendRecall(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+        // CSRF validated by CsrfMiddleware.
+
+        $result = (new NotificationService($db))->sendManualRecall($id);
+
+        $response->getBody()->write((string) json_encode([
+            'success' => (bool) $result['success'],
+            'message' => (string) $result['message'],
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * #360: bulk recall — sends the sollecito email to every selected loan that
+     * is genuinely overdue. Mirrors bulkExtend()'s form-POST + redirect-flash
+     * shape; per-loan claims live in NotificationService::sendManualRecall(),
+     * so a loan that isn't overdue, has no email, or fails to send is skipped
+     * (counted) without aborting the batch.
+     */
+    private const BULK_RECALL_MAX_LOANS = 500;
+
+    public function bulkRecall(Request $request, Response $response, mysqli $db): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware.
+
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', (array) ($data['ids'] ?? [])),
+            static fn (int $i): bool => $i > 0
+        )));
+
+        $backUrl = url('/admin/loans');
+        if ($ids === [] || count($ids) > self::BULK_RECALL_MAX_LOANS) {
+            return $response->withHeader('Location', $backUrl . '?error=bulk_recall_invalid')->withStatus(302);
+        }
+
+        $service = new NotificationService($db);
+        $sent = 0;
+        $skipped = 0;
+        foreach ($ids as $loanId) {
+            $result = $service->sendManualRecall($loanId);
+            if ($result['success']) {
+                $sent++;
+            } else {
+                $skipped++;
+            }
+        }
+
+        return $response
+            ->withHeader('Location', $backUrl . '?bulk_recalled=' . $sent . '&bulk_recall_skipped=' . $skipped)
+            ->withStatus(302);
+    }
+
+    /**
+     * #360: email the loan receipt PDF to the loan's user — JSON endpoint
+     * behind the "Invia Ricevuta via Email" button on the loan detail page.
+     * The attached document is the same one downloadPdf() serves.
+     */
+    public function emailPdf(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+        // CSRF validated by CsrfMiddleware.
+
+        $result = (new NotificationService($db))->sendLoanReceiptEmail($id);
+
+        $response->getBody()->write((string) json_encode([
+            'success' => (bool) $result['success'],
+            'message' => (string) $result['message'],
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
     private function guardStaffAccess(Response $response): ?Response
     {
         $role = $_SESSION['user']['tipo_utente'] ?? '';

@@ -576,6 +576,237 @@ class NotificationService {
         return $sentCount;
     }
 
+    /**
+     * #360: automatic recalls (solleciti) for overdue loans.
+     *
+     * Unlike sendOverdueLoanNotifications() — one-shot via the boolean
+     * overdue_notification_sent — recalls repeat: recall N is due once the loan
+     * is at least N * interval days overdue (interval and max count come from
+     * the loans settings), so a loan that stays out keeps being chased up to
+     * loans.recall_max_count times. Uses the same atomic claim-then-send
+     * pattern as the other senders; the DATE(last_recall_at) guard caps sends
+     * at one per loan per day even if the schedule would allow more.
+     */
+    public function sendLoanRecalls(): int {
+        $sentCount = 0;
+
+        try {
+            if ((string) ConfigStore::get('loans.recall_auto_enabled', '0') !== '1') {
+                return 0;
+            }
+            // Same clamps as SettingsController::updateLoansSettings — the
+            // stored value is trusted but a hand-edited row must not produce a
+            // zero/negative interval (division-like schedule) or a runaway cap.
+            $intervalDays = min(365, max(1, (int) ConfigStore::get('loans.recall_interval_days', 7)));
+            $maxRecalls = min(50, max(1, (int) ConfigStore::get('loans.recall_max_count', 3)));
+
+            // "Oggi" nel timezone applicativo come parametro bound (M9).
+            $today = DateHelper::today();
+
+            $stmt = $this->db->prepare("
+                SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
+                       l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
+                       DATEDIFF(?, p.data_scadenza) as giorni_ritardo
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.stato IN ('in_corso', 'in_ritardo')
+                  AND p.attivo = 1
+                  AND p.data_scadenza < ?
+                  AND p.overdue_notification_sent = 1
+                  AND p.recall_count < ?
+                  AND DATEDIFF(?, p.data_scadenza) >= ? * (p.recall_count + 1)
+                  AND (p.last_recall_at IS NULL OR DATE(p.last_recall_at) < ?)
+            ");
+            $stmt->bind_param('ssisis', $today, $today, $maxRecalls, $today, $intervalDays, $today);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $loans = [];
+            while ($loan = $result->fetch_assoc()) {
+                $loans[] = $loan;
+            }
+            $stmt->close();
+
+            foreach ($loans as $loan) {
+                $sentCount += $this->claimAndSendRecall($loan, $today) ? 1 : 0;
+            }
+
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to send loan recalls: " . $e->getMessage());
+        }
+
+        return $sentCount;
+    }
+
+    /**
+     * #360: manual recall for a single loan, triggered by staff from the loan
+     * detail page or the loans-list bulk action. Skips the automatic schedule
+     * (interval / max count): an explicit staff action always sends — but the
+     * loan must genuinely be overdue and the user must have an email address.
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function sendManualRecall(int $loanId): array {
+        try {
+            $this->addNotificationColumns();
+
+            $today = DateHelper::today();
+            $stmt = $this->db->prepare("
+                SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
+                       p.stato, p.attivo,
+                       l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
+                       DATEDIFF(?, p.data_scadenza) as giorni_ritardo
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('si', $today, $loanId);
+            $stmt->execute();
+            $loan = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            if (!$loan) {
+                return ['success' => false, 'message' => __('Prestito non trovato')];
+            }
+            if ((int) $loan['attivo'] !== 1 || !in_array((string) $loan['stato'], ['in_corso', 'in_ritardo'], true)) {
+                return ['success' => false, 'message' => __('Il sollecito è disponibile solo per prestiti attivi con libro in mano all\'utente.')];
+            }
+            if ((int) $loan['giorni_ritardo'] < 1) {
+                return ['success' => false, 'message' => __('Il prestito non è scaduto: nessun sollecito da inviare.')];
+            }
+            if (trim((string) $loan['utente_email']) === '') {
+                return ['success' => false, 'message' => __('L\'utente non ha un indirizzo email.')];
+            }
+
+            if ($this->claimAndSendRecall($loan, $today)) {
+                return ['success' => true, 'message' => __('Sollecito inviato con successo.')];
+            }
+            return ['success' => false, 'message' => __('Invio del sollecito non riuscito. Controlla la configurazione email e riprova.')];
+
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to send manual recall for loan {$loanId}: " . $e->getMessage());
+            return ['success' => false, 'message' => __('Invio del sollecito non riuscito. Controlla la configurazione email e riprova.')];
+        }
+    }
+
+    /**
+     * Shared claim-then-send for one recall (automatic and manual paths).
+     * Expects a row carrying id, data_scadenza, recall_count, last_recall_at,
+     * libro_titolo, utente_nome, utente_email, giorni_ritardo. Returns true iff
+     * the recall email actually went out; on failure the claim is reverted so a
+     * later run can retry.
+     */
+    private function claimAndSendRecall(array $loan, string $today): bool {
+        // ATOMIC: bump the counter BEFORE sending. Re-assert data_scadenza and
+        // recall_count so a concurrent renew()/recall claims at most once
+        // (same #252/M3 rationale as the overdue sender).
+        $now = DateHelper::now();
+        $expectedCount = (int) $loan['recall_count'];
+        $updateStmt = $this->db->prepare("UPDATE prestiti SET recall_count = recall_count + 1, last_recall_at = ? WHERE id = ? AND data_scadenza = ? AND recall_count = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+        $updateStmt->bind_param('sisi', $now, $loan['id'], $loan['data_scadenza'], $expectedCount);
+        $updateStmt->execute();
+        $claimed = $updateStmt->affected_rows === 1;
+        $updateStmt->close();
+
+        if (!$claimed) {
+            return false;
+        }
+
+        $recallNumber = $expectedCount + 1;
+        $variables = [
+            'utente_nome' => $loan['utente_nome'],
+            'libro_titolo' => $loan['libro_titolo'],
+            'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
+            'giorni_ritardo' => $loan['giorni_ritardo'],
+            'numero_sollecito' => $recallNumber,
+        ];
+
+        $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_recall_notification', $variables);
+
+        if ($emailSent) {
+            $this->createNotification(
+                'general',
+                __('Sollecito inviato'),
+                sprintf(__('Sollecito n. %d inviato a %s per "%s"'), $recallNumber, $loan['utente_nome'], $loan['libro_titolo']),
+                '/admin/loans',
+                (int) $loan['id']
+            );
+            return true;
+        }
+
+        // Email failed after retries: restore counter and timestamp so the next
+        // run (or a retried manual send) claims the same recall again.
+        $previousRecallAt = $loan['last_recall_at'] !== null ? (string) $loan['last_recall_at'] : null;
+        $revertStmt = $this->db->prepare("UPDATE prestiti SET recall_count = recall_count - 1, last_recall_at = ? WHERE id = ? AND recall_count = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+        $revertStmt->bind_param('sii', $previousRecallAt, $loan['id'], $recallNumber);
+        $revertStmt->execute();
+        $revertStmt->close();
+        SecureLogger::warning("Failed to send recall for loan {$loan['id']} after retries, claim reverted");
+        return false;
+    }
+
+    /**
+     * #360: email the loan receipt PDF (the same document downloadPdf serves)
+     * to the loan's user, attached to the loan_receipt_email template.
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function sendLoanReceiptEmail(int $loanId): array {
+        try {
+            $repo = new \App\Models\LoanRepository($this->db);
+            $loan = $repo->getById($loanId);
+            if (!$loan) {
+                return ['success' => false, 'message' => __('Prestito non trovato')];
+            }
+            $email = trim((string) ($loan['utente_email'] ?? ''));
+            if ($email === '') {
+                return ['success' => false, 'message' => __('L\'utente non ha un indirizzo email.')];
+            }
+
+            $pdfContent = (new LoanPdfGenerator($this->db))->generate($loanId);
+
+            $variables = [
+                'prestito_id' => $loanId,
+                'utente_nome' => (string) ($loan['utente'] ?? ''),
+                'libro_titolo' => (string) ($loan['libro'] ?? ''),
+                'data_prestito' => $this->formatEmailDate((string) ($loan['data_prestito'] ?? '')),
+                'data_scadenza' => $this->formatEmailDate((string) ($loan['data_scadenza'] ?? '')),
+            ];
+            $attachment = [
+                'content' => $pdfContent,
+                'filename' => 'prestito_' . $loanId . '_' . date('Ymd') . '.pdf',
+                'type' => 'application/pdf',
+            ];
+
+            // Same circuit breaker as sendWithRetry: don't spin the SMTP retry
+            // cycle when the server is plainly unreachable.
+            if (!\App\Support\Mailer::isSmtpReachable()) {
+                return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
+            }
+
+            $sent = $this->emailService->sendTemplate(
+                $email,
+                'loan_receipt_email',
+                $variables,
+                \App\Support\I18n::getInstallationLocale(),
+                [$attachment]
+            );
+
+            if ($sent) {
+                return ['success' => true, 'message' => __('Ricevuta inviata via email con successo.')];
+            }
+            return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
+
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to email loan receipt for loan {$loanId}: " . $e->getMessage());
+            return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
+        }
+    }
+
     public function notifyAdminsOverdue(int $loanId): void
     {
         try {
@@ -710,6 +941,7 @@ class NotificationService {
             'timestamp' => gmdate('Y-m-d H:i:s'),
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
+            'loan_recalls' => 0,
             'wishlist_notifications' => 0,
             'errors' => []
         ];
@@ -721,6 +953,9 @@ class NotificationService {
 
             $results['expiration_warnings'] = $this->sendLoanExpirationWarnings();
             $results['overdue_notifications'] = $this->sendOverdueLoanNotifications();
+            // #360: repeated recalls come after the first overdue notice — the
+            // recall query requires overdue_notification_sent = 1.
+            $results['loan_recalls'] = $this->sendLoanRecalls();
             $results['wishlist_notifications'] = $this->checkAndNotifyWishlistAvailability();
 
         } catch (\Throwable $e) {
@@ -860,6 +1095,20 @@ class NotificationService {
             $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'overdue_notification_sent'");
             if ($result->num_rows === 0) {
                 $this->db->query("ALTER TABLE prestiti ADD COLUMN overdue_notification_sent BOOLEAN DEFAULT 0");
+            }
+
+            // #360: recall (sollecito) tracking — how many recalls went out and
+            // when the last one did, so automatic recalls can repeat at the
+            // configured interval instead of being one-shot like
+            // overdue_notification_sent.
+            $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'recall_count'");
+            if ($result->num_rows === 0) {
+                $this->db->query("ALTER TABLE prestiti ADD COLUMN recall_count INT NOT NULL DEFAULT 0");
+            }
+
+            $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'last_recall_at'");
+            if ($result->num_rows === 0) {
+                $this->db->query("ALTER TABLE prestiti ADD COLUMN last_recall_at DATETIME NULL DEFAULT NULL");
             }
 
         } catch (\Throwable $e) {

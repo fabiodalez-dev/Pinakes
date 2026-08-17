@@ -1897,6 +1897,30 @@ return function (App $app): void {
         return $controller->downloadPdf($request, $response, $db, (int) $args['id']);
     })->add(new AdminAuthMiddleware())->add(new CsrfMiddleware());
 
+    // #360: invia la ricevuta PDF del prestito via email all'utente
+    $app->post('/admin/loans/{id:\d+}/email-pdf', function ($request, $response, $args) use ($app) {
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->emailPdf($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // #360: sollecito manuale per un singolo prestito scaduto
+    $app->post('/admin/loans/{id:\d+}/recall', function ($request, $response, $args) use ($app) {
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->sendRecall($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // #360: sollecito in blocco per i prestiti selezionati nella lista
+    $app->post('/admin/loans/bulk-recall', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkRecall($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // API loans per DataTables
     $app->get('/api/prestiti', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\PrestitiApiController();
