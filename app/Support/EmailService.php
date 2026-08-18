@@ -278,7 +278,29 @@ class EmailService {
                 $candidateLocales[] = 'it_IT';
             }
 
-            foreach ($candidateLocales as $candidateLocale) {
+            foreach ($candidateLocales as $index => $candidateLocale) {
+                // #360: after missing a stored row for the EXACT requested
+                // locale, prefer the shipped default translated in that locale
+                // over another locale's stored row. Installs seed
+                // email_templates only for the installation language, so
+                // without this the chain always landed on the installation row
+                // and per-recipient localization never materialized (a German
+                // recipient got the seeded Italian template). Cross-locale
+                // admin customizations still win for locales with no shipped
+                // texts (hasShippedLocale gate), and an exact-locale stored
+                // row — customized or seeded — always wins above.
+                // When the next candidate is a same-language variant (it_CH ->
+                // it_IT) the stored row IS the recipient's language: let it
+                // win, customizations included. Only a language change (en_US
+                // recipient falling toward an it_IT row) triggers the shipped
+                // default.
+                if ($index === 1 && substr($candidateLocale, 0, 2) !== substr($locale, 0, 2) && \App\Support\SettingsMailTemplates::hasShippedLocale($locale)) {
+                    $shipped = \App\Support\SettingsMailTemplates::get($templateName, $locale);
+                    if ($shipped !== null) {
+                        return ['subject' => (string) $shipped['subject'], 'body' => (string) $shipped['body']];
+                    }
+                }
+
                 $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = ? AND active = 1");
                 $stmt->bind_param('ss', $templateName, $candidateLocale);
                 $stmt->execute();

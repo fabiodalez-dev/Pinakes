@@ -717,7 +717,7 @@ class NotificationService {
             $stmt->close();
 
             foreach ($loans as $loan) {
-                $sentCount += $this->claimAndSendRecall($loan, $today) ? 1 : 0;
+                $sentCount += $this->claimAndSendRecall($loan) ? 1 : 0;
             }
 
         } catch (\Throwable $e) {
@@ -779,7 +779,7 @@ class NotificationService {
                 return ['success' => false, 'message' => __('Un sollecito è già stato inviato oggi per questo prestito.')];
             }
 
-            if ($this->claimAndSendRecall($loan, $today)) {
+            if ($this->claimAndSendRecall($loan)) {
                 return ['success' => true, 'message' => __('Sollecito inviato con successo.')];
             }
             return ['success' => false, 'message' => __('Invio del sollecito non riuscito. Controlla la configurazione email e riprova.')];
@@ -797,7 +797,7 @@ class NotificationService {
      * the recall email actually went out; on failure the claim is reverted so a
      * later run can retry.
      */
-    private function claimAndSendRecall(array $loan, string $today): bool {
+    private function claimAndSendRecall(array $loan): bool {
         // ATOMIC: bump the counter BEFORE sending. Re-assert data_scadenza and
         // recall_count so a concurrent renew()/recall claims at most once
         // (same #252/M3 rationale as the overdue sender).
@@ -1254,7 +1254,11 @@ class NotificationService {
             $sentCount = 0;
             while ($row = $result->fetch_assoc()) {
                 // #360: each admin gets the template in their own language
-                // (utenti.locale, installation locale as fallback).
+                // (utenti.locale, installation locale as fallback). Known
+                // limitation: date VARIABLES arrive pre-formatted by the
+                // caller in the installation locale (one $variables array for
+                // the whole fan-out), so a differently-localized admin sees
+                // installation-format dates inside their localized template.
                 $locale = $this->resolveRecipientLocale((string) $row['email']);
                 if ($this->emailService->sendTemplate($row['email'], $templateName, $variables, $locale)) {
                     $sentCount++;

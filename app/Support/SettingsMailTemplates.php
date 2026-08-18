@@ -610,6 +610,28 @@ HTML,
     }
 
     /**
+     * #360: whether this locale has SHIPPED template texts — the in-code
+     * Italian base or a mail_templates/<locale>.php override. Distinguishes a
+     * genuinely translated default from all()'s silent Italian fallback for
+     * unknown locales, so callers (EmailService::getEmailTemplate) can prefer
+     * a translated shipped default over another locale's stored row without
+     * ever serving Italian under a foreign locale's name.
+     */
+    public static function hasShippedLocale(?string $locale): bool
+    {
+        $locale = trim((string) $locale);
+        if ($locale === '') {
+            return false;
+        }
+        if (str_starts_with($locale, 'it')) {
+            return true; // in-code Italian base
+        }
+        $map = ['en' => 'en_US', 'de' => 'de_DE', 'fr' => 'fr_FR', 'da' => 'da_DK', 'en_US' => 'en_US', 'de_DE' => 'de_DE', 'fr_FR' => 'fr_FR', 'da_DK' => 'da_DK'];
+        $key = $map[$locale] ?? ($map[substr($locale, 0, 2)] ?? null);
+        return $key !== null && is_file(__DIR__ . '/mail_templates/' . $key . '.php');
+    }
+
+    /**
      * @return string[]
      */
     public static function keys(): array
