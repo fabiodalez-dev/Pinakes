@@ -132,9 +132,14 @@ $cleanup = static function () use ($db, $titlePrefix, $cardPrefix, $origSettings
         }
     }
     foreach ($origSettings as $path => $value) {
-        // Restore the pre-test value; null means the key had no explicit row —
-        // write back the documented default so we don't leave a test artefact.
+        [$cat, $settingKey] = explode('.', $path, 2);
         if ($value === null) {
+            // The key had no row before the test — delete the one $setConfig
+            // created so the dev DB is left exactly as found.
+            $del = $db->prepare('DELETE FROM system_settings WHERE category = ? AND setting_key = ?');
+            $del->bind_param('ss', $cat, $settingKey);
+            $del->execute();
+            $del->close();
             continue;
         }
         ConfigStore::set($path, (string) $value);
