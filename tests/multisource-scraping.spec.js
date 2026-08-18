@@ -353,10 +353,20 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     await page.locator('input[name="copie_totali"]').fill('1');
     await page.locator('#tipo_media').selectOption('disco');
     await page.locator('input[name="formato"]').fill('cd_audio');
+    // TinyMCE races this step: tinymce.get() returns the instance as soon as
+    // init() registers it, but setContent() needs the content parser that only
+    // exists once initialization completes — calling earlier throws
+    // "Cannot read properties of undefined (reading 'parse')" (flaked on CI).
+    // Wait for init to settle; when no editor ever attaches the predicate is
+    // immediately true and the textarea fallback below handles it.
+    await page.waitForFunction(() => {
+      const editor = window.tinymce?.get('descrizione');
+      return !editor || editor.initialized;
+    });
     await page.evaluate((value) => {
       const textarea = document.querySelector('textarea[name="descrizione"]');
       const editor = window.tinymce?.get('descrizione');
-      if (editor) {
+      if (editor && editor.initialized) {
         editor.setContent(value);
         editor.save();
       } else if (textarea) {
