@@ -2186,7 +2186,14 @@ class PrestitiController
      * so a loan that isn't overdue, has no email, or fails to send is skipped
      * (counted) without aborting the batch.
      */
-    private const BULK_RECALL_MAX_LOANS = 500;
+    /**
+     * Upper bound on one synchronous bulk-recall batch. Each loan is a real
+     * SMTP send inside this HTTP request, so the cap must stay small enough
+     * not to trip max_execution_time (same rationale as the 20-item cap on
+     * /admin/books/bulk-enrich/start). Larger overdue backlogs are what the
+     * automatic recall scheduler is for.
+     */
+    private const BULK_RECALL_MAX_LOANS = 50;
 
     public function bulkRecall(Request $request, Response $response, mysqli $db): Response
     {

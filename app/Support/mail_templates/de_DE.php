@@ -145,8 +145,8 @@ return [
     'loan_recall_notification' => [
         'subject' => '📢 Mahnung Nr. {{numero_sollecito}} - Rückgabe erforderlich',
         'body' => '<h2>Rückgabemahnung</h2>
-<p>Hallo {{utente_nome}},</p>
-<p>Trotz vorheriger Hinweise ist die folgende Ausleihe weiterhin überfällig und das Buch wurde nicht zurückgegeben:</p>
+<p>Guten Tag {{utente_nome}},</p>
+<p>trotz vorheriger Hinweise ist die folgende Ausleihe weiterhin überfällig und das Buch wurde nicht zurückgegeben:</p>
 <ul>
     <li>Buch: {{libro_titolo}}</li>
     <li>Fälligkeitsdatum: {{data_scadenza}}</li>
@@ -155,21 +155,21 @@ return [
 </ul>
 <div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
     <p><strong>❗️ Handlung erforderlich</strong></p>
-    <p>Bitte gib das Buch so schnell wie möglich zurück oder kontaktiere die Bibliothek. Wird das Buch nicht zurückgegeben, kann dies zur Sperrung deines Kontos und zu Gebühren führen.</p>
+    <p>Bitte geben Sie das Buch so schnell wie möglich zurück oder kontaktieren Sie die Bibliothek. Wird das Buch nicht zurückgegeben, kann dies zur Sperrung Ihres Kontos und zu Gebühren führen.</p>
 </div>
-<p>Falls du das Buch bereits zurückgegeben hast, betrachte diese Nachricht als gegenstandslos.</p>',
+<p>Falls Sie das Buch bereits zurückgegeben haben, betrachten Sie diese Nachricht bitte als gegenstandslos.</p>',
     ],
     'loan_receipt_email' => [
         'subject' => '📄 Ausleihbeleg #{{prestito_id}}',
         'body' => '<h2>Ausleihbeleg</h2>
-<p>Hallo {{utente_nome}},</p>
-<p>Im Anhang findest du den PDF-Beleg deiner Ausleihe:</p>
+<p>Guten Tag {{utente_nome}},</p>
+<p>im Anhang finden Sie den PDF-Beleg Ihrer Ausleihe:</p>
 <ul>
     <li>Buch: {{libro_titolo}}</li>
     <li>Ausleihdatum: {{data_prestito}}</li>
     <li>Fälligkeitsdatum: {{data_scadenza}}</li>
 </ul>
-<p>Bewahre diesen Beleg als Erinnerung an das Fälligkeitsdatum auf.</p>
+<p>Bewahren Sie diesen Beleg als Erinnerung an das Fälligkeitsdatum auf.</p>
 <p>Viel Spaß beim Lesen!</p>',
     ],
     'loan_pickup_cancelled' => [
