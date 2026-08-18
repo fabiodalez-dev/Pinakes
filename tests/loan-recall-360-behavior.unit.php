@@ -245,11 +245,41 @@ echo "Loan recall (#360) behavioural contract:\n";
 
 $service = new NotificationService($db);
 
+$updatedAtOf = static function (int $loanId) use ($db): string {
+    $stmt = $db->prepare('SELECT updated_at FROM prestiti WHERE id = ?');
+    $stmt->bind_param('i', $loanId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return (string) $row['updated_at'];
+};
+
 // ── G. Automatic scheduler is gated off by default ──────────────────────────
 $gatedLoan = $makeLoan(daysOverdue: 20);            // plainly eligible on the math
+$db->query("UPDATE prestiti SET updated_at = NOW() - INTERVAL 1 HOUR WHERE id = " . (int) $gatedLoan);
+$gatedStamp = $updatedAtOf($gatedLoan);
 $setConfig(['loans.recall_auto_enabled' => '0']);
 $check($service->sendLoanRecalls() === 0, 'G1 sendLoanRecalls() is a no-op while loans.recall_auto_enabled=0');
 $check($recallCountOf($gatedLoan)['count'] === 0, 'G2 gated run leaves recall_count untouched');
+$check($updatedAtOf($gatedLoan) === $gatedStamp, 'G2b gated run never touches the eligible loan (updated_at unchanged)');
+
+// ── G3. Enabled scheduler actually processes eligible loans. Regression guard
+// for the ConfigStore 'loans' category being unmapped: the enable flag was
+// read via ConfigStore::get('loans.recall_auto_enabled'), which always returned
+// the '0' default no matter what the admin saved, so the scheduler was a
+// permanent no-op. A successful send can't be asserted without a mail server,
+// but with SMTP forced unreachable the eligible loan is still claimed-then-
+// reverted, and each of those UPDATEs advances prestiti.updated_at — an
+// observable the gated-off path (G2b) never produces. Before the fix this
+// assertion fails (the gate reads '0' and returns before any UPDATE).
+$enabledLoan = $makeLoan(daysOverdue: 20);
+$db->query("UPDATE prestiti SET updated_at = NOW() - INTERVAL 1 HOUR WHERE id = " . (int) $enabledLoan);
+$enabledStampBefore = $updatedAtOf($enabledLoan);
+$setConfig(['loans.recall_auto_enabled' => '1']);
+$service->sendLoanRecalls();
+$check($updatedAtOf($enabledLoan) > $enabledStampBefore, 'G3 enabled scheduler claims eligible loans (updated_at advanced) — the config gate is honoured, not inert');
+$check($recallCountOf($enabledLoan)['count'] === 0, 'G3b failed send during the enabled run still reverts the claim');
+$setConfig(['loans.recall_auto_enabled' => '0']);
 
 // ── V. sendManualRecall() validation guards ─────────────────────────────────
 $missing = $service->sendManualRecall(2000000000);

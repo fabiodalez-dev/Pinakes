@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use mysqli;
+use App\Models\SettingsRepository;
 use App\Support\ConfigStore;
 use App\Support\RouteTranslator;
 use App\Support\SettingsMailTemplates;
@@ -100,9 +101,15 @@ class NotificationService {
     {
         $sessionLocale = I18n::getLocale();
         I18n::setLocale($locale);
-        $label = __($message);
-        I18n::setLocale($sessionLocale);
-        return $label;
+        // finally: a throw inside __() must never leave the process-wide locale
+        // switched — the automatic-notification cron translates for many
+        // recipients in one run, and a leaked locale would mistranslate every
+        // subsequent one.
+        try {
+            return __($message);
+        } finally {
+            I18n::setLocale($sessionLocale);
+        }
     }
 
     /**
@@ -650,14 +657,22 @@ class NotificationService {
         $sentCount = 0;
 
         try {
-            if ((string) ConfigStore::get('loans.recall_auto_enabled', '0') !== '1') {
+            // Read the recall schedule the same way SettingsController writes and
+            // reads it — via SettingsRepository. ConfigStore can NOT serve loans
+            // keys: loadDatabaseSettings() has no 'loans' category mapping, so it
+            // always returns the code default (recall_auto_enabled would resolve
+            // to '0' regardless of the admin toggle, making this a permanent
+            // no-op). Every other loans setting is read via SettingsRepository
+            // for exactly this reason.
+            $settings = new SettingsRepository($this->db);
+            if ((string) ($settings->get('loans', 'recall_auto_enabled', '0') ?? '0') !== '1') {
                 return 0;
             }
             // Same clamps as SettingsController::updateLoansSettings — the
             // stored value is trusted but a hand-edited row must not produce a
             // zero/negative interval (division-like schedule) or a runaway cap.
-            $intervalDays = min(365, max(1, (int) ConfigStore::get('loans.recall_interval_days', 7)));
-            $maxRecalls = min(50, max(1, (int) ConfigStore::get('loans.recall_max_count', 3)));
+            $intervalDays = min(365, max(1, (int) ($settings->get('loans', 'recall_interval_days', '7') ?? 7)));
+            $maxRecalls = min(50, max(1, (int) ($settings->get('loans', 'recall_max_count', '3') ?? 3)));
 
             // "Oggi" nel timezone applicativo come parametro bound (M9).
             $today = DateHelper::today();

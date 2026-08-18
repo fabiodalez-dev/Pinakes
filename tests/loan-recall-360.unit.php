@@ -96,10 +96,17 @@ $check(
     'runAutomaticNotifications reports and runs the recall pass'
 );
 $check(
-    str_contains((string) $runSource, 'loans.recall_auto_enabled')
-        && str_contains((string) $runSource, 'loans.recall_interval_days')
-        && str_contains((string) $runSource, 'loans.recall_max_count'),
-    'automatic recalls read the loans.recall_* settings'
+    str_contains((string) $runSource, "'recall_auto_enabled'")
+        && str_contains((string) $runSource, "'recall_interval_days'")
+        && str_contains((string) $runSource, "'recall_max_count'")
+        && str_contains((string) $runSource, 'SettingsRepository')
+        // Regression guard (#360 P1): the recall schedule MUST be read via
+        // SettingsRepository, not ConfigStore::get('loans.*'). ConfigStore's
+        // loadDatabaseSettings() has no 'loans' category mapping, so those
+        // reads always return the code default — recall_auto_enabled resolves
+        // to '0' regardless of the admin toggle and the scheduler never fires.
+        && !str_contains((string) $runSource, "ConfigStore::get('loans."),
+    'automatic recalls read the loans.recall_* settings via SettingsRepository (not the inert ConfigStore loans.* path)'
 );
 // The atomic claim must re-assert due date + counter so a concurrent
 // renew()/recall claims at most once (#252/M3 pattern).
