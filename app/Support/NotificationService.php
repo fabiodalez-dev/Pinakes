@@ -16,6 +16,13 @@ class NotificationService {
     /** #360: per-request cache of recipient email -> resolved email locale. */
     private array $recipientLocaleCache = [];
 
+    /**
+     * #360: memoize the notification-column self-heal so a bulk path (bulkRecall
+     * loops sendManualRecall up to 50 times) doesn't re-run four SHOW COLUMNS
+     * per loan. The schema doesn't change mid-request.
+     */
+    private bool $notificationColumnsEnsured = false;
+
     public function __construct(mysqli $db) {
         $this->db = $db;
         $this->emailService = new EmailService($db);
@@ -75,12 +82,12 @@ class NotificationService {
         }
 
         $locale = $fallback;
+        $stmt = null;
         try {
             $stmt = $this->db->prepare("SELECT locale FROM utenti WHERE email = ? LIMIT 1");
             $stmt->bind_param('s', $email);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
 
             $raw = trim((string) ($row['locale'] ?? ''));
             if ($raw !== '' && isset(I18n::getAvailableLocales()[$raw])) {
@@ -88,6 +95,12 @@ class NotificationService {
             }
         } catch (\Throwable $e) {
             // Lookup failure must never block the send: keep the fallback.
+        } finally {
+            // Close in finally so a throw between prepare() and close() can't
+            // leak the statement handle.
+            if ($stmt instanceof \mysqli_stmt) {
+                $stmt->close();
+            }
         }
 
         return $this->recipientLocaleCache[$email] = $locale;
@@ -716,9 +729,10 @@ class NotificationService {
 
     /**
      * #360: manual recall for a single loan, triggered by staff from the loan
-     * detail page or the loans-list bulk action. Skips the automatic schedule
-     * (interval / max count): an explicit staff action always sends — but the
-     * loan must genuinely be overdue and the user must have an email address.
+     * detail page or the loans-list bulk action. Skips the automatic interval /
+     * max-count schedule, but still requires the loan to be genuinely overdue,
+     * the user to have an email address, and no recall to have already gone out
+     * today (a per-loan daily cooldown that bounds abuse of the manual path).
      *
      * @return array{success: bool, message: string}
      */
@@ -754,6 +768,15 @@ class NotificationService {
             }
             if (trim((string) $loan['utente_email']) === '') {
                 return ['success' => false, 'message' => __('L\'utente non ha un indirizzo email.')];
+            }
+            // Per-loan daily cooldown: at most one recall per loan per day,
+            // matching the automatic scheduler's DATE(last_recall_at) < today
+            // throttle. Prevents a staff session (or a repeated bulk submit)
+            // from re-emailing the same patron many times in a row while still
+            // allowing a manual recall on a later day.
+            if ($loan['last_recall_at'] !== null
+                && substr((string) $loan['last_recall_at'], 0, 10) === $today) {
+                return ['success' => false, 'message' => __('Un sollecito è già stato inviato oggi per questo prestito.')];
             }
 
             if ($this->claimAndSendRecall($loan, $today)) {
@@ -1164,6 +1187,9 @@ class NotificationService {
      * Aggiunge colonne per tracking notifiche se non esistono
      */
     private function addNotificationColumns(): void {
+        if ($this->notificationColumnsEnsured) {
+            return;
+        }
         try {
             // Check if columns exist
             $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'warning_sent'");
@@ -1190,6 +1216,9 @@ class NotificationService {
                 $this->db->query("ALTER TABLE prestiti ADD COLUMN last_recall_at DATETIME NULL DEFAULT NULL");
             }
 
+            // Only memoize once the checks completed without throwing, so a
+            // transient failure retries on the next call.
+            $this->notificationColumnsEnsured = true;
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to add notification columns: " . $e->getMessage());
         }

@@ -111,6 +111,16 @@ require_once __DIR__ . '/../partials/loan-status-badge.php';
             <span class="font-semibold text-gray-600"><?= __("Rinnovi Effettuati:") ?></span>
             <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['renewals'] ?? '0'); ?></span>
           </div>
+          <div>
+            <span class="font-semibold text-gray-600"><?= __("Solleciti Inviati:") ?></span>
+            <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['recall_count'] ?? '0'); ?></span>
+          </div>
+          <?php if (!empty($prestito['last_recall_at'])): ?>
+          <div>
+            <span class="font-semibold text-gray-600"><?= __("Ultimo Sollecito:") ?></span>
+            <span class="text-gray-800"><?= format_date($prestito['last_recall_at'], false, '/'); ?></span>
+          </div>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -396,6 +406,23 @@ foreach ($jsTranslationKeys as $key) {
                 body: JSON.stringify({})
             });
             const data = await response.json();
+            // #360: the CSRF middleware rejects an expired session / bad token
+            // with { error, code } (not { message }); tell the user to reload
+            // instead of showing a generic "send failed", per the app-wide
+            // data.code===SESSION_EXPIRED|CSRF_INVALID convention.
+            if (data.error || data.code) {
+                Swal.fire({
+                    title: __('Errore'),
+                    text: data.error || failureText,
+                    icon: 'error',
+                    confirmButtonText: __('OK'),
+                    confirmButtonColor: '#111827'
+                });
+                if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+                return;
+            }
             if (data.success) {
                 Swal.fire({
                     title: successTitle,

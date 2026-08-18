@@ -2168,6 +2168,9 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
+        if ($blocked = $this->catalogueModeJsonGuard($response)) {
+            return $blocked;
+        }
         // CSRF validated by CsrfMiddleware.
 
         $result = (new NotificationService($db))->sendManualRecall($id);
@@ -2240,6 +2243,9 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
+        if ($blocked = $this->catalogueModeJsonGuard($response)) {
+            return $blocked;
+        }
         // CSRF validated by CsrfMiddleware.
 
         $result = (new NotificationService($db))->sendLoanReceiptEmail($id);
@@ -2258,5 +2264,24 @@ class PrestitiController
             return $response->withStatus(403);
         }
         return null;
+    }
+
+    /**
+     * #360: refuse the loan email/recall JSON endpoints in catalogue mode, the
+     * same intent bulkRecall's route enforces with a redirect. Loans are
+     * disabled in catalogue mode, so a lingering row must not still trigger a
+     * patron email through the single-item AJAX endpoints. Returns a JSON body
+     * (these are fetch() endpoints) instead of a redirect.
+     */
+    private function catalogueModeJsonGuard(Response $response): ?Response
+    {
+        if (!\App\Support\ConfigStore::isCatalogueMode()) {
+            return null;
+        }
+        $response->getBody()->write((string) json_encode([
+            'success' => false,
+            'message' => __('Funzione non disponibile in modalità catalogo.'),
+        ]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
     }
 }
