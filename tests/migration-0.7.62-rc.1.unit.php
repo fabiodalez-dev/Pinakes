@@ -98,7 +98,13 @@ try {
             AND COLUMN_NAME = 'last_recall_at'"
     )->fetch_assoc();
     $check(
-        $lastAt !== null && $lastAt['DATA_TYPE'] === 'datetime' && $lastAt['IS_NULLABLE'] === 'YES' && $lastAt['COLUMN_DEFAULT'] === null,
+        // MariaDB reports an explicit DEFAULT NULL as the string "NULL" via
+        // INFORMATION_SCHEMA, whereas MySQL drivers commonly expose PHP null.
+        // Both representations mean the column has no non-null default.
+        $lastAt !== null
+            && $lastAt['DATA_TYPE'] === 'datetime'
+            && $lastAt['IS_NULLABLE'] === 'YES'
+            && in_array($lastAt['COLUMN_DEFAULT'], [null, 'NULL'], true),
         'last_recall_at is a nullable datetime with no default'
     );
 

@@ -186,7 +186,7 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'data_registrazione' => $this->formatEmailDate($user['created_at'], true),
+                'data_registrazione' => $this->formatEmailDate($user['created_at'], true, $locale),
                 'sezione_verifica' => $verifySection,
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];

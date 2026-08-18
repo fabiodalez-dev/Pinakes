@@ -6842,7 +6842,7 @@
   "Intervallo tra i solleciti (giorni)": "Interval mellem rykkere (dage)",
   "Il primo sollecito parte quando il ritardo raggiunge l'intervallo; i successivi a ogni multiplo. Predefinito: 7 giorni": "Den første rykker sendes, når forsinkelsen når intervallet; de næste ved hvert multiplum. Standard: 7 dage",
   "Numero massimo di solleciti automatici": "Maksimalt antal automatiske rykkere",
-  "Limite per prestito: i solleciti manuali non lo contano. Predefinito: 3": "Loft pr. lån: manuelle rykkere tæller ikke med. Standard: 3",
+  "I solleciti manuali aggiornano il conteggio e possono ridurre il numero di invii automatici. Predefinito: 3": "Manuelle rykkere opdaterer tælleren og kan reducere antallet af automatiske udsendelser. Standard: 3",
   "solleciti": "rykkere",
   "Invia Ricevuta via Email": "Send kvittering pr. e-mail",
   "Invia Sollecito": "Send rykker",

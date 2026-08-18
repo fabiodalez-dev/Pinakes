@@ -6842,7 +6842,7 @@
   "Intervallo tra i solleciti (giorni)": "Intervall zwischen Mahnungen (Tage)",
   "Il primo sollecito parte quando il ritardo raggiunge l'intervallo; i successivi a ogni multiplo. Predefinito: 7 giorni": "Die erste Mahnung geht raus, wenn der Verzug das Intervall erreicht; die folgenden bei jedem Vielfachen. Standard: 7 Tage",
   "Numero massimo di solleciti automatici": "Maximale Anzahl automatischer Mahnungen",
-  "Limite per prestito: i solleciti manuali non lo contano. Predefinito: 3": "Obergrenze pro Ausleihe: manuelle Mahnungen zählen nicht dazu. Standard: 3",
+  "I solleciti manuali aggiornano il conteggio e possono ridurre il numero di invii automatici. Predefinito: 3": "Manuelle Mahnungen aktualisieren den Zähler und können die Anzahl automatischer Versendungen verringern. Standard: 3",
   "solleciti": "Mahnungen",
   "Invia Ricevuta via Email": "Beleg per E-Mail senden",
   "Invia Sollecito": "Mahnung senden",

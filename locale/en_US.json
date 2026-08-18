@@ -6842,7 +6842,7 @@
   "Intervallo tra i solleciti (giorni)": "Interval between reminders (days)",
   "Il primo sollecito parte quando il ritardo raggiunge l'intervallo; i successivi a ogni multiplo. Predefinito: 7 giorni": "The first reminder goes out when the delay reaches the interval; the next ones at every multiple. Default: 7 days",
   "Numero massimo di solleciti automatici": "Maximum number of automatic reminders",
-  "Limite per prestito: i solleciti manuali non lo contano. Predefinito: 3": "Per-loan cap: manual reminders don't count towards it. Default: 3",
+  "I solleciti manuali aggiornano il conteggio e possono ridurre il numero di invii automatici. Predefinito: 3": "Manual reminders update the count and can reduce the number of automatic sends. Default: 3",
   "solleciti": "reminders",
   "Invia Ricevuta via Email": "Email Receipt",
   "Invia Sollecito": "Send Reminder",

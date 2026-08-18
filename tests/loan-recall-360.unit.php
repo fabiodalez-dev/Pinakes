@@ -122,6 +122,15 @@ $check(
         && str_contains((string) $runSource, 'SELECT locale FROM utenti WHERE email = ?'),
     'recipient locale resolves from utenti.locale'
 );
+$registrationPendingSrc = substr(
+    (string) $runSource,
+    (int) strpos((string) $runSource, 'public function sendUserRegistrationPending'),
+    4000
+);
+$check(
+    str_contains($registrationPendingSrc, 'formatEmailDate($user[\'created_at\'], true, $locale)'),
+    'registration email formats its date in the recipient locale'
+);
 // The retry sender must use the recipient's language, not the installation's.
 $sendWithRetrySrc = substr(
     (string) $runSource,
