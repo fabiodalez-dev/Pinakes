@@ -826,6 +826,13 @@ class NotificationService {
                 return ['success' => false, 'message' => __('L\'utente non ha un indirizzo email.')];
             }
 
+            // Same circuit breaker as sendWithRetry, checked BEFORE generating
+            // the PDF: when SMTP is plainly unreachable the attachment would be
+            // wasted work on a synchronous request path.
+            if (!\App\Support\Mailer::isSmtpReachable()) {
+                return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
+            }
+
             $pdfContent = (new LoanPdfGenerator($this->db))->generate($loanId);
 
             // #360: cover message in the recipient's language, like every other
@@ -844,12 +851,6 @@ class NotificationService {
                 'filename' => 'prestito_' . $loanId . '_' . date('Ymd') . '.pdf',
                 'type' => 'application/pdf',
             ];
-
-            // Same circuit breaker as sendWithRetry: don't spin the SMTP retry
-            // cycle when the server is plainly unreachable.
-            if (!\App\Support\Mailer::isSmtpReachable()) {
-                return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
-            }
 
             $sent = $this->emailService->sendTemplate(
                 $email,

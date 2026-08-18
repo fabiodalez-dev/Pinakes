@@ -1,5 +1,10 @@
--- Migration 0.7.62
+-- Migration 0.7.62-rc.1
 -- Issue #360: recall (sollecito) tracking for overdue loans.
+-- (Named after the RC that ships it — same convention as migrate_0.7.59-rc.1:
+--  a migration named after an already-released version would be skipped by
+--  shouldRunMigration for installs already on that version. version.json is
+--  bumped to 0.7.62-rc.1 in the same change so the CI version guard holds;
+--  the migration still runs on the eventual stable 0.7.62.)
 -- recall_count / last_recall_at let the automatic recall scheduler repeat the
 -- reminder at the configured interval (loans.recall_interval_days) up to the
 -- configured cap (loans.recall_max_count); manual recalls use the same columns.

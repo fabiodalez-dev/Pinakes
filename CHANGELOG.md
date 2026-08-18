@@ -16,7 +16,7 @@ Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
   at once from the loans list via the bulk action bar — manual recalls ignore
   the automatic schedule but share the same per-loan counter
   (`prestiti.recall_count` / `last_recall_at`, added by
-  `migrate_0.7.62.sql` and self-healed at runtime). New editable email
+  `migrate_0.7.62-rc.1.sql` and self-healed at runtime). New editable email
   template `loan_recall_notification` in all five locales.
 - **Email the loan receipt PDF**: next to "Scarica Ricevuta PDF", the loan
   detail page now has "Invia Ricevuta via Email", which sends the same PDF as

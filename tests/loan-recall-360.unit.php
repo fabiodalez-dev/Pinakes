@@ -173,7 +173,7 @@ $check(
     str_contains((string) $schema, '`recall_count`') && str_contains((string) $schema, '`last_recall_at`'),
     'fresh-install schema ships the recall tracking columns'
 );
-$migration = file_get_contents(__DIR__ . '/../installer/database/migrations/migrate_0.7.62.sql');
+$migration = file_get_contents(__DIR__ . '/../installer/database/migrations/migrate_0.7.62-rc.1.sql');
 $check(
     $migration !== false
         && str_contains((string) $migration, 'recall_count')
