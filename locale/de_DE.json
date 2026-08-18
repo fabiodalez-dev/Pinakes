@@ -6864,5 +6864,11 @@
   "Nessun sollecito inviato": "Keine Mahnung gesendet",
   "Selezione non valida per il sollecito.": "Ungültige Auswahl für die Mahnung.",
   "Lingua preferita": "Bevorzugte Sprache",
-  "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Wird für die Oberfläche und für die E-Mails der Bibliothek verwendet."
+  "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Wird für die Oberfläche und für die E-Mails der Bibliothek verwendet.",
+  "Un sollecito è già stato inviato oggi per questo prestito.": "Für diese Ausleihe wurde heute bereits eine Mahnung gesendet.",
+  "Funzione non disponibile in modalità catalogo.": "Funktion im Katalogmodus nicht verfügbar.",
+  "Solleciti Inviati:": "Gesendete Mahnungen:",
+  "Ultimo Sollecito:": "Letzte Mahnung:",
+  "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s ausgewählte Ausleihe erhält die Mahnung (nur bei Überfälligkeit).",
+  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s ausgewählte Ausleihen erhalten die Mahnung (nur die überfälligen)."
 }

@@ -300,6 +300,12 @@ $returned = $makeLoan(daysOverdue: 10, stato: 'restituito', attivo: 0);
 $r = $service->sendManualRecall($returned);
 $check($r['success'] === false && $recallCountOf($returned)['count'] === 0, 'V4 inactive/returned loan → refused, counter untouched');
 
+// Per-loan daily cooldown: a loan already recalled today is refused, so a
+// staff session (or a repeated bulk submit) can't re-email the same patron.
+$cooled = $makeLoan(daysOverdue: 12, recallCount: 1, lastRecall: date('Y-m-d H:i:s'));
+$r = $service->sendManualRecall($cooled);
+$check($r['success'] === false && $recallCountOf($cooled)['count'] === 1, 'V5 loan already recalled today → refused by daily cooldown, counter untouched');
+
 // ── R. Atomic claim is reverted when the send fails ─────────────────────────
 $eligible = $makeLoan(daysOverdue: 12, recallCount: 1);
 $before = $recallCountOf($eligible);

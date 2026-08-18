@@ -6864,5 +6864,11 @@
   "Nessun sollecito inviato": "Ingen rykker sendt",
   "Selezione non valida per il sollecito.": "Ugyldigt valg til rykkeren.",
   "Lingua preferita": "Foretrukket sprog",
-  "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Bruges til grænsefladen og til de e-mails, biblioteket sender dig."
+  "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Bruges til grænsefladen og til de e-mails, biblioteket sender dig.",
+  "Un sollecito è già stato inviato oggi per questo prestito.": "Der er allerede sendt en rykker i dag for dette lån.",
+  "Funzione non disponibile in modalità catalogo.": "Funktionen er ikke tilgængelig i katalogtilstand.",
+  "Solleciti Inviati:": "Sendte rykkere:",
+  "Ultimo Sollecito:": "Seneste rykker:",
+  "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s valgt lån modtager rykkeren (kun hvis forfaldent).",
+  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s valgte lån modtager rykkeren (kun de forfaldne)."
 }

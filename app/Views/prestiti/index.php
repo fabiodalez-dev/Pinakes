@@ -742,12 +742,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     inp.type = 'hidden'; inp.name = 'ids[]'; inp.value = String(id);
                     wrap.appendChild(inp);
                 });
+                // Loading state: each selected loan is a synchronous SMTP send on
+                // the server before the redirect returns, so disable the bulk
+                // buttons and show progress to prevent a duplicate submit.
+                recallBtn.disabled = true;
+                if (extendBtn) extendBtn.disabled = true;
+                recallBtn.textContent = t('Invio in corso...');
                 document.getElementById('loans-bulk-recall-form').submit();
             };
             if (window.Swal) {
                 Swal.fire({
                     title: t('Inviare i solleciti ai prestiti selezionati?'),
-                    text: t('Solo i prestiti effettivamente scaduti riceveranno l\'email di sollecito.'),
+                    text: t(selected.size === 1
+                        ? '%s prestito selezionato riceverà il sollecito (solo se scaduto).'
+                        : '%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).').replace('%s', selected.size),
                     icon: 'question', showCancelButton: true,
                     confirmButtonText: t('Sì, invia'), cancelButtonText: t('Annulla')
                 }).then(r => { if (r.isConfirmed) submit(); });
