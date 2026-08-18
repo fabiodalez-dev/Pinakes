@@ -1900,19 +1900,21 @@ return function (App $app): void {
     // #360: invia la ricevuta PDF del prestito via email all'utente.
     // RateLimit aggiunto per primo (LIFO: eseguito per ultimo, dopo Auth e
     // CSRF) come /admin/settings/email/test — ogni chiamata è un vero
-    // handshake SMTP.
+    // handshake SMTP. L'actionKey rende il bucket per-client e non per-path:
+    // senza, ogni {id} avrebbe il proprio contatore e il limite sarebbe
+    // aggirabile iterando i prestiti.
     $app->post('/admin/loans/{id:\d+}/email-pdf', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->emailPdf($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60, 'loan-email-pdf'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // #360: sollecito manuale per un singolo prestito scaduto
     $app->post('/admin/loans/{id:\d+}/recall', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->sendRecall($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60, 'loan-recall'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // #360: sollecito in blocco per i prestiti selezionati nella lista
     // (fino a 50 invii SMTP per richiesta: limite più stretto)
@@ -1923,7 +1925,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->bulkRecall($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(5, 60, 'loan-bulk-recall'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // API loans per DataTables
     $app->get('/api/prestiti', function ($request, $response) use ($app) {

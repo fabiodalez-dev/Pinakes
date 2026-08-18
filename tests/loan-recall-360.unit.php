@@ -118,6 +118,28 @@ $check(
 
 // --- Recipient-language emails ----------------------------------------------
 
+// Review finding (#361): installs seed email_templates only for the
+// installation language, so the DB fallback chain (recipient -> en_US ->
+// it_IT) used to land on the installation row and per-recipient localization
+// never materialized. getEmailTemplate must prefer the SHIPPED default for
+// the requested locale over another locale's stored row — gated on
+// hasShippedLocale so custom languages keep winning cross-locale
+// customizations, and same-language variants (it_CH -> it_IT) keep the row.
+$check(
+    SettingsMailTemplates::hasShippedLocale('en_US')
+        && SettingsMailTemplates::hasShippedLocale('de_DE')
+        && SettingsMailTemplates::hasShippedLocale('it_CH')
+        && !SettingsMailTemplates::hasShippedLocale('xx_XX')
+        && !SettingsMailTemplates::hasShippedLocale(''),
+    'hasShippedLocale recognizes shipped translations (and only those)'
+);
+$emailServiceSrc = file_get_contents(__DIR__ . '/../app/Support/EmailService.php');
+$check(
+    str_contains((string) $emailServiceSrc, 'hasShippedLocale')
+        && str_contains((string) $emailServiceSrc, "substr(\$candidateLocale, 0, 2) !== substr(\$locale, 0, 2)"),
+    'getEmailTemplate prefers the shipped requested-locale default over another locale\'s stored row'
+);
+
 $formatParams = array_map(
     static fn (ReflectionParameter $p): string => $p->getName(),
     (new ReflectionMethod(NotificationService::class, 'formatEmailDate'))->getParameters()
