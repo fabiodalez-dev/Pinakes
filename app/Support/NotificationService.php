@@ -45,13 +45,17 @@ class NotificationService {
         }
 
         $locale = $locale ?? I18n::getInstallationLocale();
-        $isItalian = str_starts_with($locale, 'it');
 
-        if ($isItalian) {
-            $format = 'd-m-Y';
-        } else {
-            $format = 'Y-m-d';
-        }
+        // Explicit per-language date conventions for the shipped locales;
+        // English and anything unknown keep the unambiguous ISO form (the
+        // historical behaviour for every non-Italian locale).
+        $formats = [
+            'it' => 'd-m-Y',
+            'de' => 'd.m.Y',
+            'fr' => 'd/m/Y',
+            'da' => 'd.m.Y',
+        ];
+        $format = $formats[substr($locale, 0, 2)] ?? 'Y-m-d';
 
         if ($includeTime) {
             $format .= ' H:i';
@@ -189,16 +193,19 @@ class NotificationService {
 
             $verifySection = '';
             if (!empty($user['token_verifica_email'])) {
-                // Temporarily switch locale for button translation
+                // Temporarily switch locale for the button URL + label; the
+                // finally guarantees the process-wide locale is restored even
+                // when RouteTranslator/__() throw (the outer catch would
+                // otherwise leave the whole request in the recipient's locale).
                 $currentLocale = \App\Support\I18n::getLocale();
-                \App\Support\I18n::setLocale($locale);
-
-                $verifyUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode((string)$user['token_verifica_email']));
-                $buttonText = __('Conferma la tua email');
-                $verifySection = '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
-
-                // Restore original locale
-                \App\Support\I18n::setLocale($currentLocale);
+                try {
+                    \App\Support\I18n::setLocale($locale);
+                    $verifyUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode((string)$user['token_verifica_email']));
+                    $buttonText = __('Conferma la tua email');
+                    $verifySection = '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
+                } finally {
+                    \App\Support\I18n::setLocale($currentLocale);
+                }
             }
 
             $variables = [
@@ -681,6 +688,12 @@ class NotificationService {
             if ((string) ($settings->get('loans', 'recall_auto_enabled', '0') ?? '0') !== '1') {
                 return 0;
             }
+            // Self-healing like sendManualRecall(): this is a public method and
+            // the SELECT below reads recall_count / last_recall_at, which a
+            // not-yet-migrated install doesn't have — without this the query
+            // throws, the catch swallows it and automatic recalls silently
+            // no-op. runAutomaticNotifications() heals only its own path.
+            $this->addNotificationColumns();
             // Same clamps as SettingsController::updateLoansSettings — the
             // stored value is trusted but a hand-edited row must not produce a
             // zero/negative interval (division-like schedule) or a runaway cap.
@@ -700,6 +713,8 @@ class NotificationService {
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato IN ('in_corso', 'in_ritardo')
                   AND p.attivo = 1
+                  AND u.email IS NOT NULL
+                  AND TRIM(u.email) <> ''
                   AND p.data_scadenza < ?
                   AND p.overdue_notification_sent = 1
                   AND p.recall_count < ?

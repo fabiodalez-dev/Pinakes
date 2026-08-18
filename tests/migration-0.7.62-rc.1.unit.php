@@ -40,7 +40,9 @@ try {
     exit(1);
 }
 
-$sandboxTable = 'zz_mig_prestiti_0762';
+// Random suffix: concurrent runs (or a leftover table from an aborted one)
+// must never collide with — or drop — anything but this run's own sandbox.
+$sandboxTable = 'zz_mig_prestiti_0762_' . bin2hex(random_bytes(6));
 $migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.62-rc.1.sql');
 // The migration references the table both backticked (ALTER) and as a quoted
 // string (INFORMATION_SCHEMA lookup): rewrite both onto the sandbox.
@@ -71,6 +73,10 @@ try {
         `overdue_notification_sent` TINYINT(1) DEFAULT 0,
         PRIMARY KEY (`id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Seed a loan BEFORE the migration so the assertions below cover the
+    // backfill applied to pre-existing rows, not only freshly inserted ones.
+    $db->query("INSERT INTO `{$sandboxTable}` (`stato`) VALUES ('in_ritardo')");
 
     $runMigration();
 
@@ -108,9 +114,8 @@ try {
         'last_recall_at is a nullable datetime with no default'
     );
 
-    $db->query("INSERT INTO `{$sandboxTable}` (`stato`) VALUES ('in_ritardo')");
     $row = $db->query("SELECT recall_count, last_recall_at FROM `{$sandboxTable}`")->fetch_assoc();
-    $check((int) $row['recall_count'] === 0 && $row['last_recall_at'] === null, 'existing loans start with no recalls');
+    $check((int) $row['recall_count'] === 0 && $row['last_recall_at'] === null, 'pre-existing loans are backfilled with no recalls');
 
     // Simulate a recorded recall, then re-run: idempotency must not reset it.
     $db->query("UPDATE `{$sandboxTable}` SET recall_count = 2, last_recall_at = '2026-01-05 10:00:00'");
