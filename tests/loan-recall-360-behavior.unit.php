@@ -75,10 +75,15 @@ $titlePrefix = 'ZZRECALL360_' . $run;
 $emailDomain = '@recall360.test.local';
 
 // ── Snapshot the loans.* settings we mutate, so cleanup restores them ────────
-$settingPaths = ['loans.recall_auto_enabled', 'loans.recall_interval_days', 'loans.recall_max_count'];
-$origSettings = [];
-foreach ($settingPaths as $path) {
-    $origSettings[$path] = ConfigStore::get($path, null);
+// Read the rows directly, NOT via ConfigStore::get(): ConfigStore has no 'loans'
+// category mapping, so get() returns the default (null here) even when a row
+// exists — the snapshot would miss a real value and cleanup would delete a live
+// setting. Mirror the email-row snapshot below.
+$loansDbKeys = ['recall_auto_enabled', 'recall_interval_days', 'recall_max_count'];
+$origLoans = [];
+$loansRes = $db->query("SELECT setting_key, setting_value FROM system_settings WHERE category='loans' AND setting_key IN ('recall_auto_enabled','recall_interval_days','recall_max_count')");
+while ($row = $loansRes->fetch_assoc()) {
+    $origLoans[$row['setting_key']] = $row['setting_value'];
 }
 
 // Snapshot the real email rows we overwrite to force SMTP unreachable, so the
@@ -98,7 +103,7 @@ $setConfig = static function (array $pairs): void {
 };
 
 $cardPrefix = 'ZZR360-' . $run . '-';
-$cleanup = static function () use ($db, $titlePrefix, $cardPrefix, $origSettings, $origMail, $mailDbKeys): void {
+$cleanup = static function () use ($db, $titlePrefix, $cardPrefix, $origLoans, $loansDbKeys, $origMail, $mailDbKeys): void {
     $titleLike = $titlePrefix . '%';
     $cardLike = $cardPrefix . '%';
     foreach ([
@@ -131,18 +136,20 @@ $cleanup = static function () use ($db, $titlePrefix, $cardPrefix, $origSettings
             $stmt->close();
         }
     }
-    foreach ($origSettings as $path => $value) {
-        [$cat, $settingKey] = explode('.', $path, 2);
-        if ($value === null) {
-            // The key had no row before the test — delete the one $setConfig
-            // created so the dev DB is left exactly as found.
-            $del = $db->prepare('DELETE FROM system_settings WHERE category = ? AND setting_key = ?');
-            $del->bind_param('ss', $cat, $settingKey);
-            $del->execute();
-            $del->close();
-            continue;
+    // Restore the loans.* rows exactly: update the ones that existed, delete the
+    // ones this test created (same raw approach as the email rows above).
+    foreach ($loansDbKeys as $k) {
+        if (array_key_exists($k, $origLoans)) {
+            $stmt = $db->prepare("UPDATE system_settings SET setting_value = ? WHERE category='loans' AND setting_key = ?");
+            $stmt->bind_param('ss', $origLoans[$k], $k);
+            $stmt->execute();
+            $stmt->close();
+        } else {
+            $stmt = $db->prepare("DELETE FROM system_settings WHERE category='loans' AND setting_key = ?");
+            $stmt->bind_param('s', $k);
+            $stmt->execute();
+            $stmt->close();
         }
-        ConfigStore::set($path, (string) $value);
     }
     ConfigStore::clearCache();
 };
