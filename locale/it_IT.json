@@ -6842,7 +6842,7 @@
   "Intervallo tra i solleciti (giorni)": "Intervallo tra i solleciti (giorni)",
   "Il primo sollecito parte quando il ritardo raggiunge l'intervallo; i successivi a ogni multiplo. Predefinito: 7 giorni": "Il primo sollecito parte quando il ritardo raggiunge l'intervallo; i successivi a ogni multiplo. Predefinito: 7 giorni",
   "Numero massimo di solleciti automatici": "Numero massimo di solleciti automatici",
-  "Limite per prestito: i solleciti manuali non lo contano. Predefinito: 3": "Limite per prestito: i solleciti manuali non lo contano. Predefinito: 3",
+  "I solleciti manuali aggiornano il conteggio e possono ridurre il numero di invii automatici. Predefinito: 3": "I solleciti manuali aggiornano il conteggio e possono ridurre il numero di invii automatici. Predefinito: 3",
   "solleciti": "solleciti",
   "Invia Ricevuta via Email": "Invia Ricevuta via Email",
   "Invia Sollecito": "Invia Sollecito",

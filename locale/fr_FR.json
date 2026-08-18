@@ -6842,7 +6842,7 @@
   "Intervallo tra i solleciti (giorni)": "Intervalle entre les rappels (jours)",
   "Il primo sollecito parte quando il ritardo raggiunge l'intervallo; i successivi a ogni multiplo. Predefinito: 7 giorni": "Le premier rappel part lorsque le retard atteint l'intervalle ; les suivants à chaque multiple. Par défaut : 7 jours",
   "Numero massimo di solleciti automatici": "Nombre maximal de rappels automatiques",
-  "Limite per prestito: i solleciti manuali non lo contano. Predefinito: 3": "Plafond par prêt : les rappels manuels ne comptent pas. Par défaut : 3",
+  "I solleciti manuali aggiornano il conteggio e possono ridurre il numero di invii automatici. Predefinito: 3": "Les rappels manuels mettent à jour le compteur et peuvent réduire le nombre d’envois automatiques. Par défaut : 3",
   "solleciti": "rappels",
   "Invia Ricevuta via Email": "Envoyer le reçu par e-mail",
   "Invia Sollecito": "Envoyer un rappel",

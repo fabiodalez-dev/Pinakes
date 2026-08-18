@@ -323,7 +323,7 @@
           </div>
           <p class="text-xs text-gray-500 mt-3">
             <i class="fas fa-info-circle mr-1"></i>
-            <?= __("Limite per prestito: i solleciti manuali non lo contano. Predefinito: 3") ?>
+            <?= __("I solleciti manuali aggiornano il conteggio e possono ridurre il numero di invii automatici. Predefinito: 3") ?>
           </p>
         </div>
       </div>
