@@ -105,15 +105,20 @@ $check(
         // loadDatabaseSettings() has no 'loans' category mapping, so those
         // reads always return the code default — recall_auto_enabled resolves
         // to '0' regardless of the admin toggle and the scheduler never fires.
-        && !str_contains((string) $runSource, "ConfigStore::get('loans."),
+        // Regex so both quote spellings are caught, not just the single-quoted one.
+        && preg_match('/ConfigStore::get\(\s*[\'"]loans\./', (string) $runSource) !== 1,
     'automatic recalls read the loans.recall_* settings via SettingsRepository (not the inert ConfigStore loans.* path)'
 );
 // The atomic claim must re-assert due date + counter so a concurrent
-// renew()/recall claims at most once (#252/M3 pattern).
+// renew()/recall claims at most once (#252/M3 pattern). Assert the full
+// UPDATE guard so removing EITHER the due-date predicate or the counter
+// predicate fails the test.
 $check(
-    str_contains((string) $runSource, 'SET recall_count = recall_count + 1')
-        && str_contains((string) $runSource, 'AND recall_count = ?'),
-    'recall claim is atomic (counter re-asserted in the UPDATE guard)'
+    str_contains(
+        (string) $runSource,
+        'SET recall_count = recall_count + 1, last_recall_at = ? WHERE id = ? AND data_scadenza = ? AND recall_count = ?'
+    ),
+    'recall claim is atomic (due date AND counter re-asserted in the UPDATE guard)'
 );
 
 // --- Recipient-language emails ----------------------------------------------

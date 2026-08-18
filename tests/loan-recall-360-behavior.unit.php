@@ -224,8 +224,13 @@ $makeLoan = static function (
 ) use ($db, $makeBook, $makeUser): int {
     $bookId = $makeBook();
     $userId ??= $makeUser($withEmail);
-    $due = date('Y-m-d', strtotime("-{$daysOverdue} days"));
-    $lent = date('Y-m-d', strtotime('-40 days'));
+    // Fixture dates from the application clock (DateHelper), not PHP's
+    // default timezone: the scheduler compares against DateHelper::today(),
+    // and a tz mismatch of one calendar day would flip the one-day-margin
+    // boundary cases in the eligibility matrix (mA 8vs7, mC 13vs14, mD 15vs14).
+    $base = new DateTimeImmutable(\App\Support\DateHelper::today());
+    $due = $base->modify("-{$daysOverdue} days")->format('Y-m-d');
+    $lent = $base->modify('-40 days')->format('Y-m-d');
     $stmt = $db->prepare(
         "INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo, overdue_notification_sent, recall_count, last_recall_at)
          VALUES (?, ?, ?, ?, ?, 'diretto', ?, ?, ?, ?)"
@@ -339,11 +344,11 @@ $check($e['success'] === false, 'E2 receipt email for a patron with no address �
 $mA = $makeLoan(daysOverdue: 8,  recallCount: 0);                                   // 8 >= 7*1 → due
 $mB = $makeLoan(daysOverdue: 5,  recallCount: 0);                                   // 5 <  7*1 → too soon
 $mC = $makeLoan(daysOverdue: 13, recallCount: 1);                                   // 13 < 7*2 → too soon
-$mD = $makeLoan(daysOverdue: 15, recallCount: 1, lastRecall: date('Y-m-d H:i:s', strtotime('-1 day'))); // 15 >= 14 → due
+$mD = $makeLoan(daysOverdue: 15, recallCount: 1, lastRecall: (new DateTimeImmutable(\App\Support\DateHelper::now()))->modify('-1 day')->format('Y-m-d H:i:s')); // 15 >= 14 → due
 $mE = $makeLoan(daysOverdue: 30, recallCount: 3);                                   // cap reached
 $mF = $makeLoan(daysOverdue: 10, overdueSent: 0);                                   // overdue notice never sent
 $mG = $makeLoan(daysOverdue: 10, stato: 'restituito', attivo: 0);                  // not active
-$mH = $makeLoan(daysOverdue: 15, recallCount: 1, lastRecall: date('Y-m-d H:i:s')); // already recalled today
+$mH = $makeLoan(daysOverdue: 15, recallCount: 1, lastRecall: \App\Support\DateHelper::now()); // already recalled today
 
 $today = \App\Support\DateHelper::today();
 $interval = 7; $max = 3;
@@ -358,6 +363,8 @@ $stmt = $db->prepare("
     JOIN utenti u ON p.utente_id = u.id
     WHERE p.stato IN ('in_corso', 'in_ritardo')
       AND p.attivo = 1
+      AND u.email IS NOT NULL
+      AND TRIM(u.email) <> ''
       AND p.data_scadenza < ?
       AND p.overdue_notification_sent = 1
       AND p.recall_count < ?
