@@ -243,6 +243,16 @@ verify_package_contents() {
         has_errors=true
     fi
 
+    # PHP session files may contain authenticated user data and CSRF tokens.
+    # Ship the writable directory only, never any runtime session payload.
+    local unexpected_session
+    unexpected_session=$(find "$package_dir/storage/sessions" -type f \
+        ! -name '.gitkeep' -print -quit 2>/dev/null || true)
+    if [ -n "$unexpected_session" ]; then
+        log_error "Package contains runtime session data: ${unexpected_session#"$package_dir/"}"
+        has_errors=true
+    fi
+
     # Files that MUST be in the package
     local required_files=(
         "public/index.php"

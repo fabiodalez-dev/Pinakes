@@ -15,9 +15,9 @@ declare(strict_types=1);
  *   4. restores the directory byte-for-byte and the plugins-row version, so a
  *      developer/CI database and working tree are left exactly as found.
  *
- * The update path swaps directories and rewrites metadata; it does not
- * instantiate the plugin or run ensureSchema, so this is safe to run for every
- * plugin in one process.
+ * Active-plugin lifecycle is intentionally deferred to a fresh bootstrap. This
+ * file only checks package compatibility for every bundled plugin; the
+ * disposable plugin integration test exercises lifecycle success and rollback.
  *
  * Run: php tests/plugin-zip-update-all-bundled.integration.php
  */
@@ -205,6 +205,7 @@ foreach ($pluginDirs as $pluginDir) {
         foreach (glob($pluginsDir . '/.' . $slug . '.staging-*') ?: [] as $stray) {
             pzua_rmdir($stray);
         }
+        @unlink($pluginsDir . '/.pinakes-plugin-update-' . $pluginId . '.json');
     }
 }
 
