@@ -14,8 +14,9 @@ Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
   single overdue notification. Automatic recalls repeat at a configurable
   interval up to a configurable cap (Settings → Loans → "Solleciti automatici",
   off by default; sent by the notifications cron or on admin login). Staff can
-  also send a manual recall for one loan from the loan detail page, or for many
-  at once from the loans list via the bulk action bar — manual recalls ignore
+  also send a manual recall for one loan — from the loan detail page or a
+  per-row action on the loans list — or for many at once from the loans list
+  via the bulk action bar — manual recalls ignore
   the automatic schedule but share the same per-loan counter
   (`prestiti.recall_count` / `last_recall_at`, added by
   `migrate_0.7.62-rc.1.sql` and self-healed at runtime). New editable email
