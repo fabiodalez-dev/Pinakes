@@ -254,7 +254,7 @@ verify_package_contents() {
     unexpected_session=$(find "$package_dir/storage/sessions" -mindepth 1 \
         ! -name '.gitkeep' -print -quit 2>/dev/null || true)
     if [ -n "$unexpected_session" ]; then
-        log_error "Package contains unexpected storage/sessions entry: ${unexpected_session#"$package_dir/"}"
+        log_error "Package contains runtime session data: ${unexpected_session#"$package_dir/"}"
         has_errors=true
     fi
 

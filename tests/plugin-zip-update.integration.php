@@ -198,6 +198,13 @@ function pzu_run_fresh_bootstrap(): void
             'Fresh plugin bootstrap failed: ' . trim((string) $stdout . "\n" . (string) $stderr)
         );
     }
+
+    // The child process (finalizePendingPluginUpdates) deletes the marker and
+    // backup directory. PHP's stat cache is only invalidated by filesystem
+    // calls made in THIS process, so without an explicit clear the parent still
+    // sees the pre-bootstrap state for is_file()/is_dir() checks — a stale hit
+    // that surfaces on Linux/PHP 8.2 (CI) even though macOS/PHP 8.4 masks it.
+    clearstatcache(true);
 }
 
 $env = pzu_env(__DIR__ . '/../.env');
