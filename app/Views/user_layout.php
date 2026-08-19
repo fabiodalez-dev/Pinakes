@@ -375,6 +375,11 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
             box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
         }
 
+        /* This selector must override .badge-notification's display:flex. */
+        .badge-notification.hidden {
+            display: none;
+        }
+
         /* Main Content */
         main {
             min-height: calc(100vh - 90px);
