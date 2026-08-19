@@ -793,6 +793,77 @@ test.describe.serial('Email Notifications E2E', () => {
     dbQuery(`DELETE FROM libri WHERE id = ${bookId}`);
   });
 
+  test('B.12a — Manual recall succeeds for an active loan whose book is archived', async () => {
+    await clearMailpit();
+
+    const userId = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER_EMAIL}' LIMIT 1`);
+    const bookTitle = `Recall Archived Book ${RUN_ID}`;
+    const bookId = dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato)
+      VALUES ('${sqlEscape(bookTitle)}', 1, 0, 'prestato'); SELECT LAST_INSERT_ID()`);
+    const loanId = dbQuery(`INSERT INTO prestiti
+      (libro_id, utente_id, stato, data_prestito, data_scadenza, attivo,
+       warning_sent, overdue_notification_sent, recall_count, last_recall_at, created_at)
+      VALUES (${bookId}, ${userId}, 'in_ritardo', '${dateOffset(-30)}', '${dateOffset(-8)}', 1,
+              1, 1, 0, NULL, NOW()); SELECT LAST_INSERT_ID()`);
+    dbQuery(`UPDATE libri SET deleted_at = NOW() WHERE id = ${bookId}`);
+
+    await withAdminPage(browserRef, async (page) => {
+      await page.goto(`${BASE}/admin/loans`, { waitUntil: 'domcontentloaded' });
+      const csrfToken = await getCsrfToken(page);
+      expect(csrfToken).toBeTruthy();
+      const response = await page.request.post(`${BASE}/admin/loans/${loanId}/recall`, {
+        form: { csrf_token: csrfToken },
+      });
+      expect(response.status()).toBe(200);
+      expect((await response.json()).success).toBe(true);
+    });
+
+    const recallMail = await waitForMail(`to:${TEST_USER_EMAIL}`);
+    const message = await getMessage(recallMail.ID);
+    expect(message.Subject.toLowerCase()).toMatch(/sollecito|reminder|mahnung|rappel|rykker/);
+    expect(dbQuery(`SELECT CONCAT(recall_count, '|', last_recall_at IS NOT NULL) FROM prestiti WHERE id = ${loanId}`)).toBe('1|1');
+
+    dbQuery(`DELETE FROM prestiti WHERE id = ${loanId}`);
+    dbQuery(`DELETE FROM libri WHERE id = ${bookId}`);
+  });
+
+  test('B.12b — Loan receipt email contains a real PDF MIME attachment', async () => {
+    await clearMailpit();
+
+    const userId = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER_EMAIL}' LIMIT 1`);
+    const bookTitle = `Receipt Attachment Book ${RUN_ID}`;
+    const bookId = dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato)
+      VALUES ('${sqlEscape(bookTitle)}', 1, 0, 'prestato'); SELECT LAST_INSERT_ID()`);
+    const loanId = dbQuery(`INSERT INTO prestiti
+      (libro_id, utente_id, stato, data_prestito, data_scadenza, attivo, created_at)
+      VALUES (${bookId}, ${userId}, 'in_corso', '${dateOffset(-2)}', '${dateOffset(12)}', 1, NOW()); SELECT LAST_INSERT_ID()`);
+
+    await withAdminPage(browserRef, async (page) => {
+      await page.goto(`${BASE}/admin/loans`, { waitUntil: 'domcontentloaded' });
+      const csrfToken = await getCsrfToken(page);
+      expect(csrfToken).toBeTruthy();
+      const response = await page.request.post(`${BASE}/admin/loans/${loanId}/email-pdf`, {
+        form: { csrf_token: csrfToken },
+      });
+      expect(response.status()).toBe(200);
+      expect((await response.json()).success).toBe(true);
+    });
+
+    // TEST_USER_EMAIL is shared across the serial B.* tests, so filter on the
+    // attachment: only the receipt carries a PDF, so this can't match an earlier
+    // recall/overdue message to the same recipient.
+    const receiptMail = await waitForMail(`to:${TEST_USER_EMAIL} has:attachment`);
+    const message = await getMessage(receiptMail.ID);
+    const attachments = Array.isArray(message.Attachments) ? message.Attachments : [];
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0].FileName || '').toMatch(new RegExp(`^prestito_${loanId}_\\d{8}\\.pdf$`));
+    expect((attachments[0].ContentType || '').toLowerCase()).toBe('application/pdf');
+    expect(Number(attachments[0].Size || 0)).toBeGreaterThan(100);
+
+    dbQuery(`DELETE FROM prestiti WHERE id = ${loanId}`);
+    dbQuery(`DELETE FROM libri WHERE id = ${bookId}`);
+  });
+
   // ── B.13: Contact form email ───────────────────────────────────
   test('B.13 — Contact form email to admin', async () => {
     await clearMailpit();

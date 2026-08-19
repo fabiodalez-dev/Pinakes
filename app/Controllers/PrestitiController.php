@@ -1025,12 +1025,24 @@ class PrestitiController
                     "UPDATE prestiti
                         SET stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
                             warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
-                            overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
+                            overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END,
+                            recall_count = 0,
+                            last_recall_at = NULL
                       WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
                 );
                 $recalcStato->bind_param('sssi', $today, $today, $today, $id);
                 $recalcStato->execute();
                 $recalcStato->close();
+            } elseif ($newUserId !== (int) $locked['utente_id']) {
+                // A recall belongs to the recipient who received it. Reassigning
+                // the loan must not carry that recipient's count/cooldown over to
+                // the new user, even when the due date itself is unchanged.
+                $resetRecall = $db->prepare(
+                    'UPDATE prestiti SET recall_count = 0, last_recall_at = NULL WHERE id = ?'
+                );
+                $resetRecall->bind_param('i', $id);
+                $resetRecall->execute();
+                $resetRecall->close();
             }
 
             // Ricalcola la disponibilità (M6c): spostare le date di un 'prenotato'
@@ -1622,7 +1634,9 @@ class PrestitiController
                     SET data_scadenza = ?,
                         stato = CASE WHEN ? < ? THEN 'in_ritardo' ELSE 'in_corso' END,
                         warning_sent = CASE WHEN ? < ? THEN warning_sent ELSE 0 END,
-                        overdue_notification_sent = CASE WHEN ? < ? THEN overdue_notification_sent ELSE 0 END
+                        overdue_notification_sent = CASE WHEN ? < ? THEN overdue_notification_sent ELSE 0 END,
+                        recall_count = 0,
+                        last_recall_at = NULL
                   WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
             );
 
@@ -1941,7 +1955,8 @@ class PrestitiController
             $updateStmt = $db->prepare("
                 UPDATE prestiti
                 SET data_scadenza = ?, renewals = ?, pickup_deadline = NULL,
-                    warning_sent = 0, overdue_notification_sent = 0
+                    warning_sent = 0, overdue_notification_sent = 0,
+                    recall_count = 0, last_recall_at = NULL
                 WHERE id = ?
             ");
             $updateStmt->bind_param("sii", $newDueDate, $newRenewalCount, $id);
@@ -2159,6 +2174,132 @@ class PrestitiController
             ->withHeader('Pragma', 'no-cache');
     }
 
+    /**
+     * #360: manual recall (sollecito) for a single overdue loan — JSON endpoint
+     * behind the "Invia Sollecito" button on the loan detail page.
+     */
+    public function sendRecall(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+        if ($blocked = $this->catalogueModeJsonGuard($response)) {
+            return $blocked;
+        }
+        // CSRF validated by CsrfMiddleware.
+
+        $result = (new NotificationService($db))->sendManualRecall($id);
+
+        $response->getBody()->write((string) json_encode([
+            'success' => (bool) $result['success'],
+            'message' => (string) $result['message'],
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * #360: bulk recall — sends the sollecito email to every selected loan that
+     * is genuinely overdue. Mirrors bulkExtend()'s form-POST + redirect-flash
+     * shape; per-loan claims live in NotificationService::sendManualRecall(),
+     * so a loan that isn't overdue, has no email, or fails to send is skipped
+     * (counted) without aborting the batch.
+     */
+    /**
+     * Upper bound on one synchronous bulk-recall batch. Each loan is a real
+     * SMTP send inside this HTTP request, so the cap must stay small enough
+     * not to trip max_execution_time (same rationale as the 20-item cap on
+     * /admin/books/bulk-enrich/start). Larger overdue backlogs are what the
+     * automatic recall scheduler is for.
+     */
+    private const BULK_RECALL_MAX_LOANS = 50;
+
+    /**
+     * A bulk action is synchronous, but it must not monopolize the PHP worker.
+     * This budget is checked before each send, so once the elapsed time crosses
+     * it the loop stops starting new sends and reports the remainder as skipped;
+     * combined with the single bounded attempt per recipient (sendManualRecall
+     * with retries=0), it caps the aggregate work.
+     *
+     * Residual, transport-level: under the SMTP driver PHPMailer's own Timeout
+     * bounds a single send; under the 'mail' driver PHP's mail() hands off to
+     * the local MTA and cannot be timed out from PHP — a misconfigured/hung
+     * local MTA can therefore block one send past this budget. That is the same
+     * exposure every synchronous email in the app has, not specific to bulk
+     * recall; the only full fix is moving sends to an async queue, which is out
+     * of scope here.
+     */
+    private const BULK_RECALL_TIME_BUDGET_SECONDS = 15.0;
+
+    public function bulkRecall(Request $request, Response $response, mysqli $db): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware.
+
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', (array) ($data['ids'] ?? [])),
+            static fn (int $i): bool => $i > 0
+        )));
+
+        $backUrl = url('/admin/loans');
+        if ($ids === [] || count($ids) > self::BULK_RECALL_MAX_LOANS) {
+            return $response->withHeader('Location', $backUrl . '?error=bulk_recall_invalid')->withStatus(302);
+        }
+
+        $service = new NotificationService($db);
+        $sent = 0;
+        $skipped = 0;
+        $startedAt = hrtime(true);
+        $total = count($ids);
+        foreach ($ids as $index => $loanId) {
+            $elapsedSeconds = (hrtime(true) - $startedAt) / 1_000_000_000;
+            if ($elapsedSeconds >= self::BULK_RECALL_TIME_BUDGET_SECONDS) {
+                $skipped += $total - $index;
+                break;
+            }
+
+            // The interactive single-loan endpoint keeps its retry policy. In a
+            // bulk HTTP request use one bounded attempt per recipient: repeating
+            // the same SMTP failure up to 50 times would exceed the request SLA.
+            $result = $service->sendManualRecall($loanId, 1, 0);
+            if ($result['success']) {
+                $sent++;
+            } else {
+                $skipped++;
+            }
+        }
+
+        return $response
+            ->withHeader('Location', $backUrl . '?bulk_recalled=' . $sent . '&bulk_recall_skipped=' . $skipped)
+            ->withStatus(302);
+    }
+
+    /**
+     * #360: email the loan receipt PDF to the loan's user — JSON endpoint
+     * behind the "Invia Ricevuta via Email" button on the loan detail page.
+     * The attached document is the same one downloadPdf() serves.
+     */
+    public function emailPdf(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+        if ($blocked = $this->catalogueModeJsonGuard($response)) {
+            return $blocked;
+        }
+        // CSRF validated by CsrfMiddleware.
+
+        $result = (new NotificationService($db))->sendLoanReceiptEmail($id);
+
+        $response->getBody()->write((string) json_encode([
+            'success' => (bool) $result['success'],
+            'message' => (string) $result['message'],
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
     private function guardStaffAccess(Response $response): ?Response
     {
         $role = $_SESSION['user']['tipo_utente'] ?? '';
@@ -2166,5 +2307,24 @@ class PrestitiController
             return $response->withStatus(403);
         }
         return null;
+    }
+
+    /**
+     * #360: refuse the loan email/recall JSON endpoints in catalogue mode, the
+     * same intent bulkRecall's route enforces with a redirect. Loans are
+     * disabled in catalogue mode, so a lingering row must not still trigger a
+     * patron email through the single-item AJAX endpoints. Returns a JSON body
+     * (these are fetch() endpoints) instead of a redirect.
+     */
+    private function catalogueModeJsonGuard(Response $response): ?Response
+    {
+        if (!\App\Support\ConfigStore::isCatalogueMode()) {
+            return null;
+        }
+        $response->getBody()->write((string) json_encode([
+            'success' => false,
+            'message' => __('Funzione non disponibile in modalità catalogo.'),
+        ]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
     }
 }

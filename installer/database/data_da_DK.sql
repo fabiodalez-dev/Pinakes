@@ -35,6 +35,18 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('loans', 'auto_approve_requests', '0', 'Godkend låneanmodninger automatisk')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'recall_auto_enabled', '0', 'Aktivér automatiske rykkere for udløbne lån')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'recall_interval_days', '7', 'Dage mellem automatiske rykkere')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'recall_max_count', '3', 'Maksimalt antal automatiske rykkere pr. lån')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 INSERT INTO `generi` VALUES (1,'Prosa',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (2,'Poesi',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (3,'Teater',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
@@ -270,6 +282,8 @@ INSERT INTO `email_templates` VALUES (19,'loan_returned','da_DK','✅ Aflevering
 INSERT INTO `email_templates` VALUES (20,'reservation_expired','da_DK','⌛ Reservationen er udløbet','<h2>Reservationen er udløbet</h2>\n<p>Hej {{utente_nome}},</p>\n<p>Din reservation af følgende bog er udløbet og er blevet lukket automatisk:</p>\n<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">\n    <p><strong>Bog:</strong> {{libro_titolo}}</p>\n    <p><strong>Udløbet den:</strong> {{data_scadenza}}</p>\n</div>\n<p>Hvis du stadig er interesseret, kan du foretage en ny reservation når som helst.</p>\n<p>Med venlig hilsen,<br>Bibliotekets team</p>','Inviata all\'utente quando una prenotazione scade automaticamente senza essere stata convertita in prestito.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (21,'copy_unavailable_user','da_DK','ℹ️ Opdatering om din reservation','<h2>Opdatering om din reservation</h2>\n<p>Hej {{utente_nome}},</p>\n<p>Vi informerer dig om, at det eksemplar, der var reserveret til din reservation af følgende bog, ikke længere er tilgængeligt:</p>\n<div style="background-color: #fffbeb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">\n    <p><strong>Bog:</strong> {{libro_titolo}}</p>\n    <p><strong>Årsag:</strong> {{motivo}}</p>\n</div>\n<p>Vi forsøger at tildele dig et andet eksemplar hurtigst muligt. Hvis der ikke bliver flere eksemplarer tilgængelige, forbliver din reservation i køen, og vi giver dig besked, så snart bogen igen er tilgængelig.</p>\n<p>Vi beklager ulejligheden.</p>\n<p>Med venlig hilsen,<br>Bibliotekets team</p>','Inviata all\'utente quando la copia riservata per la sua prenotazione diventa indisponibile (persa o danneggiata).',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (22,'reservation_cancelled','da_DK','❌ Reservation annulleret','<h2>Reservation annulleret</h2>\n<p>Hej {{utente_nome}},</p>\n<p>Vi informerer dig om, at din reservation af følgende bog er blevet annulleret:</p>\n<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">\n    <p><strong>Bog:</strong> {{libro_titolo}}</p>\n    <p><strong>Årsag:</strong> {{motivo}}</p>\n</div>\n<p>Hvis du stadig ønsker denne bog, kan du foretage en ny reservation når som helst.</p>\n<p>Med venlig hilsen,<br>Bibliotekets team</p>','Inviata all\'utente quando una prenotazione viene annullata dall\'amministrazione.',1,NULL,NULL);
+INSERT INTO `email_templates` VALUES (23,'loan_recall_notification','da_DK','📢 Rykker nr. {{numero_sollecito}} - Aflevering påkrævet','<h2>Rykker for aflevering</h2>\n<p>Hej {{utente_nome}},</p>\n<p>Trods tidligere påmindelser er følgende lån stadig udløbet, og bogen er ikke blevet afleveret:</p>\n<ul>\n    <li>Bog: {{libro_titolo}}</li>\n    <li>Afleveringsdato: {{data_scadenza}}</li>\n    <li>Dage forsinket: {{giorni_ritardo}}</li>\n    <li>Rykker nr.: {{numero_sollecito}}</li>\n</ul>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>❗️ Handling påkrævet</strong></p>\n    <p>Aflever venligst bogen hurtigst muligt, eller kontakt biblioteket. Manglende aflevering kan medføre suspendering af din konto og gebyrer.</p>\n</div>\n<p>Hvis du allerede har afleveret bogen, kan du se bort fra denne besked.</p>','Rykker sendt til brugeren om aflevering af et udløbet lån (automatisk eller manuel).',1,NULL,NULL);
+INSERT INTO `email_templates` VALUES (24,'loan_receipt_email','da_DK','📄 Lånekvittering #{{prestito_id}}','<h2>Lånekvittering</h2>\n<p>Hej {{utente_nome}},</p>\n<p>Vedhæftet finder du PDF-kvitteringen for dit lån:</p>\n<ul>\n    <li>Bog: {{libro_titolo}}</li>\n    <li>Lånedato: {{data_prestito}}</li>\n    <li>Afleveringsdato: {{data_scadenza}}</li>\n</ul>\n<p>Gem denne kvittering som en påmindelse om afleveringsdatoen.</p>\n<p>God læselyst!</p>','E-mail sendt til brugeren med PDF-lånekvitteringen vedhæftet.',1,NULL,NULL);
 
 -- ============================================================================
 -- System Settings - Complete default configuration

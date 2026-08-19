@@ -850,6 +850,8 @@ CREATE TABLE `prestiti` (
   `attivo` tinyint(1) NOT NULL DEFAULT '1',
   `warning_sent` tinyint(1) DEFAULT '0',
   `overdue_notification_sent` tinyint(1) DEFAULT '0',
+  `recall_count` int NOT NULL DEFAULT '0',
+  `last_recall_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `libro_id` (`libro_id`),
   KEY `utente_id` (`utente_id`),

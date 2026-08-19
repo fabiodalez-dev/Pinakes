@@ -2,6 +2,53 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [Unreleased]
+
+## [0.7.62] - 2026-08-19
+
+Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
+
+### Features
+
+- **Loan recalls (solleciti)**: overdue loans can now be chased beyond the
+  single overdue notification. Automatic recalls repeat at a configurable
+  interval up to a configurable cap (Settings → Loans → "Solleciti automatici",
+  off by default; sent by the notifications cron or on admin login). Staff can
+  also send a manual recall for one loan from the loan detail page, or for many
+  at once from the loans list via the bulk action bar — manual recalls ignore
+  the automatic schedule but share the same per-loan counter
+  (`prestiti.recall_count` / `last_recall_at`, added by
+  `migrate_0.7.62-rc.1.sql` and self-healed at runtime). New editable email
+  template `loan_recall_notification` in all five locales.
+- **Email the loan receipt PDF**: next to "Scarica Ricevuta PDF", the loan
+  detail page now has "Invia Ricevuta via Email", which sends the same PDF as
+  an attachment to the loan's user (new editable template
+  `loan_receipt_email`; the mailer gained in-memory attachment support).
+- **Emails in the recipient's language**: user-facing notification emails
+  (loan warnings/overdue/recalls, receipt, approvals, pickups, returns,
+  reservations, wishlist, registration and account emails — and per-admin for
+  admin alerts) now render in the recipient's preferred language
+  (`utenti.locale`, the same value that drives their UI language), including
+  date formats and translated labels, falling back to the installation locale
+  when the user has none. Password-reset mail already followed the
+  requester's session language.
+- **Language choice at registration**: on multi-language installs the
+  registration form now offers a "Lingua preferita" select (defaulting to the
+  language the visitor is browsing in), validated server-side against the
+  shipped locales. The profile page and the admin user forms already offered
+  the same choice; together they cover registration, self-service and admin.
+- **Plugin ZIP updates (#358)**: uploading a plugin ZIP whose name matches an
+  already-installed plugin now updates it in place — its id, settings, data and
+  hooks are preserved and its files are swapped atomically — instead of failing
+  on the existing directory. Covered by contract and per-bundled-plugin
+  integration tests.
+
+### Internal
+
+- CI: the OWASP ZAP baseline no longer fails on the ISBN/EAN-13 PII-disclosure
+  false positive, allowlisted narrowly to 13-digit codes on bibliographic pages
+  (#359).
+
 ## [0.7.61]
 
 Physical-copy management from the book summary, with the whole holding and

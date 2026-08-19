@@ -59,6 +59,8 @@ $db->query("CREATE TABLE {$SB} (
     data_scadenza date NOT NULL,
     warning_sent tinyint(1) NOT NULL DEFAULT 0,
     overdue_notification_sent tinyint(1) NOT NULL DEFAULT 0,
+    recall_count int NOT NULL DEFAULT 0,
+    last_recall_at datetime NULL DEFAULT NULL,
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
@@ -68,22 +70,24 @@ $future = (new DateTimeImmutable('today +20 days'))->format('Y-m-d');
 
 // Helper: read a loan row.
 $row = static function (int $id) use ($db, $SB): array {
-    return $db->query("SELECT stato, data_scadenza, warning_sent, overdue_notification_sent FROM {$SB} WHERE id={$id}")->fetch_assoc() ?: [];
+    return $db->query("SELECT stato, data_scadenza, warning_sent, overdue_notification_sent, recall_count, last_recall_at FROM {$SB} WHERE id={$id}")->fetch_assoc() ?: [];
 };
 
 // ── Area 1: single-loan recompute (mirrors PrestitiController::update) ───────
 echo "A. Single-loan status recompute on due-date change\n";
 
 // Overdue loan whose due date is pushed to the future -> should become in_corso, reminders reset.
-$db->query("INSERT INTO {$SB} (attivo, stato, data_scadenza, warning_sent, overdue_notification_sent)
-            VALUES (1, 'in_ritardo', '{$future}', 1, 1)");
+$db->query("INSERT INTO {$SB} (attivo, stato, data_scadenza, warning_sent, overdue_notification_sent, recall_count, last_recall_at)
+            VALUES (1, 'in_ritardo', '{$future}', 1, 1, 2, NOW())");
 $id1 = (int) $db->insert_id;
 $recalc = static function (int $id) use ($db, $SB, $today): void {
     $stmt = $db->prepare(
         "UPDATE {$SB}
             SET stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
                 warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
-                overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
+                overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END,
+                recall_count = 0,
+                last_recall_at = NULL
           WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')"
     );
     $stmt->bind_param('sssi', $today, $today, $today, $id);
@@ -94,6 +98,7 @@ $recalc($id1);
 $r = $row($id1);
 $check($r['stato'] === 'in_corso', 'overdue loan extended into the future -> in_corso');
 $check((int) $r['warning_sent'] === 0 && (int) $r['overdue_notification_sent'] === 0, 'reminder flags reset on revert to in_corso');
+$check((int) $r['recall_count'] === 0 && $r['last_recall_at'] === null, 'recall cycle resets when the due date changes');
 
 // In-corso loan whose due date is moved to the past -> in_ritardo (symmetric).
 $db->query("INSERT INTO {$SB} (attivo, stato, data_scadenza) VALUES (1, 'in_corso', '{$past}')");
@@ -112,8 +117,8 @@ $check($row($id3)['stato'] === 'da_ritirare', 'da_ritirare loan untouched by rec
 // recompute on `$newScadenza !== (string) $current['data_scadenza']`, so the
 // UPDATE must be SKIPPED — a non-overdue in_corso loan keeps warning_sent=1 and
 // its reminder flags are NOT re-armed. This mirrors the guarded controller path.
-$db->query("INSERT INTO {$SB} (attivo, stato, data_scadenza, warning_sent, overdue_notification_sent)
-            VALUES (1, 'in_corso', '{$future}', 1, 1)");
+$db->query("INSERT INTO {$SB} (attivo, stato, data_scadenza, warning_sent, overdue_notification_sent, recall_count, last_recall_at)
+            VALUES (1, 'in_corso', '{$future}', 1, 1, 2, NOW())");
 $id4 = (int) $db->insert_id;
 $recalcGuarded = static function (int $id, string $newScadenza) use ($db, $SB, $today, $recalc): void {
     $current = $db->query("SELECT data_scadenza FROM {$SB} WHERE id={$id}")->fetch_assoc();
@@ -126,17 +131,18 @@ $recalcGuarded($id4, $future); // due date unchanged -> guard skips the UPDATE
 $r = $row($id4);
 $check($r['stato'] === 'in_corso', 'unchanged due date: in_corso loan stays in_corso');
 $check((int) $r['warning_sent'] === 1 && (int) $r['overdue_notification_sent'] === 1, 'unchanged due date: reminder flags preserved (guard skips recompute)');
+$check((int) $r['recall_count'] === 2 && $r['last_recall_at'] !== null, 'unchanged due date: recall cycle is preserved');
 
 // ── Area 3: bulk extend (mirrors PrestitiController::bulkExtend) ─────────────
 echo "B. Bulk extend by N days with scoping\n";
 $db->query("TRUNCATE TABLE {$SB}");
 // Seed a mix: overdue, in_corso(past->still due soon), prenotato, da_ritirare, returned.
-$db->query("INSERT INTO {$SB} (attivo, stato, data_scadenza, warning_sent, overdue_notification_sent) VALUES
-    (1, 'in_ritardo', '{$past}', 1, 1),
-    (1, 'in_corso',   '{$past}', 0, 0),
-    (1, 'prenotato',  '{$past}', 0, 0),
-    (1, 'da_ritirare','{$past}', 0, 0),
-    (0, 'restituito', '{$past}', 0, 0)");
+$db->query("INSERT INTO {$SB} (attivo, stato, data_scadenza, warning_sent, overdue_notification_sent, recall_count, last_recall_at) VALUES
+    (1, 'in_ritardo', '{$past}', 1, 1, 2, NOW()),
+    (1, 'in_corso',   '{$past}', 0, 0, 1, NOW()),
+    (1, 'prenotato',  '{$past}', 0, 0, 1, NOW()),
+    (1, 'da_ritirare','{$past}', 0, 0, 1, NOW()),
+    (0, 'restituito', '{$past}', 0, 0, 1, NOW())");
 $ids = [];
 $res = $db->query("SELECT id, stato FROM {$SB} ORDER BY id");
 while ($x = $res->fetch_assoc()) { $ids[$x['stato']] = (int) $x['id']; }
@@ -149,7 +155,9 @@ $stmt = $db->prepare(
         SET data_scadenza = ?,
             stato = CASE WHEN ? < ? THEN 'in_ritardo' ELSE 'in_corso' END,
             warning_sent = CASE WHEN ? < ? THEN warning_sent ELSE 0 END,
-            overdue_notification_sent = CASE WHEN ? < ? THEN overdue_notification_sent ELSE 0 END
+            overdue_notification_sent = CASE WHEN ? < ? THEN overdue_notification_sent ELSE 0 END,
+            recall_count = 0,
+            last_recall_at = NULL
       WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')"
 );
 $affected = 0;
@@ -167,8 +175,11 @@ $check($affected === 2, 'bulk extend touches exactly the two out-loans (in_corso
 $check($row($ids['in_ritardo'])['stato'] === 'in_corso', 'overdue loan extended +30d -> in_corso');
 $check($row($ids['in_ritardo'])['data_scadenza'] === (new DateTimeImmutable($past . ' +30 days'))->format('Y-m-d'), 'due date advanced by 30 days');
 $check((int) $row($ids['in_ritardo'])['warning_sent'] === 0, 'reminder flag reset on the extended overdue loan');
+$check((int) $row($ids['in_ritardo'])['recall_count'] === 0 && $row($ids['in_ritardo'])['last_recall_at'] === null, 'bulk extend resets the overdue loan recall cycle');
 $check($row($ids['in_corso'])['stato'] === 'in_corso', 'in_corso loan stays in_corso');
+$check((int) $row($ids['in_corso'])['recall_count'] === 0, 'bulk extend resets every extended out-loan recall cycle');
 $check($row($ids['prenotato'])['stato'] === 'prenotato' && $row($ids['prenotato'])['data_scadenza'] === $past, 'prenotato loan untouched (state + date)');
+$check((int) $row($ids['prenotato'])['recall_count'] === 1, 'bulk extend leaves non-eligible loan recall state untouched');
 $check($row($ids['da_ritirare'])['stato'] === 'da_ritirare' && $row($ids['da_ritirare'])['data_scadenza'] === $past, 'da_ritirare loan untouched');
 $check($row($ids['restituito'])['data_scadenza'] === $past, 'returned (attivo=0) loan untouched');
 

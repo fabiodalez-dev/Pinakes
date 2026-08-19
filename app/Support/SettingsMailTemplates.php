@@ -170,6 +170,31 @@ HTML,
 <p>Ti chiediamo di restituire il libro il prima possibile.</p>
 HTML,
             ],
+            // #360: sollecito (recall) — repeatable reminder for an overdue loan,
+            // sent automatically at a configurable interval and/or manually by
+            // staff from the loan detail page or the loans list bulk action.
+            'loan_recall_notification' => [
+                'label' => __('Sollecito restituzione'),
+                'description' => __("Sollecito inviato all'utente per la restituzione di un prestito scaduto (automatico o manuale)."),
+                'subject' => '📢 Sollecito n. {{numero_sollecito}} - Restituzione richiesta',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_scadenza', 'giorni_ritardo', 'numero_sollecito'],
+                'body' => <<<'HTML'
+<h2>Sollecito di restituzione</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Nonostante i precedenti avvisi, il seguente prestito risulta ancora scaduto e il libro non è stato restituito:</p>
+<ul>
+    <li>Libro: {{libro_titolo}}</li>
+    <li>Data scadenza: {{data_scadenza}}</li>
+    <li>Giorni di ritardo: {{giorni_ritardo}}</li>
+    <li>Numero sollecito: {{numero_sollecito}}</li>
+</ul>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>❗️ Azione richiesta</strong></p>
+    <p>Ti chiediamo di restituire il libro al più presto o di contattare la biblioteca. Il mancato rientro potrebbe comportare la sospensione del tuo account e penali.</p>
+</div>
+<p>Se hai già restituito il libro, ignora questo messaggio.</p>
+HTML,
+            ],
             'loan_overdue_admin' => [
                 'label' => __('Alert prestito in ritardo (Admin)'),
                 'description' => __("Avvisa gli amministratori quando un prestito entra in ritardo."),
@@ -185,6 +210,26 @@ HTML,
   <li><strong>Data scadenza:</strong> {{data_scadenza}}</li>
 </ul>
 <p>Intervieni per contattare l'utente e sollecitare la restituzione.</p>
+HTML,
+            ],
+            // #360: cover message for the loan receipt PDF sent by email from the
+            // loan detail page (the PDF itself is attached by the sender).
+            'loan_receipt_email' => [
+                'label' => __('Ricevuta prestito via email'),
+                'description' => __("Email inviata all'utente con la ricevuta PDF del prestito in allegato."),
+                'subject' => '📄 Ricevuta del prestito #{{prestito_id}}',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_prestito', 'data_scadenza', 'prestito_id'],
+                'body' => <<<'HTML'
+<h2>Ricevuta del prestito</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>In allegato trovi la ricevuta in PDF del tuo prestito:</p>
+<ul>
+    <li>Libro: {{libro_titolo}}</li>
+    <li>Data prestito: {{data_prestito}}</li>
+    <li>Data scadenza: {{data_scadenza}}</li>
+</ul>
+<p>Conserva questa ricevuta come promemoria della scadenza.</p>
+<p>Buona lettura!</p>
 HTML,
             ],
             'loan_approved' => [
@@ -565,6 +610,28 @@ HTML,
     }
 
     /**
+     * #360: whether this locale has SHIPPED template texts — the in-code
+     * Italian base or a mail_templates/<locale>.php override. Distinguishes a
+     * genuinely translated default from all()'s silent Italian fallback for
+     * unknown locales, so callers (EmailService::getEmailTemplate) can prefer
+     * a translated shipped default over another locale's stored row without
+     * ever serving Italian under a foreign locale's name.
+     */
+    public static function hasShippedLocale(?string $locale): bool
+    {
+        $locale = trim((string) $locale);
+        if ($locale === '') {
+            return false;
+        }
+        if (str_starts_with($locale, 'it')) {
+            return true; // in-code Italian base
+        }
+        $map = ['en' => 'en_US', 'de' => 'de_DE', 'fr' => 'fr_FR', 'da' => 'da_DK', 'en_US' => 'en_US', 'de_DE' => 'de_DE', 'fr_FR' => 'fr_FR', 'da_DK' => 'da_DK'];
+        $key = $map[$locale] ?? ($map[substr($locale, 0, 2)] ?? null);
+        return $key !== null && is_file(__DIR__ . '/mail_templates/' . $key . '.php');
+    }
+
+    /**
      * @return string[]
      */
     public static function keys(): array
@@ -612,6 +679,7 @@ HTML,
             'motivo'                 => __('Motivo'),
             'motivo_rifiuto'         => __('Motivo del rifiuto'),
             'nome'                   => __('Nome dell\'utente'),
+            'numero_sollecito'       => __('Numero progressivo del sollecito inviato'),
             'pickup_deadline'        => __('Scadenza per il ritiro del libro'),
             'pickup_instructions'    => __('Istruzioni per il ritiro del libro'),
             'prestito_id'            => __('Identificativo del prestito'),

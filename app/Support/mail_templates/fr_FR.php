@@ -142,6 +142,36 @@ return [
 </div>
 <p>Nous vous prions de bien vouloir restituer le livre dans les plus brefs délais.</p>',
     ],
+    'loan_recall_notification' => [
+        'subject' => '📢 Rappel n° {{numero_sollecito}} - Retour requis',
+        'body' => '<h2>Rappel de restitution</h2>
+<p>Bonjour {{utente_nome}},</p>
+<p>Malgré les avis précédents, le prêt suivant est toujours en retard et le livre n\'a pas été restitué :</p>
+<ul>
+    <li>Livre : {{libro_titolo}}</li>
+    <li>Date d\'échéance : {{data_scadenza}}</li>
+    <li>Jours de retard : {{giorni_ritardo}}</li>
+    <li>Numéro de rappel : {{numero_sollecito}}</li>
+</ul>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>❗️ Action requise</strong></p>
+    <p>Merci de restituer le livre au plus vite ou de contacter la bibliothèque. Le non-retour du livre peut entraîner la suspension de votre compte ainsi que des pénalités.</p>
+</div>
+<p>Si vous avez déjà restitué le livre, veuillez ignorer ce message.</p>',
+    ],
+    'loan_receipt_email' => [
+        'subject' => '📄 Reçu du prêt #{{prestito_id}}',
+        'body' => '<h2>Reçu du prêt</h2>
+<p>Bonjour {{utente_nome}},</p>
+<p>Vous trouverez en pièce jointe le reçu PDF de votre prêt :</p>
+<ul>
+    <li>Livre : {{libro_titolo}}</li>
+    <li>Date du prêt : {{data_prestito}}</li>
+    <li>Date d\'échéance : {{data_scadenza}}</li>
+</ul>
+<p>Conservez ce reçu comme rappel de la date d\'échéance.</p>
+<p>Bonne lecture !</p>',
+    ],
     'loan_pickup_cancelled' => [
         'subject' => '❌ Retrait annulé',
         'body' => '<h2>Retrait annulé</h2>

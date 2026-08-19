@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use mysqli;
+use App\Models\SettingsRepository;
 use App\Support\ConfigStore;
 use App\Support\RouteTranslator;
 use App\Support\SettingsMailTemplates;
@@ -12,39 +13,120 @@ class NotificationService {
     private mysqli $db;
     private EmailService $emailService;
 
+    /** #360: per-request cache of recipient email -> resolved email locale. */
+    private array $recipientLocaleCache = [];
+
+    /**
+     * #360: memoize the notification-column self-heal so a bulk path (bulkRecall
+     * loops sendManualRecall up to 50 times) doesn't re-run four SHOW COLUMNS
+     * per loan. The schema doesn't change mid-request.
+     */
+    private bool $notificationColumnsEnsured = false;
+
     public function __construct(mysqli $db) {
         $this->db = $db;
         $this->emailService = new EmailService($db);
     }
 
     /**
-     * Format date for email templates using installation locale
+     * Format date for email templates.
      *
      * @param string $dateString Date string parseable by strtotime
      * @param bool $includeTime Include time (H:i) in output
+     * @param string|null $locale Locale driving the date format; null keeps the
+     *                            historical behaviour (installation locale)
      * @return string Formatted date
      */
-    private function formatEmailDate(string $dateString, bool $includeTime = false): string
+    private function formatEmailDate(string $dateString, bool $includeTime = false, ?string $locale = null): string
     {
         $timestamp = strtotime($dateString);
         if ($timestamp === false) {
             return $dateString;
         }
 
-        $locale = I18n::getInstallationLocale();
-        $isItalian = str_starts_with($locale, 'it');
+        $locale = $locale ?? I18n::getInstallationLocale();
 
-        if ($isItalian) {
-            $format = 'd-m-Y';
-        } else {
-            $format = 'Y-m-d';
-        }
+        // Explicit per-language date conventions for the shipped locales;
+        // English and anything unknown keep the unambiguous ISO form (the
+        // historical behaviour for every non-Italian locale).
+        $formats = [
+            'it' => 'd-m-Y',
+            'de' => 'd.m.Y',
+            'fr' => 'd/m/Y',
+            'da' => 'd.m.Y',
+        ];
+        $format = $formats[substr($locale, 0, 2)] ?? 'Y-m-d';
 
         if ($includeTime) {
             $format .= ' H:i';
         }
 
         return date($format, $timestamp);
+    }
+
+    /**
+     * #360: user-facing emails render in the recipient's preferred language.
+     *
+     * Resolves utenti.locale for the given address when it is a locale this
+     * installation actually ships, falling back to the installation locale —
+     * the historical behaviour — for empty, unknown or unsupported values and
+     * for addresses that don't belong to a user. Trusting the column mirrors
+     * the app itself: the same value already drives the recipient's UI
+     * language (login, profile, language switcher keep it up to date).
+     */
+    private function resolveRecipientLocale(string $email): string
+    {
+        $email = trim($email);
+        $fallback = I18n::getInstallationLocale();
+        if ($email === '') {
+            return $fallback;
+        }
+        if (isset($this->recipientLocaleCache[$email])) {
+            return $this->recipientLocaleCache[$email];
+        }
+
+        $locale = $fallback;
+        $stmt = null;
+        try {
+            $stmt = $this->db->prepare("SELECT locale FROM utenti WHERE email = ? LIMIT 1");
+            $stmt->bind_param('s', $email);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+
+            $raw = trim((string) ($row['locale'] ?? ''));
+            if ($raw !== '' && isset(I18n::getAvailableLocales()[$raw])) {
+                $locale = $raw;
+            }
+        } catch (\Throwable $e) {
+            // Lookup failure must never block the send: keep the fallback.
+        } finally {
+            // Close in finally so a throw between prepare() and close() can't
+            // leak the statement handle.
+            if ($stmt instanceof \mysqli_stmt) {
+                $stmt->close();
+            }
+        }
+
+        return $this->recipientLocaleCache[$email] = $locale;
+    }
+
+    /**
+     * Resolve a __()-translated label in the given locale without leaking the
+     * switch to the caller's session (used for per-recipient email wording).
+     */
+    private function translateInLocale(string $message, string $locale): string
+    {
+        $sessionLocale = I18n::getLocale();
+        I18n::setLocale($locale);
+        // finally: a throw inside __() must never leave the process-wide locale
+        // switched — the automatic-notification cron translates for many
+        // recipients in one run, and a leaked locale would mistranslate every
+        // subsequent one.
+        try {
+            return __($message);
+        } finally {
+            I18n::setLocale($sessionLocale);
+        }
     }
 
     /**
@@ -72,12 +154,13 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'data_registrazione' => $this->formatEmailDate($user['created_at'], true),
                 'admin_users_url' => absoluteUrl('/admin/users')
             ];
 
-            // Send to admins
-            return $this->sendToAdmins('admin_new_registration', $variables);
+            // Send to admins — data_registrazione formatted per admin locale.
+            return $this->sendToAdmins('admin_new_registration', $variables, [
+                'data_registrazione' => [$user['created_at'], true],
+            ]);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to notify new user registration: " . $e->getMessage());
@@ -104,21 +187,26 @@ class NotificationService {
             }
             $stmt->close();
 
-            // Use installation locale for email template
-            $locale = \App\Support\I18n::getInstallationLocale();
+            // #360: recipient's preferred language (registration stores the
+            // registrant's session locale into utenti.locale, so this matches
+            // the language they signed up in).
+            $locale = $this->resolveRecipientLocale((string) $user['email']);
 
             $verifySection = '';
             if (!empty($user['token_verifica_email'])) {
-                // Temporarily switch locale for button translation
+                // Temporarily switch locale for the button URL + label; the
+                // finally guarantees the process-wide locale is restored even
+                // when RouteTranslator/__() throw (the outer catch would
+                // otherwise leave the whole request in the recipient's locale).
                 $currentLocale = \App\Support\I18n::getLocale();
-                \App\Support\I18n::setLocale($locale);
-
-                $verifyUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode((string)$user['token_verifica_email']));
-                $buttonText = __('Conferma la tua email');
-                $verifySection = '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
-
-                // Restore original locale
-                \App\Support\I18n::setLocale($currentLocale);
+                try {
+                    \App\Support\I18n::setLocale($locale);
+                    $verifyUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode((string)$user['token_verifica_email']));
+                    $buttonText = __('Conferma la tua email');
+                    $verifySection = '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
+                } finally {
+                    \App\Support\I18n::setLocale($currentLocale);
+                }
             }
 
             $variables = [
@@ -126,7 +214,7 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'data_registrazione' => $this->formatEmailDate($user['created_at'], true),
+                'data_registrazione' => $this->formatEmailDate($user['created_at'], true, $locale),
                 'sezione_verifica' => $verifySection,
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
@@ -168,8 +256,8 @@ class NotificationService {
                 'login_url' => absoluteUrl(RouteTranslator::route('login'))
             ];
 
-            // Use installation locale for email template
-            $locale = \App\Support\I18n::getInstallationLocale();
+            // #360: recipient's preferred language (installation locale fallback)
+            $locale = $this->resolveRecipientLocale((string) $user['email']);
             return $this->emailService->sendTemplate($user['email'], 'user_account_approved', $variables, $locale);
 
         } catch (\Throwable $e) {
@@ -209,8 +297,8 @@ class NotificationService {
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
 
-            // Use installation locale for email template
-            $locale = \App\Support\I18n::getInstallationLocale();
+            // #360: recipient's preferred language (installation locale fallback)
+            $locale = $this->resolveRecipientLocale((string) $user['email']);
             return $this->emailService->sendTemplate($user['email'], 'user_activation_with_verification', $variables, $locale);
 
         } catch (\Throwable $e) {
@@ -250,8 +338,8 @@ class NotificationService {
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
 
-            // Use installation locale for email template
-            $locale = \App\Support\I18n::getInstallationLocale();
+            // #360: recipient's preferred language (installation locale fallback)
+            $locale = $this->resolveRecipientLocale((string) $user['email']);
             return $this->emailService->sendTemplate($user['email'], 'user_password_setup', $variables, $locale);
 
         } catch (\Throwable $e) {
@@ -292,8 +380,8 @@ class NotificationService {
                 'dashboard_url' => absoluteUrl('/admin/dashboard')
             ];
 
-            // Use installation locale for email template
-            $locale = \App\Support\I18n::getInstallationLocale();
+            // #360: recipient's preferred language (installation locale fallback)
+            $locale = $this->resolveRecipientLocale((string) $user['email']);
             return $this->emailService->sendTemplate($user['email'], 'admin_invitation', $variables, $locale);
 
         } catch (\Throwable $e) {
@@ -329,14 +417,15 @@ class NotificationService {
                 'libro_titolo' => $loan['libro_titolo'],
                 'utente_nome' => $loan['utente_nome'],
                 'utente_email' => $loan['utente_email'],
-                'data_inizio' => $this->formatEmailDate($loan['data_prestito']),
-                'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
-                'data_richiesta' => $this->formatEmailDate($loan['created_at'], true),
                 'approve_url' => absoluteUrl('/admin/loans/pending')
             ];
 
-            // Send email to admins
-            $emailSent = $this->sendToAdmins('loan_request_notification', $variables);
+            // Send email to admins — dates formatted per admin locale.
+            $emailSent = $this->sendToAdmins('loan_request_notification', $variables, [
+                'data_inizio' => [$loan['data_prestito'], false],
+                'data_fine' => [$loan['data_scadenza'], false],
+                'data_richiesta' => [$loan['created_at'], true],
+            ]);
 
             // Create in-app notification (uses session locale)
             $notificationTitle = __('Nuova richiesta di prestito');
@@ -408,17 +497,16 @@ class NotificationService {
             }
             $stmt->close();
 
-            // The email template renders in the installation locale (see
-            // sendWithRetry), so resolve the "oggi" label in that locale too — not
-            // the caller's session locale (this runs from the admin-login
-            // maintenance path as well as cron). Computed once for the whole batch.
-            $installLocale = \App\Support\I18n::getInstallationLocale();
-            $sessionLocale = \App\Support\I18n::getLocale();
-            \App\Support\I18n::setLocale($installLocale);
-            $todayLabel = __('oggi');
-            \App\Support\I18n::setLocale($sessionLocale);
+            // #360: the email renders in each recipient's language (see
+            // sendWithRetry), so the "oggi" label must match that locale too —
+            // resolved per recipient locale, cached per batch. Not the caller's
+            // session locale (this runs from the admin-login maintenance path
+            // as well as cron).
+            $todayLabels = [];
 
             foreach ($loans as $loan) {
+                $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
+                $todayLabels[$recipientLocale] ??= $this->translateInLocale('oggi', $recipientLocale);
                 // ATOMIC: Mark warning as sent BEFORE sending email
                 // Only proceed if we successfully claimed this loan (affected_rows == 1)
                 // Re-assert data_scadenza too: renew()/update() may have moved the
@@ -442,8 +530,8 @@ class NotificationService {
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
-                    'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
-                    'giorni_rimasti' => $daysRemaining === 0 ? $todayLabel : (string)$daysRemaining
+                    'data_scadenza' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
+                    'giorni_rimasti' => $daysRemaining === 0 ? $todayLabels[$recipientLocale] : (string)$daysRemaining
                 ];
 
                 $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_expiring_warning', $variables);
@@ -539,7 +627,7 @@ class NotificationService {
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
-                    'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
+                    'data_scadenza' => $this->formatEmailDate($loan['data_scadenza'], false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
                     'giorni_ritardo' => $loan['giorni_ritardo']
                 ];
 
@@ -576,6 +664,295 @@ class NotificationService {
         return $sentCount;
     }
 
+    /**
+     * #360: automatic recalls (solleciti) for overdue loans.
+     *
+     * Unlike sendOverdueLoanNotifications() — one-shot via the boolean
+     * overdue_notification_sent — recalls repeat: recall N is due once the loan
+     * is at least N * interval days overdue (interval and max count come from
+     * the loans settings), so a loan that stays out keeps being chased up to
+     * loans.recall_max_count times. Uses the same atomic claim-then-send
+     * pattern as the other senders; the DATE(last_recall_at) guard caps sends
+     * at one per loan per day even if the schedule would allow more.
+     */
+    public function sendLoanRecalls(): int {
+        $sentCount = 0;
+
+        try {
+            // Read the recall schedule the same way SettingsController writes and
+            // reads it — via SettingsRepository. ConfigStore can NOT serve loans
+            // keys: loadDatabaseSettings() has no 'loans' category mapping, so it
+            // always returns the code default (recall_auto_enabled would resolve
+            // to '0' regardless of the admin toggle, making this a permanent
+            // no-op). Every other loans setting is read via SettingsRepository
+            // for exactly this reason.
+            $settings = new SettingsRepository($this->db);
+            if ((string) ($settings->get('loans', 'recall_auto_enabled', '0') ?? '0') !== '1') {
+                return 0;
+            }
+            // Self-healing like sendManualRecall(): this is a public method and
+            // the SELECT below reads recall_count / last_recall_at, which a
+            // not-yet-migrated install doesn't have — without this the query
+            // throws, the catch swallows it and automatic recalls silently
+            // no-op. runAutomaticNotifications() heals only its own path.
+            $this->addNotificationColumns();
+            // Same clamps as SettingsController::updateLoansSettings — the
+            // stored value is trusted but a hand-edited row must not produce a
+            // zero/negative interval (division-like schedule) or a runaway cap.
+            $intervalDays = min(365, max(1, (int) ($settings->get('loans', 'recall_interval_days', '7') ?? 7)));
+            $maxRecalls = min(50, max(1, (int) ($settings->get('loans', 'recall_max_count', '3') ?? 3)));
+
+            // "Oggi" nel timezone applicativo come parametro bound (M9).
+            $today = DateHelper::today();
+
+            // CI-SOFT-DELETE-EXEMPT: an active overdue loan remains physically
+            // owed to the library even when its catalog record is archived.
+            $stmt = $this->db->prepare("
+                SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
+                       l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
+                       DATEDIFF(?, p.data_scadenza) as giorni_ritardo
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.stato IN ('in_corso', 'in_ritardo')
+                  AND p.attivo = 1
+                  AND u.email IS NOT NULL
+                  AND TRIM(u.email) <> ''
+                  AND p.data_scadenza < ?
+                  AND p.overdue_notification_sent = 1
+                  AND p.recall_count < ?
+                  AND DATEDIFF(?, p.data_scadenza) >= ? * (p.recall_count + 1)
+                  AND (p.last_recall_at IS NULL OR DATE(p.last_recall_at) < ?)
+            ");
+            $stmt->bind_param('ssisis', $today, $today, $maxRecalls, $today, $intervalDays, $today);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $loans = [];
+            while ($loan = $result->fetch_assoc()) {
+                $loans[] = $loan;
+            }
+            $stmt->close();
+
+            foreach ($loans as $loan) {
+                $sentCount += $this->claimAndSendRecall($loan) ? 1 : 0;
+            }
+
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to send loan recalls: " . $e->getMessage());
+        }
+
+        return $sentCount;
+    }
+
+    /**
+     * #360: manual recall for a single loan, triggered by staff from the loan
+     * detail page or the loans-list bulk action. Skips the automatic interval /
+     * max-count schedule, but still requires the loan to be genuinely overdue,
+     * the user to have an email address, and no recall to have already gone out
+     * today (a per-loan daily cooldown that bounds abuse of the manual path).
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function sendManualRecall(int $loanId, int $maxRetries = 3, int $retryDelayMs = 1000): array {
+        try {
+            $this->addNotificationColumns();
+
+            $today = DateHelper::today();
+            // CI-SOFT-DELETE-EXEMPT: staff must be able to recall an outstanding
+            // physical loan after the related catalog record is archived.
+            $stmt = $this->db->prepare("
+                SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
+                       p.stato, p.attivo,
+                       l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
+                       DATEDIFF(?, p.data_scadenza) as giorni_ritardo
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('si', $today, $loanId);
+            $stmt->execute();
+            $loan = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            if (!$loan) {
+                return ['success' => false, 'message' => __('Prestito non trovato')];
+            }
+            if ((int) $loan['attivo'] !== 1 || !in_array((string) $loan['stato'], ['in_corso', 'in_ritardo'], true)) {
+                return ['success' => false, 'message' => __('Il sollecito è disponibile solo per prestiti attivi con libro in mano all\'utente.')];
+            }
+            if ((int) $loan['giorni_ritardo'] < 1) {
+                return ['success' => false, 'message' => __('Il prestito non è scaduto: nessun sollecito da inviare.')];
+            }
+            if (trim((string) $loan['utente_email']) === '') {
+                return ['success' => false, 'message' => __('L\'utente non ha un indirizzo email.')];
+            }
+            // Per-loan daily cooldown: at most one recall per loan per day,
+            // matching the automatic scheduler's DATE(last_recall_at) < today
+            // throttle. Prevents a staff session (or a repeated bulk submit)
+            // from re-emailing the same patron many times in a row while still
+            // allowing a manual recall on a later day.
+            if ($loan['last_recall_at'] !== null
+                && substr((string) $loan['last_recall_at'], 0, 10) === $today) {
+                return ['success' => false, 'message' => __('Un sollecito è già stato inviato oggi per questo prestito.')];
+            }
+
+            if ($this->claimAndSendRecall($loan, $maxRetries, $retryDelayMs)) {
+                return ['success' => true, 'message' => __('Sollecito inviato con successo.')];
+            }
+            return ['success' => false, 'message' => __('Invio del sollecito non riuscito. Controlla la configurazione email e riprova.')];
+
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to send manual recall for loan {$loanId}: " . $e->getMessage());
+            return ['success' => false, 'message' => __('Invio del sollecito non riuscito. Controlla la configurazione email e riprova.')];
+        }
+    }
+
+    /**
+     * Shared claim-then-send for one recall (automatic and manual paths).
+     * Expects a row carrying id, data_scadenza, recall_count, last_recall_at,
+     * libro_titolo, utente_nome, utente_email, giorni_ritardo. Returns true iff
+     * the recall email actually went out; on failure the claim is reverted so a
+     * later run can retry.
+     */
+    private function claimAndSendRecall(array $loan, int $maxRetries = 3, int $retryDelayMs = 1000): bool {
+        // ATOMIC: bump the counter BEFORE sending. Re-assert data_scadenza and
+        // recall_count so a concurrent renew()/recall claims at most once
+        // (same #252/M3 rationale as the overdue sender).
+        $now = DateHelper::now();
+        $expectedCount = (int) $loan['recall_count'];
+        $updateStmt = $this->db->prepare("UPDATE prestiti SET recall_count = recall_count + 1, last_recall_at = ? WHERE id = ? AND data_scadenza = ? AND recall_count = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+        $updateStmt->bind_param('sisi', $now, $loan['id'], $loan['data_scadenza'], $expectedCount);
+        $updateStmt->execute();
+        $claimed = $updateStmt->affected_rows === 1;
+        $updateStmt->close();
+
+        if (!$claimed) {
+            return false;
+        }
+
+        $recallNumber = $expectedCount + 1;
+        $variables = [
+            'utente_nome' => $loan['utente_nome'],
+            'libro_titolo' => $loan['libro_titolo'],
+            'data_scadenza' => $this->formatEmailDate($loan['data_scadenza'], false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
+            'giorni_ritardo' => $loan['giorni_ritardo'],
+            'numero_sollecito' => $recallNumber,
+        ];
+
+        $emailSent = $this->sendWithRetry(
+            $loan['utente_email'],
+            'loan_recall_notification',
+            $variables,
+            max(1, $maxRetries),
+            max(0, $retryDelayMs)
+        );
+
+        if ($emailSent) {
+            $this->createNotification(
+                'general',
+                __('Sollecito inviato'),
+                sprintf(__('Sollecito n. %d inviato a %s per "%s"'), $recallNumber, $loan['utente_nome'], $loan['libro_titolo']),
+                '/admin/loans',
+                (int) $loan['id']
+            );
+            return true;
+        }
+
+        // Email failed after retries: restore counter and timestamp so the next
+        // run (or a retried manual send) claims the same recall again.
+        $previousRecallAt = $loan['last_recall_at'] !== null ? (string) $loan['last_recall_at'] : null;
+        $revertStmt = $this->db->prepare("UPDATE prestiti SET recall_count = recall_count - 1, last_recall_at = ? WHERE id = ? AND recall_count = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+        $revertStmt->bind_param('sii', $previousRecallAt, $loan['id'], $recallNumber);
+        $revertStmt->execute();
+        $revertStmt->close();
+        SecureLogger::warning("Failed to send recall for loan {$loan['id']} after retries, claim reverted");
+        return false;
+    }
+
+    /**
+     * #360: email the loan receipt PDF (the same document downloadPdf serves)
+     * to the loan's user, attached to the loan_receipt_email template.
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function sendLoanReceiptEmail(int $loanId): array {
+        try {
+            $repo = new \App\Models\LoanRepository($this->db);
+            $loan = $repo->getById($loanId);
+            if (!$loan) {
+                return ['success' => false, 'message' => __('Prestito non trovato')];
+            }
+            $email = trim((string) ($loan['utente_email'] ?? ''));
+            if ($email === '') {
+                return ['success' => false, 'message' => __('L\'utente non ha un indirizzo email.')];
+            }
+
+            // Same circuit breaker as sendWithRetry, checked BEFORE generating
+            // the PDF: when SMTP is plainly unreachable the attachment would be
+            // wasted work on a synchronous request path.
+            if (!\App\Support\Mailer::isSmtpReachable()) {
+                return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
+            }
+
+            // #360: cover message in the recipient's language, like every other
+            // user-facing email. The PDF generator uses the process-wide I18n
+            // locale too, so switch only for generation and always restore the
+            // staff request locale afterwards.
+            $recipientLocale = $this->resolveRecipientLocale($email);
+            $requestLocale = I18n::getLocale();
+            try {
+                I18n::setLocale($recipientLocale);
+                $pdfContent = (new LoanPdfGenerator($this->db))->generate($loanId);
+            } finally {
+                I18n::setLocale($requestLocale);
+            }
+
+            // A generator that returns an empty (or non-PDF) string without
+            // throwing would otherwise be sent as a message with no attachment
+            // (EmailService drops empty attachments) yet still report success —
+            // the patron gets an email with no receipt while the operator reads
+            // "Ricevuta inviata con successo". Refuse when the bytes aren't a PDF.
+            if (!str_starts_with((string) $pdfContent, '%PDF')) {
+                SecureLogger::error("Loan receipt PDF generation returned no valid PDF for loan {$loanId}");
+                return ['success' => false, 'message' => __('Impossibile generare la ricevuta PDF.')];
+            }
+
+            $variables = [
+                'prestito_id' => $loanId,
+                'utente_nome' => (string) ($loan['utente'] ?? ''),
+                'libro_titolo' => (string) ($loan['libro'] ?? ''),
+                'data_prestito' => $this->formatEmailDate((string) ($loan['data_prestito'] ?? ''), false, $recipientLocale),
+                'data_scadenza' => $this->formatEmailDate((string) ($loan['data_scadenza'] ?? ''), false, $recipientLocale),
+            ];
+            $attachment = [
+                'content' => $pdfContent,
+                'filename' => 'prestito_' . $loanId . '_' . str_replace('-', '', DateHelper::today()) . '.pdf',
+                'type' => 'application/pdf',
+            ];
+
+            $sent = $this->emailService->sendTemplate(
+                $email,
+                'loan_receipt_email',
+                $variables,
+                $recipientLocale,
+                [$attachment]
+            );
+
+            if ($sent) {
+                return ['success' => true, 'message' => __('Ricevuta inviata via email con successo.')];
+            }
+            return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
+
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to email loan receipt for loan {$loanId}: " . $e->getMessage());
+            return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
+        }
+    }
+
     public function notifyAdminsOverdue(int $loanId): void
     {
         try {
@@ -601,15 +978,17 @@ class NotificationService {
                 'libro_titolo' => $loan['libro_titolo'],
                 'utente_nome' => $loan['utente_nome'],
                 'utente_email' => $loan['utente_email'],
-                'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
-                'data_prestito' => $this->formatEmailDate($loan['data_prestito']),
             ];
 
             // Usa sendToAdmins (template dal DB email_templates con fallback) come tutti
             // gli altri invii: così la personalizzazione admin del template viene
             // rispettata, a differenza del precedente SettingsMailTemplates::get() che
-            // leggeva solo il PHP hardcoded (GAP-4).
-            $this->sendToAdmins('loan_overdue_admin', $variables);
+            // leggeva solo il PHP hardcoded (GAP-4). Le date sono formattate per la
+            // lingua di ogni admin.
+            $this->sendToAdmins('loan_overdue_admin', $variables, [
+                'data_scadenza' => [$loan['data_scadenza'], false],
+                'data_prestito' => [$loan['data_prestito'], false],
+            ]);
 
         } catch (\Throwable $e) {
             SecureLogger::error('Failed to notify admins about overdue loan: ' . $e->getMessage());
@@ -676,7 +1055,7 @@ class NotificationService {
                     'libro_titolo' => $wishlist['titolo'],
                     'libro_autore' => $wishlist['autore'] ?: 'Autore non specificato',
                     'libro_isbn' => $wishlist['isbn'] ?: 'N/A',
-                    'data_disponibilita' => $this->formatEmailDate('now', true),
+                    'data_disponibilita' => $this->formatEmailDate('now', true, $this->resolveRecipientLocale((string) $wishlist['email'])),
                     'book_url' => absoluteUrl($bookLink),
                     'wishlist_url' => absoluteUrl(RouteTranslator::route('wishlist'))
                 ];
@@ -710,6 +1089,7 @@ class NotificationService {
             'timestamp' => gmdate('Y-m-d H:i:s'),
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
+            'loan_recalls' => 0,
             'wishlist_notifications' => 0,
             'errors' => []
         ];
@@ -721,6 +1101,9 @@ class NotificationService {
 
             $results['expiration_warnings'] = $this->sendLoanExpirationWarnings();
             $results['overdue_notifications'] = $this->sendOverdueLoanNotifications();
+            // #360: repeated recalls come after the first overdue notice — the
+            // recall query requires overdue_notification_sent = 1.
+            $results['loan_recalls'] = $this->sendLoanRecalls();
             $results['wishlist_notifications'] = $this->checkAndNotifyWishlistAvailability();
 
         } catch (\Throwable $e) {
@@ -850,6 +1233,9 @@ class NotificationService {
      * Aggiunge colonne per tracking notifiche se non esistono
      */
     private function addNotificationColumns(): void {
+        if ($this->notificationColumnsEnsured) {
+            return;
+        }
         try {
             // Check if columns exist
             $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'warning_sent'");
@@ -862,6 +1248,23 @@ class NotificationService {
                 $this->db->query("ALTER TABLE prestiti ADD COLUMN overdue_notification_sent BOOLEAN DEFAULT 0");
             }
 
+            // #360: recall (sollecito) tracking — how many recalls went out and
+            // when the last one did, so automatic recalls can repeat at the
+            // configured interval instead of being one-shot like
+            // overdue_notification_sent.
+            $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'recall_count'");
+            if ($result->num_rows === 0) {
+                $this->db->query("ALTER TABLE prestiti ADD COLUMN recall_count INT NOT NULL DEFAULT 0");
+            }
+
+            $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'last_recall_at'");
+            if ($result->num_rows === 0) {
+                $this->db->query("ALTER TABLE prestiti ADD COLUMN last_recall_at DATETIME NULL DEFAULT NULL");
+            }
+
+            // Only memoize once the checks completed without throwing, so a
+            // transient failure retries on the next call.
+            $this->notificationColumnsEnsured = true;
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to add notification columns: " . $e->getMessage());
         }
@@ -885,7 +1288,12 @@ class NotificationService {
     /**
      * Invia template agli admin
      */
-    private function sendToAdmins(string $templateName, array $variables): bool {
+    /**
+     * @param array<string,mixed>            $variables     non-date template variables, shared by every admin
+     * @param array<string,array{0:string,1?:bool}> $dateVariables raw dates keyed by template variable —
+     *        [rawDate, includeTime] — formatted per recipient inside the loop
+     */
+    private function sendToAdmins(string $templateName, array $variables, array $dateVariables = []): bool {
         try {
             $result = $this->db->query("SELECT email FROM utenti WHERE tipo_utente IN ('admin', 'staff') AND stato = 'attivo'");
 
@@ -894,12 +1302,19 @@ class NotificationService {
                 return false;
             }
 
-            // Use installation locale for email template
-            $locale = \App\Support\I18n::getInstallationLocale();
-
             $sentCount = 0;
             while ($row = $result->fetch_assoc()) {
-                if ($this->emailService->sendTemplate($row['email'], $templateName, $variables, $locale)) {
+                // #360: each admin gets the template AND its date variables in
+                // their own language (utenti.locale, installation locale as
+                // fallback). Dates arrive raw in $dateVariables and are
+                // formatted per recipient here, so a differently-localized
+                // admin no longer sees installation-format dates.
+                $locale = $this->resolveRecipientLocale((string) $row['email']);
+                $recipientVars = $variables;
+                foreach ($dateVariables as $name => $spec) {
+                    $recipientVars[$name] = $this->formatEmailDate((string) $spec[0], (bool) ($spec[1] ?? false), $locale);
+                }
+                if ($this->emailService->sendTemplate($row['email'], $templateName, $recipientVars, $locale)) {
                     $sentCount++;
                 }
             }
@@ -942,11 +1357,12 @@ class NotificationService {
             $stmt->close();
 
             $remaining = max(0, $maxRenewals - (int) ($loan['renewals'] ?? 0));
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
 
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
+                'data_fine' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
                 'rinnovi_rimanenti' => (string) $remaining,
             ];
 
@@ -983,13 +1399,14 @@ class NotificationService {
             $endDate = new \DateTime($loan['data_scadenza']);
             $days = $endDate->diff($startDate)->days;
 
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_inizio' => $this->formatEmailDate($loan['data_prestito']),
-                'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
+                'data_inizio' => $this->formatEmailDate($loan['data_prestito'], false, $recipientLocale),
+                'data_fine' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
                 'giorni_prestito' => $days,
-                'pickup_instructions' => __('Recati in biblioteca durante gli orari di apertura per ritirare il libro.')
+                'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale)
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_approved', $variables);
@@ -1095,18 +1512,19 @@ class NotificationService {
             $endDate = new \DateTime($loan['data_scadenza']);
             $days = $endDate->diff($startDate)->days;
 
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_inizio' => $this->formatEmailDate($loan['data_prestito']),
-                'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
+                'data_inizio' => $this->formatEmailDate($loan['data_prestito'], false, $recipientLocale),
+                'data_fine' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
                 'giorni_prestito' => $days,
-                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : '',
+                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
                 // #304: alias under the DB column name so a customised template using
                 // {{pickup_deadline}} (the natural name a user copies from the schema)
                 // resolves as well as the canonical {{scadenza_ritiro}}.
-                'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : '',
-                'pickup_instructions' => __('Recati in biblioteca durante gli orari di apertura per ritirare il libro.')
+                'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
+                'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale)
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_ready', $variables);
@@ -1140,12 +1558,13 @@ class NotificationService {
             }
             $stmt->close();
 
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : '',
+                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
                 // #304: alias under the DB column name, see sendPickupReadyNotification.
-                'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : ''
+                'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : ''
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_expired', $variables);
@@ -1229,7 +1648,7 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today()),
+                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today(), false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_returned', $variables);
@@ -1270,7 +1689,7 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_scadenza' => $this->formatEmailDate($scadenza),
+                'data_scadenza' => $this->formatEmailDate($scadenza, false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'reservation_expired', $variables);
@@ -1301,7 +1720,7 @@ class NotificationService {
             return false;
         }
         if (!empty($variables['data_scadenza'])) {
-            $variables['data_scadenza'] = $this->formatEmailDate((string)$variables['data_scadenza']);
+            $variables['data_scadenza'] = $this->formatEmailDate((string)$variables['data_scadenza'], false, $this->resolveRecipientLocale($email));
         }
         return $this->sendWithRetry($email, 'reservation_expired', $variables);
     }
@@ -1338,9 +1757,14 @@ class NotificationService {
 
         $lastError = '';
 
+        // #360: recipient's preferred language (utenti.locale) instead of the
+        // installation locale; resolveRecipientLocale falls back to the
+        // installation locale, so nothing changes for users without one.
+        $recipientLocale = $this->resolveRecipientLocale($email);
+
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             try {
-                if ($this->emailService->sendTemplate($email, $template, $variables, \App\Support\I18n::getInstallationLocale())) {
+                if ($this->emailService->sendTemplate($email, $template, $variables, $recipientLocale)) {
                     if ($attempt > 1) {
                         SecureLogger::info("Email to {$email} succeeded on attempt {$attempt}");
                     }
@@ -1714,12 +2138,13 @@ class NotificationService {
                 'stelle' => $review['stelle'],
                 'titolo_recensione' => $review['titolo'] ?? '',
                 'descrizione_recensione' => $review['descrizione'] ?? '',
-                'data_recensione' => $this->formatEmailDate($review['created_at'], true),
                 'link_approvazione' => absoluteUrl('/admin/reviews')
             ];
 
-            // Send email to admins
-            $emailSent = $this->sendToAdmins('admin_new_review', $variables);
+            // Send email to admins — data_recensione formatted per admin locale.
+            $emailSent = $this->sendToAdmins('admin_new_review', $variables, [
+                'data_recensione' => [$review['created_at'], true],
+            ]);
 
             // Create in-app notification
             $stelle_text = str_repeat('⭐', (int)$review['stelle']);

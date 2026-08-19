@@ -252,6 +252,83 @@
       </div>
     </div>
 
+    <!-- #360: automatic recalls (solleciti) for overdue loans -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-bullhorn text-gray-500"></i>
+          <?= __("Solleciti automatici") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Invia automaticamente email di sollecito agli utenti con prestiti scaduti, a intervalli regolari dopo la prima notifica di ritardo.") ?></p>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700">
+              <?= __("I solleciti vengono inviati dal job delle notifiche automatiche (cron) o all'accesso di un amministratore. Il sollecito manuale dalla pagina del prestito resta sempre disponibile.") ?>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="recall_auto_enabled_label" class="text-sm font-semibold text-gray-900"><?= __("Abilita solleciti automatici") ?></span>
+            <p id="recall_auto_enabled_desc" class="text-xs text-gray-600 mt-1"><?= __("Invia solleciti ricorrenti per i prestiti scaduti non ancora restituiti.") ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="recall_auto_enabled"
+                   name="recall_auto_enabled"
+                   value="1"
+                   aria-labelledby="recall_auto_enabled_label"
+                   aria-describedby="recall_auto_enabled_desc"
+                   <?php echo !empty($loansSettings['recall_auto_enabled']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+        <div>
+          <label for="recall_interval_days" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Intervallo tra i solleciti (giorni)") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="number"
+                   id="recall_interval_days"
+                   name="recall_interval_days"
+                   min="1"
+                   max="365"
+                   value="<?php echo (int) ($loansSettings['recall_interval_days'] ?? 7); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= __("giorni") ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Il primo sollecito parte quando il ritardo raggiunge l'intervallo; i successivi a ogni multiplo. Predefinito: 7 giorni") ?>
+          </p>
+        </div>
+        <div>
+          <label for="recall_max_count" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Numero massimo di solleciti automatici") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="number"
+                   id="recall_max_count"
+                   name="recall_max_count"
+                   min="1"
+                   max="50"
+                   value="<?php echo (int) ($loansSettings['recall_max_count'] ?? 3); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= __("solleciti") ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("I solleciti manuali aggiornano il conteggio e possono ridurre il numero di invii automatici. Predefinito: 3") ?>
+          </p>
+        </div>
+      </div>
+    </div>
+
     <div class="flex justify-end">
       <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
         <i class="fas fa-save"></i>

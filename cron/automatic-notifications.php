@@ -136,6 +136,7 @@ try {
     logMessage("Notifications completed:");
     logMessage("- Expiration warnings sent: " . $results['expiration_warnings']);
     logMessage("- Overdue notifications sent: " . $results['overdue_notifications']);
+    logMessage("- Loan recalls sent: " . ($results['loan_recalls'] ?? 0));
     logMessage("- Wishlist notifications sent: " . $results['wishlist_notifications']);
 
     if (!empty($results['errors'])) {
@@ -157,7 +158,7 @@ try {
         logMessage("WARNING: retryUnsentReservationNotifications failed: " . $e->getMessage());
     }
 
-    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + $results['wishlist_notifications'] + $retriedNotifications;
+    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + ($results['loan_recalls'] ?? 0) + $results['wishlist_notifications'] + $retriedNotifications;
     logMessage("Total emails sent: {$totalSent}");
 
     // Dispatch native mobile push on the same hourly pass as email reminders.

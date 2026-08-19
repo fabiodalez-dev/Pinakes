@@ -45,6 +45,7 @@ class EmailService {
         'loan_days' => 'giorni_prestito',
         'loan_id' => 'prestito_id',
         'stars' => 'stelle',
+        'recall_number' => 'numero_sollecito',
 
         // Review fields
         'review_date' => 'data_recensione',
@@ -94,6 +95,11 @@ class EmailService {
                 }
                 $this->mailer->SMTPSecure = $settings['smtp_security'];
                 $this->mailer->Port = (int)$settings['smtp_port'];
+                // PHPMailer otherwise inherits a very generous socket timeout.
+                // Recall batches run in an HTTP request, so a dead SMTP peer
+                // must release the worker within a predictable bound.
+                $smtpTimeout = min(10, max(1, (int) ConfigStore::get('mail.smtp.timeout', 10)));
+                $this->mailer->Timeout = $smtpTimeout;
             } else {
                 $this->mailer->isMail();
             }
@@ -158,8 +164,9 @@ class EmailService {
      * @param string $templateName Template name
      * @param array $variables Variables to replace in template
      * @param string|null $locale Locale (it_IT, en_US). If null, uses current user's locale
+     * @param array $attachments Each entry: ['content' => binary string, 'filename' => string, 'type' => MIME type]
      */
-    public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null): bool {
+    public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null, array $attachments = []): bool {
         try {
             $template = $this->getEmailTemplate($templateName, $locale);
             if (!$template) {
@@ -172,7 +179,7 @@ class EmailService {
             $subject = $this->replaceVariables($template['subject'], $variables, false);
             $body = $this->replaceVariables($template['body'], $variables);
 
-            return $this->sendEmail($to, $subject, $body, '', $locale);
+            return $this->sendEmail($to, $subject, $body, '', $locale, $attachments);
 
         } catch (\Throwable $e) {
             error_log("Failed to send template email '{$templateName}' to {$to}: " . $e->getMessage());
@@ -182,18 +189,40 @@ class EmailService {
 
     /**
      * Send plain email
+     *
+     * @param array $attachments Each entry: ['content' => binary string, 'filename' => string, 'type' => MIME type].
+     *                           In-memory attachments (addStringAttachment): no temp files on disk.
      */
-    public function sendEmail(string $to, string $subject, string $body, string $toName = '', ?string $locale = null): bool {
+    public function sendEmail(string $to, string $subject, string $body, string $toName = '', ?string $locale = null, array $attachments = []): bool {
         try {
             $this->mailer->clearAddresses();
+            // The PHPMailer instance is reused across sends (e.g. sendToAdmins
+            // loops): clear attachments from any previous message so they don't
+            // leak into this one.
+            $this->mailer->clearAttachments();
             $this->mailer->addAddress($to, $toName);
+            foreach ($attachments as $attachment) {
+                $content = (string) ($attachment['content'] ?? '');
+                if ($content === '') {
+                    continue;
+                }
+                $this->mailer->addStringAttachment(
+                    $content,
+                    (string) ($attachment['filename'] ?? 'allegato'),
+                    PHPMailer::ENCODING_BASE64,
+                    (string) ($attachment['type'] ?? 'application/octet-stream')
+                );
+            }
             $this->mailer->Subject = $subject;
             $this->mailer->Body = $this->wrapInBaseTemplate($body, $subject, $locale);
             $this->mailer->AltBody = EmailLayout::plainText($body);
 
-            return $this->mailer->send();
+            $sent = $this->mailer->send();
+            $this->mailer->clearAttachments();
+            return $sent;
 
         } catch (\Throwable $e) {
+            $this->mailer->clearAttachments();
             error_log("Failed to send email to {$to}: " . $e->getMessage());
             return false;
         }
@@ -254,7 +283,29 @@ class EmailService {
                 $candidateLocales[] = 'it_IT';
             }
 
-            foreach ($candidateLocales as $candidateLocale) {
+            foreach ($candidateLocales as $index => $candidateLocale) {
+                // #360: after missing a stored row for the EXACT requested
+                // locale, prefer the shipped default translated in that locale
+                // over another locale's stored row. Installs seed
+                // email_templates only for the installation language, so
+                // without this the chain always landed on the installation row
+                // and per-recipient localization never materialized (a German
+                // recipient got the seeded Italian template). Cross-locale
+                // admin customizations still win for locales with no shipped
+                // texts (hasShippedLocale gate), and an exact-locale stored
+                // row — customized or seeded — always wins above.
+                // When the next candidate is a same-language variant (it_CH ->
+                // it_IT) the stored row IS the recipient's language: let it
+                // win, customizations included. Only a language change (en_US
+                // recipient falling toward an it_IT row) triggers the shipped
+                // default.
+                if ($index === 1 && substr($candidateLocale, 0, 2) !== substr($locale, 0, 2) && \App\Support\SettingsMailTemplates::hasShippedLocale($locale)) {
+                    $shipped = \App\Support\SettingsMailTemplates::get($templateName, $locale);
+                    if ($shipped !== null) {
+                        return ['subject' => (string) $shipped['subject'], 'body' => (string) $shipped['body']];
+                    }
+                }
+
                 $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = ? AND active = 1");
                 $stmt->bind_param('ss', $templateName, $candidateLocale);
                 $stmt->execute();

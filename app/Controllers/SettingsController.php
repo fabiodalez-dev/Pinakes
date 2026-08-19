@@ -22,10 +22,13 @@ class SettingsController
     {
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
-        // Semina i template mancanti con il locale di installazione (M8):
-        // l'invio li risolve per (name, locale_installazione), quindi seminare
-        // sempre it_IT li renderebbe invisibili su installazioni non italiane.
-        $repository->ensureEmailTemplates($this->templateDefaults(), \App\Support\I18n::getInstallationLocale());
+        $queryParams = $request->getQueryParams();
+        $templateLocales = \App\Support\I18n::getAvailableLocales();
+        $templateLocale = $this->resolveTemplateEditorLocale($queryParams['template_locale'] ?? null);
+        // Seed the locale currently edited. Other recipient locales continue to
+        // use their shipped translation until an administrator opens/customizes
+        // them, at which point they get an independent stored row.
+        $repository->ensureEmailTemplates($this->templateDefaults($templateLocale), $templateLocale);
         // #299: repair any stored template whose links were double-prefixed with
         // the admin base by the old WYSIWYG behaviour. Idempotent, cheap (LIKE
         // filter), runs before the templates are read for display below.
@@ -33,7 +36,7 @@ class SettingsController
 
         $appSettings = $this->resolveAppSettings($repository);
         $emailSettings = $this->resolveEmailSettings($repository);
-        $templates = $this->resolveEmailTemplates($repository);
+        $templates = $this->resolveEmailTemplates($repository, $templateLocale);
         $contactSettings = $this->resolveContactSettings($repository);
         $privacySettings = $this->resolvePrivacySettings($repository);
         $labelSettings = $this->resolveLabelSettings($repository);
@@ -47,7 +50,6 @@ class SettingsController
         // re-enable them.
         $registrationCustomFields = \App\Support\RegistrationFields::definitions($db, false);
 
-        $queryParams = $request->getQueryParams();
         $activeTab = $queryParams['tab'] ?? 'general';
 
         // Security scan F11 (CWE-522): the settings page is reachable by 'staff'
@@ -61,6 +63,8 @@ class SettingsController
             'appSettings',
             'emailSettings',
             'templates',
+            'templateLocale',
+            'templateLocales',
             'contactSettings',
             'privacySettings',
             'labelSettings',
@@ -448,20 +452,26 @@ class SettingsController
 
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
+        $templateLocale = $this->resolveTemplateEditorLocale($data['template_locale'] ?? null);
+        $localizedDefinition = SettingsMailTemplates::get($template, $templateLocale) ?? $definition;
 
-        $subject = trim((string) ($data['subject'] ?? $definition['subject']));
+        $subject = trim((string) ($data['subject'] ?? $localizedDefinition['subject']));
         if ($subject === '') {
-            $subject = $definition['subject'];
+            $subject = $localizedDefinition['subject'];
         }
-        $body = \App\Support\EmailLayout::normalizeContent((string) ($data['body'] ?? $definition['body']));
+        $body = \App\Support\EmailLayout::normalizeContent((string) ($data['body'] ?? $localizedDefinition['body']));
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
-        // Salva sulla riga del locale di installazione: è quella letta dall'invio (M8).
-        $repository->saveEmailTemplate($template, $subject, $body, $definition['description'] ?? null, true, \App\Support\I18n::getInstallationLocale());
+        // Each recipient locale owns an independently editable row. This keeps
+        // localized sends from bypassing the administrator's customization.
+        $repository->saveEmailTemplate($template, $subject, $body, $localizedDefinition['description'] ?? null, true, $templateLocale);
 
         $_SESSION['success_message'] = 'Template email "' . $definition['label'] . '" aggiornato correttamente.';
-        return $this->redirect($response, '/admin/settings?tab=templates&template=' . urlencode($template));
+        return $this->redirect(
+            $response,
+            '/admin/settings?tab=templates&template_locale=' . rawurlencode($templateLocale) . '&template=' . rawurlencode($template)
+        );
     }
 
     private function resolveAppSettings(SettingsRepository $repository): array
@@ -530,11 +540,10 @@ class SettingsController
         return $settings;
     }
 
-    private function resolveEmailTemplates(SettingsRepository $repository): array
+    private function resolveEmailTemplates(SettingsRepository $repository, string $locale): array
     {
-        $definitions = SettingsMailTemplates::all();
-        // L'editor mostra le righe del locale di installazione, le stesse usate dall'invio (M8).
-        $records = $repository->getEmailTemplates(array_keys($definitions), \App\Support\I18n::getInstallationLocale());
+        $definitions = SettingsMailTemplates::all($locale);
+        $records = $repository->getEmailTemplates(array_keys($definitions), $locale);
 
         $templates = [];
         foreach ($definitions as $name => $meta) {
@@ -557,10 +566,10 @@ class SettingsController
     /**
      * @return array<string, array{subject:string, body:string, description?:string}>
      */
-    private function templateDefaults(): array
+    private function templateDefaults(?string $locale = null): array
     {
         $defaults = [];
-        foreach (SettingsMailTemplates::all() as $name => $meta) {
+        foreach (SettingsMailTemplates::all($locale) as $name => $meta) {
             $defaults[$name] = [
                 'subject' => $meta['subject'],
                 'body' => \App\Support\EmailLayout::normalizeContent((string) $meta['body']),
@@ -568,6 +577,24 @@ class SettingsController
             ];
         }
         return $defaults;
+    }
+
+    private function resolveTemplateEditorLocale(mixed $requested): string
+    {
+        $available = \App\Support\I18n::getAvailableLocales();
+        $candidate = is_string($requested)
+            ? \App\Support\I18n::normalizeLocaleCode($requested)
+            : '';
+
+        if ($candidate !== '' && isset($available[$candidate])) {
+            return $candidate;
+        }
+
+        // Fall back to the admin's own session locale (validated against the
+        // shipped locales, installation locale as last resort) rather than
+        // forcing the installation locale — otherwise an en_US admin on an
+        // it_IT install would open the editor on the Italian templates.
+        return \App\Support\I18n::resolveUserLocale(\App\Support\I18n::getLocale());
     }
 
     /**
@@ -1283,7 +1310,7 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, app_timezone: string}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string}
      */
     private function resolveLoansSettings(SettingsRepository $repository): array
     {
@@ -1294,6 +1321,10 @@ class SettingsController
             'max_active_loans_per_user' => (int) ($repository->get('loans', 'max_active_loans_per_user', '0') ?? 0),
             'max_loan_duration_days'   => (int) ($repository->get('loans', 'max_loan_duration_days', '90') ?? 90),
             'auto_approve_requests'    => $repository->autoApproveLoanRequests(),
+            // #360: automatic recall (sollecito) schedule for overdue loans.
+            'recall_auto_enabled'      => (string) ($repository->get('loans', 'recall_auto_enabled', '0') ?? '0') === '1',
+            'recall_interval_days'     => (int) ($repository->get('loans', 'recall_interval_days', '7') ?? 7),
+            'recall_max_count'         => (int) ($repository->get('loans', 'recall_max_count', '3') ?? 3),
             // App-wide clock for due dates and automatisms (DateHelper reads it).
             'app_timezone'             => (string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome'),
         ];
@@ -1322,6 +1353,13 @@ class SettingsController
         $autoApprove      = isset($data['auto_approve_requests'])
             && is_scalar($data['auto_approve_requests'])
             && (string) $data['auto_approve_requests'] === '1';
+        // #360: automatic recall schedule. The same clamps are re-applied at
+        // read time by NotificationService::sendLoanRecalls().
+        $recallEnabled    = isset($data['recall_auto_enabled'])
+            && is_scalar($data['recall_auto_enabled'])
+            && (string) $data['recall_auto_enabled'] === '1';
+        $recallInterval   = min(365, max(1, (int) ($data['recall_interval_days'] ?? 7)));   // 1 … 365 days
+        $recallMaxCount   = min(50,  max(1, (int) ($data['recall_max_count'] ?? 3)));       // 1 … 50 recalls
 
         $repository->set('loans', 'loan_duration_days', (string) $loanDurationDays);
         $repository->set('loans', 'pickup_expiry_days', (string) $pickupExpiryDays);
@@ -1329,6 +1367,9 @@ class SettingsController
         $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
         $repository->set('loans', 'max_loan_duration_days', (string) $maxLoanDuration);
         $repository->set('loans', 'auto_approve_requests', $autoApprove ? '1' : '0');
+        $repository->set('loans', 'recall_auto_enabled', $recallEnabled ? '1' : '0');
+        $repository->set('loans', 'recall_interval_days', (string) $recallInterval);
+        $repository->set('loans', 'recall_max_count', (string) $recallMaxCount);
 
         // App timezone: DateHelper computes the loan clock ("today"/"now") from
         // this. Validate against the canonical identifier list — an invalid or

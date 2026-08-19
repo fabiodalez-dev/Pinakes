@@ -869,6 +869,13 @@ $htmlLang = substr($currentLocale, 0, 2);
             box-shadow: none;
         }
 
+        /* The badge styling sets display:flex, so the generic Tailwind
+           .hidden utility alone loses on source order. Keep zero counts out
+           of the layout until JavaScript has a positive count to show. */
+        .badge-notification.hidden {
+            display: none;
+        }
+
         /* Responsive Header */
         .mobile-menu-toggle {
             background: transparent;
@@ -1960,6 +1967,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                 if (c > 0) {
                     badge.textContent = String(c);
                     badge.classList.remove('hidden');
+                } else {
+                    badge.textContent = '';
+                    badge.classList.add('hidden');
                 }
             } catch (_) { }
         })();
