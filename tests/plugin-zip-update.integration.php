@@ -174,28 +174,34 @@ PHP;
 
 function pzu_run_fresh_bootstrap(): void
 {
+    // Route stderr to a file, not a pipe: reading stdout to EOF then stderr can
+    // deadlock if the child fills the ~64 KB stderr pipe buffer first (child
+    // blocks writing stderr ↔ parent blocks reading stdout) — exactly the
+    // large-stack-trace case where the diagnostic matters most.
+    $stderrFile = tempnam(sys_get_temp_dir(), 'pzu_stderr_');
     $process = proc_open(
         [PHP_BINARY, __DIR__ . '/helpers/plugin-zip-update-bootstrap.php'],
         [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
+            2 => ['file', $stderrFile, 'w'],
         ],
         $pipes,
         dirname(__DIR__)
     );
     if (!is_resource($process)) {
+        @unlink($stderrFile);
         throw new RuntimeException('Unable to start fresh plugin bootstrap process.');
     }
     fclose($pipes[0]);
     $stdout = stream_get_contents($pipes[1]);
-    $stderr = stream_get_contents($pipes[2]);
     fclose($pipes[1]);
-    fclose($pipes[2]);
     $exitCode = proc_close($process);
+    $stderr = (string) @file_get_contents($stderrFile);
+    @unlink($stderrFile);
     if ($exitCode !== 0) {
         throw new RuntimeException(
-            'Fresh plugin bootstrap failed: ' . trim((string) $stdout . "\n" . (string) $stderr)
+            'Fresh plugin bootstrap failed: ' . trim((string) $stdout . "\n" . $stderr)
         );
     }
 
@@ -231,7 +237,7 @@ $slug = 'plugin-zip-update-' . $suffix;
 $className = 'PluginZipUpdate' . ucfirst($suffix) . 'Plugin';
 $pluginsDir = dirname(__DIR__) . '/storage/plugins';
 $pluginDir = $pluginsDir . '/' . $slug;
-$pendingMarker = $pluginsDir . '/.pinakes-plugin-update-';
+$pendingMarker = $pluginsDir . '/' . \App\Support\PluginManager::PENDING_UPDATE_PREFIX;
 $tableName = 'plugin_zip_update_' . $suffix;
 $zipV1 = null;
 $zipV2 = null;
@@ -328,12 +334,23 @@ try {
     ) {
         throw new RuntimeException('Failed replacement lifecycle did not restore package, metadata and hooks.');
     }
-    // The request that loaded the broken v3 class must skip the rolled-back
-    // plugin. A second fresh request can now load v2 and keep its hook active.
+    // A later, unrelated request must not disturb the rolled-back plugin. With
+    // the marker already gone (the rollback unlinked it), this fresh process runs
+    // finalizePendingPluginUpdates() as a no-op: v2 stays active, its version is
+    // not bumped again, and its hook keeps serving. (Skipping the broken v3 class
+    // is an intra-process concern of the rollback request above — a separate
+    // process cannot and need not observe it.)
+    $stateBeforeNextRequest = $db->query("SELECT version, is_active FROM plugins WHERE id = {$pluginId}")->fetch_assoc();
     pzu_run_fresh_bootstrap();
+    $stateAfterNextRequest = $db->query("SELECT version, is_active FROM plugins WHERE id = {$pluginId}")->fetch_assoc();
     $activeHooksOnNextRequest = (int) $db->query("SELECT COUNT(*) FROM plugin_hooks WHERE plugin_id = {$pluginId} AND hook_name = 'test.update.v2' AND callback_method = 'handleUpdated' AND is_active = 1")->fetch_row()[0];
-    if ($activeHooksOnNextRequest !== 1) {
-        throw new RuntimeException('Next request did not load the restored plugin class and hook cleanly.');
+    if (!is_array($stateAfterNextRequest)
+        || $stateAfterNextRequest != $stateBeforeNextRequest
+        || $stateAfterNextRequest['version'] !== '1.1.0'
+        || (int) $stateAfterNextRequest['is_active'] !== 1
+        || $activeHooksOnNextRequest !== 1
+    ) {
+        throw new RuntimeException('A later request re-triggered or disturbed the rolled-back plugin.');
     }
     if (is_file($pendingMarker) || (glob($pluginsDir . '/.' . $slug . '.backup-*') ?: []) !== []) {
         throw new RuntimeException('Lifecycle rollback left update recovery files behind.');
@@ -347,7 +364,7 @@ try {
     $db->query("DROP TABLE IF EXISTS `{$tableName}`");
     pzu_delete_directory($pluginDir);
     if ($pluginId > 0) {
-        @unlink($pluginsDir . '/.pinakes-plugin-update-' . $pluginId . '.json');
+        @unlink($pluginsDir . '/' . \App\Support\PluginManager::PENDING_UPDATE_PREFIX . $pluginId . '.json');
     }
     foreach (glob($pluginsDir . '/.' . $slug . '.backup-*') ?: [] as $backup) {
         pzu_delete_directory($backup);

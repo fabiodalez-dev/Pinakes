@@ -15,7 +15,8 @@ use ZipArchive;
 class PluginManager
 {
     private const MAX_UPLOAD_BYTES = 104857600; // 100 MB
-    private const PENDING_UPDATE_PREFIX = '.pinakes-plugin-update-';
+    /** Filename prefix for deferred plugin-update markers; public so tests reference it instead of duplicating the literal. */
+    public const PENDING_UPDATE_PREFIX = '.pinakes-plugin-update-';
     private mysqli $db;
     private string $pluginsDir;
     private string $uploadsDir;
@@ -23,8 +24,13 @@ class PluginManager
     private ?string $cachedEncryptionKey = null;
     private bool $encryptionKeyResolved = false;
 
-    /** @var array<int,true> Plugins rolled back after their replacement class was loaded. */
-    private array $skipPluginIdsThisRequest = [];
+    /**
+     * @var array<int,true> Plugins rolled back after their replacement class was
+     * loaded. Static so the skip covers the whole PHP request even when a
+     * controller builds a second PluginManager instance: the broken replacement
+     * class stays defined process-wide, so every instance must skip it.
+     */
+    private static array $skipPluginIdsThisRequest = [];
 
     /**
      * Per-process cache for {@see isActive()} lookups.
@@ -181,7 +187,7 @@ class PluginManager
             $stmt->close();
 
             if ($row) {
-                if (isset($this->skipPluginIdsThisRequest[(int) $row['id']])) {
+                if (isset(self::$skipPluginIdsThisRequest[(int) $row['id']])) {
                     continue;
                 }
                 // Manifest compatibility metadata is operational, not merely
@@ -2017,7 +2023,7 @@ class PluginManager
         $instances = [];
         foreach ($activePlugins as $plugin) {
             $pluginId = (int) $plugin['id'];
-            if (isset($this->skipPluginIdsThisRequest[$pluginId])) {
+            if (isset(self::$skipPluginIdsThisRequest[$pluginId])) {
                 // The failed replacement class remains defined until this PHP
                 // request ends. The old files are already restored and will be
                 // loaded normally by the next request.
@@ -2078,9 +2084,23 @@ class PluginManager
             $state = null;
             $handle = @fopen($markerPath, 'r+b');
             if ($handle === false) {
+                // Retry next request rather than retiring the marker: retiring on
+                // a transient open failure would silently drop the deferred
+                // onActivate (schema migration) this whole mechanism exists to
+                // run. Log so a genuinely permanent failure is diagnosable, not
+                // silent.
+                SecureLogger::warning('[PluginManager] Could not open pending plugin update marker; will retry next request', [
+                    'path' => $markerPath,
+                ]);
                 continue;
             }
             if (!flock($handle, LOCK_EX)) {
+                // LOCK_EX blocks on contention, so a false return is a real lock
+                // error, not another request finalizing. Same rationale as above:
+                // retry (don't drop the deferred lifecycle), but make it loud.
+                SecureLogger::warning('[PluginManager] Could not lock pending plugin update marker; will retry next request', [
+                    'path' => $markerPath,
+                ]);
                 fclose($handle);
                 continue;
             }
@@ -2228,7 +2248,7 @@ class PluginManager
                     try {
                         $this->applyPluginMetadataSnapshot($pluginId, $oldPlugin);
                         $this->restorePluginHooks($pluginId, $oldHooks);
-                        $this->skipPluginIdsThisRequest[$pluginId] = true;
+                        self::$skipPluginIdsThisRequest[$pluginId] = true;
                         $restored = true;
                     } catch (\Throwable $rollbackError) {
                         SecureLogger::error('[PluginManager] Pending plugin DB rollback failed', [
@@ -2263,52 +2283,76 @@ class PluginManager
     /** @param list<array<string,mixed>> $hooks */
     private function restorePluginHooks(int $pluginId, array $hooks): void
     {
-        $delete = $this->db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ?');
-        if ($delete === false) {
-            throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
-        }
-        $delete->bind_param('i', $pluginId);
-        if (!$delete->execute()) {
-            $delete->close();
-            throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
-        }
-        $delete->close();
-
-        if ($hooks === []) {
-            return;
-        }
-        $insert = $this->db->prepare(
-            'INSERT INTO plugin_hooks '
-            . '(plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at) '
-            . 'VALUES (?, ?, ?, ?, ?, ?, ?)'
-        );
-        if ($insert === false) {
-            throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
-        }
-
-        foreach ($hooks as $hook) {
-            $hookName = (string) ($hook['hook_name'] ?? '');
-            $callbackClass = (string) ($hook['callback_class'] ?? '');
-            $callbackMethod = (string) ($hook['callback_method'] ?? '');
-            $priority = (int) ($hook['priority'] ?? 10);
-            $isActive = (int) ($hook['is_active'] ?? 1);
-            $createdAt = (string) ($hook['created_at'] ?? date('Y-m-d H:i:s'));
-            $insert->bind_param(
-                'isssiis',
-                $pluginId,
-                $hookName,
-                $callbackClass,
-                $callbackMethod,
-                $priority,
-                $isActive,
-                $createdAt
-            );
-            if (!$insert->execute()) {
-                $insert->close();
-                throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
+        // DELETE + N INSERTs must be atomic: a mid-loop INSERT failure must not
+        // leave plugin_hooks with an arbitrary subset of the original rows. Only
+        // open a transaction when one is not already active (autocommit still
+        // on) — nesting begin_transaction() would implicitly commit the outer.
+        $ownTransaction = false;
+        $autocommitResult = $this->db->query('SELECT @@autocommit');
+        if ($autocommitResult instanceof \mysqli_result) {
+            $autocommitRow = $autocommitResult->fetch_row();
+            $autocommitResult->free();
+            if ($autocommitRow !== null && (int) $autocommitRow[0] === 1) {
+                $ownTransaction = $this->db->begin_transaction();
             }
         }
-        $insert->close();
+
+        try {
+            $delete = $this->db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ?');
+            if ($delete === false) {
+                throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
+            }
+            $delete->bind_param('i', $pluginId);
+            if (!$delete->execute()) {
+                $delete->close();
+                throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
+            }
+            $delete->close();
+
+            if ($hooks !== []) {
+                $insert = $this->db->prepare(
+                    'INSERT INTO plugin_hooks '
+                    . '(plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at) '
+                    . 'VALUES (?, ?, ?, ?, ?, ?, ?)'
+                );
+                if ($insert === false) {
+                    throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
+                }
+
+                foreach ($hooks as $hook) {
+                    $hookName = (string) ($hook['hook_name'] ?? '');
+                    $callbackClass = (string) ($hook['callback_class'] ?? '');
+                    $callbackMethod = (string) ($hook['callback_method'] ?? '');
+                    $priority = (int) ($hook['priority'] ?? 10);
+                    $isActive = (int) ($hook['is_active'] ?? 1);
+                    $createdAt = (string) ($hook['created_at'] ?? date('Y-m-d H:i:s'));
+                    $insert->bind_param(
+                        'isssiis',
+                        $pluginId,
+                        $hookName,
+                        $callbackClass,
+                        $callbackMethod,
+                        $priority,
+                        $isActive,
+                        $createdAt
+                    );
+                    if (!$insert->execute()) {
+                        $insert->close();
+                        throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
+                    }
+                }
+                $insert->close();
+            }
+
+            if ($ownTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownTransaction) {
+                $this->db->rollback();
+            }
+            throw $e;
+        }
     }
 
     /**

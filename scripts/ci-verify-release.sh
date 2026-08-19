@@ -83,7 +83,13 @@ if find "$package_dir" -type f \( -name '*.pem' -o -name '*.key' -o -name 'id_rs
   exit 1
 fi
 [ -f "$package_dir/storage/sessions/.gitkeep" ] || { echo "release missing storage/sessions/.gitkeep" >&2; exit 1; }
-if find "$package_dir/storage/sessions" -mindepth 1 ! -name '.gitkeep' -print -quit 2>/dev/null | grep -q .; then
+# Fail closed: a find error must never be read as "no session data" and let an
+# unverified archive pass. Capture the scan so a non-zero find status aborts.
+if ! session_scan="$(find "$package_dir/storage/sessions" -mindepth 1 ! -name '.gitkeep' -print -quit 2>/dev/null)"; then
+  echo "could not scan storage/sessions for leaked session data" >&2
+  exit 1
+fi
+if [ -n "$session_scan" ]; then
   echo "release contains runtime session data" >&2
   exit 1
 fi

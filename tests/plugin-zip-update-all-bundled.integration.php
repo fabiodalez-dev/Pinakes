@@ -205,7 +205,7 @@ foreach ($pluginDirs as $pluginDir) {
         foreach (glob($pluginsDir . '/.' . $slug . '.staging-*') ?: [] as $stray) {
             pzua_rmdir($stray);
         }
-        @unlink($pluginsDir . '/.pinakes-plugin-update-' . $pluginId . '.json');
+        @unlink($pluginsDir . '/' . \App\Support\PluginManager::PENDING_UPDATE_PREFIX . $pluginId . '.json');
     }
 }
 

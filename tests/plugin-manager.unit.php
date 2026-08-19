@@ -54,7 +54,7 @@ $check(
     'fresh bootstrap runs the replacement lifecycle (onActivate inside finalizePendingPluginUpdate)'
 );
 $check($source !== false && str_contains($source, '$this->restorePluginHooks($pluginId, $oldHooks);'), 'failed replacement lifecycle restores prior hook rows');
-$check($source !== false && str_contains($source, '$this->skipPluginIdsThisRequest[$pluginId] = true;'), 'rolled-back replacement class is skipped for the rest of its PHP request');
+$check($source !== false && str_contains($source, 'self::$skipPluginIdsThisRequest[$pluginId] = true;'), 'rolled-back replacement class is skipped for the rest of its PHP request');
 $finalizeAt = $source !== false ? strpos($source, '$this->finalizePendingPluginUpdates();') : false;
 $maintenanceAt = $source !== false ? strpos($source, '$maintenanceKey =') : false;
 $check(
