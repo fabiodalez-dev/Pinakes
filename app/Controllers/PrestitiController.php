@@ -2215,7 +2215,18 @@ class PrestitiController
 
     /**
      * A bulk action is synchronous, but it must not monopolize the PHP worker.
-     * One SMTP attempt is still bounded separately by EmailService's timeout.
+     * This budget is checked before each send, so once the elapsed time crosses
+     * it the loop stops starting new sends and reports the remainder as skipped;
+     * combined with the single bounded attempt per recipient (sendManualRecall
+     * with retries=0), it caps the aggregate work.
+     *
+     * Residual, transport-level: under the SMTP driver PHPMailer's own Timeout
+     * bounds a single send; under the 'mail' driver PHP's mail() hands off to
+     * the local MTA and cannot be timed out from PHP — a misconfigured/hung
+     * local MTA can therefore block one send past this budget. That is the same
+     * exposure every synchronous email in the app has, not specific to bulk
+     * recall; the only full fix is moving sends to an async queue, which is out
+     * of scope here.
      */
     private const BULK_RECALL_TIME_BUDGET_SECONDS = 15.0;
 

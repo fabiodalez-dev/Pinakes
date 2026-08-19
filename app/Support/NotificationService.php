@@ -154,12 +154,13 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'data_registrazione' => $this->formatEmailDate($user['created_at'], true),
                 'admin_users_url' => absoluteUrl('/admin/users')
             ];
 
-            // Send to admins
-            return $this->sendToAdmins('admin_new_registration', $variables);
+            // Send to admins — data_registrazione formatted per admin locale.
+            return $this->sendToAdmins('admin_new_registration', $variables, [
+                'data_registrazione' => [$user['created_at'], true],
+            ]);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to notify new user registration: " . $e->getMessage());
@@ -416,14 +417,15 @@ class NotificationService {
                 'libro_titolo' => $loan['libro_titolo'],
                 'utente_nome' => $loan['utente_nome'],
                 'utente_email' => $loan['utente_email'],
-                'data_inizio' => $this->formatEmailDate($loan['data_prestito']),
-                'data_fine' => $this->formatEmailDate($loan['data_scadenza']),
-                'data_richiesta' => $this->formatEmailDate($loan['created_at'], true),
                 'approve_url' => absoluteUrl('/admin/loans/pending')
             ];
 
-            // Send email to admins
-            $emailSent = $this->sendToAdmins('loan_request_notification', $variables);
+            // Send email to admins — dates formatted per admin locale.
+            $emailSent = $this->sendToAdmins('loan_request_notification', $variables, [
+                'data_inizio' => [$loan['data_prestito'], false],
+                'data_fine' => [$loan['data_scadenza'], false],
+                'data_richiesta' => [$loan['created_at'], true],
+            ]);
 
             // Create in-app notification (uses session locale)
             $notificationTitle = __('Nuova richiesta di prestito');
@@ -966,15 +968,17 @@ class NotificationService {
                 'libro_titolo' => $loan['libro_titolo'],
                 'utente_nome' => $loan['utente_nome'],
                 'utente_email' => $loan['utente_email'],
-                'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
-                'data_prestito' => $this->formatEmailDate($loan['data_prestito']),
             ];
 
             // Usa sendToAdmins (template dal DB email_templates con fallback) come tutti
             // gli altri invii: così la personalizzazione admin del template viene
             // rispettata, a differenza del precedente SettingsMailTemplates::get() che
-            // leggeva solo il PHP hardcoded (GAP-4).
-            $this->sendToAdmins('loan_overdue_admin', $variables);
+            // leggeva solo il PHP hardcoded (GAP-4). Le date sono formattate per la
+            // lingua di ogni admin.
+            $this->sendToAdmins('loan_overdue_admin', $variables, [
+                'data_scadenza' => [$loan['data_scadenza'], false],
+                'data_prestito' => [$loan['data_prestito'], false],
+            ]);
 
         } catch (\Throwable $e) {
             SecureLogger::error('Failed to notify admins about overdue loan: ' . $e->getMessage());
@@ -1274,7 +1278,12 @@ class NotificationService {
     /**
      * Invia template agli admin
      */
-    private function sendToAdmins(string $templateName, array $variables): bool {
+    /**
+     * @param array<string,mixed>            $variables     non-date template variables, shared by every admin
+     * @param array<string,array{0:string,1?:bool}> $dateVariables raw dates keyed by template variable —
+     *        [rawDate, includeTime] — formatted per recipient inside the loop
+     */
+    private function sendToAdmins(string $templateName, array $variables, array $dateVariables = []): bool {
         try {
             $result = $this->db->query("SELECT email FROM utenti WHERE tipo_utente IN ('admin', 'staff') AND stato = 'attivo'");
 
@@ -1285,14 +1294,17 @@ class NotificationService {
 
             $sentCount = 0;
             while ($row = $result->fetch_assoc()) {
-                // #360: each admin gets the template in their own language
-                // (utenti.locale, installation locale as fallback). Known
-                // limitation: date VARIABLES arrive pre-formatted by the
-                // caller in the installation locale (one $variables array for
-                // the whole fan-out), so a differently-localized admin sees
-                // installation-format dates inside their localized template.
+                // #360: each admin gets the template AND its date variables in
+                // their own language (utenti.locale, installation locale as
+                // fallback). Dates arrive raw in $dateVariables and are
+                // formatted per recipient here, so a differently-localized
+                // admin no longer sees installation-format dates.
                 $locale = $this->resolveRecipientLocale((string) $row['email']);
-                if ($this->emailService->sendTemplate($row['email'], $templateName, $variables, $locale)) {
+                $recipientVars = $variables;
+                foreach ($dateVariables as $name => $spec) {
+                    $recipientVars[$name] = $this->formatEmailDate((string) $spec[0], (bool) ($spec[1] ?? false), $locale);
+                }
+                if ($this->emailService->sendTemplate($row['email'], $templateName, $recipientVars, $locale)) {
                     $sentCount++;
                 }
             }
@@ -2116,12 +2128,13 @@ class NotificationService {
                 'stelle' => $review['stelle'],
                 'titolo_recensione' => $review['titolo'] ?? '',
                 'descrizione_recensione' => $review['descrizione'] ?? '',
-                'data_recensione' => $this->formatEmailDate($review['created_at'], true),
                 'link_approvazione' => absoluteUrl('/admin/reviews')
             ];
 
-            // Send email to admins
-            $emailSent = $this->sendToAdmins('admin_new_review', $variables);
+            // Send email to admins — data_recensione formatted per admin locale.
+            $emailSent = $this->sendToAdmins('admin_new_review', $variables, [
+                'data_recensione' => [$review['created_at'], true],
+            ]);
 
             // Create in-app notification
             $stelle_text = str_repeat('⭐', (int)$review['stelle']);

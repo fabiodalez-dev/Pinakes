@@ -6867,10 +6867,10 @@
   "Lingua dei template": "Template language",
   "Lingua preferita": "Preferred language",
   "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Used for the interface and for the emails the library sends you.",
-  "Un sollecito è già stato inviato oggi per questo prestito.": "A recall has already been sent today for this loan.",
+  "Un sollecito è già stato inviato oggi per questo prestito.": "A reminder has already been sent today for this loan.",
   "Funzione non disponibile in modalità catalogo.": "Feature not available in catalogue mode.",
-  "Solleciti Inviati:": "Recalls Sent:",
-  "Ultimo Sollecito:": "Last Recall:",
-  "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s selected loan will receive the recall (only if overdue).",
-  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s selected loans will receive the recall (only the overdue ones)."
+  "Solleciti Inviati:": "Reminders Sent:",
+  "Ultimo Sollecito:": "Last Reminder:",
+  "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s selected loan will receive the reminder (only if overdue).",
+  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s selected loans will receive the reminder (only the overdue ones)."
 }
