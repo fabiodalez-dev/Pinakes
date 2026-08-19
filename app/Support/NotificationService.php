@@ -703,13 +703,15 @@ class NotificationService {
             // "Oggi" nel timezone applicativo come parametro bound (M9).
             $today = DateHelper::today();
 
+            // CI-SOFT-DELETE-EXEMPT: an active overdue loan remains physically
+            // owed to the library even when its catalog record is archived.
             $stmt = $this->db->prepare("
                 SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
                        l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(?, p.data_scadenza) as giorni_ritardo
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato IN ('in_corso', 'in_ritardo')
                   AND p.attivo = 1
@@ -751,11 +753,13 @@ class NotificationService {
      *
      * @return array{success: bool, message: string}
      */
-    public function sendManualRecall(int $loanId): array {
+    public function sendManualRecall(int $loanId, int $maxRetries = 3, int $retryDelayMs = 1000): array {
         try {
             $this->addNotificationColumns();
 
             $today = DateHelper::today();
+            // CI-SOFT-DELETE-EXEMPT: staff must be able to recall an outstanding
+            // physical loan after the related catalog record is archived.
             $stmt = $this->db->prepare("
                 SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
                        p.stato, p.attivo,
@@ -763,7 +767,7 @@ class NotificationService {
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(?, p.data_scadenza) as giorni_ritardo
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -794,7 +798,7 @@ class NotificationService {
                 return ['success' => false, 'message' => __('Un sollecito è già stato inviato oggi per questo prestito.')];
             }
 
-            if ($this->claimAndSendRecall($loan)) {
+            if ($this->claimAndSendRecall($loan, $maxRetries, $retryDelayMs)) {
                 return ['success' => true, 'message' => __('Sollecito inviato con successo.')];
             }
             return ['success' => false, 'message' => __('Invio del sollecito non riuscito. Controlla la configurazione email e riprova.')];
@@ -812,7 +816,7 @@ class NotificationService {
      * the recall email actually went out; on failure the claim is reverted so a
      * later run can retry.
      */
-    private function claimAndSendRecall(array $loan): bool {
+    private function claimAndSendRecall(array $loan, int $maxRetries = 3, int $retryDelayMs = 1000): bool {
         // ATOMIC: bump the counter BEFORE sending. Re-assert data_scadenza and
         // recall_count so a concurrent renew()/recall claims at most once
         // (same #252/M3 rationale as the overdue sender).
@@ -837,7 +841,13 @@ class NotificationService {
             'numero_sollecito' => $recallNumber,
         ];
 
-        $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_recall_notification', $variables);
+        $emailSent = $this->sendWithRetry(
+            $loan['utente_email'],
+            'loan_recall_notification',
+            $variables,
+            max(1, $maxRetries),
+            max(0, $retryDelayMs)
+        );
 
         if ($emailSent) {
             $this->createNotification(
@@ -886,11 +896,18 @@ class NotificationService {
                 return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
             }
 
-            $pdfContent = (new LoanPdfGenerator($this->db))->generate($loanId);
-
             // #360: cover message in the recipient's language, like every other
-            // user-facing email.
+            // user-facing email. The PDF generator uses the process-wide I18n
+            // locale too, so switch only for generation and always restore the
+            // staff request locale afterwards.
             $recipientLocale = $this->resolveRecipientLocale($email);
+            $requestLocale = I18n::getLocale();
+            try {
+                I18n::setLocale($recipientLocale);
+                $pdfContent = (new LoanPdfGenerator($this->db))->generate($loanId);
+            } finally {
+                I18n::setLocale($requestLocale);
+            }
 
             $variables = [
                 'prestito_id' => $loanId,
@@ -901,7 +918,7 @@ class NotificationService {
             ];
             $attachment = [
                 'content' => $pdfContent,
-                'filename' => 'prestito_' . $loanId . '_' . date('Ymd') . '.pdf',
+                'filename' => 'prestito_' . $loanId . '_' . str_replace('-', '', DateHelper::today()) . '.pdf',
                 'type' => 'application/pdf',
             ];
 

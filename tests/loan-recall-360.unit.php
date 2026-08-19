@@ -177,6 +177,16 @@ $check(
     'sendWithRetry renders templates in the recipient locale'
 );
 
+$settingsControllerSrc = file_get_contents(__DIR__ . '/../app/Controllers/SettingsController.php');
+$settingsViewSrc = file_get_contents(__DIR__ . '/../app/Views/settings/index.php');
+$check(
+    str_contains((string) $settingsControllerSrc, 'resolveTemplateEditorLocale')
+        && str_contains((string) $settingsControllerSrc, 'saveEmailTemplate($template, $subject, $body, $localizedDefinition')
+        && str_contains((string) $settingsViewSrc, 'name="template_locale"')
+        && str_contains((string) $settingsViewSrc, 'Lingua dei template'),
+    'administrators can edit and persist an independent template for each recipient locale'
+);
+
 // The registrant can pick their language on the form; the controller
 // validates it against the shipped locales (installation locale fallback).
 $registerView = file_get_contents(__DIR__ . '/../app/Views/auth/register.php');
@@ -200,6 +210,46 @@ foreach (['sendRecall', 'bulkRecall', 'emailPdf'] as $method) {
         "PrestitiController::{$method} exists"
     );
 }
+
+$controllerSource = file_get_contents(__DIR__ . '/../app/Controllers/PrestitiController.php');
+$check(
+    substr_count((string) $controllerSource, 'recall_count = 0') >= 4
+        && substr_count((string) $controllerSource, 'last_recall_at = NULL') >= 4
+        && str_contains((string) $controllerSource, "elseif (\$newUserId !== (int) \$locked['utente_id'])"),
+    'due-date changes, renewals, bulk extensions, and user reassignment reset the recall cycle'
+);
+$check(
+    str_contains((string) $controllerSource, 'BULK_RECALL_TIME_BUDGET_SECONDS')
+        && str_contains((string) $controllerSource, 'sendManualRecall($loanId, 1, 0)'),
+    'bulk recall has a server-side time budget and uses one SMTP attempt per recipient'
+);
+
+$loansViewSource = file_get_contents(__DIR__ . '/../app/Views/prestiti/index.php');
+$check(
+    str_contains((string) $loansViewSource, 'selected.size > 50')
+        && str_contains((string) $loansViewSource, 'È possibile inviare al massimo 50 solleciti alla volta.'),
+    'bulk recall rejects oversized selections before submitting the form'
+);
+
+$emailServiceSrc = file_get_contents(__DIR__ . '/../app/Support/EmailService.php');
+$check(
+    str_contains((string) $emailServiceSrc, 'mail.smtp.timeout')
+        && str_contains((string) $emailServiceSrc, '->Timeout = $smtpTimeout'),
+    'SMTP connect and command time are explicitly bounded'
+);
+
+$receiptStart = strpos((string) $runSource, 'public function sendLoanReceiptEmail');
+$receiptEnd = strpos((string) $runSource, 'public function notifyAdminsOverdue', $receiptStart === false ? 0 : $receiptStart);
+$receiptSource = ($receiptStart !== false && $receiptEnd !== false)
+    ? substr((string) $runSource, $receiptStart, $receiptEnd - $receiptStart)
+    : '';
+$check(
+    str_contains($receiptSource, 'I18n::setLocale($recipientLocale)')
+        && str_contains($receiptSource, 'new LoanPdfGenerator')
+        && str_contains($receiptSource, 'finally')
+        && str_contains($receiptSource, 'I18n::setLocale($requestLocale)'),
+    'receipt PDFs are generated in the recipient locale and always restore the request locale'
+);
 
 $routes = file_get_contents(__DIR__ . '/../app/Routes/web.php');
 $check(

@@ -357,12 +357,10 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     // init() registers it, but setContent() needs the content parser that only
     // exists once initialization completes — calling earlier throws
     // "Cannot read properties of undefined (reading 'parse')" (flaked on CI).
-    // Wait for init to settle; when no editor ever attaches the predicate is
-    // immediately true and the textarea fallback below handles it.
-    await page.waitForFunction(() => {
-      const editor = window.tinymce?.get('descrizione');
-      return !editor || editor.initialized;
-    });
+    // Wait for the editor to exist AND finish initialization. Treating a
+    // missing instance as ready made this predicate succeed before TinyMCE had
+    // even registered it, leaving the later setContent() call racy on CI.
+    await page.waitForFunction(() => window.tinymce?.get('descrizione')?.initialized === true);
     await page.evaluate((value) => {
       const textarea = document.querySelector('textarea[name="descrizione"]');
       const editor = window.tinymce?.get('descrizione');

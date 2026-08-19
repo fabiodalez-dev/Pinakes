@@ -481,6 +481,10 @@ test.describe.serial('G2 — Restore', () => {
   });
 
   test('11. Success popup confirm button reads "Ricarica la pagina" (checked before click fires reload)', async () => {
+    // A full restore can exceed the generic Playwright timeout on the shared CI
+    // runner. Aborting the assertion while PHP still owns the update flock made
+    // every later restore/import/scanner test fail in a cascade of 409s/503s.
+    test.setTimeout(150000);
     await gotoUpdates(page);
     // Restore a known-good backup we just created (avoids ambiguity about which row).
     const name = await createBackup(page, 'full');
@@ -491,14 +495,20 @@ test.describe.serial('G2 — Restore', () => {
     // page.evaluate await a click we haven't made yet (deadlock). Fire-and-forget.
     await page.evaluate((n) => { window.restoreBackup(n); }, name);
     await page.waitForSelector('.swal2-popup', { state: 'visible', timeout: 10000 });
+    const restoreResponse = page.waitForResponse(
+      response => response.request().method() === 'POST'
+        && new URL(response.url()).pathname.endsWith('/admin/updates/backup/restore'),
+      { timeout: 120000 },
+    );
     await page.locator('.swal2-confirm').click();
+    expect((await restoreResponse).status()).toBe(200);
 
     // runRestore shows a progress dialog (default hidden "OK" button) then, on
     // success, the dialog whose confirm button reads "Ricarica la pagina".
     // toHaveText retries across that transition instead of reading too early.
     // We deliberately do NOT click it — clicking fires window.location.reload(),
     // which races the test teardown; asserting the label already proves the point.
-    await expect(page.locator('.swal2-confirm')).toHaveText('Ricarica la pagina', { timeout: 45000 });
+    await expect(page.locator('.swal2-confirm')).toHaveText('Ricarica la pagina', { timeout: 10000 });
   });
 
   test('12. Non-JSON / gateway-error response shows advisory warning popup', async () => {

@@ -734,6 +734,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const recallBtn = document.getElementById('loans-bulk-recall');
         if (recallBtn) recallBtn.addEventListener('click', function() {
             if (selected.size === 0) return; // bar is hidden without a selection
+            if (selected.size > 50) {
+                const message = t('È possibile inviare al massimo 50 solleciti alla volta.');
+                if (window.Swal) {
+                    Swal.fire({ icon: 'error', title: t('Errore'), text: message });
+                } else {
+                    window.alert(message);
+                }
+                return;
+            }
             const submit = function() {
                 const wrap = document.getElementById('loans-bulk-recall-form-ids');
                 wrap.innerHTML = '';

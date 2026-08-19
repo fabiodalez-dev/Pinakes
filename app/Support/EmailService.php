@@ -95,6 +95,11 @@ class EmailService {
                 }
                 $this->mailer->SMTPSecure = $settings['smtp_security'];
                 $this->mailer->Port = (int)$settings['smtp_port'];
+                // PHPMailer otherwise inherits a very generous socket timeout.
+                // Recall batches run in an HTTP request, so a dead SMTP peer
+                // must release the worker within a predictable bound.
+                $smtpTimeout = min(10, max(1, (int) ConfigStore::get('mail.smtp.timeout', 10)));
+                $this->mailer->Timeout = $smtpTimeout;
             } else {
                 $this->mailer->isMail();
             }

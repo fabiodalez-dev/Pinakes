@@ -22,10 +22,13 @@ class SettingsController
     {
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
-        // Semina i template mancanti con il locale di installazione (M8):
-        // l'invio li risolve per (name, locale_installazione), quindi seminare
-        // sempre it_IT li renderebbe invisibili su installazioni non italiane.
-        $repository->ensureEmailTemplates($this->templateDefaults(), \App\Support\I18n::getInstallationLocale());
+        $queryParams = $request->getQueryParams();
+        $templateLocales = \App\Support\I18n::getAvailableLocales();
+        $templateLocale = $this->resolveTemplateEditorLocale($queryParams['template_locale'] ?? null);
+        // Seed the locale currently edited. Other recipient locales continue to
+        // use their shipped translation until an administrator opens/customizes
+        // them, at which point they get an independent stored row.
+        $repository->ensureEmailTemplates($this->templateDefaults($templateLocale), $templateLocale);
         // #299: repair any stored template whose links were double-prefixed with
         // the admin base by the old WYSIWYG behaviour. Idempotent, cheap (LIKE
         // filter), runs before the templates are read for display below.
@@ -33,7 +36,7 @@ class SettingsController
 
         $appSettings = $this->resolveAppSettings($repository);
         $emailSettings = $this->resolveEmailSettings($repository);
-        $templates = $this->resolveEmailTemplates($repository);
+        $templates = $this->resolveEmailTemplates($repository, $templateLocale);
         $contactSettings = $this->resolveContactSettings($repository);
         $privacySettings = $this->resolvePrivacySettings($repository);
         $labelSettings = $this->resolveLabelSettings($repository);
@@ -47,7 +50,6 @@ class SettingsController
         // re-enable them.
         $registrationCustomFields = \App\Support\RegistrationFields::definitions($db, false);
 
-        $queryParams = $request->getQueryParams();
         $activeTab = $queryParams['tab'] ?? 'general';
 
         // Security scan F11 (CWE-522): the settings page is reachable by 'staff'
@@ -61,6 +63,8 @@ class SettingsController
             'appSettings',
             'emailSettings',
             'templates',
+            'templateLocale',
+            'templateLocales',
             'contactSettings',
             'privacySettings',
             'labelSettings',
@@ -448,20 +452,26 @@ class SettingsController
 
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
+        $templateLocale = $this->resolveTemplateEditorLocale($data['template_locale'] ?? null);
+        $localizedDefinition = SettingsMailTemplates::get($template, $templateLocale) ?? $definition;
 
-        $subject = trim((string) ($data['subject'] ?? $definition['subject']));
+        $subject = trim((string) ($data['subject'] ?? $localizedDefinition['subject']));
         if ($subject === '') {
-            $subject = $definition['subject'];
+            $subject = $localizedDefinition['subject'];
         }
-        $body = \App\Support\EmailLayout::normalizeContent((string) ($data['body'] ?? $definition['body']));
+        $body = \App\Support\EmailLayout::normalizeContent((string) ($data['body'] ?? $localizedDefinition['body']));
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
-        // Salva sulla riga del locale di installazione: è quella letta dall'invio (M8).
-        $repository->saveEmailTemplate($template, $subject, $body, $definition['description'] ?? null, true, \App\Support\I18n::getInstallationLocale());
+        // Each recipient locale owns an independently editable row. This keeps
+        // localized sends from bypassing the administrator's customization.
+        $repository->saveEmailTemplate($template, $subject, $body, $localizedDefinition['description'] ?? null, true, $templateLocale);
 
         $_SESSION['success_message'] = 'Template email "' . $definition['label'] . '" aggiornato correttamente.';
-        return $this->redirect($response, '/admin/settings?tab=templates&template=' . urlencode($template));
+        return $this->redirect(
+            $response,
+            '/admin/settings?tab=templates&template_locale=' . rawurlencode($templateLocale) . '&template=' . rawurlencode($template)
+        );
     }
 
     private function resolveAppSettings(SettingsRepository $repository): array
@@ -530,11 +540,10 @@ class SettingsController
         return $settings;
     }
 
-    private function resolveEmailTemplates(SettingsRepository $repository): array
+    private function resolveEmailTemplates(SettingsRepository $repository, string $locale): array
     {
-        $definitions = SettingsMailTemplates::all();
-        // L'editor mostra le righe del locale di installazione, le stesse usate dall'invio (M8).
-        $records = $repository->getEmailTemplates(array_keys($definitions), \App\Support\I18n::getInstallationLocale());
+        $definitions = SettingsMailTemplates::all($locale);
+        $records = $repository->getEmailTemplates(array_keys($definitions), $locale);
 
         $templates = [];
         foreach ($definitions as $name => $meta) {
@@ -557,10 +566,10 @@ class SettingsController
     /**
      * @return array<string, array{subject:string, body:string, description?:string}>
      */
-    private function templateDefaults(): array
+    private function templateDefaults(?string $locale = null): array
     {
         $defaults = [];
-        foreach (SettingsMailTemplates::all() as $name => $meta) {
+        foreach (SettingsMailTemplates::all($locale) as $name => $meta) {
             $defaults[$name] = [
                 'subject' => $meta['subject'],
                 'body' => \App\Support\EmailLayout::normalizeContent((string) $meta['body']),
@@ -568,6 +577,20 @@ class SettingsController
             ];
         }
         return $defaults;
+    }
+
+    private function resolveTemplateEditorLocale(mixed $requested): string
+    {
+        $available = \App\Support\I18n::getAvailableLocales();
+        $candidate = is_string($requested)
+            ? \App\Support\I18n::normalizeLocaleCode($requested)
+            : '';
+
+        if ($candidate !== '' && isset($available[$candidate])) {
+            return $candidate;
+        }
+
+        return \App\Support\I18n::resolveUserLocale(null);
     }
 
     /**
@@ -1283,7 +1306,7 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, app_timezone: string}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string}
      */
     private function resolveLoansSettings(SettingsRepository $repository): array
     {

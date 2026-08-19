@@ -6863,6 +6863,8 @@
   "Solleciti inviati": "Rykkere sendt",
   "Nessun sollecito inviato": "Ingen rykker sendt",
   "Selezione non valida per il sollecito.": "Ugyldigt valg til rykkeren.",
+  "È possibile inviare al massimo 50 solleciti alla volta.": "Du kan højst sende 50 rykkere ad gangen.",
+  "Lingua dei template": "Skabelonsprog",
   "Lingua preferita": "Foretrukket sprog",
   "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Bruges til grænsefladen og til de e-mails, biblioteket sender dig.",
   "Un sollecito è già stato inviato oggi per questo prestito.": "Der er allerede sendt en rykker i dag for dette lån.",

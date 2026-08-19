@@ -113,7 +113,7 @@ require_once __DIR__ . '/../partials/loan-status-badge.php';
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Solleciti Inviati:") ?></span>
-            <span class="text-gray-800"><?= App\Support\HtmlHelper::e($prestito['recall_count'] ?? '0'); ?></span>
+            <span class="text-gray-800"><?= htmlspecialchars((string) ($prestito['recall_count'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?></span>
           </div>
           <?php if (!empty($prestito['last_recall_at'])): ?>
           <div>

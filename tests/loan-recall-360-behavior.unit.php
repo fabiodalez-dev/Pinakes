@@ -319,9 +319,24 @@ $check($r['success'] === false && $recallCountOf($returned)['count'] === 0, 'V4 
 
 // Per-loan daily cooldown: a loan already recalled today is refused, so a
 // staff session (or a repeated bulk submit) can't re-email the same patron.
-$cooled = $makeLoan(daysOverdue: 12, recallCount: 1, lastRecall: date('Y-m-d H:i:s'));
+$cooled = $makeLoan(daysOverdue: 12, recallCount: 1, lastRecall: \App\Support\DateHelper::now());
 $r = $service->sendManualRecall($cooled);
 $check($r['success'] === false && $recallCountOf($cooled)['count'] === 1, 'V5 loan already recalled today → refused by daily cooldown, counter untouched');
+
+// A catalog soft-delete must not erase an outstanding physical obligation.
+// The recall still reaches the claim/send path; SMTP is deliberately down, so
+// updated_at proves the claim+revert occurred while the final state stays clean.
+$archivedBookLoan = $makeLoan(daysOverdue: 12);
+$db->query("UPDATE libri SET deleted_at = '" . $db->real_escape_string(\App\Support\DateHelper::now()) . "' WHERE id = (SELECT libro_id FROM prestiti WHERE id = " . (int) $archivedBookLoan . ")");
+$db->query("UPDATE prestiti SET updated_at = NOW() - INTERVAL 1 HOUR WHERE id = " . (int) $archivedBookLoan);
+$archivedStamp = $updatedAtOf($archivedBookLoan);
+$archivedBefore = $recallCountOf($archivedBookLoan);
+$r = $service->sendManualRecall($archivedBookLoan, 1, 0);
+$archivedAfter = $recallCountOf($archivedBookLoan);
+$check($r['success'] === false
+    && $updatedAtOf($archivedBookLoan) > $archivedStamp
+    && $archivedAfter === $archivedBefore,
+    'V6 soft-deleted book: active overdue loan is recalled and a failed send reverts the claim');
 
 // ── R. Atomic claim is reverted when the send fails ─────────────────────────
 $eligible = $makeLoan(daysOverdue: 12, recallCount: 1);
@@ -356,17 +371,19 @@ $mE = $makeLoan(daysOverdue: 30, recallCount: 3);                               
 $mF = $makeLoan(daysOverdue: 10, overdueSent: 0);                                   // overdue notice never sent
 $mG = $makeLoan(daysOverdue: 10, stato: 'restituito', attivo: 0);                  // not active
 $mH = $makeLoan(daysOverdue: 15, recallCount: 1, lastRecall: \App\Support\DateHelper::now()); // already recalled today
+$mI = $makeLoan(daysOverdue: 8, recallCount: 0);                                    // due, book soft-deleted
+$db->query("UPDATE libri SET deleted_at = '" . $db->real_escape_string(\App\Support\DateHelper::now()) . "' WHERE id = (SELECT libro_id FROM prestiti WHERE id = " . (int) $mI . ")");
 
 $today = \App\Support\DateHelper::today();
 $interval = 7; $max = 3;
 // Scope the check to this matrix's own loan ids so unrelated seeded loans (V2/V3…)
 // don't leak into the result set.
-$matrix = [$mA, $mB, $mC, $mD, $mE, $mF, $mG, $mH];
+$matrix = [$mA, $mB, $mC, $mD, $mE, $mF, $mG, $mH, $mI];
 $placeholders = implode(',', array_fill(0, count($matrix), '?'));
 $stmt = $db->prepare("
     SELECT p.id
     FROM prestiti p
-    JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+    JOIN libri l ON p.libro_id = l.id
     JOIN utenti u ON p.utente_id = u.id
     WHERE p.stato IN ('in_corso', 'in_ritardo')
       AND p.attivo = 1
@@ -389,7 +406,7 @@ while ($row = $res->fetch_assoc()) {
 }
 $stmt->close();
 sort($selected);
-$expected = [$mA, $mD];
+$expected = [$mA, $mD, $mI];
 sort($expected);
 $check($selected === $expected, 'S1 scheduler SELECT returns exactly the interval/cap/last-recall-eligible loans');
 

@@ -6863,6 +6863,8 @@
   "Solleciti inviati": "Rappels envoyés",
   "Nessun sollecito inviato": "Aucun rappel envoyé",
   "Selezione non valida per il sollecito.": "Sélection non valide pour le rappel.",
+  "È possibile inviare al massimo 50 solleciti alla volta.": "Vous pouvez envoyer au maximum 50 rappels à la fois.",
+  "Lingua dei template": "Langue des modèles",
   "Lingua preferita": "Langue préférée",
   "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Utilisée pour l'interface et pour les e-mails que la bibliothèque vous envoie.",
   "Un sollecito è già stato inviato oggi per questo prestito.": "Un rappel a déjà été envoyé aujourd'hui pour ce prêt.",

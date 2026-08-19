@@ -6863,6 +6863,8 @@
   "Solleciti inviati": "Reminders sent",
   "Nessun sollecito inviato": "No reminder sent",
   "Selezione non valida per il sollecito.": "Invalid selection for the reminder.",
+  "È possibile inviare al massimo 50 solleciti alla volta.": "You can send at most 50 reminders at a time.",
+  "Lingua dei template": "Template language",
   "Lingua preferita": "Preferred language",
   "Usata per l'interfaccia e per le email che riceverai dalla biblioteca.": "Used for the interface and for the emails the library sends you.",
   "Un sollecito è già stato inviato oggi per questo prestito.": "A recall has already been sent today for this loan.",

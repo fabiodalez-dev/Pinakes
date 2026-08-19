@@ -1025,12 +1025,24 @@ class PrestitiController
                     "UPDATE prestiti
                         SET stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
                             warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
-                            overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
+                            overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END,
+                            recall_count = 0,
+                            last_recall_at = NULL
                       WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
                 );
                 $recalcStato->bind_param('sssi', $today, $today, $today, $id);
                 $recalcStato->execute();
                 $recalcStato->close();
+            } elseif ($newUserId !== (int) $locked['utente_id']) {
+                // A recall belongs to the recipient who received it. Reassigning
+                // the loan must not carry that recipient's count/cooldown over to
+                // the new user, even when the due date itself is unchanged.
+                $resetRecall = $db->prepare(
+                    'UPDATE prestiti SET recall_count = 0, last_recall_at = NULL WHERE id = ?'
+                );
+                $resetRecall->bind_param('i', $id);
+                $resetRecall->execute();
+                $resetRecall->close();
             }
 
             // Ricalcola la disponibilità (M6c): spostare le date di un 'prenotato'
@@ -1622,7 +1634,9 @@ class PrestitiController
                     SET data_scadenza = ?,
                         stato = CASE WHEN ? < ? THEN 'in_ritardo' ELSE 'in_corso' END,
                         warning_sent = CASE WHEN ? < ? THEN warning_sent ELSE 0 END,
-                        overdue_notification_sent = CASE WHEN ? < ? THEN overdue_notification_sent ELSE 0 END
+                        overdue_notification_sent = CASE WHEN ? < ? THEN overdue_notification_sent ELSE 0 END,
+                        recall_count = 0,
+                        last_recall_at = NULL
                   WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
             );
 
@@ -1941,7 +1955,8 @@ class PrestitiController
             $updateStmt = $db->prepare("
                 UPDATE prestiti
                 SET data_scadenza = ?, renewals = ?, pickup_deadline = NULL,
-                    warning_sent = 0, overdue_notification_sent = 0
+                    warning_sent = 0, overdue_notification_sent = 0,
+                    recall_count = 0, last_recall_at = NULL
                 WHERE id = ?
             ");
             $updateStmt->bind_param("sii", $newDueDate, $newRenewalCount, $id);
@@ -2198,6 +2213,12 @@ class PrestitiController
      */
     private const BULK_RECALL_MAX_LOANS = 50;
 
+    /**
+     * A bulk action is synchronous, but it must not monopolize the PHP worker.
+     * One SMTP attempt is still bounded separately by EmailService's timeout.
+     */
+    private const BULK_RECALL_TIME_BUDGET_SECONDS = 15.0;
+
     public function bulkRecall(Request $request, Response $response, mysqli $db): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
@@ -2219,8 +2240,19 @@ class PrestitiController
         $service = new NotificationService($db);
         $sent = 0;
         $skipped = 0;
-        foreach ($ids as $loanId) {
-            $result = $service->sendManualRecall($loanId);
+        $startedAt = hrtime(true);
+        $total = count($ids);
+        foreach ($ids as $index => $loanId) {
+            $elapsedSeconds = (hrtime(true) - $startedAt) / 1_000_000_000;
+            if ($elapsedSeconds >= self::BULK_RECALL_TIME_BUDGET_SECONDS) {
+                $skipped += $total - $index;
+                break;
+            }
+
+            // The interactive single-loan endpoint keeps its retry policy. In a
+            // bulk HTTP request use one bounded attempt per recipient: repeating
+            // the same SMTP failure up to 50 times would exceed the request SLA.
+            $result = $service->sendManualRecall($loanId, 1, 0);
             if ($result['success']) {
                 $sent++;
             } else {
