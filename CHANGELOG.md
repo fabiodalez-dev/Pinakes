@@ -40,7 +40,11 @@ Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
 - **Plugin ZIP updates (#358)**: uploading a plugin ZIP whose name matches an
   already-installed plugin now updates it in place — its id, settings, data and
   hooks are preserved and its files are swapped atomically — instead of failing
-  on the existing directory. Covered by contract and per-bundled-plugin
+  on the existing directory. Updating an already-active plugin now runs its new
+  lifecycle (`onActivate()`/`ensureSchema()`) on the next request via a
+  pending-update marker, rolling back package, metadata and hooks if the new
+  version fails to activate — so schema changes shipped in an update are applied
+  instead of being silently skipped. Covered by contract and per-bundled-plugin
   integration tests.
 
 ### Internal
@@ -48,6 +52,10 @@ Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
 - CI: the OWASP ZAP baseline no longer fails on the ISBN/EAN-13 PII-disclosure
   false positive, allowlisted narrowly to 13-digit codes on bibliographic pages
   (#359).
+- Release verifiers now require `storage/sessions/.gitkeep` and reject every
+  other entry there (files, symlinks, stray directories), and an unreadable
+  plugin-update marker is retired instead of permanently blocking future
+  updates of that plugin.
 
 ## [0.7.61]
 
