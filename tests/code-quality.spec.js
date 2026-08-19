@@ -209,6 +209,12 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             .not.toMatch(/REMOTE_PLUGIN_COUNT[^\n]*-ge\s+\d+/);
         expect(fs.readFileSync(path.join(ROOT, 'bin', 'build-release.sh'), 'utf-8'))
             .toContain('BundledPlugins::LIST declares ${#bundled_plugins[@]}');
+        const releaseFilter = fs.readFileSync(path.join(ROOT, '.rsync-filter'), 'utf-8');
+        const archiveVerifier = fs.readFileSync(path.join(ROOT, 'scripts', 'ci-verify-release.sh'), 'utf-8');
+        expect(releaseFilter, 'runtime PHP sessions must never enter a release package')
+            .toContain('- /storage/sessions/*');
+        expect(archiveVerifier, 'archive verification must reject leaked runtime sessions')
+            .toContain('release contains runtime session data');
     });
 
     // ── 3. Plugin ensureSchema() called from onActivate() ─────────────────────

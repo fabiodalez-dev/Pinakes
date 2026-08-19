@@ -34,6 +34,8 @@
 + storage/logs/.gitkeep
 + storage/cache/
 + storage/cache/.gitkeep
++ storage/sessions/
++ storage/sessions/.gitkeep
 + storage/backups/
 + storage/backups/.gitkeep
 + storage/backups/.htaccess
@@ -254,6 +256,7 @@
 # Storage user data (structure already included above)
 - /storage/logs/*
 - /storage/cache/*
+- /storage/sessions/*
 - /storage/backups/*
 - /storage/tmp/*
 - /storage/calendar/*

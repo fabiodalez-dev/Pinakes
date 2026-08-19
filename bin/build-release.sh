@@ -243,6 +243,21 @@ verify_package_contents() {
         has_errors=true
     fi
 
+    # PHP session files may contain authenticated user data and CSRF tokens.
+    # Ship the writable directory as exactly {.gitkeep}: require the placeholder
+    # and reject every other entry — session payloads, symlinks, and stray dirs.
+    if [ ! -f "$package_dir/storage/sessions/.gitkeep" ]; then
+        log_error "Package missing storage/sessions/.gitkeep"
+        has_errors=true
+    fi
+    local unexpected_session
+    unexpected_session=$(find "$package_dir/storage/sessions" -mindepth 1 \
+        ! -name '.gitkeep' -print -quit 2>/dev/null || true)
+    if [ -n "$unexpected_session" ]; then
+        log_error "Package contains unexpected storage/sessions entry: ${unexpected_session#"$package_dir/"}"
+        has_errors=true
+    fi
+
     # Files that MUST be in the package
     local required_files=(
         "public/index.php"
