@@ -420,6 +420,7 @@ tests/*
 !tests/*.spec.js
 !tests/*.config.js
 !tests/*.unit.php
+!tests/*.integration.php
 !tests/*.test.sh
 !tests/ci-playwright-policy.json
 !tests/seeds/

@@ -738,7 +738,7 @@ class PluginManager
         $pluginJsonContent = $zip->getFromName($pluginJsonPath);
         $pluginMeta = json_decode($pluginJsonContent, true);
 
-        if (!$pluginMeta) {
+        if (!is_array($pluginMeta)) {
             $zip->close();
             return ['success' => false, 'message' => __('File plugin.json non valido.'), 'plugin_id' => null];
         }
@@ -746,7 +746,7 @@ class PluginManager
         // Validate required fields
         $requiredFields = ['name', 'display_name', 'version', 'main_file'];
         foreach ($requiredFields as $field) {
-            if (empty($pluginMeta[$field])) {
+            if (!isset($pluginMeta[$field]) || !is_string($pluginMeta[$field]) || trim($pluginMeta[$field]) === '') {
                 $zip->close();
                 return ['success' => false, 'message' => __('Campo obbligatorio mancante: %s', $field), 'plugin_id' => null];
             }
@@ -757,12 +757,10 @@ class PluginManager
             return ['success' => false, 'message' => __('Nome plugin non valido. Usa solo lettere, numeri, trattini o underscore.'), 'plugin_id' => null];
         }
 
-        // Check if plugin already exists
+        // An uploaded package with an existing name is an in-place update. Its
+        // database ID deliberately remains stable, so plugin settings, data and
+        // hook rows continue to point to the same plugin after the update.
         $existingPlugin = $this->getPluginByName($pluginMeta['name']);
-        if ($existingPlugin) {
-            $zip->close();
-            return ['success' => false, 'message' => __('Plugin già installato.'), 'plugin_id' => null];
-        }
 
         // Check PHP version compatibility
         if (!empty($pluginMeta['requires_php'])) {
@@ -782,27 +780,37 @@ class PluginManager
             return ['success' => false, 'message' => $appCompatibilityError, 'plugin_id' => null];
         }
 
-        // Extract plugin to storage/plugins directory
+        // Extract into a sibling staging directory first. Never touch the
+        // installed copy until the whole archive has been validated, so a bad
+        // update cannot leave an otherwise working plugin half-extracted.
         $pluginsBaseDir = realpath($this->pluginsDir) ?: $this->pluginsDir;
-        $pluginPath = $pluginsBaseDir . '/' . $pluginMeta['name'];
+        $targetDirectory = $existingPlugin !== null
+            ? (string) ($existingPlugin['path'] ?? '')
+            : (string) $pluginMeta['name'];
 
-        if (is_dir($pluginPath)) {
+        if (!$this->isSafePluginDirectoryName($targetDirectory)) {
+            $zip->close();
+            return ['success' => false, 'message' => __('Percorso di installazione del plugin non valido.'), 'plugin_id' => null];
+        }
+
+        $pluginPath = $pluginsBaseDir . '/' . $targetDirectory;
+        if ($existingPlugin === null && is_dir($pluginPath)) {
             $zip->close();
             return ['success' => false, 'message' => __('Directory plugin già esistente.'), 'plugin_id' => null];
         }
 
-        if (!mkdir($pluginPath, 0755, true)) {
+        $stagingPath = $this->createPluginStagingDirectory($pluginsBaseDir, $targetDirectory);
+        if ($stagingPath === null) {
             $zip->close();
-            return ['success' => false, 'message' => __('Impossibile creare la directory del plugin.'), 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Impossibile creare la directory temporanea del plugin.'), 'plugin_id' => null];
         }
 
-        $pluginRealPath = realpath($pluginPath);
+        $pluginRealPath = realpath($stagingPath);
         if ($pluginRealPath === false || strpos($pluginRealPath, rtrim($pluginsBaseDir, DIRECTORY_SEPARATOR)) !== 0) {
             $zip->close();
-            $this->deleteDirectory($pluginPath);
+            $this->deleteDirectory($stagingPath);
             return ['success' => false, 'message' => __('Percorso di installazione del plugin non valido.'), 'plugin_id' => null];
         }
-        $pluginPath = $pluginRealPath;
 
         $extractedFiles = false;
         $pluginRootPrefix = $pluginRootDir ? rtrim($pluginRootDir, '/') . '/' : null;
@@ -832,14 +840,14 @@ class PluginManager
 
             if ($targetPath === null) {
                 $zip->close();
-                $this->deleteDirectory($pluginPath);
+                $this->deleteDirectory($stagingPath);
                 return ['success' => false, 'message' => __('Il pacchetto contiene percorsi non validi.'), 'plugin_id' => null];
             }
 
             if (str_ends_with($filename, '/')) {
                 if (!is_dir($targetPath) && !mkdir($targetPath, 0755, true)) {
                     $zip->close();
-                    $this->deleteDirectory($pluginPath);
+                    $this->deleteDirectory($stagingPath);
                     return ['success' => false, 'message' => __('Impossibile creare la struttura del plugin.'), 'plugin_id' => null];
                 }
                 continue;
@@ -848,14 +856,14 @@ class PluginManager
             $dir = dirname($targetPath);
             if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
                 $zip->close();
-                $this->deleteDirectory($pluginPath);
+                $this->deleteDirectory($stagingPath);
                 return ['success' => false, 'message' => __('Impossibile creare la struttura del plugin.'), 'plugin_id' => null];
             }
 
             $content = $zip->getFromIndex($i);
             if ($content === false || file_put_contents($targetPath, $content) === false) {
                 $zip->close();
-                $this->deleteDirectory($pluginPath);
+                $this->deleteDirectory($stagingPath);
                 return ['success' => false, 'message' => __('Errore durante l\'estrazione del plugin.'), 'plugin_id' => null];
             }
 
@@ -865,16 +873,35 @@ class PluginManager
         $zip->close();
 
         if (!$extractedFiles) {
-            $this->deleteDirectory($pluginPath);
+            $this->deleteDirectory($stagingPath);
             return ['success' => false, 'message' => __('Il pacchetto non contiene file validi.'), 'plugin_id' => null];
         }
 
         // Verify main file exists
-        $mainFilePath = $pluginPath . '/' . $pluginMeta['main_file'];
+        if (!$this->isSafePluginFilePath((string) $pluginMeta['main_file'])) {
+            $this->deleteDirectory($stagingPath);
+            return ['success' => false, 'message' => __('File principale del plugin non valido.'), 'plugin_id' => null];
+        }
+        $mainFilePath = $pluginRealPath . '/' . $pluginMeta['main_file'];
         if (!file_exists($mainFilePath)) {
-            $this->deleteDirectory($pluginPath);
+            $this->deleteDirectory($stagingPath);
             return ['success' => false, 'message' => __('File principale del plugin non trovato.'), 'plugin_id' => null];
         }
+
+        if ($existingPlugin !== null) {
+            return $this->updatePluginFromStaging(
+                $existingPlugin,
+                $pluginMeta,
+                $stagingPath,
+                $pluginsBaseDir
+            );
+        }
+
+        if (!rename($pluginRealPath, $pluginPath)) {
+            $this->deleteDirectory($stagingPath);
+            return ['success' => false, 'message' => __('Impossibile finalizzare l\'installazione del plugin.'), 'plugin_id' => null];
+        }
+        $pluginPath = realpath($pluginPath) ?: $pluginPath;
 
         // Insert plugin into database
         $stmt = $this->db->prepare("
@@ -890,7 +917,7 @@ class PluginManager
             // row exists. Clean up before returning.
             $this->deleteDirectory($pluginPath);
             SecureLogger::error('[PluginManager] Failed to prepare plugin INSERT', [
-                'plugin'   => $pluginMeta['name'] ?? 'unknown',
+                'plugin'   => $pluginMeta['name'],
                 'db_error' => $this->db->error,
             ]);
             return [
@@ -1226,6 +1253,174 @@ class PluginManager
             $className .= ucfirst($part);
         }
         return $className . 'Plugin';
+    }
+
+    /**
+     * Replace the on-disk package and its metadata without changing the plugin
+     * identity. Settings, plugin_data, logs and hooks all refer to the existing
+     * ID through foreign keys and are therefore intentionally left untouched.
+     *
+     * Filesystem changes are rollback-safe: the old package is kept as a sibling
+     * backup until the metadata update succeeds.
+     *
+     * @param array<string,mixed> $existingPlugin
+     * @param array<string,mixed> $pluginMeta
+     * @return array{success:bool,message:string,plugin_id:int|null,updated?:bool}
+     */
+    private function updatePluginFromStaging(
+        array $existingPlugin,
+        array $pluginMeta,
+        string $stagingPath,
+        string $pluginsBaseDir
+    ): array {
+        $pluginId = (int) ($existingPlugin['id'] ?? 0);
+        $directory = (string) ($existingPlugin['path'] ?? '');
+        if ($pluginId <= 0 || !$this->isSafePluginDirectoryName($directory)) {
+            $this->deleteDirectory($stagingPath);
+            return ['success' => false, 'message' => __('Plugin installato non valido.'), 'plugin_id' => null];
+        }
+
+        try {
+            $metadata = json_encode($pluginMeta['metadata'] ?? [], JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            $this->deleteDirectory($stagingPath);
+            return ['success' => false, 'message' => __('Metadati del plugin non validi.'), 'plugin_id' => null];
+        }
+
+        $pluginPath = rtrim($pluginsBaseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $directory;
+        try {
+            $backupPath = rtrim($pluginsBaseDir, DIRECTORY_SEPARATOR)
+                . DIRECTORY_SEPARATOR . '.' . $directory . '.backup-' . bin2hex(random_bytes(8));
+        } catch (\Throwable $e) {
+            $this->deleteDirectory($stagingPath);
+            return ['success' => false, 'message' => __('Impossibile preparare l\'aggiornamento del plugin.'), 'plugin_id' => null];
+        }
+        $hasBackup = false;
+        $newPackageInstalled = false;
+
+        try {
+            if (file_exists($pluginPath) && !is_dir($pluginPath)) {
+                throw new \RuntimeException('Il percorso del plugin esistente non è una directory.');
+            }
+
+            if (is_dir($pluginPath)) {
+                if (!rename($pluginPath, $backupPath)) {
+                    throw new \RuntimeException('Impossibile preparare il backup del plugin esistente.');
+                }
+                $hasBackup = true;
+            }
+
+            if (!rename($stagingPath, $pluginPath)) {
+                throw new \RuntimeException('Impossibile sostituire i file del plugin.');
+            }
+            $newPackageInstalled = true;
+
+            $displayName = (string) $pluginMeta['display_name'];
+            $description = (string) ($pluginMeta['description'] ?? '');
+            $version = (string) $pluginMeta['version'];
+            $author = (string) ($pluginMeta['author'] ?? '');
+            $authorUrl = (string) ($pluginMeta['author_url'] ?? '');
+            $pluginUrl = (string) ($pluginMeta['plugin_url'] ?? '');
+            $mainFile = (string) $pluginMeta['main_file'];
+            $requiresPhp = (string) ($pluginMeta['requires_php'] ?? '');
+            $requiresApp = (string) ($pluginMeta['requires_app'] ?? '');
+
+            $stmt = $this->db->prepare(
+                'UPDATE plugins SET display_name = ?, description = ?, version = ?, author = ?, author_url = ?, '
+                . 'plugin_url = ?, main_file = ?, requires_php = ?, requires_app = ?, metadata = ? WHERE id = ?'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException('Impossibile aggiornare i metadati del plugin.');
+            }
+            $stmt->bind_param(
+                'ssssssssssi',
+                $displayName,
+                $description,
+                $version,
+                $author,
+                $authorUrl,
+                $pluginUrl,
+                $mainFile,
+                $requiresPhp,
+                $requiresApp,
+                $metadata,
+                $pluginId
+            );
+            $updated = $stmt->execute();
+            $stmt->close();
+            if (!$updated) {
+                throw new \RuntimeException('Impossibile salvare i metadati aggiornati del plugin.');
+            }
+
+            if ($hasBackup && !$this->deleteDirectory($backupPath)) {
+                SecureLogger::warning('[PluginManager] Updated plugin backup could not be removed', [
+                    'plugin' => $pluginMeta['name'],
+                    'path' => $backupPath,
+                ]);
+            }
+
+            self::clearPluginCache();
+            SecureLogger::info("[PluginManager] Plugin updated successfully: {$pluginMeta['name']} (ID: $pluginId)");
+            return [
+                'success' => true,
+                'message' => __('Plugin aggiornato con successo.'),
+                'plugin_id' => $pluginId,
+                'updated' => true,
+            ];
+        } catch (\Throwable $e) {
+            if ($newPackageInstalled && is_dir($pluginPath)) {
+                $this->deleteDirectory($pluginPath);
+            }
+            if ($hasBackup && is_dir($backupPath) && !rename($backupPath, $pluginPath)) {
+                SecureLogger::error('[PluginManager] Failed to restore plugin after update rollback', [
+                    'plugin' => $pluginMeta['name'],
+                    'path' => $backupPath,
+                ]);
+            }
+            if (is_dir($stagingPath)) {
+                $this->deleteDirectory($stagingPath);
+            }
+            SecureLogger::error('[PluginManager] Plugin update failed', [
+                'plugin' => $pluginMeta['name'],
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => __('Errore durante l\'aggiornamento del plugin: %s', $e->getMessage()),
+                'plugin_id' => null,
+            ];
+        }
+    }
+
+    private function createPluginStagingDirectory(string $pluginsBaseDir, string $directory): ?string
+    {
+        try {
+            $path = rtrim($pluginsBaseDir, DIRECTORY_SEPARATOR)
+                . DIRECTORY_SEPARATOR . '.' . $directory . '.staging-' . bin2hex(random_bytes(8));
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return mkdir($path, 0755, true) ? $path : null;
+    }
+
+    private function isSafePluginDirectoryName(string $directory): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9_-]+$/D', $directory);
+    }
+
+    private function isSafePluginFilePath(string $path): bool
+    {
+        $path = str_replace('\\', '/', $path);
+        if ($path === '' || str_contains($path, "\0") || preg_match('#^(?:[A-Za-z]:)?/#', $path)) {
+            return false;
+        }
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
