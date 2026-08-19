@@ -590,7 +590,11 @@ class SettingsController
             return $candidate;
         }
 
-        return \App\Support\I18n::resolveUserLocale(null);
+        // Fall back to the admin's own session locale (validated against the
+        // shipped locales, installation locale as last resort) rather than
+        // forcing the installation locale — otherwise an en_US admin on an
+        // it_IT install would open the editor on the Italian templates.
+        return \App\Support\I18n::resolveUserLocale(\App\Support\I18n::getLocale());
     }
 
     /**

@@ -177,6 +177,13 @@ set_exception_handler(static function (Throwable $e) use ($cleanup, $db): void {
     $db->close();
     exit(1);
 });
+// $setConfig overwrote the real email.* rows to force SMTP unreachable. A fatal
+// error or an early exit() bypasses set_exception_handler, which would leave the
+// dev machine's mail pointed at the closed port. Restore on shutdown too;
+// cleanup() is idempotent, so running it twice on the normal path is harmless.
+register_shutdown_function(static function () use ($cleanup): void {
+    try { $cleanup(); } catch (Throwable) {}
+});
 
 $pass = 0;
 $check = static function (bool $ok, string $label) use (&$pass): void {

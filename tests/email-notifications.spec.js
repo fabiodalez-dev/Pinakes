@@ -849,7 +849,10 @@ test.describe.serial('Email Notifications E2E', () => {
       expect((await response.json()).success).toBe(true);
     });
 
-    const receiptMail = await waitForMail(`to:${TEST_USER_EMAIL}`);
+    // TEST_USER_EMAIL is shared across the serial B.* tests, so filter on the
+    // attachment: only the receipt carries a PDF, so this can't match an earlier
+    // recall/overdue message to the same recipient.
+    const receiptMail = await waitForMail(`to:${TEST_USER_EMAIL} has:attachment`);
     const message = await getMessage(receiptMail.ID);
     const attachments = Array.isArray(message.Attachments) ? message.Attachments : [];
     expect(attachments).toHaveLength(1);
