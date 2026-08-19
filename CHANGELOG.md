@@ -37,6 +37,17 @@ Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
   language the visitor is browsing in), validated server-side against the
   shipped locales. The profile page and the admin user forms already offered
   the same choice; together they cover registration, self-service and admin.
+- **Plugin ZIP updates (#358)**: uploading a plugin ZIP whose name matches an
+  already-installed plugin now updates it in place — its id, settings, data and
+  hooks are preserved and its files are swapped atomically — instead of failing
+  on the existing directory. Covered by contract and per-bundled-plugin
+  integration tests.
+
+### Internal
+
+- CI: the OWASP ZAP baseline no longer fails on the ISBN/EAN-13 PII-disclosure
+  false positive, allowlisted narrowly to 13-digit codes on bibliographic pages
+  (#359).
 
 ## [0.7.61]
 
