@@ -205,7 +205,10 @@ foreach ($pluginDirs as $pluginDir) {
         foreach (glob($pluginsDir . '/.' . $slug . '.staging-*') ?: [] as $stray) {
             pzua_rmdir($stray);
         }
-        @unlink($pluginsDir . '/' . \App\Support\PluginManager::PENDING_UPDATE_PREFIX . $pluginId . '.json');
+        // Glob so retired markers (.json.invalid-<ts>) are cleaned too.
+        foreach (glob($pluginsDir . '/' . \App\Support\PluginManager::PENDING_UPDATE_PREFIX . $pluginId . '.json*') ?: [] as $marker) {
+            @unlink($marker);
+        }
     }
 }
 

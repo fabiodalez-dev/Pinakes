@@ -334,12 +334,14 @@ try {
     ) {
         throw new RuntimeException('Failed replacement lifecycle did not restore package, metadata and hooks.');
     }
-    // A later, unrelated request must not disturb the rolled-back plugin. With
-    // the marker already gone (the rollback unlinked it), this fresh process runs
-    // finalizePendingPluginUpdates() as a no-op: v2 stays active, its version is
-    // not bumped again, and its hook keeps serving. (Skipping the broken v3 class
-    // is an intra-process concern of the rollback request above — a separate
-    // process cannot and need not observe it.)
+    // The intra-process skip (the rollback request must not re-instantiate the
+    // broken v3 class) is already covered above: partialHooks === 0 asserts v3's
+    // artifacts were not (re)created in that same request. skipPluginIdsThisRequest
+    // lives in the rollback process, so a separate process cannot observe it.
+    // This third bootstrap adds the distinct guarantee that a later, unrelated
+    // request does not disturb the rolled-back plugin: with the marker gone,
+    // finalizePendingPluginUpdates() is a no-op — v2 stays active, its version is
+    // not bumped again, and its hook keeps serving.
     $stateBeforeNextRequest = $db->query("SELECT version, is_active FROM plugins WHERE id = {$pluginId}")->fetch_assoc();
     pzu_run_fresh_bootstrap();
     $stateAfterNextRequest = $db->query("SELECT version, is_active FROM plugins WHERE id = {$pluginId}")->fetch_assoc();
@@ -364,7 +366,11 @@ try {
     $db->query("DROP TABLE IF EXISTS `{$tableName}`");
     pzu_delete_directory($pluginDir);
     if ($pluginId > 0) {
-        @unlink($pluginsDir . '/' . \App\Support\PluginManager::PENDING_UPDATE_PREFIX . $pluginId . '.json');
+        // Glob (not an exact .json unlink) so retired markers renamed to
+        // .json.invalid-<ts> by finalizePendingPluginUpdates() are cleaned too.
+        foreach (glob($pluginsDir . '/' . \App\Support\PluginManager::PENDING_UPDATE_PREFIX . $pluginId . '.json*') ?: [] as $marker) {
+            @unlink($marker);
+        }
     }
     foreach (glob($pluginsDir . '/.' . $slug . '.backup-*') ?: [] as $backup) {
         pzu_delete_directory($backup);

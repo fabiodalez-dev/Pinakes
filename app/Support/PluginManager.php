@@ -1548,11 +1548,20 @@ class PluginManager
     private function createPendingPluginUpdateMarker(string $path, array $state)
     {
         $handle = @fopen($path, 'x+b');
-        if ($handle === false || !flock($handle, LOCK_EX)) {
-            if (is_resource($handle)) {
-                fclose($handle);
-            }
+        if ($handle === false) {
+            // The exclusive create failed: a marker already exists (another
+            // pending update) or the directory is unwritable. Nothing to clean.
             throw new \RuntimeException('Esiste già un aggiornamento pendente per questo plugin.');
+        }
+        if (!flock($handle, LOCK_EX)) {
+            // fopen('x+b') just created this file. If it cannot be locked, remove
+            // the empty marker before throwing: leaving it would block every
+            // future update of this plugin (fopen('x+b') keeps failing with
+            // "already pending") and the caller's catch cannot clean it up
+            // because this method threw before returning the handle.
+            fclose($handle);
+            @unlink($path);
+            throw new \RuntimeException('Impossibile bloccare il marker di aggiornamento del plugin.');
         }
 
         try {
