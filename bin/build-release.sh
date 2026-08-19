@@ -244,21 +244,27 @@ verify_package_contents() {
     fi
 
     # PHP session files may contain authenticated user data and CSRF tokens.
-    # Ship the writable directory as exactly {.gitkeep}: require the placeholder
-    # and reject every other entry — session payloads, symlinks, and stray dirs.
-    if [ ! -f "$package_dir/storage/sessions/.gitkeep" ]; then
-        log_error "Package missing storage/sessions/.gitkeep"
+    # Ship the writable directory as exactly {.gitkeep}: a REAL directory holding
+    # a REAL placeholder, and nothing else. Reject symlinks first (-d/-f follow
+    # them, so a symlinked dir/placeholder could point outside the tree and slip
+    # session data past the scan), then require the placeholder, then scan.
+    if [ -L "$package_dir/storage/sessions" ] || [ ! -d "$package_dir/storage/sessions" ]; then
+        log_error "storage/sessions is not a real directory"
         has_errors=true
-    fi
-    # Fail closed: a find error must never be read as "no session data".
-    local unexpected_session
-    if ! unexpected_session=$(find "$package_dir/storage/sessions" -mindepth 1 \
-        ! -name '.gitkeep' -print -quit 2>/dev/null); then
-        log_error "Could not scan storage/sessions for leaked session data"
+    elif [ -L "$package_dir/storage/sessions/.gitkeep" ] || [ ! -f "$package_dir/storage/sessions/.gitkeep" ]; then
+        log_error "storage/sessions/.gitkeep is missing or a symlink"
         has_errors=true
-    elif [ -n "$unexpected_session" ]; then
-        log_error "Package contains runtime session data: ${unexpected_session#"$package_dir/"}"
-        has_errors=true
+    else
+        # Fail closed: a find error must never be read as "no session data".
+        local unexpected_session
+        if ! unexpected_session=$(find "$package_dir/storage/sessions" -mindepth 1 \
+            ! -name '.gitkeep' -print -quit 2>/dev/null); then
+            log_error "Could not scan storage/sessions for leaked session data"
+            has_errors=true
+        elif [ -n "$unexpected_session" ]; then
+            log_error "Package contains runtime session data: ${unexpected_session#"$package_dir/"}"
+            has_errors=true
+        fi
     fi
 
     # Files that MUST be in the package

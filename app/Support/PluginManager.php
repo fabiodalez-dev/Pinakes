@@ -2293,17 +2293,17 @@ class PluginManager
     private function restorePluginHooks(int $pluginId, array $hooks): void
     {
         // DELETE + N INSERTs must be atomic: a mid-loop INSERT failure must not
-        // leave plugin_hooks with an arbitrary subset of the original rows. Only
-        // open a transaction when one is not already active (autocommit still
-        // on) — nesting begin_transaction() would implicitly commit the outer.
-        $ownTransaction = false;
-        $autocommitResult = $this->db->query('SELECT @@autocommit');
-        if ($autocommitResult instanceof \mysqli_result) {
-            $autocommitRow = $autocommitResult->fetch_row();
-            $autocommitResult->free();
-            if ($autocommitRow !== null && (int) $autocommitRow[0] === 1) {
-                $ownTransaction = $this->db->begin_transaction();
-            }
+        // leave plugin_hooks with an arbitrary subset of the original rows.
+        // Detect an already-open transaction with a savepoint probe — NOT
+        // @@autocommit, which stays 1 after begin_transaction() and would let us
+        // nest begin_transaction() and implicitly commit the caller's outer
+        // transaction. Inside one, scope our work to a savepoint; otherwise own
+        // a fresh transaction.
+        $inTransaction = $this->hasActiveTransaction();
+        if ($inTransaction) {
+            $this->db->query('SAVEPOINT pinakes_restore_hooks');
+        } else {
+            $this->db->begin_transaction();
         }
 
         try {
@@ -2353,14 +2353,37 @@ class PluginManager
                 $insert->close();
             }
 
-            if ($ownTransaction) {
+            if ($inTransaction) {
+                $this->db->query('RELEASE SAVEPOINT pinakes_restore_hooks');
+            } else {
                 $this->db->commit();
             }
         } catch (\Throwable $e) {
-            if ($ownTransaction) {
+            if ($inTransaction) {
+                $this->db->query('ROLLBACK TO SAVEPOINT pinakes_restore_hooks');
+            } else {
                 $this->db->rollback();
             }
             throw $e;
+        }
+    }
+
+    /**
+     * Whether a transaction is already open on the connection. @@autocommit is
+     * unreliable here — it stays 1 after begin_transaction() — so probe with a
+     * savepoint instead: outside a transaction the SAVEPOINT is a no-op that
+     * autocommit discards, so the following RELEASE cannot find it. Works under
+     * both mysqli exception and silent error modes.
+     */
+    private function hasActiveTransaction(): bool
+    {
+        try {
+            if ($this->db->query('SAVEPOINT pinakes_tx_probe') === false) {
+                return false;
+            }
+            return $this->db->query('RELEASE SAVEPOINT pinakes_tx_probe') !== false;
+        } catch (\mysqli_sql_exception $e) {
+            return false;
         }
     }
 

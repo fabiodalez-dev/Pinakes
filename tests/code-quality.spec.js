@@ -215,6 +215,13 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             .toContain('- /storage/sessions/*');
         expect(archiveVerifier, 'archive verification must reject leaked runtime sessions')
             .toContain('release contains runtime session data');
+        // Both verifiers must reject a symlinked sessions dir / placeholder
+        // (-d/-f follow symlinks, so a link could slip session data past the scan).
+        const releaseBuilder = fs.readFileSync(path.join(ROOT, 'bin', 'build-release.sh'), 'utf-8');
+        expect(archiveVerifier, 'archive verification must reject a symlinked storage/sessions')
+            .toContain('-L "$package_dir/storage/sessions"');
+        expect(releaseBuilder, 'release build must reject a symlinked storage/sessions')
+            .toContain('-L "$package_dir/storage/sessions"');
     });
 
     // ── 3. Plugin ensureSchema() called from onActivate() ─────────────────────
