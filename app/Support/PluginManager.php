@@ -2109,6 +2109,15 @@ class PluginManager
                         'path' => $markerPath,
                         'error' => $e->getMessage(),
                     ]);
+                    // An unreadable marker holds no state to roll back, but it
+                    // must not brick future updates: createPendingPluginUpdateMarker()
+                    // opens with fopen('x+b'), so a leftover marker makes every
+                    // later update of this plugin fail with "already pending".
+                    // Keep the corrupted file for diagnosis under a name that no
+                    // longer matches the *.json marker glob; unlink if that fails.
+                    if (!@rename($markerPath, $markerPath . '.invalid-' . time())) {
+                        @unlink($markerPath);
+                    }
                 }
             } finally {
                 flock($handle, LOCK_UN);
@@ -2173,7 +2182,15 @@ class PluginManager
         if (!$this->isSafePluginDirectoryName($directory)
             || !preg_match('/^\.' . preg_quote($directory, '/') . '\.backup-[a-f0-9]{16}$/D', $backupDirectory)
         ) {
-            throw new \RuntimeException('Percorso di backup del plugin non valido.');
+            // Best-effort cleanup only: this runs AFTER the update is already
+            // applied and (re)activated. Throwing here would propagate into
+            // finalizePendingPluginUpdates()'s catch and roll back a committed
+            // update — a far worse outcome than an orphaned backup directory.
+            SecureLogger::warning('[PluginManager] Unsafe backup path on completed update; leaving backup in place', [
+                'directory' => $directory,
+                'backup_directory' => $backupDirectory,
+            ]);
+            return;
         }
 
         $backupPath = $this->pluginsDir . DIRECTORY_SEPARATOR . $backupDirectory;
