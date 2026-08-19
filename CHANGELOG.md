@@ -4,6 +4,8 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 
 ## [Unreleased]
 
+## [0.7.62-rc.1] - 2026-08-19
+
 Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
 
 ### Features
