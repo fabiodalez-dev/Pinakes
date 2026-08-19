@@ -6872,5 +6872,6 @@
   "Solleciti Inviati:": "Gesendete Mahnungen:",
   "Ultimo Sollecito:": "Letzte Mahnung:",
   "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s ausgewählte Ausleihe erhält die Mahnung (nur bei Überfälligkeit).",
-  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s ausgewählte Ausleihen erhalten die Mahnung (nur die überfälligen)."
+  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s ausgewählte Ausleihen erhalten die Mahnung (nur die überfälligen).",
+  "Impossibile generare la ricevuta PDF.": "Die Quittungs-PDF konnte nicht erstellt werden."
 }

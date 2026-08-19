@@ -339,19 +339,17 @@ $check($r['success'] === false
     'V6 soft-deleted book: active overdue loan is recalled and a failed send reverts the claim');
 
 // ── R. Atomic claim is reverted when the send fails ─────────────────────────
+// SMTP is forced unreachable above, so the send MUST fail and the claim MUST be
+// reverted. Assert both explicitly (not conditionally): if the send ever
+// succeeded here the forcing broke and this test's premise no longer holds, so
+// R1a should fail loudly rather than silently skip the revert check.
 $eligible = $makeLoan(daysOverdue: 12, recallCount: 1);
 $before = $recallCountOf($eligible);
 $r = $service->sendManualRecall($eligible);
 $after = $recallCountOf($eligible);
-if ($r['success'] === true) {
-    // A real mail server accepted it: the counter advances by exactly one.
-    $check($after['count'] === $before['count'] + 1 && $after['last'] !== null,
-        'R1 successful recall bumps the counter by one and stamps last_recall_at');
-} else {
-    // SMTP forced unreachable here: the claim must be fully reverted.
-    $check($after['count'] === $before['count'] && $after['last'] === $before['last'],
-        'R1 failed recall reverts the claim — recall_count and last_recall_at unchanged');
-}
+$check($r['success'] === false, 'R1a forced-unreachable send fails, so the revert path is exercised');
+$check($after['count'] === $before['count'] && $after['last'] === $before['last'],
+    'R1b failed recall reverts the claim — recall_count and last_recall_at unchanged');
 
 // ── E. sendLoanReceiptEmail() guards ────────────────────────────────────────
 $e = $service->sendLoanReceiptEmail(2000000001);

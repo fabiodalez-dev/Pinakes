@@ -6872,5 +6872,6 @@
   "Solleciti Inviati:": "Solleciti Inviati:",
   "Ultimo Sollecito:": "Ultimo Sollecito:",
   "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s prestito selezionato riceverà il sollecito (solo se scaduto).",
-  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti)."
+  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).",
+  "Impossibile generare la ricevuta PDF.": "Impossibile generare la ricevuta PDF."
 }

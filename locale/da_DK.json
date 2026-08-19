@@ -6872,5 +6872,6 @@
   "Solleciti Inviati:": "Sendte rykkere:",
   "Ultimo Sollecito:": "Seneste rykker:",
   "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s valgt lån modtager rykkeren (kun hvis forfaldent).",
-  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s valgte lån modtager rykkeren (kun de forfaldne)."
+  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s valgte lån modtager rykkeren (kun de forfaldne).",
+  "Impossibile generare la ricevuta PDF.": "Kvitterings-PDF'en kunne ikke genereres."
 }

@@ -911,6 +911,16 @@ class NotificationService {
                 I18n::setLocale($requestLocale);
             }
 
+            // A generator that returns an empty (or non-PDF) string without
+            // throwing would otherwise be sent as a message with no attachment
+            // (EmailService drops empty attachments) yet still report success —
+            // the patron gets an email with no receipt while the operator reads
+            // "Ricevuta inviata con successo". Refuse when the bytes aren't a PDF.
+            if (!str_starts_with((string) $pdfContent, '%PDF')) {
+                SecureLogger::error("Loan receipt PDF generation returned no valid PDF for loan {$loanId}");
+                return ['success' => false, 'message' => __('Impossibile generare la ricevuta PDF.')];
+            }
+
             $variables = [
                 'prestito_id' => $loanId,
                 'utente_nome' => (string) ($loan['utente'] ?? ''),

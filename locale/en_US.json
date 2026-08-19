@@ -6872,5 +6872,6 @@
   "Solleciti Inviati:": "Reminders Sent:",
   "Ultimo Sollecito:": "Last Reminder:",
   "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s selected loan will receive the reminder (only if overdue).",
-  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s selected loans will receive the reminder (only the overdue ones)."
+  "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s selected loans will receive the reminder (only the overdue ones).",
+  "Impossibile generare la ricevuta PDF.": "Could not generate the receipt PDF."
 }
