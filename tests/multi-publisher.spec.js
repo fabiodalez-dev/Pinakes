@@ -169,6 +169,13 @@ async function submitBook(page) {
   if (await confirm.isVisible({ timeout: 2500 }).catch(() => false)) {
     await confirm.click({ force: true, timeout: 5000 }).catch(() => {});
   }
+  // Wait for the post-save redirect to actually LAND before returning. Without
+  // this, submitBook can resolve while the navigation to /admin/books/<id> is
+  // still in flight, and that delayed navigation then interrupts the next
+  // test's page.goto('/admin/books/create') ("Navigation ... is interrupted by
+  // another navigation" — the flake). On a validation error the URL stays on
+  // create/edit and this resolves via the timeout without changing behaviour.
+  await page.waitForURL(/admin\/books(?!.*create)(?!.*edit)/, { timeout: 12000 }).catch(() => {});
   await page.waitForLoadState('networkidle').catch(() => {});
   await page.waitForTimeout(500);
 }
