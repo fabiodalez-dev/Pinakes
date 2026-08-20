@@ -48,6 +48,38 @@ Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
   instead of being silently skipped. Covered by contract and per-bundled-plugin
   integration tests.
 
+### Fixed
+
+- **Book announced "ready for pickup" while still on an overdue loan (#366)**:
+  a reservation scheduled right after a loan that then went overdue and was
+  never returned was promoted to `da_ritirare` on its date alone, emailing the
+  next patron a wrong "ready for pickup" notice while the book was still out.
+  Promotion is now gated on a copy being physically free (active loans below the
+  copy count; a pinned copy must be on the shelf). The full reported sequence is
+  covered too: rescheduling an open reservation/pickup no longer leaves a stale
+  `pickup_deadline` for the expiry sweep to cull a valid loan against, the
+  overdue flip now runs first in the maintenance pass so an unreturned overdue
+  loan keeps holding its copy, and `renew()` refuses a date-overdue loan.
+- **Concurrent circulation actions no longer corrupt state**: eight
+  transactions (approve/return/reject/cancel loan and reservation) resolved the
+  loan id with a plain read before taking the book lock, so under REPEATABLE
+  READ their later reads were blind to a competitor that had just committed.
+  A just-cancelled reservation could be promoted and emailed, and one physical
+  copy could be committed to two loans. The lookups now run before the
+  transaction so the first locked read fixes the snapshot, and reservation
+  promotion claims the row with a state-guarded update.
+- **Pickup confirmation** now refuses a copy that is still out on another loan
+  (`prestato`), preventing a double issue of the same physical copy.
+- **Admin reservation cancellation** now promotes the next reservation in the
+  queue immediately, like every other path that frees a copy.
+- **Overdue notices and automatic recalls** now fire for loans whose book has
+  been archived (soft-deleted) — the chase-up mail no longer filters those out.
+- **The "reservation available" email** can no longer be sent twice when the
+  retry sweep races the request that promoted it.
+- Admin direct loans cap the pickup deadline at the due date; bulk loan
+  extension and reschedules re-check borrower eligibility; expiry audit notes
+  use the same day the decision was made near midnight.
+
 ### Internal
 
 - CI: the OWASP ZAP baseline no longer fails on the ISBN/EAN-13 PII-disclosure
