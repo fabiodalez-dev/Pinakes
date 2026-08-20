@@ -279,6 +279,9 @@ jobs:
       - name: PHP unit tests (standalone .unit.php)
         env:
           CI_STRICT_TESTS: '1'
+          # Global-sweep suites (loan-reservation-real-world-25) refuse to run
+          # without an explicitly named dedicated test database.
+          E2E_DB_NAME: pinakes_test
         run: bash scripts/ci-run-unit-tests.sh
 
       - name: Schema and migration behavioral gate (strict no-skip mode)

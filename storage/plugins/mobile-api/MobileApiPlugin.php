@@ -59,8 +59,9 @@ require_once __DIR__ . '/src/Controllers/ReviewsController.php';
  *     notifications, push (UnifiedPush + VAPID) and prefs;
  *   - the OpenAPI 3.1 document + Swagger UI + the admin settings page.
  *
- * See STATUS.md for what is complete vs. partial (notably Web Push payload
- * encryption and the FCM provider).
+ * Web Push payload encryption and the FCM provider remain intentionally
+ * best-effort/optional; the REST API always falls back to polling and in-app
+ * notifications when push delivery is unavailable.
  */
 class MobileApiPlugin
 {

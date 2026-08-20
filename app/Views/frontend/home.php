@@ -579,7 +579,9 @@ form.hero-search-form {
     }
 
     .genre-carousel-viewall {
-        display: inline-flex;
+        display: flex;
+        width: fit-content;
+        margin-inline: auto;
         align-items: center;
         gap: 0.4rem;
         font-size: 0.95rem;
