@@ -1336,11 +1336,16 @@ class PluginManager
                 $hasBackup = true;
             }
 
-            if (!rename($stagingPath, $pluginPath)) {
-                throw new \RuntimeException('Impossibile sostituire i file del plugin.');
-            }
-            $newPackageInstalled = true;
-
+            // Create the deferred-update marker BEFORE the new package becomes
+            // visible, not after. It holds an exclusive lock for the rest of this
+            // request (released in the finally), so a concurrent bootstrap's
+            // finalizePendingPluginUpdates() blocks on it instead of loading the
+            // new files against the still-old metadata, hooks and schema — the
+            // window between promotion and marker creation is thereby closed.
+            // If this request dies before the promotion below, the marker's
+            // finalize cannot instantiate the not-yet-moved package
+            // (instantiatePlugin throws on the missing main file) and rolls back
+            // to the backup — it never activates a half-updated state.
             if ((int) ($existingPlugin['is_active'] ?? 0) === 1) {
                 $pendingMarkerPath = $this->pendingPluginUpdatePath($pluginId);
                 $pendingState = [
@@ -1357,6 +1362,11 @@ class PluginManager
                     $pendingState
                 );
             }
+
+            if (!rename($stagingPath, $pluginPath)) {
+                throw new \RuntimeException('Impossibile sostituire i file del plugin.');
+            }
+            $newPackageInstalled = true;
 
             $this->applyPluginMetadataSnapshot($pluginId, $newPluginSnapshot);
             $metadataUpdated = true;
