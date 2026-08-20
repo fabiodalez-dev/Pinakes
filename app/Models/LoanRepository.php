@@ -148,25 +148,28 @@ class LoanRepository
      */
     public function close(int $id): bool
     {
+        // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
+        // lettura NON bloccante PRIMA di begin_transaction() (lock-first, MVCC),
+        // poi blocca la riga `libri` PRIMA e infine quella del prestito — stesso
+        // ordine di store/approveLoan/renew per evitare deadlock. La lettura sta
+        // FUORI dalla transazione: sotto REPEATABLE READ la read view nasce alla
+        // prima consistent read in transazione, e farla nascere prima del lock
+        // renderebbe le SELECT non bloccanti successive (promozione coda,
+        // capacity gate) cieche ai commit concorrenti avvenuti durante l'attesa
+        // del lock — es. una prenotazione appena annullata verrebbe promossa.
+        $lookup = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=?');
+        $lookup->bind_param('i', $id);
+        $lookup->execute();
+        $lrow = $lookup->get_result()->fetch_assoc();
+        $lookup->close();
+        if (!$lrow) {
+            return false;
+        }
+        $bookId = (int) $lrow['libro_id'];
+
         $this->db->begin_transaction();
 
-        $bookId = null;
-
         try {
-            // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
-            // lettura NON bloccante, poi blocca la riga `libri` PRIMA e infine quella del
-            // prestito — stesso ordine di store/approveLoan/renew per evitare deadlock.
-            $lookup = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=?');
-            $lookup->bind_param('i', $id);
-            $lookup->execute();
-            $lrow = $lookup->get_result()->fetch_assoc();
-            $lookup->close();
-            if (!$lrow) {
-                $this->db->rollback();
-                return false;
-            }
-            $bookId = (int) $lrow['libro_id'];
-
             // Lock della riga `libri` per serializzare il ricalcolo della
             // disponibilità. NB: NIENTE filtro deleted_at qui (e nessun bail) —
             // la RESTITUZIONE di un prestito deve sempre poter procedere anche se

@@ -182,8 +182,12 @@ class ReservationManager
 
             // Get the next date-eligible reservation in queue
             // Only process reservations where start date <= today (ready to convert to loan)
-            // Note: Book-level lock above serializes all processing for this book,
-            // so we don't need row-level lock on prenotazioni here
+            // FOR UPDATE (locking/current read): the book-level lock serializes
+            // writers that follow the canonical order, but a CALLER's REPEATABLE
+            // READ snapshot can predate that lock — a plain read here would then
+            // still see a reservation that a competitor cancelled and committed
+            // while we waited for the book lock, and promote/email it anyway.
+            // The locking read always returns the latest committed row state.
             $stmt = $this->db->prepare("
                 SELECT r.*, u.email, u.nome, u.cognome
                 FROM prenotazioni r
@@ -192,6 +196,7 @@ class ReservationManager
                 AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
                 ORDER BY r.queue_position ASC
                 LIMIT 1
+                FOR UPDATE
             ");
             $stmt->bind_param('iss', $bookId, $today, $today);
             $stmt->execute();
@@ -229,28 +234,49 @@ class ReservationManager
                     ? (int) $nextReservation['queue_position']
                     : null;
                 if ($this->isDateRangeAvailable($bookId, $startDate, $endDate, (int) $nextReservation['id'], $headQueuePos)) {
+                    // Claim the reservation FIRST with a state-guarded UPDATE.
+                    // The `AND stato = 'attiva'` guard + affected_rows check is the
+                    // last line of defense: if a competitor cancelled/changed this
+                    // reservation and committed in the meantime (0 rows touched),
+                    // we must NOT create the loan nor queue the "book available"
+                    // email — an unguarded UPDATE here resurrected a cancelled
+                    // reservation to 'completata' and emailed the user.
+                    $claim = $this->db->prepare("UPDATE prenotazioni SET stato = 'completata' WHERE id = ? AND stato = 'attiva'");
+                    $claim->bind_param('i', $nextReservation['id']);
+                    $claim->execute();
+                    $claimed = $claim->affected_rows;
+                    $claim->close();
+                    if ($claimed !== 1) {
+                        // Nothing mutated: skip this reservation entirely.
+                        $this->commitIfOwned($ownTransaction);
+                        return false;
+                    }
+
                     // Create the loan - check return value to handle race conditions
                     // Note: createLoanFromReservation() handles its own transaction internally
                     // when called standalone, but here we're already in a transaction
                     $loanCreated = $this->createLoanFromReservation($nextReservation);
 
                     if ($loanCreated === false) {
-                        // Race condition detected - loan creation failed
+                        // Race condition detected - loan creation failed. Restore
+                        // the claim first: with an EXTERNAL transaction we cannot
+                        // roll back the owner's work, and leaving the row
+                        // 'completata' without its loan would be committed by the
+                        // caller (reservation lost). We still hold the row lock,
+                        // so this compensating UPDATE cannot race.
+                        $unclaim = $this->db->prepare("UPDATE prenotazioni SET stato = 'attiva' WHERE id = ? AND stato = 'completata'");
+                        $unclaim->bind_param('i', $nextReservation['id']);
+                        $unclaim->execute();
+                        $unclaim->close();
                         $this->rollbackIfOwned($ownTransaction);
                         return false;
                     }
 
-                    // Mark reservation as completed
-                    $stmt = $this->db->prepare("UPDATE prenotazioni SET stato = 'completata' WHERE id = ?");
-                    $stmt->bind_param('i', $nextReservation['id']);
-                    $stmt->execute();
-                    $stmt->close();
-
-                    // BUG9/D4 double-subtraction fix: createLoanFromReservation() already
-                    // recalc'd availability, but the source reservation was still 'attiva'
-                    // then — so the new pendente+copy loan AND the waitlist slot were both
-                    // counted. Recalc again now that the reservation is 'completata', so the
-                    // commitment is counted exactly once.
+                    // BUG9/D4 double-subtraction fix: the reservation is claimed
+                    // 'completata' BEFORE createLoanFromReservation() recalcs, so
+                    // the new pendente+copy loan and the waitlist slot are never
+                    // both counted. Recalc once more after the allocation settles
+                    // so the commitment is counted exactly once.
                     $integrity = new \App\Support\DataIntegrity($this->db);
                     if (!$integrity->recalculateBookAvailability($bookId, true)) {
                         throw new \RuntimeException('Failed to recalculate availability after reservation promotion.');
@@ -409,6 +435,10 @@ class ReservationManager
             $lockCopyStmt->execute();
             $lockCopyStmt->close();
 
+            // FOR UPDATE (locking/current read) like approveLoan's final overlap
+            // check: with a plain read a caller whose REPEATABLE READ snapshot
+            // predates the book lock would miss a loan a competitor just
+            // committed on this copy and double-commit the same copia_id.
             $overlapCopyStmt = $this->db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ?
@@ -418,6 +448,7 @@ class ReservationManager
                     OR (stato = 'pendente' AND copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
                 )
                 LIMIT 1
+                FOR UPDATE
             ");
             $overlapCopyStmt->bind_param('iss', $copyId, $endDate, $startDate);
             $overlapCopyStmt->execute();

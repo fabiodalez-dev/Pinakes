@@ -131,35 +131,38 @@ class UserActionsController
         }
         $uid = (int) $user['id'];
 
+        // ORDINE DI LOCK CANONICO (P3, M2): risolvi libro_id con una lettura
+        // NON bloccante PRIMA di begin_transaction() (lock-first, MVCC: la read
+        // view REPEATABLE READ nasce alla prima consistent read in transazione —
+        // anticiparla al pre-lock renderebbe le SELECT non bloccanti successive,
+        // promozione coda inclusa, cieche ai commit concorrenti avvenuti durante
+        // l'attesa del lock), blocca la riga `libri` PRIMA e solo dopo il prestito
+        // — stesso pattern di cancelReservation qui sotto. Lockare prima la
+        // riga prestiti incrocerebbe i lock con i percorsi di creazione/
+        // approvazione (che vanno libri -> prestiti) causando deadlock.
+        // Note: 'pendente' has attivo=0, 'prenotato' has attivo=1
+        $lookupStmt = $db->prepare("
+            SELECT libro_id
+            FROM prestiti
+            WHERE id = ? AND utente_id = ? AND (
+                (attivo = 0 AND stato = 'pendente')
+                OR (attivo = 1 AND stato = 'prenotato')
+            )
+        ");
+        $lookupStmt->bind_param('ii', $loanId, $uid);
+        $lookupStmt->execute();
+        $lookupRow = $lookupStmt->get_result()->fetch_assoc();
+        $lookupStmt->close();
+
+        if (!$lookupRow) {
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+        }
+
+        $libroId = (int) $lookupRow['libro_id'];
+
         $db->begin_transaction();
 
         try {
-            // ORDINE DI LOCK CANONICO (P3, M2): risolvi libro_id con una lettura
-            // NON bloccante, blocca la riga `libri` PRIMA e solo dopo il prestito
-            // — stesso pattern di cancelReservation qui sotto. Lockare prima la
-            // riga prestiti incrocerebbe i lock con i percorsi di creazione/
-            // approvazione (che vanno libri -> prestiti) causando deadlock.
-            // Note: 'pendente' has attivo=0, 'prenotato' has attivo=1
-            $lookupStmt = $db->prepare("
-                SELECT libro_id
-                FROM prestiti
-                WHERE id = ? AND utente_id = ? AND (
-                    (attivo = 0 AND stato = 'pendente')
-                    OR (attivo = 1 AND stato = 'prenotato')
-                )
-            ");
-            $lookupStmt->bind_param('ii', $loanId, $uid);
-            $lookupStmt->execute();
-            $lookupRow = $lookupStmt->get_result()->fetch_assoc();
-            $lookupStmt->close();
-
-            if (!$lookupRow) {
-                $db->rollback();
-                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
-            }
-
-            $libroId = (int) $lookupRow['libro_id'];
-
             // Lock della riga libri per serializzare rilascio copia, promozione
             // coda e ricalcolo disponibilità con gli altri percorsi sullo stesso libro.
             // CI-SOFT-DELETE-EXEMPT: user cancellation must release existing circulation state for a deleted book.
@@ -275,28 +278,31 @@ class UserActionsController
         }
         $uid = (int) $user['id'];
 
+        // CANONICAL LOCK ORDER (P3, L7): resolve libro_id with a NON-blocking
+        // read BEFORE begin_transaction() (lock-first, MVCC: the REPEATABLE READ
+        // view is created at the transaction's first consistent read — creating
+        // it pre-lock would blind every later non-locking SELECT, queue
+        // promotion included, to commits that landed while waiting for the book
+        // lock), then lock the `libri` row FIRST and only then the reservation —
+        // same order as LoanRepository::close, so this path never crosses
+        // locks with the create/approve paths (which go libri -> rows).
+        $lookupStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND utente_id = ? AND stato = 'attiva'");
+        $lookupStmt->bind_param('ii', $rid, $uid);
+        $lookupStmt->execute();
+        $lookupRow = $lookupStmt->get_result()->fetch_assoc();
+        $lookupStmt->close();
+
+        if (!$lookupRow) {
+            // Check if it's actually a loan/active reservation (prestiti table) request instead?
+            // Sometimes frontend might send reservation_id for prestiti items if confusingly named
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+        }
+
+        $libroId = (int) $lookupRow['libro_id'];
+
         $db->begin_transaction();
 
         try {
-            // CANONICAL LOCK ORDER (P3, L7): resolve libro_id with a NON-blocking
-            // read, lock the `libri` row FIRST and only then the reservation —
-            // same order as LoanRepository::close, so this path never crosses
-            // locks with the create/approve paths (which go libri -> rows).
-            $lookupStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND utente_id = ? AND stato = 'attiva'");
-            $lookupStmt->bind_param('ii', $rid, $uid);
-            $lookupStmt->execute();
-            $lookupRow = $lookupStmt->get_result()->fetch_assoc();
-            $lookupStmt->close();
-
-            if (!$lookupRow) {
-                // Check if it's actually a loan/active reservation (prestiti table) request instead?
-                // Sometimes frontend might send reservation_id for prestiti items if confusingly named
-                $db->rollback();
-                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
-            }
-
-            $libroId = (int) $lookupRow['libro_id'];
-
             // Lock the book row to serialize the queue reorder + availability
             // recalculation with other paths working on the same book's queue.
             // CI-SOFT-DELETE-EXEMPT: reservation cancellation must unblock a deleted book's existing queue.

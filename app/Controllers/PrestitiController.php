@@ -1174,24 +1174,27 @@ class PrestitiController
         // UTC) un rientro poco dopo mezzanotte verrebbe datato al giorno prima.
         $data_restituzione = \App\Support\DateHelper::today();
 
+        // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
+        // lettura NON bloccante PRIMA di begin_transaction() (lock-first, MVCC:
+        // la read view REPEATABLE READ nasce alla prima consistent read in
+        // transazione — anticiparla al pre-lock renderebbe le SELECT non bloccanti
+        // successive cieche ai commit concorrenti avvenuti durante l'attesa del
+        // lock), poi blocca la riga `libri` PRIMA e infine quella del prestito —
+        // stesso ordine di store/approveLoan/renew/close per evitare deadlock con
+        // le approvazioni concorrenti sullo stesso libro.
+        $lookup = $db->prepare('SELECT libro_id FROM prestiti WHERE id = ?');
+        $lookup->bind_param('i', $id);
+        $lookup->execute();
+        $lrow = $lookup->get_result()->fetch_assoc();
+        $lookup->close();
+        if (!$lrow) {
+            return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
+        }
+        $libro_id = (int) $lrow['libro_id'];
+
         // Avvia transazione
         $db->begin_transaction();
         try {
-            // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
-            // lettura NON bloccante, poi blocca la riga `libri` PRIMA e infine quella
-            // del prestito — stesso ordine di store/approveLoan/renew/close per
-            // evitare deadlock con le approvazioni concorrenti sullo stesso libro.
-            $lookup = $db->prepare('SELECT libro_id FROM prestiti WHERE id = ?');
-            $lookup->bind_param('i', $id);
-            $lookup->execute();
-            $lrow = $lookup->get_result()->fetch_assoc();
-            $lookup->close();
-            if (!$lrow) {
-                $db->rollback();
-                return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
-            }
-            $libro_id = (int) $lrow['libro_id'];
-
             // Lock della riga `libri`. NIENTE filtro deleted_at (come in
             // LoanRepository::close()): la restituzione deve sempre poter procedere
             // anche su libro soft-deleted — la regola soft-delete governa
