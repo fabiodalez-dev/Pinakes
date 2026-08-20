@@ -16,6 +16,7 @@ $oldPdf = (bool) ($oldPdf ?? true);
 $meUserId = (int) ($meUserId ?? 0);
 $meUserName = (string) ($meUserName ?? '');
 $defaultLoanDays = max(1, (int) ($defaultLoanDays ?? 30));
+$allowMultipleLoansSameBook = (bool) ($allowMultipleLoansSameBook ?? false);
 
 $csrf = Csrf::ensureToken();
 // Get locale from session (same as frontend/layout.php)
@@ -117,7 +118,9 @@ $apiBookRoute = route_path('api_book');
     </div>
   <?php endif; ?>
 
-  <form method="post" action="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
+  <form method="post" action="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>"
+        data-multiple-copy-mode="<?= $allowMultipleLoansSameBook ? '1' : '0' ?>"
+        class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 
     <!-- Ricerca Utente -->
@@ -176,6 +179,11 @@ $apiBookRoute = route_path('api_book');
         </button>
       </div>
       <p class="mt-1 text-xs text-gray-500"><?= __("Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente. Se inserisci o scansioni un codice, il libro viene identificato in automatico.") ?></p>
+      <?php if ($allowMultipleLoansSameBook): ?>
+      <p class="mt-1 text-xs text-gray-600">
+        <i class="fas fa-layer-group mr-1" aria-hidden="true"></i><?= __("Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.") ?>
+      </p>
+      <?php endif; ?>
       <p id="copy_code_status" class="mt-1 text-xs hidden" role="status" aria-live="polite"></p>
     </div>
 
@@ -249,7 +257,7 @@ $apiBookRoute = route_path('api_book');
       <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
         <i class="fas fa-save mr-2"></i><?= __("Crea Prestito") ?></button>
       <!-- Registra più copie per lo stesso utente: salva e riapre il form con i
-           dati del prestito mantenuti; libro e codice copia vengono azzerati. -->
+           dati condivisi mantenuti; il codice copia viene sempre azzerato. -->
       <button type="submit" name="save_and_new" value="1" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
         <i class="fas fa-layer-group mr-2"></i><?= __("Salva e registra un'altra copia") ?></button>
       <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
@@ -957,6 +965,13 @@ $apiBookRoute = route_path('api_book');
         });
       }
       setupCopyCodeResolver();
+
+      // In the batch workflow, return the operator directly to the scanner field
+      // after a successful save. The selected title is retained server-side.
+      if (loanForm && loanCreatedAlert && loanForm.dataset.multipleCopyMode === '1') {
+        const nextCopyCode = document.getElementById('copy_code');
+        if (nextCopyCode) nextCopyCode.focus();
+      }
     });
   </script>
 

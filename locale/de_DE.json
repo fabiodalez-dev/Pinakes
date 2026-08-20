@@ -6875,5 +6875,11 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s ausgewählte Ausleihen erhalten die Mahnung (nur die überfälligen).",
   "Impossibile generare la ricevuta PDF.": "Die Quittungs-PDF konnte nicht erstellt werden.",
   "Attivazione prestito rinviata: nessuna copia libera": "Ausleihe-Aktivierung verschoben: kein Exemplar frei",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Ausleihe-Aktivierung verschoben: zugewiesenes Exemplar nicht in der Bibliothek"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Ausleihe-Aktivierung verschoben: zugewiesenes Exemplar nicht in der Bibliothek",
+  "Più copie dello stesso titolo": "Mehrere Exemplare desselben Titels",
+  "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Erlaube demselben Benutzer mehrere aktive Ausleihen desselben Buches, sofern jede Ausleihe einem anderen physischen Exemplar zugeordnet ist.",
+  "Consenti prestiti multipli per copia": "Mehrfachausleihen für verschiedene Exemplare zulassen",
+  "Utile per scuole e centri didattici che affidano più copie dello stesso testo a un docente.": "Nützlich für Schulen und Bildungseinrichtungen, die einer Lehrkraft mehrere Exemplare desselben Lehrbuchs anvertrauen.",
+  "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Ausstehende Anfragen und Vormerkungen bleiben pro Benutzer und Buch eindeutig. Jedes Exemplar zählt zum Limit für aktive Ausleihen.",
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Mehrfachausleihmodus aktiv: Das Buch bleibt ausgewählt; scannen Sie das nächste Exemplar, um fortzufahren."
 }

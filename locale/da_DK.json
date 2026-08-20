@@ -6875,5 +6875,11 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s valgte lån modtager rykkeren (kun de forfaldne).",
   "Impossibile generare la ricevuta PDF.": "Kvitterings-PDF'en kunne ikke genereres.",
   "Attivazione prestito rinviata: nessuna copia libera": "Aktivering af lån udskudt: intet eksemplar ledigt",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Aktivering af lån udskudt: tildelt eksemplar ikke på biblioteket"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Aktivering af lån udskudt: tildelt eksemplar ikke på biblioteket",
+  "Più copie dello stesso titolo": "Flere eksemplarer af samme titel",
+  "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Tillad den samme bruger at have flere aktive lån af samme bog, så længe hvert lån er knyttet til et særskilt fysisk eksemplar.",
+  "Consenti prestiti multipli per copia": "Tillad flere lån af særskilte eksemplarer",
+  "Utile per scuole e centri didattici che affidano più copie dello stesso testo a un docente.": "Nyttigt for skoler og undervisningscentre, der udlåner flere eksemplarer af den samme bog til en lærer.",
+  "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Afventende anmodninger og reservationer er fortsat unikke pr. bruger og bog. Hvert eksemplar tæller med i grænsen for aktive lån.",
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Tilstanden for flere lån er aktiv: Bogen forbliver valgt; scan det næste eksemplar for at fortsætte."
 }

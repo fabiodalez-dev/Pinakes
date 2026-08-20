@@ -187,6 +187,16 @@ class ReservationReassignmentService
             }
             $reservation = $lockedReservation;
 
+            // Existing same-title duplicates must keep distinct physical copies
+            // even when their windows do not overlap (and even if the setting was
+            // subsequently disabled). Lock sibling commitments before the copy.
+            $committedCopyIds = (new \App\Support\LoanMultiplicityPolicy($this->db))
+                ->committedCopyIds($libroId, (int) $reservation['utente_id'], (int) $reservation['id']);
+            if (in_array($newCopiaId, $committedCopyIds, true)) {
+                $this->rollbackIfOwned($ownTransaction);
+                return;
+            }
+
             // Verifica che la nuova copia sia effettivamente disponibile (lock)
             $stmt = $this->db->prepare("SELECT id, stato FROM copie WHERE id = ? FOR UPDATE");
             $stmt->bind_param('i', $newCopiaId);
@@ -318,6 +328,7 @@ class ReservationReassignmentService
                 $libroId,
                 $excludedCopies,
                 $reservationId,
+                (int) $reservation['utente_id'],
                 $resStart,
                 $resEnd
             );
@@ -338,7 +349,7 @@ class ReservationReassignmentService
                 $lockBook->close();
 
                 $lockReservation = $this->db->prepare("
-                    SELECT id, copia_id, data_prestito, data_scadenza
+                    SELECT id, copia_id, utente_id, data_prestito, data_scadenza
                     FROM prestiti
                     WHERE id = ? AND libro_id = ? AND copia_id = ?
                       AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare'))
@@ -355,6 +366,14 @@ class ReservationReassignmentService
                 }
                 $resStart = (string) $currentReservation['data_prestito'];
                 $resEnd = (string) $currentReservation['data_scadenza'];
+
+                $committedCopyIds = (new \App\Support\LoanMultiplicityPolicy($this->db))
+                    ->committedCopyIds($libroId, (int) $currentReservation['utente_id'], $reservationId);
+                if (in_array($nextCopyId, $committedCopyIds, true)) {
+                    $this->rollbackIfOwned($ownTransaction);
+                    $excludedCopies[] = $nextCopyId;
+                    continue;
+                }
 
                 // Lock della nuova copia e verifica stato (race condition protection)
                 $stmt = $this->db->prepare("SELECT id, stato FROM copie WHERE id = ? FOR UPDATE");
@@ -540,6 +559,7 @@ class ReservationReassignmentService
         int $libroId,
         array $excludeCopiaIds,
         int $reservationId,
+        int $userId,
         string $startDate,
         string $endDate
     ): ?int
@@ -549,6 +569,18 @@ class ReservationReassignmentService
             FROM copie c
             WHERE c.libro_id = ?
             AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+            AND NOT EXISTS (
+                SELECT 1
+                FROM prestiti own
+                WHERE own.copia_id = c.id
+                  AND own.libro_id = ?
+                  AND own.utente_id = ?
+                  AND own.id <> ?
+                  AND (
+                      (own.attivo = 0 AND own.stato = 'pendente')
+                      OR (own.attivo = 1 AND own.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                  )
+            )
             AND NOT EXISTS (
                 SELECT 1
                 FROM prestiti p
@@ -562,8 +594,8 @@ class ReservationReassignmentService
                   )
             )
         ";
-        $params = [$libroId, $reservationId, $endDate, $startDate];
-        $types = 'iiss';
+        $params = [$libroId, $libroId, $userId, $reservationId, $reservationId, $endDate, $startDate];
+        $types = 'iiiiiss';
 
         if (!empty($excludeCopiaIds)) {
             $placeholders = implode(',', array_fill(0, count($excludeCopiaIds), '?'));

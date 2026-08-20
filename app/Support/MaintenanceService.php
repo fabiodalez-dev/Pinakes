@@ -525,7 +525,7 @@ class MaintenanceService
         // guard (BUG8/D13): never promote a reservation whose whole window is already
         // past into 'da_ritirare' — its expiry cron culls it instead.
         $stmt = $this->db->prepare("
-            SELECT id, copia_id, libro_id, data_scadenza FROM prestiti
+            SELECT id, copia_id, libro_id, utente_id, data_scadenza FROM prestiti
             WHERE stato = 'prenotato'
             AND data_prestito <= ?
             AND data_scadenza >= ?
@@ -573,7 +573,7 @@ class MaintenanceService
                 }
 
                 $lockLoan = $this->db->prepare("
-                    SELECT id, copia_id, libro_id, data_prestito, data_scadenza
+                    SELECT id, copia_id, libro_id, utente_id, data_prestito, data_scadenza
                     FROM prestiti
                     WHERE id = ? AND stato = 'prenotato' AND attivo = 1
                       AND data_prestito <= ? AND data_scadenza >= ?
@@ -588,6 +588,11 @@ class MaintenanceService
                     continue;
                 }
                 $loan = $lockedLoan;
+                $committedCopyIds = (new LoanMultiplicityPolicy($this->db))->committedCopyIds(
+                    $bookId,
+                    (int) $loan['utente_id'],
+                    $loanId
+                );
 
                 // #366 guard: a reservation may only become 'da_ritirare' (and get
                 // the pickup-ready email) when a physical copy is genuinely free
@@ -632,6 +637,12 @@ class MaintenanceService
                 // promoting them with copia_id=NULL only moves the failure to
                 // confirmPickup(), which correctly refuses a copy-less loan.
                 $copiaId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : 0;
+                if ($copiaId > 0 && in_array($copiaId, $committedCopyIds, true)) {
+                    // Repair legacy/reassigned rows that share a copy with another
+                    // open loan for this borrower/title: activation must choose a
+                    // distinct physical item, regardless of date overlap.
+                    $copiaId = 0;
+                }
                 if ($copiaId > 0) {
                     $copyStmt = $this->db->prepare('SELECT stato FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
                     $copyStmt->bind_param('ii', $copiaId, $bookId);
@@ -676,6 +687,18 @@ class MaintenanceService
                           AND c.stato IN ('disponibile', 'prenotato')
                           AND NOT EXISTS (
                               SELECT 1
+                              FROM prestiti own
+                              WHERE own.copia_id = c.id
+                                AND own.libro_id = ?
+                                AND own.utente_id = ?
+                                AND own.id <> ?
+                                AND (
+                                    (own.attivo = 0 AND own.stato = 'pendente')
+                                    OR (own.attivo = 1 AND own.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                                )
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1
                               FROM prestiti p
                               WHERE p.copia_id = c.id AND p.id <> ?
                                 AND ( (p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo','da_ritirare'))
@@ -687,7 +710,16 @@ class MaintenanceService
                         LIMIT 1
                         FOR UPDATE
                     ");
-                    $freeCopy->bind_param('iiss', $bookId, $loanId, $loan['data_scadenza'], $loan['data_prestito']);
+                    $freeCopy->bind_param(
+                        'iiiiiss',
+                        $bookId,
+                        $bookId,
+                        $loan['utente_id'],
+                        $loanId,
+                        $loanId,
+                        $loan['data_scadenza'],
+                        $loan['data_prestito']
+                    );
                     $freeCopy->execute();
                     $freeCopyRow = $freeCopy->get_result()->fetch_assoc();
                     $freeCopy->close();

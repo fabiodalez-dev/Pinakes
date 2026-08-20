@@ -252,6 +252,45 @@
       </div>
     </div>
 
+    <!-- Multiple physical copies of the same title -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-layer-group text-gray-500"></i>
+          <?= __("Più copie dello stesso titolo") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.") ?></p>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700">
+              <?= __("Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.") ?>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="allow_multiple_loans_same_book_label" class="text-sm font-semibold text-gray-900"><?= __("Consenti prestiti multipli per copia") ?></span>
+            <p id="allow_multiple_loans_same_book_desc" class="text-xs text-gray-600 mt-1"><?= __("Utile per scuole e centri didattici che affidano più copie dello stesso testo a un docente.") ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="allow_multiple_loans_same_book"
+                   name="allow_multiple_loans_same_book"
+                   value="1"
+                   aria-labelledby="allow_multiple_loans_same_book_label"
+                   aria-describedby="allow_multiple_loans_same_book_desc"
+                   <?php echo !empty($loansSettings['allow_multiple_loans_same_book']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- #360: automatic recalls (solleciti) for overdue loans -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">

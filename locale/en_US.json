@@ -6875,5 +6875,11 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s selected loans will receive the reminder (only the overdue ones).",
   "Impossibile generare la ricevuta PDF.": "Could not generate the receipt PDF.",
   "Attivazione prestito rinviata: nessuna copia libera": "Loan activation deferred: no copy free",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Loan activation deferred: assigned copy not in library"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Loan activation deferred: assigned copy not in library",
+  "Più copie dello stesso titolo": "Multiple copies of the same title",
+  "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Allow the same user to have multiple active loans for the same book, provided each loan is associated with a distinct physical copy.",
+  "Consenti prestiti multipli per copia": "Allow multiple loans for separate copies",
+  "Utile per scuole e centri didattici che affidano più copie dello stesso testo a un docente.": "Useful for schools and learning centers that assign multiple copies of the same textbook to a teacher.",
+  "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Pending requests and reservations remain unique per user and book. Each copy counts toward the active loan limit.",
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Multiple-loan mode is active: the book remains selected; scan the next copy to continue."
 }

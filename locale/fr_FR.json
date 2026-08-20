@@ -6875,5 +6875,11 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s prêts sélectionnés recevront le rappel (uniquement ceux en retard).",
   "Impossibile generare la ricevuta PDF.": "Impossible de générer le PDF du reçu.",
   "Attivazione prestito rinviata: nessuna copia libera": "Activation du prêt reportée : aucun exemplaire libre",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Activation du prêt reportée : exemplaire attribué absent de la bibliothèque"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Activation du prêt reportée : exemplaire attribué absent de la bibliothèque",
+  "Più copie dello stesso titolo": "Plusieurs exemplaires du même titre",
+  "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Autorisez un même utilisateur à avoir plusieurs emprunts actifs du même livre, à condition que chaque emprunt soit associé à un exemplaire physique distinct.",
+  "Consenti prestiti multipli per copia": "Autoriser plusieurs emprunts sur des exemplaires distincts",
+  "Utile per scuole e centri didattici che affidano più copie dello stesso testo a un docente.": "Utile pour les écoles et les centres de formation qui confient plusieurs exemplaires du même ouvrage à un enseignant.",
+  "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Les demandes en attente et les réservations restent uniques par utilisateur et par livre. Chaque exemplaire compte dans la limite des emprunts actifs.",
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Mode de prêts multiples actif : le livre reste sélectionné ; scannez l'exemplaire suivant pour continuer."
 }

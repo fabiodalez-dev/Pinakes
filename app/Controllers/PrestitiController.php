@@ -172,7 +172,9 @@ class PrestitiController
         // il vecchio date('Y-m-d') (TZ processo, spesso UTC) mostrava "ieri" dopo
         // mezzanotte, e il '+1 month' della view divergeva dal default server (30gg).
         $defaultDataPrestito = \App\Support\DateHelper::today();
-        $defaultLoanDays = (new \App\Models\SettingsRepository($db))->loanDurationDays();
+        $loanSettings = new \App\Models\SettingsRepository($db);
+        $defaultLoanDays = $loanSettings->loanDurationDays();
+        $allowMultipleLoansSameBook = $loanSettings->allowsMultipleLoansSameBook();
         $defaultDataScadenza = date('Y-m-d', strtotime($defaultDataPrestito . " +{$defaultLoanDays} days"));
 
         ob_start();
@@ -291,24 +293,16 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=book_not_found')->withStatus(302);
             }
 
-            // Case 8: Prevent multiple active reservations/loans for the same book by the same user
-            // Note: 'pendente' has attivo=0, other active states have attivo=1
-            $dupStmt = $db->prepare("
-                SELECT id FROM prestiti
-                WHERE libro_id = ? AND utente_id = ? AND (
-                    (attivo = 0 AND stato = 'pendente')
-                    OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-                )
-                FOR UPDATE
-            ");
-            $dupStmt->bind_param('ii', $libro_id, $utente_id);
-            $dupStmt->execute();
-            if ($dupStmt->get_result()->num_rows > 0) {
-                $dupStmt->close();
+            // By default the historical borrower/title uniqueness rule remains.
+            // The opt-in policy relaxes it only for this staff flow, which always
+            // resolves and locks a physical copy before INSERT. Pending/copyless
+            // commitments still block, as do active queue reservations below.
+            $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($db);
+            if ($multiplicityPolicy->hasBlockingLoan($libro_id, $utente_id, true)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=duplicate_reservation')->withStatus(302);
             }
-            $dupStmt->close();
+            $borrowerCommittedCopyIds = $multiplicityPolicy->committedCopyIds($libro_id, $utente_id);
 
             $dupReservationStmt = $db->prepare("
                 SELECT id
@@ -385,10 +379,10 @@ class PrestitiController
             // auto-assign paths below (fully backward compatible).
             $copyCode = trim($oldInput['copy_code'] ?? '');
             if ($copyCode !== '') {
-                // Lock ONLY the copie row here — the requested book is already
-                // locked above (line ~155), so JOINing+locking libri would lock a
-                // (potentially different) book row second and invert lock order →
-                // deadlock risk when a scanned code belongs to another book.
+                // Resolve without locking first: borrower/title commitments must
+                // be locked before the selected copy to preserve the canonical
+                // order. The final copy lock + overlap re-check below is the
+                // authority immediately before INSERT.
                 // Soft-delete stays covered: the copy_wrong_book check below
                 // requires this copy to belong to $libro_id, which was resolved
                 // under `deleted_at IS NULL`.
@@ -397,7 +391,6 @@ class PrestitiController
                     FROM copie c
                     WHERE c.numero_inventario = ?
                     LIMIT 1
-                    FOR UPDATE
                 ");
                 $codeStmt->bind_param('s', $copyCode);
                 $codeStmt->execute();
@@ -414,6 +407,14 @@ class PrestitiController
                 }
 
                 $forcedCopyId = (int) $codeRow['id'];
+
+                // Multiple open rows for one borrower/title must represent
+                // different physical items even when their date windows do not
+                // overlap. The book lock makes this early snapshot race-safe.
+                if (in_array($forcedCopyId, $borrowerCommittedCopyIds, true)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_not_available')->withStatus(302);
+                }
 
                 // Must be in a lendable state and have no overlapping hold for the period.
                 $lendable = !in_array($codeRow['stato'], ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true);
@@ -474,6 +475,16 @@ class PrestitiController
                     WHERE c.libro_id = ?
                     AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                     AND NOT EXISTS (
+                        SELECT 1 FROM prestiti own
+                        WHERE own.copia_id = c.id
+                        AND own.libro_id = ?
+                        AND own.utente_id = ?
+                        AND (
+                            (own.attivo = 0 AND own.stato = 'pendente')
+                            OR (own.attivo = 1 AND own.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                        )
+                    )
+                    AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.data_prestito <= ?
@@ -485,7 +496,7 @@ class PrestitiController
                     )
                     LIMIT 1
                 ");
-                $overlapStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
+                $overlapStmt->bind_param('iiiss', $libro_id, $libro_id, $utente_id, $data_scadenza, $data_prestito);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
@@ -498,10 +509,17 @@ class PrestitiController
             }
 
             // Lock selected copy and re-check overlap to prevent race conditions
-            $lockCopyStmt = $db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
+            $lockCopyStmt = $db->prepare("SELECT id, stato, libro_id FROM copie WHERE id = ? FOR UPDATE");
             $lockCopyStmt->bind_param('i', $selectedCopy['id']);
             $lockCopyStmt->execute();
+            $lockedCopy = $lockCopyStmt->get_result()->fetch_assoc();
             $lockCopyStmt->close();
+            if (!$lockedCopy
+                || (int) $lockedCopy['libro_id'] !== $libro_id
+                || in_array($lockedCopy['stato'], ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_not_available')->withStatus(302);
+            }
 
             // Race condition check to prevent double-booking
             $overlapCopyStmt = $db->prepare("
@@ -673,13 +691,16 @@ class PrestitiController
                 SecureLogger::warning(__('Notifica prestito fallita'), ['error' => $e->getMessage()]);
             }
 
-            // "Salva e registra un'altra copia": keep borrower, dates and note,
-            // but clear both book and copy. Active loans are unique per user/book,
-            // so retaining the previous book would make the next submit fail the
-            // duplicate guard. Scanning the next inventory code fills its book.
+            // "Salva e registra un'altra copia": always clear the physical copy.
+            // With the opt-in mode enabled, retain the book too so the operator
+            // can scan several copies of the same title without repeating search.
+            // Strict mode preserves the historical title-reset behaviour.
             if (($oldInput['save_and_new'] ?? '') === '1') {
                 $retain = $oldInput;
-                unset($retain['libro_id'], $retain['copy_code'], $retain['save_and_new']);
+                unset($retain['copy_code'], $retain['save_and_new']);
+                if (!$multiplicityPolicy->isEnabled()) {
+                    unset($retain['libro_id']);
+                }
                 $_SESSION['loan_form_old'] = $retain;
                 $redirectUrl = url('/admin/loans/create') . '?created=1';
                 $scaricaPdf = ($oldInput['scarica_pdf'] ?? '') === '1';
@@ -882,21 +903,22 @@ class PrestitiController
                     return $response->withHeader('Location', url('/admin/loans') . '?error=' . $eligibilityError)->withStatus(302);
                 }
 
-                // Dup-check (libro, nuovo utente) sugli stati attivi, escludendo il
-                // prestito in modifica — stesso predicato di store().
-                $dupStmt = $db->prepare("
-                    SELECT id FROM prestiti
-                    WHERE libro_id = ? AND utente_id = ? AND id <> ? AND (
-                        (attivo = 0 AND stato = 'pendente')
-                        OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-                    )
-                    FOR UPDATE
-                ");
-                $dupStmt->bind_param('iii', $libroId, $newUserId, $id);
-                $dupStmt->execute();
-                $hasDup = $dupStmt->get_result()->num_rows > 0;
-                $dupStmt->close();
-                if ($hasDup) {
+                // Reassignment may use the relaxed rule only when this existing
+                // loan is already tied to a physical copy. Legacy copyless rows
+                // deliberately retain strict title-level uniqueness.
+                $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($db);
+                if ($multiplicityPolicy->hasBlockingLoan(
+                    $libroId,
+                    $newUserId,
+                    $locked['copia_id'] !== null,
+                    $id
+                )) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=duplicate_reservation')->withStatus(302);
+                }
+                $committedCopyIds = $multiplicityPolicy->committedCopyIds($libroId, $newUserId, $id);
+                if ($locked['copia_id'] !== null
+                    && in_array((int) $locked['copia_id'], $committedCopyIds, true)) {
                     $db->rollback();
                     return $response->withHeader('Location', url('/admin/loans') . '?error=duplicate_reservation')->withStatus(302);
                 }

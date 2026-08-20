@@ -207,6 +207,10 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'allow_multiple_loans_same_book', '0', 'Autorise un même utilisateur à avoir plusieurs emprunts actifs du même livre sur des exemplaires physiques distincts')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'max_renewals', '3', 'Nombre maximal de renouvellements autorisés par emprunt')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 

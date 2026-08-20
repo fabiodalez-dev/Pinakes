@@ -267,20 +267,11 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
             }
 
-            $dupStmt = $db->prepare("
-                SELECT id FROM prestiti
-                WHERE libro_id = ? AND utente_id = ? AND id != ?
-                AND (
-                    (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-                    OR (attivo = 0 AND stato = 'pendente')
-                )
-                LIMIT 1
-            ");
-            $dupStmt->bind_param('iii', $libroId, $utenteId, $loanId);
-            $dupStmt->execute();
-            $hasActiveDuplicate = $dupStmt->get_result()->num_rows > 0;
-            $dupStmt->close();
-            if ($hasActiveDuplicate) {
+            // Approval atomically assigns a locked physical copy below, so the
+            // opt-in multiplicity policy may coexist with other copy-bound loans.
+            // Sibling pending/copyless rows remain blocking in every mode.
+            $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($db);
+            if ($multiplicityPolicy->hasBlockingLoan($libroId, $utenteId, true, $loanId)) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -288,6 +279,7 @@ class LoanApprovalController
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
             }
+            $borrowerCommittedCopyIds = $multiplicityPolicy->committedCopyIds($libroId, $utenteId, $loanId);
 
             $dupReservationStmt = $db->prepare("
                 SELECT id
@@ -364,7 +356,7 @@ class LoanApprovalController
             // If loan already has a valid assigned copy, we can skip global slot counting
             $selectedCopy = null;
 
-            if ($existingCopiaId !== null) {
+            if ($existingCopiaId !== null && !in_array($existingCopiaId, $borrowerCommittedCopyIds, true)) {
                 $existingCopyStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.id = ?
@@ -410,6 +402,17 @@ class LoanApprovalController
                     WHERE c.libro_id = ?
                     AND c.stato IN ('disponibile', 'prenotato')
                     AND NOT EXISTS (
+                        SELECT 1 FROM prestiti own
+                        WHERE own.copia_id = c.id
+                        AND own.libro_id = ?
+                        AND own.utente_id = ?
+                        AND own.id != ?
+                        AND (
+                            (own.attivo = 0 AND own.stato = 'pendente')
+                            OR (own.attivo = 1 AND own.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                        )
+                    )
+                    AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.data_prestito <= ?
@@ -421,7 +424,7 @@ class LoanApprovalController
                     )
                     LIMIT 1
                 ");
-                $overlapStmt->bind_param('iss', $libroId, $dataScadenza, $dataPrestito);
+                $overlapStmt->bind_param('iiiiss', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $dataPrestito);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
@@ -433,6 +436,10 @@ class LoanApprovalController
                 // Fallback: try date-aware method to find available copy for the requested period
                 $copyRepo = new \App\Models\CopyRepository($db);
                 $availableCopies = $copyRepo->getAvailableByBookIdForDateRange($libroId, $dataPrestito, $dataScadenza);
+                $availableCopies = array_values(array_filter(
+                    $availableCopies,
+                    static fn (array $copy): bool => !in_array((int) $copy['id'], $borrowerCommittedCopyIds, true)
+                ));
 
                 if (empty($availableCopies)) {
                     $db->rollback();

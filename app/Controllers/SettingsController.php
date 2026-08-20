@@ -1310,7 +1310,7 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string}
      */
     private function resolveLoansSettings(SettingsRepository $repository): array
     {
@@ -1321,6 +1321,7 @@ class SettingsController
             'max_active_loans_per_user' => (int) ($repository->get('loans', 'max_active_loans_per_user', '0') ?? 0),
             'max_loan_duration_days'   => (int) ($repository->get('loans', 'max_loan_duration_days', '90') ?? 90),
             'auto_approve_requests'    => $repository->autoApproveLoanRequests(),
+            'allow_multiple_loans_same_book' => $repository->allowsMultipleLoansSameBook(),
             // #360: automatic recall (sollecito) schedule for overdue loans.
             'recall_auto_enabled'      => (string) ($repository->get('loans', 'recall_auto_enabled', '0') ?? '0') === '1',
             'recall_interval_days'     => (int) ($repository->get('loans', 'recall_interval_days', '7') ?? 7),
@@ -1353,6 +1354,9 @@ class SettingsController
         $autoApprove      = isset($data['auto_approve_requests'])
             && is_scalar($data['auto_approve_requests'])
             && (string) $data['auto_approve_requests'] === '1';
+        $allowMultipleLoansSameBook = isset($data['allow_multiple_loans_same_book'])
+            && is_scalar($data['allow_multiple_loans_same_book'])
+            && (string) $data['allow_multiple_loans_same_book'] === '1';
         // #360: automatic recall schedule. The same clamps are re-applied at
         // read time by NotificationService::sendLoanRecalls().
         $recallEnabled    = isset($data['recall_auto_enabled'])
@@ -1367,6 +1371,7 @@ class SettingsController
         $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
         $repository->set('loans', 'max_loan_duration_days', (string) $maxLoanDuration);
         $repository->set('loans', 'auto_approve_requests', $autoApprove ? '1' : '0');
+        $repository->set('loans', 'allow_multiple_loans_same_book', $allowMultipleLoansSameBook ? '1' : '0');
         $repository->set('loans', 'recall_auto_enabled', $recallEnabled ? '1' : '0');
         $repository->set('loans', 'recall_interval_days', (string) $recallInterval);
         $repository->set('loans', 'recall_max_count', (string) $recallMaxCount);
