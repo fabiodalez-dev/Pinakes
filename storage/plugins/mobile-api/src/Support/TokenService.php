@@ -221,8 +221,8 @@ final class TokenService
     }
 
     /**
-     * MySQL DATETIME → ISO-8601 UTC with Z suffix (MOBILE_API_SPEC: "dates
-     * ISO-8601 UTC; the app formats locally"). Interprets the wall-clock
+     * MySQL DATETIME → ISO-8601 UTC with Z suffix (mobile API contract: dates
+     * are ISO-8601 UTC; the app formats locally). Interprets the wall-clock
      * value in the current PHP timezone, like gmdate elsewhere in the plugin.
      */
     private static function isoUtc(mixed $datetime): ?string

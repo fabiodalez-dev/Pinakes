@@ -345,7 +345,6 @@ class MaintenanceService
         $candidates = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
 
-        $capacity = new \App\Services\CapacityService($this->db);
         $integrity = new DataIntegrity($this->db);
         $repaired = 0;
 
@@ -383,23 +382,16 @@ class MaintenanceService
                     continue;
                 }
 
-                // Same book-level physical-now gate used by activation. Other
-                // ready pickups and copy-holding pending rows also consume a
-                // hand-out slot; future prenotato rows do not.
-                $occupiedStmt = $this->db->prepare("
-                    SELECT COUNT(*) AS occupied
-                    FROM prestiti
-                    WHERE libro_id = ? AND id <> ?
-                      AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare'))
-                            OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
-                ");
-                $occupiedStmt->bind_param('ii', $bookId, $loanId);
-                $occupiedStmt->execute();
-                $occupiedRow = $occupiedStmt->get_result()->fetch_assoc();
-                $occupiedStmt->close();
-                $invalid = (int) ($occupiedRow['occupied'] ?? 0) >= $capacity->totalCopies($bookId);
+                // Judge each row ONLY on its own pinned copy — mirroring the
+                // migrate_0.7.63-rc.1.sql selection. A book-level occupancy
+                // count would demote a truthful pickup whose own copy is free
+                // just because a sibling corrupt row inflates the count, and
+                // activateScheduledLoans() would then re-promote it in the same
+                // runAll() with an extended deadline and a duplicate email.
+                $invalid = false;
 
                 $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : 0;
+                $copyStateNow = null;
                 if ($copyId <= 0) {
                     // confirmPickup() cannot hand out a loan with no copy. It
                     // must return to prenotato and be assigned atomically by
@@ -411,7 +403,8 @@ class MaintenanceService
                     $copyLock->execute();
                     $copy = $copyLock->get_result()->fetch_assoc();
                     $copyLock->close();
-                    if (!$copy || !in_array((string) $copy['stato'], ['disponibile', 'prenotato'], true)) {
+                    $copyStateNow = $copy !== null ? (string) $copy['stato'] : null;
+                    if (!$copy || !in_array($copyStateNow, ['disponibile', 'prenotato'], true)) {
                         $invalid = true;
                     }
 
@@ -452,6 +445,37 @@ class MaintenanceService
                 if ($changed !== 1) {
                     $this->db->rollback();
                     continue;
+                }
+
+                // The demotion just unpinned the copy: without a committing loan
+                // a circulation state (prenotato/prestato) on the copie row is
+                // stale and would keep the copy off the shelf forever. Release
+                // it in the SAME transaction, before the availability recompute.
+                // Non-circulation states (manutenzione, perso, ...) are curated
+                // by staff and are never touched here.
+                if ($copyId > 0 && in_array($copyStateNow, ['prenotato', 'prestato'], true)) {
+                    $committer = $this->db->prepare("
+                        SELECT 1
+                        FROM prestiti
+                        WHERE copia_id = ? AND id <> ?
+                          AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare','prenotato'))
+                                OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                        LIMIT 1
+                    ");
+                    $committer->bind_param('ii', $copyId, $loanId);
+                    $committer->execute();
+                    $stillCommitted = (bool) $committer->get_result()->fetch_row();
+                    $committer->close();
+                    if (!$stillCommitted) {
+                        $release = $this->db->prepare("
+                            UPDATE copie
+                            SET stato = 'disponibile'
+                            WHERE id = ? AND libro_id = ? AND stato IN ('prenotato', 'prestato')
+                        ");
+                        $release->bind_param('ii', $copyId, $bookId);
+                        $release->execute();
+                        $release->close();
+                    }
                 }
 
                 if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {

@@ -166,6 +166,15 @@ $setCopyState = static function (int $copiaId, string $stato) use ($db): void {
     $stmt->close();
 };
 
+$copyState = static function (int $copiaId) use ($db): string {
+    $stmt = $db->prepare('SELECT stato FROM copie WHERE id = ?');
+    $stmt->bind_param('i', $copiaId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return (string) ($row['stato'] ?? '');
+};
+
 $loanRow = static function (int $loanId) use ($db): array {
     $stmt = $db->prepare('SELECT stato, attivo, copia_id, data_prestito, data_scadenza, pickup_deadline, warning_sent, overdue_notification_sent, renewals FROM prestiti WHERE id = ?');
     $stmt->bind_param('i', $loanId);
@@ -497,6 +506,75 @@ try {
     $row = $loanRow($stalePickupG);
     check(($row['stato'] ?? '') === 'da_ritirare' && (int) ($row['copia_id'] ?? 0) === $copyG,
         'F: after the real return, the same scheduled loan becomes ready with an assigned copy');
+
+    /* ---- G. Repair judges each row on its OWN copy + releases freed copies -- */
+    // G1: 2-copy book. A truthful da_ritirare is pinned to a free copy while a
+    // sibling corrupt copy-less da_ritirare AND an overdue loan inflate the
+    // book-level count to totalCopies. A capacity-style gate would demote the
+    // truthful row too — and activateScheduledLoans() would then re-promote it
+    // in the same runAll() with an EXTENDED pickup_deadline and a duplicate
+    // pickup-ready email. The repair must only demote the corrupt row.
+    $userH = $mkUser();
+    $userH2 = $mkUser();
+    $userH3 = $mkUser();
+    [$bookH, [$copyHa, $copyHb]] = $mkBook(2);
+    $validH = $mkLoan($bookH, $copyHa, $userH, 'da_ritirare', $d(-1), $d(12), $d(2));
+    $setCopyState($copyHa, 'prenotato');
+    $loanH = $mkLoan($bookH, $copyHb, $userH2, 'in_ritardo', $d(-30), $d(-1));
+    $setCopyState($copyHb, 'prestato');
+    $corruptH = $mkLoan($bookH, null, $userH3, 'da_ritirare', $d(-1), $d(12), $d(2));
+
+    // G2 fixture (separate book): a da_ritirare pinned to a copy stuck in
+    // 'prestato' with NO loan holding it. The row must be demoted AND its
+    // freed copy released back to 'disponibile' in the same repair.
+    $userI = $mkUser();
+    [$bookI, [$copyI]] = $mkBook(1);
+    $staleI = $mkLoan($bookI, $copyI, $userI, 'da_ritirare', $d(-1), $d(12), $d(2));
+    $setCopyState($copyI, 'prestato');
+
+    $svc->repairInvalidReadyPickups();
+
+    $row = $loanRow($validH);
+    check(($row['stato'] ?? '') === 'da_ritirare'
+        && (int) ($row['copia_id'] ?? 0) === $copyHa
+        && ($row['pickup_deadline'] ?? '') === $d(2),
+        'G1: the truthful pickup on its own free copy is NOT demoted by the sibling corruption (deadline untouched => no re-promote, no duplicate email)');
+    $row = $loanRow($corruptH);
+    check(($row['stato'] ?? '') === 'prenotato'
+        && ($row['copia_id'] ?? null) === null
+        && ($row['pickup_deadline'] ?? null) === null,
+        'G1: the corrupt copy-less sibling IS demoted back to the schedulable state');
+
+    $row = $loanRow($staleI);
+    check(($row['stato'] ?? '') === 'prenotato' && ($row['copia_id'] ?? null) === null,
+        'G2: the pickup pinned to a stale prestato copy is demoted');
+    check($copyState($copyI) === 'disponibile',
+        'G2: the freed copy is released to disponibile in the same repair (not orphaned off the shelf)');
+
+    // The re-promotion path must not undo G1 either: the corrupt row stays
+    // deferred (its book has no physically free copy) and the truthful row
+    // keeps its ORIGINAL deadline through the activation sweep.
+    $svc->activateScheduledLoans();
+    $row = $loanRow($validH);
+    check(($row['stato'] ?? '') === 'da_ritirare' && ($row['pickup_deadline'] ?? '') === $d(2),
+        'G1: activation sweep leaves the truthful pickup untouched (same deadline, no second pickup-ready email)');
+    check(($loanRow($corruptH)['stato'] ?? '') === 'prenotato',
+        'G1: the demoted corrupt row is not re-promoted while no copy is free');
+
+    // Invariant behind both fixes: within this run's books no copy may be left
+    // in a circulation state without a loan committing it.
+    $orphanedCopies = (int) $db->query("
+        SELECT COUNT(*) FROM copie c
+        WHERE c.libro_id IN ({$bookH}, {$bookI})
+          AND c.stato IN ('prenotato', 'prestato')
+          AND NOT EXISTS (
+              SELECT 1 FROM prestiti p
+              WHERE p.copia_id = c.id
+                AND ( (p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo','da_ritirare','prenotato'))
+                      OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL) )
+          )
+    ")->fetch_row()[0];
+    check($orphanedCopies === 0, 'G: no copy of this run is left prenotato/prestato without a committing loan');
 
 } catch (\Throwable $e) {
     $cleanup();

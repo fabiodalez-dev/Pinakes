@@ -60,3 +60,24 @@ WHERE `id` IN (
           )
     ) AS `stale_ready_pickups`
 );
+
+-- Mirror of the repair's copy release: the demotion above unpins copies, and a
+-- copie row stuck in a circulation state (prenotato/prestato) without ANY loan
+-- committing it would stay off the shelf forever. A copy is committed by an
+-- active in_corso/in_ritardo/da_ritirare loan, an active pinned prenotato hold,
+-- or a copy-carrying pendente conversion. Non-circulation states (manutenzione,
+-- perso, ...) are staff-curated and never touched. Idempotent: released copies
+-- are 'disponibile' and no longer selected on a re-run.
+
+UPDATE `copie` stale_copy
+SET stale_copy.stato = 'disponibile'
+WHERE stale_copy.stato IN ('prenotato', 'prestato')
+  AND NOT EXISTS (
+      SELECT 1
+      FROM `prestiti` committer
+      WHERE committer.copia_id = stale_copy.id
+        AND (
+            (committer.attivo = 1 AND committer.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'))
+            OR (committer.attivo = 0 AND committer.stato = 'pendente' AND committer.copia_id IS NOT NULL)
+        )
+  );

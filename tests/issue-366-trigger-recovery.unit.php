@@ -105,6 +105,19 @@ try {
         ],
         $ddl
     );
+    // The literal replacements above only cover the reference styles the
+    // canonical trigger uses TODAY. If it ever names a table another way
+    // ("FROM `prestiti` p", "JOIN copie", no alias, ...), the leftover would
+    // make the sandbox trigger silently read/gate the REAL circulation
+    // tables. Refuse loudly instead of installing such a trigger. SQL comments
+    // legitimately mention the real names — scan executable text only.
+    $executable = preg_replace('/^\s*--.*$/m', '', $ddl) ?? $ddl;
+    if (preg_match('/\b(prestiti|copie|prenotazioni|libri)\b/i', $executable, $leftover) === 1) {
+        fwrite(STDERR, "FAIL: sandbox rewrite left a reference to the real `{$leftover[1]}` table in the trigger body — update the replacement list before running.\n");
+        $cleanup();
+        $db->close();
+        exit(1);
+    }
     $db->query($ddl);
 
     // The exact follow-up: moving the already-conflicting Ready for Pickup row

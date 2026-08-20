@@ -36,12 +36,23 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     $env[trim($key)] = trim(trim($value), "\"'");
 }
 
+// Global-sweep safety valve: sendLoanExpirationWarnings()/
+// sendOverdueLoanNotifications() and the cleanup DELETEs mutate whatever
+// database this handle reaches. Never fall back to .env (a dev box's live DB):
+// run only when the caller explicitly names a dedicated test database.
+$dbName = getenv('E2E_DB_NAME') ?: '';
+if ($dbName === '') {
+    fwrite(STDERR, "FAIL: refusing to run — this suite performs GLOBAL maintenance sweeps and cleanup DELETEs. Export E2E_DB_NAME (plus E2E_DB_HOST/E2E_DB_USER/E2E_DB_PASS or E2E_DB_SOCKET) pointing at a dedicated test database.\n");
+    exit(1);
+}
+
 $dbHost = getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
 $dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
-$dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
 $dbPort = (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306));
-$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
+// An explicit E2E_DB_HOST must not be silently overridden by a leftover local
+// socket: only use a socket the caller (or .env, absent E2E_DB_HOST) names.
+$socket = getenv('E2E_DB_SOCKET') ?: (getenv('E2E_DB_HOST') ? '' : ($env['DB_SOCKET'] ?? ''));
 
 try {
     $db = is_string($socket) && $socket !== '' && file_exists($socket)
