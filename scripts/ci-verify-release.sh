@@ -95,7 +95,7 @@ if [ -L "$package_dir/storage/sessions/.gitkeep" ] || [ ! -f "$package_dir/stora
 fi
 # Fail closed: a find error must never be read as "no session data" and let an
 # unverified archive pass. Capture the scan so a non-zero find status aborts.
-if ! session_scan="$(find "$package_dir/storage/sessions" -mindepth 1 ! -name '.gitkeep' -print -quit 2>/dev/null)"; then
+if ! session_scan="$(find "$package_dir/storage/sessions" -mindepth 1 ! -path "$package_dir/storage/sessions/.gitkeep" -print -quit 2>/dev/null)"; then
   echo "could not scan storage/sessions for leaked session data" >&2
   exit 1
 fi

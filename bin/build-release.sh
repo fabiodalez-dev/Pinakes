@@ -258,7 +258,7 @@ verify_package_contents() {
         # Fail closed: a find error must never be read as "no session data".
         local unexpected_session
         if ! unexpected_session=$(find "$package_dir/storage/sessions" -mindepth 1 \
-            ! -name '.gitkeep' -print -quit 2>/dev/null); then
+            ! -path "$package_dir/storage/sessions/.gitkeep" -print -quit 2>/dev/null); then
             log_error "Could not scan storage/sessions for leaked session data"
             has_errors=true
         elif [ -n "$unexpected_session" ]; then

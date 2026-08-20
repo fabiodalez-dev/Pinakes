@@ -2300,8 +2300,13 @@ class PluginManager
         // transaction. Inside one, scope our work to a savepoint; otherwise own
         // a fresh transaction.
         $inTransaction = $this->hasActiveTransaction();
+        // SAVEPOINT reuses (deletes) an existing savepoint of the same name,
+        // so a fixed identifier could silently clobber a caller's savepoint
+        // boundary. Generate a unique identifier per invocation — savepoint
+        // names are identifiers, not bindable params, and hex is injection-safe.
+        $savepoint = 'pinakes_sp_' . bin2hex(random_bytes(6));
         if ($inTransaction) {
-            $this->db->query('SAVEPOINT pinakes_restore_hooks');
+            $this->db->query('SAVEPOINT ' . $savepoint);
         } else {
             $this->db->begin_transaction();
         }
@@ -2354,13 +2359,13 @@ class PluginManager
             }
 
             if ($inTransaction) {
-                $this->db->query('RELEASE SAVEPOINT pinakes_restore_hooks');
+                $this->db->query('RELEASE SAVEPOINT ' . $savepoint);
             } else {
                 $this->db->commit();
             }
         } catch (\Throwable $e) {
             if ($inTransaction) {
-                $this->db->query('ROLLBACK TO SAVEPOINT pinakes_restore_hooks');
+                $this->db->query('ROLLBACK TO SAVEPOINT ' . $savepoint);
             } else {
                 $this->db->rollback();
             }
@@ -2377,11 +2382,23 @@ class PluginManager
      */
     private function hasActiveTransaction(): bool
     {
+        // Unique per call: SAVEPOINT reuses (deletes) an existing savepoint of
+        // the same name, so a fixed probe name could clobber a caller's own
+        // savepoint boundary. Hex from random_bytes() is injection-safe.
+        $probe = 'pinakes_sp_' . bin2hex(random_bytes(6));
         try {
-            if ($this->db->query('SAVEPOINT pinakes_tx_probe') === false) {
+            if ($this->db->query('SAVEPOINT ' . $probe) === false) {
                 return false;
             }
-            return $this->db->query('RELEASE SAVEPOINT pinakes_tx_probe') !== false;
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
+        try {
+            // Always release the probe after a successful SAVEPOINT so it never
+            // lingers inside a caller's transaction. Outside one, autocommit
+            // already discarded it and the RELEASE fails — that failure IS the
+            // "no transaction" signal.
+            return $this->db->query('RELEASE SAVEPOINT ' . $probe) !== false;
         } catch (\mysqli_sql_exception $e) {
             return false;
         }
