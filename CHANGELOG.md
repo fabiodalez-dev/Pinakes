@@ -2,7 +2,7 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [Unreleased]
+## [0.7.63] - 2026-08-20
 
 ### Fixed
 

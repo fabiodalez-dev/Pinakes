@@ -356,7 +356,7 @@ class MaintenanceService
 
             try {
                 // Canonical circulation lock order: book, loan, then copy.
-                // No deleted_at filter: an archived title's open circulation
+                // CI-SOFT-DELETE-EXEMPT: an archived title's open circulation
                 // state must still be repairable, just like return/cancel.
                 $bookLock = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
                 $bookLock->bind_param('i', $bookId);
