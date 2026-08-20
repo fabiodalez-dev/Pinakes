@@ -572,6 +572,15 @@ class PrestitiController
                     $settingsRepo = new \App\Models\SettingsRepository($db);
                     $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
                     $pickupDeadline = date('Y-m-d', strtotime("{$today} +{$pickupDays} days"));
+                    // Cap alla fine della finestra del prestito (L1), come
+                    // approveLoan/activateScheduledLoans: una deadline oltre
+                    // data_scadenza permetterebbe di confermare il ritiro di un
+                    // prestito già scaduto e terrebbe la copia impegnata oltre
+                    // la finestra. Confronto lessicografico sicuro: entrambe
+                    // validate Y-m-d sopra.
+                    if ($pickupDeadline > $data_scadenza) {
+                        $pickupDeadline = $data_scadenza;
+                    }
                 }
             } else {
                 // Future loan - user will pick up when loan period starts
@@ -824,7 +833,7 @@ class PrestitiController
             // iniziale e questo lock le può aver cambiate, e la finestra "vecchia"
             // del check di capacità qui sotto deve basarsi sui valori realmente
             // salvati, non su quelli pre-transazione (CodeRabbit, PR #337).
-            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, copia_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
+            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, copia_id, utente_id, stato, data_prestito, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
             $lockLoan->bind_param('i', $id);
             $lockLoan->execute();
             $locked = $lockLoan->get_result()->fetch_assoc();
@@ -940,6 +949,16 @@ class PrestitiController
             $oldPrestito = (string) $locked['data_prestito'];
             $oldScadenza = (string) $locked['data_scadenza'];
             if ($newPrestito !== $oldPrestito || $newScadenza !== $oldScadenza) {
+                // Idoneità del prestatario quando la scadenza viene ESTESA (stesso
+                // gate di renew(): l'estensione conferisce un beneficio). Se
+                // l'utente cambia l'idoneità è già stata verificata sopra (M6b).
+                if ($newScadenza > $oldScadenza && $newUserId === (int) $locked['utente_id']) {
+                    $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $newUserId);
+                    if ($eligibilityError !== null) {
+                        $db->rollback();
+                        return $response->withHeader('Location', url('/admin/loans') . '?error=' . $eligibilityError)->withStatus(302);
+                    }
+                }
                 // Y-m-d strings compare correctly lexicographically (validated
                 // strict above); ±1 day via DateTimeImmutable, no TZ ambiguity.
                 $dayBefore = static fn (string $ymd): string => (new \DateTimeImmutable($ymd))->modify('-1 day')->format('Y-m-d');
@@ -1043,6 +1062,47 @@ class PrestitiController
                 $resetRecall->bind_param('i', $id);
                 $resetRecall->execute();
                 $resetRecall->close();
+            }
+
+            // #366 residual: rescheduling an open 'prenotato'/'da_ritirare' loan
+            // must keep the pickup lifecycle coherent with the NEW window —
+            // update() moved the dates but left stato/pickup_deadline untouched,
+            // so checkExpiredPickups() culled a just-rescheduled valid loan
+            // against its STALE deadline (wrong "pickup expired" email + lost
+            // loan), and shrinking data_scadenza below pickup_deadline left an
+            // unexpirable hold pinning the copy past its own loan window.
+            // Mirror approveLoan()/activateScheduledLoans():
+            //   - new start in the future  -> back to 'prenotato', no deadline;
+            //   - already 'da_ritirare'    -> re-derive the deadline from today,
+            //     capped at the new data_scadenza (L1);
+            //   - 'prenotato' whose start has arrived is deliberately NOT
+            //     promoted here: the maintenance sweep owns that transition,
+            //     with the #366 copy-free guard and the pickup-ready email.
+            if (in_array((string) $locked['stato'], ['prenotato', 'da_ritirare'], true)
+                && ($newPrestito !== $oldPrestito || $newScadenza !== $oldScadenza)) {
+                $todayApp = \App\Support\DateHelper::today();
+                if ($newPrestito > $todayApp) {
+                    $pickupRecalc = $db->prepare(
+                        "UPDATE prestiti SET stato = 'prenotato', pickup_deadline = NULL
+                          WHERE id = ? AND attivo = 1 AND stato IN ('prenotato', 'da_ritirare')"
+                    );
+                    $pickupRecalc->bind_param('i', $id);
+                    $pickupRecalc->execute();
+                    $pickupRecalc->close();
+                } elseif ((string) $locked['stato'] === 'da_ritirare') {
+                    $pickupDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'pickup_expiry_days', '3') ?? 3);
+                    $pickupDeadline = (new \DateTimeImmutable($todayApp))->modify('+' . $pickupDays . ' days')->format('Y-m-d');
+                    if ($pickupDeadline > $newScadenza) {
+                        $pickupDeadline = $newScadenza;
+                    }
+                    $pickupRecalc = $db->prepare(
+                        "UPDATE prestiti SET pickup_deadline = ?
+                          WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare'"
+                    );
+                    $pickupRecalc->bind_param('si', $pickupDeadline, $id);
+                    $pickupRecalc->execute();
+                    $pickupRecalc->close();
+                }
             }
 
             // Ricalcola la disponibilità (M6c): spostare le date di un 'prenotato'
@@ -1174,24 +1234,27 @@ class PrestitiController
         // UTC) un rientro poco dopo mezzanotte verrebbe datato al giorno prima.
         $data_restituzione = \App\Support\DateHelper::today();
 
+        // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
+        // lettura NON bloccante PRIMA di begin_transaction() (lock-first, MVCC:
+        // la read view REPEATABLE READ nasce alla prima consistent read in
+        // transazione — anticiparla al pre-lock renderebbe le SELECT non bloccanti
+        // successive cieche ai commit concorrenti avvenuti durante l'attesa del
+        // lock), poi blocca la riga `libri` PRIMA e infine quella del prestito —
+        // stesso ordine di store/approveLoan/renew/close per evitare deadlock con
+        // le approvazioni concorrenti sullo stesso libro.
+        $lookup = $db->prepare('SELECT libro_id FROM prestiti WHERE id = ?');
+        $lookup->bind_param('i', $id);
+        $lookup->execute();
+        $lrow = $lookup->get_result()->fetch_assoc();
+        $lookup->close();
+        if (!$lrow) {
+            return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
+        }
+        $libro_id = (int) $lrow['libro_id'];
+
         // Avvia transazione
         $db->begin_transaction();
         try {
-            // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
-            // lettura NON bloccante, poi blocca la riga `libri` PRIMA e infine quella
-            // del prestito — stesso ordine di store/approveLoan/renew/close per
-            // evitare deadlock con le approvazioni concorrenti sullo stesso libro.
-            $lookup = $db->prepare('SELECT libro_id FROM prestiti WHERE id = ?');
-            $lookup->bind_param('i', $id);
-            $lookup->execute();
-            $lrow = $lookup->get_result()->fetch_assoc();
-            $lookup->close();
-            if (!$lrow) {
-                $db->rollback();
-                return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
-            }
-            $libro_id = (int) $lrow['libro_id'];
-
             // Lock della riga `libri`. NIENTE filtro deleted_at (come in
             // LoanRepository::close()): la restituzione deve sempre poter procedere
             // anche su libro soft-deleted — la regola soft-delete governa
@@ -1602,7 +1665,7 @@ class PrestitiController
             // Rows closed or moved out of an extendable state meanwhile are
             // intentionally ignored, matching the previous bulk semantics.
             $lockLoans = $db->prepare(
-                "SELECT id, libro_id, copia_id, data_prestito, data_scadenza
+                "SELECT id, libro_id, copia_id, utente_id, data_prestito, data_scadenza
                    FROM prestiti
                   WHERE id IN ($placeholders)
                     AND attivo = 1
@@ -1642,6 +1705,14 @@ class PrestitiController
 
             $extended = 0;
             foreach ($loans as $loan) {
+                // Idoneità del prestatario per OGNI prestito esteso (stesso gate
+                // di renew(): l'estensione conferisce un beneficio — un utente
+                // sospeso o con tessera scaduta non deve trattenere il libro via
+                // bulk). Salta SOLO questo prestito, il resto del lotto procede:
+                // l'inidoneità di un utente non è un conflitto di capacità.
+                if (\App\Support\LoanEligibility::checkUser($db, (int) $loan['utente_id']) !== null) {
+                    continue;
+                }
                 // null == a capacity/copy conflict: roll the WHOLE batch back so
                 // no partial extension is committed (same all-or-nothing contract
                 // the tests pin). A thrown error is handled by the outer catch.
@@ -1783,8 +1854,15 @@ class PrestitiController
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_active'))->withStatus(302);
         }
 
-        // Check if loan is overdue
-        $isLate = ($loan['stato'] === 'in_ritardo');
+        // Check if loan is overdue — by STATE or by DATE (#366 residual): a loan
+        // whose data_scadenza is already past but that the maintenance sweep has
+        // not yet flipped to 'in_ritardo' is just as overdue. Renewing it would
+        // compute the new due date from the stale past date AND reset
+        // warning_sent/overdue_notification_sent, re-arming a duplicate overdue
+        // email. Same refusal, same error code.
+        $todayApp = \App\Support\DateHelper::today();
+        $isLate = ($loan['stato'] === 'in_ritardo')
+            || ($loan['stato'] === 'in_corso' && (string) $loan['data_scadenza'] < $todayApp);
         if ($isLate) {
             $errorUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
@@ -1872,7 +1950,9 @@ class PrestitiController
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_active'))->withStatus(302);
             }
-            if ($lockedLoan['stato'] === 'in_ritardo') {
+            // State- OR date-based overdue, same predicate as the pre-lock check.
+            if ($lockedLoan['stato'] === 'in_ritardo'
+                || ($lockedLoan['stato'] === 'in_corso' && (string) $lockedLoan['data_scadenza'] < $todayApp)) {
                 $db->rollback();
                 $errorUrl = $redirectTo ?? url('/admin/loans');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
@@ -1903,7 +1983,11 @@ class PrestitiController
             // Extension is allowed if:
             // 1. No other reservations/loans overlap with the extension period, OR
             // 2. Another copy is available for those overlapping reservations
-            $extensionStart = $currentDueDate; // Extension starts from current due date
+            // #336 (same fix as bulkExtend/update): the claimed window starts the
+            // day AFTER the current due date — the due date itself is already
+            // held by this loan, so starting at $currentDueDate double-counted
+            // that day and bounced renewals over commitments that only touch it.
+            $extensionStart = date('Y-m-d', strtotime($currentDueDate . ' +1 day'));
             $extensionEnd = $proposedNewDueDate;
 
             $capacity = new \App\Services\CapacityService($db);

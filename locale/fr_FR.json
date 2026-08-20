@@ -6873,5 +6873,7 @@
   "Ultimo Sollecito:": "Dernier rappel :",
   "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s prêt sélectionné recevra le rappel (uniquement s'il est en retard).",
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s prêts sélectionnés recevront le rappel (uniquement ceux en retard).",
-  "Impossibile generare la ricevuta PDF.": "Impossible de générer le PDF du reçu."
+  "Impossibile generare la ricevuta PDF.": "Impossible de générer le PDF du reçu.",
+  "Attivazione prestito rinviata: nessuna copia libera": "Activation du prêt reportée : aucun exemplaire libre",
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Activation du prêt reportée : exemplaire attribué absent de la bibliothèque"
 }

@@ -82,6 +82,27 @@ if find "$package_dir" -type f \( -name '*.pem' -o -name '*.key' -o -name 'id_rs
   echo "release contains a private-key or registry-credential file" >&2
   exit 1
 fi
+# storage/sessions must be a REAL directory holding a REAL .gitkeep. Reject
+# symlinks first: -d/-f follow them, so a symlinked directory or placeholder
+# could point outside the tree and slip session data past the scan.
+if [ -L "$package_dir/storage" ] || [ -L "$package_dir/storage/sessions" ] || [ ! -d "$package_dir/storage/sessions" ]; then
+  echo "release storage or storage/sessions is not a real directory" >&2
+  exit 1
+fi
+if [ -L "$package_dir/storage/sessions/.gitkeep" ] || [ ! -f "$package_dir/storage/sessions/.gitkeep" ]; then
+  echo "release missing storage/sessions/.gitkeep (or it is a symlink)" >&2
+  exit 1
+fi
+# Fail closed: a find error must never be read as "no session data" and let an
+# unverified archive pass. Capture the scan so a non-zero find status aborts.
+if ! session_scan="$(find "$package_dir/storage/sessions" -mindepth 1 ! -path "$package_dir/storage/sessions/.gitkeep" -print -quit 2>/dev/null)"; then
+  echo "could not scan storage/sessions for leaked session data" >&2
+  exit 1
+fi
+if [ -n "$session_scan" ]; then
+  echo "release contains runtime session data" >&2
+  exit 1
+fi
 
 echo "Checking release runtime and metadata"
 version="$(php -r 'echo json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR)["version"];' "$package_dir/version.json")"

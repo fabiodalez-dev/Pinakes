@@ -131,7 +131,21 @@ class MaintenanceService
             $results['errors'][] = 'contributorBackfill: ' . $e->getMessage();
         }
 
-        // Expire FIRST (BUG8/D13 ordering): cull dead-period reservations and
+        // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
+        // to 'in_ritardo' BEFORE expiries/activations/promotions, so every gate
+        // in this same pass that special-cases 'in_ritardo' (capacity clamps,
+        // overlap predicates, renew()'s state check) sees the truthful state.
+        // With the old order the flip ran LAST: on the day a reservation's start
+        // arrived its unreturned predecessor still sat in 'in_corso' with a past
+        // due date, defeating those gates for one whole pass.
+        try {
+            $results['overdue_loans_updated'] = $this->updateOverdueLoans();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'updateOverdueLoans: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore prestiti in ritardo'), ['error' => $e->getMessage()]);
+        }
+
+        // Expire next (BUG8/D13 ordering): cull dead-period reservations and
         // unclaimed pickups before activating scheduled loans, so a reservation
         // whose window has already passed is never promoted to 'da_ritirare'.
         try {
@@ -168,13 +182,6 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'processScheduledReservations: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore conversione prenotazioni'), ['error' => $e->getMessage()]);
-        }
-
-        try {
-            $results['overdue_loans_updated'] = $this->updateOverdueLoans();
-        } catch (\Throwable $e) {
-            $results['errors'][] = 'updateOverdueLoans: ' . $e->getMessage();
-            SecureLogger::error(__('MaintenanceService errore prestiti in ritardo'), ['error' => $e->getMessage()]);
         }
 
         // Run automatic notifications
@@ -343,6 +350,8 @@ class MaintenanceService
         $activatedCount = 0;
         // Instantiate DataIntegrity once outside the loop to reduce overhead
         $integrity = new DataIntegrity($this->db);
+        // Capacity ceiling authority for the #366 copy-free guard below
+        $capacity = new \App\Services\CapacityService($this->db);
 
         // Get pickup expiry days from settings
         $settingsRepo = new SettingsRepository($this->db);
@@ -384,6 +393,68 @@ class MaintenanceService
                     continue;
                 }
                 $loan = $lockedLoan;
+
+                // #366 guard: a reservation may only become 'da_ritirare' (and get
+                // the pickup-ready email) when a physical copy is genuinely free
+                // RIGHT NOW. The date window alone is not enough: the preceding
+                // loan may still be out — overdue included. 'in_corso'/'in_ritardo'
+                // rows are counted with NO date predicate because an unreturned
+                // copy is out regardless of its contractual dates (runAll() now
+                // flips overdue loans BEFORE this sweep, but a standalone call or
+                // a mid-pass write can still leave one in 'in_corso' here — keep
+                // the state-agnostic count). Sibling 'da_ritirare' pickups and
+                // copy-holding 'pendente' rows each pin a copy on the shelf too.
+                // Future 'prenotato' rows are NOT counted: they hold capacity for
+                // a later window, not a copy today. If nothing is free the
+                // reservation simply stays 'prenotato' — no state change, no email
+                // — and a later run promotes it once the copy actually comes back.
+                $occStmt = $this->db->prepare("
+                    SELECT COUNT(*) AS occupied
+                    FROM prestiti
+                    WHERE libro_id = ?
+                      AND id <> ?
+                      AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare'))
+                            OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                ");
+                $occStmt->bind_param('ii', $bookId, $loanId);
+                $occStmt->execute();
+                $occRow = $occStmt->get_result()->fetch_assoc();
+                $occStmt->close();
+                $occupied = (int) ($occRow['occupied'] ?? 0);
+
+                if ($occupied >= $capacity->totalCopies($bookId)) {
+                    $this->db->rollback();
+                    SecureLogger::info(__('Attivazione prestito rinviata: nessuna copia libera'), [
+                        'prestito_id' => $loanId,
+                        'libro_id' => $bookId,
+                        'occupied' => $occupied
+                    ]);
+                    continue;
+                }
+
+                // Per-copy check (multi-copy titles): the reservation may be pinned
+                // to a specific copy that is still out on the previous loan even
+                // when another copy of the same title is free. Only the two
+                // on-shelf states may be promoted.
+                if (!empty($loan['copia_id'])) {
+                    $copiaId = (int) $loan['copia_id'];
+                    $copyStmt = $this->db->prepare('SELECT stato FROM copie WHERE id = ? FOR UPDATE');
+                    $copyStmt->bind_param('i', $copiaId);
+                    $copyStmt->execute();
+                    $copyRow = $copyStmt->get_result()->fetch_assoc();
+                    $copyStmt->close();
+                    $copyState = $copyRow['stato'] ?? null;
+                    if (!in_array($copyState, ['disponibile', 'prenotato'], true)) {
+                        $this->db->rollback();
+                        SecureLogger::info(__('Attivazione prestito rinviata: copia assegnata non in sede'), [
+                            'prestito_id' => $loanId,
+                            'libro_id' => $bookId,
+                            'copia_id' => $copiaId,
+                            'copia_stato' => $copyState
+                        ]);
+                        continue;
+                    }
+                }
 
                 // Calculate pickup deadline dal "oggi" applicativo, cappata a
                 // data_scadenza (L1): senza il cap un prestito con finestra corta
@@ -639,8 +710,12 @@ class MaintenanceService
                 }
                 $copiaId = $lockedReservation['copia_id'] ? (int) $lockedReservation['copia_id'] : null;
 
-                // Build note suffix safely with bound parameter
-                $noteSuffix = "\n[System] " . __('Scaduta il') . ' ' . date('d/m/Y');
+                // Build note suffix safely with bound parameter. Data nel fuso
+                // applicativo (P4): la decisione di scadenza usa $today
+                // (DateHelper::today()), mentre date('d/m/Y') userebbe la TZ del
+                // processo — a cavallo della mezzanotte la nota citava un giorno
+                // diverso da quello effettivamente deciso.
+                $noteSuffix = "\n[System] " . __('Scaduta il') . ' ' . implode('/', array_reverse(explode('-', $today)));
 
                 // Mark as expired. Re-assert stato='prenotato' + check affected_rows
                 // (D14): a concurrent confirmPickup/activateScheduledLoans may have
@@ -817,8 +892,10 @@ class MaintenanceService
                 }
                 $copiaId = $lockedPickup['copia_id'] ? (int) $lockedPickup['copia_id'] : null;
 
-                // Build note suffix safely with bound parameter
-                $noteSuffix = "\n[System] " . __('Ritiro scaduto il') . ' ' . date('d/m/Y');
+                // Build note suffix safely with bound parameter. Data nel fuso
+                // applicativo (P4), come sopra: stessa data della decisione
+                // basata su $today, non la TZ del processo.
+                $noteSuffix = "\n[System] " . __('Ritiro scaduto il') . ' ' . implode('/', array_reverse(explode('-', $today)));
 
                 // Mark as expired with state guard (prevents TOCTOU with concurrent confirmPickup)
                 $updateStmt = $this->db->prepare("

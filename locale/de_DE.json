@@ -6873,5 +6873,7 @@
   "Ultimo Sollecito:": "Letzte Mahnung:",
   "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s ausgewählte Ausleihe erhält die Mahnung (nur bei Überfälligkeit).",
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s ausgewählte Ausleihen erhalten die Mahnung (nur die überfälligen).",
-  "Impossibile generare la ricevuta PDF.": "Die Quittungs-PDF konnte nicht erstellt werden."
+  "Impossibile generare la ricevuta PDF.": "Die Quittungs-PDF konnte nicht erstellt werden.",
+  "Attivazione prestito rinviata: nessuna copia libera": "Ausleihe-Aktivierung verschoben: kein Exemplar frei",
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Ausleihe-Aktivierung verschoben: zugewiesenes Exemplar nicht in der Bibliothek"
 }

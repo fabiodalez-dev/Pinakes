@@ -182,8 +182,12 @@ class ReservationManager
 
             // Get the next date-eligible reservation in queue
             // Only process reservations where start date <= today (ready to convert to loan)
-            // Note: Book-level lock above serializes all processing for this book,
-            // so we don't need row-level lock on prenotazioni here
+            // FOR UPDATE (locking/current read): the book-level lock serializes
+            // writers that follow the canonical order, but a CALLER's REPEATABLE
+            // READ snapshot can predate that lock — a plain read here would then
+            // still see a reservation that a competitor cancelled and committed
+            // while we waited for the book lock, and promote/email it anyway.
+            // The locking read always returns the latest committed row state.
             $stmt = $this->db->prepare("
                 SELECT r.*, u.email, u.nome, u.cognome
                 FROM prenotazioni r
@@ -192,6 +196,7 @@ class ReservationManager
                 AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
                 ORDER BY r.queue_position ASC
                 LIMIT 1
+                FOR UPDATE
             ");
             $stmt->bind_param('iss', $bookId, $today, $today);
             $stmt->execute();
@@ -229,28 +234,49 @@ class ReservationManager
                     ? (int) $nextReservation['queue_position']
                     : null;
                 if ($this->isDateRangeAvailable($bookId, $startDate, $endDate, (int) $nextReservation['id'], $headQueuePos)) {
+                    // Claim the reservation FIRST with a state-guarded UPDATE.
+                    // The `AND stato = 'attiva'` guard + affected_rows check is the
+                    // last line of defense: if a competitor cancelled/changed this
+                    // reservation and committed in the meantime (0 rows touched),
+                    // we must NOT create the loan nor queue the "book available"
+                    // email — an unguarded UPDATE here resurrected a cancelled
+                    // reservation to 'completata' and emailed the user.
+                    $claim = $this->db->prepare("UPDATE prenotazioni SET stato = 'completata' WHERE id = ? AND stato = 'attiva'");
+                    $claim->bind_param('i', $nextReservation['id']);
+                    $claim->execute();
+                    $claimed = $claim->affected_rows;
+                    $claim->close();
+                    if ($claimed !== 1) {
+                        // Nothing mutated: skip this reservation entirely.
+                        $this->commitIfOwned($ownTransaction);
+                        return false;
+                    }
+
                     // Create the loan - check return value to handle race conditions
                     // Note: createLoanFromReservation() handles its own transaction internally
                     // when called standalone, but here we're already in a transaction
                     $loanCreated = $this->createLoanFromReservation($nextReservation);
 
                     if ($loanCreated === false) {
-                        // Race condition detected - loan creation failed
+                        // Race condition detected - loan creation failed. Restore
+                        // the claim first: with an EXTERNAL transaction we cannot
+                        // roll back the owner's work, and leaving the row
+                        // 'completata' without its loan would be committed by the
+                        // caller (reservation lost). We still hold the row lock,
+                        // so this compensating UPDATE cannot race.
+                        $unclaim = $this->db->prepare("UPDATE prenotazioni SET stato = 'attiva' WHERE id = ? AND stato = 'completata'");
+                        $unclaim->bind_param('i', $nextReservation['id']);
+                        $unclaim->execute();
+                        $unclaim->close();
                         $this->rollbackIfOwned($ownTransaction);
                         return false;
                     }
 
-                    // Mark reservation as completed
-                    $stmt = $this->db->prepare("UPDATE prenotazioni SET stato = 'completata' WHERE id = ?");
-                    $stmt->bind_param('i', $nextReservation['id']);
-                    $stmt->execute();
-                    $stmt->close();
-
-                    // BUG9/D4 double-subtraction fix: createLoanFromReservation() already
-                    // recalc'd availability, but the source reservation was still 'attiva'
-                    // then — so the new pendente+copy loan AND the waitlist slot were both
-                    // counted. Recalc again now that the reservation is 'completata', so the
-                    // commitment is counted exactly once.
+                    // BUG9/D4 double-subtraction fix: the reservation is claimed
+                    // 'completata' BEFORE createLoanFromReservation() recalcs, so
+                    // the new pendente+copy loan and the waitlist slot are never
+                    // both counted. Recalc once more after the allocation settles
+                    // so the commitment is counted exactly once.
                     $integrity = new \App\Support\DataIntegrity($this->db);
                     if (!$integrity->recalculateBookAvailability($bookId, true)) {
                         throw new \RuntimeException('Failed to recalculate availability after reservation promotion.');
@@ -409,6 +435,10 @@ class ReservationManager
             $lockCopyStmt->execute();
             $lockCopyStmt->close();
 
+            // FOR UPDATE (locking/current read) like approveLoan's final overlap
+            // check: with a plain read a caller whose REPEATABLE READ snapshot
+            // predates the book lock would miss a loan a competitor just
+            // committed on this copy and double-commit the same copia_id.
             $overlapCopyStmt = $this->db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ?
@@ -418,6 +448,7 @@ class ReservationManager
                     OR (stato = 'pendente' AND copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
                 )
                 LIMIT 1
+                FOR UPDATE
             ");
             $overlapCopyStmt->bind_param('iss', $copyId, $endDate, $startDate);
             $overlapCopyStmt->execute();
@@ -516,7 +547,32 @@ class ReservationManager
      */
     private function sendReservationNotification(array $reservation): bool
     {
+        $claimed = false;
+        $revertClaim = function () use ($reservation): void {
+            $stmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 0 WHERE id = ?");
+            $stmt->bind_param('i', $reservation['id']);
+            $stmt->execute();
+            $stmt->close();
+        };
+
         try {
+            // Claim atomico PRIMA dell'invio (stesso pattern claim-then-send dello
+            // sweep): tra il commit del chiamante e il flush differito lo sweep
+            // retryUnsentReservationNotifications() (cron/login admin) può leggere
+            // la stessa riga completata+notifica_inviata=0 e inviare — senza claim
+            // l'utente riceveva l'email 'reservation_book_available' doppia.
+            // affected_rows=0 => un altro processo ha già preso in carico (o già
+            // inviato) questa notifica. Ripristinato a 0 su invio fallito, così la
+            // riga resta eleggibile per il run successivo.
+            $claimStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ? AND notifica_inviata = 0");
+            $claimStmt->bind_param('i', $reservation['id']);
+            $claimStmt->execute();
+            $claimed = $claimStmt->affected_rows === 1;
+            $claimStmt->close();
+            if (!$claimed) {
+                return false;
+            }
+
             // Get book details
             $stmt = $this->db->prepare("
                 SELECT l.titolo, COALESCE(l.isbn13, l.isbn10, '') as isbn,
@@ -534,6 +590,7 @@ class ReservationManager
             $stmt->close();
 
             if (!$book) {
+                $revertClaim();
                 return false;
             }
 
@@ -566,16 +623,13 @@ class ReservationManager
                 $variables
             );
 
-            // Only mark as notified if email was actually sent successfully:
-            // le righe 'completata' con notifica_inviata=0 vengono riprese da
+            // notifica_inviata è già a 1 dal claim atomico in testa: su invio
+            // fallito rilascia il claim, così la riga 'completata' con
+            // notifica_inviata=0 viene ripresa da
             // retryUnsentReservationNotifications() al run di manutenzione/cron
             // successivo (M4) — prima nessuno le rileggeva e l'email era persa.
-            if ($success) {
-                $stmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ?");
-                $stmt->bind_param('i', $reservation['id']);
-                $stmt->execute();
-                $stmt->close();
-            } else {
+            if (!$success) {
+                $revertClaim();
                 \App\Support\SecureLogger::warning('ReservationManager: email send failed, will be retried by retryUnsentReservationNotifications() on next maintenance run', [
                     'reservation_id' => (int) $reservation['id'],
                 ]);
@@ -584,6 +638,16 @@ class ReservationManager
             return $success;
 
         } catch (\Throwable $e) {
+            if ($claimed) {
+                try {
+                    $revertClaim();
+                } catch (\Throwable $revertError) {
+                    \App\Support\SecureLogger::error('ReservationManager: failed to release notification claim', [
+                        'reservation_id' => (int) $reservation['id'],
+                        'error' => $revertError->getMessage(),
+                    ]);
+                }
+            }
             \App\Support\SecureLogger::error('ReservationManager: failed to send reservation notification', [
                 'error' => $e->getMessage(),
             ]);
@@ -637,22 +701,12 @@ class ReservationManager
         // Claim-then-send (stesso pattern di warning/overdue): i tre percorsi
         // che invocano questo sweep (cron automatic-notifications, cron
         // full-maintenance e runIfNeeded() da login admin) usano lock diversi
-        // e possono girare in overlap, quindi senza claim atomico due run
-        // selezionerebbero la stessa riga e l'utente riceverebbe l'email doppia.
-        $claimStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ? AND notifica_inviata = 0");
-        $revertStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 0 WHERE id = ?");
-
+        // e possono girare in overlap. Il claim atomico vive DENTRO
+        // sendReservationNotification() — così copre anche il flush differito
+        // post-commit, che prima inviava senza claim e in overlap con questo
+        // sweep raddoppiava l'email; su invio fallito è sempre lui a
+        // rilasciare il claim, così la riga resta eleggibile al run dopo.
         foreach ($reservations as $reservation) {
-            $reservationId = (int) $reservation['id'];
-
-            // Claim atomico PRIMA dell'invio: se affected_rows è 0 un run
-            // concorrente ha già preso in carico questa riga.
-            $claimStmt->bind_param('i', $reservationId);
-            $claimStmt->execute();
-            if ($claimStmt->affected_rows < 1) {
-                continue;
-            }
-
             // Normalizza entrambi gli estremi come CapacityService: le righe
             // legacy possono avere start/fine NULL ma una scadenza valida.
             $reservation['data_inizio_richiesta'] = $reservation['data_inizio_richiesta']
@@ -664,15 +718,8 @@ class ReservationManager
 
             if ($this->sendReservationNotification($reservation)) {
                 $sentCount++;
-            } else {
-                // Invio fallito: rilascia il claim così la riga resta
-                // eleggibile per il run successivo.
-                $revertStmt->bind_param('i', $reservationId);
-                $revertStmt->execute();
             }
         }
-        $claimStmt->close();
-        $revertStmt->close();
 
         return $sentCount;
     }

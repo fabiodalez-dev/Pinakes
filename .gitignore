@@ -73,6 +73,9 @@ storage/*
 !storage/logs/
 storage/logs/*
 !storage/logs/.gitkeep
+!storage/sessions/
+storage/sessions/*
+!storage/sessions/.gitkeep
 storage/*.log
 !storage/tmp/
 storage/tmp/*

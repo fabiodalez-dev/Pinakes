@@ -474,12 +474,13 @@ class NotificationService {
             // warning horizon. An exact "today + X" match misses short loans created
             // inside that horizon (especially loans created with due date today).
             // Overdue loans remain handled separately below by the overdue workflow.
+            // CI-SOFT-DELETE-EXEMPT: the expiry warning must keep firing for active loans whose book was archived — the copy is still out and the borrower must be chased (same rationale as sendLoanRecalls).
             $stmt = $this->db->prepare("
                 SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(p.data_scadenza, ?) as giorni_rimasti
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato = 'in_corso'
                   AND p.attivo = 1
@@ -580,12 +581,13 @@ class NotificationService {
             $today = DateHelper::today();
 
             // Get overdue loans
+            // CI-SOFT-DELETE-EXEMPT: the first overdue notice must keep firing for active loans whose book was archived — soft-deleting the book silenced this notice AND, since sendLoanRecalls() requires overdue_notification_sent=1, every automatic recall after it.
             $stmt = $this->db->prepare("
                 SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(?, p.data_scadenza) as giorni_ritardo
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato IN ('in_corso', 'in_ritardo')
                   AND p.attivo = 1

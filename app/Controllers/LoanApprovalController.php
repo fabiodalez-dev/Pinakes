@@ -171,19 +171,19 @@ class LoanApprovalController
         }
 
         try {
-            $db->begin_transaction();
-
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
-            // Determiniamo il libro del prestito con una lettura NON bloccante, poi
-            // acquisiamo i lock nell'ordine libri -> prestiti come tutti gli altri
-            // entry point, evitando deadlock da lock-order inversion.
+            // Determiniamo il libro del prestito con una lettura NON bloccante PRIMA
+            // di aprire la transazione (lock-first, come update()/renew()): sotto
+            // REPEATABLE READ la read view nasce alla prima consistent read della
+            // transazione, e farla nascere prima del lock renderebbe ogni SELECT
+            // non bloccante successiva cieca ai commit concorrenti avvenuti mentre
+            // aspettavamo il lock del libro.
             $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
             $bookLookup->bind_param('i', $loanId);
             $bookLookup->execute();
             $bookRow = $bookLookup->get_result()->fetch_assoc();
             $bookLookup->close();
             if (!$bookRow) {
-                $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'message' => __('Prestito non trovato o già processato')
@@ -192,8 +192,11 @@ class LoanApprovalController
             }
             $libroId = (int) $bookRow['libro_id'];
 
+            $db->begin_transaction();
+
             // Lock della riga `libri` PRIMA — serializza anche le approvazioni dello
-            // stesso libro (CONC-03).
+            // stesso libro (CONC-03) — ed è la PRIMA statement della transazione,
+            // così la read view viene creata solo a lock acquisito (post-competitor).
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -595,29 +598,32 @@ class LoanApprovalController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
+        // Canonical lock order: resolve the book without locking, lock `libri`
+        // first, then lock the pending loan. DataIntegrity locks the same book
+        // during the availability recalculation; taking the loan first here
+        // inverted the order used by approval/return and could deadlock.
+        // Lock-first (MVCC): the lookup runs BEFORE begin_transaction() so the
+        // REPEATABLE READ view is created only after the book lock is acquired —
+        // a plain in-txn read here would freeze a pre-lock snapshot and blind
+        // every later non-locking SELECT to concurrent committed changes.
+        $lookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
+        $lookup->bind_param('i', $loanId);
+        $lookup->execute();
+        $lookupRow = $lookup->get_result()->fetch_assoc();
+        $lookup->close();
+        if (!$lookupRow) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __('Prestito non trovato o già processato')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+        $bookId = (int) $lookupRow['libro_id'];
+
         // Start transaction for the atomic terminal transition + availability update.
         $db->begin_transaction();
 
         try {
-            // Canonical lock order: resolve the book without locking, lock `libri`
-            // first, then lock the pending loan. DataIntegrity locks the same book
-            // during the availability recalculation; taking the loan first here
-            // inverted the order used by approval/return and could deadlock.
-            $lookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
-            $lookup->bind_param('i', $loanId);
-            $lookup->execute();
-            $lookupRow = $lookup->get_result()->fetch_assoc();
-            $lookup->close();
-            if (!$lookupRow) {
-                $db->rollback();
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'message' => __('Prestito non trovato o già processato')
-                ]));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-            }
-            $bookId = (int) $lookupRow['libro_id'];
-
             // NIENTE filtro deleted_at qui né nella JOIN sottostante (eccezione
             // deliberata al soft-delete invariant): rifiutare una richiesta pendente
             // deve funzionare ANCHE se il libro è stato soft-eliminato nel frattempo —
@@ -909,7 +915,11 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
+                // 'prestato' incluso (P2): una copia ancora 'prestato' è fuori con un
+                // ALTRO prestito aperto (es. predecessore in ritardo non ancora
+                // rientrato) — confermare il ritiro creerebbe due prestiti attivi
+                // sulla stessa copia fisica (double-issue).
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento', 'prestato'];
                 if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
                     // Fail closed: roll back the just-applied 'in_corso' update instead
                     // of committing a loan over a missing/non-lendable copy (BUG7c/D12).
@@ -978,19 +988,21 @@ class LoanApprovalController
         }
 
         try {
-            $db->begin_transaction();
             $today = DateHelper::today();
 
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
-            // Lettura NON bloccante del libro, poi lock nell'ordine libri -> prestiti
-            // come approveLoan/store/renew (M2, niente lock-order inversion).
+            // Lettura NON bloccante del libro PRIMA di begin_transaction() (lock-first,
+            // MVCC): la read view REPEATABLE READ nasce alla prima consistent read in
+            // transazione — se nascesse qui, prima del lock, le SELECT non bloccanti
+            // successive non vedrebbero i commit concorrenti avvenuti durante l'attesa
+            // del lock. Poi lock nell'ordine libri -> prestiti come approveLoan/store/
+            // renew (M2, niente lock-order inversion).
             $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ?");
             $bookLookup->bind_param('i', $loanId);
             $bookLookup->execute();
             $bookRow = $bookLookup->get_result()->fetch_assoc();
             $bookLookup->close();
             if (!$bookRow) {
-                $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'message' => __('Prestito non trovato o non cancellabile')
@@ -998,6 +1010,8 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
             $libroId = (int) $bookRow['libro_id'];
+
+            $db->begin_transaction();
 
             // Lock della riga `libri` SENZA filtro deleted_at: l'annullamento di un
             // ritiro deve sempre poter procedere anche su libro soft-deleted (vedi
@@ -1152,18 +1166,19 @@ class LoanApprovalController
         }
 
         try {
-            $db->begin_transaction();
-
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
-            // Lettura NON bloccante del libro, poi lock nell'ordine libri -> prestiti
-            // come approveLoan/store/renew (M2, niente lock-order inversion).
+            // Lettura NON bloccante del libro PRIMA di begin_transaction() (lock-first,
+            // MVCC): la read view REPEATABLE READ nasce alla prima consistent read in
+            // transazione — anticiparla al pre-lock renderebbe le SELECT non bloccanti
+            // successive (promozione coda, capacity gate) cieche ai commit concorrenti
+            // avvenuti durante l'attesa del lock. Poi lock nell'ordine libri ->
+            // prestiti come approveLoan/store/renew (M2, niente lock-order inversion).
             $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ?");
             $bookLookup->bind_param('i', $loanId);
             $bookLookup->execute();
             $bookRow = $bookLookup->get_result()->fetch_assoc();
             $bookLookup->close();
             if (!$bookRow) {
-                $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'message' => __('Prestito non trovato o non restituibile')
@@ -1171,6 +1186,8 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
             $libroId = (int) $bookRow['libro_id'];
+
+            $db->begin_transaction();
 
             // Lock della riga `libri` SENZA filtro deleted_at: la RESTITUZIONE deve
             // sempre poter procedere anche su libro soft-deleted (vedi il commento in
@@ -1460,7 +1477,26 @@ class LoanApprovalController
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            // Promote the waitlist: an admin-cancelled reservation frees capacity,
+            // and every sibling release path (user cancel, admin edit, reject,
+            // cancelPickup, return) immediately converts the next queued
+            // reservation — cancelReservation was the only one that left the
+            // freed capacity idle until the next maintenance run.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
             $db->commit();
+
+            // Notifiche accodate durante la transazione esterna (P2): inviale ora
+            // che il commit è avvenuto, come fa MaintenanceService.
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $flushError) {
+                \App\Support\SecureLogger::warning("[cancelReservation] Deferred notification flush failed: " . $flushError->getMessage());
+            }
 
             // Notifica all'utente DOPO il commit (M11): try/catch isolato, un errore
             // di invio non deve far fallire l'annullamento già committato.

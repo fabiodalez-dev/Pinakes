@@ -75,6 +75,7 @@ fix-*.php
 # Storage/uploads (exclude user data, keep directory structure)
 storage/logs/*
 storage/cache/*
+storage/sessions/*
 storage/backups/*
 storage/uploads/*
 storage/tmp/*
@@ -87,6 +88,7 @@ cache/*
 # Keep essential files and directory structure
 !storage/logs/.gitkeep
 !storage/cache/.gitkeep
+!storage/sessions/.gitkeep
 !storage/backups/.gitkeep
 !storage/backups/.htaccess
 !storage/uploads/.gitkeep

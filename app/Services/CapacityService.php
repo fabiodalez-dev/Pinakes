@@ -201,19 +201,25 @@ final class CapacityService
         // date is in the past, but the physical copy remains out of the library:
         // clamp it to the requested window end instead of freeing capacity after
         // data_scadenza. This mirrors the DB trigger and the public calendar.
+        // #366 residual: a loan overdue BY DATE but not yet flipped by the
+        // maintenance sweep ('in_corso' with data_scadenza < today) is the very
+        // same unreturned copy — treat it exactly like 'in_ritardo' (one branch,
+        // one clamp, never both on the same row: the OR selects a single case).
+        $today = \App\Support\DateHelper::today();
+        $openEnded = "(p.attivo = 1 AND (p.stato = 'in_ritardo' OR (p.stato = 'in_corso' AND p.data_scadenza < ?)))";
         $sql = "SELECT GREATEST(p.data_prestito, ?) AS s,
                        LEAST(CASE
-                           WHEN p.attivo = 1 AND p.stato = 'in_ritardo' THEN ?
+                           WHEN {$openEnded} THEN ?
                            ELSE p.data_scadenza
                        END, ?) AS e
                 FROM prestiti p
                 WHERE p.libro_id = ?
                   AND p.data_prestito <= ?
-                  AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                  AND ({$openEnded} OR p.data_scadenza >= ?)
                   AND ( (p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                         OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL) )";
-        $types = 'sssiss';
-        $params = [$start, $end, $end, $libroId, $end, $start];
+        $types = 'ssssisss';
+        $params = [$start, $today, $end, $end, $libroId, $end, $today, $start];
         if ($excludePrestitoId !== null) {
             $sql .= ' AND p.id <> ?';
             $types .= 'i';
