@@ -131,7 +131,21 @@ class MaintenanceService
             $results['errors'][] = 'contributorBackfill: ' . $e->getMessage();
         }
 
-        // Expire FIRST (BUG8/D13 ordering): cull dead-period reservations and
+        // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
+        // to 'in_ritardo' BEFORE expiries/activations/promotions, so every gate
+        // in this same pass that special-cases 'in_ritardo' (capacity clamps,
+        // overlap predicates, renew()'s state check) sees the truthful state.
+        // With the old order the flip ran LAST: on the day a reservation's start
+        // arrived its unreturned predecessor still sat in 'in_corso' with a past
+        // due date, defeating those gates for one whole pass.
+        try {
+            $results['overdue_loans_updated'] = $this->updateOverdueLoans();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'updateOverdueLoans: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore prestiti in ritardo'), ['error' => $e->getMessage()]);
+        }
+
+        // Expire next (BUG8/D13 ordering): cull dead-period reservations and
         // unclaimed pickups before activating scheduled loans, so a reservation
         // whose window has already passed is never promoted to 'da_ritirare'.
         try {
@@ -168,13 +182,6 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'processScheduledReservations: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore conversione prenotazioni'), ['error' => $e->getMessage()]);
-        }
-
-        try {
-            $results['overdue_loans_updated'] = $this->updateOverdueLoans();
-        } catch (\Throwable $e) {
-            $results['errors'][] = 'updateOverdueLoans: ' . $e->getMessage();
-            SecureLogger::error(__('MaintenanceService errore prestiti in ritardo'), ['error' => $e->getMessage()]);
         }
 
         // Run automatic notifications
@@ -392,9 +399,10 @@ class MaintenanceService
                 // RIGHT NOW. The date window alone is not enough: the preceding
                 // loan may still be out — overdue included. 'in_corso'/'in_ritardo'
                 // rows are counted with NO date predicate because an unreturned
-                // copy is out regardless of its contractual dates (and
-                // updateOverdueLoans runs AFTER this sweep, so an overdue loan can
-                // still sit in 'in_corso' here). Sibling 'da_ritirare' pickups and
+                // copy is out regardless of its contractual dates (runAll() now
+                // flips overdue loans BEFORE this sweep, but a standalone call or
+                // a mid-pass write can still leave one in 'in_corso' here — keep
+                // the state-agnostic count). Sibling 'da_ritirare' pickups and
                 // copy-holding 'pendente' rows each pin a copy on the shelf too.
                 // Future 'prenotato' rows are NOT counted: they hold capacity for
                 // a later window, not a copy today. If nothing is free the
