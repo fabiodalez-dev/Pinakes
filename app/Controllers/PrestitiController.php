@@ -572,6 +572,15 @@ class PrestitiController
                     $settingsRepo = new \App\Models\SettingsRepository($db);
                     $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
                     $pickupDeadline = date('Y-m-d', strtotime("{$today} +{$pickupDays} days"));
+                    // Cap alla fine della finestra del prestito (L1), come
+                    // approveLoan/activateScheduledLoans: una deadline oltre
+                    // data_scadenza permetterebbe di confermare il ritiro di un
+                    // prestito già scaduto e terrebbe la copia impegnata oltre
+                    // la finestra. Confronto lessicografico sicuro: entrambe
+                    // validate Y-m-d sopra.
+                    if ($pickupDeadline > $data_scadenza) {
+                        $pickupDeadline = $data_scadenza;
+                    }
                 }
             } else {
                 // Future loan - user will pick up when loan period starts
@@ -940,6 +949,16 @@ class PrestitiController
             $oldPrestito = (string) $locked['data_prestito'];
             $oldScadenza = (string) $locked['data_scadenza'];
             if ($newPrestito !== $oldPrestito || $newScadenza !== $oldScadenza) {
+                // Idoneità del prestatario quando la scadenza viene ESTESA (stesso
+                // gate di renew(): l'estensione conferisce un beneficio). Se
+                // l'utente cambia l'idoneità è già stata verificata sopra (M6b).
+                if ($newScadenza > $oldScadenza && $newUserId === (int) $locked['utente_id']) {
+                    $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $newUserId);
+                    if ($eligibilityError !== null) {
+                        $db->rollback();
+                        return $response->withHeader('Location', url('/admin/loans') . '?error=' . $eligibilityError)->withStatus(302);
+                    }
+                }
                 // Y-m-d strings compare correctly lexicographically (validated
                 // strict above); ±1 day via DateTimeImmutable, no TZ ambiguity.
                 $dayBefore = static fn (string $ymd): string => (new \DateTimeImmutable($ymd))->modify('-1 day')->format('Y-m-d');
@@ -1646,7 +1665,7 @@ class PrestitiController
             // Rows closed or moved out of an extendable state meanwhile are
             // intentionally ignored, matching the previous bulk semantics.
             $lockLoans = $db->prepare(
-                "SELECT id, libro_id, copia_id, data_prestito, data_scadenza
+                "SELECT id, libro_id, copia_id, utente_id, data_prestito, data_scadenza
                    FROM prestiti
                   WHERE id IN ($placeholders)
                     AND attivo = 1
@@ -1686,6 +1705,14 @@ class PrestitiController
 
             $extended = 0;
             foreach ($loans as $loan) {
+                // Idoneità del prestatario per OGNI prestito esteso (stesso gate
+                // di renew(): l'estensione conferisce un beneficio — un utente
+                // sospeso o con tessera scaduta non deve trattenere il libro via
+                // bulk). Salta SOLO questo prestito, il resto del lotto procede:
+                // l'inidoneità di un utente non è un conflitto di capacità.
+                if (\App\Support\LoanEligibility::checkUser($db, (int) $loan['utente_id']) !== null) {
+                    continue;
+                }
                 // null == a capacity/copy conflict: roll the WHOLE batch back so
                 // no partial extension is committed (same all-or-nothing contract
                 // the tests pin). A thrown error is handled by the outer catch.

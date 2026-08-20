@@ -547,7 +547,32 @@ class ReservationManager
      */
     private function sendReservationNotification(array $reservation): bool
     {
+        $claimed = false;
+        $revertClaim = function () use ($reservation): void {
+            $stmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 0 WHERE id = ?");
+            $stmt->bind_param('i', $reservation['id']);
+            $stmt->execute();
+            $stmt->close();
+        };
+
         try {
+            // Claim atomico PRIMA dell'invio (stesso pattern claim-then-send dello
+            // sweep): tra il commit del chiamante e il flush differito lo sweep
+            // retryUnsentReservationNotifications() (cron/login admin) può leggere
+            // la stessa riga completata+notifica_inviata=0 e inviare — senza claim
+            // l'utente riceveva l'email 'reservation_book_available' doppia.
+            // affected_rows=0 => un altro processo ha già preso in carico (o già
+            // inviato) questa notifica. Ripristinato a 0 su invio fallito, così la
+            // riga resta eleggibile per il run successivo.
+            $claimStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ? AND notifica_inviata = 0");
+            $claimStmt->bind_param('i', $reservation['id']);
+            $claimStmt->execute();
+            $claimed = $claimStmt->affected_rows === 1;
+            $claimStmt->close();
+            if (!$claimed) {
+                return false;
+            }
+
             // Get book details
             $stmt = $this->db->prepare("
                 SELECT l.titolo, COALESCE(l.isbn13, l.isbn10, '') as isbn,
@@ -565,6 +590,7 @@ class ReservationManager
             $stmt->close();
 
             if (!$book) {
+                $revertClaim();
                 return false;
             }
 
@@ -597,16 +623,13 @@ class ReservationManager
                 $variables
             );
 
-            // Only mark as notified if email was actually sent successfully:
-            // le righe 'completata' con notifica_inviata=0 vengono riprese da
+            // notifica_inviata è già a 1 dal claim atomico in testa: su invio
+            // fallito rilascia il claim, così la riga 'completata' con
+            // notifica_inviata=0 viene ripresa da
             // retryUnsentReservationNotifications() al run di manutenzione/cron
             // successivo (M4) — prima nessuno le rileggeva e l'email era persa.
-            if ($success) {
-                $stmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ?");
-                $stmt->bind_param('i', $reservation['id']);
-                $stmt->execute();
-                $stmt->close();
-            } else {
+            if (!$success) {
+                $revertClaim();
                 \App\Support\SecureLogger::warning('ReservationManager: email send failed, will be retried by retryUnsentReservationNotifications() on next maintenance run', [
                     'reservation_id' => (int) $reservation['id'],
                 ]);
@@ -615,6 +638,16 @@ class ReservationManager
             return $success;
 
         } catch (\Throwable $e) {
+            if ($claimed) {
+                try {
+                    $revertClaim();
+                } catch (\Throwable $revertError) {
+                    \App\Support\SecureLogger::error('ReservationManager: failed to release notification claim', [
+                        'reservation_id' => (int) $reservation['id'],
+                        'error' => $revertError->getMessage(),
+                    ]);
+                }
+            }
             \App\Support\SecureLogger::error('ReservationManager: failed to send reservation notification', [
                 'error' => $e->getMessage(),
             ]);
@@ -668,22 +701,12 @@ class ReservationManager
         // Claim-then-send (stesso pattern di warning/overdue): i tre percorsi
         // che invocano questo sweep (cron automatic-notifications, cron
         // full-maintenance e runIfNeeded() da login admin) usano lock diversi
-        // e possono girare in overlap, quindi senza claim atomico due run
-        // selezionerebbero la stessa riga e l'utente riceverebbe l'email doppia.
-        $claimStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ? AND notifica_inviata = 0");
-        $revertStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 0 WHERE id = ?");
-
+        // e possono girare in overlap. Il claim atomico vive DENTRO
+        // sendReservationNotification() — così copre anche il flush differito
+        // post-commit, che prima inviava senza claim e in overlap con questo
+        // sweep raddoppiava l'email; su invio fallito è sempre lui a
+        // rilasciare il claim, così la riga resta eleggibile al run dopo.
         foreach ($reservations as $reservation) {
-            $reservationId = (int) $reservation['id'];
-
-            // Claim atomico PRIMA dell'invio: se affected_rows è 0 un run
-            // concorrente ha già preso in carico questa riga.
-            $claimStmt->bind_param('i', $reservationId);
-            $claimStmt->execute();
-            if ($claimStmt->affected_rows < 1) {
-                continue;
-            }
-
             // Normalizza entrambi gli estremi come CapacityService: le righe
             // legacy possono avere start/fine NULL ma una scadenza valida.
             $reservation['data_inizio_richiesta'] = $reservation['data_inizio_richiesta']
@@ -695,15 +718,8 @@ class ReservationManager
 
             if ($this->sendReservationNotification($reservation)) {
                 $sentCount++;
-            } else {
-                // Invio fallito: rilascia il claim così la riga resta
-                // eleggibile per il run successivo.
-                $revertStmt->bind_param('i', $reservationId);
-                $revertStmt->execute();
             }
         }
-        $claimStmt->close();
-        $revertStmt->close();
 
         return $sentCount;
     }

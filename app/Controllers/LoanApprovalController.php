@@ -915,7 +915,11 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
+                // 'prestato' incluso (P2): una copia ancora 'prestato' è fuori con un
+                // ALTRO prestito aperto (es. predecessore in ritardo non ancora
+                // rientrato) — confermare il ritiro creerebbe due prestiti attivi
+                // sulla stessa copia fisica (double-issue).
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento', 'prestato'];
                 if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
                     // Fail closed: roll back the just-applied 'in_corso' update instead
                     // of committing a loan over a missing/non-lendable copy (BUG7c/D12).
@@ -1473,7 +1477,26 @@ class LoanApprovalController
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            // Promote the waitlist: an admin-cancelled reservation frees capacity,
+            // and every sibling release path (user cancel, admin edit, reject,
+            // cancelPickup, return) immediately converts the next queued
+            // reservation — cancelReservation was the only one that left the
+            // freed capacity idle until the next maintenance run.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
             $db->commit();
+
+            // Notifiche accodate durante la transazione esterna (P2): inviale ora
+            // che il commit è avvenuto, come fa MaintenanceService.
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $flushError) {
+                \App\Support\SecureLogger::warning("[cancelReservation] Deferred notification flush failed: " . $flushError->getMessage());
+            }
 
             // Notifica all'utente DOPO il commit (M11): try/catch isolato, un errore
             // di invio non deve far fallire l'annullamento già committato.

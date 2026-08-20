@@ -710,8 +710,12 @@ class MaintenanceService
                 }
                 $copiaId = $lockedReservation['copia_id'] ? (int) $lockedReservation['copia_id'] : null;
 
-                // Build note suffix safely with bound parameter
-                $noteSuffix = "\n[System] " . __('Scaduta il') . ' ' . date('d/m/Y');
+                // Build note suffix safely with bound parameter. Data nel fuso
+                // applicativo (P4): la decisione di scadenza usa $today
+                // (DateHelper::today()), mentre date('d/m/Y') userebbe la TZ del
+                // processo — a cavallo della mezzanotte la nota citava un giorno
+                // diverso da quello effettivamente deciso.
+                $noteSuffix = "\n[System] " . __('Scaduta il') . ' ' . implode('/', array_reverse(explode('-', $today)));
 
                 // Mark as expired. Re-assert stato='prenotato' + check affected_rows
                 // (D14): a concurrent confirmPickup/activateScheduledLoans may have
@@ -888,8 +892,10 @@ class MaintenanceService
                 }
                 $copiaId = $lockedPickup['copia_id'] ? (int) $lockedPickup['copia_id'] : null;
 
-                // Build note suffix safely with bound parameter
-                $noteSuffix = "\n[System] " . __('Ritiro scaduto il') . ' ' . date('d/m/Y');
+                // Build note suffix safely with bound parameter. Data nel fuso
+                // applicativo (P4), come sopra: stessa data della decisione
+                // basata su $today, non la TZ del processo.
+                $noteSuffix = "\n[System] " . __('Ritiro scaduto il') . ' ' . implode('/', array_reverse(explode('-', $today)));
 
                 // Mark as expired with state guard (prevents TOCTOU with concurrent confirmPickup)
                 $updateStmt = $this->db->prepare("
