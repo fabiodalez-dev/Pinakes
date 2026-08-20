@@ -68,10 +68,20 @@ BEGIN
             SET MESSAGE_TEXT = 'La copia non appartiene al libro del prestito.';
     END IF;
 
-    -- Solo se si sta assegnando/cambiando una copia a un prestito attivo
     -- #157 model A-refined: a copy is "held" by an active loan OR by a
     -- reservation-conversion 'pendente' that already carries a copia_id.
-    IF (NEW.copia_id IS NOT NULL AND (NEW.attivo = 1 OR NEW.stato = 'pendente')) THEN
+    --
+    -- Validate copy usability only when this UPDATE creates a NEW physical
+    -- hold (assignment/copy change/lifecycle transition). Re-validating it on
+    -- every unrelated UPDATE made notification flags and overdue transitions
+    -- impossible when an already-held copy later became damaged/maintenance.
+    IF (NEW.copia_id IS NOT NULL
+        AND (NEW.attivo = 1 OR NEW.stato = 'pendente')
+        AND (
+            OLD.copia_id IS NULL
+            OR NOT (OLD.copia_id <=> NEW.copia_id)
+            OR NOT (OLD.attivo = 1 OR OLD.stato = 'pendente')
+        )) THEN
         -- 1) La copia deve essere utilizzabile (non persa, danneggiata, in manutenzione, restauro o trasferimento)
         -- Nota: durante un update la copia può essere già in stato prestato/prenotato per QUESTO prestito
         IF NOT EXISTS (
@@ -84,8 +94,31 @@ BEGIN
                 SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito.';
         END IF;
 
-        -- 2) Nessuna sovrapposizione di date con ALTRI prestiti attivi della stessa copia
-        -- Esclude il prestito corrente (p.id <> NEW.id) per consentire gli update
+    END IF;
+
+    -- Nessuna NUOVA sovrapposizione con altri prestiti della stessa copia.
+    --
+    -- A real-world overdue return can turn two previously non-overlapping rows
+    -- into an unavoidable conflict: the old loan is physically still out while
+    -- its successor is already scheduled. That pre-existing conflict must not
+    -- freeze both rows forever. In particular it must remain possible to:
+    --   * flip in_corso -> in_ritardo;
+    --   * demote a stale da_ritirare left by an older release;
+    --   * move/shorten that successor without getting loan_update_failed (#366).
+    --
+    -- Run the overlap gate only when the UPDATE changes the commitment itself,
+    -- then reject a conflicting row only if that SAME row did not already
+    -- conflict with OLD. Copy changes and newly-active holds still fail closed,
+    -- while genuinely corrective edits can escape legacy inconsistent state.
+    IF (NEW.copia_id IS NOT NULL
+        AND (NEW.attivo = 1 OR NEW.stato = 'pendente')
+        AND (
+            OLD.copia_id IS NULL
+            OR NOT (OLD.copia_id <=> NEW.copia_id)
+            OR NOT (OLD.attivo = 1 OR OLD.stato = 'pendente')
+            OR NOT (OLD.data_prestito <=> NEW.data_prestito)
+            OR NOT (OLD.data_scadenza <=> NEW.data_scadenza)
+        )) THEN
         IF EXISTS (
             SELECT 1
             FROM prestiti p
@@ -96,6 +129,12 @@ BEGIN
               AND (
                   (p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo','prenotato','da_ritirare'))
                   OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
+              )
+              AND NOT (
+                  OLD.copia_id <=> NEW.copia_id
+                  AND (OLD.attivo = 1 OR OLD.stato = 'pendente')
+                  AND p.data_prestito <= OLD.data_scadenza
+                  AND (p.stato = 'in_ritardo' OR p.data_scadenza >= OLD.data_prestito)
               )
         ) THEN
             SIGNAL SQLSTATE '45000'

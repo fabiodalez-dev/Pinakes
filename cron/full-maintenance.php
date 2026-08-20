@@ -140,6 +140,7 @@ try {
     // every key is guaranteed present — no null-coalescing needed)
     logMessage("Maintenance completed:");
     logMessage("- Scheduled loans activated (prenotato -> da_ritirare): " . $results['scheduled_loans_activated']);
+    logMessage("- Invalid ready pickups repaired (da_ritirare -> prenotato): " . $results['invalid_ready_pickups_repaired']);
     logMessage("- Expired waitlist reservations (prenotazioni -> annullata): " . $results['expired_waitlist_reservations']);
     logMessage("- Scheduled reservations converted: " . $results['reservations_converted']);
     logMessage("- Expired reservations (prenotato -> scaduto): " . $results['expired_reservations']);
@@ -166,6 +167,7 @@ try {
     // Calculate totals
     $totalActions =
         $results['scheduled_loans_activated'] +
+        $results['invalid_ready_pickups_repaired'] +
         $results['expired_waitlist_reservations'] +
         $results['reservations_converted'] +
         $results['expired_reservations'] +

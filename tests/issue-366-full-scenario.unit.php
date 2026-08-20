@@ -27,6 +27,9 @@ declare(strict_types=1);
  *      capacity window must start the day AFTER the current due date (#336).
  *   D. CapacityService must treat a date-overdue 'in_corso' loan like
  *      'in_ritardo' (unreturned copy = open-ended occupancy).
+ *   E. Follow-up comment #5357382538: an already-corrupt `da_ritirare`
+ *      survivor must be demoted automatically and remain editable even after
+ *      the predecessor becomes `in_ritardo` (no generic loan_update_failed).
  *
  * Drives the REAL production paths: MaintenanceService::updateOverdueLoans/
  * checkExpiredReservations/checkExpiredPickups/activateScheduledLoans,
@@ -164,7 +167,7 @@ $setCopyState = static function (int $copiaId, string $stato) use ($db): void {
 };
 
 $loanRow = static function (int $loanId) use ($db): array {
-    $stmt = $db->prepare('SELECT stato, attivo, data_prestito, data_scadenza, pickup_deadline, warning_sent, overdue_notification_sent, renewals FROM prestiti WHERE id = ?');
+    $stmt = $db->prepare('SELECT stato, attivo, copia_id, data_prestito, data_scadenza, pickup_deadline, warning_sent, overdue_notification_sent, renewals FROM prestiti WHERE id = ?');
     $stmt->bind_param('i', $loanId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc() ?: [];
@@ -225,6 +228,7 @@ $svc = new MaintenanceService($db);
 // the whole shared DB, which this test deliberately avoids.
 $maintenancePass = static function () use ($svc): void {
     $svc->updateOverdueLoans();
+    $svc->repairInvalidReadyPickups();
     $svc->checkExpiredReservations();
     $svc->checkExpiredPickups();
     $svc->activateScheduledLoans();
@@ -314,6 +318,8 @@ try {
     check(($row['stato'] ?? '') === 'da_ritirare', 'A: after the return the reservation promotes to da_ritirare');
     check(!empty($row['pickup_deadline']) && $row['pickup_deadline'] <= $row['data_scadenza'],
         'A: promoted reservation has a pickup_deadline capped at its own due date');
+    check((int) ($row['copia_id'] ?? 0) === $copyA,
+        'A: an unpinned scheduled loan is assigned a real copy before it is announced ready');
 
     /* ---- B. Reschedule of a da_ritirare loan vs the expiry cron ---------- */
     // B1: pickup window already blown (deadline yesterday); staff reschedule the
@@ -445,6 +451,52 @@ try {
     $returnLoan($loanF, $copyF);
     check($capacity->hasFreeCapacity($bookF, $today, $d(7)),
         'E: capacity frees once the copy is actually returned');
+
+    /* ---- F. Follow-up #5357382538: repair + editable legacy survivor ----- */
+    // Recreate the screenshot state left behind by an older release: the first
+    // loan is physically still out and overdue, while its immediate successor
+    // was already marked da_ritirare and its prenotazioni row is gone because
+    // conversion completed. The canonical update trigger is installed only on
+    // upgrade, so this inconsistent pair can legitimately predate it.
+    $userG = $mkUser();
+    $userG2 = $mkUser();
+    [$bookG, [$copyG]] = $mkBook(1);
+    $loanG = $mkLoan($bookG, $copyG, $userG, 'in_corso', $d(-30), $d(-1));
+    $stalePickupG = $mkLoan($bookG, $copyG, $userG2, 'da_ritirare', $d(0), $d(12), $d(3));
+    $setCopyState($copyG, 'prestato');
+
+    $reservationCount = (int) $db->query("SELECT COUNT(*) FROM prenotazioni WHERE libro_id = {$bookG}")->fetch_row()[0];
+    check($reservationCount === 0 && ($loanRow($stalePickupG)['stato'] ?? '') === 'da_ritirare',
+        'F: reproduced follow-up — Ready for Pickup survives although no reservation row remains');
+
+    $svc->updateOverdueLoans();
+    check(($loanRow($loanG)['stato'] ?? '') === 'in_ritardo',
+        'F: predecessor can become overdue even with its scheduled successor present');
+
+    $repaired = $svc->repairInvalidReadyPickups();
+    $row = $loanRow($stalePickupG);
+    check($repaired >= 1
+        && ($row['stato'] ?? '') === 'prenotato'
+        && ($row['pickup_deadline'] ?? null) === null
+        && ($row['copia_id'] ?? null) === null,
+        'F: maintenance demotes the impossible pickup and releases its stale copy assignment');
+
+    $resp = $callUpdate($stalePickupG, $userG2, $d(1), $d(12));
+    $row = $loanRow($stalePickupG);
+    check(!str_contains($resp->getHeaderLine('Location'), 'error=loan_update_failed')
+        && !str_contains($resp->getHeaderLine('Location'), 'error=')
+        && ($row['data_prestito'] ?? '') === $d(1),
+        'F: changing the repaired loan start to tomorrow succeeds (regression for issue comment)');
+
+    $svc->activateScheduledLoans();
+    check(($loanRow($stalePickupG)['stato'] ?? '') === 'prenotato',
+        'F: corrected successor stays scheduled while the overdue copy is still out');
+    $returnLoan($loanG, $copyG, 'prenotato');
+    $shiftLoan($stalePickupG, $d(0), null);
+    $svc->activateScheduledLoans();
+    $row = $loanRow($stalePickupG);
+    check(($row['stato'] ?? '') === 'da_ritirare' && (int) ($row['copia_id'] ?? 0) === $copyG,
+        'F: after the real return, the same scheduled loan becomes ready with an assigned copy');
 
 } catch (\Throwable $e) {
     $cleanup();

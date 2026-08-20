@@ -35,7 +35,7 @@ use App\Support\SecureLogger;
  *   distributors that accept unencrypted application payloads (the common
  *   self-hosted case, e.g. ntfy/NextPush) deliver it directly; the stored
  *   `mobile_push_subscriptions.public_key`/`auth` pair is reserved for a future
- *   encrypted transport. See STATUS.md.
+ *   encrypted transport.
  */
 final class UnifiedPushProvider implements PushProvider
 {

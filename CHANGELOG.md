@@ -4,6 +4,18 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 
 ## [Unreleased]
 
+### Fixed
+
+- **#366 upgrade recovery**: `migrate_0.7.63-rc.1.sql` immediately demotes
+  impossible legacy `da_ritirare` rows back to `prenotato` without cancelling
+  the scheduled loan, clears their stale pickup deadline and releases the bad
+  copy assignment; maintenance repeats the same repair as a runtime safety net.
+  The loan-integrity trigger permits
+  corrective edits to an already-existing overdue overlap (including moving
+  the start date to tomorrow) while still rejecting newly introduced overlaps.
+  Scheduled loans without a pinned copy are assigned a real free copy before
+  being announced ready, so `confirmPickup()` cannot inherit a copy-less row.
+
 ## [0.7.62] - 2026-08-19
 
 Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
