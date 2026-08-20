@@ -28,7 +28,10 @@ declare(strict_types=1);
  *      that copy is returned.
  *
  * Drives the real MaintenanceService::activateScheduledLoans() against the
- * live DB. Touches only data it creates (titles ZZ_366_%, users zz366-%).
+ * live DB. It asserts only on rows it creates (titles ZZ_366_%, users zz366-%)
+ * and cleans them up, but activateScheduledLoans() is a GLOBAL sweep with no
+ * per-book filter — it mutates every matching row in the database. Run this
+ * against an isolated/dedicated test DB (as CI does), never a shared one.
  *
  * Run:  php tests/pickup-ready-copy-free-366.unit.php
  */
@@ -59,15 +62,24 @@ function prcfenv(string $path): array
 }
 
 $env    = prcfenv($root . '/.env');
-$dbName = $env['DB_NAME'] ?? '';
-$dbUser = $env['DB_USER'] ?? '';
-$dbPass = $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '');
+// Read CI env vars first (the other tests in this PR do), so the test connects
+// when CI supplies credentials via the environment rather than a written .env.
+$dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
+$dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
+$dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
+$dbHost = getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
 try {
     $db = (is_string($socket) && $socket !== '' && file_exists($socket))
         ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
-        : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $dbUser, $dbPass, $dbName, (int) ($env['DB_PORT'] ?? 3306));
+        : new mysqli($dbHost, $dbUser, $dbPass, $dbName, (int) ($env['DB_PORT'] ?? 3306));
 } catch (\Throwable $e) {
+    // Under CI_STRICT_TESTS a missing DB must FAIL, not silently skip: a test
+    // that exit(0)s on no-DB gives false confidence that it ran green in CI.
+    if (getenv('CI_STRICT_TESTS') === '1') {
+        fwrite(STDERR, "DB unreachable under CI_STRICT_TESTS: " . $e->getMessage() . "\n");
+        exit(1);
+    }
     echo "SKIP: database not reachable (" . $e->getMessage() . ")\n";
     exit(0);
 }

@@ -85,8 +85,8 @@ fi
 # storage/sessions must be a REAL directory holding a REAL .gitkeep. Reject
 # symlinks first: -d/-f follow them, so a symlinked directory or placeholder
 # could point outside the tree and slip session data past the scan.
-if [ -L "$package_dir/storage/sessions" ] || [ ! -d "$package_dir/storage/sessions" ]; then
-  echo "release storage/sessions is not a real directory" >&2
+if [ -L "$package_dir/storage" ] || [ -L "$package_dir/storage/sessions" ] || [ ! -d "$package_dir/storage/sessions" ]; then
+  echo "release storage or storage/sessions is not a real directory" >&2
   exit 1
 fi
 if [ -L "$package_dir/storage/sessions/.gitkeep" ] || [ ! -f "$package_dir/storage/sessions/.gitkeep" ]; then

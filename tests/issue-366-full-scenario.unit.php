@@ -31,7 +31,10 @@ declare(strict_types=1);
  * Drives the REAL production paths: MaintenanceService::updateOverdueLoans/
  * checkExpiredReservations/checkExpiredPickups/activateScheduledLoans,
  * PrestitiController::update()/renew(), CapacityService::hasFreeCapacity().
- * Touches only rows it creates (titles ZZ_366FS_%, emails @366fs.test.local).
+ * It asserts only on rows it creates (titles ZZ_366FS_%, emails
+ * @366fs.test.local) and cleans them up, but the maintenance sweeps above are
+ * GLOBAL (no per-book filter) and mutate every matching row — run against an
+ * isolated/dedicated test DB (as CI does), never a shared one.
  *
  * Run:  php tests/issue-366-full-scenario.unit.php
  */
@@ -242,8 +245,9 @@ $cleanup();
 try {
     /* ---- 0. runAll() ordering: the overdue flip must run FIRST ----------- */
     $maintenanceSrc = (string) file_get_contents($root . '/app/Support/MaintenanceService.php');
-    $runAllStart = (int) strpos($maintenanceSrc, 'public function runAll');
-    $body = substr($maintenanceSrc, $runAllStart);
+    $runAllStart = strpos($maintenanceSrc, 'public function runAll');
+    check($runAllStart !== false, 'runAll() is present in MaintenanceService (else the ordering check below is meaningless)');
+    $body = $runAllStart !== false ? substr($maintenanceSrc, $runAllStart) : '';
     $posOverdue = strpos($body, '$this->updateOverdueLoans()');
     $posExpired = strpos($body, '$this->checkExpiredReservations()');
     $posActivate = strpos($body, '$this->activateScheduledLoans()');

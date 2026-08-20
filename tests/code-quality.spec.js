@@ -226,6 +226,12 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             .toContain('-L "$package_dir/storage/sessions/.gitkeep"');
         expect(releaseBuilder, 'release build must reject a symlinked .gitkeep placeholder')
             .toContain('-L "$package_dir/storage/sessions/.gitkeep"');
+        // The parent storage/ must be rejected too: -d/-f follow a symlinked
+        // parent, which could redirect the whole scan outside the package.
+        expect(archiveVerifier, 'archive verification must reject a symlinked parent storage/')
+            .toContain('-L "$package_dir/storage"');
+        expect(releaseBuilder, 'release build must reject a symlinked parent storage/')
+            .toContain('-L "$package_dir/storage"');
     });
 
     // ── 3. Plugin ensureSchema() called from onActivate() ─────────────────────

@@ -248,8 +248,8 @@ verify_package_contents() {
     # a REAL placeholder, and nothing else. Reject symlinks first (-d/-f follow
     # them, so a symlinked dir/placeholder could point outside the tree and slip
     # session data past the scan), then require the placeholder, then scan.
-    if [ -L "$package_dir/storage/sessions" ] || [ ! -d "$package_dir/storage/sessions" ]; then
-        log_error "storage/sessions is not a real directory"
+    if [ -L "$package_dir/storage" ] || [ -L "$package_dir/storage/sessions" ] || [ ! -d "$package_dir/storage/sessions" ]; then
+        log_error "storage or storage/sessions is not a real directory"
         has_errors=true
     elif [ -L "$package_dir/storage/sessions/.gitkeep" ] || [ ! -f "$package_dir/storage/sessions/.gitkeep" ]; then
         log_error "storage/sessions/.gitkeep is missing or a symlink"

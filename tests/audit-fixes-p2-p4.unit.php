@@ -26,8 +26,12 @@ declare(strict_types=1);
  *       not from the process TZ.
  *
  * Drives the REAL production paths (LoanApprovalController, PrestitiController,
- * ReservationManager, NotificationService, MaintenanceService). Touches only
- * rows it creates (titles ZZ_AFIX_%, emails @afix.test.local) and cleans up.
+ * ReservationManager, NotificationService, MaintenanceService). It asserts only
+ * on rows it creates (titles ZZ_AFIX_%, emails @afix.test.local) and cleans them
+ * up, but the P2-3/P4 checks invoke GLOBAL maintenance senders/sweeps
+ * (sendOverdueLoanNotifications/sendLoanExpirationWarnings and the expiry
+ * culls), which touch every matching row — run against an isolated/dedicated
+ * test DB (as CI does), never a shared one.
  *
  * Run:  php tests/audit-fixes-p2-p4.unit.php
  */
