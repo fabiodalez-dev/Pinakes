@@ -343,6 +343,8 @@ class MaintenanceService
         $activatedCount = 0;
         // Instantiate DataIntegrity once outside the loop to reduce overhead
         $integrity = new DataIntegrity($this->db);
+        // Capacity ceiling authority for the #366 copy-free guard below
+        $capacity = new \App\Services\CapacityService($this->db);
 
         // Get pickup expiry days from settings
         $settingsRepo = new SettingsRepository($this->db);
@@ -384,6 +386,67 @@ class MaintenanceService
                     continue;
                 }
                 $loan = $lockedLoan;
+
+                // #366 guard: a reservation may only become 'da_ritirare' (and get
+                // the pickup-ready email) when a physical copy is genuinely free
+                // RIGHT NOW. The date window alone is not enough: the preceding
+                // loan may still be out — overdue included. 'in_corso'/'in_ritardo'
+                // rows are counted with NO date predicate because an unreturned
+                // copy is out regardless of its contractual dates (and
+                // updateOverdueLoans runs AFTER this sweep, so an overdue loan can
+                // still sit in 'in_corso' here). Sibling 'da_ritirare' pickups and
+                // copy-holding 'pendente' rows each pin a copy on the shelf too.
+                // Future 'prenotato' rows are NOT counted: they hold capacity for
+                // a later window, not a copy today. If nothing is free the
+                // reservation simply stays 'prenotato' — no state change, no email
+                // — and a later run promotes it once the copy actually comes back.
+                $occStmt = $this->db->prepare("
+                    SELECT COUNT(*) AS occupied
+                    FROM prestiti
+                    WHERE libro_id = ?
+                      AND id <> ?
+                      AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare'))
+                            OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                ");
+                $occStmt->bind_param('ii', $bookId, $loanId);
+                $occStmt->execute();
+                $occRow = $occStmt->get_result()->fetch_assoc();
+                $occStmt->close();
+                $occupied = (int) ($occRow['occupied'] ?? 0);
+
+                if ($occupied >= $capacity->totalCopies($bookId)) {
+                    $this->db->rollback();
+                    SecureLogger::info(__('Attivazione prestito rinviata: nessuna copia libera'), [
+                        'prestito_id' => $loanId,
+                        'libro_id' => $bookId,
+                        'occupied' => $occupied
+                    ]);
+                    continue;
+                }
+
+                // Per-copy check (multi-copy titles): the reservation may be pinned
+                // to a specific copy that is still out on the previous loan even
+                // when another copy of the same title is free. Only the two
+                // on-shelf states may be promoted.
+                if (!empty($loan['copia_id'])) {
+                    $copiaId = (int) $loan['copia_id'];
+                    $copyStmt = $this->db->prepare('SELECT stato FROM copie WHERE id = ? FOR UPDATE');
+                    $copyStmt->bind_param('i', $copiaId);
+                    $copyStmt->execute();
+                    $copyRow = $copyStmt->get_result()->fetch_assoc();
+                    $copyStmt->close();
+                    $copyState = $copyRow['stato'] ?? null;
+                    if (!in_array($copyState, ['disponibile', 'prenotato'], true)) {
+                        $this->db->rollback();
+                        SecureLogger::info(__('Attivazione prestito rinviata: copia assegnata non in sede'), [
+                            'prestito_id' => $loanId,
+                            'libro_id' => $bookId,
+                            'copia_id' => $copiaId,
+                            'copia_stato' => $copyState
+                        ]);
+                        continue;
+                    }
+                }
 
                 // Calculate pickup deadline dal "oggi" applicativo, cappata a
                 // data_scadenza (L1): senza il cap un prestito con finestra corta

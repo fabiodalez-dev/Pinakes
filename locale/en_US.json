@@ -6873,5 +6873,7 @@
   "Ultimo Sollecito:": "Last Reminder:",
   "%s prestito selezionato riceverà il sollecito (solo se scaduto).": "%s selected loan will receive the reminder (only if overdue).",
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s selected loans will receive the reminder (only the overdue ones).",
-  "Impossibile generare la ricevuta PDF.": "Could not generate the receipt PDF."
+  "Impossibile generare la ricevuta PDF.": "Could not generate the receipt PDF.",
+  "Attivazione prestito rinviata: nessuna copia libera": "Loan activation deferred: no copy free",
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Loan activation deferred: assigned copy not in library"
 }
