@@ -89,6 +89,9 @@ $applicationToday = \App\Support\DateHelper::today();
                 case 'loan_not_closable':
                     echo __('Prestito non trovato o non chiudibile.');
                     break;
+                case 'concurrent_retry':
+                    echo __('Un\'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.');
+                    break;
                 case 'no_copies_available':
                     // #336: dire solo "nessuna copia" era fuorviante — il vero motivo
                     // è un conflitto con un altro impegno nel periodo richiesto.

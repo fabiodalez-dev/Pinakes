@@ -331,6 +331,28 @@ $apiBookRoute = route_path('api_book');
       // refresh cannot bring the old notice or PDF download back.
       const loanForm = document.querySelector('form[action$="/admin/loans/create"]');
       const loanCreatedAlert = document.getElementById('loan_created_alert');
+
+      // Guard anti doppio-submit: con la modalità multi-copia attiva e il campo
+      // codice vuoto, un replay identico del form auto-assegnerebbe un'ALTRA
+      // copia (il dup-check stretto non blocca più). Disabilita i bottoni al
+      // primo submit; il timeout lascia serializzare il valore del bottone
+      // cliccato (save_and_new) prima del disable.
+      if (loanForm) {
+        let loanSubmitInFlight = false;
+        loanForm.addEventListener('submit', function (event) {
+          if (loanSubmitInFlight) {
+            event.preventDefault();
+            return;
+          }
+          loanSubmitInFlight = true;
+          setTimeout(function () {
+            loanForm.querySelectorAll('button[type="submit"]').forEach(function (btn) {
+              btn.disabled = true;
+              btn.classList.add('opacity-60', 'cursor-not-allowed');
+            });
+          }, 0);
+        });
+      }
       if (loanForm && loanCreatedAlert) {
         const clearCreatedAlert = function() {
           if (loanCreatedAlert.isConnected) loanCreatedAlert.remove();
