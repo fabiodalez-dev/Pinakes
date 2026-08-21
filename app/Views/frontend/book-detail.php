@@ -124,8 +124,12 @@ if ($bookDescription) {
     }
 }
 
-// Canonical URL - Safe from Host header injection
-$canonicalUrl = HtmlHelper::getCurrentUrl();
+// Canonical URL - Safe from Host header injection. Use the canonical book
+// path computed by the controller: the current URL can carry tracking
+// parameters (?utm_*) that must never appear in rel=canonical.
+$canonicalUrl = isset($canonicalPath)
+    ? absoluteUrl($canonicalPath)
+    : HtmlHelper::getCurrentUrlWithoutQuery();
 
 // Open Graph Image - Ensure absolute URLs
 $baseUrl = HtmlHelper::getBaseUrl();

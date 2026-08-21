@@ -152,7 +152,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         <meta name="keywords" content="<?= htmlspecialchars($seoKeywords) ?>">
     <?php endif; ?>
     <link rel="canonical"
-        href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrl()) ?>">
+        href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrlWithoutQuery()) ?>">
     <?php foreach (\App\Support\HreflangHelper::getAlternates() as $hreflangAlt): ?>
     <link rel="alternate" hreflang="<?= htmlspecialchars($hreflangAlt['hreflang'], ENT_QUOTES, 'UTF-8') ?>"
           href="<?= htmlspecialchars($hreflangAlt['href'], ENT_QUOTES, 'UTF-8') ?>">
@@ -168,7 +168,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     $ogTitle = $ogTitle ?? ($seoTitle ?? $title ?? $appName);
     $ogDescription = $ogDescription ?? ($seoDescription ?? ($footerDescription ?: __('Esplora il nostro catalogo digitale')));
     $ogType = $ogType ?? 'website';
-    $ogUrl = $ogUrl ?? HtmlHelper::getCurrentUrl();
+    $ogUrl = $ogUrl ?? ($seoCanonical ?? HtmlHelper::getCurrentUrlWithoutQuery());
     $ogImage = $ogImage ?? $resolvedDefaultOgImage;
     $ogImage = $ogImage !== '' ? absoluteUrl($ogImage) : '';
 
