@@ -244,6 +244,20 @@ class LoanApprovalController
             // DateHelper::today() incapsula già i fallback sul timezone (M9).
             $today = DateHelper::today();
 
+            // BUG8/D13 parity con activateScheduledLoans: una richiesta la cui
+            // finestra è interamente trascorsa non è approvabile. Senza questa
+            // guardia nascerebbe un 'da_ritirare' con deadline già passata (mai
+            // ritirabile) e, con :fine nel passato, i predicati di overlap sotto
+            // diventerebbero ciechi ai prestiti correnti.
+            if ($dataScadenza !== null && $dataScadenza !== '' && $dataScadenza < $today) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             $utenteId = (int) $loan['utente_id'];
 
             // M7 — gate di idoneità anche in APPROVAZIONE: l'utente può essere
@@ -357,23 +371,30 @@ class LoanApprovalController
             $selectedCopy = null;
 
             if ($existingCopiaId !== null && !in_array($existingCopiaId, $borrowerCommittedCopyIds, true)) {
+                // Solo copie in sede ('disponibile'/'prenotato') e appartenenti al
+                // libro del prestito: una copia_id corrotta o una copia 'prestato'
+                // (fuori con un altro prestito) non è assegnabile in approvazione.
+                // #366 residual: un 'in_corso' scaduto per data ma non ancora
+                // flippato dal cron è la stessa copia non rientrata — bloccante
+                // come 'in_ritardo' (stesso ramo di CapacityService).
                 $existingCopyStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.id = ?
-                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                    AND c.libro_id = ?
+                    AND c.stato IN ('disponibile', 'prenotato')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.id != ?
                         AND p.data_prestito <= ?
-                        AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                        AND (p.stato = 'in_ritardo' OR (p.stato = 'in_corso' AND p.data_scadenza < ?) OR p.data_scadenza >= ?)
                         AND (
                             (p.attivo = 1 AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                         )
                     )
                 ");
-                $existingCopyStmt->bind_param('iiss', $existingCopiaId, $loanId, $dataScadenza, $dataPrestito);
+                $existingCopyStmt->bind_param('iiisss', $existingCopiaId, $libroId, $loanId, $dataScadenza, $today, $dataPrestito);
                 $existingCopyStmt->execute();
                 $existingCopyResult = $existingCopyStmt->get_result();
                 $selectedCopy = $existingCopyResult ? $existingCopyResult->fetch_assoc() : null;
@@ -416,7 +437,7 @@ class LoanApprovalController
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.data_prestito <= ?
-                        AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                        AND (p.stato = 'in_ritardo' OR (p.stato = 'in_corso' AND p.data_scadenza < ?) OR p.data_scadenza >= ?)
                         AND (
                             (p.attivo = 1 AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
@@ -424,7 +445,7 @@ class LoanApprovalController
                     )
                     LIMIT 1
                 ");
-                $overlapStmt->bind_param('iiiiss', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $dataPrestito);
+                $overlapStmt->bind_param('iiiisss', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
@@ -467,7 +488,8 @@ class LoanApprovalController
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND id != ?
-                AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                AND data_prestito <= ?
+                AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
                 AND (
                     (attivo = 1 AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo'))
                     OR (stato = 'pendente' AND copia_id IS NOT NULL)
@@ -475,7 +497,7 @@ class LoanApprovalController
                 LIMIT 1
                 FOR UPDATE
             ");
-            $overlapCopyStmt->bind_param('iiss', $selectedCopy['id'], $loanId, $dataScadenza, $dataPrestito);
+            $overlapCopyStmt->bind_param('iisss', $selectedCopy['id'], $loanId, $dataScadenza, $today, $dataPrestito);
             $overlapCopyStmt->execute();
             $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
             $overlapCopyStmt->close();
@@ -496,7 +518,9 @@ class LoanApprovalController
             $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
             $copyCheckStmt->close();
 
-            $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
+            // 'prestato' incluso: una copia ancora fuori con un altro prestito
+            // non è assegnabile in approvazione (double-issue, vedi confirmPickup).
+            $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento', 'prestato'];
             if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
                 throw new \RuntimeException(__('Copia non disponibile per il prestito'));
             }
@@ -544,7 +568,18 @@ class LoanApprovalController
                 $automaticApproval = (bool) $request->getAttribute('automatic_loan_approval', false);
                 if ($isFutureLoan || $automaticApproval) {
                     // Future loan: send general approval notification
-                    $notificationService->sendLoanApprovedNotification($loanId);
+                    $approvalEmailSent = $notificationService->sendLoanApprovedNotification($loanId);
+                    // Per gli immediati auto-approvati (#301) l'email di
+                    // approvazione È l'annuncio del ritiro: claim del flag così
+                    // lo sweep retryUnsentPickupNotifications() non ne invia un
+                    // secondo. Se l'email è fallita il flag resta 0 e lo sweep
+                    // recapita il pickup-ready come recupero.
+                    if (!$isFutureLoan && $approvalEmailSent) {
+                        $claimStmt = $db->prepare("UPDATE prestiti SET pickup_notification_sent = 1 WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare'");
+                        $claimStmt->bind_param('i', $loanId);
+                        $claimStmt->execute();
+                        $claimStmt->close();
+                    }
                 } else {
                     // Immediate loan (da_ritirare): send pickup ready notification with deadline
                     $notificationService->sendPickupReadyNotification($loanId);
@@ -939,6 +974,35 @@ class LoanApprovalController
                     ]));
                     return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
                 }
+                // Non fidarsi del solo copie.stato (pre-0.7.62 / dati legacy): la
+                // copia può risultare 'prenotato' mentre un'ALTRA riga aperta la
+                // tiene ancora impegnata. Stesso ricontrollo per-riga usato da
+                // MaintenanceService::activateScheduledLoans.
+                $copyConflictStmt = $db->prepare("
+                    SELECT 1
+                    FROM prestiti
+                    WHERE copia_id = ? AND id <> ?
+                      AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare'))
+                            OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL)
+                            OR (attivo = 1 AND stato = 'prenotato'
+                                AND data_prestito <= ? AND data_scadenza >= ?) )
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $copyConflictStmt->bind_param('iiss', $copiaId, $loanId, $loan['data_scadenza'], $loan['data_prestito']);
+                $copyConflictStmt->execute();
+                $copyHeld = (bool) $copyConflictStmt->get_result()->fetch_row();
+                $copyConflictStmt->close();
+                if ($copyHeld) {
+                    $db->rollback();
+                    \App\Support\SecureLogger::error("[confirmPickup] Loan {$loanId} aborted: copy {$copiaId} held by another open loan row");
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'message' => __('La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.')
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+                }
+
                 $copyRepo = new \App\Models\CopyRepository($db);
                 $copyRepo->updateStatus($copiaId, 'prestato');
             }
@@ -987,7 +1051,15 @@ class LoanApprovalController
             }
         }
         $loanId = (int) ($data['loan_id'] ?? 0);
-        $reason = $data['reason'] ?? __('Ritiro non effettuato');
+        // Stessa normalizzazione di rejectLoan/cancelReservation: un array farebbe
+        // TypeError nel template email, una stringa illimitata finirebbe
+        // integralmente nell'email e nella nota di audit.
+        $reason = $data['reason'] ?? '';
+        $reason = is_scalar($reason) ? trim((string) $reason) : '';
+        if ($reason === '') {
+            $reason = __('Ritiro non effettuato');
+        }
+        $reason = mb_substr($reason, 0, 500);
 
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
@@ -1067,13 +1139,21 @@ class LoanApprovalController
 
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
 
-            // Mark loan as expired (not picked up)
+            // Mark loan as expired (not picked up). Nota di audit + processed_by
+            // come per checkExpiredPickups/rejectLoan: senza, l'annullamento
+            // manuale dello staff e la scadenza automatica del cron sarebbero
+            // indistinguibili a posteriori.
+            $cancelledBy = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
+            $noteSuffix = "\n[Staff] " . __('Ritiro annullato il') . ' '
+                . implode('/', array_reverse(explode('-', $today))) . ' — ' . $reason;
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'scaduto', attivo = 0, pickup_deadline = NULL
+                SET stato = 'scaduto', attivo = 0, pickup_deadline = NULL,
+                    processed_by = COALESCE(?, processed_by),
+                    note = CONCAT(COALESCE(note, ''), ?)
                 WHERE id = ?
             ");
-            $updateStmt->bind_param('i', $loanId);
+            $updateStmt->bind_param('isi', $cancelledBy, $noteSuffix, $loanId);
             $updateStmt->execute();
             $updateStmt->close();
 
