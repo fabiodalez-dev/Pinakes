@@ -38,6 +38,7 @@ class ReservationsController
             throw new Exception("Connection failed: " . $this->db->connect_error);
         }
         $this->db->set_charset($cfg['charset']);
+        \App\Support\DateHelper::synchronizeDatabaseSession($this->db);
     }
 
     // Rimosso getBookAvailability(): non era instradato da nessuna rotta e il

@@ -115,11 +115,10 @@ try {
     }
 
     $db->set_charset($cfg['charset']);
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
 
-    // Niente SET SESSION time_zone (M9): la coerenza sul giorno è garantita dai
-    // parametri PHP calcolati con DateHelper nel timezone applicativo; il web non
-    // imposta alcuna session timezone, quindi forzare UTC nel solo cron creava
-    // due regimi diversi per gli stessi confronti di data.
+    // Niente SET SESSION time_zone (M9): DateHelper espone ai trigger il giorno
+    // applicativo senza alterare la timezone MySQL dell'intera connessione.
 
     // Bootstrap I18n con il locale di installazione, come fa public/index.php per
     // il web (H4): in CLI il locale resterebbe il default statico it_IT e le email

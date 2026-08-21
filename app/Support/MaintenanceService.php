@@ -1437,6 +1437,7 @@ class MaintenanceService
                 }
 
                 $db->set_charset($cfg['charset']);
+                DateHelper::synchronizeDatabaseSession($db);
             }
 
             $service = new self($db);
