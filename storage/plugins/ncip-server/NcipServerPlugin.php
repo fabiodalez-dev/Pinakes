@@ -722,13 +722,14 @@ class NcipServerPlugin
             );
         }
 
-        if (!$this->closeLoan((int) $loan['id'])) {
+        $resolvedCheckInUserId = (int) $loan['utente_id'];
+        if (!$this->closeLoan((int) $loan['id'], $itemId, $resolvedCheckInUserId)) {
             // A concurrent CheckInItem may have returned this exact loan between
             // findActiveLoan() and closeLoan(): LoanRepository::close()'s state
             // guard then returns false. That is not a failure — the item IS
             // checked in — so honour the F052 idempotency contract and report
             // success instead of a retryable temporary-processing-failure.
-            if ($this->isLoanReturned((int) $loan['id'])) {
+            if ($this->isLoanReturned((int) $loan['id'], $itemId, $resolvedCheckInUserId)) {
                 // This request still completed a CheckInItem operation and
                 // must be auditable even though another concurrent request won
                 // the close race. The normal-success branch below logs once on
@@ -798,13 +799,20 @@ class NcipServerPlugin
         }
 
         $failureReason = 'db_error';
-        $newDue = $this->extendLoan((int) $loan['id'], $failureReason);
+        $resolvedRenewUserId = (int) $loan['utente_id'];
+        $newDue = $this->extendLoan(
+            (int) $loan['id'],
+            $itemId,
+            $resolvedRenewUserId,
+            $failureReason
+        );
         if ($newDue === null) {
             // Map permanent rejections to stable NCIP ProblemTypes so the partner
             // stops retrying a renewal that can never succeed. Only a genuine DB
             // error stays retryable (temporary-processing-failure).
             $problemType = match ($failureReason) {
                 'not_found'                => 'unknown-item',
+                'identity_changed'         => 'item-not-checked-out',
                 'ineligible_state'         => 'item-not-renewable',
                 'user_ineligible'          => 'user-ineligible-to-renew',
                 'max_renewals'             => 'maximum-renewals-exceeded',
@@ -820,7 +828,7 @@ class NcipServerPlugin
 
         $this->logTransaction('RenewItem', (int) $loan['id'], null);
 
-        return $this->xmlResponse($response, $this->buildRenewItemResponse($itemId, $newDue, (int) ($loan['utente_id'] ?? 0)));
+        return $this->xmlResponse($response, $this->buildRenewItemResponse($itemId, $newDue, $resolvedRenewUserId));
     }
 
     /**
@@ -931,24 +939,37 @@ class NcipServerPlugin
             }
         }
 
-        $loan = $this->findNcipLoan($itemId, $userId);
-        if ($loan === null) {
+        try {
+            $cancelResult = $this->cancelPendingNcipRequest($itemId, $userId);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[NcipServer] cancelPendingNcipRequest failed: ' . $e->getMessage());
+            return $this->xmlResponse(
+                $response,
+                $this->buildProblem('Failed to cancel request', 'temporary-processing-failure')
+            );
+        }
+        if ($cancelResult['status'] === 'ambiguous') {
+            return $this->xmlResponse(
+                $response,
+                $this->buildProblem(
+                    $userId === null
+                        ? 'Multiple pending ILL requests for this item; UserId is required'
+                        : 'Multiple matching pending ILL requests for this item and user',
+                    'invalid-data'
+                )
+            );
+        }
+        if ($cancelResult['status'] !== 'cancelled') {
+            // Approval and cancellation serialize on the book row. If approval
+            // won, the locked query no longer sees a pending request and this
+            // branch cannot overwrite the approved loan or orphan its copy.
             return $this->xmlResponse(
                 $response,
                 $this->buildProblem('No active ILL request for this item', 'item-not-checked-out')
             );
         }
 
-        try {
-            $this->cancelLoan((int) $loan['id']);
-        } catch (\RuntimeException $e) {
-            SecureLogger::error('[NcipServer] cancelLoan failed: ' . $e->getMessage());
-            return $this->xmlResponse(
-                $response,
-                $this->buildProblem('Failed to cancel request', 'temporary-processing-failure')
-            );
-        }
-        $this->logTransaction('CancelRequestItem', (int) $loan['id'], null);
+        $this->logTransaction('CancelRequestItem', $cancelResult['loan_id'], null);
 
         return $this->xmlResponse($response, $this->buildCancelRequestItemResponse($itemId, $userId));
     }
@@ -1689,53 +1710,121 @@ class NcipServerPlugin
     }
 
     /**
-     * @return array<string, mixed>|null
+     * Resolve and cancel one still-pending NCIP request atomically.
+     *
+     * The book lock is acquired before the pending-request lookup, matching the
+     * lock order used by RequestItem and approval. Consequently a concurrent
+     * insert/approval either commits before this SELECT ... FOR UPDATE (and is
+     * visible here) or waits until cancellation commits. Ambiguity detection is
+     * therefore based on the same locked state that the UPDATE mutates.
+     *
+     * @return array{status:'cancelled', loan_id:int, user_id:int}|array{status:'not_found'|'ambiguous'}
      */
-    private function findNcipLoan(int $bookId, ?int $userId): ?array
+    private function cancelPendingNcipRequest(int $bookId, ?int $userId): array
     {
-        // CancelRequestItem cancels the outstanding NCIP request, not an item
-        // already approved/checked out (those need the normal check-in/cancel
-        // lifecycle so their copy and queues are released correctly).
-        $sql  = "SELECT id, libro_id, utente_id FROM prestiti
-                  WHERE libro_id = ? AND origine = 'ncip' AND attivo = 0 AND stato = 'pendente'";
-        $types = 'i';
-        $params = [$bookId];
-        if ($userId !== null) {
-            $sql  .= ' AND utente_id = ?';
-            $types .= 'i';
-            $params[] = $userId;
-        }
-        $sql .= ' ORDER BY created_at DESC LIMIT 1';
+        $inTransaction = false;
+        try {
+            $this->db->begin_transaction();
+            $inTransaction = true;
 
-        $stmt = $this->db->prepare($sql);
-        if ($stmt === false) { return null; }
-        $stmt->bind_param($types, ...$params);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        if (!($res instanceof \mysqli_result)) {
-            $stmt->close();
-            return null;
-        }
-        $row = $res->fetch_assoc();
-        $stmt->close();
-        return is_array($row) ? $row : null;
-    }
+            // CI-SOFT-DELETE-EXEMPT: cancelling a pending request must remain
+            // possible after a title is archived, just as returning its copy is.
+            $book = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+            if ($book === false) {
+                throw new \RuntimeException('book lock prepare failed: ' . $this->db->error);
+            }
+            $book->bind_param('i', $bookId);
+            $book->execute();
+            $bookExists = (bool) $book->get_result()->fetch_row();
+            $book->close();
+            if (!$bookExists) {
+                $this->db->rollback();
+                $inTransaction = false;
+                return ['status' => 'not_found'];
+            }
 
-    private function cancelLoan(int $loanId): void
-    {
-        $stmt = $this->db->prepare(
-            "UPDATE prestiti SET stato = 'annullato', attivo = 0, updated_at = NOW() WHERE id = ?"
-        );
-        if ($stmt === false) {
-            throw new \RuntimeException('[NcipServer] ' . __FUNCTION__ . ' prepare failed: ' . $this->db->error);
+            $userFilter = $userId !== null ? ' AND utente_id = ?' : '';
+            $loanStmt = $this->db->prepare(
+                "SELECT id, libro_id, utente_id, origine, attivo, stato
+                   FROM prestiti
+                  WHERE libro_id = ? AND origine = 'ncip'
+                    AND attivo = 0 AND stato = 'pendente' AND copia_id IS NULL{$userFilter}
+                  ORDER BY created_at DESC, id DESC
+                  LIMIT 2 FOR UPDATE"
+            );
+            if ($loanStmt === false) {
+                throw new \RuntimeException('loan lock prepare failed: ' . $this->db->error);
+            }
+            if ($userId !== null) {
+                $loanStmt->bind_param('ii', $bookId, $userId);
+            } else {
+                $loanStmt->bind_param('i', $bookId);
+            }
+            $loanStmt->execute();
+            $result = $loanStmt->get_result();
+            $lockedLoans = $result instanceof \mysqli_result
+                ? $result->fetch_all(MYSQLI_ASSOC)
+                : [];
+            $loanStmt->close();
+
+            if ($lockedLoans === []) {
+                $this->db->rollback();
+                $inTransaction = false;
+                return ['status' => 'not_found'];
+            }
+            if (count($lockedLoans) > 1) {
+                $this->db->rollback();
+                $inTransaction = false;
+                return ['status' => 'ambiguous'];
+            }
+            $lockedLoan = $lockedLoans[0];
+            $loanId = (int) $lockedLoan['id'];
+            $resolvedUserId = (int) $lockedLoan['utente_id'];
+
+            // Repeat every lifecycle/identity predicate in the write itself.
+            // The row lock makes a lost race impossible, while the guarded
+            // UPDATE also protects this invariant from future refactors.
+            $update = $this->db->prepare(
+                "UPDATE prestiti
+                    SET stato = 'annullato', attivo = 0, updated_at = NOW()
+                  WHERE id = ? AND libro_id = ? AND utente_id = ?
+                    AND origine = 'ncip' AND attivo = 0 AND stato = 'pendente'
+                    AND copia_id IS NULL"
+            );
+            if ($update === false) {
+                throw new \RuntimeException('cancel prepare failed: ' . $this->db->error);
+            }
+            $update->bind_param('iii', $loanId, $bookId, $resolvedUserId);
+            $update->execute();
+            $affected = $update->affected_rows;
+            $update->close();
+            if ($affected !== 1) {
+                $this->db->rollback();
+                $inTransaction = false;
+                return ['status' => 'not_found'];
+            }
+
+            $this->db->commit();
+            $inTransaction = false;
+            return [
+                'status' => 'cancelled',
+                'loan_id' => $loanId,
+                'user_id' => $resolvedUserId,
+            ];
+        } catch (\Throwable $e) {
+            if ($inTransaction) {
+                try {
+                    $this->db->rollback();
+                } catch (\Throwable) {
+                    // Preserve the original database failure.
+                }
+            }
+            throw new \RuntimeException(
+                '[NcipServer] ' . __FUNCTION__ . ' failed: ' . $e->getMessage(),
+                0,
+                $e
+            );
         }
-        $stmt->bind_param('i', $loanId);
-        if (!$stmt->execute()) {
-            $err = $stmt->error;
-            $stmt->close();
-            throw new \RuntimeException('[NcipServer] ' . __FUNCTION__ . ' execute failed: ' . $err);
-        }
-        $stmt->close();
     }
 
     private function logTransaction(string $messageType, int $prestitoId, ?string $requestId): void
@@ -1794,10 +1883,14 @@ class NcipServerPlugin
         return $rows[0] ?? null;
     }
 
-    private function closeLoan(int $loanId): bool
+    private function closeLoan(int $loanId, int $expectedBookId, int $expectedUserId): bool
     {
         try {
-            $closed = (new \App\Models\LoanRepository($this->db))->close($loanId);
+            $closed = (new \App\Models\LoanRepository($this->db))->close(
+                $loanId,
+                $expectedBookId,
+                $expectedUserId
+            );
         } catch (\Throwable $e) {
             SecureLogger::error('[NcipServer] closeLoan failed: ' . $e->getMessage());
             return false;
@@ -1821,13 +1914,16 @@ class NcipServerPlugin
      * CheckInItem idempotent: a concurrent/replayed check-in whose loan is
      * already 'restituito' is a success, not a temporary-processing-failure.
      */
-    private function isLoanReturned(int $loanId): bool
+    private function isLoanReturned(int $loanId, int $expectedBookId, int $expectedUserId): bool
     {
-        $stmt = $this->db->prepare('SELECT attivo, stato FROM prestiti WHERE id = ?');
+        $stmt = $this->db->prepare(
+            'SELECT attivo, stato FROM prestiti
+              WHERE id = ? AND libro_id = ? AND utente_id = ?'
+        );
         if ($stmt === false) {
             return false;
         }
-        $stmt->bind_param('i', $loanId);
+        $stmt->bind_param('iii', $loanId, $expectedBookId, $expectedUserId);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -1849,27 +1945,23 @@ class NcipServerPlugin
      *
      * @param-out string $failureReason
      */
-    private function extendLoan(int $loanId, ?string &$failureReason = null): ?string
+    private function extendLoan(
+        int $loanId,
+        int $expectedBookId,
+        int $expectedUserId,
+        ?string &$failureReason = null
+    ): ?string
     {
         $failureReason = 'db_error';
-        $lookup = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id = ?');
-        if ($lookup === false) {
+        if ($expectedBookId <= 0 || $expectedUserId <= 0) {
+            $failureReason = 'identity_changed';
             return null;
         }
-        $lookup->bind_param('i', $loanId);
-        $lookup->execute();
-        $row = $lookup->get_result()->fetch_assoc();
-        $lookup->close();
-        if (!$row) {
-            $failureReason = 'not_found';
-            return null;
-        }
-        $bookId = (int) $row['libro_id'];
 
         $this->db->begin_transaction();
         try {
             $book = $this->db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
-            $book->bind_param('i', $bookId);
+            $book->bind_param('i', $expectedBookId);
             $book->execute();
             $bookExists = (bool) $book->get_result()->fetch_row();
             $book->close();
@@ -1880,26 +1972,32 @@ class NcipServerPlugin
             }
 
             $loanStmt = $this->db->prepare(
-                "SELECT libro_id, utente_id, copia_id, data_scadenza, stato, attivo, renewals
+                "SELECT libro_id, utente_id, copia_id, data_scadenza, stato, attivo, renewals, origine
                  FROM prestiti WHERE id = ? FOR UPDATE"
             );
             $loanStmt->bind_param('i', $loanId);
             $loanStmt->execute();
             $loan = $loanStmt->get_result()->fetch_assoc();
             $loanStmt->close();
-            if (!$loan || (int) $loan['libro_id'] !== $bookId
-                || (int) $loan['attivo'] !== 1 || $loan['stato'] !== 'in_corso') {
+            if (!$loan
+                || (int) $loan['libro_id'] !== $expectedBookId
+                || (int) $loan['utente_id'] !== $expectedUserId
+                || $loan['origine'] !== 'ncip') {
+                $this->db->rollback();
+                $failureReason = 'identity_changed';
+                return null;
+            }
+            if ((int) $loan['attivo'] !== 1 || $loan['stato'] !== 'in_corso') {
                 $this->db->rollback();
                 $failureReason = 'ineligible_state';
                 return null;
             }
 
-            $userId = (int) $loan['utente_id'];
             $userLock = $this->db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
-            $userLock->bind_param('i', $userId);
+            $userLock->bind_param('i', $expectedUserId);
             $userLock->execute();
             $userLock->close();
-            if (\App\Support\LoanEligibility::checkUser($this->db, $userId) !== null) {
+            if (\App\Support\LoanEligibility::checkUser($this->db, $expectedUserId) !== null) {
                 $this->db->rollback();
                 $failureReason = 'user_ineligible';
                 return null;
@@ -1926,7 +2024,7 @@ class NcipServerPlugin
             $extensionStart = (new \DateTimeImmutable($currentDue))->modify('+1 day')->format('Y-m-d');
 
             $capacity = new \App\Services\CapacityService($this->db);
-            if (!$capacity->hasFreeCapacity($bookId, $extensionStart, $newDueDate, excludePrestitoId: $loanId)) {
+            if (!$capacity->hasFreeCapacity($expectedBookId, $extensionStart, $newDueDate, excludePrestitoId: $loanId)) {
                 $this->db->rollback();
                 $failureReason = 'no_capacity';
                 return null;
