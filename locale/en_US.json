@@ -6875,5 +6875,12 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s selected loans will receive the reminder (only the overdue ones).",
   "Impossibile generare la ricevuta PDF.": "Could not generate the receipt PDF.",
   "Attivazione prestito rinviata: nessuna copia libera": "Loan activation deferred: no copy free",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Loan activation deferred: assigned copy not in library"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Loan activation deferred: assigned copy not in library",
+  "Libri di %s": "Books by %s",
+  "Libri dell'editore %s": "Books from the publisher %s",
+  "Libri del genere %s": "Books in the %s genre",
+  "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.": "All works by %s in the library: browse the available titles and request them on loan.",
+  "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.": "All books published by %s in our library, available for loan.",
+  "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.": "Explore the books in the %s genre available for loan in our library.",
+  "Pagina %d": "Page %d"
 }

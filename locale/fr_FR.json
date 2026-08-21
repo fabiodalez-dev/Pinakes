@@ -6875,5 +6875,12 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s prêts sélectionnés recevront le rappel (uniquement ceux en retard).",
   "Impossibile generare la ricevuta PDF.": "Impossible de générer le PDF du reçu.",
   "Attivazione prestito rinviata: nessuna copia libera": "Activation du prêt reportée : aucun exemplaire libre",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Activation du prêt reportée : exemplaire attribué absent de la bibliothèque"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Activation du prêt reportée : exemplaire attribué absent de la bibliothèque",
+  "Libri di %s": "Livres de %s",
+  "Libri dell'editore %s": "Livres de l'éditeur %s",
+  "Libri del genere %s": "Livres du genre %s",
+  "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.": "Toutes les œuvres de %s présentes dans la bibliothèque : parcourez les titres disponibles et demandez-les en prêt.",
+  "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.": "Tous les livres publiés par %s présents dans notre bibliothèque, disponibles au prêt.",
+  "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.": "Explorez les livres du genre %s disponibles au prêt dans notre bibliothèque.",
+  "Pagina %d": "Page %d"
 }

@@ -6875,5 +6875,12 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).",
   "Impossibile generare la ricevuta PDF.": "Impossibile generare la ricevuta PDF.",
   "Attivazione prestito rinviata: nessuna copia libera": "Attivazione prestito rinviata: nessuna copia libera",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Attivazione prestito rinviata: copia assegnata non in sede"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Attivazione prestito rinviata: copia assegnata non in sede",
+  "Libri di %s": "Libri di %s",
+  "Libri dell'editore %s": "Libri dell'editore %s",
+  "Libri del genere %s": "Libri del genere %s",
+  "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.": "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.",
+  "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.": "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.",
+  "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.": "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.",
+  "Pagina %d": "Pagina %d"
 }
