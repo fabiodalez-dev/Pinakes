@@ -575,6 +575,11 @@ class LoanApprovalController
                     // secondo. Se l'email è fallita il flag resta 0 e lo sweep
                     // recapita il pickup-ready come recupero.
                     if (!$isFutureLoan && $approvalEmailSent) {
+                        // Garantisce la colonna sugli install legacy pre-migrazione
+                        // (stesso ensure di sendPickupReadyNotification): senza,
+                        // l'UPDATE fallirebbe in silenzio nel catch esterno e lo
+                        // sweep invierebbe un secondo annuncio di ritiro.
+                        $notificationService->addNotificationColumns();
                         $claimStmt = $db->prepare("UPDATE prestiti SET pickup_notification_sent = 1 WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare'");
                         $claimStmt->bind_param('i', $loanId);
                         $claimStmt->execute();

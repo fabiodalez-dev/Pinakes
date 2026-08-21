@@ -118,7 +118,7 @@ $apiBookRoute = route_path('api_book');
     </div>
   <?php endif; ?>
 
-  <form method="post" action="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>"
+  <form method="post" id="loan-create-form" action="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>"
         data-multiple-copy-mode="<?= $allowMultipleLoansSameBook ? '1' : '0' ?>"
         class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
@@ -329,7 +329,9 @@ $apiBookRoute = route_path('api_book');
       // values now being entered. Remove it on the first form edit (including a
       // scanner-generated input/change event) and clean the stale URL flags so a
       // refresh cannot bring the old notice or PDF download back.
-      const loanForm = document.querySelector('form[action$="/admin/loans/create"]');
+      // Id stabile invece del selettore sull'action: il markup non dipende
+      // così dal percorso dell'URL.
+      const loanForm = document.getElementById('loan-create-form');
       const loanCreatedAlert = document.getElementById('loan_created_alert');
 
       // Guard anti doppio-submit: con la modalità multi-copia attiva e il campo

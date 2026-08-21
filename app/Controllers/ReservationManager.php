@@ -188,25 +188,6 @@ class ReservationManager
             // still see a reservation that a competitor cancelled and committed
             // while we waited for the book lock, and promote/email it anyway.
             // The locking read always returns the latest committed row state.
-            $stmt = $this->db->prepare("
-                SELECT r.*, u.email, u.nome, u.cognome
-                FROM prenotazioni r
-                JOIN utenti u ON r.utente_id = u.id
-                WHERE r.libro_id = ? AND r.stato = 'attiva'
-                AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
-                ORDER BY r.queue_position ASC
-                LIMIT 25
-                FOR UPDATE
-            ");
-            $stmt->bind_param('iss', $bookId, $today, $today);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $candidates = [];
-            while ($row = $result->fetch_assoc()) {
-                $candidates[] = $row;
-            }
-            $stmt->close();
-
             // Idoneità utente anche in promozione (M7 parity con store/approve):
             // un utente sospeso o con tessera scaduta mentre era in coda non va
             // promosso — la riga diverrebbe 'completata' + pendente con copia
@@ -214,20 +195,50 @@ class ReservationManager
             // e tenendo la copia impegnata finché un admin non ripulisce a mano.
             // La prenotazione saltata resta 'attiva' in coda: torna promuovibile
             // se l'utente viene riabilitato, e i candidati successivi non
-            // restano bloccati dietro di lei.
+            // restano bloccati dietro di lei. La scansione procede a batch FIFO
+            // finché trova il primo idoneo o esaurisce la coda: fermarsi al
+            // primo batch renderebbe irraggiungibile un idoneo oltre la
+            // posizione 25 quando tutti i precedenti sono sospesi.
             $nextReservation = null;
-            foreach ($candidates as $candidate) {
-                $eligibilityError = \App\Support\LoanEligibility::checkUser($this->db, (int) $candidate['utente_id']);
-                if ($eligibilityError === null) {
-                    $nextReservation = $candidate;
+            $batchSize = 25;
+            for ($offset = 0; $nextReservation === null; $offset += $batchSize) {
+                $stmt = $this->db->prepare("
+                    SELECT r.*, u.email, u.nome, u.cognome
+                    FROM prenotazioni r
+                    JOIN utenti u ON r.utente_id = u.id
+                    WHERE r.libro_id = ? AND r.stato = 'attiva'
+                    AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
+                    ORDER BY r.queue_position ASC
+                    LIMIT ? OFFSET ?
+                    FOR UPDATE
+                ");
+                $stmt->bind_param('issii', $bookId, $today, $today, $batchSize, $offset);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $candidates = [];
+                while ($row = $result->fetch_assoc()) {
+                    $candidates[] = $row;
+                }
+                $stmt->close();
+
+                foreach ($candidates as $candidate) {
+                    $eligibilityError = \App\Support\LoanEligibility::checkUser($this->db, (int) $candidate['utente_id']);
+                    if ($eligibilityError === null) {
+                        $nextReservation = $candidate;
+                        break;
+                    }
+                    \App\Support\SecureLogger::info('Promozione prenotazione saltata: utente non idoneo', [
+                        'prenotazione_id' => (int) $candidate['id'],
+                        'libro_id' => $bookId,
+                        'utente_id' => (int) $candidate['utente_id'],
+                        'motivo' => $eligibilityError,
+                    ]);
+                }
+
+                if (count($candidates) < $batchSize) {
+                    // Ultima pagina della coda: niente altri candidati da valutare.
                     break;
                 }
-                \App\Support\SecureLogger::info('Promozione prenotazione saltata: utente non idoneo', [
-                    'prenotazione_id' => (int) $candidate['id'],
-                    'libro_id' => $bookId,
-                    'utente_id' => (int) $candidate['utente_id'],
-                    'motivo' => $eligibilityError,
-                ]);
             }
 
             if ($nextReservation) {

@@ -305,21 +305,27 @@ class MaintenanceService
      * gli UPDATE di attivazione/riparazione la referenziano e girerebbero prima
      * che NotificationService abbia mai eseguito l'ALTER.
      */
-    private bool $pickupNotificationColumnEnsured = false;
+    private ?bool $pickupNotificationColumnAvailable = null;
 
-    private function ensurePickupNotificationColumn(): void
+    private function ensurePickupNotificationColumn(): bool
     {
-        if ($this->pickupNotificationColumnEnsured) {
-            return;
+        if ($this->pickupNotificationColumnAvailable !== null) {
+            return $this->pickupNotificationColumnAvailable;
         }
         try {
             $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'pickup_notification_sent'");
-            if ($result !== false && $result->num_rows === 0) {
-                $this->db->query("ALTER TABLE prestiti ADD COLUMN pickup_notification_sent BOOLEAN DEFAULT 0");
+            if ($result !== false && $result->num_rows > 0) {
+                return $this->pickupNotificationColumnAvailable = true;
             }
-            $this->pickupNotificationColumnEnsured = true;
+            $this->db->query("ALTER TABLE prestiti ADD COLUMN pickup_notification_sent BOOLEAN DEFAULT 0");
+            return $this->pickupNotificationColumnAvailable = true;
         } catch (\Throwable $e) {
+            // Utente DB senza privilegio ALTER e migrazione 0.7.64 non ancora
+            // applicata: NON bloccare il lifecycle — gli UPDATE omettono la
+            // colonna e il claim/retry pickup resta semplicemente inattivo
+            // finché la migrazione non gira.
             SecureLogger::error('Failed to ensure pickup_notification_sent column: ' . $e->getMessage());
+            return $this->pickupNotificationColumnAvailable = false;
         }
     }
 
@@ -387,7 +393,9 @@ class MaintenanceService
      */
     public function repairInvalidReadyPickups(): int
     {
-        $this->ensurePickupNotificationColumn();
+        $pickupColumnReset = $this->ensurePickupNotificationColumn()
+            ? ",\n                        pickup_notification_sent = 0"
+            : '';
         $stmt = $this->db->prepare("
             SELECT id, libro_id
             FROM prestiti
@@ -492,8 +500,7 @@ class MaintenanceService
 
                 $repair = $this->db->prepare("
                     UPDATE prestiti
-                    SET stato = 'prenotato', pickup_deadline = NULL, copia_id = NULL,
-                        pickup_notification_sent = 0
+                    SET stato = 'prenotato', pickup_deadline = NULL, copia_id = NULL{$pickupColumnReset}
                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1
                 ");
                 $repair->bind_param('i', $loanId);
@@ -574,7 +581,9 @@ class MaintenanceService
      */
     public function activateScheduledLoans(): int
     {
-        $this->ensurePickupNotificationColumn();
+        $pickupColumnReset = $this->ensurePickupNotificationColumn()
+            ? ",\n                        pickup_notification_sent = 0"
+            : '';
 
         // "Oggi" nel timezone applicativo come parametro bound (M9): CURDATE()
         // dipende dalla session timezone del client DB, che differiva tra cron
@@ -807,8 +816,7 @@ class MaintenanceService
                 // State guard: only update if still in 'prenotato' state (prevents race with confirmPickup)
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
-                    SET stato = 'da_ritirare', pickup_deadline = ?, copia_id = ?,
-                        pickup_notification_sent = 0
+                    SET stato = 'da_ritirare', pickup_deadline = ?, copia_id = ?{$pickupColumnReset}
                     WHERE id = ? AND stato = 'prenotato' AND attivo = 1 AND data_scadenza >= ?
                 ");
                 $updateStmt->bind_param('siis', $pickupDeadline, $copiaId, $loan['id'], $today);

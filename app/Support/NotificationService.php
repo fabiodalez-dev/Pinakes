@@ -1269,7 +1269,12 @@ class NotificationService {
     /**
      * Aggiunge colonne per tracking notifiche se non esistono
      */
-    private function addNotificationColumns(): void {
+    /**
+     * Public: anche i chiamanti esterni che aggiornano i flag di notifica
+     * direttamente (es. il claim pickup in LoanApprovalController) devono
+     * poter garantire le colonne prima dell'UPDATE sugli install legacy.
+     */
+    public function addNotificationColumns(): void {
         if ($this->notificationColumnsEnsured) {
             return;
         }

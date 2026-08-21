@@ -17,7 +17,7 @@ SET @column_exists = (
 );
 SET @sql = IF(
     @column_exists = 0,
-    'ALTER TABLE `prestiti` ADD COLUMN `pickup_notification_sent` TINYINT(1) DEFAULT 0 COMMENT ''claim/retry flag for the ready-for-pickup email (see NotificationService::sendPickupReadyNotification)'' AFTER `overdue_notification_sent`',
+    'ALTER TABLE `prestiti` ADD COLUMN `pickup_notification_sent` TINYINT(1) DEFAULT 0 COMMENT ''claim/retry flag for the ready-for-pickup email (see NotificationService::sendPickupReadyNotification)''',
     'SELECT 1'
 );
 PREPARE stmt FROM @sql;
