@@ -236,6 +236,8 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             .toContain('.databaseId > $floor');
         expect(releaseScript, 'release entry point must verify the published release is immutable')
             .toContain("jq -r '.immutable'");
+        expect(releaseScript, 'gh api cannot combine its mutually exclusive --slurp and --jq flags')
+            .not.toMatch(/--slurp\s+\\?\s*--jq/);
         expect(releaseScript, 'release entry point must not build a second release archive')
             .not.toMatch(/git\s+archive|bin\/build-release\.sh/);
         expect(releaseScript, 'release entry point must not create, upload, or edit GitHub releases')
