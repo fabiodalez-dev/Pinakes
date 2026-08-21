@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Issue #255 — configurable registration fields. 29-check E2E suite.
+ * Issue #255 — configurable registration fields. 30-check E2E suite.
  *
  * Coverage (all through the real browser):
  *   1-4    defaults + SERVER-side enforcement of each built-in requirement
@@ -18,7 +18,7 @@
  *   23-24  sanitization: a tag-carrying label is neutralised on save; a
  *          script-carrying VALUE is escaped when rendered back (admin detail).
  *   25     an inactive (attivo=0) field disappears from the public form.
- *   26-29 profile/admin-detail regressions and destructive type-change guard.
+ *   26-30 profile/admin-detail regressions and destructive type-change guard.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -117,7 +117,7 @@ function userCount(email) {
   return Number(dbQuery(`SELECT COUNT(*) FROM utenti WHERE email='${email}'`));
 }
 
-test.describe.serial('Issue #255 — configurable registration fields (29 checks)', () => {
+test.describe.serial('Issue #255 — configurable registration fields (30 checks)', () => {
   /** @type {import('@playwright/test').Page} */
   let admin;
   /** @type {Map<string, string>} setting key -> original HEX(setting_value) */
@@ -510,5 +510,25 @@ test.describe.serial('Issue #255 — configurable registration fields (29 checks
     ]);
     expect(dbQuery(`SELECT tipo FROM registrazione_campi WHERE id=${id}`)).toBe('text');
     await expect(admin.locator('body')).toContainText(/non puoi cambiare il tipo|cannot change the type|ne pouvez pas modifier le type|Typ eines Feldes/i);
+  });
+
+  test('30. admin user details localize the stored sesso enum value', async ({ page }) => {
+    await setToggles(admin, false, false, false);
+    const email = `zz-255-sesso-${TOKEN}@example.test`;
+    await fillRegistration(page, {
+      fields: { nome: 'Sesso30', email, password: 'Password255!ok', password_confirm: 'Password255!ok' },
+    });
+    await submitNoValidate(page);
+    expect(userCount(email)).toBe(1);
+
+    dbQuery(`UPDATE utenti SET sesso='M' WHERE email='${email}'`);
+    const uid = dbQuery(`SELECT id FROM utenti WHERE email='${email}'`);
+
+    await admin.goto(`${BASE}/registrati`);
+    const expectedLabel = (await admin.locator('select[name="sesso"] option[value="M"]').innerText()).trim();
+
+    await admin.goto(`${BASE}/admin/users/details/${uid}`);
+    const sessoValue = admin.locator('dt:has-text("Sesso") + dd');
+    await expect(sessoValue).toHaveText(expectedLabel);
   });
 });
