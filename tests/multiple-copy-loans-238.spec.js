@@ -74,8 +74,8 @@ const DOMAIN = '@238mc.test.local';
 const ADMIN_EMAIL = `mc-admin-${RUN}${DOMAIN}`;
 const ADMIN_PASS = 'Mc238Pass!';
 
-/** @type {{adminId:number, bookId:number, copies:Record<string,{id:number,inv:string}>, origSetting:{exists:boolean,value:string|null}}} */
-const fx = { adminId: 0, bookId: 0, copies: {}, origSetting: { exists: false, value: null } };
+/** @type {{adminId:number, bookId:number, copies:Record<string,{id:number,inv:string}>, origSetting:{exists:boolean, valueHex:string|null}}} */
+const fx = { adminId: 0, bookId: 0, copies: {}, origSetting: { exists: false, valueHex: null } };
 
 let borrowerSeq = 0;
 
@@ -195,11 +195,20 @@ function activeCopyIds(userId) {
 }
 
 test.beforeAll(() => {
-  // Preserve the current setting so afterAll can restore it.
-  const cur = dbQuery(
-    `SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='allow_multiple_loans_same_book' LIMIT 1`,
-  );
-  fx.origSetting = cur === '' ? { exists: false, value: null } : { exists: true, value: cur };
+  // Preserve the current setting so afterAll can restore it EXACTLY.
+  // dbQuery() trims stdout, so an existing empty-string value is
+  // indistinguishable from a missing row when read directly: detect row
+  // existence separately and serialize the value losslessly via HEX()
+  // (NULL stays NULL — mysql -N -B prints it as the literal "NULL").
+  const exists = dbQuery(
+    `SELECT COUNT(*) FROM system_settings WHERE category='loans' AND setting_key='allow_multiple_loans_same_book'`,
+  ) !== '0';
+  const hex = exists
+    ? dbQuery(
+        `SELECT HEX(setting_value) FROM system_settings WHERE category='loans' AND setting_key='allow_multiple_loans_same_book' LIMIT 1`,
+      )
+    : null;
+  fx.origSetting = { exists, valueHex: hex };
 
   // Admin for browser login.
   const adminHash = phpPasswordHash(ADMIN_PASS);
@@ -230,11 +239,16 @@ test.afterAll(() => {
   dbQuery(`DELETE FROM user_sessions WHERE utente_id IN (SELECT id FROM utenti WHERE email LIKE ${S('%' + RUN + DOMAIN)})`);
   dbQuery(`DELETE FROM utenti WHERE email LIKE ${S('%' + RUN + DOMAIN)}`);
 
-  // Restore the original setting exactly.
+  // Restore the original setting exactly (byte-for-byte via UNHEX; a HEX()
+  // of NULL surfaces as the literal "NULL" and is restored as SQL NULL).
   if (fx.origSetting.exists) {
+    const hex = fx.origSetting.valueHex;
+    const valueExpr = hex === 'NULL'
+      ? 'NULL'
+      : `UNHEX('${String(hex).replace(/[^0-9A-Fa-f]/g, '')}')`;
     dbQuery(
       `INSERT INTO system_settings (category, setting_key, setting_value)
-       VALUES ('loans', 'allow_multiple_loans_same_book', ${S(fx.origSetting.value)})
+       VALUES ('loans', 'allow_multiple_loans_same_book', ${valueExpr})
        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
     );
   } else {
