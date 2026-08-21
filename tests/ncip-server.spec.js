@@ -1072,7 +1072,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
         )).toBe('2');
     });
 
-    test('28. explicit UserId cancels only the matching pending request', async ({ request }) => {
+    test('28. cancellation targets and reports the resolved pending borrower', async ({ request }) => {
         resetHardeningLoans();
         const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
         const selectedRequestId = createHardeningRequest(hardeningUserIds[0]);
@@ -1097,12 +1097,28 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
                AND status='success'`
         )).toBe('1');
 
+        const implicitCancel = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId),
+            auth
+        );
+        expect(implicitCancel.status()).toBe(200);
+        const implicitBody = await implicitCancel.text();
+        expect(implicitBody).toContain('CancelRequestItemResponse');
+        expect(implicitBody).toContain(
+            `<UserIdentifierValue>${hardeningUserIds[1]}</UserIdentifierValue>`
+        );
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${siblingRequestId}`
+        )).toBe('0:annullato');
+
         // Fail closed on legacy/anomalous pending rows that already own a copy:
         // cancelling those requires the full copy-release lifecycle, not the
         // copy-less RequestItem transition implemented by this NCIP message.
+        const unsafeRequestId = createHardeningRequest(hardeningUserIds[1]);
         const boundCopyId = hardeningCopyIds[1];
         dbQuery(`UPDATE copie SET stato='prenotato' WHERE id=${boundCopyId}`);
-        dbQuery(`UPDATE prestiti SET copia_id=${boundCopyId} WHERE id=${siblingRequestId}`);
+        dbQuery(`UPDATE prestiti SET copia_id=${boundCopyId} WHERE id=${unsafeRequestId}`);
         const unsafeCancel = await ncipPost(
             request,
             cancelRequestItemXml(hardeningBookId, hardeningUserIds[1]),
@@ -1114,7 +1130,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
         expect(unsafeBody).toContain('item-not-checked-out');
         expect(dbQuery(
             `SELECT CONCAT(attivo, ':', stato, ':', copia_id)
-             FROM prestiti WHERE id=${siblingRequestId}`
+             FROM prestiti WHERE id=${unsafeRequestId}`
         )).toBe(`0:pendente:${boundCopyId}`);
         expect(dbQuery(`SELECT stato FROM copie WHERE id=${boundCopyId}`)).toBe('prenotato');
     });

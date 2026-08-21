@@ -52,6 +52,7 @@ function mutatesGitHubReleases(source) {
   const normalized = source
     .replace(/\\\r?\n[\t ]*/g, ' ')
     .replace(/^[\t ]*#.*$/gm, ' ');
+  const releaseEndpoint = /(?:api\.github\.com\/)?repos\/(?:(?:\$\{?GITHUB_REPOSITORY\}?|\$\{\{\s*github\.repository\s*\}\})|[^/\s'"`]+\/[^/\s'"`]+)\/releases(?:\/|\?|\s|['"`]|$)/i;
 
   if (/\bgh\s+release\s+(?:create|upload|edit|delete)\b/i.test(normalized)) return true;
   if (/uses:\s*(?:softprops\/action-gh-release|actions\/(?:create-release|upload-release-asset)|ncipollo\/release-action|marvinpinto\/action-automatic-releases|svenstaro\/upload-release-action)@/i.test(normalized)) {
@@ -63,23 +64,32 @@ function mutatesGitHubReleases(source) {
   if (/\b(?:github|octokit)\.request\s*\(\s*['"`](?:POST|PATCH|PUT|DELETE)\s+\/repos\/[^/]+\/[^/]+\/releases\b/i.test(normalized)) {
     return true;
   }
-  // Same REST mutations expressed with an options object instead of the
-  // route string: request({ method: 'POST', url: '/repos/o/r/releases' }).
-  // Key order is free and URL templates carry their own braces ({owner}),
-  // so inspect a bounded window after each call instead of brace-matching.
-  for (const call of normalized.matchAll(/\b(?:github|octokit)\.request\s*\(\s*\{/gi)) {
-    const options = normalized.slice(call.index, call.index + 500);
-    if (/\bmethod\s*:\s*['"`](?:POST|PATCH|PUT|DELETE)['"`]/i.test(options)
-      && /\burl\s*:\s*['"`][^'"`]*\/repos\/[^'"`]+\/releases\b/i.test(options)) {
-      return true;
-    }
+  // Parse only the first argument of each request call. A fixed character
+  // window can accidentally combine method/url fields from a later object and
+  // either reject a read-only workflow or conceal which call is authoritative.
+  const requestCall = /\b(?:github|octokit)\.request\s*\(/ig;
+  let requestMatch;
+  while ((requestMatch = requestCall.exec(normalized)) !== null) {
+    const openParen = normalized.indexOf('(', requestMatch.index);
+    const [options = ''] = callArguments(normalized, openParen);
+    if (!/^\s*\{/.test(options)) continue;
+    const trivia = String.raw`(?:\s|\/\/[^\r\n]*(?:\r?\n|$)|\/\*[\s\S]*?\*\/)*`;
+    const propertyStart = String.raw`(?:^|[,\{])${trivia}`;
+    const method = new RegExp(
+      `${propertyStart}(?:method|['"]method['"])${trivia}:${trivia}['"\`](POST|PATCH|PUT|DELETE)['"\`]`,
+      'i',
+    ).exec(options);
+    const url = new RegExp(
+      `${propertyStart}(?:url|['"]url['"])${trivia}:${trivia}(['"\`])([\\s\\S]*?)\\1`,
+      'i',
+    ).exec(options);
+    if (method !== null && url !== null && releaseEndpoint.test(url[2])) return true;
   }
   if (/\bmutation\b[\s\S]*\b(?:createRelease|updateRelease|deleteRelease)\s*\(/i.test(normalized)) {
     return true;
   }
 
   for (const command of normalized.split(/[;\n]/)) {
-    const releaseEndpoint = /(?:api\.github\.com\/)?repos\/(?:(?:\$\{?GITHUB_REPOSITORY\}?|\$\{\{\s*github\.repository\s*\}\})|[^/\s'"`]+\/[^/\s'"`]+)\/releases(?:\/|\?|\s|['"`]|$)/i;
     const mutatingMethod = /(?:^|\s)(?:-X\s*|--method(?:=|\s+))(?:POST|PATCH|PUT|DELETE)\b/i;
     // `gh api` defaults to POST as soon as a typed/raw field or --input is
     // supplied, so looking only for an explicit -X/--method leaves an easy
@@ -390,6 +400,9 @@ function checkPolicy() {
     'octokit.request("POST /repos/{owner}/{repo}/releases", payload)',
     'github.request({ method: "POST", url: "/repos/{owner}/{repo}/releases", data })',
     'octokit.request({ url: `/repos/${owner}/${repo}/releases/1`, method: "PATCH" })',
+    `github.request({ method: "POST", data: "${'x'.repeat(600)}", url: "/repos/{owner}/{repo}/releases" })`,
+    'github.request({ // publish\n method: "POST", url: "/repos/{owner}/{repo}/releases" })',
+    'octokit.request({ /* mutation */ url: "/repos/{owner}/{repo}/releases/1", method: "DELETE" })',
     'octokit.graphql(`mutation { createRelease(input: $input) { release { id } } }`)',
     'Invoke-RestMethod -Method Delete https://api.github.com/repos/example/project/releases/1',
     'uses: ncipollo/release-action@v1',
@@ -398,6 +411,7 @@ function checkPolicy() {
     'gh api repos/example/project/releases?per_page=100',
     'gh api -H "Accept: application/octet-stream" repos/example/project/releases/assets/1',
     'octokit.request({ method: "GET", url: "/repos/{owner}/{repo}/releases" })',
+    'github.request({ method: "GET", url: "/repos/{owner}/{repo}/releases" }); octokit.request({ method: "POST", url: "/repos/{owner}/{repo}/issues" })',
   ];
   for (const fixture of releaseMutationFixtures) {
     if (!mutatesGitHubReleases(fixture)) fail(`release publisher detector missed: ${fixture}`);
