@@ -53,6 +53,9 @@ class NcipServerPlugin
     private \mysqli $db;
     private ?int $pluginId = null;
 
+    /** Partner attivo risolto dal FromAgencyId del messaggio corrente (per il log transazioni). */
+    private ?int $currentPartnerId = null;
+
     public function __construct(\mysqli $db, HookManager $hookManager)
     {
         $this->db          = $db;
@@ -476,6 +479,24 @@ class NcipServerPlugin
         // Determine the message type (first child element after NCIPMessage root)
         $messageType = $this->detectMessageType($xml);
 
+        // Enforcement dei partner (retrocompatibile): la tabella ncip_partners
+        // era solo metadato admin — disattivare un partner non revocava nulla e
+        // qualunque credenziale staff eseguiva circolazione da qualsiasi origine.
+        // Se esiste almeno un partner ATTIVO configurato, le operazioni di
+        // circolazione richiedono un FromAgencyId corrispondente a un partner
+        // attivo (per agency_id, code o ISIL). Senza partner configurati resta
+        // la sola Basic auth, come prima.
+        $writeOps = ['CheckOutItem', 'CheckInItem', 'RenewItem', 'RequestItem', 'CancelRequestItem'];
+        $partner = $this->resolvePartner($xml, $messageType);
+        $this->currentPartnerId = $partner !== null ? (int) $partner['id'] : null;
+        if (in_array($messageType, $writeOps, true) && $partner === null && $this->hasEnforceablePartners()) {
+            unset($xml);
+            return $this->xmlResponse(
+                $response->withStatus(403),
+                $this->buildProblem('Unknown or inactive requesting agency', 'unauthorized')
+            );
+        }
+
         $result = match ($messageType) {
             'LookupItem'          => $this->handleLookupItem($request, $response, $xml),
             'LookupUser'          => $this->handleLookupUser($request, $response, $xml, $caller),
@@ -650,6 +671,10 @@ class NcipServerPlugin
             }
         }
 
+        // Log della transazione come per RequestItem/CancelRequestItem: prima
+        // solo le richieste venivano registrate e il log admin era parziale.
+        $this->logTransaction('CheckOutItem', $loanId, null);
+
         return $this->xmlResponse($response, $this->buildCheckOutItemResponse($itemId, $userId, $dueDate));
     }
 
@@ -677,8 +702,11 @@ class NcipServerPlugin
                 $this->buildProblem('Invalid ItemId', 'invalid-data')
             );
         }
+        // UserId opzionale (NCIP lo ammette su CheckInItem): con più prestiti
+        // NCIP aperti dello stesso titolo disambigua QUALE prestito chiudere.
+        $checkInUserId = $this->parseNcipNumericId((string) ($xml->children($ns)->CheckInItem->UserId->UserIdentifierValue ?? ''));
 
-        $loan = $this->findActiveLoan($itemId);
+        $loan = $this->findActiveLoan($itemId, $checkInUserId);
         if ($loan === null) {
             return $this->xmlResponse(
                 $response,
@@ -700,6 +728,7 @@ class NcipServerPlugin
                 $this->buildProblem('Failed to check in item', 'temporary-processing-failure')
             );
         }
+        $this->logTransaction('CheckInItem', (int) $loan['id'], null);
         return $this->xmlResponse($response, $this->buildCheckInItemResponse($itemId));
     }
 
@@ -727,8 +756,11 @@ class NcipServerPlugin
                 $this->buildProblem('Invalid ItemId', 'invalid-data')
             );
         }
+        // UserId opzionale: disambigua quale prestito rinnovare quando lo
+        // stesso titolo è fuori con più utenti via NCIP.
+        $renewUserId = $this->parseNcipNumericId((string) ($xml->children($ns)->RenewItem->UserId->UserIdentifierValue ?? ''));
 
-        $loan = $this->findActiveLoan($itemId);
+        $loan = $this->findActiveLoan($itemId, $renewUserId);
         if ($loan === null) {
             return $this->xmlResponse(
                 $response,
@@ -756,6 +788,8 @@ class NcipServerPlugin
                 $this->buildProblem('Failed to extend loan', $problemType)
             );
         }
+
+        $this->logTransaction('RenewItem', (int) $loan['id'], null);
 
         return $this->xmlResponse($response, $this->buildRenewItemResponse($itemId, $newDue, (int) ($loan['utente_id'] ?? 0)));
     }
@@ -1277,17 +1311,26 @@ class NcipServerPlugin
     /**
      * @return array<string, mixed>|null
      */
-    private function findActiveLoan(int $bookId): ?array
+    private function findActiveLoan(int $bookId, ?int $userId = null): ?array
     {
+        // Con più prestiti NCIP aperti dello stesso titolo (utenti diversi su
+        // copie diverse) il solo libro_id è ambiguo: un CheckInItem chiuderebbe
+        // il più recente, non necessariamente quello rientrato. Quando il
+        // messaggio porta uno UserId, filtra anche per utente.
+        $userFilter = $userId !== null ? ' AND utente_id = ?' : '';
         $stmt = $this->db->prepare(
             "SELECT id, libro_id, utente_id, data_scadenza
                FROM prestiti
               WHERE libro_id = ? AND origine = 'ncip' AND attivo = 1
-                AND stato IN ('in_corso','in_ritardo')
+                AND stato IN ('in_corso','in_ritardo'){$userFilter}
               ORDER BY data_prestito DESC LIMIT 1"
         );
         if ($stmt === false) { return null; }
-        $stmt->bind_param('i', $bookId);
+        if ($userId !== null) {
+            $stmt->bind_param('ii', $bookId, $userId);
+        } else {
+            $stmt->bind_param('i', $bookId);
+        }
         $stmt->execute();
         $res = $stmt->get_result();
         if (!($res instanceof \mysqli_result)) {
@@ -1645,13 +1688,73 @@ class NcipServerPlugin
     private function logTransaction(string $messageType, int $prestitoId, ?string $requestId): void
     {
         $stmt = $this->db->prepare(
-            "INSERT INTO ncip_transactions (message_type, prestito_id, request_id, status, created_at)
-             VALUES (?, ?, ?, 'success', NOW())"
+            "INSERT INTO ncip_transactions (partner_id, message_type, prestito_id, request_id, status, created_at)
+             VALUES (?, ?, ?, ?, 'success', NOW())"
         );
         if ($stmt === false) { return; }
-        $stmt->bind_param('sis', $messageType, $prestitoId, $requestId);
+        $stmt->bind_param('isis', $this->currentPartnerId, $messageType, $prestitoId, $requestId);
         $stmt->execute();
         $stmt->close();
+    }
+
+    /**
+     * Risolve il partner ATTIVO dichiarato nel FromAgencyId dell'InitiationHeader
+     * del messaggio corrente, per agency_id, code o ISIL. Null se il messaggio
+     * non dichiara un'agenzia o nessun partner attivo corrisponde.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function resolvePartner(\SimpleXMLElement $xml, string $messageType): ?array
+    {
+        if ($messageType === '') {
+            return null;
+        }
+        $ns = self::NCIP_NS;
+        $message = $xml->children($ns)->{$messageType} ?? null;
+        if (!($message instanceof \SimpleXMLElement)) {
+            return null;
+        }
+        $agency = trim((string) ($message->InitiationHeader->FromAgencyId->AgencyId ?? ''));
+        if ($agency === '' || strlen($agency) > 255) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id, name, agency_id, code, isil
+               FROM ncip_partners
+              WHERE active = 1 AND (agency_id = ? OR code = ? OR isil = ?)
+              LIMIT 1'
+        );
+        if ($stmt === false) { return null; }
+        $stmt->bind_param('sss', $agency, $agency, $agency);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * True se esiste almeno un partner attivo CON un identificativo
+     * (agency_id, code o ISIL): solo allora l'enforcement può scattare.
+     * Partner attivi ma senza alcun identificativo restano puro metadato
+     * amministrativo e non devono rompere i deployment esistenti.
+     */
+    private function hasEnforceablePartners(): bool
+    {
+        $res = $this->db->query(
+            "SELECT 1 FROM ncip_partners
+              WHERE active = 1
+                AND (NULLIF(TRIM(COALESCE(agency_id, '')), '') IS NOT NULL
+                     OR NULLIF(TRIM(COALESCE(code, '')), '') IS NOT NULL
+                     OR NULLIF(TRIM(COALESCE(isil, '')), '') IS NOT NULL)
+              LIMIT 1"
+        );
+        if (!($res instanceof \mysqli_result)) {
+            return false;
+        }
+        $has = $res->num_rows > 0;
+        $res->free();
+        return $has;
     }
 
     private function closeLoan(int $loanId): bool
@@ -1771,8 +1874,15 @@ class NcipServerPlugin
             $currentDue = (string) $loan['data_scadenza'];
             $newDueDate = (new \DateTimeImmutable($currentDue))->modify("+{$renewDays} days")->format('Y-m-d');
 
+            // #336 parity con PrestitiController::renew/bulkExtend: il giorno di
+            // scadenza corrente è già detenuto da QUESTO prestito, quindi la
+            // finestra rivendicata parte dal giorno successivo. Con la finestra
+            // [currentDue, newDue] un RenewItem falliva dove il rinnovo web
+            // identico riusciva (giorno di confine contato due volte).
+            $extensionStart = (new \DateTimeImmutable($currentDue))->modify('+1 day')->format('Y-m-d');
+
             $capacity = new \App\Services\CapacityService($this->db);
-            if (!$capacity->hasFreeCapacity($bookId, $currentDue, $newDueDate, excludePrestitoId: $loanId)) {
+            if (!$capacity->hasFreeCapacity($bookId, $extensionStart, $newDueDate, excludePrestitoId: $loanId)) {
                 $this->db->rollback();
                 $failureReason = 'no_capacity';
                 return null;
@@ -1788,7 +1898,7 @@ class NcipServerPlugin
                             OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL))
                      LIMIT 1"
                 );
-                $overlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $currentDue);
+                $overlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $extensionStart);
                 $overlap->execute();
                 $hasOverlap = (bool) $overlap->get_result()->fetch_row();
                 $overlap->close();
