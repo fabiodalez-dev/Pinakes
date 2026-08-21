@@ -18,7 +18,18 @@ $html = '<style>.x{color:red}</style><script>window.ok=true</script>'
     . '<script nonce="0123456789abcdef0123456789abcdef">window.existing=true</script>';
 $rewritten = ContentSecurityPolicy::addNonceAttributes($html, $nonce);
 
-$check((bool) preg_match('/^[a-f0-9]{32}$/', $nonce), 'nonce is cryptographically sized and CSP-safe');
+$check((bool) preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{8}){3}$/', $nonce), 'nonce is cryptographically sized and CSP-safe');
+// Same contract as the CSRF token: the nonce is stamped on every inline
+// script/style, so it must never contain a 13+ digit run ZAP could mistake
+// for a payment-card number. The 8-char hex groups cap runs at eight.
+$piiSafe = true;
+for ($i = 0; $i < 64; $i++) {
+    if (preg_match('/[0-9]{9,}/', ContentSecurityPolicy::createNonce())) {
+        $piiSafe = false;
+        break;
+    }
+}
+$check($piiSafe, 'generated nonces cannot contain a PII-like decimal run');
 $check(str_contains($header, "script-src 'self' 'nonce-{$nonce}'"), 'script elements require the response nonce');
 $check(str_contains($header, "style-src 'self' 'nonce-{$nonce}'"), 'style elements require the response nonce');
 $check(!str_contains($header, "script-src 'self' 'unsafe-inline'"), 'script-src does not permit arbitrary inline scripts');

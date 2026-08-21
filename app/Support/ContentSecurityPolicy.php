@@ -11,14 +11,24 @@ namespace App\Support;
  */
 final class ContentSecurityPolicy
 {
+    /**
+     * Generate a 128-bit per-response nonce without long decimal runs.
+     *
+     * Like the CSRF token (see Csrf::generateToken()), an unbroken hexadecimal
+     * nonce occasionally contains a 13-16 digit Luhn-valid window that ZAP's
+     * PII scanner mistakes for a payment-card number — the nonce is stamped on
+     * every inline script/style of every page. Grouping the lossless hex
+     * encoding caps decimal runs at eight characters while staying within the
+     * CSP base64url nonce alphabet, which permits '-'.
+     */
     public static function createNonce(): string
     {
-        return bin2hex(random_bytes(16));
+        return implode('-', str_split(bin2hex(random_bytes(16)), 8));
     }
 
     public static function header(string $nonce, bool $upgradeInsecureRequests = false): string
     {
-        if (!preg_match('/^[a-f0-9]{32}$/', $nonce)) {
+        if (!preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{8}){3}$/', $nonce)) {
             throw new \InvalidArgumentException('Invalid CSP nonce');
         }
 
@@ -51,7 +61,7 @@ final class ContentSecurityPolicy
 
     public static function addNonceAttributes(string $html, string $nonce): string
     {
-        if (!preg_match('/^[a-f0-9]{32}$/', $nonce)) {
+        if (!preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{8}){3}$/', $nonce)) {
             throw new \InvalidArgumentException('Invalid CSP nonce');
         }
 
