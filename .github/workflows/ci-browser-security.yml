@@ -196,11 +196,12 @@ jobs:
               ' > "$public_urls_file"
 
           # Translation dictionaries are intentionally inlined client-side.
-          # Extract their exact 13-digit public examples so those known strings
-          # may appear on any target page without weakening the rule for other
-          # 13-digit values.
-          jq -rs '[.[] | .. | strings | scan("[0-9]{13}")] | unique' \
-            locale/*.json > "$public_examples_file"
+          # Extract only canonical, explicitly named ISBN example keys. The
+          # checked-in jq program requires a full 978/979 match and a valid
+          # ISBN-13 checksum, so unrelated numbers and longer substrings cannot
+          # become origin-wide exceptions.
+          jq -f scripts/ci-zap-public-isbn-examples.jq \
+            locale/it_IT.json > "$public_examples_file"
 
           # OWASP ZAP rule 10062 (PII Disclosure) is allowlisted NARROWLY, never
           # globally. A book catalogue renders ISBN/EAN-13 identifiers on its

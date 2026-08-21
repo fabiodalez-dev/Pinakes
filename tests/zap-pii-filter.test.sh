@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FILTER_FILE="$ROOT_DIR/scripts/ci-zap-blocking-alerts.jq"
+PUBLIC_EXAMPLES_FILTER="$ROOT_DIR/scripts/ci-zap-public-isbn-examples.jq"
 CHECK_SCRIPT="$ROOT_DIR/scripts/ci-check-zap-report.sh"
 PASS_COUNT=0
 TEST_CONTEXT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pinakes-zap-test.XXXXXX")
@@ -14,7 +15,33 @@ trap 'rm -f "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" "$PUBLIC_EXAMPLES_FILE" "$RE
 
 printf '%s\n' '["5634784354285"]' > "$IDENTIFIERS_FILE"
 printf '%s\n' '["http://localhost:8081/jane-austen/pride-and-prejudice/123","http://localhost:8081/fr/jane-austen/orgueil-et-prejuges/123"]' > "$PUBLIC_URLS_FILE"
-printf '%s\n' '["9788842935780","9788845292866"]' > "$PUBLIC_EXAMPLES_FILE"
+jq -f "$PUBLIC_EXAMPLES_FILTER" "$ROOT_DIR/locale/it_IT.json" > "$PUBLIC_EXAMPLES_FILE"
+
+expected_public_examples='["9788842935780","9788845292866"]'
+if [[ "$(jq -c . "$PUBLIC_EXAMPLES_FILE")" != "$expected_public_examples" ]]; then
+    echo 'FAIL: canonical public ISBN examples changed unexpectedly' >&2
+    exit 1
+fi
+PASS_COUNT=$((PASS_COUNT + 1))
+
+extractor_fixture='{
+  "es. 9788842935780": "public ISBN example",
+  "support": "public card example 4222222222222",
+  "tracking": "prefix 978884529286612345",
+  "es. 4222222222222": "not an ISBN namespace"
+}'
+if [[ "$(jq -c -f "$PUBLIC_EXAMPLES_FILTER" <<<"$extractor_fixture")" != '["9788842935780"]' ]]; then
+    echo 'FAIL: public example extractor admitted an unrelated number or substring' >&2
+    exit 1
+fi
+PASS_COUNT=$((PASS_COUNT + 1))
+
+invalid_checksum_fixture='{"es. 9788842935781":"invalid checksum"}'
+if jq -f "$PUBLIC_EXAMPLES_FILTER" <<<"$invalid_checksum_fixture" >/dev/null 2>&1; then
+    echo 'FAIL: public example extractor accepted an invalid ISBN-13 checksum' >&2
+    exit 1
+fi
+PASS_COUNT=$((PASS_COUNT + 1))
 
 make_alert() {
     local uri=$1
