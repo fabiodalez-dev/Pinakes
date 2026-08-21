@@ -1560,8 +1560,8 @@ class NotificationService {
             // retryUnsentPickupNotifications() invece di perdersi per sempre.
             // Solo per righe 'da_ritirare' (l'unico stato che ha un ritiro da
             // annunciare); per stati diversi mantiene il comportamento storico.
-            $claimed = true;
-            if (($loan['stato'] ?? '') === 'da_ritirare' && (int) ($loan['attivo'] ?? 0) === 1) {
+            $isReadyPickup = ($loan['stato'] ?? '') === 'da_ritirare' && (int) ($loan['attivo'] ?? 0) === 1;
+            if ($isReadyPickup) {
                 $claimStmt = $this->db->prepare("
                     UPDATE prestiti SET pickup_notification_sent = 1
                     WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare'
@@ -1605,8 +1605,9 @@ class NotificationService {
 
             $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_pickup_ready', $variables);
 
-            if (!$emailSent && $claimed && ($loan['stato'] ?? '') === 'da_ritirare') {
-                // Revert del flag così lo sweep di manutenzione ritenta al
+            if (!$emailSent && $isReadyPickup) {
+                // Il claim è certamente riuscito (il ramo !claimed sopra esce):
+                // revert del flag così lo sweep di manutenzione ritenta al
                 // prossimo run (stesso pattern di warning/overdue).
                 $revertStmt = $this->db->prepare("
                     UPDATE prestiti SET pickup_notification_sent = 0
