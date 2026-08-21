@@ -127,8 +127,12 @@ class ReservationReassignmentService
     /**
      * Riassegna prenotazioni (prestiti con stato='prenotato') a una nuova copia disponibile.
      * Da chiamare quando viene aggiunta una copia o una copia torna disponibile.
+     *
+     * @return bool true se un candidato è stato agganciato alla copia: il
+     *              chiamante può richiamare per servire, con la stessa copia,
+     *              anche gli hold successivi a finestre disgiunte.
      */
-    public function reassignOnNewCopy(int $libroId, int $newCopiaId): void
+    public function reassignOnNewCopy(int $libroId, int $newCopiaId): bool
     {
         $ownTransaction = $this->beginTransactionIfNeeded();
         try {
@@ -142,6 +146,11 @@ class ReservationReassignmentService
             // that are currently copyless or pinned to an operationally unavailable
             // copy enter the locking batch. The authoritative state re-check happens
             // below after both prestiti and copie rows have been locked.
+            // BUG8/D13 parity con activateScheduledLoans: un hold con finestra
+            // interamente trascorsa (non ancora cullato dal cron) non deve
+            // ricevere la copia rientrata prima di candidati validi — la
+            // terrebbe impegnata solo fino alla scadenza del pickup.
+            $today = \App\Support\DateHelper::today();
             $prefilterStmt = $this->db->prepare("
                 SELECT p.id
                 FROM prestiti p
@@ -151,9 +160,10 @@ class ReservationReassignmentService
                         OR (p.attivo = 0 AND p.stato = 'pendente' AND p.origine = 'prenotazione') )
                   AND (p.copia_id IS NULL
                        OR c.stato IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento'))
+                  AND p.data_scadenza >= ?
                 ORDER BY p.created_at ASC, p.id ASC
             ");
-            $prefilterStmt->bind_param('i', $libroId);
+            $prefilterStmt->bind_param('is', $libroId, $today);
             $prefilterStmt->execute();
             $prefilterResult = $prefilterStmt->get_result();
             $candidateIds = [];
@@ -163,7 +173,7 @@ class ReservationReassignmentService
             $prefilterStmt->close();
             if ($candidateIds === []) {
                 $this->rollbackIfOwned($ownTransaction);
-                return;
+                return false;
             }
 
             // Lock the pre-filtered prestiti as one deterministic FIFO batch and
@@ -175,11 +185,12 @@ class ReservationReassignmentService
                 WHERE libro_id = ? AND id IN ({$candidatePlaceholders})
                   AND ( (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
                         OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
+                  AND data_scadenza >= ?
                 ORDER BY created_at ASC, id ASC
                 FOR UPDATE
             ");
-            $candidateParams = array_merge([$libroId], $candidateIds);
-            $candidateTypes = str_repeat('i', count($candidateParams));
+            $candidateParams = array_merge([$libroId], $candidateIds, [$today]);
+            $candidateTypes = 'i' . str_repeat('i', count($candidateIds)) . 's';
             $candidateLockStmt->bind_param($candidateTypes, ...$candidateParams);
             $candidateLockStmt->execute();
             $candidateResult = $candidateLockStmt->get_result();
@@ -187,7 +198,7 @@ class ReservationReassignmentService
             $candidateLockStmt->close();
             if ($candidates === []) {
                 $this->rollbackIfOwned($ownTransaction);
-                return;
+                return false;
             }
 
             // One policy-owned current read provides the canonical open-state
@@ -232,7 +243,7 @@ class ReservationReassignmentService
             $targetCopyState = $copiesById[$newCopiaId] ?? null;
             if ($targetCopyState === null || !in_array($targetCopyState, ['disponibile', 'prenotato'], true)) {
                 $this->rollbackIfOwned($ownTransaction);
-                return;
+                return false;
             }
 
             $nonLendableStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
@@ -261,7 +272,7 @@ class ReservationReassignmentService
             }
             if ($reservation === null) {
                 $this->rollbackIfOwned($ownTransaction);
-                return;
+                return false;
             }
 
             // Aggiorna il prestito/prenotazione con la nuova copia
@@ -301,6 +312,8 @@ class ReservationReassignmentService
                 $this->notifyUserCopyAvailable((int) $reservation['id']);
             }
 
+            return true;
+
         } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
             // In transazione esterna rilanciamo: altrimenti il proprietario farebbe
@@ -314,6 +327,7 @@ class ReservationReassignmentService
                 'copia_id' => $newCopiaId,
                 'error' => $e->getMessage()
             ]);
+            return false;
         }
     }
 
@@ -564,7 +578,7 @@ class ReservationReassignmentService
      * Quando un libro viene restituito, controlla se ci sono prenotazioni in attesa
      * e assegna la copia restituita alla prossima prenotazione.
      */
-    public function reassignOnReturn(int $copiaId): void
+    public function reassignOnReturn(int $copiaId): bool
     {
         // 1. Trova il libro
         $stmt = $this->db->prepare("SELECT libro_id FROM copie WHERE id = ?");
@@ -573,14 +587,26 @@ class ReservationReassignmentService
         $res = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        if (!$res)
-            return;
+        if (!$res) {
+            return false;
+        }
         $libroId = (int) $res['libro_id'];
 
         // 2. Cerca la prenotazione più vecchia SENZA copia assegnata (o assegnata a copia non disp)
         // Nota: reassignOnNewCopy fa esattamente questo logicamente: prende una copia disponibile (questa)
-        // e cerca chi ne ha bisogno.
-        $this->reassignOnNewCopy($libroId, $copiaId);
+        // e cerca chi ne ha bisogno. Ripeti finché aggancia: la stessa copia può
+        // servire più hold a finestre DISGIUNTE (una sola assegnazione per
+        // chiamata lasciava i successivi copyless fino allo sweep del cron).
+        // Ogni aggancio riduce i candidati copyless, quindi il loop termina;
+        // il bound è solo una cintura di sicurezza.
+        $assignedAny = false;
+        for ($i = 0; $i < 50; $i++) {
+            if (!$this->reassignOnNewCopy($libroId, $copiaId)) {
+                break;
+            }
+            $assignedAny = true;
+        }
+        return $assignedAny;
     }
 
     /**
@@ -695,13 +721,15 @@ class ReservationReassignmentService
 
         $bookLink = book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore' => $author['nome'] ?? '']);
 
+        // #360 parity: date nella lingua del destinatario, non d/m/Y hard-coded.
+        $recipientLocale = $this->notificationService->resolveRecipientLocale((string) $data['email']);
         $variables = [
             'utente_nome' => $data['utente_nome'] ?: __('Utente'),
             'libro_titolo' => $data['libro_titolo'] ?: __('Libro'),
             'libro_autore' => $author['nome'] ?? __('Autore sconosciuto'),
             'libro_isbn' => $isbn,
-            'data_inizio' => $data['data_prestito'] ? date('d/m/Y', strtotime($data['data_prestito'])) : '',
-            'data_fine' => $data['data_scadenza'] ? date('d/m/Y', strtotime($data['data_scadenza'])) : '',
+            'data_inizio' => $data['data_prestito'] ? $this->notificationService->formatEmailDate((string) $data['data_prestito'], false, $recipientLocale) : '',
+            'data_fine' => $data['data_scadenza'] ? $this->notificationService->formatEmailDate((string) $data['data_scadenza'], false, $recipientLocale) : '',
             'book_url' => absoluteUrl($bookLink),
             'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
         ];
