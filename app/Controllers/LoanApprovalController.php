@@ -567,23 +567,30 @@ class LoanApprovalController
                 $notificationService = new \App\Support\NotificationService($db);
                 $automaticApproval = (bool) $request->getAttribute('automatic_loan_approval', false);
                 if ($isFutureLoan || $automaticApproval) {
-                    // Future loan: send general approval notification
-                    $approvalEmailSent = $notificationService->sendLoanApprovedNotification($loanId);
                     // Per gli immediati auto-approvati (#301) l'email di
-                    // approvazione È l'annuncio del ritiro: claim del flag così
-                    // lo sweep retryUnsentPickupNotifications() non ne invia un
-                    // secondo. Se l'email è fallita il flag resta 0 e lo sweep
-                    // recapita il pickup-ready come recupero.
-                    if (!$isFutureLoan && $approvalEmailSent) {
-                        // Garantisce la colonna sugli install legacy pre-migrazione
-                        // (stesso ensure di sendPickupReadyNotification): senza,
-                        // l'UPDATE fallirebbe in silenzio nel catch esterno e lo
-                        // sweep invierebbe un secondo annuncio di ritiro.
-                        $notificationService->addNotificationColumns();
-                        $claimStmt = $db->prepare("UPDATE prestiti SET pickup_notification_sent = 1 WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare'");
+                    // approvazione È l'annuncio del ritiro: claim del flag PRIMA
+                    // dell'invio, così lo sweep retryUnsentPickupNotifications()
+                    // non può intrecciarsi tra invio e claim e recapitare un
+                    // secondo annuncio. Se l'invio poi fallisce il claim viene
+                    // ripristinato e lo sweep recapita il pickup-ready come
+                    // recupero. addNotificationColumns() garantisce la colonna
+                    // sugli install legacy pre-migrazione; se l'ALTER fallisce
+                    // (false) si salta il claim invece di eseguire un UPDATE
+                    // destinato a fallire.
+                    $pickupClaimed = false;
+                    if (!$isFutureLoan && $notificationService->addNotificationColumns()) {
+                        $claimStmt = $db->prepare("UPDATE prestiti SET pickup_notification_sent = 1 WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare' AND (pickup_notification_sent IS NULL OR pickup_notification_sent = 0)");
                         $claimStmt->bind_param('i', $loanId);
                         $claimStmt->execute();
+                        $pickupClaimed = $claimStmt->affected_rows > 0;
                         $claimStmt->close();
+                    }
+                    $approvalEmailSent = $notificationService->sendLoanApprovedNotification($loanId);
+                    if (!$approvalEmailSent && $pickupClaimed) {
+                        $revertStmt = $db->prepare("UPDATE prestiti SET pickup_notification_sent = 0 WHERE id = ?");
+                        $revertStmt->bind_param('i', $loanId);
+                        $revertStmt->execute();
+                        $revertStmt->close();
                     }
                 } else {
                     // Immediate loan (da_ritirare): send pickup ready notification with deadline

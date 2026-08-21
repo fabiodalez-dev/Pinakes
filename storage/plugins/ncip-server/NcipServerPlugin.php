@@ -1728,14 +1728,23 @@ class NcipServerPlugin
             'SELECT id, name, agency_id, code, isil
                FROM ncip_partners
               WHERE active = 1 AND (agency_id = ? OR code = ? OR isil = ?)
-              LIMIT 1'
+              LIMIT 2'
         );
         if ($stmt === false) { return null; }
         $stmt->bind_param('sss', $agency, $agency, $agency);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
-        return is_array($row) ? $row : null;
+        if (count($rows) > 1) {
+            // Lo stesso identificativo corrisponde a più partner attivi: la
+            // risoluzione sarebbe arbitraria (e quindi il partner_id loggato e
+            // l'autorizzazione non deterministici). Trattalo come non risolto:
+            // per le operazioni di scrittura scatta il 403, e l'ambiguità va
+            // sanata in configurazione.
+            SecureLogger::warning('[NcipServer] Ambiguous FromAgencyId: multiple active partners match the same identifier; treating as unresolved');
+            return null;
+        }
+        return $rows[0] ?? null;
     }
 
     /**
@@ -1746,16 +1755,37 @@ class NcipServerPlugin
      */
     private function hasEnforceablePartners(): bool
     {
-        $res = $this->db->query(
-            "SELECT 1 FROM ncip_partners
-              WHERE active = 1
-                AND (NULLIF(TRIM(COALESCE(agency_id, '')), '') IS NOT NULL
-                     OR NULLIF(TRIM(COALESCE(code, '')), '') IS NOT NULL
-                     OR NULLIF(TRIM(COALESCE(isil, '')), '') IS NOT NULL)
-              LIMIT 1"
-        );
+        try {
+            $res = $this->db->query(
+                "SELECT 1 FROM ncip_partners
+                  WHERE active = 1
+                    AND (NULLIF(TRIM(COALESCE(agency_id, '')), '') IS NOT NULL
+                         OR NULLIF(TRIM(COALESCE(code, '')), '') IS NOT NULL
+                         OR NULLIF(TRIM(COALESCE(isil, '')), '') IS NOT NULL)
+                  LIMIT 1"
+            );
+        } catch (\mysqli_sql_exception $e) {
+            // ER_NO_SUCH_TABLE: install legacy dove la tabella partner non è
+            // ancora migrata — la funzionalità non esiste, l'enforcement non è
+            // applicabile (nessun 403, come prima dell'introduzione dei partner).
+            if ((int) $e->getCode() === 1146) {
+                return false;
+            }
+            // Qualsiasi altro errore DB: fail-secure. Non sappiamo se esistono
+            // partner con enforcement, quindi NON degradare alla sola Basic
+            // auth: le operazioni di scrittura senza partner risolto vengono
+            // rifiutate finché il DB non risponde.
+            SecureLogger::error('[NcipServer] Partner enforcement check failed: ' . $e->getMessage());
+            return true;
+        }
         if (!($res instanceof \mysqli_result)) {
-            return false;
+            // query() fallita senza eccezione (report mode disattivo): stessa
+            // distinzione del ramo catch.
+            if ((int) $this->db->errno === 1146) {
+                return false;
+            }
+            SecureLogger::error('[NcipServer] Partner enforcement check failed: ' . $this->db->error);
+            return true;
         }
         $has = $res->num_rows > 0;
         $res->free();
@@ -1766,15 +1796,22 @@ class NcipServerPlugin
     {
         try {
             $closed = (new \App\Models\LoanRepository($this->db))->close($loanId);
-            if (!$closed) {
-                return false;
-            }
-            (new \App\Support\NotificationService($this->db))->sendLoanReturnedNotification($loanId);
-            return true;
         } catch (\Throwable $e) {
             SecureLogger::error('[NcipServer] closeLoan failed: ' . $e->getMessage());
             return false;
         }
+        if (!$closed) {
+            return false;
+        }
+        try {
+            (new \App\Support\NotificationService($this->db))->sendLoanReturnedNotification($loanId);
+        } catch (\Throwable $e) {
+            // Il prestito È chiuso: un errore di notifica non deve trasformare
+            // un check-in riuscito in un false (che farebbe imboccare al
+            // chiamante il ramo idempotente saltando logTransaction()).
+            SecureLogger::error('[NcipServer] return notification failed: ' . $e->getMessage());
+        }
+        return true;
     }
 
     /**
