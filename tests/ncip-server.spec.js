@@ -28,6 +28,7 @@
  * 23. CheckIn/Renew reject an ambiguous title when UserId is absent
  * 24. A valid FromAgencyId is recorded while UserId selects the right loan
  * 25. Checkout skips a stale overdue loan even if its copy status is wrong
+ * 26. All message handlers accept legacy payloads without the NCIP namespace
  *
  * Run: /tmp/run-e2e.sh tests/ncip-server.spec.js --config=tests/playwright.config.js --workers=1
  */
@@ -264,12 +265,20 @@ function ncipPost(request, body, auth = null) {
     return request.post(`${BASE}/ncip`, { data: body, headers });
 }
 
+/** Remove NCIP namespace declarations while leaving the request structure intact. */
+function withoutNcipNamespace(xml) {
+    return xml
+        .replace(` xmlns="${NCIP_NS}"`, '')
+        .replace(`\n             ncip:version="http://www.niso.org/schemas/ncip/v2_02/ncip_v2_02.xsd"`, '')
+        .replace(`\n             xmlns:ncip="${NCIP_NS}"`, '');
+}
+
 test.skip(
     !DB_USER || !DB_NAME || !ADMIN_EMAIL || !ADMIN_PASS,
     'Missing E2E env (DB_* and admin credentials)'
 );
 
-test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (25 tests)', () => {
+test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (26 tests)', () => {
     /** @type {number} */
     let testBookId = 0;
     /** @type {number} */
@@ -661,7 +670,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (25 tests)', () => {
         expect(text).toContain(`<ItemIdentifierValue>${ncipLoanBookId}</ItemIdentifierValue>`);
     });
 
-    // ── Tests 21-24: partner attribution + safe loan resolution ─────────────
+    // ── Tests 21-26: partner attribution + safe loan resolution ─────────────
 
     test('21. active partner metadata does not enforce FromAgencyId; one unqualified loan remains resolvable', async ({ request }) => {
         resetHardeningLoans();
@@ -803,6 +812,70 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (25 tests)', () => {
              WHERE libro_id=${hardeningBookId} AND utente_id=${hardeningUserIds[0]}
              ORDER BY id DESC LIMIT 1`
         )).toBe('in_corso:1');
+    });
+
+    test('26. namespace-free payloads work across every NCIP message handler', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+
+        const lookupItem = await ncipPost(request, withoutNcipNamespace(lookupItemXml(hardeningBookId)));
+        expect(lookupItem.status()).toBe(200);
+        expect(await lookupItem.text()).toContain('LookupItemResponse');
+
+        const lookupUser = await ncipPost(
+            request,
+            withoutNcipNamespace(lookupUserXml(hardeningUserIds[0])),
+            auth
+        );
+        expect(lookupUser.status()).toBe(200);
+        expect(await lookupUser.text()).toContain('LookupUserResponse');
+
+        const checkout = await ncipPost(
+            request,
+            withoutNcipNamespace(checkOutItemXml(hardeningBookId, hardeningUserIds[0])),
+            auth
+        );
+        expect(checkout.status()).toBe(200);
+        expect(await checkout.text()).toContain('CheckOutItemResponse');
+
+        const renew = await ncipPost(
+            request,
+            withoutNcipNamespace(renewItemXml(hardeningBookId, hardeningUserIds[0], hardeningAgencyId)),
+            auth
+        );
+        expect(renew.status()).toBe(200);
+        expect(await renew.text()).toContain('RenewItemResponse');
+
+        const checkin = await ncipPost(
+            request,
+            withoutNcipNamespace(checkInItemXml(hardeningBookId, hardeningUserIds[0], hardeningAgencyId)),
+            auth
+        );
+        expect(checkin.status()).toBe(200);
+        expect(await checkin.text()).toContain('CheckInItemResponse');
+
+        const requestBody = withoutNcipNamespace(`<?xml version="1.0" encoding="UTF-8"?>
+<NCIPMessage xmlns="${NCIP_NS}">
+  <RequestItem>
+    <UserId><UserIdentifierValue>${hardeningUserIds[0]}</UserIdentifierValue></UserId>
+    <ItemId><ItemIdentifierValue>${hardeningBookId}</ItemIdentifierValue></ItemId>
+    <RequestId><RequestIdentifierValue>NSFREE-${dedicatedRunId}</RequestIdentifierValue></RequestId>
+  </RequestItem>
+</NCIPMessage>`);
+        const requestItem = await ncipPost(request, requestBody, auth);
+        expect(requestItem.status()).toBe(200);
+        expect(await requestItem.text()).toContain('RequestItemResponse');
+
+        const cancelBody = withoutNcipNamespace(`<?xml version="1.0" encoding="UTF-8"?>
+<NCIPMessage xmlns="${NCIP_NS}">
+  <CancelRequestItem>
+    <UserId><UserIdentifierValue>${hardeningUserIds[0]}</UserIdentifierValue></UserId>
+    <ItemId><ItemIdentifierValue>${hardeningBookId}</ItemIdentifierValue></ItemId>
+  </CancelRequestItem>
+</NCIPMessage>`);
+        const cancel = await ncipPost(request, cancelBody, auth);
+        expect(cancel.status()).toBe(200);
+        expect(await cancel.text()).toContain('CancelRequestItemResponse');
     });
 
     test.afterAll(async () => {

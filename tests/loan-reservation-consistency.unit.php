@@ -106,9 +106,15 @@ assertContainsText(
     'Wishlist availability must delegate to the canonical capacity authority'
 );
 assertContainsText(
-    'COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) IS NOT NULL',
+    '->firstAvailableDate($bookId, $today)',
     $notificationService,
-    'next-availability lookup must retain legacy NULL-start reservations'
+    'next-availability lookup must delegate to the canonical interval sweep'
+);
+$capacityService = readFileOrFail($root . '/app/Services/CapacityService.php');
+assertContainsText(
+    'COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione))',
+    $capacityService,
+    'canonical next-availability intervals must retain legacy NULL-start reservations'
 );
 assertContainsText("AND p.attivo = 1", $notificationService, 'Automatic loan notifications must ignore closed rows');
 assertContainsText("AND attivo = 1 AND stato = 'in_corso'", $notificationService, 'Expiration-warning claim must revalidate the loan lifecycle');

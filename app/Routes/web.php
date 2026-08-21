@@ -2307,7 +2307,7 @@ return function (App $app): void {
             'copie_disponibili' => (int)($book['copie_disponibili'] ?? 0),
             'copie_totali' => (int)($availability['total_copies'] ?? ($book['copie_totali'] ?? 0)),
             'occupied_ranges' => $occupiedRanges,
-            'first_available' => $availability['earliest_available'] ?? $today,
+            'first_available' => $availability['earliest_available'] ?? null,
             'is_available_now' => $isAvailableNow
         ];
 
@@ -2666,7 +2666,7 @@ return function (App $app): void {
                 'success' => true,
                 'availability' => [
                     'unavailable_dates' => $availability['unavailable_dates'] ?? [],
-                    'earliest_available' => $availability['earliest_available'] ?? \App\Support\DateHelper::today(),
+                    'earliest_available' => $availability['earliest_available'] ?? null,
                     'days' => $availability['days'] ?? [],
                     // F040: true when the excluded user already holds an active
                     // reservation on this book — the picker would otherwise show
