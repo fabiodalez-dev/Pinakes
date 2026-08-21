@@ -2,6 +2,25 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.64] - 2026-08-21
+
+Optional multiple physical copies of the same title per borrower (#238).
+
+### Features
+
+- **Multiple copies per borrower** (opt-in, Settings → Loans → "Più copie dello
+  stesso titolo", off by default): staff can lend more than one distinct
+  physical copy of the same title to the same borrower. Every loan stays bound
+  to its own copy, so no two open loans for a borrower can share a copy.
+  Pending requests, reservations and legacy copyless rows keep the historical
+  borrower/title uniqueness, and per-copy overlap guards, eligibility, capacity
+  and the max-active-loans limit are all unchanged (each copy counts as one
+  active loan). The desk "Salva e registra un'altra copia" flow keeps the
+  selected title and focuses the next copy scan for fast batch check-outs.
+  Existing installations are unaffected without a migration — the setting
+  resolves to off until it is enabled, and fresh installs seed it off in all
+  five shipped locales.
+
 ## [0.7.63] - 2026-08-20
 
 ### Fixed
