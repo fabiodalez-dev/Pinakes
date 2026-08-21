@@ -353,11 +353,10 @@ try {
 
     $rmSource = $readSource('/app/Controllers/ReservationManager.php');
     $pba = $extractMethod($rmSource, 'function processBookAvailability(');
-    // The eligibility-aware promotion pages the FIFO queue with bound
-    // LIMIT/OFFSET placeholders instead of a literal single-row LIMIT; the
-    // invariant under test is the LOCKING read (FOR UPDATE), not the batch
-    // size or how the bound is expressed.
-    check((bool) preg_match('/FROM prenotazioni r\s+JOIN utenti u ON r\.utente_id = u\.id.*?LIMIT (\d+|\?)( OFFSET \?)?\s+FOR UPDATE/s', $pba), 'ReservationManager: queue read is a locking read (FOR UPDATE)');
+    // The promotion must take the FIFO head under lock: an eligibility-filtered
+    // locking read ordered by queue_position, no OFFSET that could skip past
+    // position one.
+    check((bool) preg_match('/FROM prenotazioni r\s+JOIN utenti u ON r\.utente_id = u\.id.*?ORDER BY r\.queue_position ASC\s+LIMIT (\d+|\?)\s+FOR UPDATE/s', $pba), 'ReservationManager: queue read locks the FIFO head (ORDER BY queue_position, no OFFSET, FOR UPDATE)');
     check(str_contains($pba, "SET stato = 'completata' WHERE id = ? AND stato = 'attiva'"), "ReservationManager: completata claim is guarded by AND stato = 'attiva'");
     check((bool) preg_match('/\$claimed\s*!==?\s*1|affected_rows/s', $pba) && str_contains($pba, 'affected_rows'), 'ReservationManager: completata claim checks affected_rows');
     // The claim must happen BEFORE the loan is created (match the actual

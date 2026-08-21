@@ -971,7 +971,13 @@ class NcipServerPlugin
 
         $this->logTransaction('CancelRequestItem', $cancelResult['loan_id'], null);
 
-        return $this->xmlResponse($response, $this->buildCancelRequestItemResponse($itemId, $userId));
+        // Like handleRenewItem, answer with the borrower the locked row
+        // resolved: when the client omitted UserId the request-derived value
+        // is null even though the cancellation just determined the user.
+        return $this->xmlResponse(
+            $response,
+            $this->buildCancelRequestItemResponse($itemId, $cancelResult['user_id'])
+        );
     }
 
     // ─── XML builders ─────────────────────────────────────────────────────────
@@ -1392,7 +1398,13 @@ class NcipServerPlugin
                 AND stato IN ('in_corso','in_ritardo'){$userFilter}
               ORDER BY data_prestito DESC, id DESC LIMIT {$limit}"
         );
-        if ($stmt === false) { return null; }
+        if ($stmt === false) {
+            // A failed prepare surfaces to the partner as item-not-checked-out,
+            // a definitive application outcome they will not retry — keep a
+            // diagnostic trail of the real database cause.
+            SecureLogger::error('[NcipServer] findActiveLoan prepare failed: ' . $this->db->error);
+            return null;
+        }
         if ($userId !== null) {
             $stmt->bind_param('ii', $bookId, $userId);
         } else {

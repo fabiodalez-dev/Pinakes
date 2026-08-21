@@ -132,6 +132,15 @@ function beginHeldTransaction(setupSql) {
 function commitHeldTransaction(session) {
     return new Promise((resolve, reject) => {
         let stderr = '';
+        // 'exit' fires once: a child that already died (late SQL error, kill)
+        // emitted it before this listener registers and the promise would hang
+        // until the Playwright timeout with no diagnosis. Fail fast instead.
+        if (session.child.exitCode !== null || session.child.signalCode !== null) {
+            reject(new Error(
+                `Held MySQL transaction already exited (${session.child.exitCode ?? session.child.signalCode})`
+            ));
+            return;
+        }
         session.child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
         session.child.once('exit', (code) => {
             if (code === 0) resolve(undefined);
