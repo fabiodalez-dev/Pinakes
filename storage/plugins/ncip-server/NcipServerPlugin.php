@@ -48,7 +48,6 @@ class NcipServerPlugin
      */
     private const MAX_REQUEST_BYTES = 262_144;
 
-    /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private \mysqli $db;
     private ?int $pluginId = null;
