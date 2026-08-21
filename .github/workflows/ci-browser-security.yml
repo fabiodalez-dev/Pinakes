@@ -55,6 +55,10 @@ jobs:
 
       - name: Install Apache and packaging tools
         run: |
+          # The hosted runner image ships Google's chrome-stable apt source,
+          # which these jobs never install from. Remove it before the first
+          # apt refresh so a mid-sync Google mirror cannot break the job.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -q
           sudo apt-get install -y apache2 libapache2-mod-php jq rsync unzip zip
           sudo a2enmod rewrite headers env
@@ -94,13 +98,7 @@ jobs:
           echo "E2E_INSTALL_ROOT=$package_root" >> "$GITHUB_ENV"
 
       - name: Install all supported Playwright browser engines
-        run: |
-          # The hosted runner image ships Google's chrome-stable apt source,
-          # which this job never installs from; `--with-deps` runs apt-get
-          # update, so a mid-sync mirror on dl.google.com fails the whole
-          # browser install. Drop the unused source first.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
-          npx playwright install chromium firefox webkit --with-deps
+        run: npx playwright install chromium firefox webkit --with-deps
 
       - name: Configure Apache for the packaged application
         run: |
