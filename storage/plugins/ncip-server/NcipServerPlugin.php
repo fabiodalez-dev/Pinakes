@@ -729,6 +729,11 @@ class NcipServerPlugin
             // checked in — so honour the F052 idempotency contract and report
             // success instead of a retryable temporary-processing-failure.
             if ($this->isLoanReturned((int) $loan['id'])) {
+                // This request still completed a CheckInItem operation and
+                // must be auditable even though another concurrent request won
+                // the close race. The normal-success branch below logs once on
+                // its own path, so this does not double-log a single request.
+                $this->logTransaction('CheckInItem', (int) $loan['id'], null);
                 return $this->xmlResponse($response, $this->buildCheckInItemResponse($itemId));
             }
             return $this->xmlResponse(
@@ -1779,10 +1784,10 @@ class NcipServerPlugin
         $stmt->close();
         if (count($rows) > 1) {
             // Lo stesso identificativo corrisponde a più partner attivi: la
-            // risoluzione sarebbe arbitraria (e quindi il partner_id loggato e
-            // l'autorizzazione non deterministici). Trattalo come non risolto:
-            // per le operazioni di scrittura scatta il 403, e l'ambiguità va
-            // sanata in configurazione.
+            // risoluzione e il partner_id loggato sarebbero arbitrari. I partner
+            // sono metadata opzionali (l'autorità resta la Basic auth staff),
+            // quindi registra NULL e lascia l'ambiguità da sanare in
+            // configurazione senza attribuire l'operazione al partner sbagliato.
             SecureLogger::warning('[NcipServer] Ambiguous FromAgencyId: multiple active partners match the same identifier; treating as unresolved');
             return null;
         }
