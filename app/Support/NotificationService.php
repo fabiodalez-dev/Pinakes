@@ -1255,9 +1255,11 @@ class NotificationService {
             // Claim/retry dell'email "pronto al ritiro": schema + backfill
             // resumable are centralized so controller, cron and maintenance
             // cannot drift or run DDL inside a circulation transaction.
-            if (!PickupNotificationSchema::ensure($this->db)) {
-                return false;
-            }
+            // Un fallimento qui NON deve saltare la creazione delle colonne
+            // recall qui sotto: sendLoanRecalls() le interroga ignorando il
+            // valore di ritorno, e un early-return lascerebbe i solleciti
+            // automatici silenziosamente a zero per una causa non correlata.
+            $pickupSchemaReady = PickupNotificationSchema::ensure($this->db);
 
             // #360: recall (sollecito) tracking — how many recalls went out and
             // when the last one did, so automatic recalls can repeat at the
@@ -1271,6 +1273,10 @@ class NotificationService {
             $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'last_recall_at'");
             if ($result->num_rows === 0) {
                 $this->db->query("ALTER TABLE prestiti ADD COLUMN last_recall_at DATETIME NULL DEFAULT NULL");
+            }
+
+            if (!$pickupSchemaReady) {
+                return false;
             }
 
             // Only memoize once the checks completed without throwing, so a
@@ -1682,10 +1688,17 @@ class NotificationService {
 
             // Solo ritiri ancora validi (deadline non passata: quelli scaduti li
             // culla checkExpiredPickups) e utenti con un indirizzo email.
+            // Il JOIN su libri rispecchia sendPickupReadyNotification(): senza,
+            // un ritiro il cui titolo è stato archiviato (soft-delete) verrebbe
+            // selezionato qui ma scartato PRIMA del claim dall'invio — nessun
+            // last_attempt_at scritto, riga sempre in testa all'ORDER BY, e con
+            // 20 righe così il LIMIT si satura e nessun ritiro sano viene più
+            // notificato.
             $stmt = $this->db->prepare("
                 SELECT p.id
                 FROM prestiti p
                 JOIN utenti u ON p.utente_id = u.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 WHERE p.attivo = 1 AND p.stato = 'da_ritirare'
                   AND (
                         p.pickup_notification_sent IS NULL

@@ -115,8 +115,25 @@ php -r 'require $argv[1]; echo "autoload OK\n";' "$package_dir/vendor/autoload.p
 find "$package_dir/app" "$package_dir/installer" "$package_dir/storage/plugins" \
   -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
 
-for asset in public/assets/main.css public/assets/main.bundle.js public/assets/vendor.bundle.js; do
-  [ -s "$package_dir/$asset" ] || { echo "missing or empty compiled asset: $asset" >&2; exit 1; }
+# Compiled assets plus the historical critical-file list the release contract
+# requires in every ZIP (vendored TinyMCE/Swagger payloads are the ones a
+# broken `git archive`/checkout most easily drops — .coderabbit.yaml documents
+# public/assets/tinymce/models/dom/model.min.js as the canary).
+for asset in \
+  public/assets/main.css \
+  public/assets/main.bundle.js \
+  public/assets/vendor.bundle.js \
+  public/assets/tinymce/tinymce.min.js \
+  public/assets/tinymce/models/dom/model.min.js \
+  public/assets/tinymce/themes/silver/theme.min.js \
+  public/assets/tinymce/skins/ui/oxide/skin.min.css \
+  public/assets/tinymce/icons/default/icons.min.js \
+  public/assets/swagger-ui/swagger-ui-bundle.js \
+  public/assets/swagger-ui/swagger-ui.css \
+  public/index.php \
+  app/Support/Updater.php \
+  vendor/composer/autoload_real.php; do
+  [ -s "$package_dir/$asset" ] || { echo "missing or empty critical release file: $asset" >&2; exit 1; }
 done
 
 echo "Release archive verified: pinakes-v${version} (${#entries[@]} entries)"

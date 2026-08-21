@@ -904,13 +904,26 @@ class NcipServerPlugin
 
         $message = $this->messageNode($xml, 'CancelRequestItem');
         $itemId = $this->parseNcipNumericId((string) ($message?->ItemId->ItemIdentifierValue ?? ''));
-        $userId = $this->parseNcipNumericId((string) ($message?->UserId->UserIdentifierValue ?? ''));
 
         if ($itemId === null) {
             return $this->xmlResponse(
                 $response,
                 $this->buildProblem('Invalid ItemId', 'invalid-data')
             );
+        }
+
+        // Come CheckInItem/RenewItem: UserId assente è ammesso, ma un valore
+        // presente e malformato NON deve degradare a null — la ricerca per solo
+        // titolo con LIMIT 1 potrebbe annullare la richiesta di un altro utente.
+        $userId = null;
+        if ($message !== null && isset($message->UserId)) {
+            $userId = $this->parseNcipNumericId((string) ($message->UserId->UserIdentifierValue ?? ''));
+            if ($userId === null) {
+                return $this->xmlResponse(
+                    $response,
+                    $this->buildProblem('Invalid UserId', 'invalid-data')
+                );
+            }
         }
 
         $loan = $this->findNcipLoan($itemId, $userId);

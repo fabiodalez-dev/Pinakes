@@ -6889,5 +6889,5 @@
   "Stato prenotazione non valido: modifica non salvata.": "Ungültiger Vormerkungsstatus: Änderungen nicht gespeichert.",
   "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Diese Vormerkung wurde bereits in eine noch offene Ausleihe umgewandelt: Verwalte die Ausleihe auf der Seite Ausleihen, statt die Vormerkung zu bearbeiten.",
   "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService: Aktualisierung des Cooldown-Markers fehlgeschlagen",
-  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService: Fehler bei der Wiederherstellung der Abholbenachrichtigungen"
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService: Fehler beim Abrufen der Abholbenachrichtigungen"
 }

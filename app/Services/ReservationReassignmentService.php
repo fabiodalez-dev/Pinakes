@@ -341,16 +341,21 @@ class ReservationReassignmentService
         // Trova un impegno HOLDING "futuro" su questa copia da riassegnare. Include
         // 'da_ritirare' (ritiro in attesa) oltre a 'prenotato' (BUG7b/D12): perdere
         // la copia di un ritiro in attesa deve riassegnarlo, non lasciarlo bloccato.
+        // La finestra deve essere ancora valida (data_scadenza >= oggi): riassegnare
+        // un hold già scaduto ne riattiverebbe di fatto la finestra su una nuova
+        // copia — quello va lasciato alla scadenza/pulizia, non alla riassegnazione.
+        $today = \App\Support\DateHelper::today();
         $stmt = $this->db->prepare("
             SELECT id, libro_id, utente_id, data_prestito, data_scadenza
             FROM prestiti
             WHERE copia_id = ?
+            AND data_scadenza >= ?
             AND ( (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
                   OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
             ORDER BY data_prestito ASC, id ASC
             LIMIT 1
         ");
-        $stmt->bind_param('i', $copiaId);
+        $stmt->bind_param('is', $copiaId, $today);
         $stmt->execute();
         $reservation = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -363,7 +368,6 @@ class ReservationReassignmentService
         $reservationId = (int) $reservation['id'];
         $resStart = (string) $reservation['data_prestito'];
         $resEnd = (string) $reservation['data_scadenza'];
-        $today = \App\Support\DateHelper::today();
         $excludedCopies = [$copiaId]; // Copie da escludere dalla ricerca
         // The allocator pre-filters overlaps, so retries are only needed when a
         // concurrent transaction claims a candidate between lookup and lock.
@@ -402,11 +406,12 @@ class ReservationReassignmentService
                     SELECT id, copia_id, utente_id, data_prestito, data_scadenza
                     FROM prestiti
                     WHERE id = ? AND libro_id = ? AND copia_id = ?
+                      AND data_scadenza >= ?
                       AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare'))
                             OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
                     FOR UPDATE
                 ");
-                $lockReservation->bind_param('iii', $reservationId, $libroId, $copiaId);
+                $lockReservation->bind_param('iiis', $reservationId, $libroId, $copiaId, $today);
                 $lockReservation->execute();
                 $currentReservation = $lockReservation->get_result()->fetch_assoc();
                 $lockReservation->close();

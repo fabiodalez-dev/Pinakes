@@ -258,7 +258,11 @@ function checkPolicy() {
     || !fs.existsSync(releasePolicyPath)
     || !fs.existsSync(releasePolicyTestPath)
   ) {
+    // fail() only sets process.exitCode: return as well, or the
+    // fs.readFileSync(releaseOrchestratorPath) below would throw a raw
+    // ENOENT stack trace instead of this policy message.
     fail('release orchestrator, source policy, and regression test are required');
+    return;
   }
   if (fs.existsSync(releaseWorkflowPath)) {
     const releaseWorkflow = fs.readFileSync(releaseWorkflowPath, 'utf8');

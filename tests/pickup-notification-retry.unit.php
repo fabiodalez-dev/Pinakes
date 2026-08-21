@@ -160,7 +160,9 @@ try {
     // the 15-minute lease has expired, a later sender must be able to take over;
     // the injected failure then proves that the new owner can release its claim.
     $orphanToken = str_repeat('c', 32);
-    $orphanAttemptedAt = (new DateTimeImmutable(DateHelper::now()))
+    // Come per la lease viva più sotto: parti dal riferimento UTC di
+    // produzione, non da DateHelper::now() (fuso applicativo).
+    $orphanAttemptedAt = (new DateTimeImmutable(PickupNotificationSchema::claimLeaseWindow()['attemptedAt']))
         ->modify('-1 day')
         ->format('Y-m-d H:i:s');
     $stmt = $db->prepare(
@@ -190,7 +192,11 @@ try {
 
     // Conversely, a live claimant must retain ownership until its lease expires.
     $liveToken = str_repeat('d', 32);
-    $liveAttemptedAt = DateHelper::now();
+    // Stesso riferimento UTC della produzione: claimLeaseWindow() calcola
+    // staleBefore in UTC, mentre DateHelper::now() usa il fuso applicativo
+    // (Europe/Rome, +1/+2h). Con quello scarto il check "lease ancora viva"
+    // passerebbe anche con una lease molto più corta o azzerata.
+    $liveAttemptedAt = PickupNotificationSchema::claimLeaseWindow()['attemptedAt'];
     $stmt = $db->prepare(
         "UPDATE prestiti
             SET pickup_notification_sent = 1,
