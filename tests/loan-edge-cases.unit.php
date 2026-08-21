@@ -84,6 +84,11 @@ try {
     exit(0);
 }
 $db->set_charset('utf8mb4');
+// Production writers bind the application-local date on every
+// connection (container/cron/scripts bootstrap); the circulation
+// triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+// which disagrees with app.timezone between 22:00 and 24:00 UTC.
+\App\Support\DateHelper::synchronizeDatabaseSession($db);
 
 /* --------------------------------------------------------------------------
  * Markers + cleanup

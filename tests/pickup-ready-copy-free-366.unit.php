@@ -84,6 +84,11 @@ try {
     exit(0);
 }
 $db->set_charset('utf8mb4');
+// Production writers bind the application-local date on every
+// connection (container/cron/scripts bootstrap); the circulation
+// triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+// which disagrees with app.timezone between 22:00 and 24:00 UTC.
+\App\Support\DateHelper::synchronizeDatabaseSession($db);
 
 $TESTNO = 0;
 $failed = 0;
@@ -107,10 +112,15 @@ $d = static fn (int $offsetDays): string => date('Y-m-d', strtotime($today . ($o
 $withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
     $safeDate = $db->real_escape_string($date);
     $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    // The circulation triggers read the connection-bound application date
+    // before falling back to CURRENT_DATE(), so warping the clock must warp
+    // the bound date too — and restore the real application day afterwards.
+    $db->query("SET @pinakes_application_date = '{$safeDate}'");
     try {
         return $callback();
     } finally {
         $db->query('SET timestamp = 0');
+        \App\Support\DateHelper::synchronizeDatabaseSession($db);
     }
 };
 
