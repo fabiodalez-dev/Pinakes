@@ -2399,6 +2399,44 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $twitterDescription = $event['twitter_description'] ?: $ogDescription;
         $twitterImage = !empty($event['twitter_image']) ? absoluteUrl($event['twitter_image']) : $ogImage;
 
+        // Schema.org Event + breadcrumb (rich results: date, organizer).
+        // No location column exists, so none is asserted rather than invented.
+        $eventStart = (string) $event['event_date'];
+        if (!empty($event['event_time'])) {
+            $eventStart .= 'T' . $event['event_time'];
+        }
+        $eventSchema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'Event',
+            'name' => (string) $event['title'],
+            'startDate' => $eventStart,
+            'url' => $seoCanonical,
+            'organizer' => [
+                '@type' => 'Organization',
+                'name' => $appName,
+                'url' => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/',
+            ],
+        ];
+        if ($seoDescription !== '') {
+            $eventSchema['description'] = $seoDescription;
+        }
+        if (!empty($event['featured_image'])) {
+            $eventSchema['image'] = absoluteUrl($event['featured_image']);
+        }
+        $eventBreadcrumbSchema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => [
+                ['@type' => 'ListItem', 'position' => 1, 'name' => __('Home'), 'item' => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/'],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => __('Eventi'), 'item' => absoluteUrl(RouteTranslator::route('events'))],
+                ['@type' => 'ListItem', 'position' => 3, 'name' => (string) $event['title']],
+            ],
+        ];
+        $seoSchema = json_encode(
+            [$eventSchema, $eventBreadcrumbSchema],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG
+        );
+
         // Related events (upcoming, excluding current)
         $relatedEvents = [];
         $stmtRelated = $db->prepare("
