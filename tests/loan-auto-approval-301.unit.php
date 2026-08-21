@@ -225,6 +225,14 @@ $check((int) $loanField($loanOn, 'attivo') === 1 && $loanField($loanOn, 'copia_i
 // (When the email succeeds in production the claim stays sent=1 with the
 // token cleared; that branch needs a deliverable transport and cannot be
 // asserted portably here.)
+// Le colonne di claim arrivano con la migrazione 0.7.64: garantiscile prima
+// di leggerle, altrimenti su un DB non aggiornato $loanField() solleva
+// "Unknown column" (MYSQLI_REPORT_STRICT) invece di un FAIL descrittivo.
+if (!\App\Support\PickupNotificationSchema::ensure($db)) {
+    fwrite(STDERR, "FAIL: 09b requires the pickup_notification_* columns on prestiti (migration 0.7.64)\n");
+    $cleanup();
+    exit(1);
+}
 $check(
     (int) $loanField($loanOn, 'pickup_notification_sent') === 0
         && $loanField($loanOn, 'pickup_notification_claim_token') === null,

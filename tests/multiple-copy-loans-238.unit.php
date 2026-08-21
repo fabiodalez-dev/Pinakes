@@ -30,21 +30,22 @@ $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-$env = [];
-foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as $line) {
-    if (!str_contains($line, '=') || str_starts_with(trim($line), '#')) {
-        continue;
-    }
-    [$key, $value] = explode('=', $line, 2);
-    $env[trim($key)] = trim(trim($value), "\"'");
+// NO fallback a .env: questa suite esegue sweep di manutenzione GLOBALI
+// (activateScheduledLoans, updateOverdueLoans) e DELETE di cleanup — puntarla
+// per sbaglio al database applicativo modificherebbe prestiti reali. Come
+// loan-reservation-real-world-25: si esegue SOLO contro un DB di test
+// dichiarato esplicitamente via E2E_DB_*.
+if ((getenv('E2E_DB_USER') ?: '') === '' || (getenv('E2E_DB_NAME') ?: '') === '') {
+    fwrite(STDERR, "FAIL: refusing to run — this suite performs GLOBAL maintenance sweeps and cleanup DELETEs. Export E2E_DB_NAME (plus E2E_DB_HOST/E2E_DB_USER/E2E_DB_PASS or E2E_DB_SOCKET) pointing at a dedicated test database.\n");
+    exit(1);
 }
 
-$dbHost = getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
-$dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
-$dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
-$dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
-$dbPort = (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306));
-$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
+$dbHost = getenv('E2E_DB_HOST') ?: '127.0.0.1';
+$dbUser = (string) getenv('E2E_DB_USER');
+$dbPass = getenv('E2E_DB_PASS') ?: '';
+$dbName = (string) getenv('E2E_DB_NAME');
+$dbPort = (int) (getenv('E2E_DB_PORT') ?: 3306);
+$socket = getenv('E2E_DB_SOCKET') ?: '';
 
 try {
     $db = $socket !== '' && file_exists($socket)

@@ -6889,5 +6889,5 @@
   "Stato prenotazione non valido: modifica non salvata.": "Ugyldig reservationsstatus: Ændringer ikke gemt.",
   "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Denne reservation er allerede blevet konverteret til et stadig åbent lån: Håndter lånet fra siden Udlån i stedet for at redigere reservationen.",
   "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService: Opdatering af cooldown-markør mislykkedes",
-  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService: Fejl ved gendannelse af afhentningsnotifikationer"
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService: Fejl ved hentning af afhentningsnotifikationer"
 }

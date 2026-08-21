@@ -150,17 +150,36 @@ final class PickupNotificationSchema
     {
         if (!isset($columns['pickup_notification_sent'])) {
             $historicalDefault = $legacyDefaultPending ? 1 : 0;
-            $db->query(
+            self::tryAddColumn(
+                $db,
                 "ALTER TABLE prestiti
                  ADD COLUMN pickup_notification_sent TINYINT(1) DEFAULT {$historicalDefault}
                  COMMENT 'claim/retry flag for the ready-for-pickup email'"
             );
         }
         if (!isset($columns['pickup_notification_claim_token'])) {
-            $db->query('ALTER TABLE prestiti ADD COLUMN pickup_notification_claim_token CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL');
+            self::tryAddColumn($db, 'ALTER TABLE prestiti ADD COLUMN pickup_notification_claim_token CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL');
         }
         if (!isset($columns['pickup_notification_last_attempt_at'])) {
-            $db->query('ALTER TABLE prestiti ADD COLUMN pickup_notification_last_attempt_at DATETIME NULL DEFAULT NULL');
+            self::tryAddColumn($db, 'ALTER TABLE prestiti ADD COLUMN pickup_notification_last_attempt_at DATETIME NULL DEFAULT NULL');
+        }
+    }
+
+    /**
+     * ensure() corre da web, cron e manutenzione insieme: due processi possono
+     * superare entrambi il controllo isset() e tentare lo stesso ADD COLUMN.
+     * Il perdente riceve 1060 (Duplicate column name) ma lo schema risultante
+     * è quello atteso — assorbi SOLO quell'errore e lascia che il controllo
+     * finale allColumnsExist() in ensure() decida l'esito complessivo.
+     */
+    private static function tryAddColumn(\mysqli $db, string $sql): void
+    {
+        try {
+            $db->query($sql);
+        } catch (\Throwable $e) {
+            if ((int) $db->errno !== 1060) {
+                throw $e;
+            }
         }
     }
 
