@@ -29,12 +29,17 @@
  * 24. A valid FromAgencyId is recorded while UserId selects the right loan
  * 25. Checkout skips a stale overdue loan even if its copy status is wrong
  * 26. All message handlers accept legacy payloads without the NCIP namespace
+ * 27. CancelRequestItem rejects a missing UserId when requests are ambiguous
+ * 28. CancelRequestItem with UserId cancels only that patron's pending request
+ * 29. CancelRequestItem cannot overwrite a request concurrently approved
+ * 30. CheckInItem cannot close a loan concurrently reassigned to another user
+ * 31. RenewItem with UserId cannot renew a concurrently reassigned loan
  *
  * Run: /tmp/run-e2e.sh tests/ncip-server.spec.js --config=tests/playwright.config.js --workers=1
  */
 
 const { test, expect } = require('@playwright/test');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 
 const BASE         = process.env.E2E_BASE_URL    || 'http://localhost:8081';
 const DB_USER      = process.env.E2E_DB_USER     || '';
@@ -66,6 +71,118 @@ function dbQuery(sql) {
     return execFileSync('mysql', mysqlArgs(sql, true), {
         encoding: 'utf-8', timeout: 10000, env: MYSQL_ENV(),
     }).trim();
+}
+
+/**
+ * Open a real second DB session, apply a change inside a transaction and keep
+ * its book/loan locks until the test explicitly commits. The READY marker is
+ * emitted only after every setup statement has executed.
+ *
+ * @param {string} setupSql
+ * @returns {Promise<{child: import('child_process').ChildProcessWithoutNullStreams}>}
+ */
+function beginHeldTransaction(setupSql) {
+    return new Promise((resolve, reject) => {
+        const child = spawn('mysql', [...mysqlArgs('', true), '--unbuffered'], {
+            env: MYSQL_ENV(),
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+        let ready = false;
+        const timer = setTimeout(() => {
+            if (!ready) {
+                child.kill();
+                reject(new Error(`Timed out opening held MySQL transaction: ${stderr}`));
+            }
+        }, 10_000);
+
+        child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+        child.stdout.on('data', (chunk) => {
+            stdout += chunk.toString();
+            if (!ready && stdout.split(/\r?\n/).includes('NCIP_RACE_READY')) {
+                ready = true;
+                clearTimeout(timer);
+                resolve({ child });
+            }
+        });
+        child.once('error', (error) => {
+            if (!ready) {
+                clearTimeout(timer);
+                reject(error);
+            }
+        });
+        child.once('exit', (code) => {
+            if (!ready) {
+                clearTimeout(timer);
+                reject(new Error(`Held MySQL transaction exited early (${code}): ${stderr}`));
+            }
+        });
+        child.stdin.write(
+            `SET SESSION innodb_lock_wait_timeout=15;\nSTART TRANSACTION;\n${setupSql}\nSELECT 'NCIP_RACE_READY';\n`
+        );
+    });
+}
+
+/**
+ * Commit and close a held MySQL transaction.
+ * @param {{child: import('child_process').ChildProcessWithoutNullStreams}} session
+ * @returns {Promise<void>}
+ */
+function commitHeldTransaction(session) {
+    return new Promise((resolve, reject) => {
+        let stderr = '';
+        session.child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+        session.child.once('exit', (code) => {
+            if (code === 0) resolve(undefined);
+            else reject(new Error(`Held MySQL transaction commit failed (${code}): ${stderr}`));
+        });
+        session.child.once('error', reject);
+        session.child.stdin.end('COMMIT;\n');
+    });
+}
+
+/**
+ * Wait until the NCIP HTTP connection is blocked behind the fixture lock. This
+ * proves the request observed the old committed identity before the competing
+ * transaction commits, so the test exercises the actual TOCTOU window.
+ */
+async function waitForNcipLockWait() {
+    for (let attempt = 0; attempt < 100; attempt++) {
+        const waiting = parseInt(dbQuery(
+            `SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST
+              WHERE ID <> CONNECTION_ID() AND DB = DATABASE() AND COMMAND <> 'Sleep'
+                AND (
+                    INFO LIKE '%FROM libri WHERE id%FOR UPDATE%'
+                    OR INFO LIKE '%UPDATE prestiti%annullato%'
+                )`
+        ), 10) || 0;
+        if (waiting > 0) return;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('NCIP request never reached the expected row-lock wait');
+}
+
+/**
+ * Release the competing transaction only after the HTTP request is observably
+ * waiting on it, then return the completed NCIP response.
+ *
+ * @param {{child: import('child_process').ChildProcessWithoutNullStreams}} session
+ * @param {Promise<import('@playwright/test').APIResponse>} responsePromise
+ */
+async function finishLockedRace(session, responsePromise) {
+    /** @type {Error|null} */
+    let waitError = null;
+    try {
+        await waitForNcipLockWait();
+    } catch (error) {
+        waitError = error instanceof Error ? error : new Error(String(error));
+    } finally {
+        await commitHeldTransaction(session);
+    }
+    const response = await responsePromise;
+    if (waitError !== null) throw waitError;
+    return response;
 }
 
 function tableExists(tableName) {
@@ -254,6 +371,22 @@ function renewItemXml(itemId, userId = null, agencyId = null) {
 </NCIPMessage>`;
 }
 
+/** Build NCIP CancelRequestItem XML body. */
+function cancelRequestItemXml(itemId, userId = null, agencyId = null) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<NCIPMessage xmlns="${NCIP_NS}"
+             ncip:version="http://www.niso.org/schemas/ncip/v2_02/ncip_v2_02.xsd"
+             xmlns:ncip="${NCIP_NS}">
+  <CancelRequestItem>
+    ${initiationHeaderXml(agencyId)}
+    ${optionalUserIdXml(userId)}
+    <ItemId>
+      <ItemIdentifierValue>${itemId}</ItemIdentifierValue>
+    </ItemId>
+  </CancelRequestItem>
+</NCIPMessage>`;
+}
+
 function basicAuth(user, pass) {
     return 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
 }
@@ -278,7 +411,7 @@ test.skip(
     'Missing E2E env (DB_* and admin credentials)'
 );
 
-test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (26 tests)', () => {
+test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
     /** @type {number} */
     let testBookId = 0;
     /** @type {number} */
@@ -333,6 +466,24 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (26 tests)', () => {
         return parseInt(dbQuery(
             `SELECT id FROM prestiti
              WHERE libro_id=${hardeningBookId} AND copia_id=${copyId} AND origine='ncip'
+             ORDER BY id DESC LIMIT 1`
+        )) || 0;
+    }
+
+    /** Create one pending, copy-less NCIP request for cancellation tests. */
+    function createHardeningRequest(userId) {
+        dbQuery(
+            `INSERT INTO prestiti
+                (libro_id, copia_id, utente_id, data_prestito, data_scadenza,
+                 stato, origine, attivo, renewals, created_at, updated_at)
+             VALUES
+                (${hardeningBookId}, NULL, ${userId}, CURDATE(),
+                 DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'pendente', 'ncip', 0, 0, NOW(), NOW())`
+        );
+        return parseInt(dbQuery(
+            `SELECT id FROM prestiti
+             WHERE libro_id=${hardeningBookId} AND utente_id=${userId}
+               AND origine='ncip' AND attivo=0 AND stato='pendente'
              ORDER BY id DESC LIMIT 1`
         )) || 0;
     }
@@ -876,6 +1027,183 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (26 tests)', () => {
         const cancel = await ncipPost(request, cancelBody, auth);
         expect(cancel.status()).toBe(200);
         expect(await cancel.text()).toContain('CancelRequestItemResponse');
+    });
+
+    test('27. missing or malformed UserId never cancels an ambiguous pending request', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const firstRequestId = createHardeningRequest(hardeningUserIds[0]);
+        const secondRequestId = createHardeningRequest(hardeningUserIds[1]);
+
+        const ambiguous = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId),
+            auth
+        );
+        expect(ambiguous.status()).toBe(200);
+        const ambiguousBody = await ambiguous.text();
+        expect(ambiguousBody).toContain('Problem');
+        expect(ambiguousBody).toContain('invalid-data');
+        expect(ambiguousBody).toContain('Multiple pending ILL requests');
+
+        const malformed = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId, 'not-a-user'),
+            auth
+        );
+        expect(malformed.status()).toBe(200);
+        const malformedBody = await malformed.text();
+        expect(malformedBody).toContain('Problem');
+        expect(malformedBody).toContain('invalid-data');
+
+        expect(dbQuery(
+            `SELECT COUNT(*) FROM prestiti
+             WHERE id IN (${firstRequestId},${secondRequestId})
+               AND origine='ncip' AND attivo=0 AND stato='pendente'`
+        )).toBe('2');
+    });
+
+    test('28. explicit UserId cancels only the matching pending request', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const selectedRequestId = createHardeningRequest(hardeningUserIds[0]);
+        const siblingRequestId = createHardeningRequest(hardeningUserIds[1]);
+
+        const cancel = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId, hardeningUserIds[0]),
+            auth
+        );
+        expect(cancel.status()).toBe(200);
+        expect(await cancel.text()).toContain('CancelRequestItemResponse');
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${selectedRequestId}`
+        )).toBe('0:annullato');
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${siblingRequestId}`
+        )).toBe('0:pendente');
+        expect(dbQuery(
+            `SELECT COUNT(*) FROM ncip_transactions
+             WHERE prestito_id=${selectedRequestId} AND message_type='CancelRequestItem'
+               AND status='success'`
+        )).toBe('1');
+
+        // Fail closed on legacy/anomalous pending rows that already own a copy:
+        // cancelling those requires the full copy-release lifecycle, not the
+        // copy-less RequestItem transition implemented by this NCIP message.
+        const boundCopyId = hardeningCopyIds[1];
+        dbQuery(`UPDATE copie SET stato='prenotato' WHERE id=${boundCopyId}`);
+        dbQuery(`UPDATE prestiti SET copia_id=${boundCopyId} WHERE id=${siblingRequestId}`);
+        const unsafeCancel = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId, hardeningUserIds[1]),
+            auth
+        );
+        expect(unsafeCancel.status()).toBe(200);
+        const unsafeBody = await unsafeCancel.text();
+        expect(unsafeBody).toContain('Problem');
+        expect(unsafeBody).toContain('item-not-checked-out');
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato, ':', copia_id)
+             FROM prestiti WHERE id=${siblingRequestId}`
+        )).toBe(`0:pendente:${boundCopyId}`);
+        expect(dbQuery(`SELECT stato FROM copie WHERE id=${boundCopyId}`)).toBe('prenotato');
+    });
+
+    test('29. cancellation never overwrites a request concurrently approved', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const requestId = createHardeningRequest(hardeningUserIds[0]);
+        const copyId = hardeningCopyIds[0];
+
+        // Keep the approval uncommitted. CancelRequestItem starts against the
+        // previously committed pending version and must wait behind this book
+        // lock; after COMMIT it must see da_ritirare and leave it untouched.
+        const approval = await beginHeldTransaction(
+            `SELECT id FROM libri WHERE id=${hardeningBookId} FOR UPDATE;
+             SELECT id FROM prestiti WHERE id=${requestId} FOR UPDATE;
+             UPDATE copie SET stato='prenotato' WHERE id=${copyId};
+             UPDATE prestiti
+                SET attivo=1, stato='da_ritirare', copia_id=${copyId},
+                    pickup_deadline=DATE_ADD(CURDATE(), INTERVAL 3 DAY), updated_at=NOW()
+              WHERE id=${requestId};`
+        );
+        const response = await finishLockedRace(
+            approval,
+            ncipPost(
+                request,
+                cancelRequestItemXml(hardeningBookId, hardeningUserIds[0]),
+                auth
+            )
+        );
+
+        expect(response.status()).toBe(200);
+        const body = await response.text();
+        expect(body).toContain('Problem');
+        expect(body).toContain('item-not-checked-out');
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato, ':', copia_id)
+             FROM prestiti WHERE id=${requestId}`
+        )).toBe(`1:da_ritirare:${copyId}`);
+        expect(dbQuery(`SELECT stato FROM copie WHERE id=${copyId}`)).toBe('prenotato');
+    });
+
+    test('30. CheckIn revalidates the resolved user after acquiring the loan lock', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const loanId = createHardeningLoan(hardeningUserIds[0], hardeningCopyIds[0]);
+
+        const reassignment = await beginHeldTransaction(
+            `SELECT id FROM libri WHERE id=${hardeningBookId} FOR UPDATE;
+             UPDATE prestiti SET utente_id=${hardeningUserIds[1]}, updated_at=NOW()
+              WHERE id=${loanId};`
+        );
+        const response = await finishLockedRace(
+            reassignment,
+            ncipPost(
+                request,
+                checkInItemXml(hardeningBookId),
+                auth
+            )
+        );
+
+        expect(response.status()).toBe(200);
+        expect(await response.text()).toContain('Problem');
+        expect(dbQuery(
+            `SELECT CONCAT(utente_id, ':', attivo, ':', stato)
+             FROM prestiti WHERE id=${loanId}`
+        )).toBe(`${hardeningUserIds[1]}:1:in_corso`);
+        expect(dbQuery(`SELECT stato FROM copie WHERE id=${hardeningCopyIds[0]}`)).toBe('prestato');
+    });
+
+    test('31. Renew revalidates the explicit user after acquiring the loan lock', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const loanId = createHardeningLoan(hardeningUserIds[0], hardeningCopyIds[0]);
+        const originalDue = dbQuery(`SELECT data_scadenza FROM prestiti WHERE id=${loanId}`);
+
+        const reassignment = await beginHeldTransaction(
+            `SELECT id FROM libri WHERE id=${hardeningBookId} FOR UPDATE;
+             UPDATE prestiti SET utente_id=${hardeningUserIds[1]}, updated_at=NOW()
+              WHERE id=${loanId};`
+        );
+        const response = await finishLockedRace(
+            reassignment,
+            ncipPost(
+                request,
+                renewItemXml(hardeningBookId, hardeningUserIds[0]),
+                auth
+            )
+        );
+
+        expect(response.status()).toBe(200);
+        const body = await response.text();
+        expect(body).toContain('Problem');
+        expect(body).toContain('item-not-checked-out');
+        expect(dbQuery(
+            `SELECT CONCAT(utente_id, ':', renewals, ':', data_scadenza)
+             FROM prestiti WHERE id=${loanId}`
+        )).toBe(`${hardeningUserIds[1]}:0:${originalDue}`);
     });
 
     test.afterAll(async () => {

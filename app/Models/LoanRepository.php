@@ -144,9 +144,15 @@ class LoanRepository
      * registrerebbe come consegnato — quei casi passano dai percorsi dedicati
      * (annullamento/scadenza ritiro), che gestiscono anche la riassegnazione.
      *
-     * @return bool false se il prestito non esiste o non è chiudibile.
+     * I parametri expected* sono un optimistic identity guard per protocolli
+     * esterni: se forniti, libro e utente risolti prima della transazione devono
+     * ancora coincidere con la riga bloccata. In questo modo un CheckIn NCIP non
+     * può chiudere un prestito riassegnato durante la finestra TOCTOU.
+     *
+     * @return bool false se il prestito non esiste, non è chiudibile o non
+     *              corrisponde più all'identità attesa.
      */
-    public function close(int $id): bool
+    public function close(int $id, ?int $expectedBookId = null, ?int $expectedUserId = null): bool
     {
         // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
         // lettura NON bloccante PRIMA di begin_transaction() (lock-first, MVCC),
@@ -190,7 +196,7 @@ class LoanRepository
             // e ricalcolato il libro sbagliato. In quel caso (rarissimo: il
             // libro di un prestito non viene riassegnato) abortiamo invece di
             // operare su dati incoerenti.
-            $stmt = $this->db->prepare('SELECT libro_id, copia_id, data_scadenza, attivo, stato FROM prestiti WHERE id=? FOR UPDATE');
+            $stmt = $this->db->prepare('SELECT libro_id, utente_id, copia_id, data_scadenza, attivo, stato FROM prestiti WHERE id=? FOR UPDATE');
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $lockedRow = $stmt->get_result()->fetch_assoc();
@@ -200,6 +206,11 @@ class LoanRepository
                 return false;
             }
             if ((int) $lockedRow['libro_id'] !== $bookId) {
+                $this->db->rollback();
+                return false;
+            }
+            if (($expectedBookId !== null && (int) $lockedRow['libro_id'] !== $expectedBookId)
+                || ($expectedUserId !== null && (int) $lockedRow['utente_id'] !== $expectedUserId)) {
                 $this->db->rollback();
                 return false;
             }

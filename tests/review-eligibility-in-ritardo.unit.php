@@ -169,9 +169,9 @@ $ncip = (string) file_get_contents($root . '/storage/plugins/ncip-server/NcipSer
 // The NCIP active-loan lookup (findActiveLoan, used by CheckInItem/RenewItem)
 // is the mirror that must keep 'in_ritardo': an overdue NCIP loan still holds
 // the book. `[^)]*?` tolerates the `AND attivo = 1` that sits between the
-// origine filter and the stato IN(...) clause. (findNcipLoan is a DIFFERENT
-// method — it cancels a still-'pendente' request, so it correctly omits
-// 'in_ritardo'.)
+// origine filter and the stato IN(...) clause.
+// (cancelPendingNcipRequest is a DIFFERENT method — it cancels a still-
+// 'pendente' request, so it correctly omits 'in_ritardo'.)
 $ncipOk = (bool) preg_match(
     "/origine\\s*=\\s*'ncip'[^)]*?stato\\s+IN\\s*\\([^)]*'in_ritardo'[^)]*\\)/",
     $ncip
