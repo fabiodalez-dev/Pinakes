@@ -1273,10 +1273,14 @@ class NotificationService {
      * Public: anche i chiamanti esterni che aggiornano i flag di notifica
      * direttamente (es. il claim pickup in LoanApprovalController) devono
      * poter garantire le colonne prima dell'UPDATE sugli install legacy.
+     *
+     * @return bool true se le colonne sono garantite; false se l'inizializzazione
+     *              è fallita (install legacy con ALTER negato) — in quel caso i
+     *              chiamanti NON devono eseguire UPDATE sui flag di notifica.
      */
-    public function addNotificationColumns(): void {
+    public function addNotificationColumns(): bool {
         if ($this->notificationColumnsEnsured) {
-            return;
+            return true;
         }
         try {
             // Check if columns exist
@@ -1318,6 +1322,7 @@ class NotificationService {
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to add notification columns: " . $e->getMessage());
         }
+        return $this->notificationColumnsEnsured;
     }
 
     /**
