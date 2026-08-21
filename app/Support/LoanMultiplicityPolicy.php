@@ -24,9 +24,11 @@ use mysqli;
  */
 final class LoanMultiplicityPolicy
 {
+    private const OPEN_ACTIVE_STATES_SQL = "'prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'";
+
     private const OPEN_COMMITMENT_PREDICATE = "(
         (attivo = 0 AND stato = 'pendente')
-        OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+        OR (attivo = 1 AND stato IN (" . self::OPEN_ACTIVE_STATES_SQL . "))
     )";
 
     private SettingsRepository $settings;
@@ -72,7 +74,7 @@ final class LoanMultiplicityPolicy
                 (attivo = 0 AND stato = 'pendente')
                 OR (
                     attivo = 1{$activeBlockingPredicate}
-                    AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
+                    AND stato IN (" . self::OPEN_ACTIVE_STATES_SQL . ")
                 )
             )
             LIMIT 1
