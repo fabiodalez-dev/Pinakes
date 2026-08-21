@@ -12,9 +12,23 @@ use mysqli;
  * Callers must already hold the canonical book lock. This service never relaxes
  * pending or legacy copyless commitments: only open rows tied to physical copies
  * can coexist, and the existing per-copy overlap checks remain authoritative.
+ *
+ * @phpstan-type OpenCopyCommitment array{
+ *     loanId: int,
+ *     copyId: int,
+ *     userId: int,
+ *     startDate: string,
+ *     endDate: string,
+ *     state: string
+ * }
  */
 final class LoanMultiplicityPolicy
 {
+    private const OPEN_COMMITMENT_PREDICATE = "(
+        (attivo = 0 AND stato = 'pendente')
+        OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+    )";
+
     private SettingsRepository $settings;
 
     public function __construct(private mysqli $db, ?SettingsRepository $settings = null)
@@ -93,32 +107,123 @@ final class LoanMultiplicityPolicy
         int $userId,
         ?int $excludeLoanId = null
     ): array {
-        $excludeSql = $excludeLoanId !== null ? ' AND id <> ?' : '';
+        $copyIds = [];
+        foreach ($this->lockOpenCopyCommitments(
+            $bookId,
+            userId: $userId,
+            excludeLoanId: $excludeLoanId
+        ) as $commitment) {
+            $copyIds[$commitment['copyId']] = true;
+        }
+
+        $copyIds = array_keys($copyIds);
+        sort($copyIds, SORT_NUMERIC);
+        return $copyIds;
+    }
+
+    /**
+     * Lock and normalize copy-bound open commitments in one deterministic batch.
+     *
+     * At least one selector is required. The copy selector is used by lifecycle
+     * allocation; the user selector powers committedCopyIds(). Keeping both on
+     * this API gives every caller the same open-state predicate and typed identity.
+     * Callers must already hold the canonical book lock.
+     *
+     * @return list<OpenCopyCommitment>
+     */
+    public function lockOpenCopyCommitments(
+        int $bookId,
+        ?int $copyId = null,
+        ?int $userId = null,
+        ?int $excludeLoanId = null
+    ): array {
+        if ($copyId === null && $userId === null) {
+            throw new \InvalidArgumentException('A copy or user selector is required.');
+        }
+
+        $where = [
+            'libro_id = ?',
+            'copia_id IS NOT NULL',
+            self::OPEN_COMMITMENT_PREDICATE,
+        ];
+        $types = 'i';
+        $params = [$bookId];
+
+        if ($copyId !== null) {
+            $where[] = 'copia_id = ?';
+            $types .= 'i';
+            $params[] = $copyId;
+        }
+        if ($userId !== null) {
+            $where[] = 'utente_id = ?';
+            $types .= 'i';
+            $params[] = $userId;
+        }
+        if ($excludeLoanId !== null) {
+            $where[] = 'id <> ?';
+            $types .= 'i';
+            $params[] = $excludeLoanId;
+        }
+
         $stmt = $this->db->prepare("
-            SELECT copia_id
+            SELECT id, copia_id, utente_id, data_prestito, data_scadenza, stato
             FROM prestiti
-            WHERE libro_id = ? AND utente_id = ?{$excludeSql}
-              AND copia_id IS NOT NULL
-              AND (
-                  (attivo = 0 AND stato = 'pendente')
-                  OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-              )
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY id ASC
             FOR UPDATE
         ");
-
-        if ($excludeLoanId !== null) {
-            $stmt->bind_param('iii', $bookId, $userId, $excludeLoanId);
-        } else {
-            $stmt->bind_param('ii', $bookId, $userId);
-        }
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $result = $stmt->get_result();
-        $copyIds = [];
+        $commitments = [];
         while ($row = $result->fetch_assoc()) {
-            $copyIds[(int) $row['copia_id']] = true;
+            $commitments[] = [
+                'loanId' => (int) $row['id'],
+                'copyId' => (int) $row['copia_id'],
+                'userId' => (int) $row['utente_id'],
+                'startDate' => (string) $row['data_prestito'],
+                'endDate' => (string) $row['data_scadenza'],
+                'state' => (string) $row['stato'],
+            ];
         }
         $stmt->close();
 
-        return array_keys($copyIds);
+        return $commitments;
+    }
+
+    /**
+     * Pure conflict check for assigning one candidate to a locked copy batch.
+     *
+     * Same-borrower identity is stronger than dates: two open rows for a title
+     * must represent distinct physical items. Other borrowers block only when
+     * their inclusive date windows overlap; overdue commitments are open-ended.
+     *
+     * @param list<OpenCopyCommitment> $commitments
+     */
+    public static function candidateConflictsWithOpenCommitments(
+        int $candidateLoanId,
+        int $candidateUserId,
+        string $candidateStartDate,
+        string $candidateEndDate,
+        array $commitments
+    ): bool {
+        foreach ($commitments as $commitment) {
+            if ($commitment['loanId'] === $candidateLoanId) {
+                continue;
+            }
+
+            if ($commitment['userId'] === $candidateUserId) {
+                return true;
+            }
+
+            $startsBeforeCandidateEnds = $commitment['startDate'] <= $candidateEndDate;
+            $endsAfterCandidateStarts = $commitment['state'] === 'in_ritardo'
+                || $commitment['endDate'] >= $candidateStartDate;
+            if ($startsBeforeCandidateEnds && $endsAfterCandidateStarts) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

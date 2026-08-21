@@ -354,6 +354,181 @@ try {
         'exclude-id correctly removes the legacy row currently being changed'
     );
 
+    /* ================= shared open-copy commitment API ================= */
+    // Exercise the database-backed selector and the pure comparator together:
+    // callers receive one normalized definition of an open physical commitment.
+    $apiSameUser = $makeUser();
+    $apiOtherUser = $makeUser();
+    $apiCandidateUser = $makeUser();
+    [$apiBook, $apiCopies] = $makeBook(3);
+    $apiFirstStart = (new DateTimeImmutable($today))->modify('+70 days')->format('Y-m-d');
+    $apiFirstEnd = (new DateTimeImmutable($today))->modify('+75 days')->format('Y-m-d');
+    $apiSecondStart = (new DateTimeImmutable($today))->modify('+85 days')->format('Y-m-d');
+    $apiSecondEnd = (new DateTimeImmutable($today))->modify('+90 days')->format('Y-m-d');
+    $apiUserStart = (new DateTimeImmutable($today))->modify('+100 days')->format('Y-m-d');
+    $apiUserEnd = (new DateTimeImmutable($today))->modify('+105 days')->format('Y-m-d');
+    $apiSameUserLoan = $makeLoan(
+        $apiBook,
+        $apiCopies[0],
+        $apiSameUser,
+        'prenotato',
+        1,
+        $apiFirstStart,
+        $apiFirstEnd
+    );
+    $apiOtherUserLoan = $makeLoan(
+        $apiBook,
+        $apiCopies[0],
+        $apiOtherUser,
+        'prenotato',
+        1,
+        $apiSecondStart,
+        $apiSecondEnd
+    );
+    $apiSameUserOtherCopyLoan = $makeLoan(
+        $apiBook,
+        $apiCopies[1],
+        $apiSameUser,
+        'da_ritirare',
+        1,
+        $apiUserStart,
+        $apiUserEnd
+    );
+    $makeLoan(
+        $apiBook,
+        $apiCopies[0],
+        $apiCandidateUser,
+        'restituito',
+        0,
+        $apiFirstStart,
+        $apiFirstEnd
+    );
+    $apiOverdueStart = (new DateTimeImmutable($today))->modify('-20 days')->format('Y-m-d');
+    $apiOverdueEnd = (new DateTimeImmutable($today))->modify('-10 days')->format('Y-m-d');
+    $apiOverdueLoan = $makeLoan(
+        $apiBook,
+        $apiCopies[2],
+        $apiCandidateUser,
+        'in_ritardo',
+        1,
+        $apiOverdueStart,
+        $apiOverdueEnd
+    );
+
+    $apiPolicy = new LoanMultiplicityPolicy($db);
+    $db->begin_transaction();
+    try {
+        $apiBookLock = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+        $apiBookLock->bind_param('i', $apiBook);
+        $apiBookLock->execute();
+        $apiBookLock->get_result()->fetch_assoc();
+        $apiBookLock->close();
+
+        $apiCopyCommitments = $apiPolicy->lockOpenCopyCommitments(
+            $apiBook,
+            copyId: $apiCopies[0]
+        );
+        $apiUserCommitmentsExcludingCandidate = $apiPolicy->lockOpenCopyCommitments(
+            $apiBook,
+            userId: $apiSameUser,
+            excludeLoanId: $apiSameUserLoan
+        );
+        $apiOverdueCommitments = $apiPolicy->lockOpenCopyCommitments(
+            $apiBook,
+            copyId: $apiCopies[2]
+        );
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        throw $e;
+    }
+
+    $check(
+        $apiCopyCommitments === [
+            [
+                'loanId' => $apiSameUserLoan,
+                'copyId' => $apiCopies[0],
+                'userId' => $apiSameUser,
+                'startDate' => $apiFirstStart,
+                'endDate' => $apiFirstEnd,
+                'state' => 'prenotato',
+            ],
+            [
+                'loanId' => $apiOtherUserLoan,
+                'copyId' => $apiCopies[0],
+                'userId' => $apiOtherUser,
+                'startDate' => $apiSecondStart,
+                'endDate' => $apiSecondEnd,
+                'state' => 'prenotato',
+            ],
+        ],
+        'copy selector returns normalized open commitments and excludes terminal rows'
+    );
+    $check(
+        $apiUserCommitmentsExcludingCandidate === [[
+            'loanId' => $apiSameUserOtherCopyLoan,
+            'copyId' => $apiCopies[1],
+            'userId' => $apiSameUser,
+            'startDate' => $apiUserStart,
+            'endDate' => $apiUserEnd,
+            'state' => 'da_ritirare',
+        ]],
+        'user selector spans copies and excludeLoanId removes only the candidate row'
+    );
+
+    $apiFarStart = (new DateTimeImmutable($today))->modify('+365 days')->format('Y-m-d');
+    $apiFarEnd = (new DateTimeImmutable($today))->modify('+370 days')->format('Y-m-d');
+    $check(
+        LoanMultiplicityPolicy::candidateConflictsWithOpenCommitments(
+            0,
+            $apiSameUser,
+            $apiFarStart,
+            $apiFarEnd,
+            $apiCopyCommitments
+        ),
+        'same borrower/title identity conflicts even when the date windows are disjoint'
+    );
+    $check(
+        LoanMultiplicityPolicy::candidateConflictsWithOpenCommitments(
+            0,
+            $apiCandidateUser,
+            $apiFirstEnd,
+            (new DateTimeImmutable($apiFirstEnd))->modify('+2 days')->format('Y-m-d'),
+            $apiCopyCommitments
+        ),
+        'another borrower conflicts when its window touches an existing end date inclusively'
+    );
+    $check(
+        !LoanMultiplicityPolicy::candidateConflictsWithOpenCommitments(
+            0,
+            $apiCandidateUser,
+            (new DateTimeImmutable($apiSecondEnd))->modify('+1 day')->format('Y-m-d'),
+            (new DateTimeImmutable($apiSecondEnd))->modify('+5 days')->format('Y-m-d'),
+            $apiCopyCommitments
+        ),
+        'another borrower does not conflict when every locked window is disjoint'
+    );
+    $check(
+        LoanMultiplicityPolicy::candidateConflictsWithOpenCommitments(
+            0,
+            $apiSameUser,
+            $apiFarStart,
+            $apiFarEnd,
+            $apiOverdueCommitments
+        ),
+        'an overdue commitment remains open-ended for a different borrower'
+    );
+    $check(
+        !LoanMultiplicityPolicy::candidateConflictsWithOpenCommitments(
+            $apiSameUserLoan,
+            $apiCandidateUser,
+            $apiFirstStart,
+            $apiFirstEnd,
+            $apiCopyCommitments
+        ) && ($apiOverdueCommitments[0]['loanId'] ?? 0) === $apiOverdueLoan,
+        'the comparator excludes its candidate loan without hiding other normalized rows'
+    );
+
     /* ================= real staff creation and quick-copy workflow ====== */
     $admin = $makeUser('admin');
     $multiBorrower = $makeUser();

@@ -190,26 +190,14 @@ class ReservationReassignmentService
                 return;
             }
 
-            // Lock every open commitment already attached to the target copy in a
-            // single current read. This one result set answers both questions for
-            // every candidate: same-borrower physical identity and date overlap.
-            // It replaces one committedCopyIds() plus one overlap query per row.
-            $targetCommitmentStmt = $this->db->prepare("
-                SELECT id, utente_id, data_prestito, data_scadenza, stato
-                FROM prestiti
-                WHERE libro_id = ? AND copia_id = ?
-                  AND ( (attivo = 0 AND stato = 'pendente')
-                        OR (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')) )
-                ORDER BY id ASC
-                FOR UPDATE
-            ");
-            $targetCommitmentStmt->bind_param('ii', $libroId, $newCopiaId);
-            $targetCommitmentStmt->execute();
-            $targetCommitmentResult = $targetCommitmentStmt->get_result();
-            $targetCommitments = $targetCommitmentResult
-                ? $targetCommitmentResult->fetch_all(MYSQLI_ASSOC)
-                : [];
-            $targetCommitmentStmt->close();
+            // One policy-owned current read provides the canonical open-state
+            // predicate and normalized user/copy identity for every candidate.
+            // The result answers same-borrower and overlap checks without N+1.
+            $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($this->db);
+            $targetCommitments = $multiplicityPolicy->lockOpenCopyCommitments(
+                $libroId,
+                copyId: $newCopiaId
+            );
 
             // Lock the target and every candidate's currently pinned copy in one
             // ascending-ID batch. All prestiti locks above are therefore complete
@@ -260,28 +248,13 @@ class ReservationReassignmentService
                     }
                 }
 
-                $identityConflict = false;
-                $hasOverlap = false;
-                foreach ($targetCommitments as $commitment) {
-                    if ((int) $commitment['id'] === (int) $candidate['id']) {
-                        continue;
-                    }
-
-                    if ((int) $commitment['utente_id'] === (int) $candidate['utente_id']) {
-                        $identityConflict = true;
-                        break;
-                    }
-
-                    $startsBeforeCandidateEnds = (string) $commitment['data_prestito']
-                        <= (string) $candidate['data_scadenza'];
-                    $endsAfterCandidateStarts = $commitment['stato'] === 'in_ritardo'
-                        || (string) $commitment['data_scadenza'] >= (string) $candidate['data_prestito'];
-                    if ($startsBeforeCandidateEnds && $endsAfterCandidateStarts) {
-                        $hasOverlap = true;
-                    }
-                }
-
-                if (!$identityConflict && !$hasOverlap) {
+                if (!\App\Support\LoanMultiplicityPolicy::candidateConflictsWithOpenCommitments(
+                    (int) $candidate['id'],
+                    (int) $candidate['utente_id'],
+                    (string) $candidate['data_prestito'],
+                    (string) $candidate['data_scadenza'],
+                    $targetCommitments
+                )) {
                     $reservation = $candidate;
                     break;
                 }
