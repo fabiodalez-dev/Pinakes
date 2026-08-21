@@ -1839,6 +1839,7 @@ ob_start();
                 <img src="<?= htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') ?>"
                      alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"
                      class="book-cover-large img-fluid"
+                     fetchpriority="high" decoding="async"
                      id="book-cover-image">
             </div>
             <div class="book-info-column">
