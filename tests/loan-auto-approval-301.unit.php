@@ -209,6 +209,10 @@ $check($loanField($loanOn, 'pickup_deadline') !== null, '08 auto-approved immedi
 // 09 — reuses the pipeline: a copy is locked/assigned and the loan is activated.
 $check((int) $loanField($loanOn, 'attivo') === 1 && $loanField($loanOn, 'copia_id') !== null,
     '09 auto-approval assigns a physical copy and activates the loan (canonical pipeline)');
+$check(
+    (int) $loanField($loanOn, 'pickup_notification_sent') === 1,
+    '09b immediate auto-approval claims the pickup announcement before a retry sweep can duplicate it'
+);
 
 // 10 — ON but no available copy: must not force-approve; request stays pending.
 $setAuto('1');

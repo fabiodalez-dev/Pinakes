@@ -222,7 +222,7 @@ $check(strpos($maint, 'ContributorBackfill::run') !== false, "MaintenanceService
 $updater = (string) file_get_contents($root . '/app/Support/Updater.php');
 $check(strpos($updater, 'ContributorBackfill::run') !== false, "migration runner completes the backfill before returning success");
 $upgradeSmoke = (string) file_get_contents($root . '/.github/workflows/ci-upgrade-smoke.yml');
-$check(strpos($upgradeSmoke, 'runMigrations($target, $target)') !== false
+$check(strpos($upgradeSmoke, '$updater->runMigrations($from, $target)') !== false
     && strpos($upgradeSmoke, "setting_key='contributors_backfilled'") !== false
     && strpos($upgradeSmoke, "source='legacy-backfill'") !== false,
     'upgrade smoke executes and verifies the runtime backfill through Updater');

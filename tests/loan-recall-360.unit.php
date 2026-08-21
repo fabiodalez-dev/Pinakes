@@ -215,7 +215,7 @@ $controllerSource = file_get_contents(__DIR__ . '/../app/Controllers/PrestitiCon
 $check(
     substr_count((string) $controllerSource, 'recall_count = 0') >= 4
         && substr_count((string) $controllerSource, 'last_recall_at = NULL') >= 4
-        && str_contains((string) $controllerSource, "elseif (\$newUserId !== (int) \$locked['utente_id'])"),
+        && str_contains((string) $controllerSource, "if (\$newUserId !== (int) \$locked['utente_id'])"),
     'due-date changes, renewals, bulk extensions, and user reassignment reset the recall cycle'
 );
 $check(

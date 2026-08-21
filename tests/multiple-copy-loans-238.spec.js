@@ -105,6 +105,7 @@ function setMultiplicity(on) {
 
 /** Wipe the test book's loans and free its copies so each test starts clean. */
 function resetLoanState() {
+  dbQuery(`DELETE FROM admin_notifications WHERE type='general' AND related_id IN (SELECT id FROM prestiti WHERE libro_id=${fx.bookId})`);
   dbQuery(`DELETE FROM prestiti WHERE libro_id=${fx.bookId}`);
   dbQuery(`UPDATE copie SET stato='disponibile' WHERE libro_id=${fx.bookId}`);
   dbQuery(`UPDATE libri SET copie_disponibili=copie_totali WHERE id=${fx.bookId}`);
@@ -232,6 +233,7 @@ test.beforeAll(() => {
 
 test.afterAll(() => {
   if (fx.bookId) {
+    dbQuery(`DELETE FROM admin_notifications WHERE type='general' AND related_id IN (SELECT id FROM prestiti WHERE libro_id=${fx.bookId})`);
     dbQuery(`DELETE FROM prestiti WHERE libro_id=${fx.bookId}`);
     dbQuery(`DELETE FROM copie WHERE libro_id=${fx.bookId}`);
     dbQuery(`DELETE FROM libri WHERE id=${fx.bookId}`);

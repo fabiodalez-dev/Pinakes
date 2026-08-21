@@ -43,6 +43,60 @@ function fail(message) {
 }
 
 /**
+ * Detect workflows that can create, replace, edit, or delete GitHub Release
+ * state. This is deliberately broader than `gh release`: a second publisher
+ * can use the REST API, github-script, curl, or one of several release actions.
+ * Read-only `gh api .../releases` calls remain allowed for upgrade tests.
+ */
+function mutatesGitHubReleases(source) {
+  const normalized = source
+    .replace(/\\\r?\n[\t ]*/g, ' ')
+    .replace(/^[\t ]*#.*$/gm, ' ');
+
+  if (/\bgh\s+release\s+(?:create|upload|edit|delete)\b/i.test(normalized)) return true;
+  if (/uses:\s*(?:softprops\/action-gh-release|actions\/(?:create-release|upload-release-asset)|ncipollo\/release-action|marvinpinto\/action-automatic-releases|svenstaro\/upload-release-action)@/i.test(normalized)) {
+    return true;
+  }
+  if (/\b(?:github|octokit)(?:\.rest)?\.repos\.(?:createRelease|updateRelease|deleteRelease|uploadReleaseAsset)\s*\(/i.test(normalized)) {
+    return true;
+  }
+  if (/\b(?:github|octokit)\.request\s*\(\s*['"`](?:POST|PATCH|PUT|DELETE)\s+\/repos\/[^/]+\/[^/]+\/releases\b/i.test(normalized)) {
+    return true;
+  }
+  if (/\bmutation\b[\s\S]*\b(?:createRelease|updateRelease|deleteRelease)\s*\(/i.test(normalized)) {
+    return true;
+  }
+
+  for (const command of normalized.split(/[;\n]/)) {
+    const releaseEndpoint = /(?:api\.github\.com\/)?repos\/(?:(?:\$\{?GITHUB_REPOSITORY\}?|\$\{\{\s*github\.repository\s*\}\})|[^/\s'"`]+\/[^/\s'"`]+)\/releases(?:\/|\?|\s|['"`]|$)/i;
+    const mutatingMethod = /(?:^|\s)(?:-X\s*|--method(?:=|\s+))(?:POST|PATCH|PUT|DELETE)\b/i;
+    // `gh api` defaults to POST as soon as a typed/raw field or --input is
+    // supplied, so looking only for an explicit -X/--method leaves an easy
+    // second-publisher escape hatch.
+    const ghApiPayload = /(?:^|\s)(?:-f|--raw-field|-F|--field|--input)(?:=|\s+)/i;
+    if (/\bgh\s+api\b/i.test(command)
+      && releaseEndpoint.test(command)
+      && (mutatingMethod.test(command) || ghApiPayload.test(command))) {
+      return true;
+    }
+    const curlPayload = /(?:^|\s)(?:-d|--data(?:-ascii|-binary|-raw|-urlencode)?|-F|--form(?:-string)?|--json|--upload-file|-T)(?:=|\s)/i;
+    if (/\bcurl\b/i.test(command)
+      && /(?:api\.github\.com|\$\{?GITHUB_API_URL\}?)/i.test(command)
+      && releaseEndpoint.test(command)
+      && (mutatingMethod.test(command) || curlPayload.test(command))) {
+      return true;
+    }
+    if (/\bInvoke-RestMethod\b/i.test(command)
+      && releaseEndpoint.test(command)
+      && /(?:^|\s)-Method\s+(?:Post|Patch|Put|Delete)\b/i.test(command)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Return the top-level arguments of a JavaScript call. This deliberately small
  * lexer is enough for test sources and avoids adding a parser dependency just
  * for one API-contract check.
@@ -196,10 +250,15 @@ function checkPolicy() {
   }
 
   const releaseWorkflowPath = path.join(root, '.github', 'workflows', 'release.yml');
+  const releaseOrchestratorPath = path.join(root, 'scripts', 'create-release.sh');
   const releasePolicyPath = path.join(root, 'scripts', 'ci-verify-release-source.sh');
   const releasePolicyTestPath = path.join(root, 'tests', 'release-source-policy.test.sh');
-  if (!fs.existsSync(releasePolicyPath) || !fs.existsSync(releasePolicyTestPath)) {
-    fail('release source policy and its regression test are required');
+  if (
+    !fs.existsSync(releaseOrchestratorPath)
+    || !fs.existsSync(releasePolicyPath)
+    || !fs.existsSync(releasePolicyTestPath)
+  ) {
+    fail('release orchestrator, source policy, and regression test are required');
   }
   if (fs.existsSync(releaseWorkflowPath)) {
     const releaseWorkflow = fs.readFileSync(releaseWorkflowPath, 'utf8');
@@ -210,6 +269,80 @@ function checkPolicy() {
       if (!releaseWorkflow.includes(permission)) {
         fail(`release workflow is missing permission: ${permission}`);
       }
+    }
+    for (const contract of [
+      'bash bin/build-release.sh --skip-build',
+      'name: Verify and build release (read-only)',
+      'name: Attest and publish verified release',
+      'needs: build',
+      'actions/download-artifact@',
+      'gh release create',
+      '--draft',
+      '.uploader.login == "github-actions[bot]"',
+      'gh release edit',
+      '.immutable == true',
+    ]) {
+      if (!releaseWorkflow.includes(contract)) {
+        fail(`release workflow is missing sole-publisher contract: ${contract}`);
+      }
+    }
+    const buildJobStart = releaseWorkflow.indexOf('\n  build:');
+    const publishJobStart = releaseWorkflow.indexOf('\n  publish:');
+    const buildJob = buildJobStart >= 0 && publishJobStart > buildJobStart
+      ? releaseWorkflow.slice(buildJobStart, publishJobStart)
+      : '';
+    const publishJob = publishJobStart >= 0 ? releaseWorkflow.slice(publishJobStart) : '';
+    if (!buildJob.includes('contents: read')
+      || /contents:\s*write|id-token:\s*write|attestations:\s*write/.test(buildJob)) {
+      fail('release build job must remain read-only and must not receive OIDC/attestation write authority');
+    }
+    for (const permission of ['contents: write', 'id-token: write', 'attestations: write']) {
+      if (!publishJob.includes(permission)) {
+        fail(`release publish job is missing permission: ${permission}`);
+      }
+    }
+  }
+
+  const releaseOrchestrator = fs.readFileSync(releaseOrchestratorPath, 'utf8');
+  for (const contract of [
+    'bash scripts/ci-verify-release-source.sh',
+    'git tag -a',
+    'git push origin "refs/tags/${TAG_NAME}:refs/tags/${TAG_NAME}"',
+    'gh run watch',
+    '.uploader.login == "github-actions[bot]"',
+    'immutable-releases',
+    'workflow_run_floor',
+    '.databaseId > $floor',
+    "'.immutable'",
+  ]) {
+    if (!releaseOrchestrator.includes(contract)) {
+      fail(`release orchestrator is missing contract: ${contract}`);
+    }
+  }
+  if (/git\s+archive|bin\/build-release\.sh|gh\s+release\s+(?:create|upload|edit)/.test(releaseOrchestrator)) {
+    fail('release orchestrator must not build or publish a competing artifact');
+  }
+
+  const upgradeSmokePath = path.join(root, '.github', 'workflows', 'ci-upgrade-smoke.yml');
+  if (fs.existsSync(upgradeSmokePath)) {
+    const upgradeSmoke = fs.readFileSync(upgradeSmokePath, 'utf8');
+    for (const contract of [
+      '$updater->runMigrations($from, $target)',
+      'BASELINE_APP',
+      'list-source-expectations.php plugins',
+      'migrate_0.7.64.sql',
+      'pickup_notification_sent',
+      'Second Updater pass was not an idempotent no-op',
+    ]) {
+      if (!upgradeSmoke.includes(contract)) {
+        fail(`upgrade smoke is missing production-migration contract: ${contract}`);
+      }
+    }
+    if (/runMigrations\(\$target,\s*\$target\)/.test(upgradeSmoke)) {
+      fail('upgrade smoke bypasses migration selection by using target as the baseline');
+    }
+    if (upgradeSmoke.includes('- name: Apply current branch migrations')) {
+      fail('upgrade smoke must not pre-apply current SQL outside Updater');
     }
   }
 
@@ -222,10 +355,41 @@ function checkPolicy() {
   }
 
   const workflowDir = path.join(root, '.github', 'workflows');
+  const releaseMutationFixtures = [
+    'gh api -X POST repos/example/project/releases',
+    'gh api repos/example/project/releases/1 --method DELETE',
+    'gh api repos/example/project/releases -f tag_name=v1.2.3',
+    'gh api repos/example/project/releases/1/assets --input payload.json',
+    'gh api -X POST "repos/${GITHUB_REPOSITORY}/releases"',
+    'gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/123"',
+    'gh api --method PATCH "repos/${{ github.repository }}/releases/123"',
+    'curl -X PATCH https://api.github.com/repos/example/project/releases/1',
+    'curl --json @payload.json https://api.github.com/repos/example/project/releases',
+    'curl -X POST --json @payload.json "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases"',
+    'curl -X DELETE "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/123"',
+    'github.rest.repos.createRelease({ owner, repo })',
+    'octokit.request("POST /repos/{owner}/{repo}/releases", payload)',
+    'octokit.graphql(`mutation { createRelease(input: $input) { release { id } } }`)',
+    'Invoke-RestMethod -Method Delete https://api.github.com/repos/example/project/releases/1',
+    'uses: ncipollo/release-action@v1',
+  ];
+  const releaseReadFixtures = [
+    'gh api repos/example/project/releases?per_page=100',
+    'gh api -H "Accept: application/octet-stream" repos/example/project/releases/assets/1',
+  ];
+  for (const fixture of releaseMutationFixtures) {
+    if (!mutatesGitHubReleases(fixture)) fail(`release publisher detector missed: ${fixture}`);
+  }
+  for (const fixture of releaseReadFixtures) {
+    if (mutatesGitHubReleases(fixture)) fail(`release publisher detector rejected read-only API use: ${fixture}`);
+  }
   for (const workflow of fs.readdirSync(workflowDir)) {
     const workflowPath = path.join(workflowDir, workflow);
     if (!fs.statSync(workflowPath).isFile()) continue;
     const source = fs.readFileSync(workflowPath, 'utf8');
+    if (workflow !== 'release.yml' && mutatesGitHubReleases(source)) {
+      fail(`${workflow} competes with release.yml as a GitHub Release publisher`);
+    }
     if (/actions\/upload-artifact@v(?:[1-5])\b/.test(source)) {
       fail(`${workflow} uses an upload-artifact release with a deprecated Node runtime`);
     }

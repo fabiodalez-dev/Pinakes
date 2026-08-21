@@ -106,4 +106,27 @@ class LoanEligibility
                         AND DATE({$alias}.data_scadenza_prenotazione) >= ?)
                 )";
     }
+
+    /**
+     * Shared SQL predicate for users that are eligible to receive a loan.
+     *
+     * This mirrors checkUser() and is intended for queue selection, where
+     * filtering before LIMIT avoids head-of-line starvation from suspended or
+     * expired patrons. A final checkUser() under the caller's transaction still
+     * provides the authoritative race-safe decision.
+     *
+     * Requires ONE positional placeholder bound to the application date.
+     * $alias is a fixed table alias supplied by application code.
+     */
+    public static function eligibleUserWhere(string $alias): string
+    {
+        return "(
+                    {$alias}.stato = 'attivo'
+                    AND (
+                        {$alias}.tipo_utente NOT IN ('standard', 'premium')
+                        OR {$alias}.data_scadenza_tessera IS NULL
+                        OR {$alias}.data_scadenza_tessera >= ?
+                    )
+                )";
+    }
 }

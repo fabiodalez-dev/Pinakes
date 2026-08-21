@@ -312,21 +312,7 @@ class MaintenanceService
         if ($this->pickupNotificationColumnAvailable !== null) {
             return $this->pickupNotificationColumnAvailable;
         }
-        try {
-            $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'pickup_notification_sent'");
-            if ($result !== false && $result->num_rows > 0) {
-                return $this->pickupNotificationColumnAvailable = true;
-            }
-            $this->db->query("ALTER TABLE prestiti ADD COLUMN pickup_notification_sent BOOLEAN DEFAULT 0");
-            return $this->pickupNotificationColumnAvailable = true;
-        } catch (\Throwable $e) {
-            // Utente DB senza privilegio ALTER e migrazione 0.7.64 non ancora
-            // applicata: NON bloccare il lifecycle — gli UPDATE omettono la
-            // colonna e il claim/retry pickup resta semplicemente inattivo
-            // finché la migrazione non gira.
-            SecureLogger::error('Failed to ensure pickup_notification_sent column: ' . $e->getMessage());
-            return $this->pickupNotificationColumnAvailable = false;
-        }
+        return $this->pickupNotificationColumnAvailable = PickupNotificationSchema::ensure($this->db);
     }
 
     /**
@@ -394,7 +380,9 @@ class MaintenanceService
     public function repairInvalidReadyPickups(): int
     {
         $pickupColumnReset = $this->ensurePickupNotificationColumn()
-            ? ",\n                        pickup_notification_sent = 0"
+            ? ",\n                        pickup_notification_sent = 0,
+                        pickup_notification_claim_token = NULL,
+                        pickup_notification_last_attempt_at = NULL"
             : '';
         $stmt = $this->db->prepare("
             SELECT id, libro_id
@@ -582,7 +570,9 @@ class MaintenanceService
     public function activateScheduledLoans(): int
     {
         $pickupColumnReset = $this->ensurePickupNotificationColumn()
-            ? ",\n                        pickup_notification_sent = 0"
+            ? ",\n                        pickup_notification_sent = 0,
+                        pickup_notification_claim_token = NULL,
+                        pickup_notification_last_attempt_at = NULL"
             : '';
 
         // "Oggi" nel timezone applicativo come parametro bound (M9): CURDATE()
@@ -738,17 +728,22 @@ class MaintenanceService
                     $copyConflict->close();
 
                     if (!in_array($copyState, ['disponibile', 'prenotato'], true) || $copyHeld) {
-                        $this->db->rollback();
-                        SecureLogger::info(__('Attivazione prestito rinviata: copia assegnata non in sede'), [
+                        // The originally pinned copy may still be out while a
+                        // sibling copy is already back on the shelf (#366).
+                        // Fall through to the same allocator used by legacy
+                        // copyless rows instead of leaving the reservation
+                        // stuck on the unavailable physical item forever.
+                        SecureLogger::info(__('Attivazione prestito: copia assegnata non in sede, ricerca alternativa'), [
                             'prestito_id' => $loanId,
                             'libro_id' => $bookId,
                             'copia_id' => $copiaId,
                             'copia_stato' => $copyState,
                             'copia_impegnata' => $copyHeld,
                         ]);
-                        continue;
+                        $copiaId = 0;
                     }
-                } else {
+                }
+                if ($copiaId <= 0) {
                     $freeCopy = $this->db->prepare("
                         SELECT c.id
                         FROM copie c
@@ -896,6 +891,7 @@ class MaintenanceService
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'attiva'
             AND " . \App\Support\LoanEligibility::promotableReservationWhere('p') . "
+            AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
             ORDER BY p.libro_id, p.queue_position ASC
         ");
 
@@ -903,7 +899,7 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare scheduled reservations query');
         }
 
-        $stmt->bind_param('ss', $today, $today);
+        $stmt->bind_param('sss', $today, $today, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $reservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];

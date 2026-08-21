@@ -478,23 +478,14 @@ class NcipServerPlugin
         // Determine the message type (first child element after NCIPMessage root)
         $messageType = $this->detectMessageType($xml);
 
-        // Enforcement dei partner (retrocompatibile): la tabella ncip_partners
-        // era solo metadato admin — disattivare un partner non revocava nulla e
-        // qualunque credenziale staff eseguiva circolazione da qualsiasi origine.
-        // Se esiste almeno un partner ATTIVO configurato, le operazioni di
-        // circolazione richiedono un FromAgencyId corrispondente a un partner
-        // attivo (per agency_id, code o ISIL). Senza partner configurati resta
-        // la sola Basic auth, come prima.
-        $writeOps = ['CheckOutItem', 'CheckInItem', 'RenewItem', 'RequestItem', 'CancelRequestItem'];
+        // La tabella partner esisteva storicamente come metadato amministrativo:
+        // la sua mera presenza non può trasformarsi implicitamente in una nuova
+        // policy di autorizzazione e bloccare i client NCIP già configurati.
+        // Quando FromAgencyId identifica un partner attivo lo conserviamo per il
+        // log transazioni; un header assente/sconosciuto lascia partner_id NULL.
+        // L'autorità per le operazioni di scrittura resta la Basic auth staff.
         $partner = $this->resolvePartner($xml, $messageType);
         $this->currentPartnerId = $partner !== null ? (int) $partner['id'] : null;
-        if (in_array($messageType, $writeOps, true) && $partner === null && $this->hasEnforceablePartners()) {
-            unset($xml);
-            return $this->xmlResponse(
-                $response->withStatus(403),
-                $this->buildProblem('Unknown or inactive requesting agency', 'unauthorized')
-            );
-        }
 
         $result = match ($messageType) {
             'LookupItem'          => $this->handleLookupItem($request, $response, $xml),
@@ -701,11 +692,30 @@ class NcipServerPlugin
                 $this->buildProblem('Invalid ItemId', 'invalid-data')
             );
         }
-        // UserId opzionale (NCIP lo ammette su CheckInItem): con più prestiti
-        // NCIP aperti dello stesso titolo disambigua QUALE prestito chiudere.
-        $checkInUserId = $this->parseNcipNumericId((string) ($xml->children($ns)->CheckInItem->UserId->UserIdentifierValue ?? ''));
+        // UserId è opzionale, ma se il client lo include deve essere un ID
+        // positivo valido: trattare un valore malformato come "assente" farebbe
+        // ricadere sulla ricerca per solo titolo e potrebbe chiudere il prestito
+        // di un altro utente.
+        $checkInItem = $xml->children($ns)->CheckInItem;
+        $checkInUserId = null;
+        if (isset($checkInItem->UserId)) {
+            $checkInUserId = $this->parseNcipNumericId((string) ($checkInItem->UserId->UserIdentifierValue ?? ''));
+            if ($checkInUserId === null) {
+                return $this->xmlResponse(
+                    $response,
+                    $this->buildProblem('Invalid UserId', 'invalid-data')
+                );
+            }
+        }
 
-        $loan = $this->findActiveLoan($itemId, $checkInUserId);
+        $ambiguousLoan = false;
+        $loan = $this->findActiveLoan($itemId, $checkInUserId, $ambiguousLoan);
+        if ($ambiguousLoan) {
+            return $this->xmlResponse(
+                $response,
+                $this->buildProblem('Multiple active loans for this item; UserId is required', 'invalid-data')
+            );
+        }
         if ($loan === null) {
             return $this->xmlResponse(
                 $response,
@@ -755,11 +765,28 @@ class NcipServerPlugin
                 $this->buildProblem('Invalid ItemId', 'invalid-data')
             );
         }
-        // UserId opzionale: disambigua quale prestito rinnovare quando lo
-        // stesso titolo è fuori con più utenti via NCIP.
-        $renewUserId = $this->parseNcipNumericId((string) ($xml->children($ns)->RenewItem->UserId->UserIdentifierValue ?? ''));
+        // Come CheckInItem: assenza ammessa, presenza malformata/non-positiva no.
+        // In particolare non degradare "abc"/"0" a una ricerca per solo titolo.
+        $renewItem = $xml->children($ns)->RenewItem;
+        $renewUserId = null;
+        if (isset($renewItem->UserId)) {
+            $renewUserId = $this->parseNcipNumericId((string) ($renewItem->UserId->UserIdentifierValue ?? ''));
+            if ($renewUserId === null) {
+                return $this->xmlResponse(
+                    $response,
+                    $this->buildProblem('Invalid UserId', 'invalid-data')
+                );
+            }
+        }
 
-        $loan = $this->findActiveLoan($itemId, $renewUserId);
+        $ambiguousLoan = false;
+        $loan = $this->findActiveLoan($itemId, $renewUserId, $ambiguousLoan);
+        if ($ambiguousLoan) {
+            return $this->xmlResponse(
+                $response,
+                $this->buildProblem('Multiple active loans for this item; UserId is required', 'invalid-data')
+            );
+        }
         if ($loan === null) {
             return $this->xmlResponse(
                 $response,
@@ -1308,21 +1335,25 @@ class NcipServerPlugin
     }
 
     /**
+     * @param-out bool $ambiguous True only when UserId is absent and the title
+     *                            has more than one open NCIP loan.
      * @return array<string, mixed>|null
      */
-    private function findActiveLoan(int $bookId, ?int $userId = null): ?array
+    private function findActiveLoan(int $bookId, ?int $userId, bool &$ambiguous): ?array
     {
+        $ambiguous = false;
         // Con più prestiti NCIP aperti dello stesso titolo (utenti diversi su
-        // copie diverse) il solo libro_id è ambiguo: un CheckInItem chiuderebbe
-        // il più recente, non necessariamente quello rientrato. Quando il
-        // messaggio porta uno UserId, filtra anche per utente.
+        // copie diverse) il solo libro_id è ambiguo. Leggine al massimo due:
+        // senza UserId due righe devono produrre un errore, mai una mutazione
+        // arbitraria; con UserId basta la singola riga filtrata.
         $userFilter = $userId !== null ? ' AND utente_id = ?' : '';
+        $limit = $userId !== null ? 1 : 2;
         $stmt = $this->db->prepare(
             "SELECT id, libro_id, utente_id, data_scadenza
                FROM prestiti
               WHERE libro_id = ? AND origine = 'ncip' AND attivo = 1
                 AND stato IN ('in_corso','in_ritardo'){$userFilter}
-              ORDER BY data_prestito DESC LIMIT 1"
+              ORDER BY data_prestito DESC, id DESC LIMIT {$limit}"
         );
         if ($stmt === false) { return null; }
         if ($userId !== null) {
@@ -1337,6 +1368,11 @@ class NcipServerPlugin
             return null;
         }
         $row = $res->fetch_assoc();
+        if ($userId === null && $row !== null && $res->fetch_assoc() !== null) {
+            $ambiguous = true;
+            $stmt->close();
+            return null;
+        }
         $stmt->close();
         return is_array($row) ? $row : null;
     }
@@ -1454,14 +1490,16 @@ class NcipServerPlugin
                        SELECT 1 FROM prestiti p
                        WHERE p.copia_id = c.id
                          AND p.data_prestito <= ?
-                         AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                         AND (p.stato = 'in_ritardo'
+                              OR (p.stato = 'in_corso' AND p.data_scadenza < ?)
+                              OR p.data_scadenza >= ?)
                          AND ((p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                               OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL))
                    )
                  ORDER BY c.numero_inventario ASC
                  LIMIT 1 FOR UPDATE"
             );
-            $copy->bind_param('iss', $bookId, $dueDate, $today);
+            $copy->bind_param('isss', $bookId, $dueDate, $today, $today);
             $copy->execute();
             $copyRow = $copy->get_result()->fetch_assoc();
             $copy->close();
@@ -1711,9 +1749,8 @@ class NcipServerPlugin
         $ns = self::NCIP_NS;
         $message = $xml->children($ns)->{$messageType} ?? null;
         if (!($message instanceof \SimpleXMLElement) || $message->count() === 0) {
-            // Stesso fallback senza namespace di detectMessageType(): alcune
-            // implementazioni omettono il namespace NCIP e senza questo ramo
-            // l'enforcement risponderebbe 403 anche a un FromAgencyId valido.
+            // Same namespace-free fallback as detectMessageType(): partner
+            // attribution must work for legacy clients that omit the NCIP NS.
             $message = $xml->children()->{$messageType} ?? null;
         }
         if (!($message instanceof \SimpleXMLElement)) {
@@ -1745,51 +1782,6 @@ class NcipServerPlugin
             return null;
         }
         return $rows[0] ?? null;
-    }
-
-    /**
-     * True se esiste almeno un partner attivo CON un identificativo
-     * (agency_id, code o ISIL): solo allora l'enforcement può scattare.
-     * Partner attivi ma senza alcun identificativo restano puro metadato
-     * amministrativo e non devono rompere i deployment esistenti.
-     */
-    private function hasEnforceablePartners(): bool
-    {
-        try {
-            $res = $this->db->query(
-                "SELECT 1 FROM ncip_partners
-                  WHERE active = 1
-                    AND (NULLIF(TRIM(COALESCE(agency_id, '')), '') IS NOT NULL
-                         OR NULLIF(TRIM(COALESCE(code, '')), '') IS NOT NULL
-                         OR NULLIF(TRIM(COALESCE(isil, '')), '') IS NOT NULL)
-                  LIMIT 1"
-            );
-        } catch (\mysqli_sql_exception $e) {
-            // ER_NO_SUCH_TABLE: install legacy dove la tabella partner non è
-            // ancora migrata — la funzionalità non esiste, l'enforcement non è
-            // applicabile (nessun 403, come prima dell'introduzione dei partner).
-            if ((int) $e->getCode() === 1146) {
-                return false;
-            }
-            // Qualsiasi altro errore DB: fail-secure. Non sappiamo se esistono
-            // partner con enforcement, quindi NON degradare alla sola Basic
-            // auth: le operazioni di scrittura senza partner risolto vengono
-            // rifiutate finché il DB non risponde.
-            SecureLogger::error('[NcipServer] Partner enforcement check failed: ' . $e->getMessage());
-            return true;
-        }
-        if (!($res instanceof \mysqli_result)) {
-            // query() fallita senza eccezione (report mode disattivo): stessa
-            // distinzione del ramo catch.
-            if ((int) $this->db->errno === 1146) {
-                return false;
-            }
-            SecureLogger::error('[NcipServer] Partner enforcement check failed: ' . $this->db->error);
-            return true;
-        }
-        $has = $res->num_rows > 0;
-        $res->free();
-        return $has;
     }
 
     private function closeLoan(int $loanId): bool
@@ -1932,15 +1924,19 @@ class NcipServerPlugin
 
             $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
             if ($copyId !== null) {
+                $applicationToday = \App\Support\DateHelper::today();
                 $overlap = $this->db->prepare(
                     "SELECT 1 FROM prestiti
                      WHERE copia_id = ? AND id <> ?
-                       AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                       AND data_prestito <= ?
+                       AND (stato = 'in_ritardo'
+                            OR (stato = 'in_corso' AND data_scadenza < ?)
+                            OR data_scadenza >= ?)
                        AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                             OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL))
                      LIMIT 1"
                 );
-                $overlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $extensionStart);
+                $overlap->bind_param('iisss', $copyId, $loanId, $newDueDate, $applicationToday, $extensionStart);
                 $overlap->execute();
                 $hasOverlap = (bool) $overlap->get_result()->fetch_row();
                 $overlap->close();
@@ -2039,7 +2035,8 @@ class NcipServerPlugin
     private function parseNcipNumericId(string $value): ?int
     {
         $trimmed = trim($value);
-        return ctype_digit($trimmed) ? (int) $trimmed : null;
+        $id = ctype_digit($trimmed) ? (int) $trimmed : 0;
+        return $id > 0 ? $id : null;
     }
 
     /**

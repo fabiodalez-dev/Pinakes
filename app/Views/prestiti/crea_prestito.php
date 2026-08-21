@@ -17,6 +17,7 @@ $meUserId = (int) ($meUserId ?? 0);
 $meUserName = (string) ($meUserName ?? '');
 $defaultLoanDays = max(1, (int) ($defaultLoanDays ?? 30));
 $allowMultipleLoansSameBook = (bool) ($allowMultipleLoansSameBook ?? false);
+$loanSubmissionToken = (string) ($loanSubmissionToken ?? '');
 
 $csrf = Csrf::ensureToken();
 // Get locale from session (same as frontend/layout.php)
@@ -98,6 +99,9 @@ $apiBookRoute = route_path('api_book');
         case 'copy_not_available':
           echo __('La copia indicata non è disponibile per il periodo richiesto.');
           break;
+        case 'duplicate_submission':
+          echo __("La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.");
+          break;
         default:
           echo __('Errore durante la creazione del prestito.');
       }
@@ -122,6 +126,7 @@ $apiBookRoute = route_path('api_book');
         data-multiple-copy-mode="<?= $allowMultipleLoansSameBook ? '1' : '0' ?>"
         class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="loan_submission_token" value="<?= htmlspecialchars($loanSubmissionToken, ENT_QUOTES, 'UTF-8') ?>">
 
     <!-- Ricerca Utente -->
     <div class="relative">

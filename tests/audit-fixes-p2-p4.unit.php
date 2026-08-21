@@ -360,6 +360,7 @@ try {
     $request = (new ServerRequestFactory())
         ->createServerRequest('POST', '/admin/loans/store')
         ->withParsedBody([
+            'loan_submission_token' => \App\Support\OneTimeFormToken::issue('loan.create'),
             'utente_id' => (string) $storeUser,
             'libro_id' => (string) $bookS,
             'data_prestito' => $d(0),

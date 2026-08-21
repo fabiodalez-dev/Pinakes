@@ -264,7 +264,8 @@ class ReservationReassignmentService
                     (int) $candidate['utente_id'],
                     (string) $candidate['data_prestito'],
                     (string) $candidate['data_scadenza'],
-                    $targetCommitments
+                    $targetCommitments,
+                    $today
                 )) {
                     $reservation = $candidate;
                     break;
@@ -362,6 +363,7 @@ class ReservationReassignmentService
         $reservationId = (int) $reservation['id'];
         $resStart = (string) $reservation['data_prestito'];
         $resEnd = (string) $reservation['data_scadenza'];
+        $today = \App\Support\DateHelper::today();
         $excludedCopies = [$copiaId]; // Copie da escludere dalla ricerca
         // The allocator pre-filters overlaps, so retries are only needed when a
         // concurrent transaction claims a candidate between lookup and lock.
@@ -377,7 +379,8 @@ class ReservationReassignmentService
                 $reservationId,
                 (int) $reservation['utente_id'],
                 $resStart,
-                $resEnd
+                $resEnd,
+                $today
             );
 
             if (!$nextCopyId) {
@@ -444,12 +447,15 @@ class ReservationReassignmentService
                 $ovl = $this->db->prepare("
                     SELECT 1 FROM prestiti
                     WHERE copia_id = ? AND id <> ?
-                    AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                    AND data_prestito <= ?
+                    AND (stato = 'in_ritardo'
+                         OR (stato = 'in_corso' AND data_scadenza < ?)
+                         OR data_scadenza >= ?)
                     AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                           OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
                     LIMIT 1
                 ");
-                $ovl->bind_param('iiss', $nextCopyId, $reservationId, $resEnd, $resStart);
+                $ovl->bind_param('iisss', $nextCopyId, $reservationId, $resEnd, $today, $resStart);
                 $ovl->execute();
                 $hasOverlap = (bool) $ovl->get_result()->fetch_row();
                 $ovl->close();
@@ -620,7 +626,8 @@ class ReservationReassignmentService
         int $reservationId,
         int $userId,
         string $startDate,
-        string $endDate
+        string $endDate,
+        string $applicationToday
     ): ?int
     {
         $sql = "
@@ -646,15 +653,17 @@ class ReservationReassignmentService
                 WHERE p.copia_id = c.id
                   AND p.id <> ?
                   AND p.data_prestito <= ?
-                  AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                  AND (p.stato = 'in_ritardo'
+                       OR (p.stato = 'in_corso' AND p.data_scadenza < ?)
+                       OR p.data_scadenza >= ?)
                   AND (
                       (p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                       OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                   )
             )
         ";
-        $params = [$libroId, $libroId, $userId, $reservationId, $reservationId, $endDate, $startDate];
-        $types = 'iiiiiss';
+        $params = [$libroId, $libroId, $userId, $reservationId, $reservationId, $endDate, $applicationToday, $startDate];
+        $types = 'iiiiisss';
 
         if (!empty($excludeCopiaIds)) {
             $placeholders = implode(',', array_fill(0, count($excludeCopiaIds), '?'));

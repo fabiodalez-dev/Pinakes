@@ -226,10 +226,12 @@ $callStore = static function (
     string $copyCode,
     bool $saveAndNew = false,
     ?string $startDate = null,
-    ?string $endDate = null
+    ?string $endDate = null,
+    ?string $submissionToken = null
 ) use ($db, $today, $due) {
     $_SESSION['user'] = ['tipo_utente' => 'admin', 'id' => $adminId];
     $body = [
+        'loan_submission_token' => $submissionToken ?? \App\Support\OneTimeFormToken::issue('loan.create'),
         'utente_id' => (string) $userId,
         'libro_id' => (string) $bookId,
         'copy_code' => $copyCode,
@@ -572,6 +574,37 @@ try {
         'real store() permits two simultaneous loans of distinct copies of one title while ON'
     );
 
+    $replayBorrower = $makeUser();
+    [$replayBook, $replayCopyIds] = $makeBook(2);
+    $replayToken = \App\Support\OneTimeFormToken::issue('loan.create');
+    $firstReplayResponse = $callStore(
+        $admin,
+        $replayBorrower,
+        $replayBook,
+        '',
+        false,
+        null,
+        null,
+        $replayToken
+    );
+    $secondReplayResponse = $callStore(
+        $admin,
+        $replayBorrower,
+        $replayBook,
+        '',
+        false,
+        null,
+        null,
+        $replayToken
+    );
+    $check(
+        str_contains($firstReplayResponse->getHeaderLine('Location'), 'created=1')
+            && str_contains($secondReplayResponse->getHeaderLine('Location'), 'error=duplicate_submission')
+            && $loanCount($replayBook, $replayBorrower) === 1
+            && count($replayCopyIds) === 2,
+        'server-side one-time token rejects a replay before it auto-assigns another copy'
+    );
+
     // Each physical copy is still a full active loan for the independent
     // borrower cap. The opt-in changes title multiplicity, never quota math.
     $settings->set('loans', 'max_active_loans_per_user', '2');
@@ -879,6 +912,36 @@ try {
     $check(
         !str_contains($response->getHeaderLine('Location'), 'error=') && $reassignedUser === $reassignTarget,
         'real update() permits reassignment when both same-title loans have distinct copies'
+    );
+
+    $pickupSource = $makeUser();
+    $pickupTarget = $makeUser();
+    [$pickupReassignBook, $pickupReassignCopies] = $makeBook(1);
+    $pickupReassignLoan = $makeLoan(
+        $pickupReassignBook,
+        $pickupReassignCopies[0],
+        $pickupSource,
+        'da_ritirare',
+        1
+    );
+    $db->query("UPDATE prestiti SET pickup_notification_sent = 1 WHERE id = {$pickupReassignLoan}");
+    $request = (new ServerRequestFactory())
+        ->createServerRequest('POST', "/admin/loans/edit/{$pickupReassignLoan}")
+        ->withParsedBody(['utente_id' => (string) $pickupTarget]);
+    $response = (new PrestitiController())->update(
+        $request,
+        (new ResponseFactory())->createResponse(),
+        $db,
+        $pickupReassignLoan
+    );
+    $pickupReassigned = $db->query(
+        "SELECT utente_id, pickup_notification_sent FROM prestiti WHERE id = {$pickupReassignLoan}"
+    )->fetch_assoc() ?: [];
+    $check(
+        !str_contains($response->getHeaderLine('Location'), 'error=')
+            && (int) ($pickupReassigned['utente_id'] ?? 0) === $pickupTarget
+            && (int) ($pickupReassigned['pickup_notification_sent'] ?? 1) === 0,
+        'reassigning a ready-for-pickup loan releases the old recipient notification claim'
     );
 
     $legacyTarget = $makeUser();

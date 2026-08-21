@@ -321,7 +321,7 @@ try {
             && $row['pickup_deadline'] <= $row['data_scadenza'];
     });
 
-    $scenario('a reservation pinned to an out copy stays queued even when a sibling copy is free', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $maintenance, $loanRow, $d): bool {
+    $scenario('a reservation pinned to an out copy moves to a free sibling before pickup', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $maintenance, $loanRow, $d): bool {
         $old = $mkUser('s03a');
         $next = $mkUser('s03b');
         [$bookId, [$outCopy, $freeCopy]] = $mkBook('s03', ['disponibile', 'disponibile']);
@@ -331,7 +331,9 @@ try {
         $maintenance->updateOverdueLoans();
         $maintenance->activateScheduledLoans();
         $row = $loanRow($successor);
-        return ($row['stato'] ?? '') === 'prenotato' && $freeCopy > 0;
+        return ($row['stato'] ?? '') === 'da_ritirare'
+            && (int) ($row['copia_id'] ?? 0) === $freeCopy
+            && $freeCopy > 0;
     });
 
     $scenario('a pinned reservation promotes as soon as its own copy is returned', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $returnLoan, $maintenance, $loanRow, $d): bool {

@@ -26,6 +26,7 @@ on:
 
 permissions:
   contents: read
+  attestations: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -68,45 +69,73 @@ jobs:
       - name: Wait for MySQL
         run: until mysqladmin ping -h"127.0.0.1" --silent; do sleep 1; done
 
-      # ── Step 1: Resolve latest stable release ─────────────────────────────
-      - name: Resolve latest release
+      # ── Step 1: Resolve the newest stable baseline older than target ───────
+      - name: Resolve upgrade baseline
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if gh api \
+          TARGET_VERSION=$(jq -er '.version | select(type == "string" and length > 0)' version.json)
+          gh api --paginate --slurp \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "repos/${GH_REPO}/releases/latest" >/tmp/release.json 2>/tmp/release.err; then
-            :
-          elif grep -q 'HTTP 404' /tmp/release.err; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No releases found — skipping upgrade path (fresh install test only)"
+            "repos/${GH_REPO}/releases?per_page=100" >/tmp/releases.json
+
+          TARGET_VERSION="$TARGET_VERSION" python3 <<'PY' >/tmp/release.json
+          import json
+          import os
+          import re
+
+          target = os.environ['TARGET_VERSION']
+          target_match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)(?:-(?:alpha|beta|rc)\.\d+)?', target)
+          if target_match is None:
+              raise SystemExit(f'Unsupported target version: {target}')
+          target_key = tuple(map(int, target_match.groups()))
+
+          pages = json.load(open('/tmp/releases.json', encoding='utf-8'))
+          candidates = []
+          for release in (item for page in pages for item in page):
+              match = re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)', release.get('tag_name', ''))
+              if release.get('draft') or release.get('prerelease') or match is None:
+                  continue
+              key = tuple(map(int, match.groups()))
+              if key < target_key:
+                  candidates.append((key, release))
+
+          print(json.dumps(max(candidates, key=lambda item: item[0])[1] if candidates else {}))
+          PY
+
+          TAG=$(jq -r '.tag_name // empty' /tmp/release.json)
+          if [ -z "$TAG" ]; then
+            {
+              echo "skip=true"
+              echo "target_version=$TARGET_VERSION"
+            } >> "$GITHUB_OUTPUT"
+            echo "No stable release older than $TARGET_VERSION — running fresh-install checks only"
             exit 0
-          else
-            cat /tmp/release.err
-            echo "GitHub release API failed — aborting"
-            exit 1
           fi
-          TAG=$(python3 -c "import json; d=json.load(open('/tmp/release.json')); print(d.get('tag_name',''))")
-          ASSET_ID=$(python3 -c "import json; d=json.load(open('/tmp/release.json')); a=[a for a in d.get('assets',[]) if a.get('state') == 'uploaded' and a['name'].endswith('.zip')]; print(a[0]['id'] if len(a) == 1 else '')")
-          ASSET_NAME=$(python3 -c "import json; d=json.load(open('/tmp/release.json')); a=[a for a in d.get('assets',[]) if a.get('state') == 'uploaded' and a['name'].endswith('.zip')]; print(a[0]['name'] if len(a) == 1 else '')")
-          CHECKSUM_ID=$(python3 -c "import json; d=json.load(open('/tmp/release.json')); a=[a for a in d.get('assets',[]) if a.get('state') == 'uploaded' and a['name'].endswith('.zip.sha256')]; print(a[0]['id'] if len(a) == 1 else '')")
-          CHECKSUM_NAME=$(python3 -c "import json; d=json.load(open('/tmp/release.json')); a=[a for a in d.get('assets',[]) if a.get('state') == 'uploaded' and a['name'].endswith('.zip.sha256')]; print(a[0]['name'] if len(a) == 1 else '')")
+
+          BASELINE_VERSION=${TAG#v}
+          ASSET_ID=$(jq -r '[.assets[] | select(.state == "uploaded" and (.name | endswith(".zip")))] | if length == 1 then .[0].id else empty end' /tmp/release.json)
+          ASSET_NAME=$(jq -r '[.assets[] | select(.state == "uploaded" and (.name | endswith(".zip")))] | if length == 1 then .[0].name else empty end' /tmp/release.json)
+          CHECKSUM_ID=$(jq -r '[.assets[] | select(.state == "uploaded" and (.name | endswith(".zip.sha256")))] | if length == 1 then .[0].id else empty end' /tmp/release.json)
+          CHECKSUM_NAME=$(jq -r '[.assets[] | select(.state == "uploaded" and (.name | endswith(".zip.sha256")))] | if length == 1 then .[0].name else empty end' /tmp/release.json)
           if [ -z "$TAG" ] || [ -z "$ASSET_ID" ] || [ -z "$ASSET_NAME" ] || [ -z "$CHECKSUM_ID" ] || [ -z "$CHECKSUM_NAME" ]; then
-            echo "Latest release must provide exactly one ZIP and one ZIP.sha256 asset"
+            echo "Baseline release must provide exactly one ZIP and one ZIP.sha256 asset"
             exit 1
           fi
           {
             echo "tag=$TAG"
+            echo "baseline_version=$BASELINE_VERSION"
+            echo "target_version=$TARGET_VERSION"
             echo "asset_id=$ASSET_ID"
             echo "asset_name=$ASSET_NAME"
             echo "checksum_id=$CHECKSUM_ID"
             echo "checksum_name=$CHECKSUM_NAME"
             echo "skip=false"
           } >> "$GITHUB_OUTPUT"
-          echo "Latest release: $TAG ($ASSET_NAME; checksum verified before use)"
+          echo "Upgrade range: $BASELINE_VERSION → $TARGET_VERSION ($ASSET_NAME; checksum verified before use)"
 
       # ── Step 2: Install released schema ───────────────────────────────────
       - name: Install released schema (baseline)
@@ -115,6 +144,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          BASELINE_VERSION: ${{ steps.release.outputs.baseline_version }}
           ASSET_ID: ${{ steps.release.outputs.asset_id }}
           ARCHIVE_NAME: ${{ steps.release.outputs.asset_name }}
           CHECKSUM_ID: ${{ steps.release.outputs.checksum_id }}
@@ -129,106 +159,58 @@ jobs:
             "repos/${GH_REPO}/releases/assets/${CHECKSUM_ID}" \
             > "${RELEASE_DIR}/${CHECKSUM_NAME}"
           (cd "$RELEASE_DIR" && sha256sum -c "$CHECKSUM_NAME")
+          # The pre-immutability v0.7.63 release can technically have both its
+          # ZIP and sidecar replaced. Its GitHub provenance attestation pins the
+          # archive digest and source repository independently of those assets.
+          gh attestation verify "${RELEASE_DIR}/${ARCHIVE_NAME}" --repo "$GH_REPO"
+          ARCHIVE_PATH="${RELEASE_DIR}/${ARCHIVE_NAME}" EXPECTED_ROOT="pinakes-${RELEASE_TAG}" python3 <<'PY'
+          import os
+          import stat
+          import zipfile
+          from pathlib import PurePosixPath
+
+          archive = os.environ['ARCHIVE_PATH']
+          expected_root = os.environ['EXPECTED_ROOT']
+          with zipfile.ZipFile(archive) as package:
+              entries = package.infolist()
+              if not entries:
+                  raise SystemExit('Baseline release ZIP is empty')
+              for entry in entries:
+                  name = entry.filename
+                  path = PurePosixPath(name)
+                  mode = (entry.external_attr >> 16) & 0o170000
+                  if ('\\' in name or path.is_absolute() or '..' in path.parts
+                          or not path.parts or path.parts[0] != expected_root
+                          or mode == stat.S_IFLNK):
+                      raise SystemExit(f'Unsafe baseline ZIP entry: {name!r}')
+          PY
           mkdir "${RELEASE_DIR}/extracted"
           unzip -q "${RELEASE_DIR}/${ARCHIVE_NAME}" -d "${RELEASE_DIR}/extracted"
-          SCHEMA=$(find "${RELEASE_DIR}/extracted" -name "schema.sql" -path "*/database/*" | head -1)
-          if [ -z "$SCHEMA" ]; then
-            echo "schema.sql not found in release ZIP — aborting"
+          BASELINE_APP="${RELEASE_DIR}/extracted/pinakes-${RELEASE_TAG}"
+          SCHEMA="${BASELINE_APP}/installer/database/schema.sql"
+          if [ ! -f "$SCHEMA" ] || [ ! -f "${BASELINE_APP}/vendor/autoload.php" ]; then
+            echo "Expected application root pinakes-${RELEASE_TAG} not found in release ZIP — aborting"
             exit 1
           fi
-          echo "release_dir=${RELEASE_DIR}/extracted" >> "$GITHUB_OUTPUT"
+          EMBEDDED_VERSION=$(jq -er '.version' "${BASELINE_APP}/version.json")
+          [ "$EMBEDDED_VERSION" = "$BASELINE_VERSION" ] || {
+            echo "Baseline tag/archive mismatch: $RELEASE_TAG contains version $EMBEDDED_VERSION"
+            exit 1
+          }
+          echo "release_dir=${BASELINE_APP}" >> "$GITHUB_OUTPUT"
           echo "Using schema: $SCHEMA  (from $RELEASE_TAG)"
           mysql -h 127.0.0.1 -u root -proot pinakes_upgrade < "$SCHEMA"
-          echo "✓ Base schema installed from $RELEASE_TAG"
 
-      # ── Step 3: Apply released migrations (idempotent baseline) ───────────
-      # Released migrations run on top of the released schema.sql which is
-      # already fully migrated up to that release. Every error here is by
-      # definition idempotent: duplicate columns/keys, FKs that already exist,
-      # RENAME/CHANGE on columns that were already renamed in schema.sql, etc.
-      # The extended idempotent filter covers cases that older migration files
-      # (pre-guard era) produce when re-run on an already-migrated schema.
-      - name: Apply released migrations
-        if: steps.release.outputs.skip == 'false'
-        env:
-          RELEASE_DIR: ${{ steps.baseline.outputs.release_dir }}
-        run: |
-          MIGRATIONS=$(find "$RELEASE_DIR" -type d -name "migrations" | head -1)
-          if [ -z "$MIGRATIONS" ]; then
-            echo "No migrations dir in release ZIP — skipping"
-            exit 0
-          fi
-          FAILED=0
-          mapfile -t RELEASE_MIGRATIONS < <(find "$MIGRATIONS" -maxdepth 1 -type f -name 'migrate_*.sql' | sort -V)
-          for sql in "${RELEASE_MIGRATIONS[@]}"; do
-            echo "→ $(basename "$sql")"
-            OUTPUT=$(mysql --force -h 127.0.0.1 -u root -proot pinakes_upgrade < "$sql" 2>&1) || true
-            while IFS= read -r line; do
-              if echo "$line" | grep -qiE '^ERROR'; then
-                if echo "$line" | grep -qiE \
-                  'duplicate (column name|key|index)|table .* already exists|check constraint .* already exists|can.t drop|duplicate foreign key constraint name|unknown column'; then
-                  echo "  ↳ idempotent: $line"
-                else
-                  echo "  ✗ $line"
-                  FAILED=1
-                fi
-              fi
-            done <<< "$OUTPUT"
-          done
-          [ "$FAILED" -eq 0 ] || exit 1
-          echo "✓ Released migrations applied"
-
-      # ── Step 4: Fresh-install fallback (no prior release) ─────────────────
-      - name: Install base schema (fresh-install fallback)
-        if: steps.release.outputs.skip == 'true'
-        run: |
-          mysql -h 127.0.0.1 -u root -proot pinakes_upgrade < installer/database/schema.sql
-          echo "✓ Base schema installed from current branch (no prior release)"
-
-      # ── Step 5: Apply current branch migrations (upgrade simulation) ───────
-      - name: Apply current branch migrations
-        run: |
-          FAILED=0
-          mapfile -t CURRENT_MIGRATIONS < <(find installer/database/migrations -maxdepth 1 -type f -name 'migrate_*.sql' | sort -V)
-          for sql in "${CURRENT_MIGRATIONS[@]}"; do
-            echo "→ $(basename "$sql")"
-            OUTPUT=$(mysql --force -h 127.0.0.1 -u root -proot pinakes_upgrade < "$sql" 2>&1) || true
-            while IFS= read -r line; do
-              if echo "$line" | grep -qiE '^ERROR'; then
-                if echo "$line" | grep -qiE 'duplicate (column name|key|index)|table .* already exists|check constraint .* already exists|can.t drop|duplicate foreign key constraint name'; then
-                  echo "  ↳ idempotent: $line"
-                else
-                  echo "  ✗ $line"
-                  FAILED=1
-                fi
-              fi
-            done <<< "$OUTPUT"
-          done
-          [ "$FAILED" -eq 0 ] || exit 1
-          echo "✓ Current branch migrations applied"
-
-      # ── Step 6: Exercise runtime-only migration work ─────────────────
-      - name: Run contributor backfill through the application updater
-        run: |
-          mysql -h 127.0.0.1 -u root -proot pinakes_upgrade <<'SQL'
-          DELETE FROM system_settings
-           WHERE category = 'migrations' AND setting_key = 'contributors_backfilled';
-          DELETE FROM libri WHERE titolo = 'ZZ upgrade smoke contributor backfill';
-          INSERT INTO libri (titolo, illustratore, curatore)
-          VALUES (
-            'ZZ upgrade smoke contributor backfill',
-            'ZZ Upgrade Illustrator One; ZZ Upgrade Illustrator Two',
-            'García Márquez, Gabriel José'
-          );
-          SQL
-
-          TARGET_VERSION=$(python3 -c "import json; print(json.load(open('version.json')).get('version', ''))")
-          [ -n "$TARGET_VERSION" ] || { echo "Target version missing from version.json"; exit 1; }
-          TARGET_VERSION="$TARGET_VERSION" php <<'PHP'
+          # schema.sql intentionally contains structure only. A real installed
+          # baseline has already booted PluginManager, which creates the bundled
+          # registry rows and plugin-owned schemas. Reproduce that state with the
+          # code and manifests from the downloaded release, before any overlay.
+          BASELINE_APP="$BASELINE_APP" php <<'PHP'
           <?php
           declare(strict_types=1);
 
-          require __DIR__ . '/vendor/autoload.php';
+          $baseline = (string) getenv('BASELINE_APP');
+          require $baseline . '/vendor/autoload.php';
           mysqli_report(MYSQLI_REPORT_OFF);
           $db = new mysqli('127.0.0.1', 'root', 'root', 'pinakes_upgrade', 3306);
           if ($db->connect_errno !== 0) {
@@ -236,13 +218,263 @@ jobs:
               exit(1);
           }
           $db->set_charset('utf8mb4');
-          $target = (string) getenv('TARGET_VERSION');
-          $result = (new App\Support\Updater($db))->runMigrations($target, $target);
-          if (!$result['success']) {
-              fwrite(STDERR, 'Updater failed: ' . ($result['error'] ?? 'unknown error') . "\n");
+          (new App\Support\PluginManager($db, new App\Support\HookManager($db)))
+              ->autoRegisterBundledPlugins();
+          $expected = App\Support\BundledPlugins::LIST;
+          sort($expected, SORT_STRING);
+          $actual = [];
+          $result = $db->query('SELECT name FROM plugins ORDER BY name');
+          while ($result instanceof mysqli_result && ($row = $result->fetch_assoc()) !== null) {
+              $actual[] = (string) $row['name'];
+          }
+          if ($actual !== $expected) {
+              fwrite(STDERR, 'Baseline plugin registry mismatch: ' . json_encode($actual)
+                  . ', expected ' . json_encode($expected) . "\n");
               exit(1);
           }
           PHP
+          echo "✓ Base schema and bundled plugin registry installed from $RELEASE_TAG"
+
+      # ── Step 3: Fresh-install fallback (no prior release) ─────────────────
+      - name: Install base schema (fresh-install fallback)
+        if: steps.release.outputs.skip == 'true'
+        run: |
+          mysql -h 127.0.0.1 -u root -proot pinakes_upgrade < installer/database/schema.sql
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          require getcwd() . '/vendor/autoload.php';
+          mysqli_report(MYSQLI_REPORT_OFF);
+          $db = new mysqli('127.0.0.1', 'root', 'root', 'pinakes_upgrade', 3306);
+          if ($db->connect_errno !== 0) {
+              fwrite(STDERR, "Database connection failed: {$db->connect_error}\n");
+              exit(1);
+          }
+          $db->set_charset('utf8mb4');
+          (new App\Support\PluginManager($db, new App\Support\HookManager($db)))
+              ->autoRegisterBundledPlugins();
+          PHP
+          echo "✓ Base schema and bundled plugin registry installed from current branch"
+
+      # ── Step 4: Upgrade through the production migration runner ───────────
+      - name: Upgrade baseline through Updater and prove idempotency
+        if: steps.release.outputs.skip == 'false'
+        env:
+          BASELINE_APP: ${{ steps.baseline.outputs.release_dir }}
+          BASELINE_VERSION: ${{ steps.release.outputs.baseline_version }}
+          TARGET_VERSION: ${{ steps.release.outputs.target_version }}
+        run: |
+          PICKUP_COLUMNS_BEFORE=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='pinakes_upgrade' AND table_name='prestiti' AND column_name IN ('pickup_notification_sent','pickup_notification_claim_token','pickup_notification_last_attempt_at')")
+          # The single-quoted payload below is PHP, not shell.
+          # shellcheck disable=SC2016
+          EXPECT_0764=$(BASELINE_VERSION="$BASELINE_VERSION" TARGET_VERSION="$TARGET_VERSION" php -r '
+            $from = (string) getenv("BASELINE_VERSION");
+            $to = (string) getenv("TARGET_VERSION");
+            echo version_compare($from, "0.7.64", "<") && version_compare($to, "0.7.64", ">=") ? "yes" : "no";
+          ')
+          if [ "$EXPECT_0764" = "yes" ] && [ "$PICKUP_COLUMNS_BEFORE" -ne 0 ]; then
+            echo "Baseline $BASELINE_VERSION unexpectedly already has 0.7.64 pickup notification columns"
+            exit 1
+          fi
+
+          mysql -h 127.0.0.1 -u root -proot pinakes_upgrade <<'SQL'
+          DELETE FROM system_settings
+           WHERE category = 'migrations' AND setting_key = 'contributors_backfilled';
+          INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente, email_verificata)
+          VALUES ('UPGRADE-SMOKE-0764', 'Upgrade', 'Smoke', 'upgrade-smoke-0764@example.invalid', 'not-a-real-hash', 'attivo', 'standard', 1);
+          SET @upgrade_smoke_user_id = LAST_INSERT_ID();
+          INSERT INTO libri (titolo, illustratore, curatore)
+          VALUES (
+            'ZZ upgrade smoke contributor backfill',
+            'ZZ Upgrade Illustrator One; ZZ Upgrade Illustrator Two',
+            'García Márquez, Gabriel José'
+          );
+          SET @upgrade_smoke_book_id = LAST_INSERT_ID();
+          INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo)
+          VALUES (@upgrade_smoke_book_id, @upgrade_smoke_user_id, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 7 DAY), 'da_ritirare', 1);
+          INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, data_restituzione, stato, attivo)
+          VALUES (@upgrade_smoke_book_id, @upgrade_smoke_user_id, DATE_SUB(CURRENT_DATE, INTERVAL 14 DAY), DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY), DATE_SUB(CURRENT_DATE, INTERVAL 8 DAY), 'restituito', 0);
+          SQL
+
+          BASELINE_VERSION="$BASELINE_VERSION" TARGET_VERSION="$TARGET_VERSION" EXPECT_0764="$EXPECT_0764" php <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          $baselineRoot = rtrim((string) getenv('BASELINE_APP'), DIRECTORY_SEPARATOR);
+          $currentRoot = (string) getcwd();
+          if ($baselineRoot === '' || !is_file($baselineRoot . '/vendor/autoload.php')) {
+              fwrite(STDERR, "Downloaded baseline application is missing\n");
+              exit(1);
+          }
+          require $baselineRoot . '/vendor/autoload.php';
+          mysqli_report(MYSQLI_REPORT_OFF);
+          $db = new mysqli('127.0.0.1', 'root', 'root', 'pinakes_upgrade', 3306);
+          if ($db->connect_errno !== 0) {
+              fwrite(STDERR, "Database connection failed: {$db->connect_error}\n");
+              exit(1);
+          }
+          $db->set_charset('utf8mb4');
+          $from = (string) getenv('BASELINE_VERSION');
+          $target = (string) getenv('TARGET_VERSION');
+
+          $baselineVersion = json_decode(
+              (string) file_get_contents($baselineRoot . '/version.json'),
+              true,
+              512,
+              JSON_THROW_ON_ERROR
+          )['version'] ?? '';
+          if ($baselineVersion !== $from) {
+              fwrite(STDERR, "Loaded baseline version {$baselineVersion}, expected {$from}\n");
+              exit(1);
+          }
+
+          // Force the starting release's Updater class and instantiate it BEFORE
+          // overlaying target files. installUpdate() behaves the same way: the old
+          // object remains in memory after it copies the new package, then that
+          // old runner executes the newly copied migration files.
+          $updaterReflection = new ReflectionClass(App\Support\Updater::class);
+          $loadedUpdaterFile = realpath((string) $updaterReflection->getFileName());
+          $expectedUpdaterFile = realpath($baselineRoot . '/app/Support/Updater.php');
+          if ($loadedUpdaterFile === false || $loadedUpdaterFile !== $expectedUpdaterFile) {
+              fwrite(STDERR, "Updater was not loaded from the downloaded baseline\n");
+              exit(1);
+          }
+          $updater = new App\Support\Updater($db);
+
+          /** @param non-empty-string $source @param non-empty-string $destination */
+          $copyTree = static function (string $source, string $destination): void {
+              if (!is_dir($destination) && !mkdir($destination, 0775, true) && !is_dir($destination)) {
+                  throw new RuntimeException("Could not create overlay directory: {$destination}");
+              }
+              $prefixLength = strlen(rtrim($source, DIRECTORY_SEPARATOR)) + 1;
+              $iterator = new RecursiveIteratorIterator(
+                  new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+                  RecursiveIteratorIterator::SELF_FIRST
+              );
+              foreach ($iterator as $item) {
+                  if ($item->isLink()) {
+                      throw new RuntimeException("Target source overlay contains a symlink: {$item->getPathname()}");
+                  }
+                  $relative = substr($item->getPathname(), $prefixLength);
+                  $targetPath = $destination . DIRECTORY_SEPARATOR . $relative;
+                  if ($item->isDir()) {
+                      if (!is_dir($targetPath) && !mkdir($targetPath, 0775, true) && !is_dir($targetPath)) {
+                          throw new RuntimeException("Could not create overlay directory: {$targetPath}");
+                      }
+                  } elseif (!copy($item->getPathname(), $targetPath)) {
+                      throw new RuntimeException("Could not overlay target file: {$relative}");
+                  }
+              }
+          };
+
+          $copyTree($currentRoot . '/app', $baselineRoot . '/app');
+          $copyTree($currentRoot . '/storage/plugins', $baselineRoot . '/storage/plugins');
+          $copyTree(
+              $currentRoot . '/installer/database/migrations',
+              $baselineRoot . '/installer/database/migrations'
+          );
+          foreach (['installer/database/triggers.sql', 'version.json'] as $relativeFile) {
+              if (!copy($currentRoot . '/' . $relativeFile, $baselineRoot . '/' . $relativeFile)) {
+                  throw new RuntimeException("Could not overlay target file: {$relativeFile}");
+              }
+          }
+
+          // Production synchronizes bundled manifests after copying their target
+          // files and before database migrations. The class was not loaded by the
+          // baseline Updater constructor, so autoload resolves this implementation
+          // from the newly overlaid target tree just as it does in installUpdate().
+          (new App\Support\PluginManager($db, new App\Support\HookManager($db)))
+              ->autoRegisterBundledPlugins();
+
+          $shouldRun = static function (string $migration, string $rangeFrom, string $rangeTo): bool {
+              if (method_exists(App\Support\Updater::class, 'shouldRunMigration')) {
+                  return App\Support\Updater::shouldRunMigration($migration, $rangeFrom, $rangeTo);
+              }
+              return version_compare($migration, $rangeFrom, '>')
+                  && version_compare($migration, $rangeTo, '<=');
+          };
+          foreach ([
+              ['0.7.63', '0.7.64-rc.1', false],
+              ['0.7.63', '0.7.64', true],
+              ['0.7.63', '0.7.65-rc.1', true],
+          ] as [$matrixFrom, $matrixTarget, $matrixExpected]) {
+              if ($shouldRun('0.7.64', $matrixFrom, $matrixTarget) !== $matrixExpected) {
+                  fwrite(STDERR, "Migration range predicate failed for {$matrixFrom} → {$matrixTarget}\n");
+                  exit(1);
+              }
+          }
+
+          $expected = array_values(array_filter(
+              array_map('basename', glob($baselineRoot . '/installer/database/migrations/migrate_*.sql') ?: []),
+              static function (string $filename) use ($from, $target, $shouldRun): bool {
+                  if (preg_match('/^migrate_(.+)\.sql$/', $filename, $matches) !== 1) {
+                      return false;
+                  }
+                  return $shouldRun($matches[1], $from, $target);
+              }
+          ));
+          usort($expected, static function (string $a, string $b): int {
+              preg_match('/^migrate_(.+)\.sql$/', $a, $aMatch);
+              preg_match('/^migrate_(.+)\.sql$/', $b, $bMatch);
+              return version_compare($aMatch[1], $bMatch[1]);
+          });
+
+          $first = $updater->runMigrations($from, $target);
+          if (!$first['success']) {
+              fwrite(STDERR, 'Updater failed: ' . ($first['error'] ?? 'unknown error') . "\n");
+              exit(1);
+          }
+          if ($first['executed'] !== $expected) {
+              fwrite(STDERR, 'Updater executed ' . json_encode($first['executed'])
+                  . ', expected ' . json_encode($expected) . "\n");
+              exit(1);
+          }
+          if (getenv('EXPECT_0764') === 'yes' && !in_array('migrate_0.7.64.sql', $first['executed'], true)) {
+              fwrite(STDERR, "Updater did not select migrate_0.7.64.sql for the tested version range\n");
+              exit(1);
+          }
+
+          $second = $updater->runMigrations($from, $target);
+          if (!$second['success'] || $second['executed'] !== []) {
+              fwrite(STDERR, 'Second Updater pass was not an idempotent no-op: '
+                  . json_encode($second) . "\n");
+              exit(1);
+          }
+          fwrite(STDOUT, "✓ Loaded baseline Updater from {$loadedUpdaterFile}, then overlaid target files\n");
+          PHP
+
+          if [ "$EXPECT_0764" = "yes" ]; then
+            COLUMN_META=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+              "SELECT CONCAT(DATA_TYPE, '|', IS_NULLABLE, '|', COALESCE(COLUMN_DEFAULT, 'NULL')) FROM information_schema.columns WHERE table_schema='pinakes_upgrade' AND table_name='prestiti' AND column_name='pickup_notification_sent'")
+            [ "$COLUMN_META" = "tinyint|YES|0" ] || { echo "Unexpected pickup_notification_sent definition: $COLUMN_META"; exit 1; }
+            TOKEN_META=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+              "SELECT CONCAT(DATA_TYPE, '|', CHARACTER_MAXIMUM_LENGTH, '|', IS_NULLABLE, '|', COALESCE(COLUMN_DEFAULT, 'NULL'), '|', COLLATION_NAME) FROM information_schema.columns WHERE table_schema='pinakes_upgrade' AND table_name='prestiti' AND column_name='pickup_notification_claim_token'")
+            [ "$TOKEN_META" = "char|32|YES|NULL|ascii_bin" ] || { echo "Unexpected pickup_notification_claim_token definition: $TOKEN_META"; exit 1; }
+            ATTEMPT_META=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+              "SELECT CONCAT(DATA_TYPE, '|', IS_NULLABLE, '|', COALESCE(COLUMN_DEFAULT, 'NULL')) FROM information_schema.columns WHERE table_schema='pinakes_upgrade' AND table_name='prestiti' AND column_name='pickup_notification_last_attempt_at'")
+            [ "$ATTEMPT_META" = "datetime|YES|NULL" ] || { echo "Unexpected pickup_notification_last_attempt_at definition: $ATTEMPT_META"; exit 1; }
+            READY_BACKFILL=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+              "SELECT pickup_notification_sent FROM prestiti p JOIN utenti u ON u.id=p.utente_id WHERE u.codice_tessera='UPGRADE-SMOKE-0764' AND p.stato='da_ritirare'")
+            [ "$READY_BACKFILL" = "1" ] || { echo "Historical ready-for-pickup loan was not marked as already notified"; exit 1; }
+            OTHER_BACKFILL=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+              "SELECT pickup_notification_sent FROM prestiti p JOIN utenti u ON u.id=p.utente_id WHERE u.codice_tessera='UPGRADE-SMOKE-0764' AND p.stato='restituito'")
+            [ "$OTHER_BACKFILL" = "1" ] || { echo "Historical non-ready loan did not receive the legacy-safe sent marker"; exit 1; }
+            NEW_DEFAULT=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e "
+              INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, data_restituzione, stato, attivo)
+              SELECT l.id, u.id, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 7 DAY), CURRENT_DATE, 'restituito', 0
+                FROM libri l
+                JOIN utenti u ON u.codice_tessera='UPGRADE-SMOKE-0764'
+               WHERE l.titolo='ZZ upgrade smoke contributor backfill'
+               LIMIT 1;
+              SELECT CONCAT(pickup_notification_sent, '|', COALESCE(pickup_notification_claim_token, 'NULL'), '|', COALESCE(pickup_notification_last_attempt_at, 'NULL')) FROM prestiti WHERE id=LAST_INSERT_ID();")
+            [ "$NEW_DEFAULT" = "0|NULL|NULL" ] || { echo "New post-upgrade loan received unexpected pickup claim defaults: $NEW_DEFAULT"; exit 1; }
+            MIGRATION_RECORD=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+              "SELECT CONCAT(COUNT(*), '|', COALESCE(MAX(filename), '')) FROM migrations WHERE version='0.7.64'")
+            [ "$MIGRATION_RECORD" = "1|migrate_0.7.64.sql" ] || { echo "Unexpected 0.7.64 migration record: $MIGRATION_RECORD"; exit 1; }
+            echo "✓ migrate_0.7.64.sql selected by baseline Updater; legacy marker/default/record verified"
+          fi
 
           BOOK_ID=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
             "SELECT id FROM libri WHERE titolo='ZZ upgrade smoke contributor backfill' LIMIT 1")
@@ -264,9 +496,9 @@ jobs:
           [ "$CURATORS" -eq 1 ] || { echo "Expected 1 curator link, got $CURATORS"; exit 1; }
           [ "$CANONICAL_CURATOR" -eq 1 ] || { echo "SBN comma name was not preserved and normalized correctly"; exit 1; }
           [ "$PROVENANCE" -eq 3 ] || { echo "Expected 3 provenance rows, got $PROVENANCE"; exit 1; }
-          echo "✓ Runtime contributor backfill completed through Updater"
+          echo "✓ Upgrade ran through Updater and the second pass was a no-op"
 
-      # ── Step 7: Verify schema after upgrade ──────────────────────────────
+      # ── Step 5: Verify schema after upgrade ──────────────────────────────
       - name: Verify core tables present
         run: |
           TABLE_OUTPUT=$(php scripts/list-source-expectations.php tables)
@@ -330,6 +562,9 @@ jobs:
           [ "$FAILED" -eq 0 ] || exit 1
 
       - name: Verify key columns from recent migrations
+        env:
+          TARGET_VERSION: ${{ steps.release.outputs.target_version }}
+          BASELINE_SKIPPED: ${{ steps.release.outputs.skip }}
         run: |
           FAILED=0
 
@@ -359,21 +594,38 @@ jobs:
           check_col digital_assets md5_hash
           check_col digital_assets filesize
           check_col digital_assets filetype
+          # v0.7.64 — pickup notification claim/retry state. A fresh-install
+          # schema always reflects the checkout; an upgrade only expects this
+          # stable migration when the semver range actually includes 0.7.64.
+          EXPECT_0764=$(TARGET_VERSION="$TARGET_VERSION" php -r '
+            echo version_compare((string) getenv("TARGET_VERSION"), "0.7.64", ">=") ? "yes" : "no";
+          ')
+          if [ "$BASELINE_SKIPPED" = "true" ] || [ "$EXPECT_0764" = "yes" ]; then
+            check_col prestiti pickup_notification_sent
+            check_col prestiti pickup_notification_claim_token
+            check_col prestiti pickup_notification_last_attempt_at
+          else
+            echo "  ↳ prestiti.pickup_notification_sent not expected before stable 0.7.64"
+          fi
 
           [ "$FAILED" -eq 0 ] || exit 1
 
       - name: Verify plugin registrations
         run: |
-          EXPECTED="api-book-scraper archives bibframe-linked-data deezer dewey-editor digital-library discogs goodlib musicbrainz ncip-server oai-pmh-server open-library openurl-resolver resource-sync viaf-authority z39-server"
+          PLUGIN_OUTPUT=$(php scripts/list-source-expectations.php plugins)
+          mapfile -t EXPECTED_PLUGINS <<< "$PLUGIN_OUTPUT"
+          [ "${#EXPECTED_PLUGINS[@]}" -gt 0 ] || { echo "No bundled plugins derived from BundledPlugins::LIST"; exit 1; }
           FAILED=0
-          for plugin in $EXPECTED; do
-            EXISTS=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
-              "SELECT COUNT(*) FROM plugins WHERE name='$plugin'" 2>/dev/null || echo "0")
-            if [ "$EXISTS" -eq 0 ]; then
-              echo "  ✗ Plugin not registered: $plugin"
+          for plugin in "${EXPECTED_PLUGINS[@]}"; do
+            [[ "$plugin" =~ ^[a-z0-9-]+$ ]] || { echo "Invalid bundled plugin slug: $plugin"; exit 1; }
+            EXPECTED_VERSION=$(jq -er '.version | select(type == "string" and length > 0)' "storage/plugins/${plugin}/plugin.json")
+            ROW=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+              "SELECT CONCAT(COUNT(*), '|', COALESCE(MAX(version), '')) FROM plugins WHERE name='$plugin'" 2>/dev/null || echo "0|")
+            if [ "$ROW" != "1|$EXPECTED_VERSION" ]; then
+              echo "  ✗ Plugin registry mismatch: $plugin (got $ROW, expected 1|$EXPECTED_VERSION)"
               FAILED=1
             else
-              echo "  ✓ $plugin"
+              echo "  ✓ $plugin $EXPECTED_VERSION"
             fi
           done
           [ "$FAILED" -eq 0 ] || exit 1
