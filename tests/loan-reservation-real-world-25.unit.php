@@ -95,6 +95,15 @@ $d = static fn (int $offset): string => date(
     'Y-m-d',
     strtotime($today . ($offset >= 0 ? " +{$offset} days" : " {$offset} days"))
 );
+$withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
+    $safeDate = $db->real_escape_string($date);
+    $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    try {
+        return $callback();
+    } finally {
+        $db->query('SET timestamp = 0');
+    }
+};
 
 $cleanup = static function () use ($db, $titlePrefix, $run, $emailSuffix): void {
     $titleLike = $db->real_escape_string($titlePrefix) . '%';
@@ -321,17 +330,18 @@ try {
             && $row['pickup_deadline'] <= $row['data_scadenza'];
     });
 
-    $scenario('a reservation pinned to an out copy moves to a free sibling before pickup', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $maintenance, $loanRow, $d): bool {
+    $scenario('a reservation pinned to an out copy moves to a free sibling before pickup', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $maintenance, $loanRow, $d, $withDatabaseDate): bool {
         $old = $mkUser('s03a');
         $next = $mkUser('s03b');
         [$bookId, [$outCopy, $freeCopy]] = $mkBook('s03', ['disponibile', 'disponibile']);
-        // Fixture order matters: the copy-overlap trigger treats a stale
-        // in_corso predecessor (data_scadenza < CURRENT_DATE) as open-ended,
-        // so a pinned successor can no longer be INSERTed after it. Insert the
-        // successor first, then the predecessor (whose window ends before the
-        // successor starts) — same final state, reached through the gate.
-        $successor = $mkLoan($bookId, $outCopy, $next['id'], 'prenotato', $d(0), $d(10));
-        $mkLoan($bookId, $outCopy, $old['id'], 'in_corso', $d(-20), $d(-1));
+        [, $successor] = $withDatabaseDate(
+            $d(-1),
+            static function () use ($mkLoan, $bookId, $outCopy, $old, $next, $d): array {
+                $previous = $mkLoan($bookId, $outCopy, $old['id'], 'in_corso', $d(-20), $d(-1));
+                $scheduled = $mkLoan($bookId, $outCopy, $next['id'], 'prenotato', $d(0), $d(10));
+                return [$previous, $scheduled];
+            }
+        );
         $setCopyState($outCopy, 'prestato');
         $maintenance->updateOverdueLoans();
         $maintenance->activateScheduledLoans();
@@ -341,14 +351,18 @@ try {
             && $freeCopy > 0;
     });
 
-    $scenario('a pinned reservation promotes as soon as its own copy is returned', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $returnLoan, $maintenance, $loanRow, $d): bool {
+    $scenario('a pinned reservation promotes as soon as its own copy is returned', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $returnLoan, $maintenance, $loanRow, $d, $withDatabaseDate): bool {
         $old = $mkUser('s04a');
         $next = $mkUser('s04b');
         [$bookId, [$copyId, $unusedCopy]] = $mkBook('s04', ['disponibile', 'disponibile']);
-        // Successor first (see scenario 03): the trigger's stale-in_corso
-        // branch would reject this INSERT after the predecessor exists.
-        $successor = $mkLoan($bookId, $copyId, $next['id'], 'prenotato', $d(0), $d(10));
-        $predecessor = $mkLoan($bookId, $copyId, $old['id'], 'in_corso', $d(-20), $d(-1));
+        [$predecessor, $successor] = $withDatabaseDate(
+            $d(-1),
+            static function () use ($mkLoan, $bookId, $copyId, $old, $next, $d): array {
+                $previous = $mkLoan($bookId, $copyId, $old['id'], 'in_corso', $d(-20), $d(-1));
+                $scheduled = $mkLoan($bookId, $copyId, $next['id'], 'prenotato', $d(0), $d(10));
+                return [$previous, $scheduled];
+            }
+        );
         $setCopyState($copyId, 'prestato');
         $returnLoan($predecessor, $copyId, 'prenotato');
         $maintenance->activateScheduledLoans();

@@ -78,6 +78,9 @@ $apiBookRoute = route_path('api_book');
         case 'invalid_date_format':
           echo __('Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.');
           break;
+        case 'expired_window':
+          echo __('La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo');
+          break;
         case 'no_copies_available':
           echo __('Tutte le copie di questo libro hanno già un prestito attivo o prenotato. Attendi che una copia venga restituita.');
           break;

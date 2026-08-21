@@ -408,6 +408,27 @@ try {
         'forced staff allocation preserves valid scheduling after a not-yet-due loan'
     );
 
+    $expiredCandidateId = $makeUser();
+    $expiredRowsBefore = (int) $db->query(
+        "SELECT COUNT(*) FROM prestiti WHERE libro_id = {$futureBookId} AND utente_id = {$expiredCandidateId}"
+    )->fetch_row()[0];
+    $expiredCreate = $callStore(
+        $adminId,
+        $expiredCandidateId,
+        $futureBookId,
+        $futureCopyCodes[0],
+        $pastStart,
+        $pastDue
+    );
+    $expiredRowsAfter = (int) $db->query(
+        "SELECT COUNT(*) FROM prestiti WHERE libro_id = {$futureBookId} AND utente_id = {$expiredCandidateId}"
+    )->fetch_row()[0];
+    $check(
+        str_contains($expiredCreate->getHeaderLine('Location'), 'error=expired_window')
+            && $expiredRowsAfter === $expiredRowsBefore,
+        'staff creation rejects an already-ended active window before copy allocation'
+    );
+
     $dbToday = (string) $db->query('SELECT CURRENT_DATE()')->fetch_row()[0];
     $dbPastStart = (new DateTimeImmutable($dbToday))->modify('-10 days')->format('Y-m-d');
     $dbPastDue = (new DateTimeImmutable($dbToday))->modify('-1 day')->format('Y-m-d');
@@ -417,6 +438,7 @@ try {
     $dbCurrentDue = (new DateTimeImmutable($dbToday))->modify('+2 days')->format('Y-m-d');
     $dbDisjointStart = (new DateTimeImmutable($dbCurrentDue))->modify('+1 day')->format('Y-m-d');
     $dbDisjointEnd = (new DateTimeImmutable($dbDisjointStart))->modify('+5 days')->format('Y-m-d');
+    $dbCorrectedPastStart = (new DateTimeImmutable($dbPastStart))->modify('+1 day')->format('Y-m-d');
 
     $db->query("CREATE TABLE `{$sandboxCopies}` (
         id INT NOT NULL AUTO_INCREMENT,
@@ -437,7 +459,9 @@ try {
     ) ENGINE=InnoDB");
     $db->query("INSERT INTO `{$sandboxCopies}` (libro_id, stato) VALUES
         (1, 'prestato'), (1, 'disponibile'), (1, 'prestato'), (1, 'disponibile'),
-        (1, 'prestato'), (1, 'disponibile'), (1, 'prestato'), (1, 'disponibile')");
+        (1, 'prestato'), (1, 'disponibile'), (1, 'prestato'), (1, 'disponibile'),
+        (1, 'disponibile'), (1, 'disponibile'), (1, 'disponibile'), (1, 'disponibile'),
+        (1, 'disponibile'), (1, 'disponibile')");
 
     $seed = $db->prepare(
         "INSERT INTO `{$sandboxLoans}`
@@ -469,6 +493,34 @@ try {
     $seedStart = $dbDisjointStart;
     $seedEnd = $dbDisjointEnd;
     $seed->execute(); // id 6: candidate moved onto current copy 7
+    $seedCopy = 9;
+    $seedStart = $dbCandidateStart;
+    $seedEnd = $dbCandidateEnd;
+    $seed->execute(); // id 7: future hold blocks a later stale INSERT
+    $seedCopy = 10;
+    $seed->execute(); // id 8: future hold blocks a later in_ritardo INSERT
+    $seedCopy = 11;
+    $seed->execute(); // id 9: future hold blocks moving a stale candidate here
+    $seedCopy = 12;
+    $seedState = 'in_corso';
+    $seedStart = $dbPastStart;
+    $seedEnd = $dbPastDue;
+    $seed->execute(); // id 10: stale candidate moved onto copy 11
+    $seedCopy = 13;
+    $seedState = 'prenotato';
+    $seed->execute(); // id 11: finite past row used for a state-only transition
+    $seedStart = $dbCandidateStart;
+    $seedEnd = $dbCandidateEnd;
+    $seed->execute(); // id 12: future hold beside row 11 before it becomes open-ended
+    $seedCopy = 14;
+    $seedState = 'in_corso';
+    $seedStart = $dbPastStart;
+    $seedEnd = $dbPastDue;
+    $seed->execute(); // id 13: legacy stale predecessor in an existing conflict
+    $seedState = 'prenotato';
+    $seedStart = $dbCandidateStart;
+    $seedEnd = $dbCandidateEnd;
+    $seed->execute(); // id 14: legacy successor already sharing copy 14
     $seed->close();
 
     $installSandboxTrigger('trg_check_active_prestito_before_insert', $sandboxInsertTrigger);
@@ -496,6 +548,78 @@ try {
         $updateStaleBlocked = str_contains($e->getMessage(), 'Esiste già un prestito attivo');
     }
     $check($updateStaleBlocked, 'UPDATE trigger rejects moving a hold onto stale overdue in_corso');
+
+    $insertNewStaleBlocked = false;
+    try {
+        $stmt = $db->prepare(
+            "INSERT INTO `{$sandboxLoans}`
+                (libro_id, copia_id, data_prestito, data_scadenza, stato, attivo)
+             VALUES (1, 9, ?, ?, 'in_corso', 1)"
+        );
+        $stmt->bind_param('ss', $dbPastStart, $dbPastDue);
+        $stmt->execute();
+        $stmt->close();
+    } catch (mysqli_sql_exception $e) {
+        $insertNewStaleBlocked = str_contains($e->getMessage(), 'Esiste già un prestito attivo');
+    }
+    $check(
+        $insertNewStaleBlocked,
+        'INSERT trigger rejects stale NEW in_corso even when its nominal dates precede an existing future hold'
+    );
+
+    $insertNewOverdueBlocked = false;
+    try {
+        $stmt = $db->prepare(
+            "INSERT INTO `{$sandboxLoans}`
+                (libro_id, copia_id, data_prestito, data_scadenza, stato, attivo)
+             VALUES (1, 10, ?, ?, 'in_ritardo', 1)"
+        );
+        $stmt->bind_param('ss', $dbPastStart, $dbPastDue);
+        $stmt->execute();
+        $stmt->close();
+    } catch (mysqli_sql_exception $e) {
+        $insertNewOverdueBlocked = str_contains($e->getMessage(), 'Esiste già un prestito attivo');
+    }
+    $check(
+        $insertNewOverdueBlocked,
+        'INSERT trigger rejects open-ended NEW in_ritardo before an existing future hold'
+    );
+
+    $updateNewStaleBlocked = false;
+    try {
+        $db->query("UPDATE `{$sandboxLoans}` SET copia_id = 11 WHERE id = 10");
+    } catch (mysqli_sql_exception $e) {
+        $updateNewStaleBlocked = str_contains($e->getMessage(), 'Esiste già un prestito attivo');
+    }
+    $check(
+        $updateNewStaleBlocked,
+        'UPDATE trigger rejects moving an open-ended stale loan before an existing future hold'
+    );
+
+    $stateOnlyOpenBlocked = false;
+    try {
+        $db->query("UPDATE `{$sandboxLoans}` SET stato = 'in_corso' WHERE id = 11");
+    } catch (mysqli_sql_exception $e) {
+        $stateOnlyOpenBlocked = str_contains($e->getMessage(), 'Esiste già un prestito attivo');
+    }
+    $check(
+        $stateOnlyOpenBlocked,
+        'UPDATE trigger rejects a state-only transition that makes a past hold open-ended'
+    );
+
+    $correctiveLegacyEditSucceeded = true;
+    try {
+        $stmt = $db->prepare("UPDATE `{$sandboxLoans}` SET data_prestito = ? WHERE id = 13");
+        $stmt->bind_param('s', $dbCorrectedPastStart);
+        $stmt->execute();
+        $stmt->close();
+    } catch (mysqli_sql_exception) {
+        $correctiveLegacyEditSucceeded = false;
+    }
+    $check(
+        $correctiveLegacyEditSucceeded,
+        'UPDATE trigger keeps an open-ended legacy predecessor editable inside its pre-existing conflict'
+    );
 
     $insertDisjointSucceeded = true;
     try {

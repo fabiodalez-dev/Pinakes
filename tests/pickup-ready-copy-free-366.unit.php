@@ -104,6 +104,15 @@ $EMAIL_SUFFIX = "@example.invalid";
 
 $today = \App\Support\DateHelper::today();
 $d = static fn (int $offsetDays): string => date('Y-m-d', strtotime($today . ($offsetDays >= 0 ? " +{$offsetDays} days" : ' ' . $offsetDays . ' days')));
+$withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
+    $safeDate = $db->real_escape_string($date);
+    $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    try {
+        return $callback();
+    } finally {
+        $db->query('SET timestamp = 0');
+    }
+};
 
 /* -------------------------------- helpers -------------------------------- */
 
@@ -237,13 +246,16 @@ try {
     /* ---- Scenario 3: multi-copy but pinned to the copy still out -------- */
     [$book3, $copies3] = $mkBook('pinned-copy', 2);
     [$c3a, $c3b] = $copies3;
-    // Reservation pinned to the very copy that is still out. Insert it BEFORE
-    // the stale predecessor: the trigger now treats a stale in_corso row
-    // (data_scadenza < CURRENT_DATE) as open-ended, so the pinned successor
-    // can no longer be inserted after it; the reverse order reaches the same
-    // final state through the gate (the windows themselves are disjoint).
-    $res3 = $mkLoan($book3, $c3a, $reserver, 'prenotato', $d(-1), $d(20));
-    $prev3 = $mkLoan($book3, $c3a, $borrower, 'in_corso', $d(-30), $d(-5));
+    // The successor was scheduled while its predecessor was still on time;
+    // the physical conflict appears only later when the copy is not returned.
+    [$prev3, $res3] = $withDatabaseDate(
+        $d(-5),
+        static function () use ($mkLoan, $book3, $c3a, $borrower, $reserver, $d): array {
+            $previous = $mkLoan($book3, $c3a, $borrower, 'in_corso', $d(-30), $d(-5));
+            $scheduled = $mkLoan($book3, $c3a, $reserver, 'prenotato', $d(-1), $d(20));
+            return [$previous, $scheduled];
+        }
+    );
     $setCopyState($c3a, 'prestato');
 
     $svc->activateScheduledLoans();

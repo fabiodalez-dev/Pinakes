@@ -38,7 +38,12 @@ BEGIN
             SELECT 1
             FROM prestiti p
             WHERE p.copia_id = NEW.copia_id
-              AND p.data_prestito <= NEW.data_scadenza
+              -- Effective interval of NEW: an overdue physical loan remains
+              -- open-ended until the copy is actually returned, regardless of
+              -- whether the future row or the overdue row was inserted first.
+              AND (NEW.stato = 'in_ritardo'
+                   OR (NEW.stato = 'in_corso' AND NEW.data_scadenza < CURRENT_DATE())
+                   OR p.data_prestito <= NEW.data_scadenza)
               -- Triggers cannot call PHP's DateHelper. CURRENT_DATE() is only
               -- the defence-in-depth fallback; application writers bind the
               -- configured application date and remain the authoritative gate.
@@ -123,13 +128,25 @@ BEGIN
             OR NOT (OLD.attivo = 1 OR OLD.stato = 'pendente')
             OR NOT (OLD.data_prestito <=> NEW.data_prestito)
             OR NOT (OLD.data_scadenza <=> NEW.data_scadenza)
+            -- A state-only transition can turn a finite commitment into an
+            -- open-ended physical hold (for example prenotato -> stale
+            -- in_corso). Re-run the gate whenever that semantic bit changes.
+            OR NOT (
+                (OLD.stato = 'in_ritardo'
+                 OR (OLD.stato = 'in_corso' AND OLD.data_scadenza < CURRENT_DATE()))
+                <=>
+                (NEW.stato = 'in_ritardo'
+                 OR (NEW.stato = 'in_corso' AND NEW.data_scadenza < CURRENT_DATE()))
+            )
         )) THEN
         IF EXISTS (
             SELECT 1
             FROM prestiti p
             WHERE p.copia_id = NEW.copia_id
               AND p.id <> NEW.id
-              AND p.data_prestito <= NEW.data_scadenza
+              AND (NEW.stato = 'in_ritardo'
+                   OR (NEW.stato = 'in_corso' AND NEW.data_scadenza < CURRENT_DATE())
+                   OR p.data_prestito <= NEW.data_scadenza)
               -- See the INSERT trigger: application-time checks are authoritative;
               -- CURRENT_DATE() is the local database fallback for direct SQL writes.
               AND (p.stato = 'in_ritardo'
@@ -142,7 +159,9 @@ BEGIN
               AND NOT (
                   OLD.copia_id <=> NEW.copia_id
                   AND (OLD.attivo = 1 OR OLD.stato = 'pendente')
-                  AND p.data_prestito <= OLD.data_scadenza
+                  AND (OLD.stato = 'in_ritardo'
+                       OR (OLD.stato = 'in_corso' AND OLD.data_scadenza < CURRENT_DATE())
+                       OR p.data_prestito <= OLD.data_scadenza)
                   AND (p.stato = 'in_ritardo'
                        OR (p.stato = 'in_corso' AND p.data_scadenza < CURRENT_DATE())
                        OR p.data_scadenza >= OLD.data_prestito)
