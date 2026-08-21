@@ -102,6 +102,7 @@ if ($db->connect_error) {
 }
 
 $db->set_charset($cfg['charset']);
+\App\Support\DateHelper::synchronizeDatabaseSession($db);
 
 $reservationManager = new ReservationManager($db);
 

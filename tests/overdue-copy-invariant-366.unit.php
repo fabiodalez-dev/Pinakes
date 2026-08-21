@@ -67,6 +67,10 @@ $emailSuffix = "-{$run}@366overdue.test.local";
 $inventoryPrefix = "ZZ366O-{$run}-";
 $sessionBefore = $_SESSION ?? [];
 $applicationToday = DateHelper::today();
+DateHelper::synchronizeDatabaseSession($db);
+$sessionApplicationToday = (string) $db->query(
+    'SELECT @pinakes_application_date'
+)->fetch_row()[0];
 $pastStart = (new DateTimeImmutable($applicationToday))->modify('-10 days')->format('Y-m-d');
 $pastDue = (new DateTimeImmutable($applicationToday))->modify('-1 day')->format('Y-m-d');
 $candidateStart = (new DateTimeImmutable($applicationToday))->modify('+1 day')->format('Y-m-d');
@@ -285,6 +289,11 @@ $cleanupFixtures();
 $cleanupSandbox();
 
 try {
+    $check(
+        $sessionApplicationToday === $applicationToday,
+        'DateHelper binds the configured application date to the database session'
+    );
+
     $staleCommitment = [[
         'loanId' => 1,
         'copyId' => 10,
@@ -461,7 +470,8 @@ try {
         (1, 'prestato'), (1, 'disponibile'), (1, 'prestato'), (1, 'disponibile'),
         (1, 'prestato'), (1, 'disponibile'), (1, 'prestato'), (1, 'disponibile'),
         (1, 'disponibile'), (1, 'disponibile'), (1, 'disponibile'), (1, 'disponibile'),
-        (1, 'disponibile'), (1, 'disponibile')");
+        (1, 'disponibile'), (1, 'disponibile'), (1, 'disponibile'), (1, 'disponibile'),
+        (1, 'disponibile'), (1, 'disponibile'), (1, 'disponibile')");
 
     $seed = $db->prepare(
         "INSERT INTO `{$sandboxLoans}`
@@ -525,6 +535,9 @@ try {
 
     $installSandboxTrigger('trg_check_active_prestito_before_insert', $sandboxInsertTrigger);
     $installSandboxTrigger('trg_check_active_prestito_before_update', $sandboxUpdateTrigger);
+
+    // An uninitialized/direct SQL connection keeps the database-local fallback.
+    $db->query('SET @pinakes_application_date = NULL');
 
     $insertStaleBlocked = false;
     try {
@@ -643,6 +656,153 @@ try {
         $updateDisjointSucceeded = false;
     }
     $check($updateDisjointSucceeded, 'UPDATE trigger allows a future hold after not-yet-due in_corso');
+
+    // Simulate the midnight boundary where the configured application day is
+    // still yesterday while the MySQL server has already advanced. A loan due
+    // on the application day is finite for the app and must not be reclassified
+    // as an open-ended overdue hold by either trigger.
+    $mismatchApplicationToday = (new DateTimeImmutable($dbToday))->modify('-1 day')->format('Y-m-d');
+    $mismatchHolderStart = (new DateTimeImmutable($mismatchApplicationToday))->modify('-5 days')->format('Y-m-d');
+    $mismatchCandidateStart = (new DateTimeImmutable($mismatchApplicationToday))->modify('+1 day')->format('Y-m-d');
+    $mismatchCandidateEnd = (new DateTimeImmutable($mismatchCandidateStart))->modify('+5 days')->format('Y-m-d');
+    $setApplicationDate = $db->prepare('SET @pinakes_application_date = ?');
+    $setApplicationDate->bind_param('s', $mismatchApplicationToday);
+    $setApplicationDate->execute();
+    $setApplicationDate->close();
+
+    $mismatchSeed = $db->prepare(
+        "INSERT INTO `{$sandboxLoans}`
+            (libro_id, copia_id, data_prestito, data_scadenza, stato, attivo)
+         VALUES (1, ?, ?, ?, ?, 1)"
+    );
+    $mismatchCopy = 15;
+    $mismatchState = 'in_corso';
+    $mismatchSeed->bind_param(
+        'isss',
+        $mismatchCopy,
+        $mismatchHolderStart,
+        $mismatchApplicationToday,
+        $mismatchState
+    );
+    $mismatchSeed->execute();
+
+    $insertUsesApplicationDate = true;
+    try {
+        $mismatchState = 'prenotato';
+        $mismatchSeed->bind_param(
+            'isss',
+            $mismatchCopy,
+            $mismatchCandidateStart,
+            $mismatchCandidateEnd,
+            $mismatchState
+        );
+        $mismatchSeed->execute();
+    } catch (mysqli_sql_exception) {
+        $insertUsesApplicationDate = false;
+    }
+    $check(
+        $insertUsesApplicationDate,
+        'INSERT trigger uses the bound application day when it differs from CURRENT_DATE()'
+    );
+
+    $mismatchCopy = 16;
+    $mismatchState = 'in_corso';
+    $mismatchSeed->bind_param(
+        'isss',
+        $mismatchCopy,
+        $mismatchHolderStart,
+        $mismatchApplicationToday,
+        $mismatchState
+    );
+    $mismatchSeed->execute();
+    $mismatchCopy = 17;
+    $mismatchState = 'prenotato';
+    $mismatchSeed->bind_param(
+        'isss',
+        $mismatchCopy,
+        $mismatchCandidateStart,
+        $mismatchCandidateEnd,
+        $mismatchState
+    );
+    $mismatchSeed->execute();
+    $updateCandidateId = (int) $db->insert_id;
+
+    $updateUsesApplicationDate = true;
+    try {
+        $db->query("UPDATE `{$sandboxLoans}` SET copia_id = 16 WHERE id = {$updateCandidateId}");
+    } catch (mysqli_sql_exception) {
+        $updateUsesApplicationDate = false;
+    }
+    $check(
+        $updateUsesApplicationDate,
+        'UPDATE trigger uses the bound application day when it differs from CURRENT_DATE()'
+    );
+
+    $db->query('SET @pinakes_application_date = NULL');
+    $mismatchCopy = 18;
+    $mismatchState = 'in_corso';
+    $mismatchSeed->bind_param(
+        'isss',
+        $mismatchCopy,
+        $mismatchHolderStart,
+        $mismatchApplicationToday,
+        $mismatchState
+    );
+    $mismatchSeed->execute();
+    $directSqlFallbackBlocked = false;
+    try {
+        $mismatchState = 'prenotato';
+        $mismatchSeed->bind_param(
+            'isss',
+            $mismatchCopy,
+            $mismatchCandidateStart,
+            $mismatchCandidateEnd,
+            $mismatchState
+        );
+        $mismatchSeed->execute();
+    } catch (mysqli_sql_exception $e) {
+        $directSqlFallbackBlocked = str_contains($e->getMessage(), 'Esiste già un prestito attivo');
+    }
+    $mismatchSeed->close();
+    $check(
+        $directSqlFallbackBlocked,
+        'triggers fall back to CURRENT_DATE() when direct SQL leaves the session day unset'
+    );
+
+    // Exercise the opposite boundary too: when MySQL is still on yesterday,
+    // a loan due on the DB day is already stale according to the application.
+    // The bound day must prevent a permissive (fail-open) direct-SQL reading.
+    $aheadApplicationToday = (new DateTimeImmutable($dbToday))->modify('+1 day')->format('Y-m-d');
+    $aheadHolderStart = (new DateTimeImmutable($dbToday))->modify('-5 days')->format('Y-m-d');
+    $aheadCandidateStart = $aheadApplicationToday;
+    $aheadCandidateEnd = (new DateTimeImmutable($aheadCandidateStart))->modify('+5 days')->format('Y-m-d');
+    $setAheadApplicationDate = $db->prepare('SET @pinakes_application_date = ?');
+    $setAheadApplicationDate->bind_param('s', $aheadApplicationToday);
+    $setAheadApplicationDate->execute();
+    $setAheadApplicationDate->close();
+
+    $aheadSeed = $db->prepare(
+        "INSERT INTO `{$sandboxLoans}`
+            (libro_id, copia_id, data_prestito, data_scadenza, stato, attivo)
+         VALUES (1, 19, ?, ?, ?, 1)"
+    );
+    $aheadState = 'in_corso';
+    $aheadSeed->bind_param('sss', $aheadHolderStart, $dbToday, $aheadState);
+    $aheadSeed->execute();
+    $aheadDateBlocks = false;
+    try {
+        $aheadState = 'prenotato';
+        $aheadSeed->bind_param('sss', $aheadCandidateStart, $aheadCandidateEnd, $aheadState);
+        $aheadSeed->execute();
+    } catch (mysqli_sql_exception $e) {
+        $aheadDateBlocks = str_contains($e->getMessage(), 'Esiste già un prestito attivo');
+    }
+    $aheadSeed->close();
+    $check(
+        $aheadDateBlocks,
+        'bound application day prevents fail-open when CURRENT_DATE() is one day behind'
+    );
+    $db->query('SET @pinakes_application_date = NULL');
 } catch (Throwable $e) {
     $failed++;
     echo '  FAIL exception: ' . $e->getMessage() . PHP_EOL;
