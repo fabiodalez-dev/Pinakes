@@ -168,6 +168,7 @@ jobs:
           set -euo pipefail
           identifiers_file="$RUNNER_TEMP/zap-catalogue-identifiers.json"
           public_urls_file="$RUNNER_TEMP/zap-public-catalogue-urls.json"
+          public_examples_file="$RUNNER_TEMP/zap-public-example-identifiers.json"
 
           MYSQL_PWD="$E2E_DB_PASS" mysql \
             -h "$E2E_DB_HOST" -P "$E2E_DB_PORT" -u "$E2E_DB_USER" \
@@ -194,6 +195,13 @@ jobs:
                 echo json_encode(array_values(array_unique($urls)), JSON_UNESCAPED_SLASHES), PHP_EOL;
               ' > "$public_urls_file"
 
+          # Translation dictionaries are intentionally inlined client-side.
+          # Extract their exact 13-digit public examples so those known strings
+          # may appear on any target page without weakening the rule for other
+          # 13-digit values.
+          jq -rs '[.[] | .. | strings | scan("[0-9]{13}")] | unique' \
+            locale/*.json > "$public_examples_file"
+
           # OWASP ZAP rule 10062 (PII Disclosure) is allowlisted NARROWLY, never
           # globally. A book catalogue renders ISBN/EAN-13 identifiers on its
           # bibliographic pages, and a 13-digit code inherently collides with the
@@ -203,12 +211,14 @@ jobs:
           # is a 13-digit number on a bibliographic route — a real card leak
           # (15/16 digits) or a 13-digit value on any other page still fails the
           # build. The checked-in filter also requires GET with empty param/attack,
-          # an exact registered route (canonical URLs come from the live sitemap),
-          # and evidence equal to an ISBN-13/EAN in the live catalogue. Real
-          # secret/PII exposure is also covered by secret scanning, Semgrep and
-          # CodeQL; every other medium/high alert stays blocking.
+          # an exact registered route (canonical URLs come from the live sitemap)
+          # when evidence is a live catalogue identifier. The only route-wide
+          # exception is the exact public example strings shipped in the inlined
+          # translation dictionaries. Real secret/PII exposure is also covered
+          # by secret scanning, Semgrep and CodeQL; every other medium/high alert
+          # stays blocking.
           bash scripts/ci-check-zap-report.sh \
-            report_json.json "$identifiers_file" "$public_urls_file"
+            report_json.json "$identifiers_file" "$public_urls_file" "$public_examples_file"
 
       - name: Upload browser and server diagnostics
         if: always()
