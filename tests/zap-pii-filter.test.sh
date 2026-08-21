@@ -244,4 +244,38 @@ if bash "$CHECK_SCRIPT" "$REPORT_FILE" "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" "
 fi
 PASS_COUNT=$((PASS_COUNT + 1))
 
+# The wrapper re-verifies blocking 10062 instances against the live target
+# (ephemeral session-token digit windows do not reappear on fresh fetches).
+# A fetch that errors — connection refused without the app, HTTP 404 with it —
+# must stay blocking, so this assertion is deterministic in every environment.
+make_pii_report() {
+    jq -cn --arg uri "$1" --arg evidence "$2" \
+        '{site:[{alerts:[{riskcode:"3", riskdesc:"High (Medium)", alert:"PII Disclosure", pluginid:"10062", desc:"fixture", instances:[{uri:$uri, evidence:$evidence, method:"GET", param:"", attack:""}]}]}]}'
+}
+make_pii_report 'http://localhost:8081/zap-verify-selftest-missing-page' '4111111111111111' > "$REPORT_FILE"
+if bash "$CHECK_SCRIPT" "$REPORT_FILE" "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" "$PUBLIC_EXAMPLES_FILE" >/dev/null 2>&1; then
+    echo 'FAIL: workflow wrapper dropped a 10062 alert whose URI could not be re-fetched' >&2
+    exit 1
+fi
+PASS_COUNT=$((PASS_COUNT + 1))
+
+# The allow path needs the application answering on the scanned origin, which
+# holds in the browser-security job (this suite runs after the app is up).
+# Elsewhere the fetch fails and the branch cannot be exercised — say so
+# instead of skipping silently.
+if curl -fsS --max-time 5 -o /dev/null 'http://localhost:8081/'; then
+    make_pii_report 'http://localhost:8081/' '4111111111111111' > "$REPORT_FILE"
+    if ! output=$(bash "$CHECK_SCRIPT" "$REPORT_FILE" "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" "$PUBLIC_EXAMPLES_FILE"); then
+        echo 'FAIL: workflow wrapper kept blocking a 10062 evidence absent from fresh fetches' >&2
+        exit 1
+    fi
+    if ! grep -Fq 'ignoring ephemeral PII Disclosure instance' <<<"$output"; then
+        echo 'FAIL: workflow wrapper did not report the ignored ephemeral instance' >&2
+        exit 1
+    fi
+    PASS_COUNT=$((PASS_COUNT + 1))
+else
+    echo 'NOTE: live target not reachable on localhost:8081 — ephemeral-verification allow path is exercised in the browser-security job only'
+fi
+
 echo "ZAP PII filter tests passed: $PASS_COUNT"
