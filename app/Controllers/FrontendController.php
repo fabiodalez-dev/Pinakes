@@ -1437,7 +1437,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
 
         $container = $this->container;
         ob_start();
-        $title = "Libri di " . htmlspecialchars(\App\Support\AuthorName::display($author), ENT_QUOTES, 'UTF-8');
+        // Title, meta, canonical and JSON-LD are centralized in archive.php.
         $archive_type = 'autore';
         $archive_info = $author;
         include __DIR__ . '/../Views/frontend/archive.php';
@@ -1539,14 +1539,9 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         }
 
         ob_start();
-        $title = "Libri di " . $publisher['nome'];
-
-        // SEO Variables — escaping is handled at template output time by HtmlHelper::e()
-        $seoTitle = "Libri di {$publisher['nome']} - Catalogo Editore | Biblioteca";
-        $seoDescription = "Scopri tutti i libri pubblicati da {$publisher['nome']} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = absoluteUrl(RouteTranslator::route('publisher') . '/' . urlencode($publisher['nome']));
-        $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
-
+        // Title, meta, canonical and JSON-LD are centralized in archive.php,
+        // shared with the author and genre archives (localized, name-based
+        // canonical, CollectionPage + BreadcrumbList schema).
         $archive_type = 'editore';
         $archive_info = $publisher;
         $container = $this->container;
@@ -1691,14 +1686,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         }
 
         ob_start();
-        $title = "Libri di genere " . $genre['nome'];
-
-        // SEO Variables — escaping is handled at template output time by HtmlHelper::e()
-        $seoTitle = "Libri di {$genre['nome']} - Catalogo per Genere | Biblioteca";
-        $seoDescription = "Esplora tutti i libri del genere {$genre['nome']} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = absoluteUrl(RouteTranslator::route('genre') . '/' . urlencode($genre['nome']));
-        $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
-
+        // Title, meta, canonical and JSON-LD are centralized in archive.php.
         $archive_type = 'genere';
         $archive_info = $genre;
         $container = $this->container;
@@ -2151,7 +2139,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         // Render template
         $container = $this->container;
         ob_start();
-        $title = "Libri di " . htmlspecialchars(\App\Support\AuthorName::display($author), ENT_QUOTES, 'UTF-8');
+        // Title, meta, canonical and JSON-LD are centralized in archive.php.
         $archive_type = 'autore';
         $archive_info = $author;
         include __DIR__ . '/../Views/frontend/archive.php';

@@ -76,6 +76,75 @@ $hasArchiveDetails = ($archive_type === 'autore' && (!empty($archive_info['biogr
 $createBookUrl = static fn(array $book): string => book_url($book);
 $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
+// ── SEO: shared by ALL archive types (author, publisher, genre) and by both
+// the name- and id-based routes. The id route renders the same page, so the
+// canonical always points at the name-based URL to collapse the duplicate.
+$appName = (string) \App\Support\ConfigStore::get('app.name', 'Pinakes');
+$archiveEntityName = $archive_type === 'autore'
+    ? (string) ($archive_info['nome'] ?? $archiveDisplayName)
+    : $archiveDisplayName;
+$archiveBaseRoute = match ($archive_type) {
+    'autore' => $authorRoute,
+    'editore' => $publisherRoute,
+    default => $genreRoute,
+};
+$seoTitle = match ($archive_type) {
+    'autore' => __('Libri di %s', $archiveDisplayName),
+    'editore' => __("Libri dell'editore %s", $archiveDisplayName),
+    default => __('Libri del genere %s', $archiveDisplayName),
+};
+$seoDescription = match ($archive_type) {
+    'autore' => __('Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.', $archiveDisplayName),
+    'editore' => __('Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.', $archiveDisplayName),
+    default => __('Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.', $archiveDisplayName),
+};
+$seoCanonical = absoluteUrl($archiveBaseRoute . '/' . rawurlencode($archiveEntityName));
+if ((int) ($page ?? 1) > 1) {
+    // Paginated pages self-canonicalize: page 2 is not a duplicate of page 1.
+    $seoCanonical .= '?page=' . (int) $page;
+    $seoTitle .= ' — ' . __('Pagina %d', (int) $page);
+}
+$seoTitle .= ' | ' . $appName;
+
+$archiveSchema = [
+    '@context' => 'https://schema.org',
+    '@type' => 'CollectionPage',
+    'name' => $seoTitle,
+    'description' => $seoDescription,
+    'url' => $seoCanonical,
+];
+if ($archive_type === 'autore') {
+    $archivePerson = ['@type' => 'Person', 'name' => $archiveDisplayName];
+    if ($authorPhoto !== '') {
+        $archivePerson['image'] = $authorPhoto;
+    }
+    $archiveSameAs = array_values(array_filter(array_map(
+        static fn(array $l): string => (string) ($l['url'] ?? ''),
+        $authorLinks
+    )));
+    if ($authorWebsite !== '') {
+        array_unshift($archiveSameAs, $authorWebsite);
+    }
+    if ($archiveSameAs !== []) {
+        $archivePerson['sameAs'] = count($archiveSameAs) === 1 ? $archiveSameAs[0] : $archiveSameAs;
+    }
+    $archiveSchema['mainEntity'] = $archivePerson;
+}
+$archiveBreadcrumbSchema = [
+    '@context' => 'https://schema.org',
+    '@type' => 'BreadcrumbList',
+    'itemListElement' => [
+        ['@type' => 'ListItem', 'position' => 1, 'name' => __('Home'), 'item' => $homeRoute],
+        ['@type' => 'ListItem', 'position' => 2, 'name' => __('Catalogo'), 'item' => absoluteUrl($catalogRoute)],
+        ['@type' => 'ListItem', 'position' => 3, 'name' => $archiveDisplayName],
+    ],
+];
+$seoSchema = json_encode(
+    [$archiveSchema, $archiveBreadcrumbSchema],
+    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG
+);
+$title = $seoTitle;
+
 ob_start();
 ?>
 

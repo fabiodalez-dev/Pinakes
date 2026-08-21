@@ -95,12 +95,15 @@ if ($coverAlt === '') {
     $coverAlt = __('Copertina del libro');
 }
 
-// Meta title ottimizzato (max 60 caratteri)
+// Meta title ottimizzato (max 60 caratteri). Il suffisso è il nome reale
+// della biblioteca (app.name): è il brand riconoscibile nelle SERP, non il
+// generico "Biblioteca".
+$siteBrandName = (string) ConfigStore::get('app.name', 'Pinakes');
 $title = $bookTitle;
 if ($bookAuthor) {
     $title .= " " . __("di") . " " . $bookAuthor;
 }
-$title .= " - " . __("Biblioteca");
+$title .= " - " . $siteBrandName;
 $metaTitle = $title;
 
 // Meta description ottimizzata (max 160 caratteri)
@@ -423,11 +426,11 @@ if (!empty($reviewStats) && $reviewStats['total_reviews'] > 0) {
     ];
 }
 
-// Organization Schema
+// Organization Schema — the entity is the configured library, by its real name
 $organizationSchema = [
     "@context" => "https://schema.org",
     "@type" => "Library",
-    "name" => __("Biblioteca"),
+    "name" => $siteBrandName,
     "url" => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/',
     "description" => __("Biblioteca digitale con catalogo completo di libri disponibili per il prestito")
 ];
