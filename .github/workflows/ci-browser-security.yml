@@ -160,9 +160,40 @@ jobs:
           allow_issue_writing: false
           artifact_name: zap-baseline-${{ github.run_id }}
 
+      - name: Test narrow ZAP bibliographic PII allowlist
+        run: bash tests/zap-pii-filter.test.sh
+
       - name: Fail on medium or high ZAP alerts
         run: |
-          test -s report_json.json || { echo "ZAP JSON report is missing"; exit 1; }
+          set -euo pipefail
+          identifiers_file="$RUNNER_TEMP/zap-catalogue-identifiers.json"
+          public_urls_file="$RUNNER_TEMP/zap-public-catalogue-urls.json"
+
+          MYSQL_PWD="$E2E_DB_PASS" mysql \
+            -h "$E2E_DB_HOST" -P "$E2E_DB_PORT" -u "$E2E_DB_USER" \
+            -N -B "$E2E_DB_NAME" -e '
+              SELECT identifier
+              FROM (
+                SELECT isbn13 AS identifier FROM libri WHERE deleted_at IS NULL
+                UNION
+                SELECT ean AS identifier FROM libri WHERE deleted_at IS NULL
+              ) AS catalogue_identifiers
+              WHERE identifier REGEXP "^[0-9]{13}$"
+              ORDER BY identifier
+            ' | jq -Rsc 'split("\n") | map(select(length > 0)) | unique' > "$identifiers_file"
+
+          # The single-quoted PHP program is intentional; its $variables must
+          # reach PHP literally rather than expand in the runner shell.
+          # shellcheck disable=SC2016
+          curl -fsS http://localhost:8081/sitemap.xml \
+            | php -r '
+                $xml = simplexml_load_string(stream_get_contents(STDIN), SimpleXMLElement::class, LIBXML_NONET);
+                if ($xml === false) { fwrite(STDERR, "Invalid sitemap XML\n"); exit(2); }
+                $urls = [];
+                foreach ($xml->url as $entry) { $urls[] = (string) $entry->loc; }
+                echo json_encode(array_values(array_unique($urls)), JSON_UNESCAPED_SLASHES), PHP_EOL;
+              ' > "$public_urls_file"
+
           # OWASP ZAP rule 10062 (PII Disclosure) is allowlisted NARROWLY, never
           # globally. A book catalogue renders ISBN/EAN-13 identifiers on its
           # bibliographic pages, and a 13-digit code inherently collides with the
@@ -171,15 +202,13 @@ jobs:
           # 413167 is a Visa range). An alert is ignored ONLY when EVERY instance
           # is a 13-digit number on a bibliographic route — a real card leak
           # (15/16 digits) or a 13-digit value on any other page still fails the
-          # build. Real secret/PII exposure is also covered by the secret-scanning,
-          # Semgrep and CodeQL jobs; every other medium/high alert stays blocking.
-          FILTER='def is_isbn_fp: (.pluginid // "") == "10062" and ([ .instances[]? | ((.evidence // "") | test("^[0-9]{13}$")) and ((.uri // "") | test("/(auteur|author|autor|autore|book|buch|catalog|catalogo|catalogue|editore|editori|genere|genre|katalog|libro|libri|livre|publisher|verlag)"; "i")) ] | (length > 0 and all)); [ .site[]?.alerts[]? | select((.riskcode | tonumber) >= 2) | select(is_isbn_fp | not) ]'
-          blocking=$(jq "$FILTER | length" report_json.json)
-          if [ "$blocking" -gt 0 ]; then
-            jq -r "$FILTER"' | .[] | "[" + (.riskdesc // "") + "] " + (.alert // "") + ": " + (.desc // "")' report_json.json
-            exit 1
-          fi
-          echo "ZAP found no blocking medium/high passive-scan alerts (allowlisted: 13-digit ISBN/EAN codes on bibliographic pages)"
+          # build. The checked-in filter also requires GET with empty param/attack,
+          # an exact registered route (canonical URLs come from the live sitemap),
+          # and evidence equal to an ISBN-13/EAN in the live catalogue. Real
+          # secret/PII exposure is also covered by secret scanning, Semgrep and
+          # CodeQL; every other medium/high alert stays blocking.
+          bash scripts/ci-check-zap-report.sh \
+            report_json.json "$identifiers_file" "$public_urls_file"
 
       - name: Upload browser and server diagnostics
         if: always()
