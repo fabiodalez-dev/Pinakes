@@ -43,8 +43,7 @@ jq -e 'type == "array"' "$BLOCKING_FILE" >/dev/null
 # re-checked (fail-secure).
 is_ephemeral_pii_instance() {
     local uri=$1 evidence=$2 body
-    local attempt
-    for attempt in 1 2; do
+    for _ in 1 2; do
         if ! body=$(curl -fsS --max-time 30 "$uri" 2>/dev/null); then
             return 1
         fi
