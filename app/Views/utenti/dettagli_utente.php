@@ -46,7 +46,9 @@ $sessoLabel = $genderLabels[$sessoKey] ?? $sessoKey;
 
 $display = static function (?string $value, string $placeholder = '—'): string {
     $value = trim((string)$value);
-    return $value !== '' ? HtmlHelper::e($value) : $placeholder;
+    return $value !== ''
+        ? htmlspecialchars(HtmlHelper::decode($value), ENT_QUOTES, 'UTF-8')
+        : $placeholder;
 };
 ?>
 
@@ -156,7 +158,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
       </div>
       <div>
         <dt class="text-sm text-gray-500"><?= __("Sesso") ?></dt>
-        <dd class="text-sm text-gray-900 mt-1"><?= $display($sessoLabel); ?></dd>
+        <dd class="text-sm text-gray-900 mt-1" data-field="sesso"><?= $display($sessoLabel); ?></dd>
       </div>
       <div>
         <dt class="text-sm text-gray-500"><?= __("Codice Fiscale") ?></dt>

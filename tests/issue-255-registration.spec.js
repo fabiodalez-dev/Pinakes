@@ -512,23 +512,31 @@ test.describe.serial('Issue #255 — configurable registration fields (30 checks
     await expect(admin.locator('body')).toContainText(/non puoi cambiare il tipo|cannot change the type|ne pouvez pas modifier le type|Typ eines Feldes/i);
   });
 
-  test('30. admin user details localize the stored sesso enum value', async ({ page }) => {
+  test('30. admin user details localize every stored sesso enum value', async ({ page }) => {
     await setToggles(admin, false, false, false);
     const email = `zz-255-sesso-${TOKEN}@example.test`;
     await fillRegistration(page, {
       fields: { nome: 'Sesso30', email, password: 'Password255!ok', password_confirm: 'Password255!ok' },
     });
+    await page.selectOption('select[name="sesso"]', 'M');
     await submitNoValidate(page);
     expect(userCount(email)).toBe(1);
 
-    dbQuery(`UPDATE utenti SET sesso='M' WHERE email='${email}'`);
     const uid = dbQuery(`SELECT id FROM utenti WHERE email='${email}'`);
+    expect(dbQuery(`SELECT sesso FROM utenti WHERE id=${uid}`)).toBe('M');
 
-    await admin.goto(`${BASE}/registrati`);
-    const expectedLabel = (await admin.locator('select[name="sesso"] option[value="M"]').innerText()).trim();
+    await admin.goto(`${BASE}/admin/users/edit/${uid}`);
+    /** @type {Record<string, string>} */
+    const expectedLabels = {};
+    const genderValues = ['M', 'F', 'Altro'];
+    for (const value of genderValues) {
+      expectedLabels[value] = (await admin.locator(`select[name="sesso"] option[value="${value}"]`).innerText()).trim();
+    }
 
-    await admin.goto(`${BASE}/admin/users/details/${uid}`);
-    const sessoValue = admin.locator('dt:has-text("Sesso") + dd');
-    await expect(sessoValue).toHaveText(expectedLabel);
+    for (const value of genderValues) {
+      if (value !== 'M') dbQuery(`UPDATE utenti SET sesso='${value}' WHERE id=${uid}`);
+      await admin.goto(`${BASE}/admin/users/details/${uid}`);
+      await expect(admin.locator('[data-field="sesso"]')).toHaveText(expectedLabels[value]);
+    }
   });
 });
