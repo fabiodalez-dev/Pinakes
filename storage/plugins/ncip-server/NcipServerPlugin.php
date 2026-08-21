@@ -1710,6 +1710,12 @@ class NcipServerPlugin
         }
         $ns = self::NCIP_NS;
         $message = $xml->children($ns)->{$messageType} ?? null;
+        if (!($message instanceof \SimpleXMLElement) || $message->count() === 0) {
+            // Stesso fallback senza namespace di detectMessageType(): alcune
+            // implementazioni omettono il namespace NCIP e senza questo ramo
+            // l'enforcement risponderebbe 403 anche a un FromAgencyId valido.
+            $message = $xml->children()->{$messageType} ?? null;
+        }
         if (!($message instanceof \SimpleXMLElement)) {
             return null;
         }

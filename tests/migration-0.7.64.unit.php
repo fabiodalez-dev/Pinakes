@@ -66,13 +66,13 @@ $cleanup = static function () use ($db, $sandboxTable): void {
 echo "A. Real migration on a sandbox prestiti table\n";
 try {
     $cleanup();
-    // Minimal prestiti shape: the migration anchors the new column AFTER
-    // overdue_notification_sent, so that column must exist in the sandbox.
+    // LEGACY prestiti shape, deliberately WITHOUT the notification columns
+    // (warning_sent/overdue_notification_sent are runtime self-healed on old
+    // installs): the migration must not depend on any of them — that is why
+    // its ALTER carries no AFTER clause.
     $db->query("CREATE TABLE `{$sandboxTable}` (
         `id` INT NOT NULL AUTO_INCREMENT,
         `stato` VARCHAR(20) NOT NULL DEFAULT 'in_corso',
-        `warning_sent` TINYINT(1) DEFAULT 0,
-        `overdue_notification_sent` TINYINT(1) DEFAULT 0,
         PRIMARY KEY (`id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 

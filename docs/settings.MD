@@ -231,7 +231,7 @@ Imposti le regole globali dei prestiti (categoria setting `loans`):
 | Campo (`name`) | Significato | Default | Clamp lato server |
 |---|---|---|---|
 | `loan_duration_days` | Durata standard del prestito (giorni) | 30 | 1 … 3650 (10 anni) |
-| `pickup_expiry_days` | Giorni entro cui ritirare un prestito approvato prima della scadenza ritiro | 3 | 1 … 365 |
+| `pickup_expiry_days` | Giorni entro cui ritirare un prestito approvato prima della scadenza ritiro | 3 | 1 … 30 |
 | `max_renewals` | Numero massimo di rinnovi (0 = illimitato) | 3 | 0 … 100 |
 | `max_active_loans_per_user` | Massimo prestiti attivi per utente (0 = illimitato) | 0 | 0 … 1000 |
 | `allow_multiple_loans_same_book` | Consente allo stesso utente più prestiti attivi dello stesso libro su copie fisiche distinte | 0 (disattivato) | Toggle 0 / 1 |
