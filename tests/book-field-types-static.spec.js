@@ -143,13 +143,13 @@ test.describe('book field-type consistency', () => {
     expect(messages['Restituito — copia in restauro']).toBe('Restituito — copia in restauro');
   });
 
-  test('15) loan edge-case suite labels match the expanded 64-test coverage', () => {
+  test('15) loan edge-case suite labels match the expanded 66-test coverage', () => {
     const loanEdges = read('tests/loan-edge-cases.unit.php');
 
-    expect(loanEdges).toContain('Exit:  0 only if all 64 pass');
+    expect(loanEdges).toContain('Exit:  0 only if all 66 pass');
     expect(loanEdges).toContain('* 41-48  Mixed / availability math');
     expect(loanEdges).toContain('* 49-52  Misc invariants');
-    expect(loanEdges).toContain('* 53-64  Canonical capacity, schedules, integrity, calendars and reservation queues');
-    expect(loanEdges).toContain('printf("[%02d/64] PASS: %s\\n", $TESTNO, $desc);');
+    expect(loanEdges).toContain('* 53-66  Canonical capacity, schedules, integrity, calendars and reservation queues');
+    expect(loanEdges).toContain('printf("[%02d/66] PASS: %s\\n", $TESTNO, $desc);');
   });
 });
