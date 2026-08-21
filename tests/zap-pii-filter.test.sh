@@ -8,11 +8,13 @@ PASS_COUNT=0
 TEST_CONTEXT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pinakes-zap-test.XXXXXX")
 IDENTIFIERS_FILE="$TEST_CONTEXT_DIR/identifiers.json"
 PUBLIC_URLS_FILE="$TEST_CONTEXT_DIR/public-urls.json"
+PUBLIC_EXAMPLES_FILE="$TEST_CONTEXT_DIR/public-examples.json"
 REPORT_FILE="$TEST_CONTEXT_DIR/report.json"
-trap 'rm -f "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" "$REPORT_FILE"; rmdir "$TEST_CONTEXT_DIR"' EXIT
+trap 'rm -f "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" "$PUBLIC_EXAMPLES_FILE" "$REPORT_FILE"; rmdir "$TEST_CONTEXT_DIR"' EXIT
 
 printf '%s\n' '["5634784354285"]' > "$IDENTIFIERS_FILE"
 printf '%s\n' '["http://localhost:8081/jane-austen/pride-and-prejudice/123","http://localhost:8081/fr/jane-austen/orgueil-et-prejuges/123"]' > "$PUBLIC_URLS_FILE"
+printf '%s\n' '["9788842935780","9788845292866"]' > "$PUBLIC_EXAMPLES_FILE"
 
 make_alert() {
     local uri=$1
@@ -39,6 +41,7 @@ filter_count() {
         | jq -s \
             --slurpfile catalogue_identifiers "$IDENTIFIERS_FILE" \
             --slurpfile public_catalogue_urls "$PUBLIC_URLS_FILE" \
+            --slurpfile public_example_identifiers "$PUBLIC_EXAMPLES_FILE" \
             -f "$FILTER_FILE" \
         | jq 'length'
 }
@@ -125,6 +128,8 @@ assert_allowed 'RDA Manifestation endpoint' "$(make_alert 'http://localhost:8081
 assert_allowed 'real Danish publisher finding' "$(make_alert 'http://localhost:8081/da/forlag/CSV+Publisher')"
 assert_allowed 'canonical book route' "$(make_alert 'http://localhost:8081/jane-austen/pride-and-prejudice/123')"
 assert_allowed 'localized canonical book route' "$(make_alert 'http://localhost:8081/fr/jane-austen/orgueil-et-prejuges/123')"
+assert_allowed 'shipped ISBN example on themed 404' "$(make_alert 'http://localhost:8081/en/register' '9788842935780')"
+assert_allowed 'second shipped ISBN example on an ordinary page' "$(make_alert 'http://localhost:8081/accedi' '9788845292866')"
 
 assert_blocked '15-digit evidence' "$(make_alert 'http://localhost:8081/da/forlag/Test' '123456789012345')"
 assert_blocked '16-digit evidence' "$(make_alert 'http://localhost:8081/da/forlag/Test' '4111111111111111')"
@@ -138,12 +143,14 @@ assert_blocked 'nested publisher path' "$(make_alert 'http://localhost:8081/da/f
 assert_blocked 'nonexistent API descendant' "$(make_alert 'http://localhost:8081/api/book/42/private-payment-data')"
 assert_blocked 'nonexistent catalogue descendant' "$(make_alert 'http://localhost:8081/catalog/not-an-app-route')"
 assert_blocked 'external host' "$(make_alert 'https://example.com/da/forlag/Test')"
+assert_blocked 'shipped example on external host' "$(make_alert 'https://example.com/en/register' '9788842935780')"
 assert_blocked 'reserved admin canonical shape' "$(make_alert 'http://localhost:8081/admin/settings/123')"
 assert_blocked 'localized reserved admin canonical shape' "$(make_alert 'http://localhost:8081/da/admin/settings/123')"
 assert_blocked 'reserved API canonical shape' "$(make_alert 'http://localhost:8081/api/private/123')"
 assert_blocked 'loan details are not a canonical URL' "$(make_alert 'http://localhost:8081/prestiti/dettagli/123')"
 assert_blocked 'unregistered canonical-shaped URL' "$(make_alert 'http://localhost:8081/private/payment/123')"
 assert_blocked 'unknown identifier on catalogue page' "$(make_alert 'http://localhost:8081/da/forlag/Test' '9781234567897')"
+assert_blocked 'unknown 13-digit value on ordinary page' "$(make_alert 'http://localhost:8081/en/register' '9781234567897')"
 assert_blocked 'another ZAP rule' "$(make_alert 'http://localhost:8081/da/forlag/Test' '5634784354285' 'GET' '10020')"
 
 mixed_alert=$(make_alert 'http://localhost:8081/da/forlag/Test')
@@ -195,16 +202,16 @@ assert_rejected_report 'multiple JSON documents' $'{"site":[{"alerts":[]}]}\n{"s
 
 # Exercise the exact workflow wrapper, not only the jq policy in isolation.
 printf '%s\n' '{"site":[{"alerts":[]}]}' > "$REPORT_FILE"
-bash "$CHECK_SCRIPT" "$REPORT_FILE" "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" >/dev/null
+bash "$CHECK_SCRIPT" "$REPORT_FILE" "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" "$PUBLIC_EXAMPLES_FILE" >/dev/null
 PASS_COUNT=$((PASS_COUNT + 1))
 printf '%s\n' '{}' > "$REPORT_FILE"
-if bash "$CHECK_SCRIPT" "$REPORT_FILE" "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" >/dev/null 2>&1; then
+if bash "$CHECK_SCRIPT" "$REPORT_FILE" "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" "$PUBLIC_EXAMPLES_FILE" >/dev/null 2>&1; then
     echo 'FAIL: workflow wrapper accepted an invalid report' >&2
     exit 1
 fi
 PASS_COUNT=$((PASS_COUNT + 1))
 printf '%s\n%s\n' '{"site":[{"alerts":[]}]}' '{"site":[{"alerts":[]}]}' > "$REPORT_FILE"
-if bash "$CHECK_SCRIPT" "$REPORT_FILE" "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" >/dev/null 2>&1; then
+if bash "$CHECK_SCRIPT" "$REPORT_FILE" "$IDENTIFIERS_FILE" "$PUBLIC_URLS_FILE" "$PUBLIC_EXAMPLES_FILE" >/dev/null 2>&1; then
     echo 'FAIL: workflow wrapper accepted multiple JSON documents' >&2
     exit 1
 fi
