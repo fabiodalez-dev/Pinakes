@@ -14,6 +14,7 @@ declare(strict_types=1);
  */
 
 use App\Models\DashboardStats;
+use App\Controllers\ReservationsController;
 use App\Support\DataIntegrity;
 use App\Support\DateHelper;
 
@@ -291,6 +292,27 @@ try {
     $check(
         $futureRangePreserved,
         'availability occupied_ranges preserves a normal future contractual end'
+    );
+
+    $calendar = (new ReservationsController($db))->getBookAvailabilityData(
+        $overbookedBook,
+        $today,
+        14
+    );
+    $todayAvailability = is_array($calendar) ? ($calendar['by_date'][$today] ?? null) : null;
+    $check(
+        is_array($todayAvailability) && (int) ($todayAvailability['available'] ?? -1) === 0,
+        'per-day availability keeps a stale in_corso copy occupied today'
+    );
+    $check(
+        is_array($calendar) && ($calendar['earliest_available'] ?? null) === null,
+        'per-day availability does not invent a date beyond the scan horizon'
+    );
+
+    $check(
+        str_contains($webSource, "'first_available' => \$availability['earliest_available'] ?? null")
+            && str_contains($webSource, "'earliest_available' => \$availability['earliest_available'] ?? null"),
+        'availability routes preserve an unknown first date as null'
     );
 
     // Keep both ids live in the assertions above: this also prevents an

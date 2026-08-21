@@ -52,6 +52,7 @@ class ReservationsController
         // midnight and 2am Rome time, diverging from every web surface.
         $start = new DateTime($startDate ?: \App\Support\DateHelper::today());
         $start->setTime(0, 0, 0);
+        $today = \App\Support\DateHelper::today();
 
         // Normalize intervals (#157, model A-refined):
         // approved loans (prenotato, da_ritirare, in_corso, in_ritardo) hold a
@@ -81,7 +82,15 @@ class ReservationsController
                 // even though they haven't picked it up yet
                 $endDateLoan = $loan['data_scadenza']
                     ?? (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
-            } elseif ($loanStatus === 'in_ritardo' && empty($loan['data_restituzione'])) {
+            } elseif (
+                empty($loan['data_restituzione'])
+                && (
+                    $loanStatus === 'in_ritardo'
+                    || ($loanStatus === 'in_corso'
+                        && !empty($loan['data_scadenza'])
+                        && $loan['data_scadenza'] < $today)
+                )
+            ) {
                 // Overdue and not yet returned: the copy is physically still out and its
                 // original data_scadenza is in the PAST — using it would free the copy on
                 // the availability calendar and let a new request slip in (double-booking).
@@ -181,12 +190,6 @@ class ReservationsController
                 'reserved' => $reserved,
                 'state' => $state,
             ];
-        }
-
-        if ($earliestAvailable === null) {
-            // If all scanned days are busy, pick the first free day after the scanned window
-            $fallback = (clone $start)->add(new DateInterval("P{$days}D"));
-            $earliestAvailable = $fallback->format('Y-m-d');
         }
 
         return [

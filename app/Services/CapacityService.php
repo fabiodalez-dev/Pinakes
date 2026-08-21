@@ -148,6 +148,72 @@ final class CapacityService
     }
 
     /**
+     * Earliest day on or after $from with at least one free capacity unit.
+     *
+     * Uses the same canonical HOLDING/reservation intervals as every write
+     * gate, then sweeps only their boundary events. Open-ended overdue loans
+     * are clamped to the horizon without a release event, so no guessed return
+     * date is exposed while a physical copy is still out.
+     */
+    public function firstAvailableDate(int $libroId, string $from): ?string
+    {
+        try {
+            $fromDate = new \DateTimeImmutable($from);
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($fromDate->format('Y-m-d') !== $from) {
+            return null;
+        }
+
+        $total = $this->totalCopies($libroId);
+        if ($total <= 0) {
+            return null;
+        }
+
+        // Keep one day available for finite end+1 events. Any interval clamped
+        // to this horizon is effectively open-ended for application purposes.
+        $horizon = '9999-12-30';
+        $intervals = array_merge(
+            $this->holdingLoanIntervals($libroId, $from, $horizon, null, null),
+            $this->activeReservationIntervals($libroId, $from, $horizon, null, null)
+        );
+        if ($intervals === []) {
+            return $from;
+        }
+
+        /** @var array<string, int> $events */
+        $events = [];
+        foreach ($intervals as [$start, $end]) {
+            $events[$start] = ($events[$start] ?? 0) + 1;
+            if ($end < $horizon) {
+                $release = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
+                $events[$release] = ($events[$release] ?? 0) - 1;
+            }
+        }
+        ksort($events, SORT_STRING);
+
+        $occupied = 0;
+        $cursor = $from;
+        foreach ($events as $date => $delta) {
+            // No boundary changes between cursor and date: if capacity was
+            // already free, cursor is the earliest possible answer.
+            if ($date > $cursor && $occupied < $total) {
+                return $cursor;
+            }
+            $occupied += $delta;
+            if ($date >= $from && $occupied < $total) {
+                return $date;
+            }
+            $cursor = $date;
+        }
+
+        // Remaining occupancy is made exclusively of horizon-clamped,
+        // open-ended commitments; their physical return date is unknown.
+        return null;
+    }
+
+    /**
      * Every day in [$start,$end] that has NO free capacity, computed from a
      * SINGLE load of the loan/reservation intervals plus an in-memory per-day
      * count — instead of one hasFreeCapacity() call (and its queries) per day.

@@ -89,6 +89,7 @@ $makeBook = static function (int $copies, bool $physical = true) use ($db, $run,
 $today = DateHelper::today();
 $yesterday = (new DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
 $tomorrow = (new DateTimeImmutable($today))->modify('+1 day')->format('Y-m-d');
+$dayAfterTomorrow = (new DateTimeImmutable($today))->modify('+2 days')->format('Y-m-d');
 $nextMonth = (new DateTimeImmutable($today))->modify('+30 days')->format('Y-m-d');
 $service = new NotificationService($db);
 $passed = 0;
@@ -104,6 +105,33 @@ $loanStart = (new DateTimeImmutable($today))->modify('-30 days')->format('Y-m-d'
 $stmt->bind_param('iiiss', $overdueBook, $overdueCopy, $userId, $loanStart, $yesterday);
 $stmt->execute(); $stmt->close();
 $check($service->hasActualAvailableCopy($overdueBook) === false, 'overdue unreturned copy is not advertised as available');
+$check($service->getNextAvailabilityDate($overdueBook) === null, 'open-ended overdue copy has no guessed next availability date');
+
+[$staleBook, $staleCopy] = $makeBook(1);
+$stmt = $db->prepare("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo) VALUES (?,?,?,?,?,'in_corso','diretto',1)");
+$stmt->bind_param('iiiss', $staleBook, $staleCopy, $userId, $loanStart, $yesterday);
+$stmt->execute(); $stmt->close();
+$staleReservationEnd = $nextMonth . ' 23:59:59';
+$stmt = $db->prepare("INSERT INTO prenotazioni (libro_id,utente_id,data_prenotazione,data_scadenza_prenotazione,data_inizio_richiesta,data_fine_richiesta,queue_position,stato) VALUES (?,?,NOW(),?,?,?,1,'attiva')");
+$stmt->bind_param('iisss', $staleBook, $userId, $staleReservationEnd, $today, $nextMonth);
+$stmt->execute(); $stmt->close();
+$check(
+    $service->getNextAvailabilityDate($staleBook) === null,
+    'date-overdue in_corso remains open-ended even beside a finite reservation'
+);
+
+[$multiBook, $multiCopyA] = $makeBook(2);
+$multiCopyB = (new CopyRepository($db))->create($multiBook, 'ZZNOTIFY-' . $run . '-MULTI-B', 'disponibile');
+$stmt = $db->prepare("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo) VALUES (?,?,?,?,?,'in_corso','diretto',1)");
+$stmt->bind_param('iiiss', $multiBook, $multiCopyA, $userId, $loanStart, $yesterday);
+$stmt->execute(); $stmt->close();
+$stmt = $db->prepare("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo) VALUES (?,?,?,?,?,'in_corso','diretto',1)");
+$stmt->bind_param('iiiss', $multiBook, $multiCopyB, $userId, $yesterday, $tomorrow);
+$stmt->execute(); $stmt->close();
+$check(
+    $service->getNextAvailabilityDate($multiBook) === $dayAfterTomorrow,
+    'a finite sibling copy still yields its real release date beside an open-ended loan'
+);
 
 [$futureBook, $futureCopy] = $makeBook(1);
 $stmt = $db->prepare("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo) VALUES (?,?,?,?,?,'prenotato','diretto',1)");

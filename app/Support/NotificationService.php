@@ -1219,51 +1219,9 @@ class NotificationService {
      * @return string|null Date in Y-m-d format, or null if no loans/reservations
      */
     public function getNextAvailabilityDate(int $bookId): ?string {
-        // App-timezone "today" (M9), come hasActualAvailableCopy().
         $today = DateHelper::today();
-
-        // First check if book is already available
-        if ($this->hasActualAvailableCopy($bookId)) {
-            return $today;
-        }
-
-        // Find the earliest end date among active loans (approved states only)
-        $loanStmt = $this->db->prepare("
-            SELECT MIN(data_scadenza) as earliest_end
-            FROM prestiti
-            WHERE libro_id = ? AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
-            AND data_scadenza >= ?
-        ");
-        $loanStmt->bind_param('is', $bookId, $today);
-        $loanStmt->execute();
-        $loanResult = $loanStmt->get_result()->fetch_assoc();
-        $earliestLoanEnd = $loanResult['earliest_end'] ?? null;
-        $loanStmt->close();
-
-        // Find the earliest end date among active reservations
-        $resStmt = $this->db->prepare("
-            SELECT MIN(COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta)) as earliest_end
-            FROM prenotazioni
-            WHERE libro_id = ? AND stato = 'attiva'
-            AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) IS NOT NULL
-            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
-        ");
-        $resStmt->bind_param('is', $bookId, $today);
-        $resStmt->execute();
-        $resResult = $resStmt->get_result()->fetch_assoc();
-        $earliestResEnd = $resResult['earliest_end'] ?? null;
-        $resStmt->close();
-
-        // Return the earliest of the two (the day after it ends, the book becomes available)
-        $dates = array_filter([$earliestLoanEnd, $earliestResEnd]);
-        if (empty($dates)) {
-            return null;
-        }
-
-        $earliestEnd = min($dates);
-        // Return the day after the earliest end date
-        return date('Y-m-d', strtotime($earliestEnd . ' +1 day'));
+        return (new \App\Services\CapacityService($this->db))
+            ->firstAvailableDate($bookId, $today);
     }
 
     /**

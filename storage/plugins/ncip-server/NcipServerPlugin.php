@@ -520,8 +520,8 @@ class NcipServerPlugin
         \SimpleXMLElement $xml
     ): ResponseInterface {
         // Extract ItemIdentifierValue
-        $ns        = self::NCIP_NS;
-        $itemIdRaw = (string) ($xml->children($ns)->LookupItem->ItemId->ItemIdentifierValue ?? '');
+        $message = $this->messageNode($xml, 'LookupItem');
+        $itemIdRaw = (string) ($message?->ItemId->ItemIdentifierValue ?? '');
         if ($itemIdRaw === '') {
             return $this->xmlResponse(
                 $response,
@@ -564,8 +564,8 @@ class NcipServerPlugin
             );
         }
 
-        $ns         = self::NCIP_NS;
-        $userIdRaw  = (string) ($xml->children($ns)->LookupUser->UserId->UserIdentifierValue ?? '');
+        $message = $this->messageNode($xml, 'LookupUser');
+        $userIdRaw  = (string) ($message?->UserId->UserIdentifierValue ?? '');
         $targetId   = $userIdRaw !== '' ? $this->parseNcipNumericId($userIdRaw) : null;
         if ($targetId === null) {
             return $this->xmlResponse(
@@ -611,9 +611,9 @@ class NcipServerPlugin
             );
         }
 
-        $ns     = self::NCIP_NS;
-        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->CheckOutItem->ItemId->ItemIdentifierValue ?? ''));
-        $userId = $this->parseNcipNumericId((string) ($xml->children($ns)->CheckOutItem->UserId->UserIdentifierValue ?? ''));
+        $message = $this->messageNode($xml, 'CheckOutItem');
+        $itemId = $this->parseNcipNumericId((string) ($message?->ItemId->ItemIdentifierValue ?? ''));
+        $userId = $this->parseNcipNumericId((string) ($message?->UserId->UserIdentifierValue ?? ''));
         if ($itemId === null || $userId === null) {
             return $this->xmlResponse(
                 $response,
@@ -684,8 +684,8 @@ class NcipServerPlugin
             );
         }
 
-        $ns     = self::NCIP_NS;
-        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->CheckInItem->ItemId->ItemIdentifierValue ?? ''));
+        $checkInItem = $this->messageNode($xml, 'CheckInItem');
+        $itemId = $this->parseNcipNumericId((string) ($checkInItem?->ItemId->ItemIdentifierValue ?? ''));
         if ($itemId === null) {
             return $this->xmlResponse(
                 $response,
@@ -696,9 +696,8 @@ class NcipServerPlugin
         // positivo valido: trattare un valore malformato come "assente" farebbe
         // ricadere sulla ricerca per solo titolo e potrebbe chiudere il prestito
         // di un altro utente.
-        $checkInItem = $xml->children($ns)->CheckInItem;
         $checkInUserId = null;
-        if (isset($checkInItem->UserId)) {
+        if ($checkInItem !== null && isset($checkInItem->UserId)) {
             $checkInUserId = $this->parseNcipNumericId((string) ($checkInItem->UserId->UserIdentifierValue ?? ''));
             if ($checkInUserId === null) {
                 return $this->xmlResponse(
@@ -757,8 +756,8 @@ class NcipServerPlugin
             );
         }
 
-        $ns     = self::NCIP_NS;
-        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->RenewItem->ItemId->ItemIdentifierValue ?? ''));
+        $renewItem = $this->messageNode($xml, 'RenewItem');
+        $itemId = $this->parseNcipNumericId((string) ($renewItem?->ItemId->ItemIdentifierValue ?? ''));
         if ($itemId === null) {
             return $this->xmlResponse(
                 $response,
@@ -767,9 +766,8 @@ class NcipServerPlugin
         }
         // Come CheckInItem: assenza ammessa, presenza malformata/non-positiva no.
         // In particolare non degradare "abc"/"0" a una ricerca per solo titolo.
-        $renewItem = $xml->children($ns)->RenewItem;
         $renewUserId = null;
-        if (isset($renewItem->UserId)) {
+        if ($renewItem !== null && isset($renewItem->UserId)) {
             $renewUserId = $this->parseNcipNumericId((string) ($renewItem->UserId->UserIdentifierValue ?? ''));
             if ($renewUserId === null) {
                 return $this->xmlResponse(
@@ -836,9 +834,9 @@ class NcipServerPlugin
             );
         }
 
-        $ns     = self::NCIP_NS;
-        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->RequestItem->ItemId->ItemIdentifierValue ?? ''));
-        $userId = $this->parseNcipNumericId((string) ($xml->children($ns)->RequestItem->UserId->UserIdentifierValue ?? ''));
+        $message = $this->messageNode($xml, 'RequestItem');
+        $itemId = $this->parseNcipNumericId((string) ($message?->ItemId->ItemIdentifierValue ?? ''));
+        $userId = $this->parseNcipNumericId((string) ($message?->UserId->UserIdentifierValue ?? ''));
         if ($itemId === null || $userId === null) {
             return $this->xmlResponse(
                 $response,
@@ -855,7 +853,7 @@ class NcipServerPlugin
             );
         }
 
-        $requestId = (string) ($xml->children($ns)->RequestItem->RequestId->RequestIdentifierValue ?? '');
+        $requestId = (string) ($message?->RequestId->RequestIdentifierValue ?? '');
         $today = \App\Support\DateHelper::today();
         $loanDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
         $loanDays = $loanDays > 0 ? $loanDays : 30;
@@ -904,9 +902,9 @@ class NcipServerPlugin
             );
         }
 
-        $ns     = self::NCIP_NS;
-        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->CancelRequestItem->ItemId->ItemIdentifierValue ?? ''));
-        $userId = $this->parseNcipNumericId((string) ($xml->children($ns)->CancelRequestItem->UserId->UserIdentifierValue ?? ''));
+        $message = $this->messageNode($xml, 'CancelRequestItem');
+        $itemId = $this->parseNcipNumericId((string) ($message?->ItemId->ItemIdentifierValue ?? ''));
+        $userId = $this->parseNcipNumericId((string) ($message?->UserId->UserIdentifierValue ?? ''));
 
         if ($itemId === null) {
             return $this->xmlResponse(
@@ -1746,14 +1744,8 @@ class NcipServerPlugin
         if ($messageType === '') {
             return null;
         }
-        $ns = self::NCIP_NS;
-        $message = $xml->children($ns)->{$messageType} ?? null;
-        if (!($message instanceof \SimpleXMLElement) || $message->count() === 0) {
-            // Same namespace-free fallback as detectMessageType(): partner
-            // attribution must work for legacy clients that omit the NCIP NS.
-            $message = $xml->children()->{$messageType} ?? null;
-        }
-        if (!($message instanceof \SimpleXMLElement)) {
+        $message = $this->messageNode($xml, $messageType);
+        if ($message === null) {
             return null;
         }
         $agency = trim((string) ($message->InitiationHeader->FromAgencyId->AgencyId ?? ''));
@@ -2063,6 +2055,27 @@ class NcipServerPlugin
             return (string) $name;
         }
         return 'Unknown';
+    }
+
+    /**
+     * Resolve the request element for both standards-compliant NCIP payloads
+     * and legacy payloads that omit the default NCIP namespace. Keeping this
+     * lookup centralized prevents partner attribution and field extraction
+     * from disagreeing about which message was received.
+     */
+    private function messageNode(\SimpleXMLElement $xml, string $messageType): ?\SimpleXMLElement
+    {
+        if ($messageType === '' || $messageType === 'Unknown') {
+            return null;
+        }
+
+        $message = $xml->children(self::NCIP_NS)->{$messageType} ?? null;
+        if ($message instanceof \SimpleXMLElement && $message->count() > 0) {
+            return $message;
+        }
+
+        $message = $xml->children()->{$messageType} ?? null;
+        return $message instanceof \SimpleXMLElement ? $message : null;
     }
 
     private function newXmlWriter(): \XMLWriter
