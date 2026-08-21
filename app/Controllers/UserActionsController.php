@@ -205,11 +205,15 @@ class UserActionsController
             $updateStmt->execute();
             $updateStmt->close();
 
-            // If it had a reserved copy, free it and reassign
-            if ($loan['stato'] === 'prenotato' && $loan['copia_id']) {
+            // If it had a reserved copy, free it and reassign. Vale anche per un
+            // 'pendente' promosso dalla coda (attivo=0 con copia_id): prima solo
+            // il ramo 'prenotato' riassegnava subito e la copia del pendente
+            // annullato restava in attesa dello sweep di manutenzione.
+            if ($loan['copia_id'] && in_array((string) $loan['stato'], ['prenotato', 'pendente'], true)) {
                 $copiaId = (int) $loan['copia_id'];
 
-                // Update copy status to available (if it was 'prenotato')
+                // Update copy status to available (if it was 'prenotato'; la copia
+                // di un pendente promosso resta 'disponibile' e l'UPDATE è no-op)
                 $copyStmt = $db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ? AND stato = 'prenotato'");
                 $copyStmt->bind_param('i', $copiaId);
                 $copyStmt->execute();
@@ -773,6 +777,13 @@ class UserActionsController
             // Canonical peak-capacity decision (same service as admin create,
             // approval, renew and audit), excluding this user defensively.
             $capacity = new \App\Services\CapacityService($db);
+            // Senza righe in `copie` la coda non può mai convertire (la
+            // promozione seleziona solo copie fisiche): rifiuta a monte invece
+            // di accettare una prenotazione che fallirebbe in silenzio per sempre.
+            if (!$capacity->hasPhysicalCopies($libroId)) {
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => 'not_available']);
+            }
             if (!$capacity->hasFreeCapacity($libroId, $start, $end, excludeUserId: $utenteId)) {
                 $db->rollback();
                 return $this->back($response, ['reserve_error' => 'not_available']);
