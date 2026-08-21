@@ -2,6 +2,8 @@
 
 **Data:** 2026-08-21 · **Base:** `main` @ `5b35f2e` (v0.7.63) · include la verifica dei finding CodeRabbit sulla PR #368.
 
+> **Nota sulle fonti:** l'audit è condotto esclusivamente sul codice, non sulla documentazione in `docs/`, che risulta non aggiornata. In particolare `docs/SEO_IMPLEMENTATION_TESTING.md` (rev. 2026-06-04, "Status: Complete") descrive l'hreflang path-prefix (`/en/…`) come funzionante e afferma che non esiste un language switcher frontend, mentre nel codice i prefissi non sono routabili (vedi C1) ed esiste l'endpoint `/language/{locale}`. Andrebbe riallineata dopo il fix di C1.
+
 ---
 
 ## Parte 1 — Verifica dei finding CodeRabbit (PR #368)
