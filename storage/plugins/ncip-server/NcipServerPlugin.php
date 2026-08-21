@@ -708,7 +708,14 @@ class NcipServerPlugin
         }
 
         $ambiguousLoan = false;
-        $loan = $this->findActiveLoan($itemId, $checkInUserId, $ambiguousLoan);
+        $loanLookupFailed = false;
+        $loan = $this->findActiveLoan($itemId, $checkInUserId, $ambiguousLoan, $loanLookupFailed);
+        if ($loanLookupFailed) {
+            return $this->xmlResponse(
+                $response,
+                $this->buildProblem('Failed to look up active loan', 'temporary-processing-failure')
+            );
+        }
         if ($ambiguousLoan) {
             return $this->xmlResponse(
                 $response,
@@ -784,7 +791,14 @@ class NcipServerPlugin
         }
 
         $ambiguousLoan = false;
-        $loan = $this->findActiveLoan($itemId, $renewUserId, $ambiguousLoan);
+        $loanLookupFailed = false;
+        $loan = $this->findActiveLoan($itemId, $renewUserId, $ambiguousLoan, $loanLookupFailed);
+        if ($loanLookupFailed) {
+            return $this->xmlResponse(
+                $response,
+                $this->buildProblem('Failed to look up active loan', 'temporary-processing-failure')
+            );
+        }
         if ($ambiguousLoan) {
             return $this->xmlResponse(
                 $response,
@@ -1380,50 +1394,66 @@ class NcipServerPlugin
     /**
      * @param-out bool $ambiguous True only when UserId is absent and the title
      *                            has more than one open NCIP loan.
+     * @param-out bool $databaseError True when the lookup could not be completed.
      * @return array<string, mixed>|null
      */
-    private function findActiveLoan(int $bookId, ?int $userId, bool &$ambiguous): ?array
+    private function findActiveLoan(
+        int $bookId,
+        ?int $userId,
+        bool &$ambiguous,
+        bool &$databaseError
+    ): ?array
     {
         $ambiguous = false;
+        $databaseError = false;
         // Con più prestiti NCIP aperti dello stesso titolo (utenti diversi su
         // copie diverse) il solo libro_id è ambiguo. Leggine al massimo due:
         // senza UserId due righe devono produrre un errore, mai una mutazione
         // arbitraria; con UserId basta la singola riga filtrata.
         $userFilter = $userId !== null ? ' AND utente_id = ?' : '';
         $limit = $userId !== null ? 1 : 2;
-        $stmt = $this->db->prepare(
-            "SELECT id, libro_id, utente_id, data_scadenza
-               FROM prestiti
-              WHERE libro_id = ? AND origine = 'ncip' AND attivo = 1
-                AND stato IN ('in_corso','in_ritardo'){$userFilter}
-              ORDER BY data_prestito DESC, id DESC LIMIT {$limit}"
-        );
-        if ($stmt === false) {
-            // A failed prepare surfaces to the partner as item-not-checked-out,
-            // a definitive application outcome they will not retry — keep a
-            // diagnostic trail of the real database cause.
-            SecureLogger::error('[NcipServer] findActiveLoan prepare failed: ' . $this->db->error);
-            return null;
-        }
-        if ($userId !== null) {
-            $stmt->bind_param('ii', $bookId, $userId);
-        } else {
-            $stmt->bind_param('i', $bookId);
-        }
-        $stmt->execute();
-        $res = $stmt->get_result();
-        if (!($res instanceof \mysqli_result)) {
+        $stmt = null;
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT id, libro_id, utente_id, data_scadenza
+                   FROM prestiti
+                  WHERE libro_id = ? AND origine = 'ncip' AND attivo = 1
+                    AND stato IN ('in_corso','in_ritardo'){$userFilter}
+                  ORDER BY data_prestito DESC, id DESC LIMIT {$limit}"
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException('prepare failed: ' . $this->db->error);
+            }
+            if ($userId !== null) {
+                $stmt->bind_param('ii', $bookId, $userId);
+            } else {
+                $stmt->bind_param('i', $bookId);
+            }
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if (!($res instanceof \mysqli_result)) {
+                throw new \RuntimeException('result retrieval failed: ' . $stmt->error);
+            }
+            $row = $res->fetch_assoc();
+            if ($userId === null && $row !== null && $res->fetch_assoc() !== null) {
+                $ambiguous = true;
+                $stmt->close();
+                return null;
+            }
             $stmt->close();
+            return is_array($row) ? $row : null;
+        } catch (\Throwable $e) {
+            if ($stmt instanceof \mysqli_stmt) {
+                try {
+                    $stmt->close();
+                } catch (\Throwable) {
+                    // Preserve the original lookup failure below.
+                }
+            }
+            $databaseError = true;
+            SecureLogger::error('[NcipServer] findActiveLoan failed: ' . $e->getMessage());
             return null;
         }
-        $row = $res->fetch_assoc();
-        if ($userId === null && $row !== null && $res->fetch_assoc() !== null) {
-            $ambiguous = true;
-            $stmt->close();
-            return null;
-        }
-        $stmt->close();
-        return is_array($row) ? $row : null;
     }
 
     /**
