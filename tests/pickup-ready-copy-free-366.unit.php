@@ -237,11 +237,14 @@ try {
     /* ---- Scenario 3: multi-copy but pinned to the copy still out -------- */
     [$book3, $copies3] = $mkBook('pinned-copy', 2);
     [$c3a, $c3b] = $copies3;
+    // Reservation pinned to the very copy that is still out. Insert it BEFORE
+    // the stale predecessor: the trigger now treats a stale in_corso row
+    // (data_scadenza < CURRENT_DATE) as open-ended, so the pinned successor
+    // can no longer be inserted after it; the reverse order reaches the same
+    // final state through the gate (the windows themselves are disjoint).
+    $res3 = $mkLoan($book3, $c3a, $reserver, 'prenotato', $d(-1), $d(20));
     $prev3 = $mkLoan($book3, $c3a, $borrower, 'in_corso', $d(-30), $d(-5));
     $setCopyState($c3a, 'prestato');
-    // Reservation pinned to the very copy that is still out (non-overlapping
-    // window, so the DB trigger allows the row — the #366 blind spot).
-    $res3 = $mkLoan($book3, $c3a, $reserver, 'prenotato', $d(-1), $d(20));
 
     $svc->activateScheduledLoans();
     $row = $loanRow($res3);

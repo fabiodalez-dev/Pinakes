@@ -225,12 +225,16 @@ try {
     $borrower1 = $mkUser();
     $picker1 = $mkUser();
     [$bookP1, [$copyP1]] = $mkBook(1);
-    // Predecessor still out and overdue (not yet flipped), copy 'prestato'.
+    // Successor already announced ready, then the predecessor still out and
+    // overdue (not yet flipped) on the SAME copy — the #366-adjacent
+    // inconsistent state this guard must fail closed on. Insertion order is
+    // successor-first: the copy-overlap trigger treats a stale in_corso row
+    // (data_scadenza < CURRENT_DATE) as open-ended and would reject inserting
+    // the pinned successor after it; inserting the predecessor second (its
+    // window ends before the successor starts) reaches the same state.
+    $nextLoan = $mkLoan($bookP1, $copyP1, $picker1, 'da_ritirare', $d(-1), $d(10), $d(2));
     $prevLoan = $mkLoan($bookP1, $copyP1, $borrower1, 'in_corso', $d(-30), $d(-5));
     $setCopyState($copyP1, 'prestato');
-    // Successor already announced ready on the SAME copy (the #366-adjacent
-    // inconsistent state this guard must fail closed on).
-    $nextLoan = $mkLoan($bookP1, $copyP1, $picker1, 'da_ritirare', $d(-1), $d(10), $d(2));
 
     $_SESSION['user'] = ['tipo_utente' => 'admin', 'id' => $picker1];
     $request = (new ServerRequestFactory())

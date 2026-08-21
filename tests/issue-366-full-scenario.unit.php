@@ -427,9 +427,12 @@ try {
     $userE = $mkUser();
     $userE2 = $mkUser();
     [$bookE, [$copyEa, $copyEb]] = $mkBook(2);
+    // Pinned reservation first, stale predecessor second: the copy-overlap
+    // trigger treats a stale in_corso row (data_scadenza < CURRENT_DATE) as
+    // open-ended and would reject inserting the pinned successor after it.
+    $resE = $mkLoan($bookE, $copyEa, $userE2, 'prenotato', $d(-1), $d(20));
     $loanE = $mkLoan($bookE, $copyEa, $userE, 'in_corso', $d(-30), $d(-5));
     $setCopyState($copyEa, 'prestato');
-    $resE = $mkLoan($bookE, $copyEa, $userE2, 'prenotato', $d(-1), $d(20));
 
     $svc->activateScheduledLoans();
     $row = $loanRow($resE);
@@ -479,8 +482,11 @@ try {
     $userG = $mkUser();
     $userG2 = $mkUser();
     [$bookG, [$copyG]] = $mkBook(1);
-    $loanG = $mkLoan($bookG, $copyG, $userG, 'in_corso', $d(-30), $d(-1));
+    // Successor first, stale predecessor second (see scenario D2): the trigger
+    // treats a stale in_corso row as open-ended and would reject inserting the
+    // pinned successor after it; this order reaches the same legacy state.
     $stalePickupG = $mkLoan($bookG, $copyG, $userG2, 'da_ritirare', $d(0), $d(12), $d(3));
+    $loanG = $mkLoan($bookG, $copyG, $userG, 'in_corso', $d(-30), $d(-1));
     $setCopyState($copyG, 'prestato');
 
     $reservationCount = (int) $db->query("SELECT COUNT(*) FROM prenotazioni WHERE libro_id = {$bookG}")->fetch_row()[0];
