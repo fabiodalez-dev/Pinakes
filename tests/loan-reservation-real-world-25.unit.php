@@ -59,6 +59,11 @@ try {
         ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
         : new mysqli($dbHost, $dbUser, $dbPass, $dbName, $dbPort);
     $db->set_charset('utf8mb4');
+    // Production writers bind the application-local date on every
+    // connection (container/cron/scripts bootstrap); the circulation
+    // triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+    // which disagrees with app.timezone between 22:00 and 24:00 UTC.
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
 } catch (\Throwable $e) {
     fwrite(STDERR, "FAIL: database unreachable — mandatory for the 25 real-world scenarios: {$e->getMessage()}\n");
     exit(1);
@@ -98,10 +103,15 @@ $d = static fn (int $offset): string => date(
 $withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
     $safeDate = $db->real_escape_string($date);
     $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    // The circulation triggers read the connection-bound application date
+    // before falling back to CURRENT_DATE(), so warping the clock must warp
+    // the bound date too — and restore the real application day afterwards.
+    $db->query("SET @pinakes_application_date = '{$safeDate}'");
     try {
         return $callback();
     } finally {
         $db->query('SET timestamp = 0');
+        \App\Support\DateHelper::synchronizeDatabaseSession($db);
     }
 };
 
