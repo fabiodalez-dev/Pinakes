@@ -24,6 +24,13 @@ declare(strict_types=1);
 use Dotenv\Dotenv;
 use App\Support\MaintenanceService;
 
+// Difesa in profondità: sotto Apache la .htaccess root instrada tutto su
+// public/, ma su nginx (che la ignora) o con una docroot mal configurata
+// questo file sarebbe un trigger web non autenticato del batch di manutenzione.
+if (php_sapi_name() !== 'cli') {
+    die("This script can only be run from the command line.");
+}
+
 // ============================================================
 // PROCESS LOCK - Prevent concurrent cron executions
 // ============================================================
@@ -57,12 +64,13 @@ ftruncate($lockHandle, 0);
 fwrite($lockHandle, (string)getmypid());
 fflush($lockHandle);
 
-// Register shutdown function to release lock and clean up
-register_shutdown_function(function () use ($lockHandle, $lockFile) {
+// Register shutdown function to release lock. MAI unlink dopo l'unlock
+// (stessa scelta di scripts/maintenance.php): B può aver già aperto lo stesso
+// inode e lockarlo dopo il nostro rilascio; se A poi lo cancella, C ricrea il
+// file e locka il NUOVO inode → B e C girerebbero in parallelo.
+register_shutdown_function(function () use ($lockHandle) {
     flock($lockHandle, LOCK_UN);
     fclose($lockHandle);
-    // nosemgrep: php.lang.security.unlink-use.unlink-use -- $lockFile is a fixed internal path (storage/cache/full-maintenance.lock), not user input
-    @unlink($lockFile);
 });
 
 // ============================================================
@@ -153,6 +161,7 @@ try {
     logMessage("  - Overdue notifications: " . $results['overdue_notifications']);
     logMessage("  - Wishlist notifications: " . $results['wishlist_notifications']);
     logMessage("  - Reservation availability notifications retried: " . $results['reservation_notifications_retried']);
+    logMessage("  - Pickup-ready notifications retried: " . $results['pickup_notifications_retried']);
 
     if (!empty($results['errors'])) {
         logMessage("Errors encountered during maintenance:");
