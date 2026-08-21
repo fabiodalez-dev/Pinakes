@@ -11,6 +11,8 @@ namespace App\Support;
  */
 final class ContentSecurityPolicy
 {
+    private const NONCE_PATTERN = '/^(?:[a-f0-9]{8}-){3}[a-f0-9]{8}$/D';
+
     /**
      * Generate a 128-bit per-response nonce without long decimal runs.
      *
@@ -28,7 +30,7 @@ final class ContentSecurityPolicy
 
     public static function header(string $nonce, bool $upgradeInsecureRequests = false): string
     {
-        if (!preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{8}){3}$/', $nonce)) {
+        if (!preg_match(self::NONCE_PATTERN, $nonce)) {
             throw new \InvalidArgumentException('Invalid CSP nonce');
         }
 
@@ -61,7 +63,7 @@ final class ContentSecurityPolicy
 
     public static function addNonceAttributes(string $html, string $nonce): string
     {
-        if (!preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{8}){3}$/', $nonce)) {
+        if (!preg_match(self::NONCE_PATTERN, $nonce)) {
             throw new \InvalidArgumentException('Invalid CSP nonce');
         }
 
