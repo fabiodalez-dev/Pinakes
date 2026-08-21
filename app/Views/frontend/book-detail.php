@@ -106,11 +106,13 @@ if ($bookAuthor) {
 $title .= " - " . $siteBrandName;
 $metaTitle = $title;
 
-// Meta description ottimizzata (max 160 caratteri)
+// Meta description ottimizzata (max 160 caratteri). Taglio multibyte: substr()
+// byte-based può spezzare un carattere UTF-8 (accenti) a metà nel <head>.
 $metaDescription = '';
 if ($bookDescription) {
-    $metaDescription = substr(strip_tags($bookDescription), 0, 140);
-    if (strlen($bookDescription) > 140) {
+    $plainDescription = trim(strip_tags($bookDescription));
+    $metaDescription = mb_substr($plainDescription, 0, 140);
+    if (mb_strlen($plainDescription) > 140) {
         $metaDescription .= '...';
     }
 } else {

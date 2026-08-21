@@ -18,6 +18,9 @@ if ($searchQuery) {
     $sanitizedSearchQuery = htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8');
     $seoTitle = __("Risultati per '%s' - Catalogo Biblioteca", $sanitizedSearchQuery);
     $seoDescription = __("Scopri tutti i libri che contengono '%s' nel nostro catalogo. Trova autori, titoli e argomenti correlati alla tua ricerca.", $sanitizedSearchQuery);
+    // Internal search results must not enter the index (infinite query space,
+    // thin/duplicate content); links are still followed toward the books.
+    $seoRobots = 'noindex,follow';
 } else {
     $seoTitle = __("Catalogo Completo Libri - Biblioteca Digitale");
     $seoDescription = __("Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.");
