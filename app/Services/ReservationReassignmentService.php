@@ -130,35 +130,6 @@ class ReservationReassignmentService
      */
     public function reassignOnNewCopy(int $libroId, int $newCopiaId): void
     {
-        // 1. Trova prenotazioni che sono "bloccate" (assegnate a copie non disponibili o senza copia)
-        // Ordina per data creazione (FIFO)
-        // Solo righe GENUINAMENTE bloccate: senza copia, oppure con una copia in
-        // stato NON prestabile. NON 'c.stato != disponibile' — una copia 'prenotato'
-        // o 'prestato' per un periodo NON sovrapposto è legittimamente assegnata e
-        // non va strappata (BUG6/D11).
-        $stmt = $this->db->prepare("
-            SELECT p.id, p.copia_id, p.utente_id, p.data_prestito, p.data_scadenza
-            FROM prestiti p
-            LEFT JOIN copie c ON p.copia_id = c.id
-            WHERE p.libro_id = ?
-            AND ( (p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare'))
-                  OR (p.attivo = 0 AND p.stato = 'pendente' AND p.origine = 'prenotazione') )
-            AND ( p.copia_id IS NULL
-                  OR c.stato IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento') )
-            ORDER BY p.created_at ASC
-            LIMIT 1
-        ");
-        $stmt->bind_param('i', $libroId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $reservation = $result->fetch_assoc();
-        $stmt->close();
-
-        if (!$reservation) {
-            return;
-        }
-
-        // 2. Se abbiamo trovato una prenotazione da sbloccare, proviamo ad assegnarla alla nuova copia
         $ownTransaction = $this->beginTransactionIfNeeded();
         try {
             // CI-SOFT-DELETE-EXEMPT: an existing hold must be released/reassigned even if its book is deleted.
@@ -167,66 +138,155 @@ class ReservationReassignmentService
             $lockBook->execute();
             $lockBook->close();
 
-            // The initial lookup was intentionally non-locking to preserve book
-            // first ordering. Revalidate the chosen hold now, under the book lock.
-            $lockedReservationStmt = $this->db->prepare("
+            // Cheap advisory pre-filter after the canonical book lock: only rows
+            // that are currently copyless or pinned to an operationally unavailable
+            // copy enter the locking batch. The authoritative state re-check happens
+            // below after both prestiti and copie rows have been locked.
+            $prefilterStmt = $this->db->prepare("
+                SELECT p.id
+                FROM prestiti p
+                LEFT JOIN copie c ON p.copia_id = c.id
+                WHERE p.libro_id = ?
+                  AND ( (p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare'))
+                        OR (p.attivo = 0 AND p.stato = 'pendente' AND p.origine = 'prenotazione') )
+                  AND (p.copia_id IS NULL
+                       OR c.stato IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento'))
+                ORDER BY p.created_at ASC, p.id ASC
+            ");
+            $prefilterStmt->bind_param('i', $libroId);
+            $prefilterStmt->execute();
+            $prefilterResult = $prefilterStmt->get_result();
+            $candidateIds = [];
+            while ($row = $prefilterResult->fetch_assoc()) {
+                $candidateIds[] = (int) $row['id'];
+            }
+            $prefilterStmt->close();
+            if ($candidateIds === []) {
+                $this->rollbackIfOwned($ownTransaction);
+                return;
+            }
+
+            // Lock the pre-filtered prestiti as one deterministic FIFO batch and
+            // re-assert their lifecycle state. No copy row is locked yet.
+            $candidatePlaceholders = implode(',', array_fill(0, count($candidateIds), '?'));
+            $candidateLockStmt = $this->db->prepare("
                 SELECT id, copia_id, utente_id, data_prestito, data_scadenza
                 FROM prestiti
-                WHERE id = ? AND libro_id = ?
-                  AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare'))
+                WHERE libro_id = ? AND id IN ({$candidatePlaceholders})
+                  AND ( (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
                         OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
+                ORDER BY created_at ASC, id ASC
                 FOR UPDATE
             ");
-            $lockedReservationStmt->bind_param('ii', $reservation['id'], $libroId);
-            $lockedReservationStmt->execute();
-            $lockedReservation = $lockedReservationStmt->get_result()->fetch_assoc();
-            $lockedReservationStmt->close();
-            if (!$lockedReservation) {
-                $this->rollbackIfOwned($ownTransaction);
-                return;
-            }
-            $reservation = $lockedReservation;
-
-            // Existing same-title duplicates must keep distinct physical copies
-            // even when their windows do not overlap (and even if the setting was
-            // subsequently disabled). Lock sibling commitments before the copy.
-            $committedCopyIds = (new \App\Support\LoanMultiplicityPolicy($this->db))
-                ->committedCopyIds($libroId, (int) $reservation['utente_id'], (int) $reservation['id']);
-            if (in_array($newCopiaId, $committedCopyIds, true)) {
+            $candidateParams = array_merge([$libroId], $candidateIds);
+            $candidateTypes = str_repeat('i', count($candidateParams));
+            $candidateLockStmt->bind_param($candidateTypes, ...$candidateParams);
+            $candidateLockStmt->execute();
+            $candidateResult = $candidateLockStmt->get_result();
+            $candidates = $candidateResult ? $candidateResult->fetch_all(MYSQLI_ASSOC) : [];
+            $candidateLockStmt->close();
+            if ($candidates === []) {
                 $this->rollbackIfOwned($ownTransaction);
                 return;
             }
 
-            // Verifica che la nuova copia sia effettivamente disponibile (lock)
-            $stmt = $this->db->prepare("SELECT id, stato FROM copie WHERE id = ? FOR UPDATE");
-            $stmt->bind_param('i', $newCopiaId);
-            $stmt->execute();
-            $copyStatus = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-
-            if (!$copyStatus || !in_array($copyStatus['stato'], ['disponibile', 'prenotato'], true)) {
-                $this->rollbackIfOwned($ownTransaction);
-                return;
-            }
-
-            // Non riassegnare se la copia target ha un impegno HOLDING sovrapposto
-            // al periodo della prenotazione: eviterebbe un SIGNAL del trigger di
-            // overlap che avvelenerebbe la transazione (BUG6/D11). Overlap inclusivo.
-            $ovl = $this->db->prepare("
-                SELECT 1 FROM prestiti
-                WHERE copia_id = ? AND id <> ?
-                AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
-                AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
-                      OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
-                LIMIT 1
+            // Lock every open commitment already attached to the target copy in a
+            // single current read. This one result set answers both questions for
+            // every candidate: same-borrower physical identity and date overlap.
+            // It replaces one committedCopyIds() plus one overlap query per row.
+            $targetCommitmentStmt = $this->db->prepare("
+                SELECT id, utente_id, data_prestito, data_scadenza, stato
+                FROM prestiti
+                WHERE libro_id = ? AND copia_id = ?
+                  AND ( (attivo = 0 AND stato = 'pendente')
+                        OR (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')) )
+                ORDER BY id ASC
+                FOR UPDATE
             ");
-            $ovl->bind_param('iiss', $newCopiaId, $reservation['id'], $reservation['data_scadenza'], $reservation['data_prestito']);
-            $ovl->execute();
-            $hasOverlap = (bool) $ovl->get_result()->fetch_row();
-            $ovl->close();
-            if ($hasOverlap) {
-                // La nuova copia non è libera per l'intero periodo: lascia la
-                // prenotazione bloccata, verrà riassegnata da un'altra copia/ritorno.
+            $targetCommitmentStmt->bind_param('ii', $libroId, $newCopiaId);
+            $targetCommitmentStmt->execute();
+            $targetCommitmentResult = $targetCommitmentStmt->get_result();
+            $targetCommitments = $targetCommitmentResult
+                ? $targetCommitmentResult->fetch_all(MYSQLI_ASSOC)
+                : [];
+            $targetCommitmentStmt->close();
+
+            // Lock the target and every candidate's currently pinned copy in one
+            // ascending-ID batch. All prestiti locks above are therefore complete
+            // before the first copie lock (libri -> prestiti -> copie).
+            $copyIds = [$newCopiaId => true];
+            foreach ($candidates as $candidate) {
+                if ($candidate['copia_id'] !== null) {
+                    $copyIds[(int) $candidate['copia_id']] = true;
+                }
+            }
+            $copyIds = array_keys($copyIds);
+            sort($copyIds, SORT_NUMERIC);
+            $copyPlaceholders = implode(',', array_fill(0, count($copyIds), '?'));
+            $copyLockStmt = $this->db->prepare("
+                SELECT id, stato
+                FROM copie
+                WHERE libro_id = ? AND id IN ({$copyPlaceholders})
+                ORDER BY id ASC
+                FOR UPDATE
+            ");
+            $copyParams = array_merge([$libroId], $copyIds);
+            $copyTypes = str_repeat('i', count($copyParams));
+            $copyLockStmt->bind_param($copyTypes, ...$copyParams);
+            $copyLockStmt->execute();
+            $copyResult = $copyLockStmt->get_result();
+            $copiesById = [];
+            while ($copy = $copyResult->fetch_assoc()) {
+                $copiesById[(int) $copy['id']] = (string) $copy['stato'];
+            }
+            $copyLockStmt->close();
+
+            $targetCopyState = $copiesById[$newCopiaId] ?? null;
+            if ($targetCopyState === null || !in_array($targetCopyState, ['disponibile', 'prenotato'], true)) {
+                $this->rollbackIfOwned($ownTransaction);
+                return;
+            }
+
+            $nonLendableStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
+            $reservation = null;
+            foreach ($candidates as $candidate) {
+                // Authoritative blocked-state re-check from the locked copy batch.
+                // A row whose original copy became usable is no longer a candidate.
+                $currentCopyId = $candidate['copia_id'] !== null ? (int) $candidate['copia_id'] : null;
+                if ($currentCopyId !== null) {
+                    $currentCopyState = $copiesById[$currentCopyId] ?? null;
+                    if ($currentCopyState === null || !in_array($currentCopyState, $nonLendableStates, true)) {
+                        continue;
+                    }
+                }
+
+                $identityConflict = false;
+                $hasOverlap = false;
+                foreach ($targetCommitments as $commitment) {
+                    if ((int) $commitment['id'] === (int) $candidate['id']) {
+                        continue;
+                    }
+
+                    if ((int) $commitment['utente_id'] === (int) $candidate['utente_id']) {
+                        $identityConflict = true;
+                        break;
+                    }
+
+                    $startsBeforeCandidateEnds = (string) $commitment['data_prestito']
+                        <= (string) $candidate['data_scadenza'];
+                    $endsAfterCandidateStarts = $commitment['stato'] === 'in_ritardo'
+                        || (string) $commitment['data_scadenza'] >= (string) $candidate['data_prestito'];
+                    if ($startsBeforeCandidateEnds && $endsAfterCandidateStarts) {
+                        $hasOverlap = true;
+                    }
+                }
+
+                if (!$identityConflict && !$hasOverlap) {
+                    $reservation = $candidate;
+                    break;
+                }
+            }
+            if ($reservation === null) {
                 $this->rollbackIfOwned($ownTransaction);
                 return;
             }

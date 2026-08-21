@@ -238,7 +238,7 @@ Imposti le regole globali dei prestiti (categoria setting `loans`):
 
 > **Importante**: il server **ricalcola e blocca (clamp)** ogni valore entro i limiti indicati a prescindere dagli attributi `min`/`max` del form (che sono solo indicativi). Un POST manipolato non può quindi impostare durate o rinnovi assurdi.
 
-Il toggle **Più copie dello stesso titolo** è disattivato per impostazione predefinita: il normale flusso di biblioteca continua quindi a permettere un solo prestito o una sola richiesta attiva per utente e libro. Attivalo solo quando serve affidare contemporaneamente allo stesso utente più copie fisiche dello stesso titolo, per esempio in una scuola o in un centro didattico. Ogni prestito deve riferirsi a una copia distinta e conta separatamente nel limite `max_active_loans_per_user`; richieste in attesa e prenotazioni restano invece uniche per utente e libro.
+Il toggle **Consenti più prestiti dello stesso titolo solo su copie fisiche distinte** è disattivato per impostazione predefinita: il normale flusso di biblioteca continua quindi a permettere un solo prestito o una sola richiesta attiva per utente e libro. Attivalo solo quando serve affidare contemporaneamente allo stesso utente più copie fisiche dello stesso titolo, per esempio in una scuola o in un centro didattico. Ogni prestito deve riferirsi a una copia distinta e conta separatamente nel limite `max_active_loans_per_user`; richieste in attesa e prenotazioni restano invece uniche per utente e libro.
 
 ---
 

@@ -6878,8 +6878,8 @@
   "Attivazione prestito rinviata: copia assegnata non in sede": "Attivazione prestito rinviata: copia assegnata non in sede",
   "Più copie dello stesso titolo": "Più copie dello stesso titolo",
   "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.",
-  "Consenti prestiti multipli per copia": "Consenti prestiti multipli per copia",
-  "Utile per scuole e centri didattici che affidano più copie dello stesso testo a un docente.": "Utile per scuole e centri didattici che affidano più copie dello stesso testo a un docente.",
+  "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte": "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte",
+  "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.": "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.",
   "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.",
   "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare."
 }

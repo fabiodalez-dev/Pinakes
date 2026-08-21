@@ -168,16 +168,17 @@ $makeLoan = static function (
     string $state,
     int $active,
     ?string $startDate = null,
-    ?string $endDate = null
+    ?string $endDate = null,
+    string $origin = 'diretto'
 ) use ($db, $today, $due): int {
     $loanStart = $startDate ?? $today;
     $loanEnd = $endDate ?? $due;
     $stmt = $db->prepare(
         "INSERT INTO prestiti
             (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
-         VALUES (?, ?, ?, ?, ?, ?, 'diretto', ?)"
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
-    $stmt->bind_param('iiisssi', $bookId, $copyId, $userId, $loanStart, $loanEnd, $state, $active);
+    $stmt->bind_param('iiissssi', $bookId, $copyId, $userId, $loanStart, $loanEnd, $state, $origin, $active);
     $stmt->execute();
     $stmt->close();
 
@@ -476,14 +477,132 @@ try {
     [$reservedBook, , $reservedCopyCodes] = $makeBook(2);
     $activeReservation = $makeActiveReservation($reservedBook, $reservedBorrower);
     $response = $callStore($admin, $reservedBorrower, $reservedBook, $reservedCopyCodes[0]);
-    $reservationState = (string) $db->query(
-        "SELECT stato FROM prenotazioni WHERE id = {$activeReservation}"
-    )->fetch_row()[0];
+    $reservationStateStmt = $db->prepare('SELECT stato FROM prenotazioni WHERE id = ?');
+    $reservationStateStmt->bind_param('i', $activeReservation);
+    $reservationStateStmt->execute();
+    $reservationState = (string) $reservationStateStmt->get_result()->fetch_row()[0];
+    $reservationStateStmt->close();
     $check(
         str_contains($response->getHeaderLine('Location'), 'error=duplicate_reservation')
             && $loanCount($reservedBook, $reservedBorrower) === 0
             && $reservationState === 'attiva',
         'an active same-user/title reservation still blocks real store() while ON'
+    );
+
+    // A scheduled reservation remains a title-level commitment even when it
+    // already pins a physical copy. Only loans that represent physical items
+    // in circulation may coexist under the opt-in policy.
+    $settings->set('loans', 'allow_multiple_loans_same_book', '1');
+    $pinnedReservationBorrower = $makeUser();
+    [$pinnedReservationBook, $pinnedReservationCopies, $pinnedReservationCodes] = $makeBook(2);
+    $pinnedReservationStart = (new DateTimeImmutable($today))->modify('+20 days')->format('Y-m-d');
+    $pinnedReservationEnd = (new DateTimeImmutable($today))->modify('+25 days')->format('Y-m-d');
+    $pinnedReservationLoan = $makeLoan(
+        $pinnedReservationBook,
+        $pinnedReservationCopies[0],
+        $pinnedReservationBorrower,
+        'prenotato',
+        1,
+        $pinnedReservationStart,
+        $pinnedReservationEnd,
+        'prenotazione'
+    );
+    $response = $callStore(
+        $admin,
+        $pinnedReservationBorrower,
+        $pinnedReservationBook,
+        $pinnedReservationCodes[1]
+    );
+    $pinnedReservationStmt = $db->prepare(
+        'SELECT stato, attivo, copia_id FROM prestiti WHERE id = ?'
+    );
+    $pinnedReservationStmt->bind_param('i', $pinnedReservationLoan);
+    $pinnedReservationStmt->execute();
+    $pinnedReservationRow = $pinnedReservationStmt->get_result()->fetch_assoc() ?: [];
+    $pinnedReservationStmt->close();
+    $check(
+        str_contains($response->getHeaderLine('Location'), 'error=duplicate_reservation')
+            && $loanCount($pinnedReservationBook, $pinnedReservationBorrower) === 1
+            && ($pinnedReservationRow['stato'] ?? '') === 'prenotato'
+            && (int) ($pinnedReservationRow['attivo'] ?? 0) === 1
+            && (int) ($pinnedReservationRow['copia_id'] ?? 0) === $pinnedReservationCopies[0],
+        'a copy-bound active reservation remains blocking while multiplicity is ON'
+    );
+
+    // Scheduled direct loans are physical-copy commitments, not queue
+    // reservations: with the option ON, a distinct copy may coexist.
+    $directScheduledBorrower = $makeUser();
+    [$directScheduledBook, $directScheduledCopies, $directScheduledCodes] = $makeBook(2);
+    $directScheduledStart = (new DateTimeImmutable($today))->modify('+30 days')->format('Y-m-d');
+    $directScheduledEnd = (new DateTimeImmutable($today))->modify('+35 days')->format('Y-m-d');
+    $directScheduledLoan = $makeLoan(
+        $directScheduledBook,
+        $directScheduledCopies[0],
+        $directScheduledBorrower,
+        'prenotato',
+        1,
+        $directScheduledStart,
+        $directScheduledEnd
+    );
+    $response = $callStore(
+        $admin,
+        $directScheduledBorrower,
+        $directScheduledBook,
+        $directScheduledCodes[1]
+    );
+    $directScheduledStmt = $db->prepare(
+        "SELECT COUNT(*) AS total, COUNT(DISTINCT copia_id) AS physical_copies,
+                SUM(CASE WHEN id = ? AND origine = 'diretto' AND stato = 'prenotato' THEN 1 ELSE 0 END) AS original_ok
+         FROM prestiti WHERE libro_id = ? AND utente_id = ? AND attivo = 1"
+    );
+    $directScheduledStmt->bind_param(
+        'iii',
+        $directScheduledLoan,
+        $directScheduledBook,
+        $directScheduledBorrower
+    );
+    $directScheduledStmt->execute();
+    $directScheduledRows = $directScheduledStmt->get_result()->fetch_assoc() ?: [];
+    $directScheduledStmt->close();
+    $check(
+        str_contains($response->getHeaderLine('Location'), 'created=1')
+            && (int) ($directScheduledRows['total'] ?? 0) === 2
+            && (int) ($directScheduledRows['physical_copies'] ?? 0) === 2
+            && (int) ($directScheduledRows['original_ok'] ?? 0) === 1,
+        'a copy-bound direct prenotato loan may coexist with another distinct copy while ON'
+    );
+
+    // The same distinction holds during the direct pickup-ready phase.
+    $directPickupBorrower = $makeUser();
+    [$directPickupBook, $directPickupCopies, $directPickupCodes] = $makeBook(2);
+    $directPickupLoan = $makeLoan(
+        $directPickupBook,
+        $directPickupCopies[0],
+        $directPickupBorrower,
+        'da_ritirare',
+        1
+    );
+    $response = $callStore(
+        $admin,
+        $directPickupBorrower,
+        $directPickupBook,
+        $directPickupCodes[1]
+    );
+    $directPickupStmt = $db->prepare(
+        "SELECT COUNT(*) AS total, COUNT(DISTINCT copia_id) AS physical_copies,
+                SUM(CASE WHEN id = ? AND origine = 'diretto' AND stato = 'da_ritirare' THEN 1 ELSE 0 END) AS original_ok
+         FROM prestiti WHERE libro_id = ? AND utente_id = ? AND attivo = 1"
+    );
+    $directPickupStmt->bind_param('iii', $directPickupLoan, $directPickupBook, $directPickupBorrower);
+    $directPickupStmt->execute();
+    $directPickupRows = $directPickupStmt->get_result()->fetch_assoc() ?: [];
+    $directPickupStmt->close();
+    $check(
+        str_contains($response->getHeaderLine('Location'), 'created=1')
+            && (int) ($directPickupRows['total'] ?? 0) === 2
+            && (int) ($directPickupRows['physical_copies'] ?? 0) === 2
+            && (int) ($directPickupRows['original_ok'] ?? 0) === 1,
+        'a copy-bound direct da_ritirare loan may coexist with another distinct copy while ON'
     );
 
     /* ================= strict mode remains backward compatible ========== */
@@ -640,6 +759,27 @@ try {
         $newCopyTargetStart,
         $newCopyTargetEnd
     );
+    $newCopyFallbackUser = $makeUser();
+    $newCopyFallback = $makeLoan(
+        $newCopyBook,
+        null,
+        $newCopyFallbackUser,
+        'prenotato',
+        1,
+        $newCopyTargetStart,
+        $newCopyTargetEnd
+    );
+    // Make FIFO deterministic even on databases whose TIMESTAMP precision is
+    // one second: the incompatible borrower is first, the compatible one next.
+    $fifoCreatedStmt = $db->prepare('UPDATE prestiti SET created_at = ? WHERE id = ?');
+    $fifoCreatedAt = '2001-01-01 00:00:00';
+    $fifoLoanId = $newCopyTarget;
+    $fifoCreatedStmt->bind_param('si', $fifoCreatedAt, $fifoLoanId);
+    $fifoCreatedStmt->execute();
+    $fifoCreatedAt = '2001-01-01 00:00:01';
+    $fifoLoanId = $newCopyFallback;
+    $fifoCreatedStmt->execute();
+    $fifoCreatedStmt->close();
     $settings->set('loans', 'allow_multiple_loans_same_book', '0');
 
     $committedAfterDisable = (new LoanMultiplicityPolicy($db))->committedCopyIds(
@@ -662,12 +802,23 @@ try {
         $db->rollback();
         throw $e;
     }
-    $newCopyAfterRejectedReuse = $db->query(
-        "SELECT copia_id FROM prestiti WHERE id = {$newCopyTarget}"
-    )->fetch_row()[0];
+    $fifoAssignmentStmt = $db->prepare(
+        'SELECT id, copia_id FROM prestiti WHERE id IN (?, ?) ORDER BY id'
+    );
+    $fifoAssignmentStmt->bind_param('ii', $newCopyTarget, $newCopyFallback);
+    $fifoAssignmentStmt->execute();
+    $fifoAssignments = $fifoAssignmentStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $fifoAssignmentStmt->close();
+    $fifoCopyByLoan = [];
+    foreach ($fifoAssignments as $fifoAssignment) {
+        $fifoCopyByLoan[(int) $fifoAssignment['id']] = $fifoAssignment['copia_id'] !== null
+            ? (int) $fifoAssignment['copia_id']
+            : null;
+    }
     $check(
-        $newCopyAfterRejectedReuse === null,
-        'reassignOnNewCopy() does not reuse a sibling committed copy on a disjoint window after toggle OFF'
+        ($fifoCopyByLoan[$newCopyTarget] ?? null) === null
+            && ($fifoCopyByLoan[$newCopyFallback] ?? null) === $newCopyCopies[0],
+        'reassignOnNewCopy() skips an incompatible FIFO head and assigns the returned copy to the next borrower'
     );
 
     $db->begin_transaction();
@@ -680,14 +831,25 @@ try {
         $db->rollback();
         throw $e;
     }
-    $newCopyAssignments = $db->query(
-        "SELECT id, copia_id FROM prestiti WHERE id IN ({$newCopySibling}, {$newCopyTarget}) ORDER BY id"
-    )->fetch_all(MYSQLI_ASSOC);
+    $newCopyAssignmentStmt = $db->prepare(
+        'SELECT id, copia_id FROM prestiti WHERE id IN (?, ?, ?) ORDER BY id'
+    );
+    $newCopyAssignmentStmt->bind_param('iii', $newCopySibling, $newCopyTarget, $newCopyFallback);
+    $newCopyAssignmentStmt->execute();
+    $newCopyAssignments = $newCopyAssignmentStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $newCopyAssignmentStmt->close();
+    $newCopyByLoan = [];
+    foreach ($newCopyAssignments as $newCopyAssignment) {
+        $newCopyByLoan[(int) $newCopyAssignment['id']] = $newCopyAssignment['copia_id'] !== null
+            ? (int) $newCopyAssignment['copia_id']
+            : null;
+    }
     $check(
-        count($newCopyAssignments) === 2
-            && (int) $newCopyAssignments[0]['copia_id'] === $newCopyCopies[0]
-            && (int) $newCopyAssignments[1]['copia_id'] === $newCopyCopies[1],
-        'reassignOnNewCopy() assigns the available alternative without changing the existing sibling'
+        count($newCopyAssignments) === 3
+            && ($newCopyByLoan[$newCopySibling] ?? null) === $newCopyCopies[0]
+            && ($newCopyByLoan[$newCopyTarget] ?? null) === $newCopyCopies[1]
+            && ($newCopyByLoan[$newCopyFallback] ?? null) === $newCopyCopies[0],
+        'reassignOnNewCopy() assigns the alternative without changing either earlier commitment'
     );
 
     // Copy-loss allocator: copy A is already committed by this borrower/title,

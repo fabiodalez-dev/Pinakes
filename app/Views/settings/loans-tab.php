@@ -272,8 +272,8 @@
       <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <span id="allow_multiple_loans_same_book_label" class="text-sm font-semibold text-gray-900"><?= __("Consenti prestiti multipli per copia") ?></span>
-            <p id="allow_multiple_loans_same_book_desc" class="text-xs text-gray-600 mt-1"><?= __("Utile per scuole e centri didattici che affidano più copie dello stesso testo a un docente.") ?></p>
+            <span id="allow_multiple_loans_same_book_label" class="text-sm font-semibold text-gray-900"><?= __("Consenti più prestiti dello stesso titolo solo su copie fisiche distinte") ?></span>
+            <p id="allow_multiple_loans_same_book_desc" class="text-xs text-gray-600 mt-1"><?= __("Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.") ?></p>
           </div>
           <label class="relative inline-flex items-center cursor-pointer shrink-0">
             <input type="checkbox"

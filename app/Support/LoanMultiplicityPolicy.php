@@ -42,7 +42,14 @@ final class LoanMultiplicityPolicy
     ): bool {
         $strict = !$operationWillBindCopy || !$this->isEnabled();
         $excludeSql = $excludeLoanId !== null ? ' AND id <> ?' : '';
-        $activeCopyPredicate = $strict ? '' : ' AND copia_id IS NULL';
+        // A promoted reservation remains a queue commitment until pickup, even
+        // when it already has a physical copy. The relaxed rule applies only to
+        // physical loans; it must not create a second queue position for the
+        // same borrower/title. Once picked up (`in_corso`/`in_ritardo`), the row
+        // is a copy-bound physical loan and can coexist like a direct checkout.
+        $activeBlockingPredicate = $strict
+            ? ''
+            : " AND (copia_id IS NULL OR (origine = 'prenotazione' AND stato IN ('prenotato', 'da_ritirare')))";
 
         $stmt = $this->db->prepare("
             SELECT id
@@ -50,7 +57,7 @@ final class LoanMultiplicityPolicy
             WHERE libro_id = ? AND utente_id = ?{$excludeSql} AND (
                 (attivo = 0 AND stato = 'pendente')
                 OR (
-                    attivo = 1{$activeCopyPredicate}
+                    attivo = 1{$activeBlockingPredicate}
                     AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
                 )
             )
