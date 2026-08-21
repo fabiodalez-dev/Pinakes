@@ -209,6 +209,11 @@ jobs:
           <?php
           declare(strict_types=1);
 
+          // The CLI SAPI does not define STDIN/STDOUT/STDERR when the script is
+          // read from standard input (as these heredoc scripts are) - define them.
+          if (!defined('STDOUT')) { define('STDOUT', fopen('php://stdout', 'wb')); }
+          if (!defined('STDERR')) { define('STDERR', fopen('php://stderr', 'wb')); }
+
           $baseline = (string) getenv('BASELINE_APP');
           require $baseline . '/vendor/autoload.php';
           mysqli_report(MYSQLI_REPORT_OFF);
@@ -243,6 +248,11 @@ jobs:
           php <<'PHP'
           <?php
           declare(strict_types=1);
+
+          // The CLI SAPI does not define STDIN/STDOUT/STDERR when the script is
+          // read from standard input (as these heredoc scripts are) - define them.
+          if (!defined('STDOUT')) { define('STDOUT', fopen('php://stdout', 'wb')); }
+          if (!defined('STDERR')) { define('STDERR', fopen('php://stderr', 'wb')); }
 
           require getcwd() . '/vendor/autoload.php';
           mysqli_report(MYSQLI_REPORT_OFF);
@@ -301,6 +311,11 @@ jobs:
           BASELINE_VERSION="$BASELINE_VERSION" TARGET_VERSION="$TARGET_VERSION" EXPECT_0764="$EXPECT_0764" php <<'PHP'
           <?php
           declare(strict_types=1);
+
+          // The CLI SAPI does not define STDIN/STDOUT/STDERR when the script is
+          // read from standard input (as these heredoc scripts are) - define them.
+          if (!defined('STDOUT')) { define('STDOUT', fopen('php://stdout', 'wb')); }
+          if (!defined('STDERR')) { define('STDERR', fopen('php://stderr', 'wb')); }
 
           $baselineRoot = rtrim((string) getenv('BASELINE_APP'), DIRECTORY_SEPARATOR);
           $currentRoot = (string) getcwd();
