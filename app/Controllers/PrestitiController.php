@@ -219,7 +219,10 @@ class PrestitiController
                 $oldInput[$field] = (string) $data[$field];
             }
         }
-        $_SESSION['loan_form_old'] = $oldInput;
+        // In sessione senza copy_code/save_and_new: la view non ripopola mai il
+        // campo scanner (come da commento in createForm) e i due flag hanno senso
+        // solo dentro QUESTA request — trattenerli lasciava un residuo inutile.
+        $_SESSION['loan_form_old'] = array_diff_key($oldInput, ['copy_code' => true, 'save_and_new' => true]);
 
         // Verifica dati obbligatori
         $utente_id = (int) ($oldInput['utente_id'] ?? 0);
@@ -854,7 +857,7 @@ class PrestitiController
             // iniziale e questo lock le può aver cambiate, e la finestra "vecchia"
             // del check di capacità qui sotto deve basarsi sui valori realmente
             // salvati, non su quelli pre-transazione (CodeRabbit, PR #337).
-            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, copia_id, utente_id, stato, data_prestito, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
+            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, copia_id, utente_id, stato, origine, data_prestito, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
             $lockLoan->bind_param('i', $id);
             $lockLoan->execute();
             $locked = $lockLoan->get_result()->fetch_assoc();
@@ -905,12 +908,19 @@ class PrestitiController
 
                 // Reassignment may use the relaxed rule only when this existing
                 // loan is already tied to a physical copy. Legacy copyless rows
-                // deliberately retain strict title-level uniqueness.
+                // deliberately retain strict title-level uniqueness. Una riga
+                // PROMOSSA dalla coda (origine='prenotazione' in prenotato/
+                // da_ritirare) resta a sua volta un impegno di coda: riassegnarla
+                // in modalità rilassata darebbe al nuovo utente un prestito fisico
+                // PIÙ una posizione di coda per lo stesso titolo — lo stato che
+                // store()/approveLoan() vietano nella direzione opposta.
+                $isQueueCommitment = ($locked['origine'] ?? null) === 'prenotazione'
+                    && in_array((string) $locked['stato'], ['prenotato', 'da_ritirare'], true);
                 $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($db);
                 if ($multiplicityPolicy->hasBlockingLoan(
                     $libroId,
                     $newUserId,
-                    $locked['copia_id'] !== null,
+                    $locked['copia_id'] !== null && !$isQueueCommitment,
                     $id
                 )) {
                     $db->rollback();
@@ -1468,11 +1478,17 @@ class PrestitiController
         } catch (\Throwable $e) {
             $db->rollback();
             SecureLogger::error(__('Errore elaborazione restituzione'), ['loan_id' => $id, 'error' => $e->getMessage()]);
+            // Deadlock (1213) o lock wait timeout (1205): la transazione è stata
+            // annullata integralmente, ritentare è sicuro e quasi sempre risolve.
+            // Un errore dedicato evita il generico "update_failed" che non dice
+            // all'operatore che basta ripetere l'operazione.
+            $errno = $e instanceof \mysqli_sql_exception ? (int) $e->getCode() : 0;
+            $errorCode = in_array($errno, [1213, 1205], true) ? 'concurrent_retry' : 'update_failed';
             if ($redirectTo) {
                 $separator = strpos($redirectTo, '?') === false ? '?' : '&';
-                return $response->withHeader('Location', url($redirectTo . $separator . 'error=update_failed'))->withStatus(302);
+                return $response->withHeader('Location', url($redirectTo . $separator . 'error=' . $errorCode))->withStatus(302);
             }
-            return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=update_failed')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=' . $errorCode)->withStatus(302);
         }
     }
 

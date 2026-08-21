@@ -87,6 +87,7 @@ class PrestitiApiController
         $total_stmt->execute();
         $total_res = $total_stmt->get_result();
         $total = (int)($total_res->fetch_assoc()['c'] ?? 0);
+        $total_stmt->close();
 
         // Use prepared statement for filtered count to prevent SQL injection
         $count_sql = "SELECT COUNT(*) AS c $base $where_prepared";
@@ -103,6 +104,7 @@ class PrestitiApiController
         $count_stmt->execute();
         $filteredRes = $count_stmt->get_result();
         $filtered = (int)($filteredRes->fetch_assoc()['c'] ?? 0);
+        $count_stmt->close();
 
         // Handle DataTables ordering
         $orderColumn = 'p.id';
