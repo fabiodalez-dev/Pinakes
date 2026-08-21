@@ -21,6 +21,75 @@ Optional multiple physical copies of the same title per borrower (#238).
   resolves to off until it is enabled, and fresh installs seed it off in all
   five shipped locales.
 
+### Fixed
+
+- **Approval can no longer hand out a copy that is physically out** (#366
+  residual): every overlap predicate in `approveLoan` now treats an `in_corso`
+  loan whose due date has passed but that the maintenance sweep has not yet
+  flipped to `in_ritardo` as an open-ended commitment (same rule as
+  `CapacityService`), copy selection only considers in-house copies
+  (`disponibile`/`prenotato`), the pre-assigned copy is validated against the
+  loan's book, and a request whose whole window is already past is rejected
+  instead of becoming an unpickable `da_ritirare`. `confirmPickup` re-checks
+  the loan rows holding the copy (not just `copie.stato`) before issuing.
+- **Queue promotion re-checks borrower eligibility**: a user suspended (or
+  with an expired card) while waiting is skipped — their reservation stays
+  active in the queue — instead of being promoted to a pending loan that
+  approval then refuses, burning their position and pinning the copy.
+- **Reservations on books without copy rows are refused up front**: the queue
+  can only convert physical `copie` rows, so a legacy book with none produced
+  reservations that silently never converted until they expired.
+- **Reassigning a promoted loan keeps queue semantics** (multiplicity ON): a
+  row with `origine='prenotazione'` still in `prenotato`/`da_ritirare` is
+  treated as a queue commitment when reassigned to another borrower, so a user
+  can never end up with a physical loan plus a promoted queue position for the
+  same title.
+- **The desk create form is double-submit safe**: submit buttons disable on
+  first submit — with multiplicity ON and auto-assignment, a replayed POST
+  could register a second real loan on another copy.
+- **A freed copy now serves every compatible hold**: `reassignOnReturn` keeps
+  assigning the returned copy until no blocked FIFO candidate can take it
+  (holds with disjoint windows previously waited for the next maintenance
+  sweep), and holds whose window is entirely past are no longer eligible.
+- **Pickup-ready emails are claim-and-retry**: a new
+  `prestiti.pickup_notification_sent` flag (seeded in the schema, added at
+  runtime on upgrades) makes the "ready for pickup" email idempotent and
+  retried by maintenance, so an SMTP failure can no longer silently cost the
+  user their pickup window.
+- **Borrowers without an email no longer wedge the notification crons**:
+  expiry warnings and overdue notices for them keep their claim (no more
+  endless SMTP retry churn) and still produce the in-app/admin notifications,
+  which previously never fired for email-less borrowers.
+- **Cron process locks no longer unlink after unlock** (the race
+  `scripts/maintenance.php` already documented), both cron entrypoints refuse
+  non-CLI execution, and `runAll()` refreshes the cross-session cooldown
+  marker so an admin login right after the cron no longer re-runs the whole
+  maintenance synchronously.
+- **NCIP**: when at least one active partner has an identifier (agency id,
+  code or ISIL), circulation messages must carry a matching `FromAgencyId`
+  (deactivating a partner now actually revokes access); `CheckInItem` and
+  `RenewItem` honour the optional `UserId` to pick the right loan when the
+  same title is out to several borrowers; check-out/check-in/renew are logged
+  to `ncip_transactions` with the partner; renewals claim the window from the
+  day after the current due date (#336 parity with the web renew).
+- **Return flow**: a deadlock/lock-timeout now reports a dedicated
+  "another operation was updating this book, retry" error instead of the
+  generic failure; reservation availability emails format dates in the
+  recipient's language like the rest of the #360 pipeline; cancelling a
+  promoted pending loan releases and reassigns its copy immediately.
+- **Admin reservation edits**: an out-of-whitelist status is rejected instead
+  of silently coerced to `attiva`, and a completed (promoted) reservation
+  cannot be flipped while its converted loan is still open.
+
+### Changed
+
+- `reassignOnNewCopy` now walks the whole blocked-hold FIFO and assigns the
+  first compatible candidate (skipping an incompatible head) instead of
+  stopping at the first blocked hold; a same-borrower conflict on the target
+  copy blocks regardless of dates. Observable also with the multiplicity
+  setting off: a younger reservation can receive a returned copy while the
+  head stays blocked, without losing its priority for future copies.
+
 ## [0.7.63] - 2026-08-20
 
 ### Fixed
