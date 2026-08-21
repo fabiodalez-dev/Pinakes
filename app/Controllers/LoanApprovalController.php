@@ -164,6 +164,7 @@ class LoanApprovalController
             }
         }
         $loanId = (int) ($data['loan_id'] ?? 0);
+        $automaticApproval = (bool) $request->getAttribute('automatic_loan_approval', false);
 
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
@@ -191,6 +192,21 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
             $libroId = (int) $bookRow['libro_id'];
+
+            // Runtime compatibility for installations that have not applied
+            // 0.7.64 yet. Run any self-healing DDL before begin_transaction():
+            // ALTER TABLE would otherwise implicitly commit the circulation
+            // transaction. If the DB user cannot ALTER, approval still works;
+            // only the pre-commit email claim is temporarily unavailable.
+            $notificationService = new \App\Support\NotificationService($db);
+            $pickupNotificationSchemaAvailable = \App\Support\PickupNotificationSchema::ensure($db);
+            $pickupNotificationClaimAvailable = $automaticApproval && $pickupNotificationSchemaAvailable;
+            $pickupNotificationClaimToken = null;
+            $pickupNotificationResetSql = $pickupNotificationSchemaAvailable
+                ? ", pickup_notification_sent = 0,
+                     pickup_notification_claim_token = NULL,
+                     pickup_notification_last_attempt_at = NULL"
+                : '';
 
             $db->begin_transaction();
 
@@ -534,20 +550,44 @@ class LoanApprovalController
             if ($pickupDeadline !== null) {
                 $stmt = $db->prepare("
                     UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?{$pickupNotificationResetSql}
                     WHERE id = ? AND stato = 'pendente'
                 ");
                 $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $pickupDeadline, $loanId);
             } else {
                 $stmt = $db->prepare("
                     UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL{$pickupNotificationResetSql}
                     WHERE id = ? AND stato = 'pendente'
                 ");
                 $stmt->bind_param('sii', $newState, $selectedCopy['id'], $loanId);
             }
             $stmt->execute();
             $stmt->close();
+
+            // In the immediate auto-approval flow the generic approval email is
+            // also the pickup announcement (#301). Claim it before commit so a
+            // concurrent retry sweep can never send loan_pickup_ready in the
+            // interval between commit and the approval email. A failed send
+            // releases the claim below for the normal retry pipeline.
+            if (!$isFutureLoan && $automaticApproval && $pickupNotificationClaimAvailable) {
+                $pickupNotificationClaimToken = bin2hex(random_bytes(16));
+                $pickupNotificationAttemptedAt = \App\Support\PickupNotificationSchema::claimLeaseWindow()['attemptedAt'];
+                $claimStmt = $db->prepare("
+                    UPDATE prestiti
+                       SET pickup_notification_sent = 1,
+                           pickup_notification_claim_token = ?,
+                           pickup_notification_last_attempt_at = ?
+                    WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare'
+                      AND (pickup_notification_sent IS NULL OR pickup_notification_sent = 0)
+                ");
+                $claimStmt->bind_param('ssi', $pickupNotificationClaimToken, $pickupNotificationAttemptedAt, $loanId);
+                $claimStmt->execute();
+                if ($claimStmt->affected_rows !== 1) {
+                    $pickupNotificationClaimToken = null;
+                }
+                $claimStmt->close();
+            }
 
             // Per 'da_ritirare' e 'prenotato', la copia resta 'prenotato' fino al ritiro
             // La copia diventa 'prestato' SOLO quando si conferma il ritiro
@@ -564,39 +604,57 @@ class LoanApprovalController
             // the approval email in the auto-approval flow; manual immediate
             // approvals retain the more specific pickup-ready notification.
             try {
-                $notificationService = new \App\Support\NotificationService($db);
-                $automaticApproval = (bool) $request->getAttribute('automatic_loan_approval', false);
                 if ($isFutureLoan || $automaticApproval) {
-                    // Per gli immediati auto-approvati (#301) l'email di
-                    // approvazione È l'annuncio del ritiro: claim del flag PRIMA
-                    // dell'invio, così lo sweep retryUnsentPickupNotifications()
-                    // non può intrecciarsi tra invio e claim e recapitare un
-                    // secondo annuncio. Se l'invio poi fallisce il claim viene
-                    // ripristinato e lo sweep recapita il pickup-ready come
-                    // recupero. addNotificationColumns() garantisce la colonna
-                    // sugli install legacy pre-migrazione; se l'ALTER fallisce
-                    // (false) si salta il claim invece di eseguire un UPDATE
-                    // destinato a fallire.
-                    $pickupClaimed = false;
-                    if (!$isFutureLoan && $notificationService->addNotificationColumns()) {
-                        $claimStmt = $db->prepare("UPDATE prestiti SET pickup_notification_sent = 1 WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare' AND (pickup_notification_sent IS NULL OR pickup_notification_sent = 0)");
-                        $claimStmt->bind_param('i', $loanId);
-                        $claimStmt->execute();
-                        $pickupClaimed = $claimStmt->affected_rows > 0;
-                        $claimStmt->close();
-                    }
+                    // Future loan: send general approval notification
                     $approvalEmailSent = $notificationService->sendLoanApprovedNotification($loanId);
-                    if (!$approvalEmailSent && $pickupClaimed) {
-                        $revertStmt = $db->prepare("UPDATE prestiti SET pickup_notification_sent = 0 WHERE id = ?");
-                        $revertStmt->bind_param('i', $loanId);
-                        $revertStmt->execute();
-                        $revertStmt->close();
+                    if (!$isFutureLoan && $pickupNotificationClaimToken !== null && $approvalEmailSent) {
+                        $ownedToken = $pickupNotificationClaimToken;
+                        // Delivery won: a cleanup failure must leave sent=1,
+                        // never re-arm an already delivered announcement.
+                        $pickupNotificationClaimToken = null;
+                        try {
+                            $finalizeClaimStmt = $db->prepare("
+                                UPDATE prestiti SET pickup_notification_claim_token = NULL
+                                WHERE id = ? AND pickup_notification_claim_token = ?
+                            ");
+                            $finalizeClaimStmt->bind_param('is', $loanId, $ownedToken);
+                            $finalizeClaimStmt->execute();
+                            $finalizeClaimStmt->close();
+                        } catch (\Throwable $finalizeError) {
+                            \App\Support\SecureLogger::warning("Failed to finalize auto-approval pickup claim for loan {$loanId}: " . $finalizeError->getMessage());
+                        }
+                    } elseif (!$isFutureLoan && $pickupNotificationClaimToken !== null) {
+                        $releaseClaimStmt = $db->prepare("
+                            UPDATE prestiti
+                               SET pickup_notification_sent = 0,
+                                   pickup_notification_claim_token = NULL
+                             WHERE id = ? AND pickup_notification_claim_token = ?
+                        ");
+                        $releaseClaimStmt->bind_param('is', $loanId, $pickupNotificationClaimToken);
+                        $releaseClaimStmt->execute();
+                        $releaseClaimStmt->close();
+                        $pickupNotificationClaimToken = null;
                     }
                 } else {
                     // Immediate loan (da_ritirare): send pickup ready notification with deadline
                     $notificationService->sendPickupReadyNotification($loanId);
                 }
             } catch (\Throwable $notifError) {
+                if (!$isFutureLoan && $pickupNotificationClaimToken !== null) {
+                    try {
+                        $releaseClaimStmt = $db->prepare("
+                            UPDATE prestiti
+                               SET pickup_notification_sent = 0,
+                                   pickup_notification_claim_token = NULL
+                             WHERE id = ? AND pickup_notification_claim_token = ?
+                        ");
+                        $releaseClaimStmt->bind_param('is', $loanId, $pickupNotificationClaimToken);
+                        $releaseClaimStmt->execute();
+                        $releaseClaimStmt->close();
+                    } catch (\Throwable $releaseError) {
+                        \App\Support\SecureLogger::error("Failed to release auto-approval pickup claim for loan {$loanId}: " . $releaseError->getMessage());
+                    }
+                }
                 \App\Support\SecureLogger::warning("Approval notification failed for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail the approval if notification fails
             }

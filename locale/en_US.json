@@ -1426,6 +1426,7 @@
   "Errore di sicurezza. Aggiorna la pagina e riprova": "Security error. Refresh the page and try again",
   "Errore di sicurezza. Ricarica la pagina e riprova": "Security error. Reload the page and try again",
   "Errore di sicurezza. Ricarica la pagina e riprova.": "Security error. Reload the page and try again.",
+  "La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.": "The request has already been processed or is no longer valid. Check the loan list before trying again.",
   "Errore di sicurezza. Riprova.": "Security error. Please try again.",
   "Errore di sistema.": "System error.",
   "Errore durante il caricamento": "Error during loading",

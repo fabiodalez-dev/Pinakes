@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Behavioral integration suite — 64 loan ("prestiti") edge cases for Pinakes.
+ * Behavioral integration suite — 66 loan ("prestiti") edge cases for Pinakes.
  *
  * Runs against the LIVE local MySQL but only ever touches data it creates,
  * marked with: book titles `ZZ_LOANEDGE_%`, copy numero_inventario `ZZLE-%`,
@@ -17,7 +17,7 @@ declare(strict_types=1);
  *   - installer/database/triggers.sql (copy-occupancy invariants)
  *
  * Run:   php tests/loan-edge-cases.unit.php
- * Exit:  0 only if all 64 pass; prints "ALL 64 PASS".
+ * Exit:  0 only if all 66 pass; prints "ALL 66 PASS".
  */
 
 use App\Models\CopyRepository;
@@ -28,6 +28,7 @@ use App\Services\ReservationReassignmentService;
 use App\Support\DataIntegrity;
 use App\Support\DateHelper;
 use App\Support\IcsGenerator;
+use App\Support\MaintenanceService;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Response as SlimResponse;
 
@@ -139,7 +140,7 @@ function pass(string $desc): void
 {
     global $TESTNO;
     $TESTNO++;
-    printf("[%02d/64] PASS: %s\n", $TESTNO, $desc);
+    printf("[%02d/66] PASS: %s\n", $TESTNO, $desc);
 }
 
 function assertEq($exp, $got, string $msg): void
@@ -677,7 +678,7 @@ assertEq('disponibile', bookStato($b), 'recalc overwrites manually-wrong libri.s
 pass('misc: libri.stato is derived (recalc overwrites wrong value)');
 
 /* ==========================================================================
- * 53-64  Canonical capacity, schedules, integrity, calendars and reservation queues
+ * 53-66  Canonical capacity, schedules, integrity, calendars and reservation queues
  * ====================================================================== */
 // 53: an unreturned overdue loan is open-ended for future capacity decisions.
 $b = mkBook('capacity_overdue_open');
@@ -913,9 +914,112 @@ assertEq('completata', $nextState, 'next eligible reservation must be promoted i
 assertEq($copy, (int) ($promotedLoan['copia_id'] ?? 0), 'promoted queue row must link the freed physical copy');
 pass('reservations: user cancellation immediately promotes and links the next queue row');
 
+// 65: queue selection must scan beyond an arbitrary batch of ineligible
+// patrons without erasing their capacity commitments. Twenty-five suspended
+// positions saturate 25 lendable copies, so position 26 stays queued until the
+// temporarily unavailable twenty-sixth copy returns to circulation.
+$b = mkBook('queue_beyond_ineligible_batch');
+$queueCopies = mkCopies($b, 26);
+$queueStart = DateHelper::today();
+$queueEnd = (new \DateTimeImmutable($queueStart))->modify('+7 days')->format('Y-m-d');
+$queueStartDt = $queueStart . ' 00:00:00';
+$queueEndDt = $queueEnd . ' 23:59:59';
+$insertReservation = $db->prepare(
+    "INSERT INTO prenotazioni
+        (libro_id, utente_id, data_prenotazione, data_scadenza_prenotazione,
+         data_inizio_richiesta, data_fine_richiesta, queue_position, stato)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'attiva')"
+);
+$ineligibleReservationIds = [];
+for ($position = 1; $position <= 25; $position++) {
+    $userId = mkUser();
+    $db->query("UPDATE utenti SET stato = 'sospeso' WHERE id = {$userId}");
+    $insertReservation->bind_param('iissssi', $b, $userId, $queueStartDt, $queueEndDt, $queueStart, $queueEnd, $position);
+    $insertReservation->execute();
+    $ineligibleReservationIds[] = (int) $db->insert_id;
+}
+$eligibleUserId = mkUser();
+$eligiblePosition = 26;
+$insertReservation->bind_param('iissssi', $b, $eligibleUserId, $queueStartDt, $queueEndDt, $queueStart, $queueEnd, $eligiblePosition);
+$insertReservation->execute();
+$eligibleReservationId = (int) $db->insert_id;
+$insertReservation->close();
+$queueCapacity = new CapacityService($db);
+$temporarilyUnavailableCopy = $queueCopies[25];
+(new CopyRepository($db))->updateStatus($temporarilyUnavailableCopy, 'manutenzione');
+assertEq(25, $queueCapacity->totalCopies($b), 'one maintenance copy must reduce queue capacity from 26 to 25');
+assertEq(26, $queueCapacity->occupiedCount($b, $queueStart, $queueEnd), 'all 26 active queue rows must contribute to OCC before promotion');
+assertEq(
+    25,
+    $queueCapacity->occupiedCount($b, $queueStart, $queueEnd, excludeReservationId: $eligibleReservationId),
+    'the 25 suspended reservations must keep occupying all 25 lendable copies'
+);
+assertEq(
+    false,
+    $queueCapacity->hasFreeCapacity(
+        $b,
+        $queueStart,
+        $queueEnd,
+        excludeReservationId: $eligibleReservationId,
+        excludeReservationsAfterQueuePos: $eligiblePosition
+    ),
+    'position 26 must see no capacity while the 25 earlier suspended commitments fill it'
+);
+$blockedPromotion = (new ReservationManager($db))->processBookAvailability($b);
+$blockedEligibleState = (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$eligibleReservationId}")->fetch_row()[0];
+$blockedEligibleLoans = (int) $db->query("SELECT COUNT(*) FROM prestiti WHERE libro_id = {$b} AND utente_id = {$eligibleUserId}")->fetch_row()[0];
+assertEq(false, $blockedPromotion, 'queue scanning must not promote position 26 beyond the current capacity ceiling');
+assertEq('attiva', $blockedEligibleState, 'capacity-blocked position 26 must remain active in the queue');
+assertEq(0, $blockedEligibleLoans, 'a capacity-blocked queue row must not create a physical-copy hold');
+
+(new CopyRepository($db))->updateStatus($temporarilyUnavailableCopy, 'disponibile');
+assertEq(26, $queueCapacity->totalCopies($b), 'restoring the maintenance copy must reopen the twenty-sixth capacity slot');
+assertEq(
+    true,
+    $queueCapacity->hasFreeCapacity(
+        $b,
+        $queueStart,
+        $queueEnd,
+        excludeReservationId: $eligibleReservationId,
+        excludeReservationsAfterQueuePos: $eligiblePosition
+    ),
+    'position 26 becomes promotable only after physical capacity returns'
+);
+$promoted = (new ReservationManager($db))->processBookAvailability($b);
+$eligibleState = (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$eligibleReservationId}")->fetch_row()[0];
+$ineligibleIdsSql = implode(',', $ineligibleReservationIds);
+$ineligibleActive = (int) $db->query("SELECT COUNT(*) FROM prenotazioni WHERE id IN ({$ineligibleIdsSql}) AND stato = 'attiva'")->fetch_row()[0];
+$eligibleLoan = $db->query("SELECT COALESCE(copia_id, 0) AS copia_id, stato, attivo FROM prestiti WHERE libro_id = {$b} AND utente_id = {$eligibleUserId} ORDER BY id DESC LIMIT 1")->fetch_assoc();
+$eligibleCopy = (int) ($eligibleLoan['copia_id'] ?? 0);
+assertEq(true, $promoted, 'eligible queue position after 25 suspended patrons must be promoted once capacity allows');
+assertEq('completata', $eligibleState, 'eligible queue row must become completed');
+assertEq(25, $ineligibleActive, 'ineligible rows must remain active for later account recovery');
+assertEq(true, in_array($eligibleCopy, $queueCopies, true), 'eligible row must receive one of the remaining physical copies');
+assertEq('pendente', (string) ($eligibleLoan['stato'] ?? ''), 'promotion must replace the queue row with a pending copy-bound hold');
+assertEq(0, (int) ($eligibleLoan['attivo'] ?? -1), 'the pending promoted hold remains inactive until approval');
+assertEq(26, $queueCapacity->occupiedCount($b, $queueStart, $queueEnd), '25 suspended reservations plus the promoted copy-bound hold must preserve OCC=26');
+assertEq(false, $queueCapacity->hasFreeCapacity($b, $queueStart, $queueEnd), 'promotion must not manufacture a twenty-seventh capacity slot');
+pass('reservations: suspended queue rows preserve OCC while scanning beyond position 25');
+
+// 66: a scheduled hold pinned to an unavailable physical copy must move to a
+// free sibling copy instead of remaining stuck forever.
+$b = mkBook('scheduled_pinned_copy_fallback');
+[$pinnedCopy, $alternativeCopy] = mkCopies($b, 2);
+$scheduledUser = mkUser();
+$scheduledStart = DateHelper::today();
+$scheduledEnd = (new \DateTimeImmutable($scheduledStart))->modify('+7 days')->format('Y-m-d');
+$scheduledLoan = loan($b, $pinnedCopy, $scheduledUser, $scheduledStart, $scheduledEnd, 'prenotato', 1);
+(new CopyRepository($db))->updateStatus($pinnedCopy, 'manutenzione');
+(new MaintenanceService($db))->activateScheduledLoans();
+$activated = $db->query("SELECT stato, copia_id FROM prestiti WHERE id = {$scheduledLoan}")->fetch_assoc();
+assertEq('da_ritirare', (string) ($activated['stato'] ?? ''), 'scheduled loan must become ready for pickup');
+assertEq($alternativeCopy, (int) ($activated['copia_id'] ?? 0), 'scheduled loan must move to the free sibling copy');
+assertEq('manutenzione', copyStato($pinnedCopy), 'unavailable pinned copy state must remain untouched');
+pass('schedules: unavailable pinned copy falls back to a free sibling');
+
 /* ==========================================================================
  * Done
  * ====================================================================== */
 cleanup($db);
-echo "ALL 64 PASS\n";
+echo "ALL 66 PASS\n";
 $db->close();

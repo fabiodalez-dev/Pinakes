@@ -39,7 +39,12 @@ BEGIN
             FROM prestiti p
             WHERE p.copia_id = NEW.copia_id
               AND p.data_prestito <= NEW.data_scadenza
-              AND (p.stato = 'in_ritardo' OR p.data_scadenza >= NEW.data_prestito)
+              -- Triggers cannot call PHP's DateHelper. CURRENT_DATE() is only
+              -- the defence-in-depth fallback; application writers bind the
+              -- configured application date and remain the authoritative gate.
+              AND (p.stato = 'in_ritardo'
+                   OR (p.stato = 'in_corso' AND p.data_scadenza < CURRENT_DATE())
+                   OR p.data_scadenza >= NEW.data_prestito)
               AND (
                   (p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo','prenotato','da_ritirare'))
                   OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
@@ -125,7 +130,11 @@ BEGIN
             WHERE p.copia_id = NEW.copia_id
               AND p.id <> NEW.id
               AND p.data_prestito <= NEW.data_scadenza
-              AND (p.stato = 'in_ritardo' OR p.data_scadenza >= NEW.data_prestito)
+              -- See the INSERT trigger: application-time checks are authoritative;
+              -- CURRENT_DATE() is the local database fallback for direct SQL writes.
+              AND (p.stato = 'in_ritardo'
+                   OR (p.stato = 'in_corso' AND p.data_scadenza < CURRENT_DATE())
+                   OR p.data_scadenza >= NEW.data_prestito)
               AND (
                   (p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo','prenotato','da_ritirare'))
                   OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
@@ -134,7 +143,9 @@ BEGIN
                   OLD.copia_id <=> NEW.copia_id
                   AND (OLD.attivo = 1 OR OLD.stato = 'pendente')
                   AND p.data_prestito <= OLD.data_scadenza
-                  AND (p.stato = 'in_ritardo' OR p.data_scadenza >= OLD.data_prestito)
+                  AND (p.stato = 'in_ritardo'
+                       OR (p.stato = 'in_corso' AND p.data_scadenza < CURRENT_DATE())
+                       OR p.data_scadenza >= OLD.data_prestito)
               )
         ) THEN
             SIGNAL SQLSTATE '45000'

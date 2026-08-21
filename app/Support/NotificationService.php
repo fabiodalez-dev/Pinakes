@@ -1294,12 +1294,11 @@ class NotificationService {
                 $this->db->query("ALTER TABLE prestiti ADD COLUMN overdue_notification_sent BOOLEAN DEFAULT 0");
             }
 
-            // Claim/retry dell'email "pronto al ritiro": senza flag persistito un
-            // fallimento SMTP perdeva l'avviso per sempre e il prestito veniva
-            // poi annullato alla deadline (perdita di servizio concreta).
-            $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'pickup_notification_sent'");
-            if ($result->num_rows === 0) {
-                $this->db->query("ALTER TABLE prestiti ADD COLUMN pickup_notification_sent BOOLEAN DEFAULT 0");
+            // Claim/retry dell'email "pronto al ritiro": schema + backfill
+            // resumable are centralized so controller, cron and maintenance
+            // cannot drift or run DDL inside a circulation transaction.
+            if (!PickupNotificationSchema::ensure($this->db)) {
+                return false;
             }
 
             // #360: recall (sollecito) tracking — how many recalls went out and
@@ -1543,8 +1542,13 @@ class NotificationService {
      * Invia notifica quando un prestito è pronto per il ritiro (stato da_ritirare)
      */
     public function sendPickupReadyNotification(int $loanId): bool {
+        $claimToken = null;
+
         try {
-            $this->addNotificationColumns();
+            // A restricted legacy DB may not be able to self-heal before the
+            // updater runs. In that case preserve the historical one-shot send
+            // instead of losing the email because the claim column is absent.
+            $claimSchemaAvailable = PickupNotificationSchema::ensure($this->db);
 
             $stmt = $this->db->prepare("
                 SELECT p.*, l.titolo as libro_titolo,
@@ -1571,24 +1575,49 @@ class NotificationService {
             // Solo per righe 'da_ritirare' (l'unico stato che ha un ritiro da
             // annunciare); per stati diversi mantiene il comportamento storico.
             $isReadyPickup = ($loan['stato'] ?? '') === 'da_ritirare' && (int) ($loan['attivo'] ?? 0) === 1;
-            if ($isReadyPickup) {
+            if ($isReadyPickup && $claimSchemaAvailable) {
+                $claimToken = bin2hex(random_bytes(16));
+                $claimWindow = PickupNotificationSchema::claimLeaseWindow();
+                $attemptedAt = $claimWindow['attemptedAt'];
+                $staleBefore = $claimWindow['staleBefore'];
+                $recipientUserId = (int) $loan['utente_id'];
                 $claimStmt = $this->db->prepare("
-                    UPDATE prestiti SET pickup_notification_sent = 1
-                    WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare'
-                      AND (pickup_notification_sent IS NULL OR pickup_notification_sent = 0)
+                    UPDATE prestiti
+                       SET pickup_notification_sent = 1,
+                           pickup_notification_claim_token = ?,
+                           pickup_notification_last_attempt_at = ?
+                    WHERE id = ? AND utente_id = ?
+                      AND attivo = 1 AND stato = 'da_ritirare'
+                      AND (
+                            pickup_notification_sent IS NULL
+                            OR pickup_notification_sent = 0
+                            OR (
+                                pickup_notification_sent = 1
+                                AND pickup_notification_claim_token IS NOT NULL
+                                AND pickup_notification_last_attempt_at < ?
+                            )
+                      )
                 ");
-                $claimStmt->bind_param('i', $loanId);
+                $claimStmt->bind_param('ssiis', $claimToken, $attemptedAt, $loanId, $recipientUserId, $staleBefore);
                 $claimStmt->execute();
-                $claimed = $claimStmt->affected_rows === 1;
+                $claimAcquired = $claimStmt->affected_rows === 1;
                 $claimStmt->close();
-                if (!$claimed) {
-                    // Già annunciato (o claimato da un processo concorrente).
+                if (!$claimAcquired) {
+                    $claimToken = null;
+                    // Già annunciato/claimato, oppure il destinatario è cambiato
+                    // dopo la lettura. In quest'ultimo caso il reset effettuato
+                    // dalla riassegnazione lascia la riga al retry successivo.
                     return false;
                 }
             }
 
             // Utente senza email: il claim resta (nulla da ritentare), niente churn.
             if (trim((string) $loan['utente_email']) === '') {
+                if ($claimToken !== null) {
+                    $ownedToken = $claimToken;
+                    $claimToken = null;
+                    $this->finalizePickupClaim($loanId, $ownedToken);
+                }
                 SecureLogger::info("Pickup ready notification for loan {$loanId}: user has no email, skipped");
                 return false;
             }
@@ -1615,39 +1644,83 @@ class NotificationService {
 
             $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_pickup_ready', $variables);
 
-            if (!$emailSent && $isReadyPickup) {
-                // Il claim è certamente riuscito (il ramo !claimed sopra esce):
+            if ($emailSent) {
+                if ($claimToken !== null) {
+                    $ownedToken = $claimToken;
+                    // Once delivery succeeded, never let a cleanup failure re-arm
+                    // the email. Relinquish local ownership before cleanup.
+                    $claimToken = null;
+                    $this->finalizePickupClaim($loanId, $ownedToken);
+                }
+            } elseif ($claimToken !== null) {
+                // Il claim è certamente riuscito (il ramo !claimAcquired esce):
                 // revert del flag così lo sweep di manutenzione ritenta al
                 // prossimo run (stesso pattern di warning/overdue).
-                $revertStmt = $this->db->prepare("
-                    UPDATE prestiti SET pickup_notification_sent = 0
-                    WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare'
-                ");
-                $revertStmt->bind_param('i', $loanId);
-                $revertStmt->execute();
-                $revertStmt->close();
+                $ownedToken = $claimToken;
+                $claimToken = null;
+                $this->releasePickupClaim($loanId, $ownedToken);
                 SecureLogger::warning("Failed to send pickup ready notification for loan {$loanId} after retries, flag reverted");
             }
 
             return $emailSent;
 
         } catch (\Throwable $e) {
+            if ($claimToken !== null) {
+                try {
+                    $ownedToken = $claimToken;
+                    $claimToken = null;
+                    $this->releasePickupClaim($loanId, $ownedToken);
+                } catch (\Throwable $revertError) {
+                    SecureLogger::error("Failed to release pickup notification claim for loan {$loanId}: " . $revertError->getMessage());
+                }
+            }
             SecureLogger::error("Failed to send pickup ready notification: " . $e->getMessage());
             return false;
         }
     }
 
+    private function releasePickupClaim(int $loanId, string $claimToken): void
+    {
+        $revertStmt = $this->db->prepare("
+            UPDATE prestiti
+               SET pickup_notification_sent = 0,
+                   pickup_notification_claim_token = NULL
+             WHERE id = ? AND pickup_notification_claim_token = ?
+        ");
+        $revertStmt->bind_param('is', $loanId, $claimToken);
+        $revertStmt->execute();
+        $revertStmt->close();
+    }
+
+    private function finalizePickupClaim(int $loanId, string $claimToken): void
+    {
+        $finalizeStmt = $this->db->prepare("
+            UPDATE prestiti
+               SET pickup_notification_claim_token = NULL
+             WHERE id = ? AND pickup_notification_claim_token = ?
+        ");
+        $finalizeStmt->bind_param('is', $loanId, $claimToken);
+        $finalizeStmt->execute();
+        $finalizeStmt->close();
+    }
+
     /**
      * Recupero delle email "pronto al ritiro" il cui invio è fallito
-     * (stato ancora 'da_ritirare', pickup_notification_sent = 0). Chiamato
-     * dallo sweep di manutenzione; il claim vive in
-     * sendPickupReadyNotification(), quindi il doppio invio è impossibile.
+     * (stato ancora 'da_ritirare', pickup_notification_sent = 0), oppure claim
+     * rimasti orfani oltre la lease. Chiamato dallo sweep di manutenzione; il
+     * token vive in sendPickupReadyNotification() e limita la consegna a un
+     * proprietario alla volta. Dopo un crash il protocollo è at-least-once:
+     * non può sapere se SMTP abbia accettato il messaggio prima della morte del
+     * worker, ma privilegia il recupero rispetto alla perdita silenziosa.
      */
     public function retryUnsentPickupNotifications(): int {
         $sentCount = 0;
         try {
-            $this->addNotificationColumns();
+            if (!PickupNotificationSchema::ensure($this->db)) {
+                return 0;
+            }
             $today = DateHelper::today();
+            $staleBefore = PickupNotificationSchema::claimLeaseWindow()['staleBefore'];
 
             // Solo ritiri ancora validi (deadline non passata: quelli scaduti li
             // culla checkExpiredPickups) e utenti con un indirizzo email.
@@ -1656,13 +1729,23 @@ class NotificationService {
                 FROM prestiti p
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.attivo = 1 AND p.stato = 'da_ritirare'
-                  AND (p.pickup_notification_sent IS NULL OR p.pickup_notification_sent = 0)
+                  AND (
+                        p.pickup_notification_sent IS NULL
+                        OR p.pickup_notification_sent = 0
+                        OR (
+                            p.pickup_notification_sent = 1
+                            AND p.pickup_notification_claim_token IS NOT NULL
+                            AND p.pickup_notification_last_attempt_at < ?
+                        )
+                  )
                   AND (p.pickup_deadline IS NULL OR p.pickup_deadline >= ?)
                   AND u.email IS NOT NULL AND TRIM(u.email) <> ''
-                ORDER BY p.id ASC
+                ORDER BY p.pickup_notification_last_attempt_at IS NULL DESC,
+                         p.pickup_notification_last_attempt_at ASC,
+                         p.id ASC
                 LIMIT 20
             ");
-            $stmt->bind_param('s', $today);
+            $stmt->bind_param('ss', $staleBefore, $today);
             $stmt->execute();
             $result = $stmt->get_result();
             $loanIds = [];

@@ -421,9 +421,9 @@ try {
     check(($loanRow($loanD)['stato'] ?? '') === 'in_ritardo', 'D1: overdue sibling flipped first');
     check(($loanRow($resD)['stato'] ?? '') === 'da_ritirare', 'D1: reservation on the genuinely free copy IS promoted');
 
-    // D2: 2 copies but the reservation is pinned to the copy still out. It must
-    // stay prenotato; a staff reschedule (future start) keeps it demoted; once
-    // the pinned copy returns and the window arrives, it promotes.
+    // D2: 2 copies but the reservation is pinned to the copy still out. The
+    // activation sweep must repair the stale pin and use the free sibling;
+    // a later staff reschedule still demotes it coherently.
     $userE = $mkUser();
     $userE2 = $mkUser();
     [$bookE, [$copyEa, $copyEb]] = $mkBook(2);
@@ -432,18 +432,27 @@ try {
     $resE = $mkLoan($bookE, $copyEa, $userE2, 'prenotato', $d(-1), $d(20));
 
     $svc->activateScheduledLoans();
-    check(($loanRow($resE)['stato'] ?? '') === 'prenotato', 'D2: reservation pinned to the out copy stays prenotato despite book-level room');
+    $row = $loanRow($resE);
+    check(
+        ($row['stato'] ?? '') === 'da_ritirare' && (int) ($row['copia_id'] ?? 0) === $copyEb,
+        'D2: reservation pinned to the out copy moves to the free sibling and becomes ready'
+    );
 
     $resp = $callUpdate($resE, $userE2, $d(2), $d(20));
     check(!str_contains($resp->getHeaderLine('Location'), 'error='), 'D2: rescheduling the pinned reservation succeeds');
     $row = $loanRow($resE);
     check(($row['stato'] ?? '') === 'prenotato' && ($row['pickup_deadline'] ?? null) === null, 'D2: rescheduled pinned reservation stays prenotato, no deadline');
 
-    $returnLoan($loanE, $copyEa, 'prenotato'); // copy back on the shelf, held for the reservation
-    $shiftLoan($resE, $d(0), null);            // time passes: its start arrives
+    $returnLoan($loanE, $copyEa, 'disponibile'); // original physical copy returns normally
+    $shiftLoan($resE, $d(0), null);               // time passes: its start arrives
     $svc->activateScheduledLoans();
     $row = $loanRow($resE);
-    check(($row['stato'] ?? '') === 'da_ritirare' && !empty($row['pickup_deadline']), 'D2: pinned copy returned + window arrived => promotion');
+    check(
+        ($row['stato'] ?? '') === 'da_ritirare'
+            && (int) ($row['copia_id'] ?? 0) === $copyEb
+            && !empty($row['pickup_deadline']),
+        'D2: rescheduled sibling-backed hold promotes when its window arrives'
+    );
 
     /* ---- E. CapacityService: date-overdue in_corso occupies open-ended --- */
     $userF = $mkUser();

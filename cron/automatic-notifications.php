@@ -167,7 +167,17 @@ try {
         logMessage("WARNING: retryUnsentReservationNotifications failed: " . $e->getMessage());
     }
 
-    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + ($results['loan_recalls'] ?? 0) + $results['wishlist_notifications'] + $retriedNotifications;
+    // Retry pickup-ready notices on the same hourly cadence. The persisted
+    // claim makes this safe alongside the daily full-maintenance sweep.
+    $retriedPickupNotifications = 0;
+    try {
+        $retriedPickupNotifications = $notificationService->retryUnsentPickupNotifications();
+        logMessage("- Pickup-ready notifications retried: " . $retriedPickupNotifications);
+    } catch (Throwable $e) {
+        logMessage("WARNING: retryUnsentPickupNotifications failed: " . $e->getMessage());
+    }
+
+    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + ($results['loan_recalls'] ?? 0) + $results['wishlist_notifications'] + $retriedNotifications + $retriedPickupNotifications;
     logMessage("Total emails sent: {$totalSent}");
 
     // Dispatch native mobile push on the same hourly pass as email reminders.

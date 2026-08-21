@@ -12,17 +12,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Verify, attest and publish release
+  build:
+    name: Verify and build release (read-only)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: write # Create the GitHub Release and upload its assets.
+      contents: read # Checkout and inspect the tagged source; never publish from this job.
       checks: read # Require every protected-branch check before publishing an RC.
       statuses: read # Read legacy commit-status based required checks.
       pull-requests: read # Validate prereleases against the exact merge-ready PR head.
-      id-token: write # Sign the artifact provenance with GitHub OIDC.
-      attestations: write # Store the artifact provenance attestation.
 
     steps:
       - name: Checkout complete history without persisted credentials
@@ -102,11 +100,6 @@ jobs:
           output-file: releases/pinakes.spdx.json
           upload-artifact: false
 
-      - name: Attest release provenance
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: releases/*.zip
-
       - name: Extract version changelog
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -133,31 +126,203 @@ jobs:
             echo 'a GitHub artifact provenance attestation.'
           } > releases/GITHUB_RELEASE_BODY.md
 
-      - name: Publish verified GitHub Release
+      - name: Retain release evidence in Actions
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-evidence-${{ github.ref_name }}
+          path: |
+            releases/*.zip
+            releases/*.sha256
+            releases/*.spdx.json
+            releases/RELEASE_NOTES-*.md
+            releases/GITHUB_RELEASE_BODY.md
+          if-no-files-found: error
+          retention-days: 90
+
+  publish:
+    name: Attest and publish verified release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # Create the GitHub Release and upload its assets.
+      id-token: write # Sign the artifact provenance with GitHub OIDC.
+      attestations: write # Store the artifact provenance attestation.
+
+    steps:
+      # The privileged job consumes only the artifact produced by the read-only
+      # build job. Composer/npm lifecycle scripts and tagged repository scripts
+      # therefore never execute with a contents-write or OIDC-capable token.
+      - name: Download verified release evidence
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-evidence-${{ github.ref_name }}
+          path: releases
+
+      - name: Require publisher tools
+        run: |
+          command -v gh >/dev/null
+          command -v jq >/dev/null
+          command -v sha256sum >/dev/null
+
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: releases/*.zip
+
+      # This workflow is the sole builder and publisher. create-release.sh only
+      # preflights/pushes the tag and then observes this run; it never creates,
+      # uploads, or replaces an asset. Keep the release as a draft until the
+      # server-side digests have been checked against the reproducible build.
+      - name: Create draft and upload verified assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ github.ref_name }}
         run: |
+          version=${TAG_NAME#v}
+          resolved_tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG_NAME}" --jq '.sha')
+          test "$resolved_tag_sha" = "$GITHUB_SHA" || {
+            echo "Release tag moved before draft creation: $resolved_tag_sha != $GITHUB_SHA" >&2
+            exit 1
+          }
           mapfile -t assets < <(find releases -maxdepth 1 -type f \
             \( -name '*.zip' -o -name '*.zip.sha256' -o -name '*.spdx.json' -o -name 'RELEASE_NOTES-*.md' \) \
             -print | sort)
-          test "${#assets[@]}" -ge 4
-          release_flags=(--verify-tag --title "Pinakes $TAG_NAME" --notes-file releases/GITHUB_RELEASE_BODY.md)
+          expected_assets=$(printf '%s\n' \
+            "RELEASE_NOTES-v${version}.md" \
+            "pinakes-v${version}.zip" \
+            "pinakes-v${version}.zip.sha256" \
+            "pinakes.spdx.json")
+          actual_assets=$(printf '%s\n' "${assets[@]##*/}" | LC_ALL=C sort)
+          if [[ "$actual_assets" != "$expected_assets" ]]; then
+            printf 'Expected local assets:\n%s\nActual local assets:\n%s\n' "$expected_assets" "$actual_assets" >&2
+            exit 1
+          fi
+          release_flags=(--verify-tag --draft --title "Pinakes $TAG_NAME" --notes-file releases/GITHUB_RELEASE_BODY.md)
           if [[ "$TAG_NAME" == *-* ]]; then
             release_flags+=(--prerelease)
-          else
-            release_flags+=(--latest)
           fi
-          gh release create "$TAG_NAME" "${assets[@]}" "${release_flags[@]}"
+          gh release create "$TAG_NAME" "${assets[@]}" "${release_flags[@]}" --repo "$GITHUB_REPOSITORY"
+          resolved_tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG_NAME}" --jq '.sha')
+          test "$resolved_tag_sha" = "$GITHUB_SHA" || {
+            echo "Release tag moved during draft creation: $resolved_tag_sha != $GITHUB_SHA" >&2
+            exit 1
+          }
+
+      - name: Verify uploaded assets and publish the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          version=${TAG_NAME#v}
+          resolved_tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG_NAME}" --jq '.sha')
+          test "$resolved_tag_sha" = "$GITHUB_SHA" || {
+            echo "Release tag moved before verification: $resolved_tag_sha != $GITHUB_SHA" >&2
+            exit 1
+          }
+          release_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"${TAG_NAME}\" and .draft == true) | .id" | head -n 1)
+          test -n "$release_id" || {
+            echo "Could not resolve the draft release for $TAG_NAME" >&2
+            exit 1
+          }
+
+          expected_assets=$(printf '%s\n' \
+            "RELEASE_NOTES-v${version}.md" \
+            "pinakes-v${version}.zip" \
+            "pinakes-v${version}.zip.sha256" \
+            "pinakes.spdx.json")
+          local_sha=$(sha256sum "releases/pinakes-v${version}.zip" | cut -d' ' -f1)
+          sidecar_sha=$(awk 'NR == 1 { print $1 }' "releases/pinakes-v${version}.zip.sha256")
+          test "$local_sha" = "$sidecar_sha" || {
+            echo "Local ZIP and checksum sidecar disagree" >&2
+            exit 1
+          }
+
+          assets_json='[]'
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            assets_json=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?per_page=100")
+            digests_ready=$(jq -r '
+              if length == 4 and all(.[]; (.digest // "") | test("^sha256:[0-9a-fA-F]{64}$"))
+              then "yes" else "no" end
+            ' <<<"$assets_json")
+            if [[ "$digests_ready" == "yes" ]]; then
+              break
+            fi
+            echo "Asset digests not ready yet ($attempt/12)"
+            sleep 10
+          done
+
+          actual_assets=$(jq -r '.[].name' <<<"$assets_json" | LC_ALL=C sort)
+          if [[ "$actual_assets" != "$expected_assets" ]]; then
+            printf 'Expected assets:\n%s\nActual assets:\n%s\n' "$expected_assets" "$actual_assets" >&2
+            exit 1
+          fi
+          if ! jq -e '
+            length == 4
+            and all(.[];
+              .state == "uploaded"
+              and .size > 0
+              and (.digest | test("^sha256:[0-9a-fA-F]{64}$"))
+              and .uploader.login == "github-actions[bot]")
+          ' >/dev/null <<<"$assets_json"; then
+            echo "Every release asset must be complete, workflow-owned, and expose a SHA-256 digest" >&2
+            exit 1
+          fi
+          mapfile -t local_assets < <(find releases -maxdepth 1 -type f \
+            \( -name '*.zip' -o -name '*.zip.sha256' -o -name '*.spdx.json' -o -name 'RELEASE_NOTES-*.md' \) \
+            -print | sort)
+          for asset_path in "${local_assets[@]}"; do
+            asset_name=${asset_path##*/}
+            local_digest="sha256:$(sha256sum "$asset_path" | cut -d' ' -f1)"
+            remote_digest=$(jq -r --arg name "$asset_name" \
+              '.[] | select(.name == $name) | .digest // empty' <<<"$assets_json")
+            test "$remote_digest" = "$local_digest" || {
+              echo "Remote digest mismatch for $asset_name" >&2
+              exit 1
+            }
+          done
+
+          publish_flags=(--draft=false)
+          if [[ "$TAG_NAME" == *-* ]]; then
+            publish_flags+=(--prerelease)
+          else
+            publish_flags+=(--latest)
+          fi
+          resolved_tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG_NAME}" --jq '.sha')
+          test "$resolved_tag_sha" = "$GITHUB_SHA" || {
+            echo "Release tag moved before publication: $resolved_tag_sha != $GITHUB_SHA" >&2
+            exit 1
+          }
+          gh release edit "$TAG_NAME" "${publish_flags[@]}" --repo "$GITHUB_REPOSITORY"
+
+          # Digest checks are only a point-in-time guarantee unless GitHub locks
+          # the published release. create-release.sh checks the repository policy
+          # before pushing the tag; this postcondition also protects direct tag
+          # pushes and fails loudly if the setting was disabled mid-run.
+          published_release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}")
+          resolved_tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG_NAME}" --jq '.sha')
+          if [[ "$resolved_tag_sha" != "$GITHUB_SHA" ]]; then
+            echo "Immutable release tag resolves to $resolved_tag_sha, expected $GITHUB_SHA" >&2
+            exit 1
+          fi
+          if ! jq -e '.draft == false and .immutable == true' >/dev/null <<<"$published_release"; then
+            # The normal local entry point prevents this state before tag push.
+            # A direct tag push can bypass that preflight, so hide the mutable
+            # release again immediately rather than leave it installable.
+            gh release edit "$TAG_NAME" --draft=true --repo "$GITHUB_REPOSITORY" || true
+            echo "Published release $TAG_NAME was not immutable and was returned to draft" >&2
+            exit 1
+          fi
 
       - name: Trigger the Docker image rebuild (stable only, non-fatal)
-        # This workflow replaced create-release.sh, which fired this dispatch so
-        # pinakes-docker rebuilds and republishes the image on a stable release —
+        # The former local release producer fired this dispatch, so this sole
+        # release pipeline keeps pinakes-docker rebuilding on a stable release —
         # without it a stable published here never reaches Docker Hub/GHCR until
         # pinakes-docker's daily poller catches it. The default GITHUB_TOKEN cannot
         # dispatch to another repository, so this needs a PAT secret with dispatch
-        # (contents:write) access to fabiodalez-dev/pinakes-docker. Prereleases are
-        # skipped (matching create-release.sh); a missing token or a failed
+        # (contents:write) access to fabiodalez-dev/pinakes-docker. Prereleases
+        # are skipped; a missing token or a failed
         # dispatch is non-fatal because the daily poller is the backstop.
         if: ${{ !contains(github.ref_name, '-') }}
         env:
@@ -176,15 +341,3 @@ jobs:
           else
             echo "pinakes-docker dispatch failed (non-fatal; the daily poller is the backstop)." >&2
           fi
-
-      - name: Retain release evidence in Actions
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: release-evidence-${{ github.ref_name }}
-          path: |
-            releases/*.zip
-            releases/*.sha256
-            releases/*.spdx.json
-            releases/RELEASE_NOTES-*.md
-          if-no-files-found: error
-          retention-days: 90

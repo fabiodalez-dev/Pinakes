@@ -23,9 +23,9 @@ declare(strict_types=1);
  *      pickup_deadline.
  *   4. Multi-copy: 2 copies, 1 out overdue -> the reservation on the free
  *      copy IS promoted (multi-copy behaviour preserved).
- *   5. Multi-copy, reservation pinned to the copy that is still out -> stays
- *      'prenotato' even though the book-level count has room; promotes after
- *      that copy is returned.
+ *   5. Multi-copy, reservation pinned to the copy that is still out -> moves
+ *      atomically to a free sibling copy and promotes without waiting for the
+ *      original item to return.
  *
  * Drives the real MaintenanceService::activateScheduledLoans() against the
  * live DB. It asserts only on rows it creates (titles ZZ_366_%, users zz366-%)
@@ -156,7 +156,7 @@ $setCopyState = static function (int $copiaId, string $stato) use ($db): void {
 };
 
 $loanRow = static function (int $loanId) use ($db): array {
-    $stmt = $db->prepare("SELECT stato, pickup_deadline FROM prestiti WHERE id = ?");
+    $stmt = $db->prepare("SELECT stato, pickup_deadline, copia_id FROM prestiti WHERE id = ?");
     $stmt->bind_param('i', $loanId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc() ?: [];
@@ -245,13 +245,19 @@ try {
 
     $svc->activateScheduledLoans();
     $row = $loanRow($res3);
-    check(($row['stato'] ?? '') === 'prenotato', "reservation pinned to the out copy stays 'prenotato' even with book-level room");
+    check(
+        ($row['stato'] ?? '') === 'da_ritirare' && (int) ($row['copia_id'] ?? 0) === $c3b,
+        'reservation pinned to the out copy moves to the free sibling and becomes ready'
+    );
 
     $returnLoan($prev3, $c3a);
-    $setCopyState($c3a, 'prenotato'); // copy back on the shelf, held for the reservation
+    $setCopyState($c3a, 'disponibile');
     $svc->activateScheduledLoans();
     $row = $loanRow($res3);
-    check(($row['stato'] ?? '') === 'da_ritirare', "pinned copy returned: reservation promotes to 'da_ritirare'");
+    check(
+        ($row['stato'] ?? '') === 'da_ritirare' && (int) ($row['copia_id'] ?? 0) === $c3b,
+        'returning the original copy does not move or duplicate the already-ready loan'
+    );
 
 } catch (\Throwable $e) {
     $cleanup();

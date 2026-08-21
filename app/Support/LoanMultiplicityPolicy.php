@@ -199,6 +199,8 @@ final class LoanMultiplicityPolicy
      * Same-borrower identity is stronger than dates: two open rows for a title
      * must represent distinct physical items. Other borrowers block only when
      * their inclusive date windows overlap; overdue commitments are open-ended.
+     * The application date is injectable so callers can use the same timezone
+     * boundary as their SQL predicates and tests can remain deterministic.
      *
      * @param list<OpenCopyCommitment> $commitments
      */
@@ -207,8 +209,11 @@ final class LoanMultiplicityPolicy
         int $candidateUserId,
         string $candidateStartDate,
         string $candidateEndDate,
-        array $commitments
+        array $commitments,
+        ?string $applicationToday = null
     ): bool {
+        $applicationToday ??= DateHelper::today();
+
         foreach ($commitments as $commitment) {
             if ($commitment['loanId'] === $candidateLoanId) {
                 continue;
@@ -219,7 +224,9 @@ final class LoanMultiplicityPolicy
             }
 
             $startsBeforeCandidateEnds = $commitment['startDate'] <= $candidateEndDate;
-            $endsAfterCandidateStarts = $commitment['state'] === 'in_ritardo'
+            $isOpenEnded = $commitment['state'] === 'in_ritardo'
+                || ($commitment['state'] === 'in_corso' && $commitment['endDate'] < $applicationToday);
+            $endsAfterCandidateStarts = $isOpenEnded
                 || $commitment['endDate'] >= $candidateStartDate;
             if ($startsBeforeCandidateEnds && $endsAfterCandidateStarts) {
                 return true;

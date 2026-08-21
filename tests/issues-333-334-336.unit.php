@@ -236,7 +236,7 @@ $check(
     'update() checks capacity on the newly-claimed windows through CapacityService'
 );
 $check(
-    str_contains($updateSource, '$copyOverlap->bind_param(\'iiss\', $copyId, $id, $claimEnd, $claimStart)')
+    str_contains($updateSource, '$copyOverlap->bind_param(\'iisss\', $copyId, $id, $claimEnd, $applicationToday, $claimStart)')
         && str_contains($updateSource, '?error=loan_copy_conflict'),
     'update() checks the assigned copy on the same newly-claimed windows with a dedicated error'
 );
@@ -265,7 +265,7 @@ $bulkSource = ($bulkStart !== false && $renewStart !== false && $renewStart > $b
 $check($bulkSource !== '', 'applyBulkLoanExtension() source section extracted');
 $check(
     str_contains($bulkSource, 'hasFreeCapacity($bookId, $extensionStart, $newDueDate')
-        && str_contains($bulkSource, '$copyOverlap->bind_param(\'iiss\', $copyId, $loanId, $newDueDate, $extensionStart)'),
+        && str_contains($bulkSource, '$copyOverlap->bind_param(\'iisss\', $copyId, $loanId, $newDueDate, $today, $extensionStart)'),
     'bulk extension gates capacity AND copy overlap on the same added-days interval'
 );
 $check(

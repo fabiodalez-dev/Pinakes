@@ -78,8 +78,11 @@ try {
         (libro_id, copia_id, data_prestito, data_scadenza, stato, attivo) VALUES
         (1, 1, '2026-07-27', '2026-08-18', 'in_ritardo', 1),
         (1, 1, '2026-08-19', '2026-08-31', 'da_ritirare', 1),
-        (1, 2, '2026-08-01', '2026-08-10', 'in_corso', 1),
-        (1, 2, '2026-08-12', '2026-08-20', 'prenotato', 1),
+        -- Keep this clean overlap fixture far in the future: after #366, an
+        -- `in_corso` row whose due date is before today is intentionally
+        -- open-ended, so hard-coded 2026 dates would already conflict in OLD.
+        (1, 2, '2099-08-01', '2099-08-25', 'in_corso', 1),
+        (1, 2, '2099-09-01', '2099-09-10', 'prenotato', 1),
         (1, 3, '2026-07-27', '2026-08-18', 'in_corso', 1),
         (1, 3, '2026-08-19', '2026-08-31', 'prenotato', 1)");
 
@@ -134,7 +137,7 @@ try {
     // a conflict that OLD did not have: the defence-in-depth trigger still blocks it.
     $newConflictBlocked = false;
     try {
-        $db->query("UPDATE `{$loans}` SET data_prestito = '2026-08-10' WHERE id = 4");
+        $db->query("UPDATE `{$loans}` SET data_prestito = '2099-08-25' WHERE id = 4");
     } catch (mysqli_sql_exception $e) {
         $newConflictBlocked = str_contains($e->getMessage(), 'Esiste già un prestito attivo');
     }

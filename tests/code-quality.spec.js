@@ -112,18 +112,33 @@ function grepFiles(relDir, pattern, ext = '.php', excludeSegments = []) {
     return hits;
 }
 
-/** PHP-compatible version_compare for numeric version strings like "0.7.4". */
+/** PHP-compatible version_compare for Pinakes stable/alpha/beta/RC versions. */
 function versionLte(a, b) {
-    const pa = a.split('.').map(Number);
-    const pb = b.split('.').map(Number);
-    const len = Math.max(pa.length, pb.length);
-    for (let i = 0; i < len; i++) {
-        const na = pa[i] ?? 0;
-        const nb = pb[i] ?? 0;
+    const parse = value => {
+        const match = /^(\d+(?:\.\d+)*)(?:-(alpha|beta|rc)\.(\d+))?$/.exec(value);
+        if (!match) throw new Error(`Unsupported Pinakes version: ${value}`);
+        return {
+            core: match[1].split('.').map(Number),
+            channel: match[2] ?? null,
+            sequence: match[3] === undefined ? 0 : Number(match[3]),
+        };
+    };
+    const pa = parse(a);
+    const pb = parse(b);
+    const coreLength = Math.max(pa.core.length, pb.core.length);
+    for (let i = 0; i < coreLength; i++) {
+        const na = pa.core[i] ?? 0;
+        const nb = pb.core[i] ?? 0;
         if (na < nb) return true;
         if (na > nb) return false;
     }
-    return true; // equal → also ≤
+    if (pa.channel === null || pb.channel === null) {
+        return pa.channel !== null || pb.channel === null; // prerelease < stable; equal stable <= stable
+    }
+    const rank = { alpha: 0, beta: 1, rc: 2 };
+    if (rank[pa.channel] < rank[pb.channel]) return true;
+    if (rank[pa.channel] > rank[pb.channel]) return false;
+    return pa.sequence <= pb.sequence;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -135,7 +150,14 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
     test('1. All migrate_*.sql have version ≤ version.json (silent-skip guard)', () => {
         const target  = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf-8')).version;
         const migrDir = path.join(ROOT, 'installer', 'database', 'migrations');
-        const files   = fs.readdirSync(migrDir).filter(f => /^migrate_[\d.]+\.sql$/.test(f));
+        const files   = fs.readdirSync(migrDir)
+            .filter(f => /^migrate_\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?\.sql$/.test(f));
+
+        expect(versionLte('0.7.64-rc.1', '0.7.64')).toBe(true);
+        expect(versionLte('0.7.64', '0.7.64-rc.1')).toBe(false);
+        expect(versionLte('0.7.65', '0.7.64-rc.1')).toBe(false);
+        expect(versionLte('0.7.64-alpha.2', '0.7.64-beta.1')).toBe(true);
+        expect(versionLte('0.7.64-beta.2', '0.7.64-rc.1')).toBe(true);
 
         const violations = files.filter(f => {
             const v = f.replace('migrate_', '').replace('.sql', '');
@@ -195,7 +217,7 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
 
         const dynamicConsumers = [
             ['.github/workflows/ci-upgrade-smoke.yml', 'tables'],
-            ['scripts/create-release.sh', 'plugins'],
+            ['.github/workflows/ci-upgrade-smoke.yml', 'plugins'],
             ['bin/build-release.sh', 'plugins'],
         ];
         for (const [file, kind] of dynamicConsumers) {
@@ -204,9 +226,20 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
                 .toContain(`list-source-expectations.php ${kind}`);
         }
         const releaseScript = fs.readFileSync(path.join(ROOT, 'scripts', 'create-release.sh'), 'utf-8');
-        expect(releaseScript).toContain('EXPECTED_PLUGIN_COUNT=${#BUNDLED_PLUGINS[@]}');
-        expect(releaseScript, 'remote release verification must not use a numeric plugin floor')
-            .not.toMatch(/REMOTE_PLUGIN_COUNT[^\n]*-ge\s+\d+/);
+        expect(releaseScript, 'release entry point must delegate source validation to the CI policy')
+            .toContain('bash scripts/ci-verify-release-source.sh');
+        expect(releaseScript, 'release entry point must wait for the canonical workflow')
+            .toContain('gh run watch');
+        expect(releaseScript, 'release entry point must require immutable GitHub Releases before tagging')
+            .toContain('immutable-releases');
+        expect(releaseScript, 'release entry point must ignore stale workflow runs from a prior tag attempt')
+            .toContain('.databaseId > $floor');
+        expect(releaseScript, 'release entry point must verify the published release is immutable')
+            .toContain("jq -r '.immutable'");
+        expect(releaseScript, 'release entry point must not build a second release archive')
+            .not.toMatch(/git\s+archive|bin\/build-release\.sh/);
+        expect(releaseScript, 'release entry point must not create, upload, or edit GitHub releases')
+            .not.toMatch(/gh\s+release\s+(create|upload|edit)/);
         expect(fs.readFileSync(path.join(ROOT, 'bin', 'build-release.sh'), 'utf-8'))
             .toContain('BundledPlugins::LIST declares ${#bundled_plugins[@]}');
         const releaseFilter = fs.readFileSync(path.join(ROOT, '.rsync-filter'), 'utf-8');

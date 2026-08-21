@@ -156,7 +156,10 @@ $rangesBody = $extractSection($web, 'Intervalli occupati', '// first_available /
 $checks['occupied_ranges includes pendente-with-copy and prenotazioni'] =
     $rangesBody !== ''
     && str_contains($rangesBody, "stato = 'pendente' AND copia_id IS NOT NULL")
-    && str_contains($rangesBody, "WHEN stato = 'in_ritardo' THEN '9999-12-31'")
+    && str_contains($rangesBody, "stato = 'in_ritardo'")
+    && str_contains($rangesBody, "stato = 'in_corso' AND data_scadenza < ?")
+    && str_contains($rangesBody, "THEN '9999-12-31'")
+    && str_contains($rangesBody, "bind_param('si', \$today, \$libroId)")
     && str_contains($rangesBody, "'to' => \$row['occupied_until']")
     && str_contains($rangesBody, "FROM prenotazioni");
 

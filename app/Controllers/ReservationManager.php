@@ -180,8 +180,10 @@ class ReservationManager
                 return false;
             }
 
-            // Get the next date-eligible reservation in queue
-            // Only process reservations where start date <= today (ready to convert to loan)
+            // Get the next date- and borrower-eligible reservation in queue.
+            // Eligibility belongs inside the locking query: selecting a fixed
+            // batch and discarding invalid patrons afterwards could leave a
+            // valid position 26 blocked forever behind 25 suspended accounts.
             // FOR UPDATE (locking/current read): the book-level lock serializes
             // writers that follow the canonical order, but a CALLER's REPEATABLE
             // READ snapshot can predate that lock — a plain read here would then
@@ -193,51 +195,41 @@ class ReservationManager
             // promosso — la riga diverrebbe 'completata' + pendente con copia
             // che l'approvazione rifiuta comunque (403), bruciando la posizione
             // e tenendo la copia impegnata finché un admin non ripulisce a mano.
-            // La prenotazione saltata resta 'attiva' in coda: torna promuovibile
-            // se l'utente viene riabilitato, e i candidati successivi non
-            // restano bloccati dietro di lei. La scansione procede a batch FIFO
-            // finché trova il primo idoneo o esaurisce la coda: fermarsi al
-            // primo batch renderebbe irraggiungibile un idoneo oltre la
-            // posizione 25 quando tutti i precedenti sono sospesi.
-            $nextReservation = null;
-            $batchSize = 25;
-            for ($offset = 0; $nextReservation === null; $offset += $batchSize) {
-                $stmt = $this->db->prepare("
-                    SELECT r.*, u.email, u.nome, u.cognome
-                    FROM prenotazioni r
-                    JOIN utenti u ON r.utente_id = u.id
-                    WHERE r.libro_id = ? AND r.stato = 'attiva'
-                    AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
-                    ORDER BY r.queue_position ASC
-                    LIMIT ? OFFSET ?
-                    FOR UPDATE
-                ");
-                $stmt->bind_param('issii', $bookId, $today, $today, $batchSize, $offset);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $candidates = [];
-                while ($row = $result->fetch_assoc()) {
-                    $candidates[] = $row;
-                }
-                $stmt->close();
+            // Le prenotazioni di utenti sospesi restano attive e continuano a
+            // impegnare capacità, ma non devono amplificare i lock o rendere
+            // irraggiungibile il primo candidato idoneo. Il predicato SQL cerca
+            // direttamente il primo idoneo in FIFO; checkUser() rimane il gate
+            // autorevole sotto la stessa transazione.
+            $stmt = $this->db->prepare("
+                SELECT r.*, u.email, u.nome, u.cognome
+                FROM prenotazioni r
+                JOIN utenti u ON r.utente_id = u.id
+                WHERE r.libro_id = ? AND r.stato = 'attiva'
+                AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
+                AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
+                ORDER BY r.queue_position ASC
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $stmt->bind_param('isss', $bookId, $today, $today, $today);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $nextReservation = $result ? $result->fetch_assoc() : null;
+            $stmt->close();
 
-                foreach ($candidates as $candidate) {
-                    $eligibilityError = \App\Support\LoanEligibility::checkUser($this->db, (int) $candidate['utente_id']);
-                    if ($eligibilityError === null) {
-                        $nextReservation = $candidate;
-                        break;
-                    }
+            if ($nextReservation !== null) {
+                $eligibilityError = \App\Support\LoanEligibility::checkUser(
+                    $this->db,
+                    (int) $nextReservation['utente_id']
+                );
+                if ($eligibilityError !== null) {
                     \App\Support\SecureLogger::info('Promozione prenotazione saltata: utente non idoneo', [
-                        'prenotazione_id' => (int) $candidate['id'],
+                        'prenotazione_id' => (int) $nextReservation['id'],
                         'libro_id' => $bookId,
-                        'utente_id' => (int) $candidate['utente_id'],
+                        'utente_id' => (int) $nextReservation['utente_id'],
                         'motivo' => $eligibilityError,
                     ]);
-                }
-
-                if (count($candidates) < $batchSize) {
-                    // Ultima pagina della coda: niente altri candidati da valutare.
-                    break;
+                    $nextReservation = null;
                 }
             }
 

@@ -851,6 +851,8 @@ CREATE TABLE `prestiti` (
   `warning_sent` tinyint(1) DEFAULT '0',
   `overdue_notification_sent` tinyint(1) DEFAULT '0',
   `pickup_notification_sent` tinyint(1) DEFAULT '0',
+  `pickup_notification_claim_token` char(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  `pickup_notification_last_attempt_at` datetime DEFAULT NULL,
   `recall_count` int NOT NULL DEFAULT '0',
   `last_recall_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),

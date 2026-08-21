@@ -2232,9 +2232,15 @@ return function (App $app): void {
         // payload si contraddiceva: occupied_ranges diceva "libero" mentre
         // first_available/is_available_now (calcolati per-giorno qui sotto)
         // contavano anche pendenti-con-copia e coda prenotazioni.
+        $today = \App\Support\DateHelper::today();
         $stmt = $db->prepare("
             SELECT data_prestito,
-                   CASE WHEN stato = 'in_ritardo' THEN '9999-12-31' ELSE data_scadenza END AS occupied_until,
+                   CASE
+                       WHEN stato = 'in_ritardo'
+                            OR (stato = 'in_corso' AND data_scadenza < ?)
+                       THEN '9999-12-31'
+                       ELSE data_scadenza
+                   END AS occupied_until,
                    stato
             FROM prestiti
             WHERE libro_id = ? AND (
@@ -2243,7 +2249,7 @@ return function (App $app): void {
             )
             ORDER BY data_prestito
         ");
-        $stmt->bind_param('i', $libroId);
+        $stmt->bind_param('si', $today, $libroId);
         $stmt->execute();
         $result = $stmt->get_result();
         $occupiedRanges = [];
@@ -2285,7 +2291,6 @@ return function (App $app): void {
         // first_available / is_available_now: delega al calcolo per-giorno e per-copia
         // (AVAIL-001). Il vecchio "giorno dopo la scadenza più lontana" ignorava le
         // copie multiple, restituendo una data troppo conservativa.
-        $today = \App\Support\DateHelper::today();
         $reservations = new \App\Controllers\ReservationsController($db);
         $availability = $reservations->getBookAvailabilityData($libroId, $today, 180);
         if ($availability === null) {
