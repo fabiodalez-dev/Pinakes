@@ -146,9 +146,12 @@ test.describe.serial('Related books — responsive layout (#278)', () => {
     test('row is grouped/centred (bounded) on ultra-wide screens', async ({ page }) => {
         test.skip(bookId === 0, 'no book with related books');
         const m = await measure(page, bookId, 2560);
-        // The .related-books-wrap caps the row so the cards don't spread across
-        // the whole 2560px container.
+        // The .related-books-wrap caps the row (max-width: 1320px — widened
+        // from the old ~960px 3-card cap to fit 4+ columns) so the cards don't
+        // spread across the whole 2560px container (~92vw ≈ 2355px). The wrap
+        // is a block element, so its width is count-independent: assert the
+        // CSS cap, with a small rounding margin.
         expect(m.wrapW, 'wrap width on 2560px').not.toBeNull();
-        expect(m.wrapW).toBeLessThanOrEqual(1000);
+        expect(m.wrapW).toBeLessThanOrEqual(1330);
     });
 });
