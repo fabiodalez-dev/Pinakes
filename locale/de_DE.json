@@ -6881,5 +6881,12 @@
   "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte": "Mehrere Ausleihen desselben Titels nur für unterschiedliche physische Exemplare zulassen",
   "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.": "Jede Ausleihe muss einem anderen physischen Exemplar zugeordnet sein; ausstehende Anfragen und Vormerkungen bleiben auf jeweils eine pro Benutzer und Buch beschränkt.",
   "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Ausstehende Anfragen und Vormerkungen bleiben pro Benutzer und Buch eindeutig. Jedes Exemplar zählt zum Limit für aktive Ausleihen.",
-  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Mehrfachausleihmodus aktiv: Das Buch bleibt ausgewählt; scannen Sie das nächste Exemplar, um fortzufahren."
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Mehrfachausleihmodus aktiv: Das Buch bleibt ausgewählt; scannen Sie das nächste Exemplar, um fortzufahren.",
+  "La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo": "Das angeforderte Zeitfenster ist bereits verstrichen: Aktualisiere die Ausleihdaten, bevor du die Ausleihe genehmigst",
+  "Ritiro annullato il": "Abholung storniert am",
+  "Un'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.": "Ein anderer Vorgang hat gerade dasselbe Buch aktualisiert: Es wurde nichts gespeichert, bitte versuche es jetzt erneut.",
+  "Stato prenotazione non valido: modifica non salvata.": "Ungültiger Vormerkungsstatus: Änderungen nicht gespeichert.",
+  "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Diese Vormerkung wurde bereits in eine noch offene Ausleihe umgewandelt: Verwalte die Ausleihe auf der Seite Ausleihen, statt die Vormerkung zu bearbeiten.",
+  "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService: Aktualisierung des Cooldown-Markers fehlgeschlagen",
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService: Fehler bei der Wiederherstellung der Abholbenachrichtigungen"
 }

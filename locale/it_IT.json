@@ -6881,5 +6881,12 @@
   "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte": "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte",
   "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.": "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.",
   "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.",
-  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare."
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.",
+  "La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo": "La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo",
+  "Ritiro annullato il": "Ritiro annullato il",
+  "Un'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.": "Un'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.",
+  "Stato prenotazione non valido: modifica non salvata.": "Stato prenotazione non valido: modifica non salvata.",
+  "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.",
+  "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService aggiornamento marker cooldown fallito",
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService errore recupero notifiche ritiro"
 }

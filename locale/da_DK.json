@@ -6881,5 +6881,12 @@
   "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte": "Tillad kun flere lån af samme titel på forskellige fysiske eksemplarer",
   "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.": "Hvert lån skal være knyttet til et særskilt fysisk eksemplar; afventende anmodninger og reservationer er fortsat begrænset til én pr. bruger og bog.",
   "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Afventende anmodninger og reservationer er fortsat unikke pr. bruger og bog. Hvert eksemplar tæller med i grænsen for aktive lån.",
-  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Tilstanden for flere lån er aktiv: Bogen forbliver valgt; scan det næste eksemplar for at fortsætte."
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Tilstanden for flere lån er aktiv: Bogen forbliver valgt; scan det næste eksemplar for at fortsætte.",
+  "La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo": "Det ønskede tidsrum er allerede passeret: Opdater lånets datoer, før du godkender det",
+  "Ritiro annullato il": "Afhentning annulleret den",
+  "Un'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.": "En anden handling var ved at opdatere den samme bog: Intet blev gemt, prøv igen nu.",
+  "Stato prenotazione non valido: modifica non salvata.": "Ugyldig reservationsstatus: Ændringer ikke gemt.",
+  "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Denne reservation er allerede blevet konverteret til et stadig åbent lån: Håndter lånet fra siden Udlån i stedet for at redigere reservationen.",
+  "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService: Opdatering af cooldown-markør mislykkedes",
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService: Fejl ved gendannelse af afhentningsnotifikationer"
 }
