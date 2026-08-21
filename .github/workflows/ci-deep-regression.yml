@@ -107,6 +107,11 @@ jobs:
         run: |
           composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
           npm ci --silent
+          # The hosted runner image ships Google's chrome-stable apt source,
+          # which this job never installs from; `--with-deps` runs apt-get
+          # update, so a mid-sync mirror on dl.google.com fails the whole
+          # browser install. Drop the unused source first.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           npx playwright install chromium --with-deps
 
       - name: Route legacy MySQL test clients to the service container
@@ -299,6 +304,11 @@ jobs:
         run: |
           composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
           npm ci --silent
+          # The hosted runner image ships Google's chrome-stable apt source,
+          # which this job never installs from; `--with-deps` runs apt-get
+          # update, so a mid-sync mirror on dl.google.com fails the whole
+          # browser install. Drop the unused source first.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           npx playwright install chromium --with-deps
       - name: Configure and start isolated application
         env:

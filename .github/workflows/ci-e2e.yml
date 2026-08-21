@@ -122,7 +122,13 @@ jobs:
         run: npm run test:ci-policy
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
+        run: |
+          # The hosted runner image ships Google's chrome-stable apt source,
+          # which this job never installs from; `--with-deps` runs apt-get
+          # update, so a mid-sync mirror on dl.google.com fails the whole
+          # browser install. Drop the unused source first.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          npx playwright install chromium --with-deps
 
       # ── Permissions: Apache (www-data) must write .env, .installed, storage ─
       - name: Grant write permissions to workspace

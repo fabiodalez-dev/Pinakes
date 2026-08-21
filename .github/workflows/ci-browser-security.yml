@@ -94,7 +94,13 @@ jobs:
           echo "E2E_INSTALL_ROOT=$package_root" >> "$GITHUB_ENV"
 
       - name: Install all supported Playwright browser engines
-        run: npx playwright install chromium firefox webkit --with-deps
+        run: |
+          # The hosted runner image ships Google's chrome-stable apt source,
+          # which this job never installs from; `--with-deps` runs apt-get
+          # update, so a mid-sync mirror on dl.google.com fails the whole
+          # browser install. Drop the unused source first.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          npx playwright install chromium firefox webkit --with-deps
 
       - name: Configure Apache for the packaged application
         run: |
