@@ -14,6 +14,21 @@
     </nav>
     <div class="bg-white border border-gray-200 rounded-2xl shadow p-6">
       <h1 class="text-2xl font-bold text-gray-900 mb-4"><?= sprintf(__("Modifica Prenotazione #%s"), (int)$p['id']) ?></h1>
+      <?php if (!empty($_GET['error'])): ?>
+        <div class="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl" role="alert">
+          <?php
+          $errorKey = is_scalar($_GET['error']) ? (string) $_GET['error'] : '';
+          echo match ($errorKey) {
+              'duplicate' => __('Questo utente ha già un prestito o una prenotazione attiva per questo libro.'),
+              'capacity_full' => __('Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.'),
+              'invalid_status' => __('Stato prenotazione non valido: modifica non salvata.'),
+              'promoted_loan_active' => __('Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.'),
+              'user_not_found', 'user_suspended', 'card_expired' => \App\Support\LoanEligibility::errorMessage($errorKey),
+              default => __('Impossibile completare l\'operazione. Riprova più tardi.')
+          };
+          ?>
+        </div>
+      <?php endif; ?>
       <div class="text-sm text-gray-600 mb-4">
         <i class="fas fa-book mr-1"></i><?= __("Libro:") ?><strong><?php echo App\Support\HtmlHelper::e($p['libro_titolo'] ?? ''); ?></strong><br>
         <i class="fas fa-user mr-1"></i><?= __("Utente:") ?><strong><?php echo App\Support\HtmlHelper::e($p['utente_nome'] ?? ''); ?></strong>

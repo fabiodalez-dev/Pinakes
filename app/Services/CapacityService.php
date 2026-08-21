@@ -80,6 +80,25 @@ final class CapacityService
     }
 
     /**
+     * True se il libro ha almeno una riga in `copie`. Un libro legacy senza
+     * copie fisiche registrate supera il gate di capacità tramite il fallback
+     * copie_totali, ma la promozione della coda seleziona SOLO da `copie`:
+     * una prenotazione accettata non convertirebbe mai (fallirebbe in silenzio
+     * a ogni run fino alla scadenza). I gate di CREAZIONE prenotazione usano
+     * questo check per rifiutare a monte; i prestiti legacy copyless esistenti
+     * non passano di qui e restano gestiti dal fallback.
+     */
+    public function hasPhysicalCopies(int $libroId): bool
+    {
+        $stmt = $this->db->prepare("SELECT 1 FROM copie WHERE libro_id = ? LIMIT 1");
+        $stmt->bind_param('i', $libroId);
+        $stmt->execute();
+        $hasRows = $stmt->get_result()->num_rows > 0;
+        $stmt->close();
+        return $hasRows;
+    }
+
+    /**
      * OCC(b,[s,e]) — the peak simultaneous occupancy over the inclusive interval
      * [$start,$end], counting HOLDING loans + active reservations. Excludes the
      * row/user being decided (so a gate can ignore the very commitment it is about
