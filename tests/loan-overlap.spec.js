@@ -262,7 +262,11 @@ test.describe.serial('Loan overlap model (#157) — 39 scenarios', () => {
   async function adminStoreLoan(page, { bookId, userId, start, end, copyCode = '' }) {
     const csrf = await page.evaluate(() => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
     return page.evaluate(async ({ base, bookId, userId, start, end, copyCode, csrf }) => {
-      const body = new URLSearchParams({ csrf_token: csrf, libro_id: String(bookId), utente_id: String(userId), data_prestito: start, data_scadenza: end });
+      // The loan INSERT is replay-guarded by a one-time submission token that
+      // only the rendered form carries — fetch the form first, like a browser.
+      const formHtml = await (await fetch(base + '/admin/loans/create', { credentials: 'same-origin' })).text();
+      const submissionToken = (formHtml.match(/name="loan_submission_token"\s+value="([a-f0-9]{64})"/) || [])[1] || '';
+      const body = new URLSearchParams({ csrf_token: csrf, loan_submission_token: submissionToken, libro_id: String(bookId), utente_id: String(userId), data_prestito: start, data_scadenza: end });
       if (copyCode) body.set('copy_code', copyCode);
       // follow the redirect so r.url carries the ?error= / ?success= query
       const r = await fetch(base + '/admin/prestiti/crea', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
