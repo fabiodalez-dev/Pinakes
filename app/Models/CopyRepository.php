@@ -744,22 +744,27 @@ class CopyRepository
      */
     public function getAvailableByBookIdForDateRange(int $bookId, string $startDate, string $endDate): array
     {
+        // Solo copie fisicamente in sede: una copia 'prestato' è fuori con un
+        // altro prestito e non è assegnabile, anche quando i predicati per data
+        // non la vedono. #366 residual: un 'in_corso' scaduto per data ma non
+        // ancora flippato dal cron blocca come 'in_ritardo' (open-ended).
+        $today = \App\Support\DateHelper::today();
         $stmt = $this->db->prepare("
             SELECT c.*
             FROM copie c
             WHERE c.libro_id = ?
-            AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+            AND c.stato IN ('disponibile', 'prenotato')
             AND NOT EXISTS (
                 SELECT 1 FROM prestiti p
                 WHERE p.copia_id = c.id
                 AND p.data_prestito <= ?
-                AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                AND (p.stato = 'in_ritardo' OR (p.stato = 'in_corso' AND p.data_scadenza < ?) OR p.data_scadenza >= ?)
                 AND ((p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo'))
                      OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL))
             )
             ORDER BY c.numero_inventario ASC
         ");
-        $stmt->bind_param('iss', $bookId, $endDate, $startDate);
+        $stmt->bind_param('isss', $bookId, $endDate, $today, $startDate);
         $stmt->execute();
         $result = $stmt->get_result();
 
