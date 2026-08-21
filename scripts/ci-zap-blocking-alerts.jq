@@ -4,9 +4,16 @@ def catalogue_identifiers:
 def public_catalogue_urls:
   $public_catalogue_urls[0];
 
+def public_example_identifiers:
+  $public_example_identifiers[0];
+
 def is_known_catalogue_identifier:
   . as $identifier
   | (catalogue_identifiers | index($identifier)) != null;
+
+def is_known_public_example_identifier:
+  . as $identifier
+  | (public_example_identifiers | index($identifier)) != null;
 
 def without_query_or_fragment:
   sub("[?#].*$"; "");
@@ -38,6 +45,9 @@ def is_static_bibliographic_uri:
 def is_bibliographic_uri:
   is_static_bibliographic_uri or is_registered_canonical_url;
 
+def is_target_uri:
+  test("^http://localhost:8081(?:[/?#]|$)"; "i");
+
 def is_catalogue_ean_instance:
   type == "object"
   and has("method") and (.method | type == "string")
@@ -47,8 +57,16 @@ def is_catalogue_ean_instance:
   and has("attack") and (.attack | type == "string")
   and (.method | ascii_upcase) == "GET"
   and (.evidence | test("^[0-9]{13}$"))
-  and (.evidence | is_known_catalogue_identifier)
-  and (.uri | is_bibliographic_uri)
+  and (
+    (
+      (.evidence | is_known_public_example_identifier)
+      and (.uri | is_target_uri)
+    )
+    or (
+      (.evidence | is_known_catalogue_identifier)
+      and (.uri | is_bibliographic_uri)
+    )
+  )
   and (.param == "")
   and (.attack == "");
 
@@ -99,7 +117,11 @@ def has_valid_catalogue_context:
   and ($public_catalogue_urls | type == "array")
   and ($public_catalogue_urls | length == 1)
   and (public_catalogue_urls | type == "array")
-  and (public_catalogue_urls | all(.[]; type == "string"));
+  and (public_catalogue_urls | all(.[]; type == "string"))
+  and ($public_example_identifiers | type == "array")
+  and ($public_example_identifiers | length == 1)
+  and (public_example_identifiers | type == "array")
+  and (public_example_identifiers | all(.[]; type == "string" and test("^[0-9]{13}$")));
 
 if type != "array" or length != 1 then
   error("expected exactly one OWASP ZAP JSON document")
