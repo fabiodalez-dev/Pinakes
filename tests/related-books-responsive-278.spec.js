@@ -74,14 +74,18 @@ async function measure(page, bookId, width) {
         const perRow = rects.filter((r) => Math.abs(Math.round(r.top) - top0) < 5).length;
         const wrap = document.querySelector('.related-books-wrap');
         const grid = document.querySelector('.related-books-grid');
+        const gridStyle = grid ? getComputedStyle(grid) : null;
+        const columnGap = gridStyle ? parseFloat(gridStyle.columnGap || '0') || 0 : 0;
         return {
             present: true,
             count: cards.length,
             cardW: Math.round(rects[0].width),
             perRow,
             wrapW: wrap ? Math.round(wrap.getBoundingClientRect().width) : null,
-            mode: grid ? getComputedStyle(grid).display : null,
-            overflowX: grid ? getComputedStyle(grid).overflowX : null,
+            mode: gridStyle ? gridStyle.display : null,
+            overflowX: gridStyle ? gridStyle.overflowX : null,
+            clientW: grid ? grid.clientWidth : null,
+            contentW: grid ? Math.round(rects.reduce((sum, rect) => sum + rect.width, 0) + columnGap * Math.max(0, rects.length - 1)) : null,
             scrollable: grid ? grid.scrollWidth > grid.clientWidth + 5 : false,
         };
     });
@@ -134,6 +138,9 @@ test.describe.serial('Related books — responsive layout (#278)', () => {
             expect(m.mode, `layout mode at ${w}px`).toBe('flex');
             expect(m.perRow, `strip must keep all cards on one row at ${w}px`).toBe(m.count);
             expect(m.overflowX, `strip must permit horizontal scrolling at ${w}px`).toMatch(/auto|scroll/);
+            if (m.contentW > m.clientW + 5) {
+                expect(m.scrollable, `overflowing strip must be scrollable at ${w}px`).toBe(true);
+            }
         }
         // From 1024px up it is a centred grid: as many columns as there are
         // cards, capped at 4 in the single visible row (extras are clipped).
