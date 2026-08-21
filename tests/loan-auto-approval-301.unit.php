@@ -46,6 +46,14 @@ try {
 // 'mail' driver never blocks, but we also don't want a stray SMTP config to hang.
 $db->query("UPDATE system_settings SET setting_value='mail' WHERE category='email' AND setting_key IN ('driver_mode','type')");
 
+// Make the email outcome DETERMINISTIC: sendWithRetry() short-circuits on
+// Mailer::isSmtpReachable(), so seeding the cached probe with `false` makes the
+// approval email fail identically everywhere (CI runners have no sendmail; dev
+// machines may have one). The pickup-claim assertion below (09b) then tests the
+// release contract instead of depending on the host's mail transport.
+$smtpProbe = new ReflectionProperty(\App\Support\Mailer::class, 'smtpReachable');
+$smtpProbe->setValue(null, false);
+
 $run = substr(hash('sha256', uniqid((string) getmypid(), true)), 0, 10);
 $titlePrefix = 'ZZAUTO301_' . $run;
 $emailDomain = '@auto301.test.local';
@@ -209,8 +217,17 @@ $check($loanField($loanOn, 'pickup_deadline') !== null, '08 auto-approved immedi
 // 09 — reuses the pipeline: a copy is locked/assigned and the loan is activated.
 $check((int) $loanField($loanOn, 'attivo') === 1 && $loanField($loanOn, 'copia_id') !== null,
     '09 auto-approval assigns a physical copy and activates the loan (canonical pipeline)');
+// 09b — the pre-commit pickup claim must be SETTLED after the approval email
+// attempt. The mailer is forced unreachable above, so the approval email
+// deterministically fails: the claim taken before commit must then be
+// RELEASED (sent=0, no dangling token) so the retry sweep can still deliver
+// the missing announcement — a dangling claim would silently lose it forever.
+// (When the email succeeds in production the claim stays sent=1 with the
+// token cleared; that branch needs a deliverable transport and cannot be
+// asserted portably here.)
 $check(
-    (int) $loanField($loanOn, 'pickup_notification_sent') === 1,
+    (int) $loanField($loanOn, 'pickup_notification_sent') === 0
+        && $loanField($loanOn, 'pickup_notification_claim_token') === null,
     '09b immediate auto-approval claims the pickup announcement before a retry sweep can duplicate it'
 );
 

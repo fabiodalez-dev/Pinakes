@@ -325,9 +325,14 @@ try {
         $old = $mkUser('s03a');
         $next = $mkUser('s03b');
         [$bookId, [$outCopy, $freeCopy]] = $mkBook('s03', ['disponibile', 'disponibile']);
+        // Fixture order matters: the copy-overlap trigger treats a stale
+        // in_corso predecessor (data_scadenza < CURRENT_DATE) as open-ended,
+        // so a pinned successor can no longer be INSERTed after it. Insert the
+        // successor first, then the predecessor (whose window ends before the
+        // successor starts) — same final state, reached through the gate.
+        $successor = $mkLoan($bookId, $outCopy, $next['id'], 'prenotato', $d(0), $d(10));
         $mkLoan($bookId, $outCopy, $old['id'], 'in_corso', $d(-20), $d(-1));
         $setCopyState($outCopy, 'prestato');
-        $successor = $mkLoan($bookId, $outCopy, $next['id'], 'prenotato', $d(0), $d(10));
         $maintenance->updateOverdueLoans();
         $maintenance->activateScheduledLoans();
         $row = $loanRow($successor);
@@ -340,9 +345,11 @@ try {
         $old = $mkUser('s04a');
         $next = $mkUser('s04b');
         [$bookId, [$copyId, $unusedCopy]] = $mkBook('s04', ['disponibile', 'disponibile']);
+        // Successor first (see scenario 03): the trigger's stale-in_corso
+        // branch would reject this INSERT after the predecessor exists.
+        $successor = $mkLoan($bookId, $copyId, $next['id'], 'prenotato', $d(0), $d(10));
         $predecessor = $mkLoan($bookId, $copyId, $old['id'], 'in_corso', $d(-20), $d(-1));
         $setCopyState($copyId, 'prestato');
-        $successor = $mkLoan($bookId, $copyId, $next['id'], 'prenotato', $d(0), $d(10));
         $returnLoan($predecessor, $copyId, 'prenotato');
         $maintenance->activateScheduledLoans();
         return ($loanRow($successor)['stato'] ?? '') === 'da_ritirare' && $unusedCopy > 0;
