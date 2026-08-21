@@ -286,6 +286,15 @@ class PrestitiController
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_dates')->withStatus(302);
         }
 
+        // A newly-created active loan whose entire window is already over is
+        // physically open-ended until returned, even if its nominal dates do
+        // not overlap a future hold. Reject it at the application boundary so
+        // crafted staff POSTs cannot rely on the database trigger as the first
+        // (and less actionable) line of defence. Approval uses the same rule.
+        if ($data_scadenza < \App\Support\DateHelper::today()) {
+            return $response->withHeader('Location', url('/admin/loans/create') . '?error=expired_window')->withStatus(302);
+        }
+
         // Ensure the pickup claim schema before the INSERT and before opening
         // the circulation transaction. On a legacy install, the helper marks
         // rows that already existed as historical and then restores DEFAULT 0;

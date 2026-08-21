@@ -93,6 +93,15 @@ $EMAIL_DOMAIN = '@afix.test.local';
 
 $today = DateHelper::today();
 $d = static fn (int $offsetDays): string => date('Y-m-d', strtotime($today . ($offsetDays >= 0 ? " +{$offsetDays} days" : ' ' . $offsetDays . ' days')));
+$withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
+    $safeDate = $db->real_escape_string($date);
+    $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    try {
+        return $callback();
+    } finally {
+        $db->query('SET timestamp = 0');
+    }
+};
 
 $settingsRow = static function (string $key, string $default) use ($db): string {
     $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = ?");
@@ -225,15 +234,18 @@ try {
     $borrower1 = $mkUser();
     $picker1 = $mkUser();
     [$bookP1, [$copyP1]] = $mkBook(1);
-    // Successor already announced ready, then the predecessor still out and
-    // overdue (not yet flipped) on the SAME copy — the #366-adjacent
-    // inconsistent state this guard must fail closed on. Insertion order is
-    // successor-first: the copy-overlap trigger treats a stale in_corso row
-    // (data_scadenza < CURRENT_DATE) as open-ended and would reject inserting
-    // the pinned successor after it; inserting the predecessor second (its
-    // window ends before the successor starts) reaches the same state.
-    $nextLoan = $mkLoan($bookP1, $copyP1, $picker1, 'da_ritirare', $d(-1), $d(10), $d(2));
-    $prevLoan = $mkLoan($bookP1, $copyP1, $borrower1, 'in_corso', $d(-30), $d(-5));
+    // Build the #366-adjacent state in its real chronological order. At the
+    // predecessor's due date the two windows are disjoint and both inserts are
+    // valid; after the clock returns to today, the still-unreturned predecessor
+    // has become an open-ended hold beside its already-announced successor.
+    [$prevLoan, $nextLoan] = $withDatabaseDate(
+        $d(-5),
+        static function () use ($mkLoan, $bookP1, $copyP1, $borrower1, $picker1, $d): array {
+            $previous = $mkLoan($bookP1, $copyP1, $borrower1, 'in_corso', $d(-30), $d(-5));
+            $next = $mkLoan($bookP1, $copyP1, $picker1, 'da_ritirare', $d(-1), $d(10), $d(2));
+            return [$previous, $next];
+        }
+    );
     $setCopyState($copyP1, 'prestato');
 
     $_SESSION['user'] = ['tipo_utente' => 'admin', 'id' => $picker1];

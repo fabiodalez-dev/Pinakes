@@ -97,6 +97,15 @@ $EMAIL_DOMAIN = '@366fs.test.local';
 
 $today = DateHelper::today();
 $d = static fn (int $offsetDays): string => date('Y-m-d', strtotime($today . ($offsetDays >= 0 ? " +{$offsetDays} days" : ' ' . $offsetDays . ' days')));
+$withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
+    $safeDate = $db->real_escape_string($date);
+    $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    try {
+        return $callback();
+    } finally {
+        $db->query('SET timestamp = 0');
+    }
+};
 
 $settingsRow = static function (string $key, string $default) use ($db): string {
     $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = ?");
@@ -427,11 +436,17 @@ try {
     $userE = $mkUser();
     $userE2 = $mkUser();
     [$bookE, [$copyEa, $copyEb]] = $mkBook(2);
-    // Pinned reservation first, stale predecessor second: the copy-overlap
-    // trigger treats a stale in_corso row (data_scadenza < CURRENT_DATE) as
-    // open-ended and would reject inserting the pinned successor after it.
-    $resE = $mkLoan($bookE, $copyEa, $userE2, 'prenotato', $d(-1), $d(20));
-    $loanE = $mkLoan($bookE, $copyEa, $userE, 'in_corso', $d(-30), $d(-5));
+    // Seed predecessor first while it is still due today, then its disjoint
+    // successor. Returning the DB clock to today reproduces the conflict that
+    // arose only because the physical copy was not returned on time.
+    [$loanE, $resE] = $withDatabaseDate(
+        $d(-5),
+        static function () use ($mkLoan, $bookE, $copyEa, $userE, $userE2, $d): array {
+            $previous = $mkLoan($bookE, $copyEa, $userE, 'in_corso', $d(-30), $d(-5));
+            $next = $mkLoan($bookE, $copyEa, $userE2, 'prenotato', $d(-1), $d(20));
+            return [$previous, $next];
+        }
+    );
     $setCopyState($copyEa, 'prestato');
 
     $svc->activateScheduledLoans();
@@ -482,11 +497,14 @@ try {
     $userG = $mkUser();
     $userG2 = $mkUser();
     [$bookG, [$copyG]] = $mkBook(1);
-    // Successor first, stale predecessor second (see scenario D2): the trigger
-    // treats a stale in_corso row as open-ended and would reject inserting the
-    // pinned successor after it; this order reaches the same legacy state.
-    $stalePickupG = $mkLoan($bookG, $copyG, $userG2, 'da_ritirare', $d(0), $d(12), $d(3));
-    $loanG = $mkLoan($bookG, $copyG, $userG, 'in_corso', $d(-30), $d(-1));
+    [$loanG, $stalePickupG] = $withDatabaseDate(
+        $d(-1),
+        static function () use ($mkLoan, $bookG, $copyG, $userG, $userG2, $d): array {
+            $previous = $mkLoan($bookG, $copyG, $userG, 'in_corso', $d(-30), $d(-1));
+            $next = $mkLoan($bookG, $copyG, $userG2, 'da_ritirare', $d(0), $d(12), $d(3));
+            return [$previous, $next];
+        }
+    );
     $setCopyState($copyG, 'prestato');
 
     $reservationCount = (int) $db->query("SELECT COUNT(*) FROM prenotazioni WHERE libro_id = {$bookG}")->fetch_row()[0];
