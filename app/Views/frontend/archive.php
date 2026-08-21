@@ -99,7 +99,7 @@ $seoDescription = match ($archive_type) {
     default => __('Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.', $archiveDisplayName),
 };
 $seoCanonical = absoluteUrl($archiveBaseRoute . '/' . rawurlencode($archiveEntityName));
-if ((int) ($page ?? 1) > 1) {
+if ((int) $page > 1) {
     // Paginated pages self-canonicalize: page 2 is not a duplicate of page 1.
     $seoCanonical .= '?page=' . (int) $page;
     $seoTitle .= ' — ' . __('Pagina %d', (int) $page);
@@ -119,7 +119,7 @@ if ($archive_type === 'autore') {
         $archivePerson['image'] = $authorPhoto;
     }
     $archiveSameAs = array_values(array_filter(array_map(
-        static fn(array $l): string => (string) ($l['url'] ?? ''),
+        static fn(array $l): string => (string) $l['url'],
         $authorLinks
     )));
     if ($authorWebsite !== '') {
