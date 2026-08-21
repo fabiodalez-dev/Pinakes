@@ -90,9 +90,11 @@ info "Release immutability is enabled"
 # publication. The workflow still rechecks the resolved SHA at every boundary.
 # --slurp + first: con `set -o pipefail`, chiudere la pipe con `head -n 1`
 # mentre gh sta ancora paginando termina gh con SIGPIPE (exit 141) e lo script
-# muore senza il messaggio di errore previsto.
+# muore senza il messaggio di errore previsto. `gh api` rende inoltre `--slurp`
+# e `--jq` mutuamente esclusivi, quindi il filtro deve essere un jq esterno che
+# consuma per intero il documento paginato.
 release_tag_ruleset_id="$(gh api "repos/${REPOSITORY}/rulesets?targets=tag&per_page=100" --paginate --slurp \
-    --jq '[.[][] | select(.name == "Protect immutable release tags") | .id] | first // empty')"
+    | jq -r '[.[][] | select(.name == "Protect immutable release tags") | .id] | first // empty')"
 [[ -n "$release_tag_ruleset_id" ]] \
     || fail "active release-tag protection ruleset is missing"
 release_tag_ruleset="$(gh api "repos/${REPOSITORY}/rulesets/${release_tag_ruleset_id}")"
@@ -128,7 +130,7 @@ if [[ -n "$(git ls-remote --tags origin "refs/tags/${TAG_NAME}")" ]]; then
     fail "remote tag ${TAG_NAME} already exists"
 fi
 existing_release_id="$(gh api "repos/${REPOSITORY}/releases?per_page=100" --paginate --slurp \
-    --jq "[.[][] | select(.tag_name == \"${TAG_NAME}\") | .id] | first // empty")"
+    | jq -r "[.[][] | select(.tag_name == \"${TAG_NAME}\") | .id] | first // empty")"
 [[ -z "$existing_release_id" ]] || fail "GitHub release ${TAG_NAME} already exists"
 
 # The workflow repeats this source gate after the tag push. Running the exact
