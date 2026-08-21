@@ -63,6 +63,17 @@ function mutatesGitHubReleases(source) {
   if (/\b(?:github|octokit)\.request\s*\(\s*['"`](?:POST|PATCH|PUT|DELETE)\s+\/repos\/[^/]+\/[^/]+\/releases\b/i.test(normalized)) {
     return true;
   }
+  // Same REST mutations expressed with an options object instead of the
+  // route string: request({ method: 'POST', url: '/repos/o/r/releases' }).
+  // Key order is free and URL templates carry their own braces ({owner}),
+  // so inspect a bounded window after each call instead of brace-matching.
+  for (const call of normalized.matchAll(/\b(?:github|octokit)\.request\s*\(\s*\{/gi)) {
+    const options = normalized.slice(call.index, call.index + 500);
+    if (/\bmethod\s*:\s*['"`](?:POST|PATCH|PUT|DELETE)['"`]/i.test(options)
+      && /\burl\s*:\s*['"`][^'"`]*\/repos\/[^'"`]+\/releases\b/i.test(options)) {
+      return true;
+    }
+  }
   if (/\bmutation\b[\s\S]*\b(?:createRelease|updateRelease|deleteRelease)\s*\(/i.test(normalized)) {
     return true;
   }
@@ -264,7 +275,11 @@ function checkPolicy() {
     fail('release orchestrator, source policy, and regression test are required');
     return;
   }
-  if (fs.existsSync(releaseWorkflowPath)) {
+  if (!fs.existsSync(releaseWorkflowPath)) {
+    // Every contract below guards the sole-publisher pipeline; a deleted or
+    // renamed release.yml must fail the policy, not skip it.
+    fail('release workflow (.github/workflows/release.yml) is required');
+  } else {
     const releaseWorkflow = fs.readFileSync(releaseWorkflowPath, 'utf8');
     if (!releaseWorkflow.includes('bash scripts/ci-verify-release-source.sh')) {
       fail('release workflow does not enforce the stable/prerelease source policy');
@@ -373,6 +388,8 @@ function checkPolicy() {
     'curl -X DELETE "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/123"',
     'github.rest.repos.createRelease({ owner, repo })',
     'octokit.request("POST /repos/{owner}/{repo}/releases", payload)',
+    'github.request({ method: "POST", url: "/repos/{owner}/{repo}/releases", data })',
+    'octokit.request({ url: `/repos/${owner}/${repo}/releases/1`, method: "PATCH" })',
     'octokit.graphql(`mutation { createRelease(input: $input) { release { id } } }`)',
     'Invoke-RestMethod -Method Delete https://api.github.com/repos/example/project/releases/1',
     'uses: ncipollo/release-action@v1',
@@ -380,6 +397,7 @@ function checkPolicy() {
   const releaseReadFixtures = [
     'gh api repos/example/project/releases?per_page=100',
     'gh api -H "Accept: application/octet-stream" repos/example/project/releases/assets/1',
+    'octokit.request({ method: "GET", url: "/repos/{owner}/{repo}/releases" })',
   ];
   for (const fixture of releaseMutationFixtures) {
     if (!mutatesGitHubReleases(fixture)) fail(`release publisher detector missed: ${fixture}`);
