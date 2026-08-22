@@ -96,7 +96,7 @@ $check(
     'IcsGenerator can render a single non-pending loan'
 );
 
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.59.sql');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.65-rc.1.sql');
 $check(
     str_contains($migration, "'loan_approved', 'loan_pickup_ready'")
         && str_contains($migration, "NOT LIKE '%sezione_calendario%'"),

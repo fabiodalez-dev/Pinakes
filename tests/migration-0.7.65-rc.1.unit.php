@@ -181,8 +181,16 @@ $check($triggersPos !== false && $backfillPos !== false && $triggersPos < $backf
     'runMigrations() re-applies canonical triggers BEFORE the pickup-deadline backfill');
 $check(str_contains($updaterSource, "version_compare(\$toVersion, '0.7.65-rc.1', '>=')"),
     'the backfill is gated on upgrades reaching 0.7.65-rc.1');
-$check(!is_file($root . '/installer/database/migrations/migrate_0.7.65-rc.1.sql'),
-    'no SQL twin exists (SQL would run under the legacy trigger and could abort the upgrade)');
+// A SQL migration for 0.7.65 may exist (the calendar-links email_templates
+// update ships as one), but it must NOT touch `prestiti`: a prestiti write
+// would run under the starting version's BEFORE UPDATE trigger and could abort
+// the upgrade. The #366 backfill therefore stays PHP (PickupDeadlineBackfill),
+// never SQL.
+$sqlTwin = $root . '/installer/database/migrations/migrate_0.7.65-rc.1.sql';
+$sqlTouchesPrestiti = is_file($sqlTwin)
+    && preg_match('/\bprestiti\b/i', (string) file_get_contents($sqlTwin)) === 1;
+$check(!$sqlTouchesPrestiti,
+    'no 0.7.65 SQL migration touches prestiti (the #366 backfill stays PHP, safe under the legacy trigger)');
 
 $db->close();
 
