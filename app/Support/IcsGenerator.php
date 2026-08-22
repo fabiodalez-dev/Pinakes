@@ -115,7 +115,7 @@ class IcsGenerator
         $ics .= $this->icsLine('CALSCALE:GREGORIAN');
         $ics .= $this->icsLine('METHOD:PUBLISH');
         $ics .= $this->icsLine('X-WR-CALNAME:' . $this->escapeIcs($this->calendarName));
-        $ics .= $this->icsLine('X-WR-TIMEZONE:' . $this->timezone);
+        $ics .= $this->icsLine('X-WR-TIMEZONE:' . $this->appTimezone()->getName());
         $ics .= $eventsIcs;
         $ics .= $this->icsLine('END:VCALENDAR');
 
