@@ -72,6 +72,9 @@ $applicationToday = \App\Support\DateHelper::today();
                     // La parità (prestito a giornata singola) è lecita: solo il range invertito è rifiutato.
                     echo __('Errore: la data di scadenza non può essere precedente alla data di prestito.');
                     break;
+                case 'expired_window':
+                    echo __('Errore: la nuova data di scadenza non può essere nel passato.');
+                    break;
                 case 'invalid_date_format':
                     echo __('Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.');
                     break;
@@ -88,6 +91,9 @@ $applicationToday = \App\Support\DateHelper::today();
                     break;
                 case 'loan_not_closable':
                     echo __('Prestito non trovato o non chiudibile.');
+                    break;
+                case 'concurrent_retry':
+                    echo __('Un\'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.');
                     break;
                 case 'no_copies_available':
                     // #336: dire solo "nessuna copia" era fuorviante — il vero motivo

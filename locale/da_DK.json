@@ -1426,6 +1426,7 @@
   "Errore di sicurezza. Aggiorna la pagina e riprova": "Sikkerhedsfejl. Genindlæs siden, og prøv igen",
   "Errore di sicurezza. Ricarica la pagina e riprova": "Sikkerhedsfejl. Genindlæs siden, og prøv igen",
   "Errore di sicurezza. Ricarica la pagina e riprova.": "Sikkerhedsfejl. Genindlæs siden, og prøv igen.",
+  "La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.": "Anmodningen er allerede behandlet eller er ikke længere gyldig. Kontrollér udlånslisten, før du prøver igen.",
   "Errore di sicurezza. Riprova.": "Sikkerhedsfejl. Prøv igen.",
   "Errore di sistema.": "Systemfejl.",
   "Errore durante il caricamento": "Fejl under indlæsning",
@@ -6875,5 +6876,19 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s valgte lån modtager rykkeren (kun de forfaldne).",
   "Impossibile generare la ricevuta PDF.": "Kvitterings-PDF'en kunne ikke genereres.",
   "Attivazione prestito rinviata: nessuna copia libera": "Aktivering af lån udskudt: intet eksemplar ledigt",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Aktivering af lån udskudt: tildelt eksemplar ikke på biblioteket"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Aktivering af lån udskudt: tildelt eksemplar ikke på biblioteket",
+  "Più copie dello stesso titolo": "Flere eksemplarer af samme titel",
+  "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Tillad den samme bruger at have flere aktive lån af samme bog, så længe hvert lån er knyttet til et særskilt fysisk eksemplar.",
+  "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte": "Tillad kun flere lån af samme titel på forskellige fysiske eksemplarer",
+  "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.": "Hvert lån skal være knyttet til et særskilt fysisk eksemplar; afventende anmodninger og reservationer er fortsat begrænset til én pr. bruger og bog.",
+  "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Afventende anmodninger og reservationer er fortsat unikke pr. bruger og bog. Hvert eksemplar tæller med i grænsen for aktive lån.",
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Tilstanden for flere lån er aktiv: Bogen forbliver valgt; scan det næste eksemplar for at fortsætte.",
+  "La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo": "Det ønskede tidsrum er allerede passeret: Opdater lånets datoer, før du godkender det",
+  "Ritiro annullato il": "Afhentning annulleret den",
+  "Un'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.": "En anden handling var ved at opdatere den samme bog: Intet blev gemt, prøv igen nu.",
+  "Stato prenotazione non valido: modifica non salvata.": "Ugyldig reservationsstatus: Ændringer ikke gemt.",
+  "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Denne reservation er allerede blevet konverteret til et stadig åbent lån: Håndter lånet fra siden Udlån i stedet for at redigere reservationen.",
+  "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService: Opdatering af cooldown-markør mislykkedes",
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService: Fejl ved hentning af afhentningsnotifikationer",
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Fejl: Den nye afleveringsdato må ikke være i fortiden."
 }

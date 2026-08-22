@@ -2232,9 +2232,15 @@ return function (App $app): void {
         // payload si contraddiceva: occupied_ranges diceva "libero" mentre
         // first_available/is_available_now (calcolati per-giorno qui sotto)
         // contavano anche pendenti-con-copia e coda prenotazioni.
+        $today = \App\Support\DateHelper::today();
         $stmt = $db->prepare("
             SELECT data_prestito,
-                   CASE WHEN stato = 'in_ritardo' THEN '9999-12-31' ELSE data_scadenza END AS occupied_until,
+                   CASE
+                       WHEN stato = 'in_ritardo'
+                            OR (stato = 'in_corso' AND data_scadenza < ?)
+                       THEN '9999-12-31'
+                       ELSE data_scadenza
+                   END AS occupied_until,
                    stato
             FROM prestiti
             WHERE libro_id = ? AND (
@@ -2243,7 +2249,7 @@ return function (App $app): void {
             )
             ORDER BY data_prestito
         ");
-        $stmt->bind_param('i', $libroId);
+        $stmt->bind_param('si', $today, $libroId);
         $stmt->execute();
         $result = $stmt->get_result();
         $occupiedRanges = [];
@@ -2285,7 +2291,6 @@ return function (App $app): void {
         // first_available / is_available_now: delega al calcolo per-giorno e per-copia
         // (AVAIL-001). Il vecchio "giorno dopo la scadenza più lontana" ignorava le
         // copie multiple, restituendo una data troppo conservativa.
-        $today = \App\Support\DateHelper::today();
         $reservations = new \App\Controllers\ReservationsController($db);
         $availability = $reservations->getBookAvailabilityData($libroId, $today, 180);
         if ($availability === null) {
@@ -2302,7 +2307,7 @@ return function (App $app): void {
             'copie_disponibili' => (int)($book['copie_disponibili'] ?? 0),
             'copie_totali' => (int)($availability['total_copies'] ?? ($book['copie_totali'] ?? 0)),
             'occupied_ranges' => $occupiedRanges,
-            'first_available' => $availability['earliest_available'] ?? $today,
+            'first_available' => $availability['earliest_available'] ?? null,
             'is_available_now' => $isAvailableNow
         ];
 
@@ -2661,7 +2666,7 @@ return function (App $app): void {
                 'success' => true,
                 'availability' => [
                     'unavailable_dates' => $availability['unavailable_dates'] ?? [],
-                    'earliest_available' => $availability['earliest_available'] ?? \App\Support\DateHelper::today(),
+                    'earliest_available' => $availability['earliest_available'] ?? null,
                     'days' => $availability['days'] ?? [],
                     // F040: true when the excluded user already holds an active
                     // reservation on this book — the picker would otherwise show

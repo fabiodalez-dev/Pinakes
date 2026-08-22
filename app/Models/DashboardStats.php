@@ -227,20 +227,24 @@ class DashboardStats
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE (p.attivo = 1 OR p.stato = 'pendente')
                       AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
-                      AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                      AND (p.stato = 'in_ritardo'
+                           OR (p.stato = 'in_corso' AND p.data_scadenza < ?)
+                           OR p.data_scadenza >= ?)
                       AND p.data_prestito <= ?
                     ORDER BY p.data_prestito ASC";
         $stmt = $this->db->prepare($loanSql);
-        $stmt->bind_param('ss', $today, $sixMonthsLater);
+        $stmt->bind_param('sss', $today, $today, $sixMonthsLater);
         $stmt->execute();
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
+            $isOpenEnded = $row['stato'] === 'in_ritardo'
+                || ($row['stato'] === 'in_corso' && (string) $row['data_scadenza'] < $today);
             $events[] = [
                 'id' => 'loan_' . $row['id'],
                 'title' => $row['titolo'],
                 'user' => $row['utente_nome'],
                 'start' => $row['data_prestito'],
-                'end' => $row['stato'] === 'in_ritardo'
+                'end' => $isOpenEnded
                     ? max((string) $row['data_scadenza'], $today)
                     : $row['data_scadenza'],
                 'type' => 'prestito',

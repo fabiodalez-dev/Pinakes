@@ -32,6 +32,8 @@ declare(strict_types=1);
  *     cron's `data_scadenza < today` semantics.
  * 11. Every peripheral physical-copy writer must derive the book projection
  *     inside the same transaction instead of forcing or repairing it later.
+ * 12. Every first-party circulation connection must publish DateHelper::today()
+ *     to the overlap triggers, which retain CURRENT_DATE() for direct SQL only.
  */
 
 $root = dirname(__DIR__);
@@ -90,6 +92,14 @@ $expiredCron = $readSource('/scripts/check-expired-reservations.php');
 $demoSeed = $readSource('/scripts/seed-demo-catalog.php');
 $bookClubRepo = $readSource('/storage/plugins/book-club/src/Repo.php');
 $manualUpgrade = $readSource('/scripts/manual-upgrade.php');
+$dateHelper = $readSource('/app/Support/DateHelper.php');
+$containerConfig = $readSource('/config/container.php');
+$triggerSql = $readSource('/installer/database/triggers.sql');
+$maintenanceService = $readSource('/app/Support/MaintenanceService.php');
+$automaticNotificationsCron = $readSource('/cron/automatic-notifications.php');
+$fullMaintenanceCron = $readSource('/cron/full-maintenance.php');
+$legacyMaintenanceScript = $readSource('/scripts/maintenance.php');
+$cliDbBootstrap = $readSource('/scripts/_db_bootstrap.php');
 
 $checks = [];
 
@@ -156,7 +166,10 @@ $rangesBody = $extractSection($web, 'Intervalli occupati', '// first_available /
 $checks['occupied_ranges includes pendente-with-copy and prenotazioni'] =
     $rangesBody !== ''
     && str_contains($rangesBody, "stato = 'pendente' AND copia_id IS NOT NULL")
-    && str_contains($rangesBody, "WHEN stato = 'in_ritardo' THEN '9999-12-31'")
+    && str_contains($rangesBody, "stato = 'in_ritardo'")
+    && str_contains($rangesBody, "stato = 'in_corso' AND data_scadenza < ?")
+    && str_contains($rangesBody, "THEN '9999-12-31'")
+    && str_contains($rangesBody, "bind_param('si', \$today, \$libroId)")
     && str_contains($rangesBody, "'to' => \$row['occupied_until']")
     && str_contains($rangesBody, "FROM prenotazioni");
 
@@ -343,6 +356,25 @@ $checks['manual upgrader performs the post-migration availability pass'] =
     str_contains($manualUpgrade, 'recalculateAllBookAvailability()')
     && $migrationLoopPos !== false
     && strpos($manualUpgrade, 'recalculateAllBookAvailability()') > $migrationLoopPos;
+
+// 26. The trigger clock follows app.timezone on every first-party circulation
+//     connection. CURRENT_DATE() appears only in the two trigger-local fallback
+//     assignments used by uninitialized/direct SQL clients.
+$checks['circulation triggers share the configured application day on every first-party connection'] =
+    str_contains($dateHelper, 'function synchronizeDatabaseSession(')
+    && str_contains($containerConfig, 'DateHelper::synchronizeDatabaseSession($mysqli)')
+    && str_contains($reservations, 'DateHelper::synchronizeDatabaseSession($this->db)')
+    && str_contains($maintenanceService, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($automaticNotificationsCron, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($fullMaintenanceCron, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($legacyMaintenanceScript, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($cliDbBootstrap, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($expiredCron, 'pinakes_db_from_env()')
+    && substr_count(
+        $triggerSql,
+        'SET application_today = COALESCE(@pinakes_application_date, CURRENT_DATE())'
+    ) === 2
+    && !str_contains($triggerSql, 'data_scadenza < CURRENT_DATE()');
 
 $failed = 0;
 foreach ($checks as $label => $ok) {

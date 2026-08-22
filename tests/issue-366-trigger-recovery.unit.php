@@ -29,6 +29,11 @@ try {
         ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
         : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
     $db->set_charset('utf8mb4');
+    // Production writers bind the application-local date on every
+    // connection (container/cron/scripts bootstrap); the circulation
+    // triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+    // which disagrees with app.timezone between 22:00 and 24:00 UTC.
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: database unreachable — mandatory for this test: {$e->getMessage()}\n");
     exit(1);
@@ -78,8 +83,11 @@ try {
         (libro_id, copia_id, data_prestito, data_scadenza, stato, attivo) VALUES
         (1, 1, '2026-07-27', '2026-08-18', 'in_ritardo', 1),
         (1, 1, '2026-08-19', '2026-08-31', 'da_ritirare', 1),
-        (1, 2, '2026-08-01', '2026-08-10', 'in_corso', 1),
-        (1, 2, '2026-08-12', '2026-08-20', 'prenotato', 1),
+        -- Keep this clean overlap fixture far in the future: after #366, an
+        -- `in_corso` row whose due date is before today is intentionally
+        -- open-ended, so hard-coded 2026 dates would already conflict in OLD.
+        (1, 2, '2099-08-01', '2099-08-25', 'in_corso', 1),
+        (1, 2, '2099-09-01', '2099-09-10', 'prenotato', 1),
         (1, 3, '2026-07-27', '2026-08-18', 'in_corso', 1),
         (1, 3, '2026-08-19', '2026-08-31', 'prenotato', 1)");
 
@@ -134,7 +142,7 @@ try {
     // a conflict that OLD did not have: the defence-in-depth trigger still blocks it.
     $newConflictBlocked = false;
     try {
-        $db->query("UPDATE `{$loans}` SET data_prestito = '2026-08-10' WHERE id = 4");
+        $db->query("UPDATE `{$loans}` SET data_prestito = '2099-08-25' WHERE id = 4");
     } catch (mysqli_sql_exception $e) {
         $newConflictBlocked = str_contains($e->getMessage(), 'Esiste già un prestito attivo');
     }

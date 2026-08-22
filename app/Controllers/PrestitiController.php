@@ -172,8 +172,11 @@ class PrestitiController
         // il vecchio date('Y-m-d') (TZ processo, spesso UTC) mostrava "ieri" dopo
         // mezzanotte, e il '+1 month' della view divergeva dal default server (30gg).
         $defaultDataPrestito = \App\Support\DateHelper::today();
-        $defaultLoanDays = (new \App\Models\SettingsRepository($db))->loanDurationDays();
+        $loanSettings = new \App\Models\SettingsRepository($db);
+        $defaultLoanDays = $loanSettings->loanDurationDays();
+        $allowMultipleLoansSameBook = $loanSettings->allowsMultipleLoansSameBook();
         $defaultDataScadenza = date('Y-m-d', strtotime($defaultDataPrestito . " +{$defaultLoanDays} days"));
+        $loanSubmissionToken = \App\Support\OneTimeFormToken::issue('loan.create');
 
         ob_start();
         require __DIR__ . '/../Views/prestiti/crea_prestito.php';
@@ -193,6 +196,14 @@ class PrestitiController
         $data = (array) $request->getParsedBody();
 
         // CSRF validated by CsrfMiddleware
+        // CSRF is intentionally reusable for the session; this additional
+        // one-time token makes the non-idempotent loan INSERT replay-safe. PHP's
+        // session lock serializes concurrent POSTs, so exactly one request can
+        // consume a token even across retries or duplicate browser tabs.
+        $submissionToken = $data['loan_submission_token'] ?? null;
+        if (!\App\Support\OneTimeFormToken::consume('loan.create', $submissionToken)) {
+            return $response->withHeader('Location', url('/admin/loans/create') . '?error=duplicate_submission')->withStatus(302);
+        }
 
         // Preserve the submitted values so a validation/availability error can
         // re-render the form pre-filled instead of wiping everything. Cleared on
@@ -217,7 +228,10 @@ class PrestitiController
                 $oldInput[$field] = (string) $data[$field];
             }
         }
-        $_SESSION['loan_form_old'] = $oldInput;
+        // In sessione senza copy_code/save_and_new: la view non ripopola mai il
+        // campo scanner (come da commento in createForm) e i due flag hanno senso
+        // solo dentro QUESTA request — trattenerli lasciava un residuo inutile.
+        $_SESSION['loan_form_old'] = array_diff_key($oldInput, ['copy_code' => true, 'save_and_new' => true]);
 
         // Verifica dati obbligatori
         $utente_id = (int) ($oldInput['utente_id'] ?? 0);
@@ -272,6 +286,23 @@ class PrestitiController
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_dates')->withStatus(302);
         }
 
+        // A newly-created active loan whose entire window is already over is
+        // physically open-ended until returned, even if its nominal dates do
+        // not overlap a future hold. Reject it at the application boundary so
+        // crafted staff POSTs cannot rely on the database trigger as the first
+        // (and less actionable) line of defence. Approval uses the same rule.
+        if ($data_scadenza < \App\Support\DateHelper::today()) {
+            return $response->withHeader('Location', url('/admin/loans/create') . '?error=expired_window')->withStatus(302);
+        }
+
+        // Ensure the pickup claim schema before the INSERT and before opening
+        // the circulation transaction. On a legacy install, the helper marks
+        // rows that already existed as historical and then restores DEFAULT 0;
+        // doing this only after creating the new ready loan would incorrectly
+        // classify that brand-new row as already announced. Restricted DB
+        // users safely fall back to the historical one-shot send.
+        $pickupNotificationSchemaAvailable = \App\Support\PickupNotificationSchema::ensure($db);
+
         $db->begin_transaction();
 
         try {
@@ -291,24 +322,16 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=book_not_found')->withStatus(302);
             }
 
-            // Case 8: Prevent multiple active reservations/loans for the same book by the same user
-            // Note: 'pendente' has attivo=0, other active states have attivo=1
-            $dupStmt = $db->prepare("
-                SELECT id FROM prestiti
-                WHERE libro_id = ? AND utente_id = ? AND (
-                    (attivo = 0 AND stato = 'pendente')
-                    OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-                )
-                FOR UPDATE
-            ");
-            $dupStmt->bind_param('ii', $libro_id, $utente_id);
-            $dupStmt->execute();
-            if ($dupStmt->get_result()->num_rows > 0) {
-                $dupStmt->close();
+            // By default the historical borrower/title uniqueness rule remains.
+            // The opt-in policy relaxes it only for this staff flow, which always
+            // resolves and locks a physical copy before INSERT. Pending/copyless
+            // commitments still block, as do active queue reservations below.
+            $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($db);
+            if ($multiplicityPolicy->hasBlockingLoan($libro_id, $utente_id, true)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=duplicate_reservation')->withStatus(302);
             }
-            $dupStmt->close();
+            $borrowerCommittedCopyIds = $multiplicityPolicy->committedCopyIds($libro_id, $utente_id);
 
             $dupReservationStmt = $db->prepare("
                 SELECT id
@@ -385,10 +408,10 @@ class PrestitiController
             // auto-assign paths below (fully backward compatible).
             $copyCode = trim($oldInput['copy_code'] ?? '');
             if ($copyCode !== '') {
-                // Lock ONLY the copie row here — the requested book is already
-                // locked above (line ~155), so JOINing+locking libri would lock a
-                // (potentially different) book row second and invert lock order →
-                // deadlock risk when a scanned code belongs to another book.
+                // Resolve without locking first: borrower/title commitments must
+                // be locked before the selected copy to preserve the canonical
+                // order. The final copy lock + overlap re-check below is the
+                // authority immediately before INSERT.
                 // Soft-delete stays covered: the copy_wrong_book check below
                 // requires this copy to belong to $libro_id, which was resolved
                 // under `deleted_at IS NULL`.
@@ -397,7 +420,6 @@ class PrestitiController
                     FROM copie c
                     WHERE c.numero_inventario = ?
                     LIMIT 1
-                    FOR UPDATE
                 ");
                 $codeStmt->bind_param('s', $copyCode);
                 $codeStmt->execute();
@@ -415,6 +437,14 @@ class PrestitiController
 
                 $forcedCopyId = (int) $codeRow['id'];
 
+                // Multiple open rows for one borrower/title must represent
+                // different physical items even when their date windows do not
+                // overlap. The book lock makes this early snapshot race-safe.
+                if (in_array($forcedCopyId, $borrowerCommittedCopyIds, true)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_not_available')->withStatus(302);
+                }
+
                 // Must be in a lendable state and have no overlapping hold for the period.
                 $lendable = !in_array($codeRow['stato'], ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true);
                 if ($lendable) {
@@ -422,14 +452,16 @@ class PrestitiController
                         SELECT 1 FROM prestiti
                         WHERE copia_id = ?
                           AND data_prestito <= ?
-                          AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                          AND (stato = 'in_ritardo'
+                               OR (stato = 'in_corso' AND data_scadenza < ?)
+                               OR data_scadenza >= ?)
                           AND (
                                 (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
                                 OR (stato = 'pendente' AND copia_id IS NOT NULL)
                           )
                         LIMIT 1
                     ");
-                    $ovStmt->bind_param('iss', $forcedCopyId, $data_scadenza, $data_prestito);
+                    $ovStmt->bind_param('isss', $forcedCopyId, $data_scadenza, $today, $data_prestito);
                     $ovStmt->execute();
                     if ($ovStmt->get_result()->fetch_row()) {
                         $lendable = false;
@@ -474,10 +506,22 @@ class PrestitiController
                     WHERE c.libro_id = ?
                     AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                     AND NOT EXISTS (
+                        SELECT 1 FROM prestiti own
+                        WHERE own.copia_id = c.id
+                        AND own.libro_id = ?
+                        AND own.utente_id = ?
+                        AND (
+                            (own.attivo = 0 AND own.stato = 'pendente')
+                            OR (own.attivo = 1 AND own.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                        )
+                    )
+                    AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.data_prestito <= ?
-                        AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                        AND (p.stato = 'in_ritardo'
+                             OR (p.stato = 'in_corso' AND p.data_scadenza < ?)
+                             OR p.data_scadenza >= ?)
                         AND (
                             (p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo'))
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
@@ -485,7 +529,7 @@ class PrestitiController
                     )
                     LIMIT 1
                 ");
-                $overlapStmt->bind_param('iss', $libro_id, $data_scadenza, $data_prestito);
+                $overlapStmt->bind_param('iiisss', $libro_id, $libro_id, $utente_id, $data_scadenza, $today, $data_prestito);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
@@ -498,21 +542,31 @@ class PrestitiController
             }
 
             // Lock selected copy and re-check overlap to prevent race conditions
-            $lockCopyStmt = $db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
+            $lockCopyStmt = $db->prepare("SELECT id, stato, libro_id FROM copie WHERE id = ? FOR UPDATE");
             $lockCopyStmt->bind_param('i', $selectedCopy['id']);
             $lockCopyStmt->execute();
+            $lockedCopy = $lockCopyStmt->get_result()->fetch_assoc();
             $lockCopyStmt->close();
+            if (!$lockedCopy
+                || (int) $lockedCopy['libro_id'] !== $libro_id
+                || in_array($lockedCopy['stato'], ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_not_available')->withStatus(302);
+            }
 
             // Race condition check to prevent double-booking
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ?
-                AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                AND data_prestito <= ?
+                AND (stato = 'in_ritardo'
+                     OR (stato = 'in_corso' AND data_scadenza < ?)
+                     OR data_scadenza >= ?)
                 AND ( (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
                       OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
                 LIMIT 1
             ");
-            $overlapCopyStmt->bind_param('iss', $selectedCopy['id'], $data_scadenza, $data_prestito);
+            $overlapCopyStmt->bind_param('isss', $selectedCopy['id'], $data_scadenza, $today, $data_prestito);
             $overlapCopyStmt->execute();
             $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
             $overlapCopyStmt->close();
@@ -544,9 +598,13 @@ class PrestitiController
             // è l'unico percorso di creazione diretta da admin — senza il tag
             // esplicito la colonna resterebbe al default 'richiesta' e l'enum
             // 'diretto' non verrebbe mai scritto da nessuno.
+            $pickupInsertColumns = $pickupNotificationSchemaAvailable
+                ? ', pickup_notification_sent, pickup_notification_claim_token, pickup_notification_last_attempt_at'
+                : '';
+            $pickupInsertValues = $pickupNotificationSchemaAvailable ? ', 0, NULL, NULL' : '';
             $stmt = $db->prepare("INSERT INTO prestiti
-                (libro_id, copia_id, utente_id, data_prestito, data_scadenza, data_restituzione, stato, origine, sanzione, renewals, processed_by, note, attivo, pickup_deadline)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (libro_id, copia_id, utente_id, data_prestito, data_scadenza, data_restituzione, stato, origine, sanzione, renewals, processed_by, note, attivo, pickup_deadline{$pickupInsertColumns})
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$pickupInsertValues})");
 
             $data_restituzione = null;
 
@@ -673,13 +731,16 @@ class PrestitiController
                 SecureLogger::warning(__('Notifica prestito fallita'), ['error' => $e->getMessage()]);
             }
 
-            // "Salva e registra un'altra copia": keep borrower, dates and note,
-            // but clear both book and copy. Active loans are unique per user/book,
-            // so retaining the previous book would make the next submit fail the
-            // duplicate guard. Scanning the next inventory code fills its book.
+            // "Salva e registra un'altra copia": always clear the physical copy.
+            // With the opt-in mode enabled, retain the book too so the operator
+            // can scan several copies of the same title without repeating search.
+            // Strict mode preserves the historical title-reset behaviour.
             if (($oldInput['save_and_new'] ?? '') === '1') {
                 $retain = $oldInput;
-                unset($retain['libro_id'], $retain['copy_code'], $retain['save_and_new']);
+                unset($retain['copy_code'], $retain['save_and_new']);
+                if (!$multiplicityPolicy->isEnabled()) {
+                    unset($retain['libro_id']);
+                }
                 $_SESSION['loan_form_old'] = $retain;
                 $redirectUrl = url('/admin/loans/create') . '?created=1';
                 $scaricaPdf = ($oldInput['scarica_pdf'] ?? '') === '1';
@@ -814,6 +875,13 @@ class PrestitiController
             return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
         }
 
+        // Reassignment resets recipient-specific pickup state. Ensure its
+        // optional upgrade columns before opening the circulation transaction;
+        // DDL inside the transaction would implicitly commit it. Restricted
+        // legacy DB users degrade to recall-only reset until migration 0.7.64.
+        $pickupNotificationSchemaAvailable = isset($updateData['utente_id'])
+            && \App\Support\PickupNotificationSchema::ensure($db);
+
         $db->begin_transaction();
         try {
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` PRIMA del prestito,
@@ -833,7 +901,14 @@ class PrestitiController
             // iniziale e questo lock le può aver cambiate, e la finestra "vecchia"
             // del check di capacità qui sotto deve basarsi sui valori realmente
             // salvati, non su quelli pre-transazione (CodeRabbit, PR #337).
-            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, copia_id, utente_id, stato, data_prestito, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
+            $pickupClaimSelect = $pickupNotificationSchemaAvailable
+                ? ', pickup_notification_claim_token, pickup_notification_last_attempt_at'
+                : '';
+            $lockLoan = $db->prepare(
+                'SELECT attivo, data_restituzione, libro_id, copia_id, utente_id, stato, origine, data_prestito, data_scadenza'
+                . $pickupClaimSelect
+                . ' FROM prestiti WHERE id=? FOR UPDATE'
+            );
             $lockLoan->bind_param('i', $id);
             $lockLoan->execute();
             $locked = $lockLoan->get_result()->fetch_assoc();
@@ -854,6 +929,25 @@ class PrestitiController
             $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $locked['utente_id'];
             $newPrestito = (string) ($updateData['data_prestito'] ?? $locked['data_prestito']);
             $newScadenza = (string) ($updateData['data_scadenza'] ?? $locked['data_scadenza']);
+
+            // A pickup sender owns an immutable recipient snapshot while its
+            // short claim is live. Do not let a reassignment commit behind that
+            // sender and deliver to the previous borrower. An orphaned claim no
+            // longer blocks once its lease expires: the reassignment below owns
+            // the locked row and clears the stale token atomically.
+            if ($newUserId !== (int) $locked['utente_id']
+                && $pickupNotificationSchemaAvailable
+                && \App\Support\PickupNotificationSchema::isClaimLive(
+                    isset($locked['pickup_notification_claim_token'])
+                        ? (string) $locked['pickup_notification_claim_token']
+                        : null,
+                    isset($locked['pickup_notification_last_attempt_at'])
+                        ? (string) $locked['pickup_notification_last_attempt_at']
+                        : null
+                )) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=concurrent_retry')->withStatus(302);
+            }
             if (!\App\Support\DateHelper::isISODateFormat($newPrestito) || !\App\Support\DateHelper::isISODateFormat($newScadenza)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_date_format')->withStatus(302);
@@ -861,6 +955,18 @@ class PrestitiController
             if ($newScadenza < $newPrestito) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
+            }
+            // F1: actively backdating the due date into the past makes an active
+            // 'in_corso' row open-ended for the per-copy overlap trigger, which
+            // then rejects the UPDATE with an opaque 'loan_update_failed'. Guard
+            // it up front with the same clear error store()/approve() surface,
+            // but only when the due date is actually being changed — editing an
+            // already-overdue loan's other fields (its due date unchanged and
+            // legitimately in the past) must still succeed.
+            if ($newScadenza !== (string) $locked['data_scadenza']
+                && $newScadenza < \App\Support\DateHelper::today()) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=expired_window')->withStatus(302);
             }
 
             // Se l'utente cambia, ri-esegui i controlli di store() (M6b): il campo
@@ -882,21 +988,29 @@ class PrestitiController
                     return $response->withHeader('Location', url('/admin/loans') . '?error=' . $eligibilityError)->withStatus(302);
                 }
 
-                // Dup-check (libro, nuovo utente) sugli stati attivi, escludendo il
-                // prestito in modifica — stesso predicato di store().
-                $dupStmt = $db->prepare("
-                    SELECT id FROM prestiti
-                    WHERE libro_id = ? AND utente_id = ? AND id <> ? AND (
-                        (attivo = 0 AND stato = 'pendente')
-                        OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-                    )
-                    FOR UPDATE
-                ");
-                $dupStmt->bind_param('iii', $libroId, $newUserId, $id);
-                $dupStmt->execute();
-                $hasDup = $dupStmt->get_result()->num_rows > 0;
-                $dupStmt->close();
-                if ($hasDup) {
+                // Reassignment may use the relaxed rule only when this existing
+                // loan is already tied to a physical copy. Legacy copyless rows
+                // deliberately retain strict title-level uniqueness. Una riga
+                // PROMOSSA dalla coda (origine='prenotazione' in prenotato/
+                // da_ritirare) resta a sua volta un impegno di coda: riassegnarla
+                // in modalità rilassata darebbe al nuovo utente un prestito fisico
+                // PIÙ una posizione di coda per lo stesso titolo — lo stato che
+                // store()/approveLoan() vietano nella direzione opposta.
+                $isQueueCommitment = ($locked['origine'] ?? null) === 'prenotazione'
+                    && in_array((string) $locked['stato'], ['prenotato', 'da_ritirare'], true);
+                $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($db);
+                if ($multiplicityPolicy->hasBlockingLoan(
+                    $libroId,
+                    $newUserId,
+                    $locked['copia_id'] !== null && !$isQueueCommitment,
+                    $id
+                )) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=duplicate_reservation')->withStatus(302);
+                }
+                $committedCopyIds = $multiplicityPolicy->committedCopyIds($libroId, $newUserId, $id);
+                if ($locked['copia_id'] !== null
+                    && in_array((int) $locked['copia_id'], $committedCopyIds, true)) {
                     $db->rollback();
                     return $response->withHeader('Location', url('/admin/loans') . '?error=duplicate_reservation')->withStatus(302);
                 }
@@ -986,17 +1100,20 @@ class PrestitiController
                 // conflict is detected before the write and reported truthfully.
                 $copyId = $locked['copia_id'] !== null ? (int) $locked['copia_id'] : null;
                 if ($copyId !== null && $claimedWindows !== []) {
+                    $applicationToday = \App\Support\DateHelper::today();
                     $copyOverlap = $db->prepare(
                         "SELECT 1 FROM prestiti
                           WHERE copia_id = ? AND id <> ?
                             AND data_prestito <= ?
-                            AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                            AND (stato = 'in_ritardo'
+                                 OR (stato = 'in_corso' AND data_scadenza < ?)
+                                 OR data_scadenza >= ?)
                             AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                                  OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL))
                           LIMIT 1"
                     );
                     foreach ($claimedWindows as [$claimStart, $claimEnd]) {
-                        $copyOverlap->bind_param('iiss', $copyId, $id, $claimEnd, $claimStart);
+                        $copyOverlap->bind_param('iisss', $copyId, $id, $claimEnd, $applicationToday, $claimStart);
                         $copyOverlap->execute();
                         if ((bool) $copyOverlap->get_result()->fetch_row()) {
                             $copyOverlap->close();
@@ -1052,13 +1169,26 @@ class PrestitiController
                 $recalcStato->bind_param('sssi', $today, $today, $today, $id);
                 $recalcStato->execute();
                 $recalcStato->close();
-            } elseif ($newUserId !== (int) $locked['utente_id']) {
+            }
+
+            if ($newUserId !== (int) $locked['utente_id']) {
                 // A recall belongs to the recipient who received it. Reassigning
                 // the loan must not carry that recipient's count/cooldown over to
-                // the new user, even when the due date itself is unchanged.
-                $resetRecall = $db->prepare(
-                    'UPDATE prestiti SET recall_count = 0, last_recall_at = NULL WHERE id = ?'
-                );
+                // the new user, even when the due date itself is unchanged. The
+                // ready-for-pickup claim belongs to that recipient too: release
+                // it for a da_ritirare row so the hourly retry notifies the new
+                // borrower.
+                $pickupReset = $pickupNotificationSchemaAvailable
+                    ? ",\n                            pickup_notification_sent = CASE WHEN stato = 'da_ritirare' THEN 0 ELSE pickup_notification_sent END,
+                            pickup_notification_claim_token = CASE WHEN stato = 'da_ritirare' THEN NULL ELSE pickup_notification_claim_token END,
+                            pickup_notification_last_attempt_at = CASE WHEN stato = 'da_ritirare' THEN NULL ELSE pickup_notification_last_attempt_at END"
+                    : '';
+                $resetRecall = $db->prepare("
+                    UPDATE prestiti
+                       SET recall_count = 0,
+                           last_recall_at = NULL{$pickupReset}
+                     WHERE id = ?
+                ");
                 $resetRecall->bind_param('i', $id);
                 $resetRecall->execute();
                 $resetRecall->close();
@@ -1446,11 +1576,17 @@ class PrestitiController
         } catch (\Throwable $e) {
             $db->rollback();
             SecureLogger::error(__('Errore elaborazione restituzione'), ['loan_id' => $id, 'error' => $e->getMessage()]);
+            // Deadlock (1213) o lock wait timeout (1205): la transazione è stata
+            // annullata integralmente, ritentare è sicuro e quasi sempre risolve.
+            // Un errore dedicato evita il generico "update_failed" che non dice
+            // all'operatore che basta ripetere l'operazione.
+            $errno = $e instanceof \mysqli_sql_exception ? (int) $e->getCode() : 0;
+            $errorCode = in_array($errno, [1213, 1205], true) ? 'concurrent_retry' : 'update_failed';
             if ($redirectTo) {
                 $separator = strpos($redirectTo, '?') === false ? '?' : '&';
-                return $response->withHeader('Location', url($redirectTo . $separator . 'error=update_failed'))->withStatus(302);
+                return $response->withHeader('Location', url($redirectTo . $separator . 'error=' . $errorCode))->withStatus(302);
             }
-            return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=update_failed')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=' . $errorCode)->withStatus(302);
         }
     }
 
@@ -1687,7 +1823,9 @@ class PrestitiController
                 "SELECT 1 FROM prestiti
                   WHERE copia_id = ? AND id <> ?
                     AND data_prestito <= ?
-                    AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                    AND (stato = 'in_ritardo'
+                         OR (stato = 'in_corso' AND data_scadenza < ?)
+                         OR data_scadenza >= ?)
                     AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                          OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL))
                   LIMIT 1"
@@ -1794,7 +1932,7 @@ class PrestitiController
 
         $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
         if ($copyId !== null) {
-            $copyOverlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $extensionStart);
+            $copyOverlap->bind_param('iisss', $copyId, $loanId, $newDueDate, $today, $extensionStart);
             $copyOverlap->execute();
             if ((bool) $copyOverlap->get_result()->fetch_row()) {
                 return null;
@@ -2010,12 +2148,15 @@ class PrestitiController
                 $copyOvlStmt = $db->prepare("
                     SELECT 1 FROM prestiti
                     WHERE copia_id = ? AND id <> ?
-                    AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                    AND data_prestito <= ?
+                    AND (stato = 'in_ritardo'
+                         OR (stato = 'in_corso' AND data_scadenza < ?)
+                         OR data_scadenza >= ?)
                     AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                           OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
                     LIMIT 1
                 ");
-                $copyOvlStmt->bind_param('iiss', $copiaId, $id, $extensionEnd, $extensionStart);
+                $copyOvlStmt->bind_param('iisss', $copiaId, $id, $extensionEnd, $todayApp, $extensionStart);
                 $copyOvlStmt->execute();
                 $hasCopyOverlap = (bool) $copyOvlStmt->get_result()->fetch_row();
                 $copyOvlStmt->close();

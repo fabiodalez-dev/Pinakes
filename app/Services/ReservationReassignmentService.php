@@ -127,38 +127,13 @@ class ReservationReassignmentService
     /**
      * Riassegna prenotazioni (prestiti con stato='prenotato') a una nuova copia disponibile.
      * Da chiamare quando viene aggiunta una copia o una copia torna disponibile.
+     *
+     * @return bool true se un candidato è stato agganciato alla copia: il
+     *              chiamante può richiamare per servire, con la stessa copia,
+     *              anche gli hold successivi a finestre disgiunte.
      */
-    public function reassignOnNewCopy(int $libroId, int $newCopiaId): void
+    public function reassignOnNewCopy(int $libroId, int $newCopiaId): bool
     {
-        // 1. Trova prenotazioni che sono "bloccate" (assegnate a copie non disponibili o senza copia)
-        // Ordina per data creazione (FIFO)
-        // Solo righe GENUINAMENTE bloccate: senza copia, oppure con una copia in
-        // stato NON prestabile. NON 'c.stato != disponibile' — una copia 'prenotato'
-        // o 'prestato' per un periodo NON sovrapposto è legittimamente assegnata e
-        // non va strappata (BUG6/D11).
-        $stmt = $this->db->prepare("
-            SELECT p.id, p.copia_id, p.utente_id, p.data_prestito, p.data_scadenza
-            FROM prestiti p
-            LEFT JOIN copie c ON p.copia_id = c.id
-            WHERE p.libro_id = ?
-            AND ( (p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare'))
-                  OR (p.attivo = 0 AND p.stato = 'pendente' AND p.origine = 'prenotazione') )
-            AND ( p.copia_id IS NULL
-                  OR c.stato IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento') )
-            ORDER BY p.created_at ASC
-            LIMIT 1
-        ");
-        $stmt->bind_param('i', $libroId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $reservation = $result->fetch_assoc();
-        $stmt->close();
-
-        if (!$reservation) {
-            return;
-        }
-
-        // 2. Se abbiamo trovato una prenotazione da sbloccare, proviamo ad assegnarla alla nuova copia
         $ownTransaction = $this->beginTransactionIfNeeded();
         try {
             // CI-SOFT-DELETE-EXEMPT: an existing hold must be released/reassigned even if its book is deleted.
@@ -167,58 +142,138 @@ class ReservationReassignmentService
             $lockBook->execute();
             $lockBook->close();
 
-            // The initial lookup was intentionally non-locking to preserve book
-            // first ordering. Revalidate the chosen hold now, under the book lock.
-            $lockedReservationStmt = $this->db->prepare("
+            // Cheap advisory pre-filter after the canonical book lock: only rows
+            // that are currently copyless or pinned to an operationally unavailable
+            // copy enter the locking batch. The authoritative state re-check happens
+            // below after both prestiti and copie rows have been locked.
+            // BUG8/D13 parity con activateScheduledLoans: un hold con finestra
+            // interamente trascorsa (non ancora cullato dal cron) non deve
+            // ricevere la copia rientrata prima di candidati validi — la
+            // terrebbe impegnata solo fino alla scadenza del pickup.
+            $today = \App\Support\DateHelper::today();
+            $prefilterStmt = $this->db->prepare("
+                SELECT p.id
+                FROM prestiti p
+                LEFT JOIN copie c ON p.copia_id = c.id
+                WHERE p.libro_id = ?
+                  AND ( (p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare'))
+                        OR (p.attivo = 0 AND p.stato = 'pendente' AND p.origine = 'prenotazione') )
+                  AND (p.copia_id IS NULL
+                       OR c.stato IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento'))
+                  AND p.data_scadenza >= ?
+                ORDER BY p.created_at ASC, p.id ASC
+            ");
+            $prefilterStmt->bind_param('is', $libroId, $today);
+            $prefilterStmt->execute();
+            $prefilterResult = $prefilterStmt->get_result();
+            $candidateIds = [];
+            while ($row = $prefilterResult->fetch_assoc()) {
+                $candidateIds[] = (int) $row['id'];
+            }
+            $prefilterStmt->close();
+            if ($candidateIds === []) {
+                $this->rollbackIfOwned($ownTransaction);
+                return false;
+            }
+
+            // Lock the pre-filtered prestiti as one deterministic FIFO batch and
+            // re-assert their lifecycle state. No copy row is locked yet.
+            $candidatePlaceholders = implode(',', array_fill(0, count($candidateIds), '?'));
+            $candidateLockStmt = $this->db->prepare("
                 SELECT id, copia_id, utente_id, data_prestito, data_scadenza
                 FROM prestiti
-                WHERE id = ? AND libro_id = ?
-                  AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare'))
+                WHERE libro_id = ? AND id IN ({$candidatePlaceholders})
+                  AND ( (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
                         OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
+                  AND data_scadenza >= ?
+                ORDER BY created_at ASC, id ASC
                 FOR UPDATE
             ");
-            $lockedReservationStmt->bind_param('ii', $reservation['id'], $libroId);
-            $lockedReservationStmt->execute();
-            $lockedReservation = $lockedReservationStmt->get_result()->fetch_assoc();
-            $lockedReservationStmt->close();
-            if (!$lockedReservation) {
+            $candidateParams = array_merge([$libroId], $candidateIds, [$today]);
+            $candidateTypes = 'i' . str_repeat('i', count($candidateIds)) . 's';
+            $candidateLockStmt->bind_param($candidateTypes, ...$candidateParams);
+            $candidateLockStmt->execute();
+            $candidateResult = $candidateLockStmt->get_result();
+            $candidates = $candidateResult ? $candidateResult->fetch_all(MYSQLI_ASSOC) : [];
+            $candidateLockStmt->close();
+            if ($candidates === []) {
                 $this->rollbackIfOwned($ownTransaction);
-                return;
-            }
-            $reservation = $lockedReservation;
-
-            // Verifica che la nuova copia sia effettivamente disponibile (lock)
-            $stmt = $this->db->prepare("SELECT id, stato FROM copie WHERE id = ? FOR UPDATE");
-            $stmt->bind_param('i', $newCopiaId);
-            $stmt->execute();
-            $copyStatus = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-
-            if (!$copyStatus || !in_array($copyStatus['stato'], ['disponibile', 'prenotato'], true)) {
-                $this->rollbackIfOwned($ownTransaction);
-                return;
+                return false;
             }
 
-            // Non riassegnare se la copia target ha un impegno HOLDING sovrapposto
-            // al periodo della prenotazione: eviterebbe un SIGNAL del trigger di
-            // overlap che avvelenerebbe la transazione (BUG6/D11). Overlap inclusivo.
-            $ovl = $this->db->prepare("
-                SELECT 1 FROM prestiti
-                WHERE copia_id = ? AND id <> ?
-                AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
-                AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
-                      OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
-                LIMIT 1
+            // One policy-owned current read provides the canonical open-state
+            // predicate and normalized user/copy identity for every candidate.
+            // The result answers same-borrower and overlap checks without N+1.
+            $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($this->db);
+            $targetCommitments = $multiplicityPolicy->lockOpenCopyCommitments(
+                $libroId,
+                copyId: $newCopiaId
+            );
+
+            // Lock the target and every candidate's currently pinned copy in one
+            // ascending-ID batch. All prestiti locks above are therefore complete
+            // before the first copie lock (libri -> prestiti -> copie).
+            $copyIds = [$newCopiaId => true];
+            foreach ($candidates as $candidate) {
+                if ($candidate['copia_id'] !== null) {
+                    $copyIds[(int) $candidate['copia_id']] = true;
+                }
+            }
+            $copyIds = array_keys($copyIds);
+            sort($copyIds, SORT_NUMERIC);
+            $copyPlaceholders = implode(',', array_fill(0, count($copyIds), '?'));
+            $copyLockStmt = $this->db->prepare("
+                SELECT id, stato
+                FROM copie
+                WHERE libro_id = ? AND id IN ({$copyPlaceholders})
+                ORDER BY id ASC
+                FOR UPDATE
             ");
-            $ovl->bind_param('iiss', $newCopiaId, $reservation['id'], $reservation['data_scadenza'], $reservation['data_prestito']);
-            $ovl->execute();
-            $hasOverlap = (bool) $ovl->get_result()->fetch_row();
-            $ovl->close();
-            if ($hasOverlap) {
-                // La nuova copia non è libera per l'intero periodo: lascia la
-                // prenotazione bloccata, verrà riassegnata da un'altra copia/ritorno.
+            $copyParams = array_merge([$libroId], $copyIds);
+            $copyTypes = str_repeat('i', count($copyParams));
+            $copyLockStmt->bind_param($copyTypes, ...$copyParams);
+            $copyLockStmt->execute();
+            $copyResult = $copyLockStmt->get_result();
+            $copiesById = [];
+            while ($copy = $copyResult->fetch_assoc()) {
+                $copiesById[(int) $copy['id']] = (string) $copy['stato'];
+            }
+            $copyLockStmt->close();
+
+            $targetCopyState = $copiesById[$newCopiaId] ?? null;
+            if ($targetCopyState === null || !in_array($targetCopyState, ['disponibile', 'prenotato'], true)) {
                 $this->rollbackIfOwned($ownTransaction);
-                return;
+                return false;
+            }
+
+            $nonLendableStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
+            $reservation = null;
+            foreach ($candidates as $candidate) {
+                // Authoritative blocked-state re-check from the locked copy batch.
+                // A row whose original copy became usable is no longer a candidate.
+                $currentCopyId = $candidate['copia_id'] !== null ? (int) $candidate['copia_id'] : null;
+                if ($currentCopyId !== null) {
+                    $currentCopyState = $copiesById[$currentCopyId] ?? null;
+                    if ($currentCopyState === null || !in_array($currentCopyState, $nonLendableStates, true)) {
+                        continue;
+                    }
+                }
+
+                if (!\App\Support\LoanMultiplicityPolicy::candidateConflictsWithOpenCommitments(
+                    (int) $candidate['id'],
+                    (int) $candidate['utente_id'],
+                    (string) $candidate['data_prestito'],
+                    (string) $candidate['data_scadenza'],
+                    $targetCommitments,
+                    $today
+                )) {
+                    $reservation = $candidate;
+                    break;
+                }
+            }
+            if ($reservation === null) {
+                $this->rollbackIfOwned($ownTransaction);
+                return false;
             }
 
             // Aggiorna il prestito/prenotazione con la nuova copia
@@ -258,6 +313,8 @@ class ReservationReassignmentService
                 $this->notifyUserCopyAvailable((int) $reservation['id']);
             }
 
+            return true;
+
         } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
             // In transazione esterna rilanciamo: altrimenti il proprietario farebbe
@@ -271,6 +328,7 @@ class ReservationReassignmentService
                 'copia_id' => $newCopiaId,
                 'error' => $e->getMessage()
             ]);
+            return false;
         }
     }
 
@@ -283,16 +341,21 @@ class ReservationReassignmentService
         // Trova un impegno HOLDING "futuro" su questa copia da riassegnare. Include
         // 'da_ritirare' (ritiro in attesa) oltre a 'prenotato' (BUG7b/D12): perdere
         // la copia di un ritiro in attesa deve riassegnarlo, non lasciarlo bloccato.
+        // La finestra deve essere ancora valida (data_scadenza >= oggi): riassegnare
+        // un hold già scaduto ne riattiverebbe di fatto la finestra su una nuova
+        // copia — quello va lasciato alla scadenza/pulizia, non alla riassegnazione.
+        $today = \App\Support\DateHelper::today();
         $stmt = $this->db->prepare("
             SELECT id, libro_id, utente_id, data_prestito, data_scadenza
             FROM prestiti
             WHERE copia_id = ?
+            AND data_scadenza >= ?
             AND ( (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
                   OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
             ORDER BY data_prestito ASC, id ASC
             LIMIT 1
         ");
-        $stmt->bind_param('i', $copiaId);
+        $stmt->bind_param('is', $copiaId, $today);
         $stmt->execute();
         $reservation = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -318,8 +381,10 @@ class ReservationReassignmentService
                 $libroId,
                 $excludedCopies,
                 $reservationId,
+                (int) $reservation['utente_id'],
                 $resStart,
-                $resEnd
+                $resEnd,
+                $today
             );
 
             if (!$nextCopyId) {
@@ -338,14 +403,15 @@ class ReservationReassignmentService
                 $lockBook->close();
 
                 $lockReservation = $this->db->prepare("
-                    SELECT id, copia_id, data_prestito, data_scadenza
+                    SELECT id, copia_id, utente_id, data_prestito, data_scadenza
                     FROM prestiti
                     WHERE id = ? AND libro_id = ? AND copia_id = ?
+                      AND data_scadenza >= ?
                       AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare'))
                             OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
                     FOR UPDATE
                 ");
-                $lockReservation->bind_param('iii', $reservationId, $libroId, $copiaId);
+                $lockReservation->bind_param('iiis', $reservationId, $libroId, $copiaId, $today);
                 $lockReservation->execute();
                 $currentReservation = $lockReservation->get_result()->fetch_assoc();
                 $lockReservation->close();
@@ -355,6 +421,14 @@ class ReservationReassignmentService
                 }
                 $resStart = (string) $currentReservation['data_prestito'];
                 $resEnd = (string) $currentReservation['data_scadenza'];
+
+                $committedCopyIds = (new \App\Support\LoanMultiplicityPolicy($this->db))
+                    ->committedCopyIds($libroId, (int) $currentReservation['utente_id'], $reservationId);
+                if (in_array($nextCopyId, $committedCopyIds, true)) {
+                    $this->rollbackIfOwned($ownTransaction);
+                    $excludedCopies[] = $nextCopyId;
+                    continue;
+                }
 
                 // Lock della nuova copia e verifica stato (race condition protection)
                 $stmt = $this->db->prepare("SELECT id, stato FROM copie WHERE id = ? FOR UPDATE");
@@ -378,12 +452,15 @@ class ReservationReassignmentService
                 $ovl = $this->db->prepare("
                     SELECT 1 FROM prestiti
                     WHERE copia_id = ? AND id <> ?
-                    AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                    AND data_prestito <= ?
+                    AND (stato = 'in_ritardo'
+                         OR (stato = 'in_corso' AND data_scadenza < ?)
+                         OR data_scadenza >= ?)
                     AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                           OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
                     LIMIT 1
                 ");
-                $ovl->bind_param('iiss', $nextCopyId, $reservationId, $resEnd, $resStart);
+                $ovl->bind_param('iisss', $nextCopyId, $reservationId, $resEnd, $today, $resStart);
                 $ovl->execute();
                 $hasOverlap = (bool) $ovl->get_result()->fetch_row();
                 $ovl->close();
@@ -512,7 +589,7 @@ class ReservationReassignmentService
      * Quando un libro viene restituito, controlla se ci sono prenotazioni in attesa
      * e assegna la copia restituita alla prossima prenotazione.
      */
-    public function reassignOnReturn(int $copiaId): void
+    public function reassignOnReturn(int $copiaId): bool
     {
         // 1. Trova il libro
         $stmt = $this->db->prepare("SELECT libro_id FROM copie WHERE id = ?");
@@ -521,14 +598,26 @@ class ReservationReassignmentService
         $res = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        if (!$res)
-            return;
+        if (!$res) {
+            return false;
+        }
         $libroId = (int) $res['libro_id'];
 
         // 2. Cerca la prenotazione più vecchia SENZA copia assegnata (o assegnata a copia non disp)
         // Nota: reassignOnNewCopy fa esattamente questo logicamente: prende una copia disponibile (questa)
-        // e cerca chi ne ha bisogno.
-        $this->reassignOnNewCopy($libroId, $copiaId);
+        // e cerca chi ne ha bisogno. Ripeti finché aggancia: la stessa copia può
+        // servire più hold a finestre DISGIUNTE (una sola assegnazione per
+        // chiamata lasciava i successivi copyless fino allo sweep del cron).
+        // Ogni aggancio riduce i candidati copyless, quindi il loop termina;
+        // il bound è solo una cintura di sicurezza.
+        $assignedAny = false;
+        for ($i = 0; $i < 50; $i++) {
+            if (!$this->reassignOnNewCopy($libroId, $copiaId)) {
+                break;
+            }
+            $assignedAny = true;
+        }
+        return $assignedAny;
     }
 
     /**
@@ -540,8 +629,10 @@ class ReservationReassignmentService
         int $libroId,
         array $excludeCopiaIds,
         int $reservationId,
+        int $userId,
         string $startDate,
-        string $endDate
+        string $endDate,
+        string $applicationToday
     ): ?int
     {
         $sql = "
@@ -551,19 +642,33 @@ class ReservationReassignmentService
             AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
             AND NOT EXISTS (
                 SELECT 1
+                FROM prestiti own
+                WHERE own.copia_id = c.id
+                  AND own.libro_id = ?
+                  AND own.utente_id = ?
+                  AND own.id <> ?
+                  AND (
+                      (own.attivo = 0 AND own.stato = 'pendente')
+                      OR (own.attivo = 1 AND own.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                  )
+            )
+            AND NOT EXISTS (
+                SELECT 1
                 FROM prestiti p
                 WHERE p.copia_id = c.id
                   AND p.id <> ?
                   AND p.data_prestito <= ?
-                  AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                  AND (p.stato = 'in_ritardo'
+                       OR (p.stato = 'in_corso' AND p.data_scadenza < ?)
+                       OR p.data_scadenza >= ?)
                   AND (
                       (p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                       OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                   )
             )
         ";
-        $params = [$libroId, $reservationId, $endDate, $startDate];
-        $types = 'iiss';
+        $params = [$libroId, $libroId, $userId, $reservationId, $reservationId, $endDate, $applicationToday, $startDate];
+        $types = 'iiiiisss';
 
         if (!empty($excludeCopiaIds)) {
             $placeholders = implode(',', array_fill(0, count($excludeCopiaIds), '?'));
@@ -630,13 +735,15 @@ class ReservationReassignmentService
 
         $bookLink = book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore' => $author['nome'] ?? '']);
 
+        // #360 parity: date nella lingua del destinatario, non d/m/Y hard-coded.
+        $recipientLocale = $this->notificationService->resolveRecipientLocale((string) $data['email']);
         $variables = [
             'utente_nome' => $data['utente_nome'] ?: __('Utente'),
             'libro_titolo' => $data['libro_titolo'] ?: __('Libro'),
             'libro_autore' => $author['nome'] ?? __('Autore sconosciuto'),
             'libro_isbn' => $isbn,
-            'data_inizio' => $data['data_prestito'] ? date('d/m/Y', strtotime($data['data_prestito'])) : '',
-            'data_fine' => $data['data_scadenza'] ? date('d/m/Y', strtotime($data['data_scadenza'])) : '',
+            'data_inizio' => $data['data_prestito'] ? $this->notificationService->formatEmailDate((string) $data['data_prestito'], false, $recipientLocale) : '',
+            'data_fine' => $data['data_scadenza'] ? $this->notificationService->formatEmailDate((string) $data['data_scadenza'], false, $recipientLocale) : '',
             'book_url' => absoluteUrl($bookLink),
             'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
         ];

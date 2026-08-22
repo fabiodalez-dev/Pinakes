@@ -7,15 +7,35 @@ namespace App\Support;
 class DateHelper
 {
     /**
+     * Expose the application-local date to integrity triggers on this connection.
+     *
+     * MySQL's CURRENT_DATE() follows the database session timezone, which can
+     * differ from app.timezone near midnight. Circulation triggers therefore
+     * read this connection-scoped value and use CURRENT_DATE() only for direct
+     * SQL clients that have not initialized the application session.
+     */
+    public static function synchronizeDatabaseSession(\mysqli $db): void
+    {
+        $today = self::today();
+        $stmt = $db->prepare('SET @pinakes_application_date = ?');
+        try {
+            $stmt->bind_param('s', $today);
+            $stmt->execute();
+        } finally {
+            $stmt->close();
+        }
+    }
+
+    /**
      * Today's date (Y-m-d) in the application's configured timezone.
      *
      * PHP's default timezone is often UTC while the library runs in a local
      * zone (default Europe/Rome). Near midnight the two disagree by a day, so a
-     * reservation/loan dated "today" (stored via MySQL CURDATE() in the local
-     * zone) would look like a future date to a raw date('Y-m-d') (UTC)
-     * comparison and have its eligibility deferred by 24h. Every "is this date
-     * eligible today?" check in the loan/reservation pipeline must compute
-     * "today" through here so PHP and MySQL agree on the day boundary.
+     * reservation/loan dated "today" would look like a future date to a raw
+     * date('Y-m-d') (UTC) comparison and have its eligibility deferred by 24h.
+     * Every "is this date eligible today?" check in the loan/reservation
+     * pipeline must compute "today" here; synchronizeDatabaseSession() publishes
+     * that same day to the database integrity triggers.
      */
     public static function today(): string
     {

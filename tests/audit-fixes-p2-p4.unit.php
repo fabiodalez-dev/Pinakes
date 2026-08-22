@@ -69,6 +69,11 @@ try {
         ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
         : new mysqli($dbHost, $dbUser, $dbPass, $dbName, $dbPort);
     $db->set_charset('utf8mb4');
+    // Production writers bind the application-local date on every
+    // connection (container/cron/scripts bootstrap); the circulation
+    // triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+    // which disagrees with app.timezone between 22:00 and 24:00 UTC.
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
 } catch (\Throwable $e) {
     fwrite(STDERR, "FAIL: database unreachable — mandatory for this test: {$e->getMessage()}\n");
     exit(1);
@@ -93,6 +98,20 @@ $EMAIL_DOMAIN = '@afix.test.local';
 
 $today = DateHelper::today();
 $d = static fn (int $offsetDays): string => date('Y-m-d', strtotime($today . ($offsetDays >= 0 ? " +{$offsetDays} days" : ' ' . $offsetDays . ' days')));
+$withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
+    $safeDate = $db->real_escape_string($date);
+    $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    // The circulation triggers read the connection-bound application date
+    // before falling back to CURRENT_DATE(), so warping the clock must warp
+    // the bound date too — and restore the real application day afterwards.
+    $db->query("SET @pinakes_application_date = '{$safeDate}'");
+    try {
+        return $callback();
+    } finally {
+        $db->query('SET timestamp = 0');
+        \App\Support\DateHelper::synchronizeDatabaseSession($db);
+    }
+};
 
 $settingsRow = static function (string $key, string $default) use ($db): string {
     $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = ?");
@@ -225,12 +244,19 @@ try {
     $borrower1 = $mkUser();
     $picker1 = $mkUser();
     [$bookP1, [$copyP1]] = $mkBook(1);
-    // Predecessor still out and overdue (not yet flipped), copy 'prestato'.
-    $prevLoan = $mkLoan($bookP1, $copyP1, $borrower1, 'in_corso', $d(-30), $d(-5));
+    // Build the #366-adjacent state in its real chronological order. At the
+    // predecessor's due date the two windows are disjoint and both inserts are
+    // valid; after the clock returns to today, the still-unreturned predecessor
+    // has become an open-ended hold beside its already-announced successor.
+    [$prevLoan, $nextLoan] = $withDatabaseDate(
+        $d(-5),
+        static function () use ($mkLoan, $bookP1, $copyP1, $borrower1, $picker1, $d): array {
+            $previous = $mkLoan($bookP1, $copyP1, $borrower1, 'in_corso', $d(-30), $d(-5));
+            $next = $mkLoan($bookP1, $copyP1, $picker1, 'da_ritirare', $d(-1), $d(10), $d(2));
+            return [$previous, $next];
+        }
+    );
     $setCopyState($copyP1, 'prestato');
-    // Successor already announced ready on the SAME copy (the #366-adjacent
-    // inconsistent state this guard must fail closed on).
-    $nextLoan = $mkLoan($bookP1, $copyP1, $picker1, 'da_ritirare', $d(-1), $d(10), $d(2));
 
     $_SESSION['user'] = ['tipo_utente' => 'admin', 'id' => $picker1];
     $request = (new ServerRequestFactory())
@@ -360,6 +386,7 @@ try {
     $request = (new ServerRequestFactory())
         ->createServerRequest('POST', '/admin/loans/store')
         ->withParsedBody([
+            'loan_submission_token' => \App\Support\OneTimeFormToken::issue('loan.create'),
             'utente_id' => (string) $storeUser,
             'libro_id' => (string) $bookS,
             'data_prestito' => $d(0),

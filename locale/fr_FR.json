@@ -1426,6 +1426,7 @@
   "Errore di sicurezza. Aggiorna la pagina e riprova": "Erreur de sécurité. Actualisez la page et réessayez",
   "Errore di sicurezza. Ricarica la pagina e riprova": "Erreur de sécurité. Rechargez la page et réessayez",
   "Errore di sicurezza. Ricarica la pagina e riprova.": "Erreur de sécurité. Rechargez la page et réessayez.",
+  "La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.": "La demande a déjà été traitée ou n'est plus valide. Consultez la liste des prêts avant de réessayer.",
   "Errore di sicurezza. Riprova.": "Erreur de sécurité. Réessayez.",
   "Errore di sistema.": "Erreur système.",
   "Errore durante il caricamento": "Erreur lors du chargement",
@@ -6875,5 +6876,19 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s prêts sélectionnés recevront le rappel (uniquement ceux en retard).",
   "Impossibile generare la ricevuta PDF.": "Impossible de générer le PDF du reçu.",
   "Attivazione prestito rinviata: nessuna copia libera": "Activation du prêt reportée : aucun exemplaire libre",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Activation du prêt reportée : exemplaire attribué absent de la bibliothèque"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Activation du prêt reportée : exemplaire attribué absent de la bibliothèque",
+  "Più copie dello stesso titolo": "Plusieurs exemplaires du même titre",
+  "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Autorisez un même utilisateur à avoir plusieurs emprunts actifs du même livre, à condition que chaque emprunt soit associé à un exemplaire physique distinct.",
+  "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte": "Autoriser plusieurs emprunts du même titre uniquement sur des exemplaires physiques distincts",
+  "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.": "Chaque emprunt doit être associé à un exemplaire physique distinct ; les demandes en attente et les réservations restent limitées à une par utilisateur et par livre.",
+  "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Les demandes en attente et les réservations restent uniques par utilisateur et par livre. Chaque exemplaire compte dans la limite des emprunts actifs.",
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Mode de prêts multiples actif : le livre reste sélectionné ; scannez l'exemplaire suivant pour continuer.",
+  "La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo": "La période demandée est déjà passée : mettez à jour les dates du prêt avant de l'approuver",
+  "Ritiro annullato il": "Retrait annulé le",
+  "Un'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.": "Une autre opération mettait à jour le même livre : aucune modification enregistrée, réessayez maintenant.",
+  "Stato prenotazione non valido: modifica non salvata.": "Statut de réservation non valide : modifications non enregistrées.",
+  "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Cette réservation a déjà été convertie en un prêt encore ouvert : gérez le prêt depuis la page Prêts au lieu de modifier la réservation.",
+  "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService : échec de la mise à jour du marqueur de cooldown",
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService : erreur de récupération des notifications de retrait",
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Erreur : la nouvelle date d'échéance ne peut pas être dans le passé."
 }

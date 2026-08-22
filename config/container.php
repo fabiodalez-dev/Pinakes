@@ -119,6 +119,9 @@ $containerDefinitions = [
             $mysqli->set_charset($cfg['charset']);
             // Ensure consistent collation for all queries (use config charset, not hardcoded)
             $mysqli->query("SET NAMES '" . $mysqli->real_escape_string($cfg['charset']) . "' COLLATE 'utf8mb4_unicode_ci'");
+            // Give database integrity triggers the same authoritative day used
+            // by the PHP circulation layer (app.timezone).
+            \App\Support\DateHelper::synchronizeDatabaseSession($mysqli);
             
             return $mysqli;
             

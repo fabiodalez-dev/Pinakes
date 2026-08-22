@@ -1426,6 +1426,7 @@
   "Errore di sicurezza. Aggiorna la pagina e riprova": "Errore di sicurezza. Aggiorna la pagina e riprova",
   "Errore di sicurezza. Ricarica la pagina e riprova": "Errore di sicurezza. Ricarica la pagina e riprova",
   "Errore di sicurezza. Ricarica la pagina e riprova.": "Errore di sicurezza. Ricarica la pagina e riprova.",
+  "La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.": "La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.",
   "Errore di sicurezza. Riprova.": "Errore di sicurezza. Riprova.",
   "Errore di sistema.": "Errore di sistema.",
   "Errore durante il caricamento": "Errore durante il caricamento",
@@ -6875,5 +6876,19 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).",
   "Impossibile generare la ricevuta PDF.": "Impossibile generare la ricevuta PDF.",
   "Attivazione prestito rinviata: nessuna copia libera": "Attivazione prestito rinviata: nessuna copia libera",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Attivazione prestito rinviata: copia assegnata non in sede"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Attivazione prestito rinviata: copia assegnata non in sede",
+  "Più copie dello stesso titolo": "Più copie dello stesso titolo",
+  "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.",
+  "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte": "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte",
+  "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.": "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.",
+  "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.",
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.",
+  "La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo": "La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo",
+  "Ritiro annullato il": "Ritiro annullato il",
+  "Un'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.": "Un'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.",
+  "Stato prenotazione non valido: modifica non salvata.": "Stato prenotazione non valido: modifica non salvata.",
+  "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.",
+  "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService aggiornamento marker cooldown fallito",
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService errore recupero notifiche ritiro",
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Errore: la nuova data di scadenza non può essere nel passato."
 }

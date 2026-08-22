@@ -2,6 +2,123 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.64] - 2026-08-21
+
+Optional multiple physical copies of the same title per borrower (#238).
+
+### Features
+
+- **Multiple copies per borrower** (opt-in, Settings → Loans → "Più copie dello
+  stesso titolo", off by default): staff can lend more than one distinct
+  physical copy of the same title to the same borrower. Every loan stays bound
+  to its own copy, so no two open loans for a borrower can share a copy.
+  Pending requests, reservations and legacy copyless rows keep the historical
+  borrower/title uniqueness, and per-copy overlap guards, eligibility, capacity
+  and the max-active-loans limit are all unchanged (each copy counts as one
+  active loan). The desk "Salva e registra un'altra copia" flow keeps the
+  selected title and focuses the next copy scan for fast batch check-outs.
+  Existing installations are unaffected without a migration — the setting
+  resolves to off until it is enabled, and fresh installs seed it off in all
+  five shipped locales.
+
+### Fixed
+
+- **Circulation can no longer hand out a copy that is physically out** (#366
+  residual): creation, approval, rescheduling, renewal, reassignment and the DB
+  triggers all treat an `in_corso` loan whose due date has passed but that the
+  maintenance sweep has not yet flipped to `in_ritardo` as an open-ended
+  commitment (same rule as `CapacityService`). The pre-assigned copy is
+  validated against the loan's book, and a request whose whole window is already
+  past is rejected instead of becoming an unpickable `da_ritirare`.
+  `confirmPickup` re-checks the loan rows holding the copy (not just
+  `copie.stato`) before issuing. Approval and the date-aware allocator still
+  accept a copy that is physically out as long as the requested window does not
+  overlap its open loan — the per-copy overlap check is the authority — so a
+  future-dated request is not needlessly blocked when the only copy is on loan.
+- **Backdating a loan's due date reports a clear error**: actively moving an
+  active loan's due date into the past used to reach the per-copy overlap
+  trigger and surface an opaque `loan_update_failed`; the edit flow now rejects
+  it up front with the same `expired_window` message the create/approve flows
+  use, while still allowing edits to an already-overdue loan whose due date is
+  left unchanged.
+- **Queue promotion re-checks borrower eligibility**: a user suspended (or
+  with an expired card) while waiting is skipped — their reservation stays
+  active in the queue — instead of being promoted to a pending loan that
+  approval then refuses, burning their position and pinning the copy. The scan
+  is not capped at the first 25 rows, so an eligible reader farther down the
+  FIFO can still receive a free copy.
+- **Reservations on books without copy rows are refused up front**: the queue
+  can only convert physical `copie` rows, so a legacy book with none produced
+  reservations that silently never converted until they expired.
+- **Reassigning a promoted loan keeps queue semantics** (multiplicity ON): a
+  row with `origine='prenotazione'` still in `prenotato`/`da_ritirare` is
+  treated as a queue commitment when reassigned to another borrower, so a user
+  can never end up with a physical loan plus a promoted queue position for the
+  same title.
+- **The desk create form is double-submit safe**: submit buttons disable on
+  first submit and every rendered form carries a one-time server token. A
+  replayed POST therefore cannot register a second real loan on another copy,
+  including retries caused by latency or double-clicks.
+- **A freed copy now serves every compatible hold**: `reassignOnReturn` keeps
+  assigning the returned copy until no blocked FIFO candidate can take it
+  (holds with disjoint windows previously waited for the next maintenance
+  sweep), and holds whose window is entirely past are no longer eligible.
+- **Pickup-ready emails are claim-and-retry**: a new
+  `prestiti.pickup_notification_sent` flag (seeded in the schema and added by
+  an idempotent upgrade migration) makes the "ready for pickup" email
+  idempotent. Token-owned claims recover after a worker crash, failures are
+  retried fairly by the hourly notification cron, and existing rows are
+  initialized as already handled without firing legacy circulation triggers.
+  Every future transition to ready resets the flag; reassigning a ready loan
+  resets the recipient-specific claim as well.
+- **Borrowers without an email no longer wedge the notification crons**:
+  expiry warnings and overdue notices for them keep their claim (no more
+  endless SMTP retry churn) and still produce the in-app/admin notifications,
+  which previously never fired for email-less borrowers.
+- **Cron process locks no longer unlink after unlock** (the race
+  `scripts/maintenance.php` already documented), both cron entrypoints refuse
+  non-CLI execution, and `runAll()` refreshes the cross-session cooldown
+  marker so an admin login right after the cron no longer re-runs the whole
+  maintenance synchronously.
+- **NCIP**: a recognized active `FromAgencyId` is attributed to transaction
+  logs without silently turning the historically informational partner table
+  into a new authorization gate. `CheckInItem` and `RenewItem` reject a
+  malformed `UserId`, use a valid optional `UserId` to select the correct loan,
+  and refuse an ambiguous title-only mutation when several NCIP loans are open;
+  check-out/check-in/renew are logged to `ncip_transactions`; renewals claim
+  the window from the day after the current due date (#336 parity with web).
+- **Return flow**: a deadlock/lock-timeout now reports a dedicated
+  "another operation was updating this book, retry" error instead of the
+  generic failure; reservation availability emails format dates in the
+  recipient's language like the rest of the #360 pipeline; cancelling a
+  promoted pending loan releases and reassigns its copy immediately.
+- **Admin reservation edits**: an out-of-whitelist status is rejected instead
+  of silently coerced to `attiva`, and a completed (promoted) reservation
+  cannot be flipped while its converted loan is still open.
+- **Localized gender on the admin user-details page** (#371): the stored
+  `sesso` enum (`M`/`F`/`Altro`) now renders through the same translated labels
+  as the edit form instead of the raw code, with a safe fallback for unexpected
+  values.
+- **Notifications dropdown no longer clips on phones**: the panel was anchored
+  to the right-hand bell button, so a near-full-width dropdown overflowed the
+  right screen edge and cut off "Segna tutte come lette" and the notification
+  bodies. Below the `md` breakpoint it is now pinned to the viewport and
+  centred; the desktop panel is unchanged.
+
+### Changed
+
+- Release artifacts now have one canonical producer: the tag-triggered
+  `Verified Release` workflow builds twice, verifies the package, uploads a
+  draft, checks every server-side digest and only then publishes it. The local
+  release script performs preflight, pushes the annotated tag and monitors that
+  workflow instead of racing it with a second upload path.
+- `reassignOnNewCopy` now walks the whole blocked-hold FIFO and assigns the
+  first compatible candidate (skipping an incompatible head) instead of
+  stopping at the first blocked hold; a same-borrower conflict on the target
+  copy blocks regardless of dates. Observable also with the multiplicity
+  setting off: a younger reservation can receive a returned copy while the
+  head stays blocked, without losing its priority for future copies.
+
 ## [0.7.63] - 2026-08-20
 
 ### Fixed

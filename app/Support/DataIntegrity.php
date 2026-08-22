@@ -824,6 +824,7 @@ class DataIntegrity {
         // the auditor MUST count it — otherwise it would bless an over-capacity
         // waitlist that the creation/promotion gates already reject.
         $eventsByBook = [];
+        $applicationToday = DateHelper::today();
         $stmt = $this->db->prepare("
             SELECT libro_id, 'prestito' AS source_type, id AS source_id,
                    DATE(data_prestito) AS start_date,
@@ -833,7 +834,12 @@ class DataIntegrity {
                        -- stays a 4-digit 'YYYY-MM-DD' string: '10000-01-01' would sort
                        -- BEFORE every real date under ksort's lexicographic order
                        -- ('1' < '2'), zeroing the overdue occupancy in the peak scan.
-                       WHEN attivo = 1 AND stato = 'in_ritardo' THEN '9999-12-30'
+                       -- A date-overdue `in_corso` row is the same unreturned
+                       -- physical copy before maintenance flips its state (#366).
+                       WHEN attivo = 1 AND (
+                           stato = 'in_ritardo'
+                           OR (stato = 'in_corso' AND data_scadenza < ?)
+                       ) THEN '9999-12-30'
                        ELSE data_scadenza
                    END) AS end_date
             FROM prestiti
@@ -844,6 +850,7 @@ class DataIntegrity {
               AND data_prestito IS NOT NULL
               AND data_scadenza IS NOT NULL
         ");
+        $stmt->bind_param('s', $applicationToday);
         $stmt->execute();
         $intervalsResult = $stmt->get_result();
 

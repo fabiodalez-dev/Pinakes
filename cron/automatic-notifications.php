@@ -22,6 +22,13 @@ use App\Support\NotificationService;
 use App\Controllers\ReservationManager;
 use App\Support\HookManager;
 
+// Difesa in profondità: sotto Apache la .htaccess root instrada tutto su
+// public/, ma su nginx (che la ignora) o con una docroot mal configurata
+// questo file sarebbe un trigger web non autenticato del batch di notifiche.
+if (php_sapi_name() !== 'cli') {
+    die("This script can only be run from the command line.");
+}
+
 // ============================================================
 // PROCESS LOCK - Prevent concurrent cron executions
 // ============================================================
@@ -55,11 +62,13 @@ ftruncate($lockHandle, 0);
 fwrite($lockHandle, (string)getmypid());
 fflush($lockHandle);
 
-// Register shutdown function to release lock and clean up
-register_shutdown_function(function () use ($lockHandle, $lockFile) {
+// Register shutdown function to release lock. MAI unlink dopo l'unlock
+// (stessa scelta di scripts/maintenance.php): B può aver già aperto lo stesso
+// inode e lockarlo dopo il nostro rilascio; se A poi lo cancella, C ricrea il
+// file e locka il NUOVO inode → B e C girerebbero in parallelo.
+register_shutdown_function(function () use ($lockHandle) {
     flock($lockHandle, LOCK_UN);
     fclose($lockHandle);
-    @unlink($lockFile);
 });
 
 // ============================================================
@@ -106,11 +115,10 @@ try {
     }
 
     $db->set_charset($cfg['charset']);
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
 
-    // Niente SET SESSION time_zone (M9): la coerenza sul giorno è garantita dai
-    // parametri PHP calcolati con DateHelper nel timezone applicativo; il web non
-    // imposta alcuna session timezone, quindi forzare UTC nel solo cron creava
-    // due regimi diversi per gli stessi confronti di data.
+    // Niente SET SESSION time_zone (M9): DateHelper espone ai trigger il giorno
+    // applicativo senza alterare la timezone MySQL dell'intera connessione.
 
     // Bootstrap I18n con il locale di installazione, come fa public/index.php per
     // il web (H4): in CLI il locale resterebbe il default statico it_IT e le email
@@ -158,7 +166,17 @@ try {
         logMessage("WARNING: retryUnsentReservationNotifications failed: " . $e->getMessage());
     }
 
-    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + ($results['loan_recalls'] ?? 0) + $results['wishlist_notifications'] + $retriedNotifications;
+    // Retry pickup-ready notices on the same hourly cadence. The persisted
+    // claim makes this safe alongside the daily full-maintenance sweep.
+    $retriedPickupNotifications = 0;
+    try {
+        $retriedPickupNotifications = $notificationService->retryUnsentPickupNotifications();
+        logMessage("- Pickup-ready notifications retried: " . $retriedPickupNotifications);
+    } catch (Throwable $e) {
+        logMessage("WARNING: retryUnsentPickupNotifications failed: " . $e->getMessage());
+    }
+
+    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + ($results['loan_recalls'] ?? 0) + $results['wishlist_notifications'] + $retriedNotifications + $retriedPickupNotifications;
     logMessage("Total emails sent: {$totalSent}");
 
     // Dispatch native mobile push on the same hourly pass as email reminders.

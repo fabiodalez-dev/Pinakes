@@ -180,29 +180,58 @@ class ReservationManager
                 return false;
             }
 
-            // Get the next date-eligible reservation in queue
-            // Only process reservations where start date <= today (ready to convert to loan)
+            // Get the next date- and borrower-eligible reservation in queue.
+            // Eligibility belongs inside the locking query: selecting a fixed
+            // batch and discarding invalid patrons afterwards could leave a
+            // valid position 26 blocked forever behind 25 suspended accounts.
             // FOR UPDATE (locking/current read): the book-level lock serializes
             // writers that follow the canonical order, but a CALLER's REPEATABLE
             // READ snapshot can predate that lock — a plain read here would then
             // still see a reservation that a competitor cancelled and committed
             // while we waited for the book lock, and promote/email it anyway.
             // The locking read always returns the latest committed row state.
+            // Idoneità utente anche in promozione (M7 parity con store/approve):
+            // un utente sospeso o con tessera scaduta mentre era in coda non va
+            // promosso — la riga diverrebbe 'completata' + pendente con copia
+            // che l'approvazione rifiuta comunque (403), bruciando la posizione
+            // e tenendo la copia impegnata finché un admin non ripulisce a mano.
+            // Le prenotazioni di utenti sospesi restano attive e continuano a
+            // impegnare capacità, ma non devono amplificare i lock o rendere
+            // irraggiungibile il primo candidato idoneo. Il predicato SQL cerca
+            // direttamente il primo idoneo in FIFO; checkUser() rimane il gate
+            // autorevole sotto la stessa transazione.
             $stmt = $this->db->prepare("
                 SELECT r.*, u.email, u.nome, u.cognome
                 FROM prenotazioni r
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.libro_id = ? AND r.stato = 'attiva'
                 AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
+                AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
                 ORDER BY r.queue_position ASC
                 LIMIT 1
                 FOR UPDATE
             ");
-            $stmt->bind_param('iss', $bookId, $today, $today);
+            $stmt->bind_param('isss', $bookId, $today, $today, $today);
             $stmt->execute();
             $result = $stmt->get_result();
-            $nextReservation = $result->fetch_assoc();
+            $nextReservation = $result ? $result->fetch_assoc() : null;
             $stmt->close();
+
+            if ($nextReservation !== null) {
+                $eligibilityError = \App\Support\LoanEligibility::checkUser(
+                    $this->db,
+                    (int) $nextReservation['utente_id']
+                );
+                if ($eligibilityError !== null) {
+                    \App\Support\SecureLogger::info('Promozione prenotazione saltata: utente non idoneo', [
+                        'prenotazione_id' => (int) $nextReservation['id'],
+                        'libro_id' => $bookId,
+                        'utente_id' => (int) $nextReservation['utente_id'],
+                        'motivo' => $eligibilityError,
+                    ]);
+                    $nextReservation = null;
+                }
+            }
 
             if ($nextReservation) {
                 // Check if the desired date range is available. Resolve the canonical
@@ -399,15 +428,33 @@ class ReservationManager
             // it becomes eligible through the return/reassignment path.
             // The NOT EXISTS clause ensures no overlapping loans for the requested dates
             // Note: 'da_ritirare' copies are still 'disponibile' but have a loan reservation
+            // Come per gli altri allocatori (approveLoan, activateScheduledLoans,
+            // findAvailableCopyExcluding): mai una copia già impegnata dallo
+            // STESSO utente per questo titolo, a prescindere dalle date — due
+            // righe aperte devono rappresentare due copie fisiche distinte.
+            // #366 residual: un 'in_corso' scaduto per data ma non ancora
+            // flippato dal cron blocca come 'in_ritardo' (open-ended).
+            $today = \App\Support\DateHelper::today();
+            $promotedUserId = (int) $reservation['utente_id'];
             $copyStmt = $this->db->prepare("
                 SELECT c.id FROM copie c
                 WHERE c.libro_id = ?
                 AND c.stato IN ('disponibile', 'prenotato')
                 AND NOT EXISTS (
+                    SELECT 1 FROM prestiti own
+                    WHERE own.copia_id = c.id
+                    AND own.libro_id = ?
+                    AND own.utente_id = ?
+                    AND (
+                        (own.attivo = 0 AND own.stato = 'pendente')
+                        OR (own.attivo = 1 AND own.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                    )
+                )
+                AND NOT EXISTS (
                     SELECT 1 FROM prestiti p
                     WHERE p.copia_id = c.id
                     AND p.data_prestito <= ?
-                    AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                    AND (p.stato = 'in_ritardo' OR (p.stato = 'in_corso' AND p.data_scadenza < ?) OR p.data_scadenza >= ?)
                     AND (
                         (p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo'))
                         OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
@@ -415,7 +462,7 @@ class ReservationManager
                 )
                 LIMIT 1
             ");
-            $copyStmt->bind_param('iss', $bookId, $endDate, $startDate);
+            $copyStmt->bind_param('iiisss', $bookId, $bookId, $promotedUserId, $endDate, $today, $startDate);
             $copyStmt->execute();
             $copyResult = $copyStmt->get_result();
             $copy = $copyResult->fetch_assoc();
@@ -442,15 +489,23 @@ class ReservationManager
             $overlapCopyStmt = $this->db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ?
-                AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
                 AND (
-                    (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
-                    OR (stato = 'pendente' AND copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
+                    (utente_id = ? AND libro_id = ?
+                     AND ( (attivo = 0 AND stato = 'pendente')
+                           OR (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo')) ))
+                    OR (
+                        data_prestito <= ?
+                        AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
+                        AND (
+                            (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                            OR (stato = 'pendente' AND copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
+                        )
+                    )
                 )
                 LIMIT 1
                 FOR UPDATE
             ");
-            $overlapCopyStmt->bind_param('iss', $copyId, $endDate, $startDate);
+            $overlapCopyStmt->bind_param('iiisss', $copyId, $promotedUserId, $bookId, $endDate, $today, $startDate);
             $overlapCopyStmt->execute();
             $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
             $overlapCopyStmt->close();
@@ -600,24 +655,22 @@ class ReservationManager
                 'autore' => $book['autore'] ?? ''
             ]);
 
-            // Format dates according to installation locale for email templates
-            $locale = \App\Support\I18n::getInstallationLocale();
-            $isItalian = str_starts_with($locale, 'it');
-            $dateFormat = $isItalian ? 'd-m-Y' : 'Y-m-d';
+            // #360 parity: formatta le date nella lingua del DESTINATARIO come
+            // tutta la pipeline email (warning/overdue/solleciti), non nel
+            // locale di installazione.
+            $notificationService = new \App\Support\NotificationService($this->db);
+            $recipientLocale = $notificationService->resolveRecipientLocale((string) $reservation['email']);
 
             $variables = [
                 'utente_nome' => $reservation['nome'],
                 'libro_titolo' => $book['titolo'],
                 'libro_autore' => $book['autore'] ?: 'Autore non specificato',
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
-                'data_inizio' => date($dateFormat, strtotime($reservation['data_inizio_richiesta'])),
-                'data_fine' => date($dateFormat, strtotime($reservation['data_fine_richiesta'])),
+                'data_inizio' => $notificationService->formatEmailDate((string) $reservation['data_inizio_richiesta'], false, $recipientLocale),
+                'data_fine' => $notificationService->formatEmailDate((string) $reservation['data_fine_richiesta'], false, $recipientLocale),
                 'book_url' => absoluteUrl($bookLink),
                 'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
             ];
-
-            // Use NotificationService for consistent email handling
-            $notificationService = new \App\Support\NotificationService($this->db);
             $success = $notificationService->sendReservationBookAvailable(
                 $reservation['email'],
                 $variables

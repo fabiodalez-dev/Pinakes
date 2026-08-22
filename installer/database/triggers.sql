@@ -10,6 +10,12 @@ CREATE TRIGGER `trg_check_active_prestito_before_insert`
 BEFORE INSERT ON `prestiti`
 FOR EACH ROW
 BEGIN
+    -- The web/CLI application initializes this connection-scoped value from
+    -- DateHelper (app.timezone). Direct SQL clients leave it NULL and retain
+    -- the safe database-local fallback.
+    DECLARE application_today DATE;
+    SET application_today = COALESCE(@pinakes_application_date, CURRENT_DATE());
+
     -- I7: la copia di un prestito deve appartenere al libro del prestito stesso
     -- (vale anche per righe chiuse: previene il decoupling libro_id/copia_id, #fix/loan-state-bugs BUG2).
     IF NEW.copia_id IS NOT NULL
@@ -38,8 +44,17 @@ BEGIN
             SELECT 1
             FROM prestiti p
             WHERE p.copia_id = NEW.copia_id
-              AND p.data_prestito <= NEW.data_scadenza
-              AND (p.stato = 'in_ritardo' OR p.data_scadenza >= NEW.data_prestito)
+              -- Effective interval of NEW: an overdue physical loan remains
+              -- open-ended until the copy is actually returned, regardless of
+              -- whether the future row or the overdue row was inserted first.
+              AND (NEW.stato = 'in_ritardo'
+                   OR (NEW.stato = 'in_corso' AND NEW.data_scadenza < application_today)
+                   OR p.data_prestito <= NEW.data_scadenza)
+              -- application_today is authoritative for app writers; its
+              -- declaration keeps CURRENT_DATE() as the direct-SQL fallback.
+              AND (p.stato = 'in_ritardo'
+                   OR (p.stato = 'in_corso' AND p.data_scadenza < application_today)
+                   OR p.data_scadenza >= NEW.data_prestito)
               AND (
                   (p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo','prenotato','da_ritirare'))
                   OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
@@ -60,6 +75,11 @@ CREATE TRIGGER `trg_check_active_prestito_before_update`
 BEFORE UPDATE ON `prestiti`
 FOR EACH ROW
 BEGIN
+    -- See the INSERT trigger: app writers bind DateHelper::today() through a
+    -- connection variable; direct SQL writes fall back to the database date.
+    DECLARE application_today DATE;
+    SET application_today = COALESCE(@pinakes_application_date, CURRENT_DATE());
+
     -- I7: la copia di un prestito deve appartenere al libro del prestito stesso
     -- (vale anche per righe chiuse: previene il decoupling libro_id/copia_id, #fix/loan-state-bugs BUG2).
     IF NEW.copia_id IS NOT NULL
@@ -118,14 +138,30 @@ BEGIN
             OR NOT (OLD.attivo = 1 OR OLD.stato = 'pendente')
             OR NOT (OLD.data_prestito <=> NEW.data_prestito)
             OR NOT (OLD.data_scadenza <=> NEW.data_scadenza)
+            -- A state-only transition can turn a finite commitment into an
+            -- open-ended physical hold (for example prenotato -> stale
+            -- in_corso). Re-run the gate whenever that semantic bit changes.
+            OR NOT (
+                (OLD.stato = 'in_ritardo'
+                 OR (OLD.stato = 'in_corso' AND OLD.data_scadenza < application_today))
+                <=>
+                (NEW.stato = 'in_ritardo'
+                 OR (NEW.stato = 'in_corso' AND NEW.data_scadenza < application_today))
+            )
         )) THEN
         IF EXISTS (
             SELECT 1
             FROM prestiti p
             WHERE p.copia_id = NEW.copia_id
               AND p.id <> NEW.id
-              AND p.data_prestito <= NEW.data_scadenza
-              AND (p.stato = 'in_ritardo' OR p.data_scadenza >= NEW.data_prestito)
+              AND (NEW.stato = 'in_ritardo'
+                   OR (NEW.stato = 'in_corso' AND NEW.data_scadenza < application_today)
+                   OR p.data_prestito <= NEW.data_scadenza)
+              -- See the INSERT trigger: application_today is authoritative for
+              -- app writes and database-local only for uninitialized SQL clients.
+              AND (p.stato = 'in_ritardo'
+                   OR (p.stato = 'in_corso' AND p.data_scadenza < application_today)
+                   OR p.data_scadenza >= NEW.data_prestito)
               AND (
                   (p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo','prenotato','da_ritirare'))
                   OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
@@ -133,8 +169,12 @@ BEGIN
               AND NOT (
                   OLD.copia_id <=> NEW.copia_id
                   AND (OLD.attivo = 1 OR OLD.stato = 'pendente')
-                  AND p.data_prestito <= OLD.data_scadenza
-                  AND (p.stato = 'in_ritardo' OR p.data_scadenza >= OLD.data_prestito)
+                  AND (OLD.stato = 'in_ritardo'
+                       OR (OLD.stato = 'in_corso' AND OLD.data_scadenza < application_today)
+                       OR p.data_prestito <= OLD.data_scadenza)
+                  AND (p.stato = 'in_ritardo'
+                       OR (p.stato = 'in_corso' AND p.data_scadenza < application_today)
+                       OR p.data_scadenza >= OLD.data_prestito)
               )
         ) THEN
             SIGNAL SQLSTATE '45000'

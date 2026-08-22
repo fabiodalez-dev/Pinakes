@@ -73,6 +73,11 @@ try {
         ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
         : new mysqli($dbHost, $dbUser, $dbPass, $dbName, $dbPort);
     $db->set_charset('utf8mb4');
+    // Production writers bind the application-local date on every
+    // connection (container/cron/scripts bootstrap); the circulation
+    // triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+    // which disagrees with app.timezone between 22:00 and 24:00 UTC.
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
 } catch (\Throwable $e) {
     fwrite(STDERR, "FAIL: database unreachable — mandatory for this test: {$e->getMessage()}\n");
     exit(1);
@@ -97,6 +102,20 @@ $EMAIL_DOMAIN = '@366fs.test.local';
 
 $today = DateHelper::today();
 $d = static fn (int $offsetDays): string => date('Y-m-d', strtotime($today . ($offsetDays >= 0 ? " +{$offsetDays} days" : ' ' . $offsetDays . ' days')));
+$withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
+    $safeDate = $db->real_escape_string($date);
+    $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    // The circulation triggers read the connection-bound application date
+    // before falling back to CURRENT_DATE(), so warping the clock must warp
+    // the bound date too — and restore the real application day afterwards.
+    $db->query("SET @pinakes_application_date = '{$safeDate}'");
+    try {
+        return $callback();
+    } finally {
+        $db->query('SET timestamp = 0');
+        \App\Support\DateHelper::synchronizeDatabaseSession($db);
+    }
+};
 
 $settingsRow = static function (string $key, string $default) use ($db): string {
     $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = ?");
@@ -421,29 +440,47 @@ try {
     check(($loanRow($loanD)['stato'] ?? '') === 'in_ritardo', 'D1: overdue sibling flipped first');
     check(($loanRow($resD)['stato'] ?? '') === 'da_ritirare', 'D1: reservation on the genuinely free copy IS promoted');
 
-    // D2: 2 copies but the reservation is pinned to the copy still out. It must
-    // stay prenotato; a staff reschedule (future start) keeps it demoted; once
-    // the pinned copy returns and the window arrives, it promotes.
+    // D2: 2 copies but the reservation is pinned to the copy still out. The
+    // activation sweep must repair the stale pin and use the free sibling;
+    // a later staff reschedule still demotes it coherently.
     $userE = $mkUser();
     $userE2 = $mkUser();
     [$bookE, [$copyEa, $copyEb]] = $mkBook(2);
-    $loanE = $mkLoan($bookE, $copyEa, $userE, 'in_corso', $d(-30), $d(-5));
+    // Seed predecessor first while it is still due today, then its disjoint
+    // successor. Returning the DB clock to today reproduces the conflict that
+    // arose only because the physical copy was not returned on time.
+    [$loanE, $resE] = $withDatabaseDate(
+        $d(-5),
+        static function () use ($mkLoan, $bookE, $copyEa, $userE, $userE2, $d): array {
+            $previous = $mkLoan($bookE, $copyEa, $userE, 'in_corso', $d(-30), $d(-5));
+            $next = $mkLoan($bookE, $copyEa, $userE2, 'prenotato', $d(-1), $d(20));
+            return [$previous, $next];
+        }
+    );
     $setCopyState($copyEa, 'prestato');
-    $resE = $mkLoan($bookE, $copyEa, $userE2, 'prenotato', $d(-1), $d(20));
 
     $svc->activateScheduledLoans();
-    check(($loanRow($resE)['stato'] ?? '') === 'prenotato', 'D2: reservation pinned to the out copy stays prenotato despite book-level room');
+    $row = $loanRow($resE);
+    check(
+        ($row['stato'] ?? '') === 'da_ritirare' && (int) ($row['copia_id'] ?? 0) === $copyEb,
+        'D2: reservation pinned to the out copy moves to the free sibling and becomes ready'
+    );
 
     $resp = $callUpdate($resE, $userE2, $d(2), $d(20));
     check(!str_contains($resp->getHeaderLine('Location'), 'error='), 'D2: rescheduling the pinned reservation succeeds');
     $row = $loanRow($resE);
     check(($row['stato'] ?? '') === 'prenotato' && ($row['pickup_deadline'] ?? null) === null, 'D2: rescheduled pinned reservation stays prenotato, no deadline');
 
-    $returnLoan($loanE, $copyEa, 'prenotato'); // copy back on the shelf, held for the reservation
-    $shiftLoan($resE, $d(0), null);            // time passes: its start arrives
+    $returnLoan($loanE, $copyEa, 'disponibile'); // original physical copy returns normally
+    $shiftLoan($resE, $d(0), null);               // time passes: its start arrives
     $svc->activateScheduledLoans();
     $row = $loanRow($resE);
-    check(($row['stato'] ?? '') === 'da_ritirare' && !empty($row['pickup_deadline']), 'D2: pinned copy returned + window arrived => promotion');
+    check(
+        ($row['stato'] ?? '') === 'da_ritirare'
+            && (int) ($row['copia_id'] ?? 0) === $copyEb
+            && !empty($row['pickup_deadline']),
+        'D2: rescheduled sibling-backed hold promotes when its window arrives'
+    );
 
     /* ---- E. CapacityService: date-overdue in_corso occupies open-ended --- */
     $userF = $mkUser();
@@ -470,8 +507,14 @@ try {
     $userG = $mkUser();
     $userG2 = $mkUser();
     [$bookG, [$copyG]] = $mkBook(1);
-    $loanG = $mkLoan($bookG, $copyG, $userG, 'in_corso', $d(-30), $d(-1));
-    $stalePickupG = $mkLoan($bookG, $copyG, $userG2, 'da_ritirare', $d(0), $d(12), $d(3));
+    [$loanG, $stalePickupG] = $withDatabaseDate(
+        $d(-1),
+        static function () use ($mkLoan, $bookG, $copyG, $userG, $userG2, $d): array {
+            $previous = $mkLoan($bookG, $copyG, $userG, 'in_corso', $d(-30), $d(-1));
+            $next = $mkLoan($bookG, $copyG, $userG2, 'da_ritirare', $d(0), $d(12), $d(3));
+            return [$previous, $next];
+        }
+    );
     $setCopyState($copyG, 'prestato');
 
     $reservationCount = (int) $db->query("SELECT COUNT(*) FROM prenotazioni WHERE libro_id = {$bookG}")->fetch_row()[0];

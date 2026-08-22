@@ -37,7 +37,7 @@ class NotificationService {
      *                            historical behaviour (installation locale)
      * @return string Formatted date
      */
-    private function formatEmailDate(string $dateString, bool $includeTime = false, ?string $locale = null): string
+    public function formatEmailDate(string $dateString, bool $includeTime = false, ?string $locale = null): string
     {
         $timestamp = strtotime($dateString);
         if ($timestamp === false) {
@@ -74,7 +74,7 @@ class NotificationService {
      * the app itself: the same value already drives the recipient's UI
      * language (login, profile, language switcher keep it up to date).
      */
-    private function resolveRecipientLocale(string $email): string
+    public function resolveRecipientLocale(string $email): string
     {
         $email = trim($email);
         $fallback = I18n::getInstallationLocale();
@@ -528,6 +528,26 @@ class NotificationService {
                 // due-today loan, the number of days otherwise (matches the in-app
                 // notification wording below).
                 $daysRemaining = (int)$loan['giorni_rimasti'];
+                $notificationMessage = $daysRemaining === 0
+                    ? sprintf(__('"%s" prestato a %s scade oggi'), $loan['libro_titolo'], $loan['utente_nome'])
+                    : sprintf(__('"%s" prestato a %s scade fra %d giorni'), $loan['libro_titolo'], $loan['utente_nome'], $daysRemaining);
+
+                // Utente senza email: niente da inviare né da ritentare. Senza
+                // questo ramo il claim veniva revertito a ogni run (retry SMTP a
+                // vuoto per sempre) e la notifica in-app non nasceva mai. Il flag
+                // resta claimato e lo staff viene avvisato in-app comunque.
+                if (trim((string) $loan['utente_email']) === '') {
+                    $this->createNotification(
+                        'general',
+                        __('Prestito in scadenza'),
+                        $notificationMessage,
+                        '/admin/loans',
+                        (int)$loan['id']
+                    );
+                    SecureLogger::info("Expiration warning for loan {$loan['id']}: user has no email, in-app notice only");
+                    continue;
+                }
+
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
@@ -539,9 +559,6 @@ class NotificationService {
 
                 if ($emailSent) {
                     // Create in-app notification for expiring loan
-                    $notificationMessage = $daysRemaining === 0
-                        ? sprintf(__('"%s" prestato a %s scade oggi'), $loan['libro_titolo'], $loan['utente_nome'])
-                        : sprintf(__('"%s" prestato a %s scade fra %d giorni'), $loan['libro_titolo'], $loan['utente_nome'], $daysRemaining);
                     $this->createNotification(
                         'general',
                         __('Prestito in scadenza'),
@@ -623,6 +640,23 @@ class NotificationService {
 
                 if (!$claimed) {
                     // Another process already claimed this loan, skip
+                    continue;
+                }
+
+                // Utente senza email: il claim resta (nulla da ritentare — prima
+                // veniva revertito a ogni run, retry SMTP a vuoto per sempre) e
+                // soprattutto gli ADMIN vengono avvisati comunque: erano dentro
+                // if ($emailSent), quindi per i prestatari senza indirizzo il
+                // ritardo non arrivava mai né via email admin né in-app.
+                if (trim((string) $loan['utente_email']) === '') {
+                    $this->notifyAdminsOverdue((int)$loan['id']);
+                    $this->notifyOverdueLoanInApp(
+                        (int)$loan['id'],
+                        $loan['utente_nome'],
+                        $loan['libro_titolo'],
+                        (int)$loan['giorni_ritardo']
+                    );
+                    SecureLogger::info("Overdue notification for loan {$loan['id']}: user has no email, admins notified only");
                     continue;
                 }
 
@@ -1020,6 +1054,7 @@ class NotificationService {
                   AND u.stato = 'attivo'
                   AND w.notified = 0
                   AND l.copie_disponibili > 0
+                  AND u.email IS NOT NULL AND TRIM(u.email) <> ''
                 GROUP BY w.id, w.utente_id, u.nome, u.cognome, u.email, l.titolo, l.isbn13, l.isbn10
             ");
             $stmt->bind_param('i', $bookId);
@@ -1184,59 +1219,26 @@ class NotificationService {
      * @return string|null Date in Y-m-d format, or null if no loans/reservations
      */
     public function getNextAvailabilityDate(int $bookId): ?string {
-        // App-timezone "today" (M9), come hasActualAvailableCopy().
         $today = DateHelper::today();
-
-        // First check if book is already available
-        if ($this->hasActualAvailableCopy($bookId)) {
-            return $today;
-        }
-
-        // Find the earliest end date among active loans (approved states only)
-        $loanStmt = $this->db->prepare("
-            SELECT MIN(data_scadenza) as earliest_end
-            FROM prestiti
-            WHERE libro_id = ? AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
-            AND data_scadenza >= ?
-        ");
-        $loanStmt->bind_param('is', $bookId, $today);
-        $loanStmt->execute();
-        $loanResult = $loanStmt->get_result()->fetch_assoc();
-        $earliestLoanEnd = $loanResult['earliest_end'] ?? null;
-        $loanStmt->close();
-
-        // Find the earliest end date among active reservations
-        $resStmt = $this->db->prepare("
-            SELECT MIN(COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta)) as earliest_end
-            FROM prenotazioni
-            WHERE libro_id = ? AND stato = 'attiva'
-            AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) IS NOT NULL
-            AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta) >= ?
-        ");
-        $resStmt->bind_param('is', $bookId, $today);
-        $resStmt->execute();
-        $resResult = $resStmt->get_result()->fetch_assoc();
-        $earliestResEnd = $resResult['earliest_end'] ?? null;
-        $resStmt->close();
-
-        // Return the earliest of the two (the day after it ends, the book becomes available)
-        $dates = array_filter([$earliestLoanEnd, $earliestResEnd]);
-        if (empty($dates)) {
-            return null;
-        }
-
-        $earliestEnd = min($dates);
-        // Return the day after the earliest end date
-        return date('Y-m-d', strtotime($earliestEnd . ' +1 day'));
+        return (new \App\Services\CapacityService($this->db))
+            ->firstAvailableDate($bookId, $today);
     }
 
     /**
      * Aggiunge colonne per tracking notifiche se non esistono
      */
-    private function addNotificationColumns(): void {
+    /**
+     * Public: anche i chiamanti esterni che aggiornano i flag di notifica
+     * direttamente (es. il claim pickup in LoanApprovalController) devono
+     * poter garantire le colonne prima dell'UPDATE sugli install legacy.
+     *
+     * @return bool true se le colonne sono garantite; false se l'inizializzazione
+     *              è fallita (install legacy con ALTER negato) — in quel caso i
+     *              chiamanti NON devono eseguire UPDATE sui flag di notifica.
+     */
+    public function addNotificationColumns(): bool {
         if ($this->notificationColumnsEnsured) {
-            return;
+            return true;
         }
         try {
             // Check if columns exist
@@ -1249,6 +1251,15 @@ class NotificationService {
             if ($result->num_rows === 0) {
                 $this->db->query("ALTER TABLE prestiti ADD COLUMN overdue_notification_sent BOOLEAN DEFAULT 0");
             }
+
+            // Claim/retry dell'email "pronto al ritiro": schema + backfill
+            // resumable are centralized so controller, cron and maintenance
+            // cannot drift or run DDL inside a circulation transaction.
+            // Un fallimento qui NON deve saltare la creazione delle colonne
+            // recall qui sotto: sendLoanRecalls() le interroga ignorando il
+            // valore di ritorno, e un early-return lascerebbe i solleciti
+            // automatici silenziosamente a zero per una causa non correlata.
+            $pickupSchemaReady = PickupNotificationSchema::ensure($this->db);
 
             // #360: recall (sollecito) tracking — how many recalls went out and
             // when the last one did, so automatic recalls can repeat at the
@@ -1264,12 +1275,17 @@ class NotificationService {
                 $this->db->query("ALTER TABLE prestiti ADD COLUMN last_recall_at DATETIME NULL DEFAULT NULL");
             }
 
+            if (!$pickupSchemaReady) {
+                return false;
+            }
+
             // Only memoize once the checks completed without throwing, so a
             // transient failure retries on the next call.
             $this->notificationColumnsEnsured = true;
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to add notification columns: " . $e->getMessage());
         }
+        return $this->notificationColumnsEnsured;
     }
 
     /**
@@ -1490,7 +1506,14 @@ class NotificationService {
      * Invia notifica quando un prestito è pronto per il ritiro (stato da_ritirare)
      */
     public function sendPickupReadyNotification(int $loanId): bool {
+        $claimToken = null;
+
         try {
+            // A restricted legacy DB may not be able to self-heal before the
+            // updater runs. In that case preserve the historical one-shot send
+            // instead of losing the email because the claim column is absent.
+            $claimSchemaAvailable = PickupNotificationSchema::ensure($this->db);
+
             $stmt = $this->db->prepare("
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
@@ -1508,6 +1531,60 @@ class NotificationService {
                 return false;
             }
             $stmt->close();
+
+            // Claim atomico come warning/overdue: marca l'avviso PRIMA di
+            // inviare, così un doppio trigger non duplica l'email e un
+            // fallimento SMTP viene ritentato dallo sweep
+            // retryUnsentPickupNotifications() invece di perdersi per sempre.
+            // Solo per righe 'da_ritirare' (l'unico stato che ha un ritiro da
+            // annunciare); per stati diversi mantiene il comportamento storico.
+            $isReadyPickup = ($loan['stato'] ?? '') === 'da_ritirare' && (int) ($loan['attivo'] ?? 0) === 1;
+            if ($isReadyPickup && $claimSchemaAvailable) {
+                $claimToken = bin2hex(random_bytes(16));
+                $claimWindow = PickupNotificationSchema::claimLeaseWindow();
+                $attemptedAt = $claimWindow['attemptedAt'];
+                $staleBefore = $claimWindow['staleBefore'];
+                $recipientUserId = (int) $loan['utente_id'];
+                $claimStmt = $this->db->prepare("
+                    UPDATE prestiti
+                       SET pickup_notification_sent = 1,
+                           pickup_notification_claim_token = ?,
+                           pickup_notification_last_attempt_at = ?
+                    WHERE id = ? AND utente_id = ?
+                      AND attivo = 1 AND stato = 'da_ritirare'
+                      AND (
+                            pickup_notification_sent IS NULL
+                            OR pickup_notification_sent = 0
+                            OR (
+                                pickup_notification_sent = 1
+                                AND pickup_notification_claim_token IS NOT NULL
+                                AND pickup_notification_last_attempt_at < ?
+                            )
+                      )
+                ");
+                $claimStmt->bind_param('ssiis', $claimToken, $attemptedAt, $loanId, $recipientUserId, $staleBefore);
+                $claimStmt->execute();
+                $claimAcquired = $claimStmt->affected_rows === 1;
+                $claimStmt->close();
+                if (!$claimAcquired) {
+                    $claimToken = null;
+                    // Già annunciato/claimato, oppure il destinatario è cambiato
+                    // dopo la lettura. In quest'ultimo caso il reset effettuato
+                    // dalla riassegnazione lascia la riga al retry successivo.
+                    return false;
+                }
+            }
+
+            // Utente senza email: il claim resta (nulla da ritentare), niente churn.
+            if (trim((string) $loan['utente_email']) === '') {
+                if ($claimToken !== null) {
+                    $ownedToken = $claimToken;
+                    $claimToken = null;
+                    $this->finalizePickupClaim($loanId, $ownedToken);
+                }
+                SecureLogger::info("Pickup ready notification for loan {$loanId}: user has no email, skipped");
+                return false;
+            }
 
             // Calculate number of days for loan
             $startDate = new \DateTime($loan['data_prestito']);
@@ -1529,12 +1606,135 @@ class NotificationService {
                 'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale)
             ];
 
-            return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_ready', $variables);
+            $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_pickup_ready', $variables);
+
+            if ($emailSent) {
+                if ($claimToken !== null) {
+                    $ownedToken = $claimToken;
+                    // Once delivery succeeded, never let a cleanup failure re-arm
+                    // the email. Relinquish local ownership before cleanup.
+                    $claimToken = null;
+                    $this->finalizePickupClaim($loanId, $ownedToken);
+                }
+            } elseif ($claimToken !== null) {
+                // Il claim è certamente riuscito (il ramo !claimAcquired esce):
+                // revert del flag così lo sweep di manutenzione ritenta al
+                // prossimo run (stesso pattern di warning/overdue).
+                $ownedToken = $claimToken;
+                $claimToken = null;
+                $this->releasePickupClaim($loanId, $ownedToken);
+                SecureLogger::warning("Failed to send pickup ready notification for loan {$loanId} after retries, flag reverted");
+            }
+
+            return $emailSent;
 
         } catch (\Throwable $e) {
+            if ($claimToken !== null) {
+                try {
+                    $ownedToken = $claimToken;
+                    $claimToken = null;
+                    $this->releasePickupClaim($loanId, $ownedToken);
+                } catch (\Throwable $revertError) {
+                    SecureLogger::error("Failed to release pickup notification claim for loan {$loanId}: " . $revertError->getMessage());
+                }
+            }
             SecureLogger::error("Failed to send pickup ready notification: " . $e->getMessage());
             return false;
         }
+    }
+
+    private function releasePickupClaim(int $loanId, string $claimToken): void
+    {
+        $revertStmt = $this->db->prepare("
+            UPDATE prestiti
+               SET pickup_notification_sent = 0,
+                   pickup_notification_claim_token = NULL
+             WHERE id = ? AND pickup_notification_claim_token = ?
+        ");
+        $revertStmt->bind_param('is', $loanId, $claimToken);
+        $revertStmt->execute();
+        $revertStmt->close();
+    }
+
+    private function finalizePickupClaim(int $loanId, string $claimToken): void
+    {
+        $finalizeStmt = $this->db->prepare("
+            UPDATE prestiti
+               SET pickup_notification_claim_token = NULL
+             WHERE id = ? AND pickup_notification_claim_token = ?
+        ");
+        $finalizeStmt->bind_param('is', $loanId, $claimToken);
+        $finalizeStmt->execute();
+        $finalizeStmt->close();
+    }
+
+    /**
+     * Recupero delle email "pronto al ritiro" il cui invio è fallito
+     * (stato ancora 'da_ritirare', pickup_notification_sent = 0), oppure claim
+     * rimasti orfani oltre la lease. Chiamato dallo sweep di manutenzione; il
+     * token vive in sendPickupReadyNotification() e limita la consegna a un
+     * proprietario alla volta. Dopo un crash il protocollo è at-least-once:
+     * non può sapere se SMTP abbia accettato il messaggio prima della morte del
+     * worker, ma privilegia il recupero rispetto alla perdita silenziosa.
+     */
+    public function retryUnsentPickupNotifications(): int {
+        $sentCount = 0;
+        try {
+            if (!PickupNotificationSchema::ensure($this->db)) {
+                return 0;
+            }
+            $today = DateHelper::today();
+            $staleBefore = PickupNotificationSchema::claimLeaseWindow()['staleBefore'];
+
+            // Solo ritiri ancora validi (deadline non passata: quelli scaduti li
+            // culla checkExpiredPickups) e utenti con un indirizzo email.
+            // Il JOIN su libri rispecchia sendPickupReadyNotification(): senza,
+            // un ritiro il cui titolo è stato archiviato (soft-delete) verrebbe
+            // selezionato qui ma scartato PRIMA del claim dall'invio — nessun
+            // last_attempt_at scritto, riga sempre in testa all'ORDER BY, e con
+            // 20 righe così il LIMIT si satura e nessun ritiro sano viene più
+            // notificato.
+            $stmt = $this->db->prepare("
+                SELECT p.id
+                FROM prestiti p
+                JOIN utenti u ON p.utente_id = u.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                WHERE p.attivo = 1 AND p.stato = 'da_ritirare'
+                  AND (
+                        p.pickup_notification_sent IS NULL
+                        OR p.pickup_notification_sent = 0
+                        OR (
+                            p.pickup_notification_sent = 1
+                            AND p.pickup_notification_claim_token IS NOT NULL
+                            AND p.pickup_notification_last_attempt_at < ?
+                        )
+                  )
+                  AND (p.pickup_deadline IS NULL OR p.pickup_deadline >= ?)
+                  AND u.email IS NOT NULL AND TRIM(u.email) <> ''
+                ORDER BY p.pickup_notification_last_attempt_at IS NULL DESC,
+                         p.pickup_notification_last_attempt_at ASC,
+                         p.id ASC
+                LIMIT 20
+            ");
+            $stmt->bind_param('ss', $staleBefore, $today);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $loanIds = [];
+            while ($row = $result->fetch_assoc()) {
+                $loanIds[] = (int) $row['id'];
+            }
+            $stmt->close();
+
+            foreach ($loanIds as $loanId) {
+                if ($this->sendPickupReadyNotification($loanId)) {
+                    $sentCount++;
+                }
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to retry unsent pickup notifications: " . $e->getMessage());
+        }
+
+        return $sentCount;
     }
 
     /**

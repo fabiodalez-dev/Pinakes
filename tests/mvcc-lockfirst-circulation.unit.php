@@ -79,6 +79,11 @@ $connect = static function () use ($dbName, $dbUser, $dbPass, $socket, $env): my
         ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
         : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $dbUser, $dbPass, $dbName, (int) ($env['DB_PORT'] ?? 3306));
     $db->set_charset('utf8mb4');
+    // Production writers bind the application-local date on every
+    // connection (container/cron/scripts bootstrap); the circulation
+    // triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+    // which disagrees with app.timezone between 22:00 and 24:00 UTC.
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
     return $db;
 };
 
@@ -348,7 +353,15 @@ try {
 
     $rmSource = $readSource('/app/Controllers/ReservationManager.php');
     $pba = $extractMethod($rmSource, 'function processBookAvailability(');
-    check((bool) preg_match('/FROM prenotazioni r\s+JOIN utenti u ON r\.utente_id = u\.id.*?LIMIT 1\s+FOR UPDATE/s', $pba), 'ReservationManager: queue read is a locking read (FOR UPDATE)');
+    $fifoLockingRead = (bool) preg_match(
+        '/FROM prenotazioni r\s+JOIN utenti u ON r\.utente_id = u\.id.*?ORDER BY r\.queue_position ASC\s+LIMIT 1\s+FOR UPDATE/s',
+        $pba
+    );
+    $queueReadUsesOffset = (bool) preg_match(
+        '/FROM prenotazioni r\s+JOIN utenti u ON r\.utente_id = u\.id.*?\bOFFSET\b.*?FOR UPDATE/s',
+        $pba
+    );
+    check($fifoLockingRead && !$queueReadUsesOffset, 'ReservationManager: queue read locks the first FIFO row without OFFSET');
     check(str_contains($pba, "SET stato = 'completata' WHERE id = ? AND stato = 'attiva'"), "ReservationManager: completata claim is guarded by AND stato = 'attiva'");
     check((bool) preg_match('/\$claimed\s*!==?\s*1|affected_rows/s', $pba) && str_contains($pba, 'affected_rows'), 'ReservationManager: completata claim checks affected_rows');
     // The claim must happen BEFORE the loan is created (match the actual

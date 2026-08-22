@@ -80,6 +80,25 @@ final class CapacityService
     }
 
     /**
+     * True se il libro ha almeno una riga in `copie`. Un libro legacy senza
+     * copie fisiche registrate supera il gate di capacità tramite il fallback
+     * copie_totali, ma la promozione della coda seleziona SOLO da `copie`:
+     * una prenotazione accettata non convertirebbe mai (fallirebbe in silenzio
+     * a ogni run fino alla scadenza). I gate di CREAZIONE prenotazione usano
+     * questo check per rifiutare a monte; i prestiti legacy copyless esistenti
+     * non passano di qui e restano gestiti dal fallback.
+     */
+    public function hasPhysicalCopies(int $libroId): bool
+    {
+        $stmt = $this->db->prepare("SELECT 1 FROM copie WHERE libro_id = ? LIMIT 1");
+        $stmt->bind_param('i', $libroId);
+        $stmt->execute();
+        $hasRows = $stmt->get_result()->num_rows > 0;
+        $stmt->close();
+        return $hasRows;
+    }
+
+    /**
      * OCC(b,[s,e]) — the peak simultaneous occupancy over the inclusive interval
      * [$start,$end], counting HOLDING loans + active reservations. Excludes the
      * row/user being decided (so a gate can ignore the very commitment it is about
@@ -126,6 +145,72 @@ final class CapacityService
         }
         $occ = $this->occupiedCount($libroId, $start, $end, $excludePrestitoId, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos);
         return $occ < $total;
+    }
+
+    /**
+     * Earliest day on or after $from with at least one free capacity unit.
+     *
+     * Uses the same canonical HOLDING/reservation intervals as every write
+     * gate, then sweeps only their boundary events. Open-ended overdue loans
+     * are clamped to the horizon without a release event, so no guessed return
+     * date is exposed while a physical copy is still out.
+     */
+    public function firstAvailableDate(int $libroId, string $from): ?string
+    {
+        try {
+            $fromDate = new \DateTimeImmutable($from);
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($fromDate->format('Y-m-d') !== $from) {
+            return null;
+        }
+
+        $total = $this->totalCopies($libroId);
+        if ($total <= 0) {
+            return null;
+        }
+
+        // Keep one day available for finite end+1 events. Any interval clamped
+        // to this horizon is effectively open-ended for application purposes.
+        $horizon = '9999-12-30';
+        $intervals = array_merge(
+            $this->holdingLoanIntervals($libroId, $from, $horizon, null, null),
+            $this->activeReservationIntervals($libroId, $from, $horizon, null, null)
+        );
+        if ($intervals === []) {
+            return $from;
+        }
+
+        /** @var array<string, int> $events */
+        $events = [];
+        foreach ($intervals as [$start, $end]) {
+            $events[$start] = ($events[$start] ?? 0) + 1;
+            if ($end < $horizon) {
+                $release = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
+                $events[$release] = ($events[$release] ?? 0) - 1;
+            }
+        }
+        ksort($events, SORT_STRING);
+
+        $occupied = 0;
+        $cursor = $from;
+        foreach ($events as $date => $delta) {
+            // No boundary changes between cursor and date: if capacity was
+            // already free, cursor is the earliest possible answer.
+            if ($date > $cursor && $occupied < $total) {
+                return $cursor;
+            }
+            $occupied += $delta;
+            if ($date >= $from && $occupied < $total) {
+                return $date;
+            }
+            $cursor = $date;
+        }
+
+        // Remaining occupancy is made exclusively of horizon-clamped,
+        // open-ended commitments; their physical return date is unknown.
+        return null;
     }
 
     /**

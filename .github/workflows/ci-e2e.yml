@@ -55,6 +55,9 @@ jobs:
       # supports PHP >= 8.1, so the Ubuntu mod_php package is sufficient here.
       - name: Install Apache2 + mod_php
         run: |
+          # This job never installs Google Chrome. Remove its hosted-runner
+          # apt source before the first refresh so mirror syncs cannot break CI.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -q
           sudo apt-get install -y apache2 libapache2-mod-php
           sudo a2enmod rewrite headers env

@@ -16,6 +16,8 @@ $oldPdf = (bool) ($oldPdf ?? true);
 $meUserId = (int) ($meUserId ?? 0);
 $meUserName = (string) ($meUserName ?? '');
 $defaultLoanDays = max(1, (int) ($defaultLoanDays ?? 30));
+$allowMultipleLoansSameBook = (bool) ($allowMultipleLoansSameBook ?? false);
+$loanSubmissionToken = (string) ($loanSubmissionToken ?? '');
 
 $csrf = Csrf::ensureToken();
 // Get locale from session (same as frontend/layout.php)
@@ -76,6 +78,9 @@ $apiBookRoute = route_path('api_book');
         case 'invalid_date_format':
           echo __('Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.');
           break;
+        case 'expired_window':
+          echo __('La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo');
+          break;
         case 'no_copies_available':
           echo __('Tutte le copie di questo libro hanno già un prestito attivo o prenotato. Attendi che una copia venga restituita.');
           break;
@@ -97,6 +102,9 @@ $apiBookRoute = route_path('api_book');
         case 'copy_not_available':
           echo __('La copia indicata non è disponibile per il periodo richiesto.');
           break;
+        case 'duplicate_submission':
+          echo __("La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.");
+          break;
         default:
           echo __('Errore durante la creazione del prestito.');
       }
@@ -117,8 +125,11 @@ $apiBookRoute = route_path('api_book');
     </div>
   <?php endif; ?>
 
-  <form method="post" action="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
+  <form method="post" id="loan-create-form" action="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>"
+        data-multiple-copy-mode="<?= $allowMultipleLoansSameBook ? '1' : '0' ?>"
+        class="space-y-6 bg-white p-6 rounded-2xl border border-gray-200 shadow">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="loan_submission_token" value="<?= htmlspecialchars($loanSubmissionToken, ENT_QUOTES, 'UTF-8') ?>">
 
     <!-- Ricerca Utente -->
     <div class="relative">
@@ -176,6 +187,11 @@ $apiBookRoute = route_path('api_book');
         </button>
       </div>
       <p class="mt-1 text-xs text-gray-500"><?= __("Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente. Se inserisci o scansioni un codice, il libro viene identificato in automatico.") ?></p>
+      <?php if ($allowMultipleLoansSameBook): ?>
+      <p class="mt-1 text-xs text-gray-600">
+        <i class="fas fa-layer-group mr-1" aria-hidden="true"></i><?= __("Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.") ?>
+      </p>
+      <?php endif; ?>
       <p id="copy_code_status" class="mt-1 text-xs hidden" role="status" aria-live="polite"></p>
     </div>
 
@@ -249,7 +265,7 @@ $apiBookRoute = route_path('api_book');
       <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
         <i class="fas fa-save mr-2"></i><?= __("Crea Prestito") ?></button>
       <!-- Registra più copie per lo stesso utente: salva e riapre il form con i
-           dati del prestito mantenuti; libro e codice copia vengono azzerati. -->
+           dati condivisi mantenuti; il codice copia viene sempre azzerato. -->
       <button type="submit" name="save_and_new" value="1" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
         <i class="fas fa-layer-group mr-2"></i><?= __("Salva e registra un'altra copia") ?></button>
       <a href="<?= htmlspecialchars(url('/admin/loans'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
@@ -321,8 +337,32 @@ $apiBookRoute = route_path('api_book');
       // values now being entered. Remove it on the first form edit (including a
       // scanner-generated input/change event) and clean the stale URL flags so a
       // refresh cannot bring the old notice or PDF download back.
-      const loanForm = document.querySelector('form[action$="/admin/loans/create"]');
+      // Id stabile invece del selettore sull'action: il markup non dipende
+      // così dal percorso dell'URL.
+      const loanForm = document.getElementById('loan-create-form');
       const loanCreatedAlert = document.getElementById('loan_created_alert');
+
+      // Guard anti doppio-submit: con la modalità multi-copia attiva e il campo
+      // codice vuoto, un replay identico del form auto-assegnerebbe un'ALTRA
+      // copia (il dup-check stretto non blocca più). Disabilita i bottoni al
+      // primo submit; il timeout lascia serializzare il valore del bottone
+      // cliccato (save_and_new) prima del disable.
+      if (loanForm) {
+        let loanSubmitInFlight = false;
+        loanForm.addEventListener('submit', function (event) {
+          if (loanSubmitInFlight) {
+            event.preventDefault();
+            return;
+          }
+          loanSubmitInFlight = true;
+          setTimeout(function () {
+            loanForm.querySelectorAll('button[type="submit"]').forEach(function (btn) {
+              btn.disabled = true;
+              btn.classList.add('opacity-60', 'cursor-not-allowed');
+            });
+          }, 0);
+        });
+      }
       if (loanForm && loanCreatedAlert) {
         const clearCreatedAlert = function() {
           if (loanCreatedAlert.isConnected) loanCreatedAlert.remove();
@@ -957,6 +997,13 @@ $apiBookRoute = route_path('api_book');
         });
       }
       setupCopyCodeResolver();
+
+      // In the batch workflow, return the operator directly to the scanner field
+      // after a successful save. The selected title is retained server-side.
+      if (loanForm && loanCreatedAlert && loanForm.dataset.multipleCopyMode === '1') {
+        const nextCopyCode = document.getElementById('copy_code');
+        if (nextCopyCode) nextCopyCode.focus();
+      }
     });
   </script>
 

@@ -59,6 +59,11 @@ try {
         ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
         : new mysqli($dbHost, $dbUser, $dbPass, $dbName, $dbPort);
     $db->set_charset('utf8mb4');
+    // Production writers bind the application-local date on every
+    // connection (container/cron/scripts bootstrap); the circulation
+    // triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+    // which disagrees with app.timezone between 22:00 and 24:00 UTC.
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
 } catch (\Throwable $e) {
     fwrite(STDERR, "FAIL: database unreachable — mandatory for the 25 real-world scenarios: {$e->getMessage()}\n");
     exit(1);
@@ -95,6 +100,20 @@ $d = static fn (int $offset): string => date(
     'Y-m-d',
     strtotime($today . ($offset >= 0 ? " +{$offset} days" : " {$offset} days"))
 );
+$withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
+    $safeDate = $db->real_escape_string($date);
+    $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    // The circulation triggers read the connection-bound application date
+    // before falling back to CURRENT_DATE(), so warping the clock must warp
+    // the bound date too — and restore the real application day afterwards.
+    $db->query("SET @pinakes_application_date = '{$safeDate}'");
+    try {
+        return $callback();
+    } finally {
+        $db->query('SET timestamp = 0');
+        \App\Support\DateHelper::synchronizeDatabaseSession($db);
+    }
+};
 
 $cleanup = static function () use ($db, $titlePrefix, $run, $emailSuffix): void {
     $titleLike = $db->real_escape_string($titlePrefix) . '%';
@@ -321,26 +340,40 @@ try {
             && $row['pickup_deadline'] <= $row['data_scadenza'];
     });
 
-    $scenario('a reservation pinned to an out copy stays queued even when a sibling copy is free', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $maintenance, $loanRow, $d): bool {
+    $scenario('a reservation pinned to an out copy moves to a free sibling before pickup', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $maintenance, $loanRow, $d, $withDatabaseDate): bool {
         $old = $mkUser('s03a');
         $next = $mkUser('s03b');
         [$bookId, [$outCopy, $freeCopy]] = $mkBook('s03', ['disponibile', 'disponibile']);
-        $mkLoan($bookId, $outCopy, $old['id'], 'in_corso', $d(-20), $d(-1));
+        [, $successor] = $withDatabaseDate(
+            $d(-1),
+            static function () use ($mkLoan, $bookId, $outCopy, $old, $next, $d): array {
+                $previous = $mkLoan($bookId, $outCopy, $old['id'], 'in_corso', $d(-20), $d(-1));
+                $scheduled = $mkLoan($bookId, $outCopy, $next['id'], 'prenotato', $d(0), $d(10));
+                return [$previous, $scheduled];
+            }
+        );
         $setCopyState($outCopy, 'prestato');
-        $successor = $mkLoan($bookId, $outCopy, $next['id'], 'prenotato', $d(0), $d(10));
         $maintenance->updateOverdueLoans();
         $maintenance->activateScheduledLoans();
         $row = $loanRow($successor);
-        return ($row['stato'] ?? '') === 'prenotato' && $freeCopy > 0;
+        return ($row['stato'] ?? '') === 'da_ritirare'
+            && (int) ($row['copia_id'] ?? 0) === $freeCopy
+            && $freeCopy > 0;
     });
 
-    $scenario('a pinned reservation promotes as soon as its own copy is returned', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $returnLoan, $maintenance, $loanRow, $d): bool {
+    $scenario('a pinned reservation promotes as soon as its own copy is returned', function () use ($mkUser, $mkBook, $mkLoan, $setCopyState, $returnLoan, $maintenance, $loanRow, $d, $withDatabaseDate): bool {
         $old = $mkUser('s04a');
         $next = $mkUser('s04b');
         [$bookId, [$copyId, $unusedCopy]] = $mkBook('s04', ['disponibile', 'disponibile']);
-        $predecessor = $mkLoan($bookId, $copyId, $old['id'], 'in_corso', $d(-20), $d(-1));
+        [$predecessor, $successor] = $withDatabaseDate(
+            $d(-1),
+            static function () use ($mkLoan, $bookId, $copyId, $old, $next, $d): array {
+                $previous = $mkLoan($bookId, $copyId, $old['id'], 'in_corso', $d(-20), $d(-1));
+                $scheduled = $mkLoan($bookId, $copyId, $next['id'], 'prenotato', $d(0), $d(10));
+                return [$previous, $scheduled];
+            }
+        );
         $setCopyState($copyId, 'prestato');
-        $successor = $mkLoan($bookId, $copyId, $next['id'], 'prenotato', $d(0), $d(10));
         $returnLoan($predecessor, $copyId, 'prenotato');
         $maintenance->activateScheduledLoans();
         return ($loanRow($successor)['stato'] ?? '') === 'da_ritirare' && $unusedCopy > 0;

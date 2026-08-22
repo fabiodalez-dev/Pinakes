@@ -1426,6 +1426,7 @@
   "Errore di sicurezza. Aggiorna la pagina e riprova": "Security error. Refresh the page and try again",
   "Errore di sicurezza. Ricarica la pagina e riprova": "Security error. Reload the page and try again",
   "Errore di sicurezza. Ricarica la pagina e riprova.": "Security error. Reload the page and try again.",
+  "La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.": "The request has already been processed or is no longer valid. Check the loan list before trying again.",
   "Errore di sicurezza. Riprova.": "Security error. Please try again.",
   "Errore di sistema.": "System error.",
   "Errore durante il caricamento": "Error during loading",
@@ -6875,5 +6876,19 @@
   "%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).": "%s selected loans will receive the reminder (only the overdue ones).",
   "Impossibile generare la ricevuta PDF.": "Could not generate the receipt PDF.",
   "Attivazione prestito rinviata: nessuna copia libera": "Loan activation deferred: no copy free",
-  "Attivazione prestito rinviata: copia assegnata non in sede": "Loan activation deferred: assigned copy not in library"
+  "Attivazione prestito rinviata: copia assegnata non in sede": "Loan activation deferred: assigned copy not in library",
+  "Più copie dello stesso titolo": "Multiple copies of the same title",
+  "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Allow the same user to have multiple active loans for the same book, provided each loan is associated with a distinct physical copy.",
+  "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte": "Allow multiple loans of the same title only for distinct physical copies",
+  "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.": "Each loan must be associated with a distinct physical copy; pending requests and reservations remain limited to one per user and book.",
+  "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Pending requests and reservations remain unique per user and book. Each copy counts toward the active loan limit.",
+  "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Multiple-loan mode is active: the book remains selected; scan the next copy to continue.",
+  "La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo": "The requested window has already passed: update the loan dates before approving it",
+  "Ritiro annullato il": "Pickup cancelled on",
+  "Un'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.": "Another operation was updating the same book: nothing was saved, try again now.",
+  "Stato prenotazione non valido: modifica non salvata.": "Invalid reservation status: changes not saved.",
+  "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "This reservation has already been converted into a still-open loan: manage the loan from the Loans page instead of editing the reservation.",
+  "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService cooldown marker update failed",
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService pickup notification recovery error",
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Error: the new due date cannot be in the past."
 }

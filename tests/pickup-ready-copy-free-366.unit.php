@@ -23,9 +23,9 @@ declare(strict_types=1);
  *      pickup_deadline.
  *   4. Multi-copy: 2 copies, 1 out overdue -> the reservation on the free
  *      copy IS promoted (multi-copy behaviour preserved).
- *   5. Multi-copy, reservation pinned to the copy that is still out -> stays
- *      'prenotato' even though the book-level count has room; promotes after
- *      that copy is returned.
+ *   5. Multi-copy, reservation pinned to the copy that is still out -> moves
+ *      atomically to a free sibling copy and promotes without waiting for the
+ *      original item to return.
  *
  * Drives the real MaintenanceService::activateScheduledLoans() against the
  * live DB. It asserts only on rows it creates (titles ZZ_366_%, users zz366-%)
@@ -84,6 +84,11 @@ try {
     exit(0);
 }
 $db->set_charset('utf8mb4');
+// Production writers bind the application-local date on every
+// connection (container/cron/scripts bootstrap); the circulation
+// triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+// which disagrees with app.timezone between 22:00 and 24:00 UTC.
+\App\Support\DateHelper::synchronizeDatabaseSession($db);
 
 $TESTNO = 0;
 $failed = 0;
@@ -104,6 +109,20 @@ $EMAIL_SUFFIX = "@example.invalid";
 
 $today = \App\Support\DateHelper::today();
 $d = static fn (int $offsetDays): string => date('Y-m-d', strtotime($today . ($offsetDays >= 0 ? " +{$offsetDays} days" : ' ' . $offsetDays . ' days')));
+$withDatabaseDate = static function (string $date, callable $callback) use ($db): mixed {
+    $safeDate = $db->real_escape_string($date);
+    $db->query("SET timestamp = UNIX_TIMESTAMP('{$safeDate} 12:00:00')");
+    // The circulation triggers read the connection-bound application date
+    // before falling back to CURRENT_DATE(), so warping the clock must warp
+    // the bound date too — and restore the real application day afterwards.
+    $db->query("SET @pinakes_application_date = '{$safeDate}'");
+    try {
+        return $callback();
+    } finally {
+        $db->query('SET timestamp = 0');
+        \App\Support\DateHelper::synchronizeDatabaseSession($db);
+    }
+};
 
 /* -------------------------------- helpers -------------------------------- */
 
@@ -156,7 +175,7 @@ $setCopyState = static function (int $copiaId, string $stato) use ($db): void {
 };
 
 $loanRow = static function (int $loanId) use ($db): array {
-    $stmt = $db->prepare("SELECT stato, pickup_deadline FROM prestiti WHERE id = ?");
+    $stmt = $db->prepare("SELECT stato, pickup_deadline, copia_id FROM prestiti WHERE id = ?");
     $stmt->bind_param('i', $loanId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc() ?: [];
@@ -237,21 +256,33 @@ try {
     /* ---- Scenario 3: multi-copy but pinned to the copy still out -------- */
     [$book3, $copies3] = $mkBook('pinned-copy', 2);
     [$c3a, $c3b] = $copies3;
-    $prev3 = $mkLoan($book3, $c3a, $borrower, 'in_corso', $d(-30), $d(-5));
+    // The successor was scheduled while its predecessor was still on time;
+    // the physical conflict appears only later when the copy is not returned.
+    [$prev3, $res3] = $withDatabaseDate(
+        $d(-5),
+        static function () use ($mkLoan, $book3, $c3a, $borrower, $reserver, $d): array {
+            $previous = $mkLoan($book3, $c3a, $borrower, 'in_corso', $d(-30), $d(-5));
+            $scheduled = $mkLoan($book3, $c3a, $reserver, 'prenotato', $d(-1), $d(20));
+            return [$previous, $scheduled];
+        }
+    );
     $setCopyState($c3a, 'prestato');
-    // Reservation pinned to the very copy that is still out (non-overlapping
-    // window, so the DB trigger allows the row — the #366 blind spot).
-    $res3 = $mkLoan($book3, $c3a, $reserver, 'prenotato', $d(-1), $d(20));
 
     $svc->activateScheduledLoans();
     $row = $loanRow($res3);
-    check(($row['stato'] ?? '') === 'prenotato', "reservation pinned to the out copy stays 'prenotato' even with book-level room");
+    check(
+        ($row['stato'] ?? '') === 'da_ritirare' && (int) ($row['copia_id'] ?? 0) === $c3b,
+        'reservation pinned to the out copy moves to the free sibling and becomes ready'
+    );
 
     $returnLoan($prev3, $c3a);
-    $setCopyState($c3a, 'prenotato'); // copy back on the shelf, held for the reservation
+    $setCopyState($c3a, 'disponibile');
     $svc->activateScheduledLoans();
     $row = $loanRow($res3);
-    check(($row['stato'] ?? '') === 'da_ritirare', "pinned copy returned: reservation promotes to 'da_ritirare'");
+    check(
+        ($row['stato'] ?? '') === 'da_ritirare' && (int) ($row['copia_id'] ?? 0) === $c3b,
+        'returning the original copy does not move or duplicate the already-ready loan'
+    );
 
 } catch (\Throwable $e) {
     $cleanup();

@@ -43,7 +43,7 @@ class MaintenanceService
      * non basta, due admin in sessioni diverse eseguirebbero entrambi runAll().
      *
      * @param int $cooldownMinutes Minimum minutes between runs (default: 60)
-     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, invalid_ready_pickups_repaired?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
+     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, invalid_ready_pickups_repaired?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, pickup_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
      */
     public function runIfNeeded(int $cooldownMinutes = 60): array
     {
@@ -101,7 +101,7 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, ics_generated: bool, errors: array} Results for each maintenance task
+     * @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, ics_generated: bool, errors: array} Results for each maintenance task
      */
     public function runAll(): array
     {
@@ -117,6 +117,7 @@ class MaintenanceService
             'overdue_notifications' => 0,
             'wishlist_notifications' => 0,
             'reservation_notifications_retried' => 0,
+            'pickup_notifications_retried' => 0,
             'ics_generated' => false,
             'errors' => []
         ];
@@ -218,6 +219,16 @@ class MaintenanceService
             SecureLogger::error(__('MaintenanceService errore recupero notifiche prenotazione'), ['error' => $e->getMessage()]);
         }
 
+        // Recupero delle email "pronto al ritiro" fallite (stesso razionale M4):
+        // il claim su pickup_notification_sent vive in NotificationService,
+        // quindi lo sweep non può mai duplicare un invio riuscito.
+        try {
+            $results['pickup_notifications_retried'] = (new NotificationService($this->db))->retryUnsentPickupNotifications();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'retryUnsentPickupNotifications: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore recupero notifiche ritiro'), ['error' => $e->getMessage()]);
+        }
+
         // Best-effort plugin push dispatch (Mobile API): fire AFTER the email
         // reminders on the same cron pass. Plugins hook 'mobile_api.dispatch_push'
         // to deliver native push for the same events. No-op when no plugin is
@@ -264,7 +275,44 @@ class MaintenanceService
             SecureLogger::error(__('MaintenanceService errore hook post-run'), ['error' => $e->getMessage()]);
         }
 
+        // Aggiorna il marker di cooldown cross-sessione anche quando runAll() è
+        // chiamato direttamente (i cron entrypoint non passano da runIfNeeded):
+        // senza, l'admin che logga un minuto dopo il cron vince il claim e
+        // riesegue l'intera manutenzione sincrona nella request di login.
+        try {
+            $completedAt = (string) time();
+            $stmt = $this->db->prepare("
+                INSERT INTO system_settings (category, setting_key, setting_value)
+                VALUES ('maintenance', 'last_run', ?)
+                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+            ");
+            if ($stmt) {
+                $stmt->bind_param('s', $completedAt);
+                $stmt->execute();
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            // Tabella assente (installazione in corso): fail-open, solo cooldown perso.
+            SecureLogger::warning(__('MaintenanceService aggiornamento marker cooldown fallito'), ['error' => $e->getMessage()]);
+        }
+
         return $results;
+    }
+
+    /**
+     * Garantisce la colonna prestiti.pickup_notification_sent sugli upgrade
+     * (stesso pattern runtime-add di NotificationService::addNotificationColumns):
+     * gli UPDATE di attivazione/riparazione la referenziano e girerebbero prima
+     * che NotificationService abbia mai eseguito l'ALTER.
+     */
+    private ?bool $pickupNotificationColumnAvailable = null;
+
+    private function ensurePickupNotificationColumn(): bool
+    {
+        if ($this->pickupNotificationColumnAvailable !== null) {
+            return $this->pickupNotificationColumnAvailable;
+        }
+        return $this->pickupNotificationColumnAvailable = PickupNotificationSchema::ensure($this->db);
     }
 
     /**
@@ -331,6 +379,11 @@ class MaintenanceService
      */
     public function repairInvalidReadyPickups(): int
     {
+        $pickupColumnReset = $this->ensurePickupNotificationColumn()
+            ? ",\n                        pickup_notification_sent = 0,
+                        pickup_notification_claim_token = NULL,
+                        pickup_notification_last_attempt_at = NULL"
+            : '';
         $stmt = $this->db->prepare("
             SELECT id, libro_id
             FROM prestiti
@@ -435,7 +488,7 @@ class MaintenanceService
 
                 $repair = $this->db->prepare("
                     UPDATE prestiti
-                    SET stato = 'prenotato', pickup_deadline = NULL, copia_id = NULL
+                    SET stato = 'prenotato', pickup_deadline = NULL, copia_id = NULL{$pickupColumnReset}
                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1
                 ");
                 $repair->bind_param('i', $loanId);
@@ -516,6 +569,12 @@ class MaintenanceService
      */
     public function activateScheduledLoans(): int
     {
+        $pickupColumnReset = $this->ensurePickupNotificationColumn()
+            ? ",\n                        pickup_notification_sent = 0,
+                        pickup_notification_claim_token = NULL,
+                        pickup_notification_last_attempt_at = NULL"
+            : '';
+
         // "Oggi" nel timezone applicativo come parametro bound (M9): CURDATE()
         // dipende dalla session timezone del client DB, che differiva tra cron
         // (UTC forzato) e web (nessuna impostazione).
@@ -525,7 +584,7 @@ class MaintenanceService
         // guard (BUG8/D13): never promote a reservation whose whole window is already
         // past into 'da_ritirare' — its expiry cron culls it instead.
         $stmt = $this->db->prepare("
-            SELECT id, copia_id, libro_id, data_scadenza FROM prestiti
+            SELECT id, copia_id, libro_id, utente_id, data_scadenza FROM prestiti
             WHERE stato = 'prenotato'
             AND data_prestito <= ?
             AND data_scadenza >= ?
@@ -573,7 +632,7 @@ class MaintenanceService
                 }
 
                 $lockLoan = $this->db->prepare("
-                    SELECT id, copia_id, libro_id, data_prestito, data_scadenza
+                    SELECT id, copia_id, libro_id, utente_id, data_prestito, data_scadenza
                     FROM prestiti
                     WHERE id = ? AND stato = 'prenotato' AND attivo = 1
                       AND data_prestito <= ? AND data_scadenza >= ?
@@ -588,6 +647,11 @@ class MaintenanceService
                     continue;
                 }
                 $loan = $lockedLoan;
+                $committedCopyIds = (new LoanMultiplicityPolicy($this->db))->committedCopyIds(
+                    $bookId,
+                    (int) $loan['utente_id'],
+                    $loanId
+                );
 
                 // #366 guard: a reservation may only become 'da_ritirare' (and get
                 // the pickup-ready email) when a physical copy is genuinely free
@@ -632,6 +696,12 @@ class MaintenanceService
                 // promoting them with copia_id=NULL only moves the failure to
                 // confirmPickup(), which correctly refuses a copy-less loan.
                 $copiaId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : 0;
+                if ($copiaId > 0 && in_array($copiaId, $committedCopyIds, true)) {
+                    // Repair legacy/reassigned rows that share a copy with another
+                    // open loan for this borrower/title: activation must choose a
+                    // distinct physical item, regardless of date overlap.
+                    $copiaId = 0;
+                }
                 if ($copiaId > 0) {
                     $copyStmt = $this->db->prepare('SELECT stato FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
                     $copyStmt->bind_param('ii', $copiaId, $bookId);
@@ -658,22 +728,39 @@ class MaintenanceService
                     $copyConflict->close();
 
                     if (!in_array($copyState, ['disponibile', 'prenotato'], true) || $copyHeld) {
-                        $this->db->rollback();
-                        SecureLogger::info(__('Attivazione prestito rinviata: copia assegnata non in sede'), [
+                        // The originally pinned copy may still be out while a
+                        // sibling copy is already back on the shelf (#366).
+                        // Fall through to the same allocator used by legacy
+                        // copyless rows instead of leaving the reservation
+                        // stuck on the unavailable physical item forever.
+                        SecureLogger::info(__('Attivazione prestito: copia assegnata non in sede, ricerca alternativa'), [
                             'prestito_id' => $loanId,
                             'libro_id' => $bookId,
                             'copia_id' => $copiaId,
                             'copia_stato' => $copyState,
                             'copia_impegnata' => $copyHeld,
                         ]);
-                        continue;
+                        $copiaId = 0;
                     }
-                } else {
+                }
+                if ($copiaId <= 0) {
                     $freeCopy = $this->db->prepare("
                         SELECT c.id
                         FROM copie c
                         WHERE c.libro_id = ?
                           AND c.stato IN ('disponibile', 'prenotato')
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM prestiti own
+                              WHERE own.copia_id = c.id
+                                AND own.libro_id = ?
+                                AND own.utente_id = ?
+                                AND own.id <> ?
+                                AND (
+                                    (own.attivo = 0 AND own.stato = 'pendente')
+                                    OR (own.attivo = 1 AND own.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                                )
+                          )
                           AND NOT EXISTS (
                               SELECT 1
                               FROM prestiti p
@@ -687,7 +774,16 @@ class MaintenanceService
                         LIMIT 1
                         FOR UPDATE
                     ");
-                    $freeCopy->bind_param('iiss', $bookId, $loanId, $loan['data_scadenza'], $loan['data_prestito']);
+                    $freeCopy->bind_param(
+                        'iiiiiss',
+                        $bookId,
+                        $bookId,
+                        $loan['utente_id'],
+                        $loanId,
+                        $loanId,
+                        $loan['data_scadenza'],
+                        $loan['data_prestito']
+                    );
                     $freeCopy->execute();
                     $freeCopyRow = $freeCopy->get_result()->fetch_assoc();
                     $freeCopy->close();
@@ -715,7 +811,7 @@ class MaintenanceService
                 // State guard: only update if still in 'prenotato' state (prevents race with confirmPickup)
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
-                    SET stato = 'da_ritirare', pickup_deadline = ?, copia_id = ?
+                    SET stato = 'da_ritirare', pickup_deadline = ?, copia_id = ?{$pickupColumnReset}
                     WHERE id = ? AND stato = 'prenotato' AND attivo = 1 AND data_scadenza >= ?
                 ");
                 $updateStmt->bind_param('siis', $pickupDeadline, $copiaId, $loan['id'], $today);
@@ -795,6 +891,7 @@ class MaintenanceService
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'attiva'
             AND " . \App\Support\LoanEligibility::promotableReservationWhere('p') . "
+            AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
             ORDER BY p.libro_id, p.queue_position ASC
         ");
 
@@ -802,7 +899,7 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare scheduled reservations query');
         }
 
-        $stmt->bind_param('ss', $today, $today);
+        $stmt->bind_param('sss', $today, $today, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $reservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -1340,6 +1437,7 @@ class MaintenanceService
                 }
 
                 $db->set_charset($cfg['charset']);
+                DateHelper::synchronizeDatabaseSession($db);
             }
 
             $service = new self($db);

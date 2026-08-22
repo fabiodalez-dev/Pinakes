@@ -38,69 +38,12 @@ class ReservationsController
             throw new Exception("Connection failed: " . $this->db->connect_error);
         }
         $this->db->set_charset($cfg['charset']);
+        \App\Support\DateHelper::synchronizeDatabaseSession($this->db);
     }
 
-    public function getBookAvailability($request, $response, $args)
-    {
-        $bookId = (int) $args['id'];
-
-        // A soft-deleted (or non-existent) book must not leak availability — getBookTotalCopies()
-        // counts copie rows directly, which survive the book's soft-delete, so this public
-        // endpoint would otherwise serve real counts for an invisible book.
-        $existsStmt = $this->db->prepare("SELECT 1 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
-        $existsStmt->bind_param('i', $bookId);
-        $existsStmt->execute();
-        $bookExists = $existsStmt->get_result()->num_rows > 0;
-        $existsStmt->close();
-        if (!$bookExists) {
-            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Libro non trovato')]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
-        }
-
-        $totalCopies = $this->getBookTotalCopies($bookId);
-
-        // Get current and future loans for this book. Approved states always
-        // hold a copy; a reservation-conversion pending (attivo=0 with a
-        // copia_id) also holds its copy until pickup confirmation (#157, model
-        // A-refined). Bare 'pendente' requests with no copy are excluded.
-        $stmt = $this->db->prepare("
-            SELECT data_prestito, data_scadenza, data_restituzione, pickup_deadline, stato, copia_id
-            FROM prestiti
-            WHERE libro_id = ? AND (
-                (attivo = 1 AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'))
-                OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL)
-            )
-            ORDER BY data_prestito
-        ");
-        $stmt->bind_param('i', $bookId);
-        $stmt->execute();
-        $loansResult = $stmt->get_result();
-        $currentLoans = $loansResult->fetch_all(MYSQLI_ASSOC);
-
-        // Get existing reservations
-        $stmt = $this->db->prepare("
-            SELECT data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, stato, queue_position, utente_id
-            FROM prenotazioni
-            WHERE libro_id = ? AND stato = 'attiva'
-            ORDER BY queue_position ASC
-        ");
-        $stmt->bind_param('i', $bookId);
-        $stmt->execute();
-        $reservationsResult = $stmt->get_result();
-        $existingReservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
-
-        // Calculate availability considering total copies
-        // Note: For public API, we don't exclude any user
-        $availability = $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies);
-
-        $response->getBody()->write(json_encode([
-            'success' => true,
-            'availability' => $availability,
-            'current_loans' => $currentLoans,
-            'existing_reservations' => $existingReservations
-        ]));
-        return $response->withHeader('Content-Type', 'application/json');
-    }
+    // Rimosso getBookAvailability(): non era instradato da nessuna rotta e il
+    // suo payload esponeva gli utente_id dei prenotanti (le rotte reali passano
+    // da getBookAvailabilityData(), che filtra i campi sensibili).
 
     private function calculateAvailability($currentLoans, $existingReservations, int $totalCopies, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null)
     {
@@ -110,6 +53,7 @@ class ReservationsController
         // midnight and 2am Rome time, diverging from every web surface.
         $start = new DateTime($startDate ?: \App\Support\DateHelper::today());
         $start->setTime(0, 0, 0);
+        $today = \App\Support\DateHelper::today();
 
         // Normalize intervals (#157, model A-refined):
         // approved loans (prenotato, da_ritirare, in_corso, in_ritardo) hold a
@@ -139,7 +83,15 @@ class ReservationsController
                 // even though they haven't picked it up yet
                 $endDateLoan = $loan['data_scadenza']
                     ?? (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
-            } elseif ($loanStatus === 'in_ritardo' && empty($loan['data_restituzione'])) {
+            } elseif (
+                empty($loan['data_restituzione'])
+                && (
+                    $loanStatus === 'in_ritardo'
+                    || ($loanStatus === 'in_corso'
+                        && !empty($loan['data_scadenza'])
+                        && $loan['data_scadenza'] < $today)
+                )
+            ) {
                 // Overdue and not yet returned: the copy is physically still out and its
                 // original data_scadenza is in the PAST — using it would free the copy on
                 // the availability calendar and let a new request slip in (double-booking).
@@ -239,12 +191,6 @@ class ReservationsController
                 'reserved' => $reserved,
                 'state' => $state,
             ];
-        }
-
-        if ($earliestAvailable === null) {
-            // If all scanned days are busy, pick the first free day after the scanned window
-            $fallback = (clone $start)->add(new DateInterval("P{$days}D"));
-            $earliestAvailable = $fallback->format('Y-m-d');
         }
 
         return [

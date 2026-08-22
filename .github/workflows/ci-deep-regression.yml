@@ -67,6 +67,9 @@ jobs:
 
       - name: Install Apache, PHP module, MySQL client and mail transport
         run: |
+          # This job never installs Google Chrome. Remove its hosted-runner
+          # apt source before the first refresh so mirror syncs cannot break CI.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -q
           sudo apt-get install -y apache2 libapache2-mod-php default-mysql-client msmtp-mta
           sudo a2enmod rewrite headers env
@@ -279,6 +282,9 @@ jobs:
           persist-credentials: false
       - name: Install Apache and PHP module
         run: |
+          # This job never installs Google Chrome. Remove its hosted-runner
+          # apt source before the first refresh so mirror syncs cannot break CI.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -q
           sudo apt-get install -y apache2 libapache2-mod-php default-mysql-client
           sudo a2enmod rewrite headers env
