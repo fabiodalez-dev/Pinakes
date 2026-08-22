@@ -1,4 +1,4 @@
--- Migration 0.7.64
+-- Migration 0.7.64-rc.1
 -- Durable claim/retry state for the ready-for-pickup notification.
 --
 -- The marker is written BEFORE any ALTER TABLE (which implicitly commits in

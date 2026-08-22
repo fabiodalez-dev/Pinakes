@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Behavioural and wiring coverage for migrate_0.7.64.sql (circulation review
+ * Behavioural and wiring coverage for migrate_0.7.64-rc.1.sql (circulation review
  * follow-up): the pickup_notification_sent claim/retry flag for the
  * "ready for pickup" email. Runs the real migration against a sandbox
  * prestiti table and verifies the column, its idempotency, and the release
@@ -53,7 +53,7 @@ $sandboxSuffix = bin2hex(random_bytes(6));
 $sandboxTable = 'zz_mig_prestiti_0764_' . $sandboxSuffix;
 $sandboxTrigger = 'zz_mig_trg_0764_' . $sandboxSuffix;
 $sandboxMarker = 'pickup_notification_backfill_0_7_64_' . $sandboxSuffix;
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.64.sql');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.64-rc.1.sql');
 // The migration references the table both backticked (ALTER) and as a quoted
 // string (INFORMATION_SCHEMA lookup): rewrite both onto the sandbox.
 $sandboxMigration = static fn(string $sql): string => str_replace(
@@ -194,9 +194,12 @@ $check(
 );
 
 // Exercise the exact production predicate called by Updater::runMigrations().
-$mig = '0.7.64';
+// The file is named -rc.1 so it also runs when 0.7.64 ships from a prerelease
+// (version_compare('0.7.64','0.7.64-rc.1','<=') would be false and skip it).
+$mig = '0.7.64-rc.1';
 $check(Updater::shouldRunMigration($mig, '0.7.63', '0.7.64'), 'Updater runs it on 0.7.63 -> 0.7.64');
 $check(Updater::shouldRunMigration($mig, '0.7.62', '0.7.64'), 'Updater runs it on 0.7.62 -> 0.7.64 (skipped release)');
+$check(Updater::shouldRunMigration($mig, '0.7.63', '0.7.64-rc.1'), 'Updater runs it on 0.7.63 -> 0.7.64-rc.1 (RC upgrade)');
 $check(!Updater::shouldRunMigration($mig, '0.7.64', '0.7.65'), 'Updater does NOT re-run it once 0.7.64 is installed');
 
 echo "\n{$passed} PASS, {$failed} FAIL\n";

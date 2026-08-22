@@ -359,7 +359,7 @@ function checkPolicy() {
       '$updater->runMigrations($from, $target)',
       'BASELINE_APP',
       'list-source-expectations.php plugins',
-      'migrate_0.7.64.sql',
+      'migrate_0.7.64-rc.1.sql',
       'pickup_notification_sent',
       'Second Updater pass was not an idempotent no-op',
     ]) {

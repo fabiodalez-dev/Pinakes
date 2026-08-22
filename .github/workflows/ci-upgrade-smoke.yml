@@ -446,8 +446,8 @@ jobs:
                   . ', expected ' . json_encode($expected) . "\n");
               exit(1);
           }
-          if (getenv('EXPECT_0764') === 'yes' && !in_array('migrate_0.7.64.sql', $first['executed'], true)) {
-              fwrite(STDERR, "Updater did not select migrate_0.7.64.sql for the tested version range\n");
+          if (getenv('EXPECT_0764') === 'yes' && !in_array('migrate_0.7.64-rc.1.sql', $first['executed'], true)) {
+              fwrite(STDERR, "Updater did not select migrate_0.7.64-rc.1.sql for the tested version range\n");
               exit(1);
           }
 
@@ -487,8 +487,8 @@ jobs:
             [ "$NEW_DEFAULT" = "0|NULL|NULL" ] || { echo "New post-upgrade loan received unexpected pickup claim defaults: $NEW_DEFAULT"; exit 1; }
             MIGRATION_RECORD=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
               "SELECT CONCAT(COUNT(*), '|', COALESCE(MAX(filename), '')) FROM migrations WHERE version='0.7.64'")
-            [ "$MIGRATION_RECORD" = "1|migrate_0.7.64.sql" ] || { echo "Unexpected 0.7.64 migration record: $MIGRATION_RECORD"; exit 1; }
-            echo "✓ migrate_0.7.64.sql selected by baseline Updater; legacy marker/default/record verified"
+            [ "$MIGRATION_RECORD" = "1|migrate_0.7.64-rc.1.sql" ] || { echo "Unexpected 0.7.64 migration record: $MIGRATION_RECORD"; exit 1; }
+            echo "✓ migrate_0.7.64-rc.1.sql selected by baseline Updater; legacy marker/default/record verified"
           fi
 
           BOOK_ID=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
