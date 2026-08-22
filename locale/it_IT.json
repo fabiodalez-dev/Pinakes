@@ -6889,5 +6889,6 @@
   "Stato prenotazione non valido: modifica non salvata.": "Stato prenotazione non valido: modifica non salvata.",
   "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.",
   "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService aggiornamento marker cooldown fallito",
-  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService errore recupero notifiche ritiro"
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService errore recupero notifiche ritiro",
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Errore: la nuova data di scadenza non può essere nel passato."
 }

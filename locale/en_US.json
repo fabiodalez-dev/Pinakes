@@ -6889,5 +6889,6 @@
   "Stato prenotazione non valido: modifica non salvata.": "Invalid reservation status: changes not saved.",
   "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "This reservation has already been converted into a still-open loan: manage the loan from the Loans page instead of editing the reservation.",
   "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService cooldown marker update failed",
-  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService pickup notification recovery error"
+  "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService pickup notification recovery error",
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Error: the new due date cannot be in the past."
 }

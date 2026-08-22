@@ -956,6 +956,18 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
             }
+            // F1: actively backdating the due date into the past makes an active
+            // 'in_corso' row open-ended for the per-copy overlap trigger, which
+            // then rejects the UPDATE with an opaque 'loan_update_failed'. Guard
+            // it up front with the same clear error store()/approve() surface,
+            // but only when the due date is actually being changed — editing an
+            // already-overdue loan's other fields (its due date unchanged and
+            // legitimately in the past) must still succeed.
+            if ($newScadenza !== (string) $locked['data_scadenza']
+                && $newScadenza < \App\Support\DateHelper::today()) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=expired_window')->withStatus(302);
+            }
 
             // Se l'utente cambia, ri-esegui i controlli di store() (M6b): il campo
             // arriva da hidden field e senza ricontrolli permetterebbe di aggirare
