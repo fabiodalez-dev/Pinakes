@@ -6890,5 +6890,9 @@
   "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.",
   "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService aggiornamento marker cooldown fallito",
   "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService errore recupero notifiche ritiro",
-  "Errore: la nuova data di scadenza non può essere nel passato.": "Errore: la nuova data di scadenza non può essere nel passato."
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Errore: la nuova data di scadenza non può essere nel passato.",
+  "Aggiungi il prestito al tuo calendario": "Aggiungi il prestito al tuo calendario",
+  "Altri calendari (.ics)": "Altri calendari (.ics)",
+  "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.": "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.",
+  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)"
 }

@@ -95,6 +95,7 @@ return [
     <p><strong>📦 Abholung des Buches</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p><strong>Wichtig:</strong> Bitte denke daran, das Buch bis zum Rückgabedatum zurückzugeben. Du erhältst einige Tage vor Ablauf eine Erinnerung.</p>
 <p>Viel Freude beim Lesen!</p>',
     ],
@@ -215,6 +216,7 @@ return [
     <p><strong>📦 So funktioniert die Abholung</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p>Viel Freude beim Lesen!</p>',
     ],
     'loan_renewed' => [

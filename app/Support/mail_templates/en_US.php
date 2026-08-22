@@ -95,6 +95,7 @@ return [
     <p><strong>📦 Picking up your book</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p><strong>Important:</strong> Remember to return the book by the due date. You\'ll receive a reminder a few days before it\'s due.</p>
 <p>Happy reading!</p>',
     ],
@@ -215,6 +216,7 @@ return [
     <p><strong>📦 How to pick it up</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p>Happy reading!</p>',
     ],
     'loan_renewed' => [

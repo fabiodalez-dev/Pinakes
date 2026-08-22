@@ -10,7 +10,7 @@ use mysqli;
 use App\Support\ConfigStore;
 
 class EmailService {
-    private const RAW_HTML_VARIABLES = ['sezione_verifica'];
+    private const RAW_HTML_VARIABLES = ['sezione_verifica', 'sezione_calendario'];
 
     /**
      * Placeholder aliases: English -> Italian
@@ -57,6 +57,7 @@ class EmailService {
         'reason' => 'motivo',
         'rejection_reason' => 'motivo_rifiuto',
         'verify_section' => 'sezione_verifica',
+        'calendar_links' => 'sezione_calendario',
     ];
 
     private PHPMailer $mailer;

@@ -98,6 +98,7 @@ return [
     <p><strong>📦 Afhentning af bogen</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p><strong>Vigtigt:</strong> Husk at aflevere bogen inden udløbsdatoen. Du vil modtage en påmindelse et par dage før udløbet.</p>
 <p>God fornøjelse med læsningen!</p>',
     ],
@@ -224,6 +225,7 @@ return [
     <p><strong>📦 Sådan afhenter du</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p>God fornøjelse med læsningen!</p>',
     ],
     'loan_renewed' => [

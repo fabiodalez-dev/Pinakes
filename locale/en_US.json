@@ -6890,5 +6890,9 @@
   "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "This reservation has already been converted into a still-open loan: manage the loan from the Loans page instead of editing the reservation.",
   "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService cooldown marker update failed",
   "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService pickup notification recovery error",
-  "Errore: la nuova data di scadenza non può essere nel passato.": "Error: the new due date cannot be in the past."
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Error: the new due date cannot be in the past.",
+  "Aggiungi il prestito al tuo calendario": "Add the loan to your calendar",
+  "Altri calendari (.ics)": "Other calendars (.ics)",
+  "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.": "Save the loan dates in your calendar so you don't forget the return.",
+  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Section with the links to add the loan to a calendar (Google Calendar and .ics file)"
 }
