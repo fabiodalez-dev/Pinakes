@@ -91,6 +91,25 @@ $htmlLang = substr($currentLocale, 0, 2);
         margin-top: 8px;
       }
     }
+    /* Notifications dropdown: on phones the panel is anchored to the (right-hand)
+       bell button, so a near-full-width panel overflowed the right edge and was
+       clipped. Pin it to the viewport instead and centre it within the screen.
+       Kept as explicit CSS (not Tailwind classes) because main.css is a purged
+       JIT build and would not include new utility classes without a rebuild.
+       Above the md breakpoint the Tailwind classes (absolute, right-0) apply. */
+    @media (max-width: 767px) {
+      #notifications-dropdown {
+        position: fixed;
+        left: 1rem;
+        right: 1rem;
+        top: 4rem;
+        width: auto;
+        max-width: 28rem;
+        margin-left: auto;
+        margin-right: auto;
+        transform: none;
+      }
+    }
   </style>
   <?php
   // Issue #291: apply the admin-configured custom CSS to the admin chrome too
