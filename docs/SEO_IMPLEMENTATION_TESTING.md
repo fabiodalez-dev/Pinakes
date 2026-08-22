@@ -250,16 +250,14 @@ OG Image: https://example.com/uploads/og-library.jpg
 <!-- Canonical URL -->
 <link rel="canonical" href="http://localhost:8000/">
 
-<!-- Hreflang Tags (path-prefix; one per active locale, default has no prefix) -->
-<link rel="alternate" hreflang="it" href="http://localhost:8000/">
-<link rel="alternate" hreflang="en" href="http://localhost:8000/en/">
+<!-- Hreflang: intentionally NOT emitted since 0.7.65 (see Phase 5.3) -->
 ```
 
 **Pass Criteria:**
 - All meta tags present
 - Custom SEO values displayed correctly
 - No HTML encoding issues (è not Ã¨)
-- Hreflang tags use localized path-prefix URLs (see Phase 5.3)
+- No hreflang alternates are emitted (disabled since 0.7.65, see Phase 5.3)
 
 #### Test 3.2: Open Graph Tags
 
@@ -419,7 +417,7 @@ OG Image: https://example.com/uploads/og-library.jpg
 
 **Pass Criteria:**
 - Page displays in Italian
-- Hreflang tags present
+- No hreflang tags emitted (disabled since 0.7.65)
 - Session locale is `it_IT`
 
 #### Test 5.2: Non-default Locale Homepage
@@ -435,29 +433,21 @@ than one locale is active, non-default locales are served under a path prefix.
 **Pass Criteria:**
 - Page displays in the prefixed language
 - SEO/meta strings translated where applicable
-- Hreflang alternates present and self-consistent
+- No hreflang alternates are emitted (see Test 5.3)
 
 #### Test 5.3: Hreflang Tag Validation
 
-**Tool:** Manual inspection or hreflang tag validator
+Since 0.7.65 hreflang is **not** emitted: translated routes live at the root and
+the response language follows the session locale, not the URL, so path-prefixed
+alternates pointed at non-routable 404s.
 
 **Steps:**
-1. View page source
-2. Verify hreflang tags match `HreflangHelper::getAlternates()`
-
-**Expected (default = Italian, with EN/DE/FR also active):**
-```html
-<link rel="alternate" hreflang="it" href="http://localhost:8000/catalogo">
-<link rel="alternate" hreflang="en" href="http://localhost:8000/en/catalog">
-<link rel="alternate" hreflang="de" href="http://localhost:8000/de/katalog">
-<link rel="alternate" hreflang="fr" href="http://localhost:8000/fr/catalogue">
-```
+1. View page source on the homepage, catalog and a book page
+2. Confirm there is **no** `hreflang` markup and that `HreflangHelper::getAlternates()` returns `[]`
 
 **Pass Criteria:**
-- One alternate per active locale (default locale has no path prefix)
-- URLs are absolute and use the localized route path
-- No duplicate hreflang tags
-- No alternates emitted when only one locale is active
+- No `<link rel="alternate" hreflang=...>` tags on any page
+- The sitemap lists only default-locale URLs (no `/en/`, `/de/`, `/fr/` prefixes)
 
 ---
 
@@ -624,7 +614,7 @@ Use this checklist to verify complete implementation:
 - [ ] Meta description tag displays custom value
 - [ ] Meta keywords tag displays (if set)
 - [ ] Canonical URL is correct (via `SeoController::resolveBaseUrl()`)
-- [ ] Hreflang tags present (one per active locale, path-prefixed)
+- [ ] No hreflang tags emitted (disabled since 0.7.65)
 - [ ] Open Graph tags complete
 - [ ] Twitter Card tags complete
 - [ ] Schema.org JSON-LD valid
@@ -632,9 +622,8 @@ Use this checklist to verify complete implementation:
 ### Multilingual
 - [ ] Italian (source) translation works
 - [ ] English / German / French translations work
-- [ ] Hreflang URLs correct (path-prefix, one per active locale)
-- [ ] Default locale alternate has no path prefix
-- [ ] No alternates emitted when a single locale is active
+- [ ] No hreflang alternates emitted (`HreflangHelper::getAlternates()` returns `[]`)
+- [ ] Sitemap lists only default-locale URLs (no `/en/`, `/de/` prefixes)
 
 ### Validation Tools
 - [ ] Google Rich Results Test passes

@@ -28,7 +28,8 @@ if ($searchQuery) {
 }
 $catalogRoute = route_path('catalog');
 $apiCatalogRoute = route_path('api_catalog');
-$seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . \App\Support\RouteTranslator::route('catalog');
+$catalogBaseUrl = rtrim(HtmlHelper::getBaseUrl(), '/') . \App\Support\RouteTranslator::route('catalog');
+$seoCanonical = $catalogBaseUrl;
 if ((int) $current_page > 1) {
     // Paginated pages self-canonicalize (same policy as the archive pages): page
     // 2 is not a duplicate of page 1, so books reachable only on later pages stay
@@ -53,7 +54,7 @@ $seoSchema = json_encode([
         "@type" => "SearchAction",
         "target" => [
             "@type" => "EntryPoint",
-            "urlTemplate" => $seoCanonical . "?q={search_term_string}"
+            "urlTemplate" => $catalogBaseUrl . "?q={search_term_string}"
         ],
         "query-input" => "required name=search_term_string"
     ]

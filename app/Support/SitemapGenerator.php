@@ -84,47 +84,40 @@ class SitemapGenerator
         /** @var array<string,array<string,mixed>> $unique */
         $unique = [];
 
-        foreach ($this->getStaticEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['static']++;
+        // Small, bounded sections first (static + CMS + events).
+        foreach (['static' => $this->getStaticEntries(), 'cms' => $this->getCmsEntries(), 'events' => $this->getEventEntries()] as $statKey => $entries) {
+            foreach ($entries as $entry) {
+                $unique[$entry['loc']] = $entry;
+                $this->stats[$statKey]++;
+            }
         }
 
-        foreach ($this->getCmsEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['cms']++;
-        }
-
-        foreach ($this->getEventEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['events']++;
-        }
-
-        foreach ($this->getBookEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['books']++;
-        }
-
-        foreach ($this->getAuthorEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['authors']++;
-        }
-
-        foreach ($this->getPublisherEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['publishers']++;
-        }
-
-        foreach ($this->getGenreEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['genres']++;
-        }
-
-        if (count($unique) > self::MAX_TOTAL_URLS) {
-            \App\Support\SecureLogger::warning(
-                'SitemapGenerator: total URL count exceeds the sitemap protocol limit; truncating',
-                ['total' => count($unique), 'limit' => self::MAX_TOTAL_URLS]
-            );
-            $unique = array_slice($unique, 0, self::MAX_TOTAL_URLS, true);
+        // Large sections receive the remaining capacity, so each query's SQL
+        // LIMIT caps allocation AT COLLECTION TIME — memory and the file can
+        // never exceed the sitemap protocol's 50k-URL limit even on a
+        // pathological catalogue, instead of allocating everything then slicing.
+        foreach (['books', 'authors', 'publishers', 'genres'] as $statKey) {
+            $remaining = self::MAX_TOTAL_URLS - count($unique);
+            if ($remaining <= 0) {
+                \App\Support\SecureLogger::warning(
+                    'SitemapGenerator: reached the sitemap URL limit; later sections skipped',
+                    ['limit' => self::MAX_TOTAL_URLS, 'skipped_from' => $statKey]
+                );
+                break;
+            }
+            $entries = match ($statKey) {
+                'books' => $this->getBookEntries($remaining),
+                'authors' => $this->getAuthorEntries($remaining),
+                'publishers' => $this->getPublisherEntries($remaining),
+                'genres' => $this->getGenreEntries($remaining),
+            };
+            foreach ($entries as $entry) {
+                $unique[$entry['loc']] = $entry;
+                $this->stats[$statKey]++;
+                if (count($unique) >= self::MAX_TOTAL_URLS) {
+                    break;
+                }
+            }
         }
 
         $this->stats['total'] = count($unique);
@@ -276,10 +269,10 @@ class SitemapGenerator
     /**
      * @return array<int,array<string,mixed>>
      */
-    private function getBookEntries(): array
+    private function getBookEntries(int $cap): array
     {
         $entries = [];
-        $limit = self::MAX_BOOKS;
+        $limit = max(0, min(self::MAX_BOOKS, $cap));
         $sql = "
             SELECT l.id,
                    l.titolo,
@@ -328,10 +321,10 @@ class SitemapGenerator
     /**
      * @return array<int,array<string,mixed>>
      */
-    private function getAuthorEntries(): array
+    private function getAuthorEntries(int $cap): array
     {
         $entries = [];
-        $limit = self::MAX_AUTHORS;
+        $limit = max(0, min(self::MAX_AUTHORS, $cap));
         // Only authors with at least one visible book: an empty archive is a
         // thin page that wastes crawl budget.
         $sql = "
@@ -373,7 +366,7 @@ class SitemapGenerator
     /**
      * @return array<int,array<string,mixed>>
      */
-    private function getPublisherEntries(): array
+    private function getPublisherEntries(int $limit): array
     {
         $entries = [];
         // Mirror the genre filter: publishers without visible books produce
@@ -395,6 +388,7 @@ class SitemapGenerator
             GROUP BY e.id, e.nome
             HAVING COUNT(l.id) > 0
             ORDER BY e.nome ASC
+            LIMIT {$limit}
         ";
 
         if ($result = $this->db->query($sql)) {
@@ -423,7 +417,7 @@ class SitemapGenerator
     /**
      * @return array<int,array<string,mixed>>
      */
-    private function getGenreEntries(): array
+    private function getGenreEntries(int $limit): array
     {
         $entries = [];
         $sql = "
@@ -433,6 +427,7 @@ class SitemapGenerator
             GROUP BY g.id, g.nome
             HAVING COUNT(l.id) > 0
             ORDER BY g.nome ASC
+            LIMIT {$limit}
         ";
 
         if ($result = $this->db->query($sql)) {
