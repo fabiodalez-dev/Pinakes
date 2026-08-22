@@ -4,6 +4,7 @@
 /** @var array $filter_options */
 /** @var ?int $total_books */
 /** @var array<int, array<string, mixed>> $archiveResults */
+/** @var int $current_page */
 
 use App\Support\HtmlHelper;
 
@@ -28,6 +29,12 @@ if ($searchQuery) {
 $catalogRoute = route_path('catalog');
 $apiCatalogRoute = route_path('api_catalog');
 $seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . \App\Support\RouteTranslator::route('catalog');
+if ((int) $current_page > 1) {
+    // Paginated pages self-canonicalize (same policy as the archive pages): page
+    // 2 is not a duplicate of page 1, so books reachable only on later pages stay
+    // indexable instead of collapsing onto the first page's canonical.
+    $seoCanonical .= '?page=' . (int) $current_page;
+}
 $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
 // Schema.org structured data
@@ -1693,7 +1700,7 @@ ob_start();
                      same href + goToPage() enhancement on filter changes. -->
                 <div id="pagination-container" class="mt-4">
                     <?php
-                    $srCurrentPage = max(1, (int)($current_page ?? 1));
+                    $srCurrentPage = max(1, (int) $current_page);
                     $srTotalPages = max(1, (int)($total_pages ?? 1));
                     $srPageUrl = static function (int $p): string {
                         $qs = $_GET;
@@ -1725,7 +1732,7 @@ ob_start();
 
 <?php
 $initialPaginationConfig = [
-    'current_page' => max(1, (int)($current_page ?? 1)),
+    'current_page' => max(1, (int) $current_page),
     'total_pages' => max(1, (int)($total_pages ?? 1)),
     'total_books' => max(0, (int)($total_books ?? 0)),
 ];

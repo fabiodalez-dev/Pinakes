@@ -314,6 +314,11 @@ class FrontendController
 
         // Render template
         $container = $this->container;
+        // The catalog view reads $current_page for the server-rendered pagination
+        // nav and the initial JS pagination config; the controller tracks it as
+        // $page. Without this the no-JS nav always marks page 1 active and never
+        // links past page 5, so pages 6+ are not crawlable.
+        $current_page = $page;
         ob_start();
         // Rendi disponibili tutte le variabili necessarie nel template
         include __DIR__ . '/../Views/frontend/catalog.php';
