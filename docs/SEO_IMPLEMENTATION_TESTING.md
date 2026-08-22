@@ -8,10 +8,14 @@ This document provides comprehensive testing procedures for the dynamic, multili
 **Doc revised:** 2026-06-04
 **Status:** Complete
 
-> **2026-06-04 update**: Hreflang is path-prefix based (not `?lang=`); four
-> locales ship (it/en/de/fr); `og:type` defaults to `website`; the schema search
-> action URL is locale-aware; added the `SeoController` discovery endpoints
-> (`/sitemap.xml`, `/robots.txt`, `/feed.xml`, `/llms.txt`).
+> **2026-08-22 update (0.7.65)**: hreflang is **no longer emitted** — the
+> path-prefixed alternates the earlier note described pointed at non-routable
+> 404s (translated routes live at the root and the response language follows the
+> session locale, not the URL). `HreflangHelper::getAlternates()` returns an
+> empty list and the sitemap lists only default-locale URLs. See the Hreflang
+> and SitemapGenerator sections below. `og:type` defaults to `website`; the
+> schema search action URL is app-name branded; the `SeoController` discovery
+> endpoints (`/sitemap.xml`, `/robots.txt`, `/feed.xml`, `/llms.txt`) are active.
 
 ---
 

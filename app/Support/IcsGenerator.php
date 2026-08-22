@@ -84,12 +84,20 @@ class IcsGenerator
             return null;
         }
 
+        // Mirror fetchEvents(): an overdue copy is still physically occupied
+        // through today, so ending the event on the missed due date would
+        // falsely render it as already available.
+        $endDate = (string) $row['data_scadenza'];
+        if ($row['stato'] === 'in_ritardo') {
+            $endDate = max($endDate, DateHelper::today());
+        }
+
         $event = [
             'uid' => 'loan-' . $row['id'] . '@pinakes',
             'title' => $this->getLoanTitle($row['stato'], $row['titolo']),
             'description' => $this->getLoanDescription($row),
             'start' => $row['data_prestito'],
-            'end' => $row['data_scadenza'],
+            'end' => $endDate,
             'type' => 'prestito',
             'status' => $row['stato'],
             'updated' => $row['updated_at'] ?? (new \DateTimeImmutable('now', $this->appTimezone()))->format('Y-m-d H:i:s')

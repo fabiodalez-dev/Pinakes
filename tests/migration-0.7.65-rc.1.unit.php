@@ -56,8 +56,12 @@ $check = static function (bool $ok, string $label) use (&$passed, &$failed): voi
     $ok ? $passed++ : $failed++;
 };
 
-$today = (new DateTimeImmutable('today'))->format('Y-m-d');
-$plus = static fn (int $days): string => (new DateTimeImmutable('today'))->modify(($days >= 0 ? '+' : '') . $days . ' days')->format('Y-m-d');
+// Derive the reference date from the SAME MySQL connection the backfill uses
+// (it computes deadlines with CURDATE()); PHP's default timezone can differ by
+// a day near midnight and make the expected deadlines drift.
+$mysqlTodayRow = $db->query('SELECT CURDATE() AS d')->fetch_assoc();
+$today = (string) $mysqlTodayRow['d'];
+$plus = static fn (int $days): string => (new DateTimeImmutable($today))->modify(($days >= 0 ? '+' : '') . $days . ' days')->format('Y-m-d');
 
 $makeBookWithCopy = static function () use ($db, $titlePrefix): array {
     static $seq = 0;

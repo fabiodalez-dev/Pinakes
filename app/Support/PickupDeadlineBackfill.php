@@ -63,7 +63,13 @@ final class PickupDeadlineBackfill
                 return false;
             }
             $stmt->bind_param('ii', $pickupDays, $pickupDays);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                // With mysqli in exception mode a failure throws (caught below);
+                // this guard also holds if reporting is ever disabled, so the
+                // Updater sees the failure instead of a silent partial backfill.
+                $stmt->close();
+                return false;
+            }
             $repaired = $stmt->affected_rows;
             $stmt->close();
 

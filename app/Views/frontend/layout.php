@@ -155,7 +155,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         <meta name="robots" content="<?= htmlspecialchars($seoRobots, ENT_QUOTES, 'UTF-8') ?>">
     <?php endif; ?>
     <link rel="canonical"
-        href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrlWithoutQuery()) ?>">
+        href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrlWithoutQuery(), ENT_QUOTES, 'UTF-8') ?>">
     <?php foreach (\App\Support\HreflangHelper::getAlternates() as $hreflangAlt): ?>
     <link rel="alternate" hreflang="<?= htmlspecialchars($hreflangAlt['hreflang'], ENT_QUOTES, 'UTF-8') ?>"
           href="<?= htmlspecialchars($hreflangAlt['href'], ENT_QUOTES, 'UTF-8') ?>">

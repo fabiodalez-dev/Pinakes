@@ -29,6 +29,11 @@ class SitemapGenerator
      */
     private const MAX_BOOKS = 40000;
     private const MAX_AUTHORS = 5000;
+    // The sitemap protocol caps a single file at 50k URLs. The per-section caps
+    // above (plus a few static/CMS/event/publisher/genre rows) stay well under
+    // it, but a global ceiling guarantees a valid file even on a pathological
+    // catalogue instead of silently emitting an over-limit sitemap.
+    private const MAX_TOTAL_URLS = 50000;
 
     private mysqli $db;
     private string $baseUrl;
@@ -112,6 +117,14 @@ class SitemapGenerator
         foreach ($this->getGenreEntries() as $entry) {
             $unique[$entry['loc']] = $entry;
             $this->stats['genres']++;
+        }
+
+        if (count($unique) > self::MAX_TOTAL_URLS) {
+            \App\Support\SecureLogger::warning(
+                'SitemapGenerator: total URL count exceeds the sitemap protocol limit; truncating',
+                ['total' => count($unique), 'limit' => self::MAX_TOTAL_URLS]
+            );
+            $unique = array_slice($unique, 0, self::MAX_TOTAL_URLS, true);
         }
 
         $this->stats['total'] = count($unique);
@@ -364,11 +377,21 @@ class SitemapGenerator
     {
         $entries = [];
         // Mirror the genre filter: publishers without visible books produce
-        // empty archive pages and do not belong in the sitemap.
+        // empty archive pages and do not belong in the sitemap. Match
+        // publisherArchive(): a book counts for a publisher both as its primary
+        // editore_id and — when the schema has it — as a secondary via
+        // libri_editori, so secondary-only publishers with real pages are listed.
+        $publisherMatch = 'l.editore_id = e.id';
+        if (\App\Support\SchemaInfo::hasLibriEditori($this->db)) {
+            $publisherMatch .= ' OR EXISTS (
+                SELECT 1 FROM libri_editori le
+                WHERE le.libro_id = l.id AND le.editore_id = e.id
+            )';
+        }
         $sql = "
             SELECT e.nome
             FROM editori e
-            JOIN libri l ON l.editore_id = e.id AND l.deleted_at IS NULL
+            JOIN libri l ON ({$publisherMatch}) AND l.deleted_at IS NULL
             GROUP BY e.id, e.nome
             HAVING COUNT(l.id) > 0
             ORDER BY e.nome ASC

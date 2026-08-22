@@ -1425,7 +1425,7 @@ class NotificationService {
                 'data_fine' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
                 'giorni_prestito' => $days,
                 'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale),
-                'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], (string)$loan['data_scadenza'])
+                'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], (string)$loan['data_scadenza'], $recipientLocale)
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_approved', $variables);
@@ -1443,14 +1443,16 @@ class NotificationService {
      * in quel locale (vedi sendWithRetry), non in quello di sessione.
      * Best-effort: qualsiasi errore produce sezione vuota, mai un'email persa.
      */
-    private function buildCalendarSection(int $loanId, string $bookTitle, string $startDate, string $endDate): string
+    private function buildCalendarSection(int $loanId, string $bookTitle, string $startDate, string $endDate, string $locale): string
     {
         if ($loanId <= 0 || $startDate === '' || $endDate === '') {
             return '';
         }
         $sessionLocale = \App\Support\I18n::getLocale();
         try {
-            \App\Support\I18n::setLocale(\App\Support\I18n::getInstallationLocale());
+            // Render the calendar block in the recipient's locale, matching the
+            // rest of the email (pickup_instructions, dates), not the install one.
+            \App\Support\I18n::setLocale($locale !== '' ? $locale : \App\Support\I18n::getInstallationLocale());
             return (new LoanCalendarLinks($this->db))->emailSection($loanId, $bookTitle, $startDate, $endDate);
         } catch (\Throwable $e) {
             SecureLogger::warning("Failed to build calendar links for loan {$loanId}: " . $e->getMessage());
@@ -1629,7 +1631,7 @@ class NotificationService {
                 // resolves as well as the canonical {{scadenza_ritiro}}.
                 'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
                 'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale),
-                'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], (string)$loan['data_scadenza'])
+                'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], (string)$loan['data_scadenza'], $recipientLocale)
             ];
 
             $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_pickup_ready', $variables);
