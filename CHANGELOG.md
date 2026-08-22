@@ -27,11 +27,20 @@ Optional multiple physical copies of the same title per borrower (#238).
   residual): creation, approval, rescheduling, renewal, reassignment and the DB
   triggers all treat an `in_corso` loan whose due date has passed but that the
   maintenance sweep has not yet flipped to `in_ritardo` as an open-ended
-  commitment (same rule as `CapacityService`). Copy selection only considers in-house copies
-  (`disponibile`/`prenotato`), the pre-assigned copy is validated against the
-  loan's book, and a request whose whole window is already past is rejected
-  instead of becoming an unpickable `da_ritirare`. `confirmPickup` re-checks
-  the loan rows holding the copy (not just `copie.stato`) before issuing.
+  commitment (same rule as `CapacityService`). The pre-assigned copy is
+  validated against the loan's book, and a request whose whole window is already
+  past is rejected instead of becoming an unpickable `da_ritirare`.
+  `confirmPickup` re-checks the loan rows holding the copy (not just
+  `copie.stato`) before issuing. Approval and the date-aware allocator still
+  accept a copy that is physically out as long as the requested window does not
+  overlap its open loan — the per-copy overlap check is the authority — so a
+  future-dated request is not needlessly blocked when the only copy is on loan.
+- **Backdating a loan's due date reports a clear error**: actively moving an
+  active loan's due date into the past used to reach the per-copy overlap
+  trigger and surface an opaque `loan_update_failed`; the edit flow now rejects
+  it up front with the same `expired_window` message the create/approve flows
+  use, while still allowing edits to an already-overdue loan whose due date is
+  left unchanged.
 - **Queue promotion re-checks borrower eligibility**: a user suspended (or
   with an expired card) while waiting is skipped — their reservation stays
   active in the queue — instead of being promoted to a pending loan that
@@ -86,6 +95,15 @@ Optional multiple physical copies of the same title per borrower (#238).
 - **Admin reservation edits**: an out-of-whitelist status is rejected instead
   of silently coerced to `attiva`, and a completed (promoted) reservation
   cannot be flipped while its converted loan is still open.
+- **Localized gender on the admin user-details page** (#371): the stored
+  `sesso` enum (`M`/`F`/`Altro`) now renders through the same translated labels
+  as the edit form instead of the raw code, with a safe fallback for unexpected
+  values.
+- **Notifications dropdown no longer clips on phones**: the panel was anchored
+  to the right-hand bell button, so a near-full-width dropdown overflowed the
+  right screen edge and cut off "Segna tutte come lette" and the notification
+  bodies. Below the `md` breakpoint it is now pinned to the viewport and
+  centred; the desktop panel is unchanged.
 
 ### Changed
 
