@@ -397,7 +397,7 @@ class LoanApprovalController
                     SELECT c.id FROM copie c
                     WHERE c.id = ?
                     AND c.libro_id = ?
-                    AND c.stato IN ('disponibile', 'prenotato')
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
