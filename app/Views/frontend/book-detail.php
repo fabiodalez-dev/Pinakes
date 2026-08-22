@@ -95,19 +95,24 @@ if ($coverAlt === '') {
     $coverAlt = __('Copertina del libro');
 }
 
-// Meta title ottimizzato (max 60 caratteri)
+// Meta title ottimizzato (max 60 caratteri). Il suffisso è il nome reale
+// della biblioteca (app.name): è il brand riconoscibile nelle SERP, non il
+// generico "Biblioteca".
+$siteBrandName = (string) ConfigStore::get('app.name', 'Pinakes');
 $title = $bookTitle;
 if ($bookAuthor) {
     $title .= " " . __("di") . " " . $bookAuthor;
 }
-$title .= " - " . __("Biblioteca");
+$title .= " - " . $siteBrandName;
 $metaTitle = $title;
 
-// Meta description ottimizzata (max 160 caratteri)
+// Meta description ottimizzata (max 160 caratteri). Taglio multibyte: substr()
+// byte-based può spezzare un carattere UTF-8 (accenti) a metà nel <head>.
 $metaDescription = '';
 if ($bookDescription) {
-    $metaDescription = substr(strip_tags($bookDescription), 0, 140);
-    if (strlen($bookDescription) > 140) {
+    $plainDescription = trim(strip_tags($bookDescription));
+    $metaDescription = mb_substr($plainDescription, 0, 140);
+    if (mb_strlen($plainDescription) > 140) {
         $metaDescription .= '...';
     }
 } else {
@@ -124,8 +129,12 @@ if ($bookDescription) {
     }
 }
 
-// Canonical URL - Safe from Host header injection
-$canonicalUrl = HtmlHelper::getCurrentUrl();
+// Canonical URL - Safe from Host header injection. Use the canonical book
+// path computed by the controller: the current URL can carry tracking
+// parameters (?utm_*) that must never appear in rel=canonical.
+$canonicalUrl = isset($canonicalPath)
+    ? absoluteUrl($canonicalPath)
+    : HtmlHelper::getCurrentUrlWithoutQuery();
 
 // Open Graph Image - Ensure absolute URLs
 $baseUrl = HtmlHelper::getBaseUrl();
@@ -419,11 +428,11 @@ if (!empty($reviewStats) && $reviewStats['total_reviews'] > 0) {
     ];
 }
 
-// Organization Schema
+// Organization Schema — the entity is the configured library, by its real name
 $organizationSchema = [
     "@context" => "https://schema.org",
     "@type" => "Library",
-    "name" => __("Biblioteca"),
+    "name" => $siteBrandName,
     "url" => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/',
     "description" => __("Biblioteca digitale con catalogo completo di libri disponibili per il prestito")
 ];
@@ -1830,6 +1839,7 @@ ob_start();
                 <img src="<?= htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') ?>"
                      alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"
                      class="book-cover-large img-fluid"
+                     fetchpriority="high" decoding="async"
                      id="book-cover-image">
             </div>
             <div class="book-info-column">

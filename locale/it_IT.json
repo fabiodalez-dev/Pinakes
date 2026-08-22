@@ -6894,5 +6894,12 @@
   "Aggiungi il prestito al tuo calendario": "Aggiungi il prestito al tuo calendario",
   "Altri calendari (.ics)": "Altri calendari (.ics)",
   "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.": "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.",
-  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)"
+  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)",
+  "Libri di %s": "Libri di %s",
+  "Libri dell'editore %s": "Libri dell'editore %s",
+  "Libri del genere %s": "Libri del genere %s",
+  "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.": "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.",
+  "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.": "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.",
+  "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.": "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.",
+  "Pagina %d": "Pagina %d"
 }

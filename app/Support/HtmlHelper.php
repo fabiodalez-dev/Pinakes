@@ -467,6 +467,21 @@ class HtmlHelper
     }
 
     /**
+     * URL corrente senza query string, per l'uso come canonical di fallback.
+     *
+     * I parametri di tracking (utm_*, ref, ...) non devono mai entrare nel
+     * rel=canonical: ogni variante diventerebbe un duplicato indicizzabile.
+     *
+     * @return string URL corrente senza query né fragment
+     */
+    public static function getCurrentUrlWithoutQuery(): string
+    {
+        $url = self::getCurrentUrl();
+        $cut = strcspn($url, '?#');
+        return substr($url, 0, $cut);
+    }
+
+    /**
      * Resolve a redirect host that is OPERATOR-CONFIGURED, never the raw request
      * Host header (which an attacker controls on a catch-all vhost).
      *

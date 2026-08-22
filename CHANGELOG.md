@@ -2,6 +2,55 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.65] - 2026-08-22
+
+Add-to-calendar links in loan emails, the #366 legacy ready-pickup backfill, and a public-facing SEO pass.
+
+### Features
+
+- **Add-to-calendar links in loan emails**: the loan-approved and pickup-ready
+  emails carry a calendar block with a Google Calendar link and a tokenized
+  per-loan `.ics` download, so borrowers can save the due date in any calendar
+  app (multi-calendar, no account linking). Rendered by `NotificationService`
+  via `LoanCalendarLinks`; upgraded installs get the `{{sezione_calendario}}`
+  placeholder appended to already-seeded templates by an idempotent migration,
+  fresh installs from the template defaults. Strings translated in all five locales.
+
+### Fixed
+
+- **#366 residual repair**: legacy `da_ritirare` rows with a NULL
+  `pickup_deadline` could stay "ready for pickup" forever — the expiry sweep
+  skips NULL deadlines and the 0.7.63 repair intentionally preserves a pickup
+  whose copy is free. `PickupDeadlineBackfill` now runs on every upgrade
+  (admin updater and Docker both drive `Updater::runMigrations()`), after the
+  canonical triggers are re-applied, assigning `today + pickup_expiry_days`
+  capped at the loan's `data_scadenza`; rows whose window already closed get a
+  past deadline and are culled by the next sweep through the normal expiry
+  path. Covered by `tests/migration-0.7.65-rc.1.unit.php`.
+
+### SEO
+
+- Canonical URLs no longer inherit tracking query strings (layout fallback and
+  book detail), so `?utm_*` variants stop becoming indexable duplicates.
+- hreflang alternates and locale-prefixed sitemap URLs (`/en/…`) pointed to
+  non-routable 404s: hreflang is no longer emitted while the language is
+  session-based, and the sitemap lists only default-locale URLs.
+- The sitemap drops the auth pages (blocked by robots.txt anyway), skips
+  authors/publishers with no visible books, and logs when the explicit
+  book/author caps truncate; robots.txt now disallows every active locale's
+  login/register variant.
+- Author, publisher and genre archives share one localized SEO block:
+  canonical on the name-based URL (the id route collapses into it),
+  translated titles/descriptions, CollectionPage (+Person) and BreadcrumbList
+  JSON-LD. Book pages brand their title and Library schema with the
+  configured `app.name`.
+- Internal search results and the standalone auth pages carry
+  `noindex,follow`; empty `og:image`/`twitter:image` tags are omitted.
+- Catalog pagination is server-rendered with real `?page=N` links (crawlable
+  without JavaScript); grid covers load lazily and the book cover — the LCP —
+  gets `fetchpriority="high"`. Book meta descriptions are cut multibyte-safe.
+- Public events emit `Event` + `BreadcrumbList` JSON-LD.
+
 ## [0.7.64] - 2026-08-21
 
 Optional multiple physical copies of the same title per borrower (#238).

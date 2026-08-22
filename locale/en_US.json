@@ -6894,5 +6894,12 @@
   "Aggiungi il prestito al tuo calendario": "Add the loan to your calendar",
   "Altri calendari (.ics)": "Other calendars (.ics)",
   "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.": "Save the loan dates in your calendar so you don't forget the return.",
-  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Section with the links to add the loan to a calendar (Google Calendar and .ics file)"
+  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Section with the links to add the loan to a calendar (Google Calendar and .ics file)",
+  "Libri di %s": "Books by %s",
+  "Libri dell'editore %s": "Books from the publisher %s",
+  "Libri del genere %s": "Books in the %s genre",
+  "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.": "All works by %s in the library: browse the available titles and request them on loan.",
+  "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.": "All books published by %s in our library, available for loan.",
+  "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.": "Explore the books in the %s genre available for loan in our library.",
+  "Pagina %d": "Page %d"
 }

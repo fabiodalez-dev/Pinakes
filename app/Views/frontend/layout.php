@@ -151,8 +151,11 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php if (isset($seoKeywords) && !empty($seoKeywords)): ?>
         <meta name="keywords" content="<?= htmlspecialchars($seoKeywords) ?>">
     <?php endif; ?>
+    <?php if (!empty($seoRobots)): ?>
+        <meta name="robots" content="<?= htmlspecialchars($seoRobots, ENT_QUOTES, 'UTF-8') ?>">
+    <?php endif; ?>
     <link rel="canonical"
-        href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrl()) ?>">
+        href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrlWithoutQuery()) ?>">
     <?php foreach (\App\Support\HreflangHelper::getAlternates() as $hreflangAlt): ?>
     <link rel="alternate" hreflang="<?= htmlspecialchars($hreflangAlt['hreflang'], ENT_QUOTES, 'UTF-8') ?>"
           href="<?= htmlspecialchars($hreflangAlt['href'], ENT_QUOTES, 'UTF-8') ?>">
@@ -168,7 +171,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     $ogTitle = $ogTitle ?? ($seoTitle ?? $title ?? $appName);
     $ogDescription = $ogDescription ?? ($seoDescription ?? ($footerDescription ?: __('Esplora il nostro catalogo digitale')));
     $ogType = $ogType ?? 'website';
-    $ogUrl = $ogUrl ?? HtmlHelper::getCurrentUrl();
+    $ogUrl = $ogUrl ?? ($seoCanonical ?? HtmlHelper::getCurrentUrlWithoutQuery());
     $ogImage = $ogImage ?? $resolvedDefaultOgImage;
     $ogImage = $ogImage !== '' ? absoluteUrl($ogImage) : '';
 
@@ -183,7 +186,9 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php if ($ogTitle !== ''): ?>
         <meta property="og:title" content="<?= htmlspecialchars($ogTitle) ?>">
         <meta property="og:description" content="<?= htmlspecialchars($ogDescription) ?>">
+        <?php if ($ogImage !== ''): ?>
         <meta property="og:image" content="<?= htmlspecialchars($ogImage) ?>">
+        <?php endif; ?>
         <meta property="og:url" content="<?= htmlspecialchars($ogUrl) ?>">
         <meta property="og:type" content="<?= htmlspecialchars($ogType) ?>">
         <meta property="og:site_name" content="<?= HtmlHelper::e($appName) ?>">
@@ -205,7 +210,9 @@ $htmlLang = substr($currentLocale, 0, 2);
         <meta name="twitter:card" content="<?= htmlspecialchars($twitterCard) ?>">
         <meta name="twitter:title" content="<?= htmlspecialchars($twitterTitle) ?>">
         <meta name="twitter:description" content="<?= htmlspecialchars($twitterDescription) ?>">
+        <?php if ($twitterImage !== ''): ?>
         <meta name="twitter:image" content="<?= htmlspecialchars($twitterImage) ?>">
+        <?php endif; ?>
         <?php
         // Add Twitter handle if available (extract from social_twitter URL)
         if (!empty($socialTwitter)) {
