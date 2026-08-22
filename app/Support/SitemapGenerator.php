@@ -10,15 +10,33 @@ use Thepixeldeveloper\Sitemap\Drivers\XmlWriterDriver;
 use Thepixeldeveloper\Sitemap\Url;
 use Thepixeldeveloper\Sitemap\Urlset;
 
+/**
+ * Builds the public sitemap.
+ *
+ * URLs are emitted ONLY for the installation (default) locale and only for
+ * routes that actually resolve: the app registers translated route variants
+ * at the root and serves the session locale, so locale-prefixed URLs
+ * (`/en/...`) do not exist and must never enter the sitemap. Auth pages are
+ * excluded on purpose — robots.txt disallows them, and a sitemap must not
+ * advertise URLs that robots policy blocks.
+ */
 class SitemapGenerator
 {
+    /**
+     * Hard per-section caps keep the file under the 50k-URL/50MB sitemap
+     * protocol limits. When a cap is hit the generator logs a warning so the
+     * truncation is visible instead of silent.
+     */
+    private const MAX_BOOKS = 40000;
+    private const MAX_AUTHORS = 5000;
+    // The sitemap protocol caps a single file at 50k URLs. The per-section caps
+    // above (plus a few static/CMS/event/publisher/genre rows) stay well under
+    // it, but a global ceiling guarantees a valid file even on a pathological
+    // catalogue instead of silently emitting an over-limit sitemap.
+    private const MAX_TOTAL_URLS = 50000;
+
     private mysqli $db;
     private string $baseUrl;
-
-    /**
-     * @var array<string> Active locale codes
-     */
-    private array $activeLocales = [];
 
     /**
      * @var string Default locale code
@@ -43,7 +61,7 @@ class SitemapGenerator
     {
         $this->db = $db;
         $this->baseUrl = rtrim($baseUrl, '/');
-        $this->loadActiveLocales();
+        $this->loadDefaultLocale();
     }
 
     /**
@@ -66,39 +84,40 @@ class SitemapGenerator
         /** @var array<string,array<string,mixed>> $unique */
         $unique = [];
 
-        foreach ($this->getStaticEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['static']++;
+        // Small, bounded sections first (static + CMS + events).
+        foreach (['static' => $this->getStaticEntries(), 'cms' => $this->getCmsEntries(), 'events' => $this->getEventEntries()] as $statKey => $entries) {
+            foreach ($entries as $entry) {
+                $unique[$entry['loc']] = $entry;
+                $this->stats[$statKey]++;
+            }
         }
 
-        foreach ($this->getCmsEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['cms']++;
-        }
-
-        foreach ($this->getEventEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['events']++;
-        }
-
-        foreach ($this->getBookEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['books']++;
-        }
-
-        foreach ($this->getAuthorEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['authors']++;
-        }
-
-        foreach ($this->getPublisherEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['publishers']++;
-        }
-
-        foreach ($this->getGenreEntries() as $entry) {
-            $unique[$entry['loc']] = $entry;
-            $this->stats['genres']++;
+        // Large sections receive the remaining capacity, so each query's SQL
+        // LIMIT caps allocation AT COLLECTION TIME — memory and the file can
+        // never exceed the sitemap protocol's 50k-URL limit even on a
+        // pathological catalogue, instead of allocating everything then slicing.
+        foreach (['books', 'authors', 'publishers', 'genres'] as $statKey) {
+            $remaining = self::MAX_TOTAL_URLS - count($unique);
+            if ($remaining <= 0) {
+                \App\Support\SecureLogger::warning(
+                    'SitemapGenerator: reached the sitemap URL limit; later sections skipped',
+                    ['limit' => self::MAX_TOTAL_URLS, 'skipped_from' => $statKey]
+                );
+                break;
+            }
+            $entries = match ($statKey) {
+                'books' => $this->getBookEntries($remaining),
+                'authors' => $this->getAuthorEntries($remaining),
+                'publishers' => $this->getPublisherEntries($remaining),
+                'genres' => $this->getGenreEntries($remaining),
+            };
+            foreach ($entries as $entry) {
+                $unique[$entry['loc']] = $entry;
+                $this->stats[$statKey]++;
+                if (count($unique) >= self::MAX_TOTAL_URLS) {
+                    break;
+                }
+            }
         }
 
         $this->stats['total'] = count($unique);
@@ -144,38 +163,39 @@ class SitemapGenerator
     }
 
     /**
+     * Resolve a route key to its default-locale path.
+     */
+    private function routePath(string $key): string
+    {
+        return RouteTranslator::getRouteForLocale($key, $this->defaultLocale);
+    }
+
+    /**
      * @return array<int,array<string,mixed>>
      */
     private function getStaticEntries(): array
     {
-        $entries = [];
+        // Auth pages (login/register) are deliberately absent: robots.txt
+        // disallows them, and advertising blocked URLs triggers
+        // "Submitted URL blocked by robots.txt" reports.
         $staticPages = [
             ['path' => '/', 'changefreq' => 'daily', 'priority' => '1.0'],
             ['route' => 'catalog', 'changefreq' => 'daily', 'priority' => '0.9'],
             ['route' => 'about', 'changefreq' => 'monthly', 'priority' => '0.7'],
             ['route' => 'contact', 'changefreq' => 'monthly', 'priority' => '0.6'],
             ['route' => 'privacy', 'changefreq' => 'yearly', 'priority' => '0.4'],
-            ['route' => 'register', 'changefreq' => 'monthly', 'priority' => '0.5'],
-            ['route' => 'login', 'changefreq' => 'monthly', 'priority' => '0.4'],
         ];
 
-        // Generate URL for each active locale
-        foreach ($this->activeLocales as $locale) {
-            $localePrefix = $this->getLocalePrefix($locale);
-
-            foreach ($staticPages as $page) {
-                $path = isset($page['route'])
-                    ? RouteTranslator::getRouteForLocale($page['route'], $locale)
-                    : $page['path'];
-                $entries[] = [
-                    'loc' => $this->baseUrl . $localePrefix . $path,
-                    'changefreq' => $page['changefreq'],
-                    'priority' => $page['priority'],
-                ];
-            }
+        $entries = [];
+        foreach ($staticPages as $page) {
+            $path = isset($page['route']) ? $this->routePath($page['route']) : $page['path'];
+            $entries[] = [
+                'loc' => $this->baseUrl . $path,
+                'changefreq' => $page['changefreq'],
+                'priority' => $page['priority'],
+            ];
         }
 
-        // Feed endpoint is global (/feed.xml), not locale-prefixed
         $entries[] = [
             'loc' => $this->baseUrl . '/feed.xml',
             'changefreq' => 'daily',
@@ -200,19 +220,12 @@ class SitemapGenerator
                     continue;
                 }
 
-                $lastmod = $row['updated_at'] ?? $row['created_at'] ?? null;
-
-                // Generate URL for each active locale
-                foreach ($this->activeLocales as $locale) {
-                    $localePrefix = $this->getLocalePrefix($locale);
-
-                    $entries[] = [
-                        'loc' => $this->baseUrl . $localePrefix . '/' . rawurlencode($slug),
-                        'changefreq' => 'monthly',
-                        'priority' => '0.6',
-                        'lastmod' => $lastmod,
-                    ];
-                }
+                $entries[] = [
+                    'loc' => $this->baseUrl . '/' . rawurlencode($slug),
+                    'changefreq' => 'monthly',
+                    'priority' => '0.6',
+                    'lastmod' => $row['updated_at'] ?? $row['created_at'] ?? null,
+                ];
             }
             $result->free();
         } else {
@@ -231,25 +244,19 @@ class SitemapGenerator
         $sql = "SELECT slug, updated_at, created_at FROM events WHERE is_active = 1 ORDER BY event_date DESC";
 
         if ($result = $this->db->query($sql)) {
+            $eventsPath = $this->routePath('events');
             while ($row = $result->fetch_assoc()) {
                 $slug = trim((string)($row['slug'] ?? ''));
                 if ($slug === '') {
                     continue;
                 }
 
-                $lastmod = $row['updated_at'] ?? $row['created_at'] ?? null;
-
-                foreach ($this->activeLocales as $locale) {
-                    $localePrefix = $this->getLocalePrefix($locale);
-                    $eventsPath = RouteTranslator::getRouteForLocale('events', $locale);
-
-                    $entries[] = [
-                        'loc' => $this->baseUrl . $localePrefix . $eventsPath . '/' . rawurlencode($slug),
-                        'changefreq' => 'monthly',
-                        'priority' => '0.6',
-                        'lastmod' => $lastmod,
-                    ];
-                }
+                $entries[] = [
+                    'loc' => $this->baseUrl . $eventsPath . '/' . rawurlencode($slug),
+                    'changefreq' => 'monthly',
+                    'priority' => '0.6',
+                    'lastmod' => $row['updated_at'] ?? $row['created_at'] ?? null,
+                ];
             }
             $result->free();
         } else {
@@ -262,22 +269,15 @@ class SitemapGenerator
     /**
      * @return array<int,array<string,mixed>>
      */
-    private function getBookEntries(): array
+    private function getBookEntries(int $cap): array
     {
         $entries = [];
+        $limit = max(0, min(self::MAX_BOOKS, $cap));
         $sql = "
             SELECT l.id,
                    l.titolo,
                    l.updated_at,
                    l.created_at,
-                   (
-                       SELECT " . \App\Support\AuthorName::displaySql('a') . "
-                       FROM libri_autori la
-                       JOIN autori a ON la.autore_id = a.id
-                       WHERE la.libro_id = l.id AND la.ruolo IN ('principale', 'co-autore')
-                       ORDER BY CASE la.ruolo WHEN 'principale' THEN 0 ELSE 1 END, la.ordine_credito
-                       LIMIT 1
-                   ) AS autore_principale,
                    (
                        SELECT a.nome
                        FROM libri_autori la
@@ -289,7 +289,7 @@ class SitemapGenerator
             FROM libri l
             WHERE l.deleted_at IS NULL
             ORDER BY l.updated_at DESC
-            LIMIT 2000
+            LIMIT {$limit}
         ";
 
         if ($result = $this->db->query($sql)) {
@@ -300,20 +300,17 @@ class SitemapGenerator
                     continue;
                 }
 
-                // Generate URL for each active locale
-                foreach ($this->activeLocales as $locale) {
-                    $localePrefix = $this->getLocalePrefix($locale);
-                    $bookPath = $this->buildBookPath($id, $title, (string)($row['autore_principale_nome'] ?? ''));
-
-                    $entries[] = [
-                        'loc' => $this->baseUrl . $localePrefix . $bookPath,
-                        'changefreq' => 'weekly',
-                        'priority' => '0.8',
-                        'lastmod' => $row['updated_at'] ?? $row['created_at'] ?? null,
-                    ];
-                }
+                $entries[] = [
+                    'loc' => $this->baseUrl . $this->buildBookPath($id, $title, (string)($row['autore_principale_nome'] ?? '')),
+                    'changefreq' => 'weekly',
+                    'priority' => '0.8',
+                    'lastmod' => $row['updated_at'] ?? $row['created_at'] ?? null,
+                ];
             }
             $result->free();
+            if (count($entries) >= $limit) {
+                SecureLogger::warning('SitemapGenerator: book cap reached (' . $limit . ') — older books are not listed. Consider a sitemap index.');
+            }
         } else {
             SecureLogger::warning('SitemapGenerator::getBookEntries query failed: ' . $this->db->error);
         }
@@ -324,31 +321,41 @@ class SitemapGenerator
     /**
      * @return array<int,array<string,mixed>>
      */
-    private function getAuthorEntries(): array
+    private function getAuthorEntries(int $cap): array
     {
         $entries = [];
-        $sql = "SELECT nome, created_at FROM autori ORDER BY created_at DESC LIMIT 500";
+        $limit = max(0, min(self::MAX_AUTHORS, $cap));
+        // Only authors with at least one visible book: an empty archive is a
+        // thin page that wastes crawl budget.
+        $sql = "
+            SELECT a.nome, a.created_at
+            FROM autori a
+            JOIN libri_autori la ON la.autore_id = a.id
+            JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
+            GROUP BY a.id, a.nome, a.created_at
+            ORDER BY a.created_at DESC
+            LIMIT {$limit}
+        ";
 
         if ($result = $this->db->query($sql)) {
+            $authorPath = $this->routePath('author');
             while ($row = $result->fetch_assoc()) {
                 $name = trim((string)($row['nome'] ?? ''));
                 if ($name === '') {
                     continue;
                 }
 
-                // Generate URL for each active locale
-                foreach ($this->activeLocales as $locale) {
-                    $localePrefix = $this->getLocalePrefix($locale);
-
-                    $entries[] = [
-                        'loc' => $this->baseUrl . $localePrefix . RouteTranslator::getRouteForLocale('author', $locale) . '/' . rawurlencode($name),
-                        'changefreq' => 'monthly',
-                        'priority' => '0.6',
-                        'lastmod' => $row['created_at'] ?? null,
-                    ];
-                }
+                $entries[] = [
+                    'loc' => $this->baseUrl . $authorPath . '/' . rawurlencode($name),
+                    'changefreq' => 'monthly',
+                    'priority' => '0.6',
+                    'lastmod' => $row['created_at'] ?? null,
+                ];
             }
             $result->free();
+            if (count($entries) >= $limit) {
+                SecureLogger::warning('SitemapGenerator: author cap reached (' . $limit . ') — older authors are not listed.');
+            }
         } else {
             SecureLogger::warning('SitemapGenerator::getAuthorEntries query failed: ' . $this->db->error);
         }
@@ -359,29 +366,45 @@ class SitemapGenerator
     /**
      * @return array<int,array<string,mixed>>
      */
-    private function getPublisherEntries(): array
+    private function getPublisherEntries(int $limit): array
     {
         $entries = [];
-        $sql = "SELECT nome FROM editori ORDER BY nome ASC";
+        // Mirror the genre filter: publishers without visible books produce
+        // empty archive pages and do not belong in the sitemap. Match
+        // publisherArchive(): a book counts for a publisher both as its primary
+        // editore_id and — when the schema has it — as a secondary via
+        // libri_editori, so secondary-only publishers with real pages are listed.
+        $publisherMatch = 'l.editore_id = e.id';
+        if (\App\Support\SchemaInfo::hasLibriEditori($this->db)) {
+            $publisherMatch .= ' OR EXISTS (
+                SELECT 1 FROM libri_editori le
+                WHERE le.libro_id = l.id AND le.editore_id = e.id
+            )';
+        }
+        $sql = "
+            SELECT e.nome
+            FROM editori e
+            JOIN libri l ON ({$publisherMatch}) AND l.deleted_at IS NULL
+            GROUP BY e.id, e.nome
+            HAVING COUNT(l.id) > 0
+            ORDER BY e.nome ASC
+            LIMIT {$limit}
+        ";
 
         if ($result = $this->db->query($sql)) {
+            $publisherPath = $this->routePath('publisher');
             while ($row = $result->fetch_assoc()) {
                 $name = trim((string)($row['nome'] ?? ''));
                 if ($name === '') {
                     continue;
                 }
 
-                // Generate URL for each active locale
-                foreach ($this->activeLocales as $locale) {
-                    $localePrefix = $this->getLocalePrefix($locale);
-
-                    $entries[] = [
-                        'loc' => $this->baseUrl . $localePrefix . RouteTranslator::getRouteForLocale('publisher', $locale) . '/' . rawurlencode($name),
-                        'changefreq' => 'monthly',
-                        'priority' => '0.5',
-                        'lastmod' => null,
-                    ];
-                }
+                $entries[] = [
+                    'loc' => $this->baseUrl . $publisherPath . '/' . rawurlencode($name),
+                    'changefreq' => 'monthly',
+                    'priority' => '0.5',
+                    'lastmod' => null,
+                ];
             }
             $result->free();
         } else {
@@ -394,7 +417,7 @@ class SitemapGenerator
     /**
      * @return array<int,array<string,mixed>>
      */
-    private function getGenreEntries(): array
+    private function getGenreEntries(int $limit): array
     {
         $entries = [];
         $sql = "
@@ -404,26 +427,23 @@ class SitemapGenerator
             GROUP BY g.id, g.nome
             HAVING COUNT(l.id) > 0
             ORDER BY g.nome ASC
+            LIMIT {$limit}
         ";
 
         if ($result = $this->db->query($sql)) {
+            $genrePath = $this->routePath('genre');
             while ($row = $result->fetch_assoc()) {
                 $name = trim((string)($row['nome'] ?? ''));
                 if ($name === '') {
                     continue;
                 }
 
-                // Generate URL for each active locale
-                foreach ($this->activeLocales as $locale) {
-                    $localePrefix = $this->getLocalePrefix($locale);
-
-                    $entries[] = [
-                        'loc' => $this->baseUrl . $localePrefix . RouteTranslator::getRouteForLocale('genre', $locale) . '/' . rawurlencode($name),
-                        'changefreq' => 'monthly',
-                        'priority' => '0.5',
-                        'lastmod' => null,
-                    ];
-                }
+                $entries[] = [
+                    'loc' => $this->baseUrl . $genrePath . '/' . rawurlencode($name),
+                    'changefreq' => 'monthly',
+                    'priority' => '0.5',
+                    'lastmod' => null,
+                ];
             }
             $result->free();
         } else {
@@ -468,55 +488,29 @@ class SitemapGenerator
     }
 
     /**
-     * Load active locales from database
+     * Load the default (installation) locale from the database.
      */
-    private function loadActiveLocales(): void
+    private function loadDefaultLocale(): void
     {
         try {
             $result = $this->db->query("
-                SELECT code, is_default
+                SELECT code
                 FROM languages
-                WHERE is_active = 1
-                ORDER BY is_default DESC, code ASC
+                WHERE is_active = 1 AND is_default = 1
+                LIMIT 1
             ");
 
             if ($result) {
-                while ($row = $result->fetch_assoc()) {
-                    $code = (string)($row['code'] ?? '');
-                    if ($code !== '') {
-                        $this->activeLocales[] = $code;
-                        if ((int)($row['is_default'] ?? 0) === 1) {
-                            $this->defaultLocale = $code;
-                        }
-                    }
+                $row = $result->fetch_assoc();
+                $code = (string)($row['code'] ?? '');
+                if ($code !== '') {
+                    $this->defaultLocale = $code;
                 }
                 $result->free();
             }
         } catch (\Throwable $e) {
-            SecureLogger::warning('SitemapGenerator::loadActiveLocales failed, falling back to it_IT: ' . $e->getMessage());
-            $this->activeLocales = ['it_IT'];
-            $this->defaultLocale = 'it_IT';
+            SecureLogger::warning('SitemapGenerator::loadDefaultLocale failed, falling back to it_IT: ' . $e->getMessage());
         }
-
-        // Ensure at least one locale
-        if (empty($this->activeLocales)) {
-            $this->activeLocales = ['it_IT'];
-        }
-    }
-
-    /**
-     * Get locale prefix for URL (empty for default locale, /xx for others)
-     */
-    private function getLocalePrefix(string $locale): string
-    {
-        // Default locale has no prefix
-        if ($locale === $this->defaultLocale) {
-            return '';
-        }
-
-        // Extract language code (first 2 chars of locale: it_IT -> it, en_US -> en)
-        $langCode = strtolower(substr($locale, 0, 2));
-        return '/' . $langCode;
     }
 
     private function buildBookPath(int $bookId, string $title, string $authorName): string

@@ -6890,5 +6890,16 @@
   "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Denne reservation er allerede blevet konverteret til et stadig åbent lån: Håndter lånet fra siden Udlån i stedet for at redigere reservationen.",
   "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService: Opdatering af cooldown-markør mislykkedes",
   "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService: Fejl ved hentning af afhentningsnotifikationer",
-  "Errore: la nuova data di scadenza non può essere nel passato.": "Fejl: Den nye afleveringsdato må ikke være i fortiden."
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Fejl: Den nye afleveringsdato må ikke være i fortiden.",
+  "Aggiungi il prestito al tuo calendario": "Føj lånet til din kalender",
+  "Altri calendari (.ics)": "Andre kalendere (.ics)",
+  "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.": "Gem lånets datoer i din kalender, så du ikke glemmer afleveringen.",
+  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Sektion med links til at føje lånet til en kalender (Google Calendar og .ics-fil)",
+  "Libri di %s": "Bøger af %s",
+  "Libri dell'editore %s": "Bøger fra forlaget %s",
+  "Libri del genere %s": "Bøger i genren %s",
+  "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.": "Alle værker af %s i biblioteket: gennemse de tilgængelige titler og bestil dem til udlån.",
+  "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.": "Alle bøger udgivet af %s i vores bibliotek, tilgængelige til udlån.",
+  "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.": "Udforsk bøgerne i genren %s, som kan lånes på vores bibliotek.",
+  "Pagina %d": "Side %d"
 }

@@ -314,6 +314,11 @@ class FrontendController
 
         // Render template
         $container = $this->container;
+        // The catalog view reads $current_page for the server-rendered pagination
+        // nav and the initial JS pagination config; the controller tracks it as
+        // $page. Without this the no-JS nav always marks page 1 active and never
+        // links past page 5, so pages 6+ are not crawlable.
+        $current_page = $page;
         ob_start();
         // Rendi disponibili tutte le variabili necessarie nel template
         include __DIR__ . '/../Views/frontend/catalog.php';
@@ -1437,7 +1442,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
 
         $container = $this->container;
         ob_start();
-        $title = "Libri di " . htmlspecialchars(\App\Support\AuthorName::display($author), ENT_QUOTES, 'UTF-8');
+        // Title, meta, canonical and JSON-LD are centralized in archive.php.
         $archive_type = 'autore';
         $archive_info = $author;
         include __DIR__ . '/../Views/frontend/archive.php';
@@ -1539,14 +1544,9 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         }
 
         ob_start();
-        $title = "Libri di " . $publisher['nome'];
-
-        // SEO Variables — escaping is handled at template output time by HtmlHelper::e()
-        $seoTitle = "Libri di {$publisher['nome']} - Catalogo Editore | Biblioteca";
-        $seoDescription = "Scopri tutti i libri pubblicati da {$publisher['nome']} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = absoluteUrl(RouteTranslator::route('publisher') . '/' . urlencode($publisher['nome']));
-        $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
-
+        // Title, meta, canonical and JSON-LD are centralized in archive.php,
+        // shared with the author and genre archives (localized, name-based
+        // canonical, CollectionPage + BreadcrumbList schema).
         $archive_type = 'editore';
         $archive_info = $publisher;
         $container = $this->container;
@@ -1691,14 +1691,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         }
 
         ob_start();
-        $title = "Libri di genere " . $genre['nome'];
-
-        // SEO Variables — escaping is handled at template output time by HtmlHelper::e()
-        $seoTitle = "Libri di {$genre['nome']} - Catalogo per Genere | Biblioteca";
-        $seoDescription = "Esplora tutti i libri del genere {$genre['nome']} disponibili nella nostra biblioteca. {$totalBooks} libr" . ($totalBooks === 1 ? 'o' : 'i') . " disponibili per il prestito.";
-        $seoCanonical = absoluteUrl(RouteTranslator::route('genre') . '/' . urlencode($genre['nome']));
-        $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
-
+        // Title, meta, canonical and JSON-LD are centralized in archive.php.
         $archive_type = 'genere';
         $archive_info = $genre;
         $container = $this->container;
@@ -2151,7 +2144,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         // Render template
         $container = $this->container;
         ob_start();
-        $title = "Libri di " . htmlspecialchars(\App\Support\AuthorName::display($author), ENT_QUOTES, 'UTF-8');
+        // Title, meta, canonical and JSON-LD are centralized in archive.php.
         $archive_type = 'autore';
         $archive_info = $author;
         include __DIR__ . '/../Views/frontend/archive.php';
@@ -2410,6 +2403,44 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $twitterTitle = $event['twitter_title'] ?: $ogTitle;
         $twitterDescription = $event['twitter_description'] ?: $ogDescription;
         $twitterImage = !empty($event['twitter_image']) ? absoluteUrl($event['twitter_image']) : $ogImage;
+
+        // Schema.org Event + breadcrumb (rich results: date, organizer).
+        // No location column exists, so none is asserted rather than invented.
+        $eventStart = (string) $event['event_date'];
+        if (!empty($event['event_time'])) {
+            $eventStart .= 'T' . $event['event_time'];
+        }
+        $eventSchema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'Event',
+            'name' => (string) $event['title'],
+            'startDate' => $eventStart,
+            'url' => $seoCanonical,
+            'organizer' => [
+                '@type' => 'Organization',
+                'name' => $appName,
+                'url' => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/',
+            ],
+        ];
+        if ($seoDescription !== '') {
+            $eventSchema['description'] = $seoDescription;
+        }
+        if (!empty($event['featured_image'])) {
+            $eventSchema['image'] = absoluteUrl($event['featured_image']);
+        }
+        $eventBreadcrumbSchema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => [
+                ['@type' => 'ListItem', 'position' => 1, 'name' => __('Home'), 'item' => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/'],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => __('Eventi'), 'item' => absoluteUrl(RouteTranslator::route('events'))],
+                ['@type' => 'ListItem', 'position' => 3, 'name' => (string) $event['title']],
+            ],
+        ];
+        $seoSchema = json_encode(
+            [$eventSchema, $eventBreadcrumbSchema],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG
+        );
 
         // Related events (upcoming, excluding current)
         $relatedEvents = [];

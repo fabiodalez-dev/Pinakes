@@ -3342,6 +3342,20 @@ class Updater
                 $this->debugLog('WARNING', 'Contributor backfill deferred; maintenance will retry');
             }
 
+            // #366 follow-up (0.7.65): legacy da_ritirare rows with a NULL
+            // pickup_deadline never expire (the sweep skips NULLs) and survive
+            // the 0.7.63 repair when their copy is genuinely free. The
+            // backfill MUST run after reapplyTriggers(): a migration SQL file
+            // would execute under the starting version's BEFORE UPDATE
+            // trigger, whose overlap gate aborts on any update of a copy-bound
+            // row; the corrected trigger exempts commitment-neutral edits.
+            // Docker upgrades drive this same method, so both paths repair.
+            if (version_compare($toVersion, '0.7.65-rc.1', '>=')
+                && !PickupDeadlineBackfill::run($this->db)
+            ) {
+                $this->debugLog('WARNING', 'Pickup deadline backfill failed; it will retry on the next upgrade run');
+            }
+
             return [
                 'success' => true,
                 'executed' => $executed,

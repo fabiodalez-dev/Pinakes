@@ -4,6 +4,7 @@
 /** @var array $filter_options */
 /** @var ?int $total_books */
 /** @var array<int, array<string, mixed>> $archiveResults */
+/** @var int $current_page */
 
 use App\Support\HtmlHelper;
 
@@ -18,13 +19,23 @@ if ($searchQuery) {
     $sanitizedSearchQuery = htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8');
     $seoTitle = __("Risultati per '%s' - Catalogo Biblioteca", $sanitizedSearchQuery);
     $seoDescription = __("Scopri tutti i libri che contengono '%s' nel nostro catalogo. Trova autori, titoli e argomenti correlati alla tua ricerca.", $sanitizedSearchQuery);
+    // Internal search results must not enter the index (infinite query space,
+    // thin/duplicate content); links are still followed toward the books.
+    $seoRobots = 'noindex,follow';
 } else {
     $seoTitle = __("Catalogo Completo Libri - Biblioteca Digitale");
     $seoDescription = __("Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.");
 }
 $catalogRoute = route_path('catalog');
 $apiCatalogRoute = route_path('api_catalog');
-$seoCanonical = rtrim(HtmlHelper::getBaseUrl(), '/') . \App\Support\RouteTranslator::route('catalog');
+$catalogBaseUrl = rtrim(HtmlHelper::getBaseUrl(), '/') . \App\Support\RouteTranslator::route('catalog');
+$seoCanonical = $catalogBaseUrl;
+if ((int) $current_page > 1) {
+    // Paginated pages self-canonicalize (same policy as the archive pages): page
+    // 2 is not a duplicate of page 1, so books reachable only on later pages stay
+    // indexable instead of collapsing onto the first page's canonical.
+    $seoCanonical .= '?page=' . (int) $current_page;
+}
 $seoImage = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
 // Schema.org structured data
@@ -43,7 +54,7 @@ $seoSchema = json_encode([
         "@type" => "SearchAction",
         "target" => [
             "@type" => "EntryPoint",
-            "urlTemplate" => $seoCanonical . "?q={search_term_string}"
+            "urlTemplate" => $catalogBaseUrl . "?q={search_term_string}"
         ],
         "query-input" => "required name=search_term_string"
     ]
@@ -1685,9 +1696,35 @@ ob_start();
                     <?php endif; ?>
                 </div>
 
-                <!-- Pagination -->
+                <!-- Pagination: server-rendered with real hrefs so page 2+ is
+                     crawlable without JavaScript; the JS re-render keeps the
+                     same href + goToPage() enhancement on filter changes. -->
                 <div id="pagination-container" class="mt-4">
-                    <!-- Pagination will be added here -->
+                    <?php
+                    $srCurrentPage = max(1, (int) $current_page);
+                    $srTotalPages = max(1, (int)($total_pages ?? 1));
+                    $srPageUrl = static function (int $p): string {
+                        $qs = $_GET;
+                        $qs['page'] = $p;
+                        return '?' . http_build_query($qs);
+                    };
+                    if ($srTotalPages > 1):
+                        $srStart = max(1, $srCurrentPage - 2);
+                        $srEnd = min($srTotalPages, $srStart + 4);
+                        $srStart = max(1, $srEnd - 4);
+                    ?>
+                    <nav aria-label="<?= htmlspecialchars(__('Navigazione pagine'), ENT_QUOTES, 'UTF-8') ?>"><ul class="pagination justify-center">
+                        <?php if ($srCurrentPage > 1): ?>
+                            <li class="page-item"><a class="page-link" href="<?= htmlspecialchars($srPageUrl($srCurrentPage - 1), ENT_QUOTES, 'UTF-8') ?>" onclick="goToPage(<?= $srCurrentPage - 1 ?>); return false;" title="<?= htmlspecialchars(__('Pagina precedente'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-left"></i></a></li>
+                        <?php endif; ?>
+                        <?php for ($srI = $srStart; $srI <= $srEnd; $srI++): ?>
+                            <li class="page-item<?= $srI === $srCurrentPage ? ' active' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($srPageUrl($srI), ENT_QUOTES, 'UTF-8') ?>" onclick="goToPage(<?= $srI ?>); return false;"><?= $srI ?></a></li>
+                        <?php endfor; ?>
+                        <?php if ($srCurrentPage < $srTotalPages): ?>
+                            <li class="page-item"><a class="page-link" href="<?= htmlspecialchars($srPageUrl($srCurrentPage + 1), ENT_QUOTES, 'UTF-8') ?>" onclick="goToPage(<?= $srCurrentPage + 1 ?>); return false;" title="<?= htmlspecialchars(__('Pagina successiva'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-right"></i></a></li>
+                        <?php endif; ?>
+                    </ul></nav>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -1696,7 +1733,7 @@ ob_start();
 
 <?php
 $initialPaginationConfig = [
-    'current_page' => max(1, (int)($current_page ?? 1)),
+    'current_page' => max(1, (int) $current_page),
     'total_pages' => max(1, (int)($total_pages ?? 1)),
     'total_books' => max(0, (int)($total_books ?? 0)),
 ];
@@ -2083,6 +2120,14 @@ function loadBooks() {
         });
 }
 
+function buildPageHref(page) {
+    // Real hrefs keep pagination crawlable; the URL always mirrors the active
+    // filters because applyFilters() syncs them via history.replaceState.
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', page);
+    return '?' + params.toString();
+}
+
 function updatePagination(pagination) {
     const container = document.getElementById('pagination-container');
     if (!container) {
@@ -2100,7 +2145,7 @@ function updatePagination(pagination) {
     let html = '<nav aria-label="' + escapeHtml(window.__('Page navigation')) + '"><ul class="pagination justify-center">';
 
     if (current > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current - 1) + ')" title="' + i18n.pagina_precedente + '"><i class="fas fa-chevron-left"></i></a></li>';
+        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(current - 1) + '" onclick="goToPage(' + (current - 1) + '); return false;" title="' + i18n.pagina_precedente + '"><i class="fas fa-chevron-left"></i></a></li>';
     }
 
     const visiblePages = 5;
@@ -2113,7 +2158,7 @@ function updatePagination(pagination) {
     }
 
     if (startPage > 1) {
-        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1)">1</a></li>';
+        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(1) + '" onclick="goToPage(1); return false;">1</a></li>';
         if (startPage > 2) {
             html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
         }
@@ -2121,18 +2166,18 @@ function updatePagination(pagination) {
 
     for (let i = startPage; i <= endPage; i += 1) {
         const activeClass = i === current ? ' active' : '';
-        html += '<li class="page-item' + activeClass + '"><a class="page-link" href="#" onclick="goToPage(' + i + ')">' + i + '</a></li>';
+        html += '<li class="page-item' + activeClass + '"><a class="page-link" href="' + buildPageHref(i) + '" onclick="goToPage(' + i + '); return false;">' + i + '</a></li>';
     }
 
     if (endPage < total) {
         if (endPage < total - 1) {
             html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
         }
-        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + total + ')">' + total + '</a></li>';
+        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(total) + '" onclick="goToPage(' + total + '); return false;">' + total + '</a></li>';
     }
 
     if (current < total) {
-        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current + 1) + ')" title="' + i18n.pagina_successiva + '"><i class="fas fa-chevron-right"></i></a></li>';
+        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(current + 1) + '" onclick="goToPage(' + (current + 1) + '); return false;" title="' + i18n.pagina_successiva + '"><i class="fas fa-chevron-right"></i></a></li>';
     }
 
     html += '</ul></nav>';

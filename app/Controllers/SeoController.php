@@ -35,11 +35,24 @@ class SeoController
         $lines = [
             'User-agent: *',
             'Disallow: ' . $basePath . '/admin/',
-            'Disallow: ' . $basePath . RouteTranslator::route('login'),
-            'Disallow: ' . $basePath . RouteTranslator::route('register'),
-            '',
-            'Sitemap: ' . $baseUrl . '/sitemap.xml',
         ];
+
+        // Every translated variant of the auth routes is registered at the
+        // root (e.g. /accedi AND /login), so the Disallow list must cover all
+        // active locales, not just the request's one.
+        $authPaths = [];
+        foreach (array_keys(I18n::getAvailableLocales()) as $localeCode) {
+            foreach (['login', 'register'] as $routeKey) {
+                $authPaths[RouteTranslator::getRouteForLocale($routeKey, $localeCode)] = true;
+            }
+        }
+        ksort($authPaths);
+        foreach (array_keys($authPaths) as $authPath) {
+            $lines[] = 'Disallow: ' . $basePath . $authPath;
+        }
+
+        $lines[] = '';
+        $lines[] = 'Sitemap: ' . $baseUrl . '/sitemap.xml';
 
         if (ConfigStore::get('seo.llms_txt_enabled', '0') === '1') {
             $lines[] = 'llms.txt: ' . $baseUrl . '/llms.txt';

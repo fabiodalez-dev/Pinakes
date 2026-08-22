@@ -6890,5 +6890,16 @@
   "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Cette réservation a déjà été convertie en un prêt encore ouvert : gérez le prêt depuis la page Prêts au lieu de modifier la réservation.",
   "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService : échec de la mise à jour du marqueur de cooldown",
   "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService : erreur de récupération des notifications de retrait",
-  "Errore: la nuova data di scadenza non può essere nel passato.": "Erreur : la nouvelle date d'échéance ne peut pas être dans le passé."
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Erreur : la nouvelle date d'échéance ne peut pas être dans le passé.",
+  "Aggiungi il prestito al tuo calendario": "Ajouter l'emprunt à votre calendrier",
+  "Altri calendari (.ics)": "Autres calendriers (.ics)",
+  "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.": "Enregistrez les dates de l'emprunt dans votre calendrier pour ne pas oublier le retour.",
+  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Section avec les liens pour ajouter l'emprunt à un calendrier (Google Calendar et fichier .ics)",
+  "Libri di %s": "Livres de %s",
+  "Libri dell'editore %s": "Livres de l'éditeur %s",
+  "Libri del genere %s": "Livres du genre %s",
+  "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.": "Toutes les œuvres de %s présentes dans la bibliothèque : parcourez les titres disponibles et demandez-les en prêt.",
+  "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.": "Tous les livres publiés par %s présents dans notre bibliothèque, disponibles au prêt.",
+  "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.": "Explorez les livres du genre %s disponibles au prêt dans notre bibliothèque.",
+  "Pagina %d": "Page %d"
 }

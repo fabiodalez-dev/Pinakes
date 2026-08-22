@@ -6890,5 +6890,16 @@
   "Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.": "Diese Vormerkung wurde bereits in eine noch offene Ausleihe umgewandelt: Verwalte die Ausleihe auf der Seite Ausleihen, statt die Vormerkung zu bearbeiten.",
   "MaintenanceService aggiornamento marker cooldown fallito": "MaintenanceService: Aktualisierung des Cooldown-Markers fehlgeschlagen",
   "MaintenanceService errore recupero notifiche ritiro": "MaintenanceService: Fehler beim Abrufen der Abholbenachrichtigungen",
-  "Errore: la nuova data di scadenza non può essere nel passato.": "Fehler: Das neue Fälligkeitsdatum darf nicht in der Vergangenheit liegen."
+  "Errore: la nuova data di scadenza non può essere nel passato.": "Fehler: Das neue Fälligkeitsdatum darf nicht in der Vergangenheit liegen.",
+  "Aggiungi il prestito al tuo calendario": "Ausleihe zu deinem Kalender hinzufügen",
+  "Altri calendari (.ics)": "Andere Kalender (.ics)",
+  "Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.": "Speichere die Ausleihdaten in deinem Kalender, um die Rückgabe nicht zu vergessen.",
+  "Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)": "Abschnitt mit den Links, um die Ausleihe zu einem Kalender hinzuzufügen (Google Calendar und .ics-Datei)",
+  "Libri di %s": "Bücher von %s",
+  "Libri dell'editore %s": "Bücher des Verlags %s",
+  "Libri del genere %s": "Bücher des Genres %s",
+  "Tutte le opere di %s presenti in biblioteca: sfoglia i titoli disponibili e richiedili in prestito.": "Alle Werke von %s in der Bibliothek: stöbern Sie in den verfügbaren Titeln und leihen Sie sie aus.",
+  "Tutti i libri pubblicati da %s presenti nella nostra biblioteca, disponibili per il prestito.": "Alle von %s veröffentlichten Bücher in unserer Bibliothek, zum Ausleihen verfügbar.",
+  "Esplora i libri del genere %s disponibili nella nostra biblioteca per il prestito.": "Entdecken Sie die Bücher des Genres %s, die in unserer Bibliothek zum Ausleihen verfügbar sind.",
+  "Pagina %d": "Seite %d"
 }
