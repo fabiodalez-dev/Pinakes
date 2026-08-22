@@ -411,11 +411,11 @@ jobs:
                   && version_compare($migration, $rangeTo, '<=');
           };
           foreach ([
-              ['0.7.63', '0.7.64-rc.1', false],
+              ['0.7.63', '0.7.64-rc.1', true],
               ['0.7.63', '0.7.64', true],
               ['0.7.63', '0.7.65-rc.1', true],
           ] as [$matrixFrom, $matrixTarget, $matrixExpected]) {
-              if ($shouldRun('0.7.64', $matrixFrom, $matrixTarget) !== $matrixExpected) {
+              if ($shouldRun('0.7.64-rc.1', $matrixFrom, $matrixTarget) !== $matrixExpected) {
                   fwrite(STDERR, "Migration range predicate failed for {$matrixFrom} → {$matrixTarget}\n");
                   exit(1);
               }
@@ -486,7 +486,7 @@ jobs:
               SELECT CONCAT(pickup_notification_sent, '|', COALESCE(pickup_notification_claim_token, 'NULL'), '|', COALESCE(pickup_notification_last_attempt_at, 'NULL')) FROM prestiti WHERE id=LAST_INSERT_ID();")
             [ "$NEW_DEFAULT" = "0|NULL|NULL" ] || { echo "New post-upgrade loan received unexpected pickup claim defaults: $NEW_DEFAULT"; exit 1; }
             MIGRATION_RECORD=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
-              "SELECT CONCAT(COUNT(*), '|', COALESCE(MAX(filename), '')) FROM migrations WHERE version='0.7.64'")
+              "SELECT CONCAT(COUNT(*), '|', COALESCE(MAX(filename), '')) FROM migrations WHERE version='0.7.64-rc.1'")
             [ "$MIGRATION_RECORD" = "1|migrate_0.7.64-rc.1.sql" ] || { echo "Unexpected 0.7.64 migration record: $MIGRATION_RECORD"; exit 1; }
             echo "✓ migrate_0.7.64-rc.1.sql selected by baseline Updater; legacy marker/default/record verified"
           fi
