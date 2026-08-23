@@ -10,7 +10,7 @@ declare(strict_types=1);
  * Inspired by the GoodLib browser extension.
  *
  * @package Pinakes\Plugins\GoodLib
- * @version 1.0.0
+ * @version 1.0.1
  */
 class GoodLibPlugin
 {
