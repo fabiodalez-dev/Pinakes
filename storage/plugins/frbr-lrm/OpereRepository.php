@@ -63,6 +63,39 @@ class OpereRepository
         return $row ?: null;
     }
 
+    /**
+     * The opera (Work) currently attached to a given book, or null.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getForBook(int $bookId): ?array
+    {
+        $authorDisplay = \App\Support\AuthorName::displaySql('a');
+        $sql = "SELECT o.id, o.titolo_uniforme, o.slug, {$authorDisplay} AS autore_nome
+                FROM libri l
+                INNER JOIN opere o ON l.opera_id = o.id AND o.deleted_at IS NULL
+                LEFT JOIN autori a ON o.autore_principale_id = a.id
+                WHERE l.id = ? AND l.deleted_at IS NULL
+                LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ?: null;
+    }
+
+    /** True if a non-deleted opera with this id exists. */
+    public function exists(int $id): bool
+    {
+        $stmt = $this->db->prepare("SELECT 1 FROM opere WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $found = $stmt->get_result()->fetch_row() !== null;
+        $stmt->close();
+        return $found;
+    }
+
     /** @return array<string, mixed>|null */
     public function getBySlug(string $slug): ?array
     {

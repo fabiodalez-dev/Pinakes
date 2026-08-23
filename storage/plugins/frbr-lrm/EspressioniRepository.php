@@ -76,6 +76,30 @@ class EspressioniRepository
         return $id;
     }
 
+    /** @param array<string, mixed> $data */
+    public function update(int $id, array $data): bool
+    {
+        $sql = "UPDATE espressioni SET
+                  lingua = ?, tipo_espressione = ?, traduttore_autore_id = ?,
+                  curatore_autore_id = ?, revisore_autore_id = ?, titolo_espressione = ?,
+                  anno_espressione = ?, note = ?, updated_at = NOW()
+                WHERE id = ? AND deleted_at IS NULL";
+        $stmt = $this->db->prepare($sql);
+        $lingua = ($data['lingua'] ?? '') !== '' ? (string) $data['lingua'] : null;
+        $tipo = (string) ($data['tipo_espressione'] ?? 'testo');
+        $trad = !empty($data['traduttore_autore_id']) ? (int) $data['traduttore_autore_id'] : null;
+        $cur = !empty($data['curatore_autore_id']) ? (int) $data['curatore_autore_id'] : null;
+        $rev = !empty($data['revisore_autore_id']) ? (int) $data['revisore_autore_id'] : null;
+        $titolo = ($data['titolo_espressione'] ?? '') !== '' ? (string) $data['titolo_espressione'] : null;
+        $anno = ($data['anno_espressione'] ?? '') !== '' ? (int) $data['anno_espressione'] : null;
+        $note = ($data['note'] ?? '') !== '' ? (string) $data['note'] : null;
+        // 9 params: lingua(s) tipo(s) trad(i) cur(i) rev(i) titolo(s) anno(i) note(s) id(i)
+        $stmt->bind_param('ssiiisisi', $lingua, $tipo, $trad, $cur, $rev, $titolo, $anno, $note, $id);
+        $ok = $stmt->execute();
+        $stmt->close();
+        return $ok;
+    }
+
     public function softDelete(int $id): bool
     {
         $this->db->query("UPDATE libri SET espressione_id = NULL WHERE espressione_id = " . (int) $id);
