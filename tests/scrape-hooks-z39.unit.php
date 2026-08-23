@@ -117,10 +117,10 @@ aContains("'scrape.isbn.validate',", $scrape,
     'T5  core still emits scrape.isbn.validate (discogs validateBarcode is a LIVE hook, issue #101)');
 
 // ─── Group B — plugin registrations against those hooks are all live ────────
-aContains("Hooks::add('scrape.data.modify', [\$this, 'enrichWithDiscogsData']", $discogsSrc,
+aContains("['scrape.data.modify', 'enrichWithDiscogsData'", $discogsSrc,
     'T6  discogs registers enrichWithDiscogsData on scrape.data.modify');
 
-aContains("Hooks::add('scrape.isbn.validate', [\$this, 'validateBarcode']", $discogsSrc,
+aContains("['scrape.isbn.validate', 'validateBarcode'", $discogsSrc,
     'T7  discogs registers validateBarcode on scrape.isbn.validate');
 
 if ($scrapingPro === null) {
