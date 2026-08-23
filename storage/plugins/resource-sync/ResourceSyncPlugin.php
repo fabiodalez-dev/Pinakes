@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Plugins\ResourceSync;
 
 use App\Support\HookManager;
+use App\Support\RateLimiter;
 use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -209,10 +210,25 @@ class ResourceSyncPlugin
 
         $auth = $request->getHeaderLine('Authorization');
         if ($auth !== '' && str_starts_with($auth, 'Basic ')) {
+            // Throttle credential guessing per client IP. This is the only
+            // brute-force control on the Basic Auth gate, so every attempt must
+            // count toward the limit (mirrors the core login throttle:
+            // RateLimitMiddleware(15, 300, 'login') and mobile_login 10/300).
+            $ip   = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
+            $rlId = 'resourcesync_basic:' . $ip;
+            if (RateLimiter::isLimited($rlId, 10, 300)) {
+                $out = $response
+                    ->withStatus(429)
+                    ->withHeader('Retry-After', '300');
+                return false;
+            }
+
             $decoded = base64_decode(substr($auth, 6), true);
             if ($decoded !== false) {
                 $parts = explode(':', $decoded, 2);
                 if (count($parts) === 2 && $this->authenticateBasic($parts[0], $parts[1])) {
+                    // Successful auth clears the throttle for this IP.
+                    RateLimiter::reset($rlId);
                     return true;
                 }
             }
@@ -245,7 +261,14 @@ class ResourceSyncPlugin
         $res = $stmt->get_result();
         $row = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
         $stmt->close();
-        return $row !== null && password_verify($pass, (string) $row['password']);
+        if ($row === null) {
+            // Constant-time dummy verify: avoids an account-enumeration timing
+            // side channel between "no such admin/staff email" and "wrong
+            // password" by always spending one bcrypt verification.
+            password_verify($pass, '$2y$12$FYWkjQ0krgMEuFnovQ3C6.vL6MZP/pdGGrLm.Q1PBhX29YNNu.Bfe');
+            return false;
+        }
+        return password_verify($pass, (string) $row['password']);
     }
 
     /**

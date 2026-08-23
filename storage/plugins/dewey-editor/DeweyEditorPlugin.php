@@ -222,6 +222,7 @@ class DeweyEditorPlugin
 
     public function saveData(Request $request, Response $response, array $args): Response
     {
+        if (($denied = $this->requireAdmin($response)) !== null) { return $denied; }
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
             return $this->jsonError($response, __('Locale non supportato.'), 400);
@@ -325,6 +326,7 @@ class DeweyEditorPlugin
 
     public function importData(Request $request, Response $response, array $args): Response
     {
+        if (($denied = $this->requireAdmin($response)) !== null) { return $denied; }
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
             return $this->jsonError($response, __('Locale non supportato.'), 400);
@@ -380,6 +382,7 @@ class DeweyEditorPlugin
 
     public function mergeImportData(Request $request, Response $response, array $args): Response
     {
+        if (($denied = $this->requireAdmin($response)) !== null) { return $denied; }
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
             return $this->jsonError($response, __('Locale non supportato.'), 400);
@@ -553,6 +556,7 @@ class DeweyEditorPlugin
 
     public function restoreBackup(Request $request, Response $response, array $args): Response
     {
+        if (($denied = $this->requireAdmin($response)) !== null) { return $denied; }
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
             return $this->jsonError($response, __('Locale non supportato.'), 400);
@@ -690,5 +694,22 @@ class DeweyEditorPlugin
         }
         $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+    }
+
+    /**
+     * Inline admin-only re-check for destructive endpoints.
+     *
+     * AdminAuthMiddleware admits both 'admin' and 'staff', but the save/import/
+     * merge/restore endpoints overwrite the sitewide Dewey classification, so
+     * they must be limited to full administrators — mirroring the project-wide
+     * pattern for destructive admin actions. Returns a 403 response when the
+     * current session is not an admin, or null when access is allowed.
+     */
+    private function requireAdmin(Response $response): ?Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? null) !== 'admin') {
+            return $this->jsonError($response, __('Non autorizzato.'), 403);
+        }
+        return null;
     }
 }
