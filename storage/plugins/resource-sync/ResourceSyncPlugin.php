@@ -31,6 +31,8 @@ class ResourceSyncPlugin
     private HookManager $hookManager;
     private \mysqli $db;
     private ?int $pluginId = null;
+    /** Per-request cache for the bibframe-linked-data active check. */
+    private ?bool $bibframeActiveCache = null;
 
     public function __construct(\mysqli $db, HookManager $hookManager)
     {
@@ -496,9 +498,8 @@ class ResourceSyncPlugin
         }
 
         foreach ($books as $book) {
-            $id        = (int) $book['id'];
             $modified  = $this->w3cDate((string) ($book['updated_at'] ?? $book['created_at'] ?? ''));
-            $loc       = $base . '/api/bibframe/book/' . $id;
+            $loc       = $this->resourceLoc($base, $book);
 
             $xw->startElement('url');
             $xw->writeElement('loc', $loc);
@@ -554,7 +555,7 @@ class ResourceSyncPlugin
 
         // Pagination links: next/prev for harvesters
         $sinceParam = $since !== null ? '&from=' . urlencode($since) : '';
-        if (count($books) === 500) {
+        if (count($books) === self::PAGE_SIZE) {
             $xw->startElementNs('rs', 'ln', null);
             $xw->writeAttribute('rel', 'next');
             $xw->writeAttribute('href', $base . '/resync/changelist.xml?page=' . ($page + 1) . $sinceParam);
@@ -568,7 +569,6 @@ class ResourceSyncPlugin
         }
 
         foreach ($books as $book) {
-            $id = (int) $book['id'];
             if ($book['deleted_at'] !== null) {
                 $modified = $this->w3cDate((string) $book['deleted_at']);
                 $change   = 'deleted';
@@ -578,7 +578,7 @@ class ResourceSyncPlugin
             }
 
             $xw->startElement('url');
-            $xw->writeElement('loc', $base . '/api/bibframe/book/' . $id);
+            $xw->writeElement('loc', $this->resourceLoc($base, $book));
             $xw->writeElement('lastmod', $modified);
             $xw->startElementNs('rs', 'md', null);
             $xw->writeAttribute('change', $change);
@@ -602,7 +602,7 @@ class ResourceSyncPlugin
     {
         $offset = $page * self::PAGE_SIZE;
         $stmt   = $this->db->prepare(
-            'SELECT id, updated_at, created_at
+            'SELECT id, titolo, updated_at, created_at
              FROM libri
              WHERE deleted_at IS NULL
              ORDER BY id ASC
@@ -638,7 +638,7 @@ class ResourceSyncPlugin
             //   the harvester asks (?from=1970-01-01 no longer leaks every soft-deleted
             //   id/timestamp ever recorded).
             $stmt = $this->db->prepare(
-                'SELECT id, updated_at, created_at, deleted_at,
+                'SELECT id, titolo, updated_at, created_at, deleted_at,
                         (created_at >= ?) AS is_new_entry
                  FROM libri
                  WHERE (deleted_at IS NULL AND updated_at >= ?)
@@ -650,13 +650,13 @@ class ResourceSyncPlugin
             if ($stmt === false) {
                 return [];
             }
-            $limit  = 500;
-            $offset = max(0, $page) * 500;
+            $limit  = self::PAGE_SIZE;
+            $offset = max(0, $page) * self::PAGE_SIZE;
             $stmt->bind_param('sssii', $since, $since, $since, $limit, $offset);
         } else {
             // Include recent tombstones (≤30 days) for ResourceSync — intentional exception to strict deleted_at IS NULL rule
             $stmt = $this->db->prepare(
-                'SELECT id, updated_at, created_at, deleted_at, 0 AS is_new_entry
+                'SELECT id, titolo, updated_at, created_at, deleted_at, 0 AS is_new_entry
                  FROM libri
                  WHERE (deleted_at IS NULL OR deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
                  ORDER BY COALESCE(deleted_at, updated_at, created_at) DESC
@@ -665,8 +665,8 @@ class ResourceSyncPlugin
             if ($stmt === false) {
                 return [];
             }
-            $limit  = 500;
-            $offset = max(0, $page) * 500;
+            $limit  = self::PAGE_SIZE;
+            $offset = max(0, $page) * self::PAGE_SIZE;
             $stmt->bind_param('ii', $limit, $offset);
         }
 
@@ -682,6 +682,51 @@ class ResourceSyncPlugin
     private function baseUrl(): string
     {
         return \App\Support\HtmlHelper::getBaseUrl();
+    }
+
+    /**
+     * Resolve the canonical <loc> URL for a book.
+     *
+     * Prefers the BIBFRAME JSON-LD endpoint (richer linked-data view) only when
+     * the bibframe-linked-data plugin is active, since that route is registered
+     * exclusively by that plugin. Otherwise falls back to the always-available
+     * core book detail URL, so ResourceSync documents never emit <loc> URLs that
+     * 404 for harvesters when the optional plugin is not installed/active.
+     *
+     * @param array<string, mixed> $book
+     */
+    private function resourceLoc(string $base, array $book): string
+    {
+        if ($this->bibframeActive()) {
+            return $base . '/api/bibframe/book/' . (int) $book['id'];
+        }
+        // book_path() is host-relative and WITHOUT the base path; $base already
+        // carries scheme+host+base path, so the concatenation is absolute.
+        return $base . \book_path($book);
+    }
+
+    /**
+     * Whether the bibframe-linked-data plugin is installed and active.
+     * Cached per request.
+     */
+    private function bibframeActive(): bool
+    {
+        if ($this->bibframeActiveCache !== null) {
+            return $this->bibframeActiveCache;
+        }
+
+        $active = false;
+        $stmt = $this->db->prepare(
+            "SELECT id FROM plugins WHERE name = 'bibframe-linked-data' AND is_active = 1 LIMIT 1"
+        );
+        if ($stmt !== false) {
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $active = ($res instanceof \mysqli_result) && $res->num_rows > 0;
+            $stmt->close();
+        }
+
+        return $this->bibframeActiveCache = $active;
     }
 
     private function w3cDate(string $mysqlDatetime): string

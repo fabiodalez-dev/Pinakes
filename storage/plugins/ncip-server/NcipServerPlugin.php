@@ -149,7 +149,9 @@ class NcipServerPlugin
                 created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 KEY idx_partner  (partner_id),
                 KEY idx_status   (status),
-                KEY idx_prestito (prestito_id)
+                KEY idx_prestito (prestito_id),
+                CONSTRAINT ncip_transactions_ibfk_1 FOREIGN KEY (partner_id) REFERENCES ncip_partners (id) ON DELETE SET NULL,
+                CONSTRAINT ncip_transactions_ibfk_2 FOREIGN KEY (prestito_id) REFERENCES prestiti (id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ];
     }

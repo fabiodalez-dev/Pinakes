@@ -6,7 +6,7 @@
  * Allows adding, modifying, and deleting decimal codes with validation.
  *
  * @package DeweyEditorPlugin
- * @version 1.0.0
+ * @version 1.0.1
  */
 
 declare(strict_types=1);
@@ -206,7 +206,7 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Locale non supportato.'), 400);
         }
 
-        $filePath = $this->getJsonPath($locale);
+        $filePath = $this->resolveDataPath($locale);
         if (!file_exists($filePath)) {
             return $this->jsonError($response, __('File Dewey non trovato.'), 404);
         }
@@ -306,7 +306,7 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Locale non supportato.'), 400);
         }
 
-        $filePath = $this->getJsonPath($locale);
+        $filePath = $this->resolveDataPath($locale);
         if (!file_exists($filePath)) {
             return $this->jsonError($response, __('File non trovato.'), 404);
         }
@@ -408,11 +408,13 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Formato dati non valido.'), 400);
         }
 
-        // Load existing data
+        // Load existing data (read may fall back to the legacy file) but always
+        // write the merged result to the canonical full-locale path.
+        $readPath = $this->resolveDataPath($locale);
         $filePath = $this->getJsonPath($locale);
         $existingData = [];
-        if (file_exists($filePath)) {
-            $existingContent = file_get_contents($filePath);
+        if (file_exists($readPath)) {
+            $existingContent = file_get_contents($readPath);
             if ($existingContent === false) {
                 return $this->jsonError($response, __('Errore nella lettura del file Dewey esistente.'), 500);
             }
@@ -592,12 +594,42 @@ class DeweyEditorPlugin
         return $this->jsonSuccess($response, ['message' => __('Backup ripristinato con successo.')]);
     }
 
+    /**
+     * Canonical (write) path for a locale's Dewey data file.
+     *
+     * Uses the FULL locale code so distinct locales sharing a language prefix
+     * (e.g. en_US vs en_GB, pt_PT vs pt_BR) map to separate files and never
+     * clobber each other. Previously the locale was collapsed to its first two
+     * characters, silently aliasing such pairs onto one shared file.
+     */
     private function getJsonPath(string $locale): string
     {
-        // Extract language code from locale (e.g., 'it_IT' -> 'it', 'en_US' -> 'en')
-        $langCode = strtolower(substr($locale, 0, 2));
-        $filename = "dewey_completo_{$langCode}.json";
+        $filename = "dewey_completo_{$locale}.json";
         return $this->dataDir . '/' . $filename;
+    }
+
+    /**
+     * Resolve the path to READ a locale's Dewey data.
+     *
+     * Prefers the canonical full-locale file; falls back to the legacy
+     * language-prefix file (e.g. dewey_completo_en.json) shipped/created before
+     * the full-locale scheme, so existing installs keep reading their data.
+     * Writes always target getJsonPath() (full locale), so the first save of a
+     * locale migrates it to the canonical file and separates prefix-sharing
+     * locales going forward.
+     */
+    private function resolveDataPath(string $locale): string
+    {
+        $canonical = $this->getJsonPath($locale);
+        if (is_file($canonical)) {
+            return $canonical;
+        }
+        $langCode = strtolower(substr($locale, 0, 2));
+        $legacy = $this->dataDir . "/dewey_completo_{$langCode}.json";
+        if (is_file($legacy)) {
+            return $legacy;
+        }
+        return $canonical;
     }
 
     private function createBackup(string $locale): void
@@ -609,7 +641,7 @@ class DeweyEditorPlugin
             }
         }
 
-        $sourcePath = $this->getJsonPath($locale);
+        $sourcePath = $this->resolveDataPath($locale);
         if (!file_exists($sourcePath)) {
             return;
         }

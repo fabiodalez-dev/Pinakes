@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Plugins\Discogs;
 
-use App\Support\Hooks;
-
 /**
  * Multi-source Music Scraper Plugin (Discogs, MusicBrainz, Deezer)
  *
@@ -35,17 +33,6 @@ class DiscogsPlugin
     {
         $this->db = $db;
         $this->hookManager = $hookManager;
-    }
-
-    /**
-     * Activate the plugin and register all hooks
-     */
-    public function activate(): void
-    {
-        Hooks::add('scrape.sources', [$this, 'addDiscogsSource'], 8);
-        Hooks::add('scrape.fetch.custom', [$this, 'fetchFromDiscogs'], 8);
-        Hooks::add('scrape.data.modify', [$this, 'enrichWithDiscogsData'], 15);
-        Hooks::add('scrape.isbn.validate', [$this, 'validateBarcode'], 8);
     }
 
     /**
