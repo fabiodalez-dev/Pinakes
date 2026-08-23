@@ -152,14 +152,40 @@ class DigitalLibraryPlugin
             return;
         }
 
-        $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'file_url'");
-        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
-            $this->db->query("ALTER TABLE libri ADD COLUMN file_url VARCHAR(255) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie");
+        $this->ensureColumn(
+            'file_url',
+            "ALTER TABLE libri ADD COLUMN file_url VARCHAR(255) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie"
+        );
+        $this->ensureColumn(
+            'audio_url',
+            "ALTER TABLE libri ADD COLUMN audio_url VARCHAR(255) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url"
+        );
+    }
+
+    /**
+     * Add a column to `libri` if it is missing, failing loudly on any DDL
+     * error. Returning silently would let onActivate() complete with a partial
+     * schema (missing file_url/audio_url), so a later book save then fails.
+     */
+    private function ensureColumn(string $column, string $alterSql): void
+    {
+        if (!$this->db) {
+            return;
         }
 
-        $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'audio_url'");
+        $result = $this->db->query("SHOW COLUMNS FROM libri LIKE '" . $this->db->real_escape_string($column) . "'");
+        if ($result === false) {
+            $err = "[Digital Library] SHOW COLUMNS for {$column} failed: " . $this->db->error;
+            \App\Support\SecureLogger::error($err);
+            throw new \RuntimeException($err);
+        }
+
         if ($result instanceof \mysqli_result && $result->num_rows === 0) {
-            $this->db->query("ALTER TABLE libri ADD COLUMN audio_url VARCHAR(255) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url");
+            if ($this->db->query($alterSql) === false) {
+                $err = "[Digital Library] ALTER TABLE adding {$column} failed: " . $this->db->error;
+                \App\Support\SecureLogger::error($err);
+                throw new \RuntimeException($err);
+            }
         }
     }
 

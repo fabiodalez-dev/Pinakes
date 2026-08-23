@@ -14,7 +14,11 @@ class RateLimiter
      */
     public static function isLimited(string $identifier, int $maxAttempts = self::MAX_ATTEMPTS, int $window = self::WINDOW): bool
     {
-        $currentTime = time();
+        // Elapsed-based window measurement: microtime(true) keeps the window a
+        // true float duration instead of quantizing the first-attempt marker to
+        // whole seconds. Same limits and same file-backed shared state — only
+        // the window boundary is finer-grained.
+        $currentTime = microtime(true);
         $file = self::getStateFile($identifier);
 
         // Open (or create) state file with exclusive lock for atomic read-modify-write
@@ -34,20 +38,20 @@ class RateLimiter
 
             // Read current state under lock
             $raw = stream_get_contents($handle);
-            $state = ['attempts' => 0, 'first_attempt' => 0];
+            $state = ['attempts' => 0, 'first_attempt' => 0.0];
             if ($raw !== false && $raw !== '') {
                 $data = json_decode($raw, true);
                 if (is_array($data)) {
                     $state = [
                         'attempts' => (int) ($data['attempts'] ?? 0),
-                        'first_attempt' => (int) ($data['first_attempt'] ?? 0),
+                        'first_attempt' => (float) ($data['first_attempt'] ?? 0),
                     ];
                 }
             }
 
             // Reset if window expired
             if ($state['first_attempt'] > 0 && ($currentTime - $state['first_attempt']) > $window) {
-                $state = ['attempts' => 0, 'first_attempt' => 0];
+                $state = ['attempts' => 0, 'first_attempt' => 0.0];
             }
 
             if ($state['attempts'] === 0) {

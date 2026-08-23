@@ -88,7 +88,7 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
             </div>
             <p class="text-xs text-emerald-700 mt-2">
                 <i class="fas fa-plus-circle mr-1"></i>
-                <a href="<?php echo htmlspecialchars(url('/admin/opere/new'), ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
+                <a href="<?php echo htmlspecialchars(url('/admin/opere/new'), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer"
                    class="text-emerald-800 hover:text-emerald-900 font-medium"><?= __("Crea una nuova Opera") ?></a>
             </p>
         </div>
@@ -221,6 +221,7 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
     const sInput = document.getElementById('frbr_opera_search');
     const sResults = document.getElementById('frbr_opera_results');
     let sTimer = null;
+    let sReq = 0;
 
     function hideResults() { if (sResults) { clearEl(sResults); sResults.classList.add('hidden'); } }
     function showResults(items) {
@@ -252,13 +253,22 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
             if (sTimer) { clearTimeout(sTimer); }
             if (q.length < 2) { hideResults(); return; }
             sTimer = setTimeout(function () {
+                // Track a per-request sequence so out-of-order responses from a
+                // slower earlier fetch can't overwrite the latest query's results.
+                const seq = ++sReq;
                 fetch(base + '/api/opere/search?q=' + encodeURIComponent(q), {
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' }
                 })
                 .then(function (r) { return r.json(); })
-                .then(function (d) { showResults(Array.isArray(d) ? d : []); })
-                .catch(function () { hideResults(); });
+                .then(function (d) {
+                    if (seq !== sReq) { return; }
+                    showResults(Array.isArray(d) ? d : []);
+                })
+                .catch(function () {
+                    if (seq !== sReq) { return; }
+                    hideResults();
+                });
             }, 280);
         });
         sInput.addEventListener('keydown', function (e) { if (e.key === 'Escape') { hideResults(); } });

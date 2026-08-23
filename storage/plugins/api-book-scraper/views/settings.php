@@ -27,9 +27,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_api_scraper_sett
             $settings['api_key'] = $submittedKey;
         }
 
-        if ($plugin->saveSettings($settings)) {
-            $successMessage = __('Impostazioni salvate correttamente!');
-        } else {
+        try {
+            if ($plugin->saveSettings($settings)) {
+                $successMessage = __('Impostazioni salvate correttamente!');
+            } else {
+                $errorMessage = __('Errore nel salvataggio delle impostazioni.');
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[ApiBookScraper] settings save failed: ' . $e->getMessage());
             $errorMessage = __('Errore nel salvataggio delle impostazioni.');
         }
     } else {

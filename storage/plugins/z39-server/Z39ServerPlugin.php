@@ -1345,8 +1345,12 @@ class Z39ServerPlugin
         }
 
         // fromUnimarcXml() returns [] on unparseable XML and may return a record
-        // with no bibliographic core if the tags are unrecognised.
-        if (!isset($book['titolo']) && !isset($book['isbn13']) && !isset($book['isbn10'])) {
+        // with no bibliographic core if the tags are unrecognised. Guard on the
+        // VALUES, not just the keys: a present-but-empty title/ISBN is still no
+        // usable bibliographic data.
+        if (trim((string) ($book['titolo'] ?? '')) === ''
+            && trim((string) ($book['isbn13'] ?? '')) === ''
+            && trim((string) ($book['isbn10'] ?? '')) === '') {
             return $this->jsonResponse($response, ['success' => false, 'error' => __('Nessun dato UNIMARC valido da importare.')], 422);
         }
 

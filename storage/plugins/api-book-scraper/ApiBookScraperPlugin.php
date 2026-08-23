@@ -163,15 +163,16 @@ class ApiBookScraperPlugin
             );
 
             if (!$stmt) {
-                \App\Support\SecureLogger::error('[ApiBookScraper] Failed to prepare statement: ' . $this->db->error);
-                continue;
+                throw new \RuntimeException('[ApiBookScraper] prepare() failed for hook ' . $hookName . ': ' . $this->db->error);
             }
 
             $className = __CLASS__;
             $stmt->bind_param('isssi', $this->pluginId, $hookName, $className, $method, $priority);
 
             if (!$stmt->execute()) {
-                \App\Support\SecureLogger::error('[ApiBookScraper] Failed to register hook ' . $hookName . ': ' . $stmt->error);
+                $err = $stmt->error;
+                $stmt->close();
+                throw new \RuntimeException('[ApiBookScraper] hook insert failed for ' . $hookName . ': ' . $err);
             }
 
             $stmt->close();
@@ -190,10 +191,15 @@ class ApiBookScraperPlugin
         }
 
         $stmt = $this->db->prepare("DELETE FROM plugin_hooks WHERE plugin_id = ?");
-        if ($stmt) {
-            $stmt->bind_param('i', $this->pluginId);
-            $stmt->execute();
-            $stmt->close();
+        if ($stmt === false) {
+            throw new \RuntimeException('[ApiBookScraper] prepare() failed for hook delete: ' . $this->db->error);
+        }
+        $stmt->bind_param('i', $this->pluginId);
+        $ok = $stmt->execute();
+        $err = $stmt->error;
+        $stmt->close();
+        if (!$ok) {
+            throw new \RuntimeException('[ApiBookScraper] hook delete failed: ' . $err);
         }
     }
 
@@ -525,44 +531,60 @@ class ApiBookScraperPlugin
             return false;
         }
 
-        $success = true;
+        // Wrap the settings replacement AND the hook re-registration in one
+        // transaction: if registerHooks() fails after deleteHooks() has run,
+        // the whole change must roll back so we never leave the scrape.* hooks
+        // missing while reporting success (which would silently stop scraping).
+        $this->db->begin_transaction();
+        try {
+            foreach ($settings as $key => $value) {
+                $shouldEncrypt = ($key === 'api_key');
+                $finalValue = $shouldEncrypt ? $this->encryptValue($value) : $value;
 
-        foreach ($settings as $key => $value) {
-            $shouldEncrypt = ($key === 'api_key');
-            $finalValue = $shouldEncrypt ? $this->encryptValue($value) : $value;
-
-            // Delete existing
-            $deleteStmt = $this->db->prepare(
-                "DELETE FROM plugin_settings WHERE plugin_id = ? AND setting_key = ?"
-            );
-            if ($deleteStmt) {
+                // Delete existing
+                $deleteStmt = $this->db->prepare(
+                    "DELETE FROM plugin_settings WHERE plugin_id = ? AND setting_key = ?"
+                );
+                if ($deleteStmt === false) {
+                    throw new \RuntimeException('[ApiBookScraper] prepare() failed for setting delete ' . $key . ': ' . $this->db->error);
+                }
                 $deleteStmt->bind_param('is', $this->pluginId, $key);
-                $deleteStmt->execute();
+                $ok = $deleteStmt->execute();
+                $err = $deleteStmt->error;
                 $deleteStmt->close();
-            }
+                if (!$ok) {
+                    throw new \RuntimeException('[ApiBookScraper] setting delete failed for ' . $key . ': ' . $err);
+                }
 
-            // Insert new
-            $insertStmt = $this->db->prepare(
-                "INSERT INTO plugin_settings (plugin_id, setting_key, setting_value, autoload)
-                 VALUES (?, ?, ?, 1)"
-            );
-
-            if ($insertStmt) {
+                // Insert new
+                $insertStmt = $this->db->prepare(
+                    "INSERT INTO plugin_settings (plugin_id, setting_key, setting_value, autoload)
+                     VALUES (?, ?, ?, 1)"
+                );
+                if ($insertStmt === false) {
+                    throw new \RuntimeException('[ApiBookScraper] prepare() failed for setting insert ' . $key . ': ' . $this->db->error);
+                }
                 $insertStmt->bind_param('iss', $this->pluginId, $key, $finalValue);
-                $success = $success && $insertStmt->execute();
+                $ok = $insertStmt->execute();
+                $err = $insertStmt->error;
                 $insertStmt->close();
-            } else {
-                $success = false;
+                if (!$ok) {
+                    throw new \RuntimeException('[ApiBookScraper] setting insert failed for ' . $key . ': ' . $err);
+                }
             }
-        }
 
-        if ($success) {
             $this->loadSettings();
-            // Re-register hooks con nuove impostazioni
+            // Re-register hooks con nuove impostazioni (throws on any failure)
             $this->registerHooks();
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            \App\Support\SecureLogger::error('[ApiBookScraper] saveSettings failed, rolled back: ' . $e->getMessage());
+            throw $e;
         }
 
-        return $success;
+        return true;
     }
 
     /**
