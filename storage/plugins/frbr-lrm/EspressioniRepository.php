@@ -60,14 +60,14 @@ class EspressioniRepository
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
         $operaId = (int) ($data['opera_id'] ?? 0);
-        $lingua = $data['lingua'] !== '' ? ($data['lingua'] ?? null) : null;
+        $lingua = ($data['lingua'] ?? '') !== '' ? (string) $data['lingua'] : null;
         $tipo = (string) ($data['tipo_espressione'] ?? 'testo');
         $trad = !empty($data['traduttore_autore_id']) ? (int) $data['traduttore_autore_id'] : null;
         $cur = !empty($data['curatore_autore_id']) ? (int) $data['curatore_autore_id'] : null;
         $rev = !empty($data['revisore_autore_id']) ? (int) $data['revisore_autore_id'] : null;
-        $titolo = $data['titolo_espressione'] !== '' ? ($data['titolo_espressione'] ?? null) : null;
-        $anno = $data['anno_espressione'] !== '' ? (int) ($data['anno_espressione'] ?? 0) : null;
-        $note = $data['note'] !== '' ? ($data['note'] ?? null) : null;
+        $titolo = ($data['titolo_espressione'] ?? '') !== '' ? (string) $data['titolo_espressione'] : null;
+        $anno = ($data['anno_espressione'] ?? '') !== '' ? (int) $data['anno_espressione'] : null;
+        $note = ($data['note'] ?? '') !== '' ? (string) $data['note'] : null;
         // 9 params: opera_id(i) lingua(s) tipo(s) trad(i) cur(i) rev(i) titolo(s) anno(i) note(s)
         $stmt->bind_param('issiiisis', $operaId, $lingua, $tipo, $trad, $cur, $rev, $titolo, $anno, $note);
         $stmt->execute();
