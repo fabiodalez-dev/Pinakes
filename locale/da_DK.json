@@ -6933,5 +6933,18 @@
   "Test non ancora implementato. Salva le impostazioni e prova a importare un libro.": "Testen er endnu ikke implementeret. Gem indstillingerne, og prøv at importere en bog.",
   "Timeout Richiesta (secondi)": "Timeout for anmodning (sekunder)",
   "Tutti i campi sono opzionali. Il plugin userà solo i campi presenti nella risposta.": "Alle felter er valgfrie. Pluginnet bruger kun de felter, der findes i svaret.",
-  "Usa il segnaposto {isbn} nell'URL; in alternativa l'ISBN sarà aggiunto come parametro ?isbn=...": "Brug pladsholderen {isbn} i URL'en; ellers tilføjes ISBN som parameteren ?isbn=..."
+  "Usa il segnaposto {isbn} nell'URL; in alternativa l'ISBN sarà aggiunto come parametro ?isbn=...": "Brug pladsholderen {isbn} i URL'en; ellers tilføjes ISBN som parameteren ?isbn=...",
+  "Authority control VIAF / ISNI": "VIAF-/ISNI-autoritetskontrol",
+  "Collega l'autore al Virtual International Authority File (VIAF) e a ISNI. Cerca per nome per trovare un identificatore, oppure inseriscilo manualmente, e salva.": "Knyt forfatteren til Virtual International Authority File (VIAF) og til ISNI. Søg efter navn for at finde en identifikator, eller indtast den manuelt, og gem.",
+  "VIAF ID": "VIAF-id",
+  "es. 102333412": "f.eks. 102333412",
+  "Apri in VIAF": "Åbn i VIAF",
+  "ISNI": "ISNI",
+  "es. 0000 0001 2143 6543": "f.eks. 0000 0001 2143 6543",
+  "16 cifre (l'ultima può essere una X).": "16 cifre (det sidste kan være et X).",
+  "Cerca su VIAF": "Søg i VIAF",
+  "Salva VIAF / ISNI": "Gem VIAF / ISNI",
+  "Ricerca su VIAF…": "Søger i VIAF…",
+  "Nessun risultato trovato su VIAF.": "Ingen resultater fundet i VIAF.",
+  "Inserisci prima il nome dell'autore.": "Indtast forfatterens navn først."
 }

@@ -6933,5 +6933,18 @@
   "Test non ancora implementato. Salva le impostazioni e prova a importare un libro.": "Test pas encore implémenté. Enregistrez les paramètres et essayez d'importer un livre.",
   "Timeout Richiesta (secondi)": "Délai d'expiration de la requête (secondes)",
   "Tutti i campi sono opzionali. Il plugin userà solo i campi presenti nella risposta.": "Tous les champs sont facultatifs. Le plugin n'utilisera que les champs présents dans la réponse.",
-  "Usa il segnaposto {isbn} nell'URL; in alternativa l'ISBN sarà aggiunto come parametro ?isbn=...": "Utilisez le paramètre fictif {isbn} dans l'URL ; sinon l'ISBN est ajouté comme paramètre ?isbn=..."
+  "Usa il segnaposto {isbn} nell'URL; in alternativa l'ISBN sarà aggiunto come parametro ?isbn=...": "Utilisez le paramètre fictif {isbn} dans l'URL ; sinon l'ISBN est ajouté comme paramètre ?isbn=...",
+  "Authority control VIAF / ISNI": "Contrôle d'autorité VIAF / ISNI",
+  "Collega l'autore al Virtual International Authority File (VIAF) e a ISNI. Cerca per nome per trovare un identificatore, oppure inseriscilo manualmente, e salva.": "Reliez l'auteur au Virtual International Authority File (VIAF) et à l'ISNI. Recherchez par nom pour trouver un identifiant, ou saisissez-le manuellement, puis enregistrez.",
+  "VIAF ID": "Identifiant VIAF",
+  "es. 102333412": "ex. 102333412",
+  "Apri in VIAF": "Ouvrir dans VIAF",
+  "ISNI": "ISNI",
+  "es. 0000 0001 2143 6543": "ex. 0000 0001 2143 6543",
+  "16 cifre (l'ultima può essere una X).": "16 chiffres (le dernier peut être un X).",
+  "Cerca su VIAF": "Rechercher dans VIAF",
+  "Salva VIAF / ISNI": "Enregistrer VIAF / ISNI",
+  "Ricerca su VIAF…": "Recherche dans VIAF…",
+  "Nessun risultato trovato su VIAF.": "Aucun résultat trouvé sur VIAF.",
+  "Inserisci prima il nome dell'autore.": "Saisissez d'abord le nom de l'auteur."
 }
