@@ -153,32 +153,89 @@ class ApiBookScraperPlugin
             ['scrape.isbn.validate', 'validateIsbn', 2],
         ];
 
-        // Delete existing hooks for this plugin
-        $this->deleteHooks();
+        // The DELETE + N INSERTs must be atomic: a mid-loop failure must never
+        // leave plugin_hooks with a partial subset of the hooks. saveSettings()
+        // may already own an outer transaction, so detect it with a savepoint
+        // probe and scope this work to a savepoint there; otherwise own a fresh
+        // transaction. Nesting begin_transaction() would implicitly commit the
+        // caller's transaction, so it must never be nested.
+        $inTransaction = $this->hasActiveTransaction();
+        $savepoint = 'pinakes_sp_' . bin2hex(random_bytes(6));
+        if ($inTransaction) {
+            $this->db->query('SAVEPOINT ' . $savepoint);
+        } else {
+            $this->db->begin_transaction();
+        }
 
-        foreach ($hooks as [$hookName, $method, $priority]) {
-            $stmt = $this->db->prepare(
-                "INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
-                 VALUES (?, ?, ?, ?, ?, 1, NOW())"
-            );
+        try {
+            // Delete existing hooks for this plugin
+            $this->deleteHooks();
 
-            if (!$stmt) {
-                throw new \RuntimeException('[ApiBookScraper] prepare() failed for hook ' . $hookName . ': ' . $this->db->error);
-            }
+            foreach ($hooks as [$hookName, $method, $priority]) {
+                $stmt = $this->db->prepare(
+                    "INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+                     VALUES (?, ?, ?, ?, ?, 1, NOW())"
+                );
 
-            $className = __CLASS__;
-            $stmt->bind_param('isssi', $this->pluginId, $hookName, $className, $method, $priority);
+                if (!$stmt) {
+                    throw new \RuntimeException('[ApiBookScraper] prepare() failed for hook ' . $hookName . ': ' . $this->db->error);
+                }
 
-            if (!$stmt->execute()) {
-                $err = $stmt->error;
+                $className = __CLASS__;
+                $stmt->bind_param('isssi', $this->pluginId, $hookName, $className, $method, $priority);
+
+                if (!$stmt->execute()) {
+                    $err = $stmt->error;
+                    $stmt->close();
+                    throw new \RuntimeException('[ApiBookScraper] hook insert failed for ' . $hookName . ': ' . $err);
+                }
+
                 $stmt->close();
-                throw new \RuntimeException('[ApiBookScraper] hook insert failed for ' . $hookName . ': ' . $err);
             }
 
-            $stmt->close();
+            if ($inTransaction) {
+                $this->db->query('RELEASE SAVEPOINT ' . $savepoint);
+            } else {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($inTransaction) {
+                $this->db->query('ROLLBACK TO SAVEPOINT ' . $savepoint);
+            } else {
+                $this->db->rollback();
+            }
+            throw $e;
         }
 
         \App\Support\SecureLogger::debug('[ApiBookScraper] Hooks registered');
+    }
+
+    /**
+     * Whether a transaction is already open on the connection. @@autocommit is
+     * unreliable here — it stays 1 after begin_transaction() — so probe with a
+     * savepoint instead: outside a transaction the SAVEPOINT is a no-op that
+     * autocommit discards, so the following RELEASE cannot find it. Works under
+     * both mysqli exception and silent error modes. Unique probe name per call
+     * so it can never clobber a caller's own savepoint boundary.
+     */
+    private function hasActiveTransaction(): bool
+    {
+        if ($this->db === null) {
+            return false;
+        }
+        $probe = 'pinakes_sp_' . bin2hex(random_bytes(6));
+        try {
+            if ($this->db->query('SAVEPOINT ' . $probe) === false) {
+                return false;
+            }
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
+        try {
+            return $this->db->query('RELEASE SAVEPOINT ' . $probe) !== false;
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
     }
 
     /**
@@ -531,6 +588,22 @@ class ApiBookScraperPlugin
             return false;
         }
 
+        // Reject enabling the plugin with no effective API key. The view's HTML
+        // `required` attribute does not protect a hand-built POST: without a key
+        // saveSettings would "succeed" while registerHooks() silently registers
+        // nothing (its own guard requires a key). An empty submitted key keeps
+        // the stored one, so only reject when neither exists.
+        $enabledRequested = array_key_exists('enabled', $settings)
+            ? (bool) $settings['enabled']
+            : $this->enabled;
+        $submittedKey = array_key_exists('api_key', $settings)
+            ? trim((string) $settings['api_key'])
+            : '';
+        $effectiveKey = $submittedKey !== '' ? $submittedKey : $this->apiKey;
+        if ($enabledRequested && $effectiveKey === '') {
+            throw new \RuntimeException('[ApiBookScraper] cannot enable plugin without an API key');
+        }
+
         // Wrap the settings replacement AND the hook re-registration in one
         // transaction: if registerHooks() fails after deleteHooks() has run,
         // the whole change must roll back so we never leave the scrape.* hooks
@@ -580,6 +653,11 @@ class ApiBookScraperPlugin
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
+            // The rollback reverts the DB, but the in-memory properties were
+            // already repopulated by loadSettings() from the (uncommitted)
+            // transaction. Reload from the now-restored persisted state so the
+            // instance/UI never reflect unpersisted values after the failure.
+            $this->loadSettings();
             \App\Support\SecureLogger::error('[ApiBookScraper] saveSettings failed, rolled back: ' . $e->getMessage());
             throw $e;
         }

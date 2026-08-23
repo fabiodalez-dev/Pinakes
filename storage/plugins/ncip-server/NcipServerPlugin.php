@@ -174,9 +174,11 @@ class NcipServerPlugin
         // CREATE TABLE IF NOT EXISTS is a no-op for a pre-existing
         // ncip_transactions table, so the two FK constraints are never applied
         // on an upgrade from a build that shipped the table without them.
-        // Add them idempotently now (safe to re-run).
-        if (!in_array('ncip_transactions', $failed, true)) {
-            $this->ensureForeignKeys();
+        // Add them idempotently now (safe to re-run). If the FK migration
+        // fails, mark ncip_transactions as failed so onActivate()/onInstall()
+        // do NOT register hooks against a half-applied schema.
+        if (!in_array('ncip_transactions', $failed, true) && !$this->ensureForeignKeys()) {
+            $failed[] = 'ncip_transactions';
         }
 
         // Core schema changes for prestiti.ncip_request_id and origine ENUM are in migrate_0.7.4.sql
@@ -190,14 +192,19 @@ class NcipServerPlugin
      * out orphan rows that would violate the constraint, then ALTERs it in with
      * ON DELETE SET NULL. Idempotent and safe to re-run from onActivate/onInstall.
      * All table/column names below are static literals — no user input.
+     *
+     * @return bool True when every FK is present (or was added); false when any
+     *              probe/cleanup/ALTER failed so the caller can report the schema
+     *              as half-applied instead of registering hooks over it.
      */
-    private function ensureForeignKeys(): void
+    private function ensureForeignKeys(): bool
     {
         $fks = [
             ['column' => 'partner_id',  'ref_table' => 'ncip_partners', 'ref_col' => 'id', 'name' => 'ncip_transactions_ibfk_1'],
             ['column' => 'prestito_id', 'ref_table' => 'prestiti',      'ref_col' => 'id', 'name' => 'ncip_transactions_ibfk_2'],
         ];
 
+        $ok = true;
         foreach ($fks as $fk) {
             $stmt = $this->db->prepare(
                 "SELECT COUNT(*) AS c FROM information_schema.KEY_COLUMN_USAGE
@@ -208,12 +215,14 @@ class NcipServerPlugin
             );
             if ($stmt === false) {
                 SecureLogger::error('[NcipServer] FK probe prepare failed: ' . $this->db->error);
+                $ok = false;
                 continue;
             }
             $stmt->bind_param('ss', $fk['column'], $fk['ref_table']);
             if (!$stmt->execute()) {
                 SecureLogger::error('[NcipServer] FK probe failed for ' . $fk['column'] . ': ' . $stmt->error);
                 $stmt->close();
+                $ok = false;
                 continue;
             }
             $res = $stmt->get_result();
@@ -231,6 +240,7 @@ class NcipServerPlugin
                  WHERE t.{$fk['column']} IS NOT NULL AND r.{$fk['ref_col']} IS NULL"
             ) === false) {
                 SecureLogger::error('[NcipServer] Orphan cleanup for ' . $fk['column'] . ' failed: ' . $this->db->error);
+                $ok = false;
                 continue;
             }
 
@@ -239,8 +249,11 @@ class NcipServerPlugin
                       FOREIGN KEY ({$fk['column']}) REFERENCES {$fk['ref_table']} ({$fk['ref_col']}) ON DELETE SET NULL";
             if ($this->db->query($alter) === false) {
                 SecureLogger::error('[NcipServer] Adding FK ' . $fk['name'] . ' failed: ' . $this->db->error);
+                $ok = false;
             }
         }
+
+        return $ok;
     }
 
     // ─── Hook registration ────────────────────────────────────────────────────
