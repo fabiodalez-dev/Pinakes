@@ -206,9 +206,8 @@ class FrbrLrmPlugin
     private static function schemaSteps(): array
     {
         return [
-            'opere'              => self::ddlOpere(),
-            'espressioni'        => self::ddlEspressioni(),
-            'libri_autori_ruoli' => self::ddlLibriAutoriRuoli(),
+            'opere'       => self::ddlOpere(),
+            'espressioni' => self::ddlEspressioni(),
         ];
     }
 
@@ -343,28 +342,13 @@ class FrbrLrmPlugin
             SQL;
     }
 
-    private static function ddlLibriAutoriRuoli(): string
-    {
-        return <<<SQL
-            CREATE TABLE IF NOT EXISTS `libri_autori_ruoli` (
-              `id` INT NOT NULL AUTO_INCREMENT,
-              `libro_id` INT NOT NULL,
-              `autore_id` INT NOT NULL,
-              `relator_code` VARCHAR(3) NOT NULL COMMENT 'MARC21 relator code: aut, edt, trl, ill, ctb...',
-              `relator_label` VARCHAR(100) DEFAULT NULL,
-              `ordine` SMALLINT NOT NULL DEFAULT 0,
-              `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-              PRIMARY KEY (`id`),
-              UNIQUE KEY `uq_libro_autore_relator` (`libro_id`,`autore_id`,`relator_code`),
-              KEY `idx_lar_autore` (`autore_id`),
-              KEY `idx_lar_relator` (`relator_code`),
-              CONSTRAINT `fk_lar_libro` FOREIGN KEY (`libro_id`)
-                REFERENCES `libri` (`id`) ON DELETE CASCADE,
-              CONSTRAINT `fk_lar_autore` FOREIGN KEY (`autore_id`)
-                REFERENCES `autori` (`id`) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            SQL;
-    }
+    // NOTE: an earlier draft also created a `libri_autori_ruoli` table for
+    // MARC21 relator codes (aut/edt/trl/ill/ctb), but nothing ever read or
+    // wrote it. Rather than ship an orphaned table and advertise a feature
+    // that does not exist, the table creation and its manifest claim were
+    // removed. The translator/curator/reviser roles that ARE modelled live
+    // on the `espressioni` rows. If relator-code assignment is implemented
+    // later it should re-introduce the table via ensureSchema().
 
     // ─────────────────────────────────────────────────────────────────────
     // Admin menu (hook `admin.menu.render`)
