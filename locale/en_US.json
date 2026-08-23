@@ -1,4 +1,10 @@
 {
+  "Importa UNIMARC (MARCXchange)": "Import UNIMARC (MARCXchange)",
+  "Incolla un record UNIMARC/MARCXchange, oppure carica un file .xml, per precompilare il form dal record esportato.": "Paste a UNIMARC/MARCXchange record, or upload an .xml file, to pre-fill the form from the exported record.",
+  "Incolla o carica un record UNIMARC.": "Paste or upload a UNIMARC record.",
+  "Dati importati da UNIMARC.": "Data imported from UNIMARC.",
+  "Record UNIMARC non valido o non riconosciuto.": "Invalid or unrecognised UNIMARC record.",
+  "Nessun dato UNIMARC valido da importare.": "No valid UNIMARC data to import.",
   "Esiste già un utente con l'email %s. Se stai reinstallando su un database esistente, accedi con le credenziali esistenti oppure usa un'altra email.": "A user with the email %s already exists. If you are reinstalling over an existing database, log in with the existing credentials or use a different email.",
   " libri": " books",
   "\"%s\" prestato a %s è in ritardo di %d giorni": "\"%s\" loaned to %s is %d days overdue",

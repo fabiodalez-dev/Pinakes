@@ -53,6 +53,7 @@
       "/api/sbn/search - Ricerca SBN (OPAC Nazionale)",
       "/admin/books/import-sbn - Import UNIMARC da SBN per ISBN/BID",
       "/admin/books/bulk-import-sbn - Import batch da CSV di ISBN",
+      "/admin/books/import-unimarc - Import UNIMARC/MARCXchange per precompilare il form (round-trip)",
       "/admin/books/{id}/export.unimarc.xml - Export UNIMARC del singolo libro",
       "/admin/authors/{id}/lookup-ccn - Lookup authority CCN dell'autore"
     ],

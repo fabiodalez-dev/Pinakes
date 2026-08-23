@@ -702,6 +702,16 @@ class Z39ServerPlugin
             return $plugin->bulkImportSbnAction($request, $response);
         })->add($csrfMiddleware)->add($adminMiddleware);
 
+        // POST /admin/books/import-unimarc — parse a UNIMARC/MARCXchange record
+        // (paste or .xml upload) into libri fields for the form to pre-fill.
+        // Closes the round-trip advertised alongside export.unimarc.xml.
+        $app->post('/admin/books/import-unimarc', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->importUnimarcAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
         // GET /admin/books/{id}/export.unimarc.xml — single-book UNIMARC export.
         $app->get('/admin/books/{id:[0-9]+}/export.unimarc.xml', function (
             ServerRequestInterface $request,
@@ -741,6 +751,7 @@ class Z39ServerPlugin
             'routes' => [
                 '/api/sru', '/api/sbn/search',
                 '/admin/books/import-sbn', '/admin/books/bulk-import-sbn',
+                '/admin/books/import-unimarc',
                 '/admin/books/{id}/export.unimarc.xml', '/admin/books/soggettario-search',
                 '/admin/authors/{id}/lookup-ccn', '/admin/authors/{id}/apply-authority',
             ]
@@ -1296,6 +1307,50 @@ class Z39ServerPlugin
             'found'     => $found,
             'results'   => $results,
         ]);
+    }
+
+    /**
+     * POST /admin/books/import-unimarc — parse a UNIMARC/MARCXchange record.
+     *
+     * The inverse of {@see exportUnimarcAction()}: accepts a pasted record or an
+     * uploaded `.xml` file, runs it through {@see UnimarcLibriParser::fromUnimarcXml()}
+     * and returns the parsed libri fields for the book form to pre-fill (copy
+     * cataloguing). It never writes to `libri`; book creation stays on the
+     * standard catalogue validation flow, exactly like the SBN import.
+     */
+    public function importUnimarcAction(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $this->loadReicatClasses();
+        $body = (array) $request->getParsedBody();
+        $xml = trim((string) ($body['xml'] ?? ''));
+
+        // Accept an uploaded .xml file as an alternative to pasting.
+        $files = $request->getUploadedFiles();
+        if ($xml === '' && isset($files['xml_file'])
+            && $files['xml_file'] instanceof \Psr\Http\Message\UploadedFileInterface
+            && $files['xml_file']->getError() === UPLOAD_ERR_OK) {
+            $xml = trim((string) $files['xml_file']->getStream());
+        }
+
+        if ($xml === '') {
+            return $this->jsonResponse($response, ['success' => false, 'error' => __('Incolla o carica un record UNIMARC.')], 400);
+        }
+
+        try {
+            $parser = new \Z39Server\UnimarcLibriParser();
+            $book = $parser->fromUnimarcXml($xml);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Z39 import-unimarc] error', ['error' => $e->getMessage()]);
+            return $this->jsonResponse($response, ['success' => false, 'error' => __('Record UNIMARC non valido o non riconosciuto.')], 422);
+        }
+
+        // fromUnimarcXml() returns [] on unparseable XML and may return a record
+        // with no bibliographic core if the tags are unrecognised.
+        if (!isset($book['titolo']) && !isset($book['isbn13']) && !isset($book['isbn10'])) {
+            return $this->jsonResponse($response, ['success' => false, 'error' => __('Nessun dato UNIMARC valido da importare.')], 422);
+        }
+
+        return $this->jsonResponse($response, ['success' => true, 'book' => $book]);
     }
 
     /**

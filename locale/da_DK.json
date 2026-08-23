@@ -1,4 +1,10 @@
 {
+  "Importa UNIMARC (MARCXchange)": "Importér UNIMARC (MARCXchange)",
+  "Incolla un record UNIMARC/MARCXchange, oppure carica un file .xml, per precompilare il form dal record esportato.": "Indsæt en UNIMARC/MARCXchange-post, eller upload en .xml-fil, for at udfylde formularen ud fra den eksporterede post.",
+  "Incolla o carica un record UNIMARC.": "Indsæt eller upload en UNIMARC-post.",
+  "Dati importati da UNIMARC.": "Data importeret fra UNIMARC.",
+  "Record UNIMARC non valido o non riconosciuto.": "Ugyldig eller ukendt UNIMARC-post.",
+  "Nessun dato UNIMARC valido da importare.": "Ingen gyldige UNIMARC-data at importere.",
   "Esiste già un utente con l'email %s. Se stai reinstallando su un database esistente, accedi con le credenziali esistenti oppure usa un'altra email.": "En bruger med e-mailadressen %s findes allerede. Hvis du geninstallerer på en eksisterende database, skal du logge ind med de eksisterende legitimationsoplysninger eller bruge en anden e-mailadresse.",
   " libri": " bøger",
   "\"%s\" prestato a %s è in ritardo di %d giorni": "\"%s\" udlånt til %s er %d dage forsinket",
