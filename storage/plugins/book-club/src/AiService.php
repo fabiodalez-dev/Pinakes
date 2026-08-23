@@ -156,8 +156,8 @@ class AiService
     public function generate(string $system, string $user): ?string
     {
         $apiKey = $this->apiKey();
-        if ($apiKey === '' || !function_exists('curl_init')) {
-            SecureLogger::warning('[BookClub:ai] generate() called without API key or cURL extension');
+        if ($apiKey === '') {
+            SecureLogger::warning('[BookClub:ai] generate() called without API key');
             return null;
         }
 
@@ -175,46 +175,32 @@ class AiService
         }
 
         try {
-            $ch = curl_init($this->endpoint());
-            if ($ch === false) {
-                SecureLogger::error('[BookClub:ai] curl_init failed');
-                return null;
-            }
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $payload,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 10,
-                CURLOPT_TIMEOUT => 20,
-                // SSRF/redirect/TLS hardening: HTTPS-only, no redirects,
-                // certificate verification always on.
-                CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
-                CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
-                CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_MAXREDIRS => 0,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json',
-                    'anthropic-version: 2023-06-01',
-                    'x-api-key: ' . $apiKey,
-                ],
+            // Route through the project HttpClient (centralised SSRF /
+            // DNS-rebinding / redirect hardening). https_only pins the scheme so
+            // the x-api-key header can never follow a 30x onto cleartext, and
+            // max_redirects=0 forbids redirects outright — the endpoint is
+            // admin-configurable, so it must go through the guarded client.
+            $res = \App\Support\HttpClient::post($this->endpoint(), $payload, [
+                'Content-Type'      => 'application/json',
+                'anthropic-version' => '2023-06-01',
+                'x-api-key'         => $apiKey,
+            ], [
+                'timeout'         => 20,
+                'connect_timeout' => 10,
+                'max_redirects'   => 0,
+                'https_only'      => true,
             ]);
-            $raw = curl_exec($ch);
-            $httpCode = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-            $curlError = curl_error($ch);
-            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
-            if ($raw === false || $raw === '') {
-                SecureLogger::error('[BookClub:ai] HTTP request failed: ' . ($curlError !== '' ? $curlError : 'empty response'));
+            if (!$res['ok'] || $res['body'] === '') {
+                SecureLogger::error('[BookClub:ai] HTTP request failed (transport or blocked target)');
                 return null;
             }
-            if ($httpCode < 200 || $httpCode >= 300) {
+            if ($res['status'] < 200 || $res['status'] >= 300) {
                 // Body may contain provider error details but never the key.
-                SecureLogger::error('[BookClub:ai] endpoint returned HTTP ' . $httpCode . ': ' . mb_substr((string) $raw, 0, 500));
+                SecureLogger::error('[BookClub:ai] endpoint returned HTTP ' . $res['status'] . ': ' . mb_substr($res['body'], 0, 500));
                 return null;
             }
-            $data = json_decode((string) $raw, true);
+            $data = json_decode($res['body'], true);
             $text = is_array($data) ? ($data['content'][0]['text'] ?? null) : null;
             if (!is_string($text) || trim($text) === '') {
                 SecureLogger::error('[BookClub:ai] unexpected response shape (no content[0].text)');

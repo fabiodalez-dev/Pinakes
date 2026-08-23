@@ -34,7 +34,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
             <div class="flex items-center gap-2 text-sm">
                 <i class="fas fa-check-circle text-green-500"></i>
                 <span class="font-medium text-gray-700"><?= __("File attuale") ?>:</span>
-                <a href="<?= HtmlHelper::e($currentFileUrl) ?>" target="_blank" class="text-blue-600 hover:underline truncate max-w-xs">
+                <a href="<?= HtmlHelper::e($currentFileUrl) ?>" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate max-w-xs">
                     <?= HtmlHelper::e(basename($currentFileUrl)) ?>
                 </a>
             </div>
@@ -84,7 +84,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
             <div class="flex items-center gap-2 text-sm">
                 <i class="fas fa-check-circle text-green-500"></i>
                 <span class="font-medium text-gray-700"><?= __("File attuale") ?>:</span>
-                <a href="<?= HtmlHelper::e($currentAudioUrl) ?>" target="_blank" class="text-blue-600 hover:underline truncate max-w-xs">
+                <a href="<?= HtmlHelper::e($currentAudioUrl) ?>" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate max-w-xs">
                     <?= HtmlHelper::e(basename($currentAudioUrl)) ?>
                 </a>
             </div>
