@@ -608,4 +608,20 @@ class ApiBookScraperPlugin
             'enabled' => $this->enabled
         ];
     }
+
+    /**
+     * Whether this plugin has a dedicated settings page
+     */
+    public function hasSettingsPage(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Get the path to the settings view file
+     */
+    public function getSettingsViewPath(): string
+    {
+        return __DIR__ . '/views/settings.php';
+    }
 }
