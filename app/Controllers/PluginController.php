@@ -380,7 +380,14 @@ class PluginController
 
             // Save all settings
             $this->pluginManager->setSetting($pluginId, 'api_endpoint', $apiEndpoint, true);
-            $this->pluginManager->setSetting($pluginId, 'api_key', $apiKey, true);
+            // Preserve the stored API key when the field is left blank: the admin
+            // modal always clears the key input on open and tells the admin that
+            // blank means "keep the existing key". Only overwrite when a new value
+            // is actually entered, otherwise a save that just toggles enabled or
+            // changes the timeout would silently wipe the key and disable scraping.
+            if ($apiKey !== '') {
+                $this->pluginManager->setSetting($pluginId, 'api_key', $apiKey, true);
+            }
             $this->pluginManager->setSetting($pluginId, 'timeout', (string) $timeout, true);
             $this->pluginManager->setSetting($pluginId, 'enabled', $enabled ? '1' : '0', true);
 
@@ -392,7 +399,7 @@ class PluginController
                 'message' => __('Impostazioni API Book Scraper salvate correttamente.'),
                 'data' => [
                     'api_endpoint' => $apiEndpoint !== '' ? 'saved' : 'empty',
-                    'api_key' => $apiKey !== '' ? 'saved' : 'empty',
+                    'api_key' => $apiKey !== '' ? 'saved' : 'preserved',
                     'timeout' => $timeout,
                     'enabled' => $enabled
                 ]

@@ -224,6 +224,13 @@ class AiController extends BaseController
 
     public function adminSettings(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        // AdminAuthMiddleware admits both 'admin' and 'staff'; the AI settings
+        // expose the global API key and outbound endpoint, so require a real
+        // admin inline (a staff account must not read the masked key or repoint
+        // the endpoint that AiService::generate() sends prompt content to).
+        if (($_SESSION['user']['tipo_utente'] ?? null) !== 'admin') {
+            return $this->notFound($response);
+        }
         return $this->renderAdmin($response, 'admin/ai_settings', [
             'pluginFound' => $this->ai->pluginId() !== null,
             'enabled' => $this->ai->isEnabled(),
@@ -242,6 +249,12 @@ class AiController extends BaseController
 
     public function adminSettingsSave(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        // Admin-only: rotating/clearing the global API key and repointing the
+        // outbound endpoint must not be reachable by a 'staff' account that
+        // AdminAuthMiddleware would otherwise let through (see adminSettings()).
+        if (($_SESSION['user']['tipo_utente'] ?? null) !== 'admin') {
+            return $this->notFound($response);
+        }
         if ($this->ai->pluginId() === null) {
             $this->flash('error', __('Plugin Book Club non trovato nel registro dei plugin.'));
             return $this->redirect($response, '/admin/book-club/ai');
