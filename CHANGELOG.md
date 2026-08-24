@@ -2,6 +2,18 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.67]
+
+Fixes a silent upgrade gap discovered on a live install: a foreign key or column that a bundled plugin adds in a release was not applied when an already-active plugin was upgraded through the admin UI, even though the plugin version was bumped.
+
+### Fixed
+
+- **Plugin schema self-heal now covers foreign keys and columns, not just tables.** An admin-UI upgrade loads a plugin's old class into memory before the new files are swapped in, so PHP keeps running the old `onActivate`/`ensureSchema` during the upgrade even as the version is stamped forward — any foreign key or column added in that release never runs at upgrade time. The boot-time self-heal is the only path that applies it, and it previously probed missing *tables* only. It now also probes declared columns (`expectedColumns()`) and foreign keys (`expectedForeignKeys()`) and re-runs `onActivate` when any declared element is missing. Concrete effect: `ncip_transactions`' two foreign keys and `libri.file_url`/`libri.audio_url` are now restored automatically on the next page load after upgrading. No action is required; already-upgraded installs heal themselves.
+
+### Internal
+
+- ncip-server and digital-library declare their foreign keys / columns from a single source shared with the code that creates them, so the self-heal probe and the DDL cannot drift apart. New behavioural coverage (`tests/plugin-schema-selfheal-fkcol.unit.php`) reproduces the missing-FK / missing-column state against the real `PluginManager` and asserts it self-heals; it fails on the pre-fix code by design and is wired into the mandatory schema gate.
+
 ## [0.7.66]
 
 A full audit of all 20 bundled plugins — security, correctness and schema fixes — plus four previously-orphaned plugin features wired into the UI.

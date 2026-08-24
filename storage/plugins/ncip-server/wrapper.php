@@ -35,6 +35,11 @@ if (!class_exists('NcipServerPlugin', false)) {
             return $this->instance->expectedTables();
         }
 
+        public function expectedForeignKeys(): array
+        {
+            return $this->instance->expectedForeignKeys();
+        }
+
         public function onDeactivate(): void
         {
             $this->instance->onDeactivate();
