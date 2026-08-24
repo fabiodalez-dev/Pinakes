@@ -505,7 +505,7 @@ class ResourceSyncPlugin
             $xw->writeElement('loc', $loc);
             $xw->writeElement('lastmod', $modified);
             $xw->startElementNs('rs', 'md', null);
-            $xw->writeAttribute('type', 'application/ld+json');
+            $xw->writeAttribute('type', $this->resourceType());
             $xw->endElement();
             $xw->endElement(); // url
         }
@@ -582,7 +582,7 @@ class ResourceSyncPlugin
             $xw->writeElement('lastmod', $modified);
             $xw->startElementNs('rs', 'md', null);
             $xw->writeAttribute('change', $change);
-            $xw->writeAttribute('type', 'application/ld+json');
+            $xw->writeAttribute('type', $this->resourceType());
             $xw->endElement();
             $xw->endElement(); // url
         }
@@ -703,6 +703,12 @@ class ResourceSyncPlugin
         // book_path() is host-relative and WITHOUT the base path; $base already
         // carries scheme+host+base path, so the concatenation is absolute.
         return $base . \book_path($book);
+    }
+
+    /** MIME type served by the URL returned from resourceLoc(). */
+    private function resourceType(): string
+    {
+        return $this->bibframeActive() ? 'application/ld+json' : 'text/html';
     }
 
     /**

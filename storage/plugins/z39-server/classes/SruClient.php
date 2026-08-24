@@ -298,6 +298,7 @@ class SruClient
             'max_redirects'   => 3,
             'user_agent'      => 'Pinakes/1.0 (Z39.50/SRU Client)',
             'verify'          => $this->verifySsl,
+            'ssrf_guard'      => true,
         ]);
 
         if (!$res['ok']) {

@@ -23,16 +23,6 @@ class DeweyAutoPopulator
     ];
 
     /**
-     * Map of locale codes to JSON file names
-     */
-    private const LOCALE_FILES = [
-        'it' => 'dewey_completo_it.json',
-        'en' => 'dewey_completo_en.json',
-    ];
-
-    private static string $dataDir = '';
-
-    /**
      * Add or update a Dewey entry if missing
      *
      * @param string $code Dewey code (e.g., "808.81")
@@ -55,23 +45,24 @@ class DeweyAutoPopulator
         }
 
         // Get current app locale
-        $appLocale = self::getAppLocaleShort();
+        $appLocale = self::getAppLocale();
+        $appLanguage = substr($appLocale, 0, 2);
 
         // Only update if source language matches app locale
-        if ($sourceLanguage !== $appLocale) {
+        if ($sourceLanguage !== $appLanguage) {
             // Don't update - language mismatch
             return false;
         }
 
         // Get JSON file for this locale
-        $jsonFile = self::getJsonFilePath($appLocale);
-        if (!$jsonFile || !file_exists($jsonFile)) {
+        $readPath = DeweyDataFiles::resolveReadPath($appLocale);
+        if (!file_exists($readPath)) {
             error_log("[DeweyAutoPopulator] JSON file not found for locale: $appLocale");
             return false;
         }
 
         // Load existing data
-        $data = self::loadJson($jsonFile);
+        $data = self::loadJson($readPath);
         if ($data === null) {
             return false;
         }
@@ -90,7 +81,7 @@ class DeweyAutoPopulator
         }
 
         // Save back to file
-        return self::saveJson($jsonFile, $data);
+        return self::saveJson(DeweyDataFiles::canonicalPath($appLocale), $data);
     }
 
     /**
@@ -113,37 +104,16 @@ class DeweyAutoPopulator
     }
 
     /**
-     * Get short locale code (it, en, etc.)
+     * Get normalized full locale code (it_IT, en_US, etc.).
      */
-    private static function getAppLocaleShort(): string
+    private static function getAppLocale(): string
     {
         if (class_exists('\App\Support\I18n')) {
-            $locale = I18n::getLocale();
-            return substr($locale, 0, 2);
+            return I18n::normalizeLocaleCode(I18n::getLocale());
         }
 
         // Fallback to ENV
-        $locale = $_ENV['APP_LOCALE'] ?? 'it_IT';
-        return substr($locale, 0, 2);
-    }
-
-    /**
-     * Get JSON file path for a locale
-     */
-    private static function getJsonFilePath(string $locale): ?string
-    {
-        $file = self::LOCALE_FILES[$locale] ?? null;
-        if (!$file) {
-            return null;
-        }
-
-        if (empty(self::$dataDir)) {
-            // Determine base path
-            $basePath = defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2);
-            self::$dataDir = $basePath . '/data/dewey';
-        }
-
-        return self::$dataDir . '/' . $file;
+        return I18n::normalizeLocaleCode((string) ($_ENV['APP_LOCALE'] ?? 'it_IT'));
     }
 
     /**

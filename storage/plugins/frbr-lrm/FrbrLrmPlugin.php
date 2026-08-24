@@ -529,9 +529,18 @@ class FrbrLrmPlugin
         if ($espressione === null) {
             return $this->redirect($response, '/admin/opere');
         }
+        $currentAuthorIds = array_values(array_filter([
+            (int) ($espressione['traduttore_autore_id'] ?? 0),
+            (int) ($espressione['curatore_autore_id'] ?? 0),
+            (int) ($espressione['revisore_autore_id'] ?? 0),
+        ], static fn(int $id): bool => $id > 0));
         return $this->renderView($response, 'admin/espressioni/form', [
             'espressione' => $espressione,
-            'autori' => $this->autoriForSelect(),
+            // Always include the currently linked people even when they fall
+            // outside the first 1,000 alphabetical rows. Otherwise the select
+            // has no matching option and an unrelated edit silently NULLs the
+            // translator/curator/reviser relationship on submit.
+            'autori' => $this->autoriForSelect($currentAuthorIds),
             'pageTitle' => __('Modifica espressione'),
         ]);
     }
@@ -682,18 +691,47 @@ class FrbrLrmPlugin
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 
-    /** @return array<int, array{id:int, nome:string}> */
-    private function autoriForSelect(): array
+    /**
+     * @param list<int> $includeIds IDs that must be present beyond the display cap
+     * @return array<int, array{id:int, nome:string}>
+     */
+    private function autoriForSelect(array $includeIds = []): array
     {
-        $out = [];
+        /** @var array<int, array{id:int, nome:string}> $byId */
+        $byId = [];
         $display = \App\Support\AuthorName::displaySql('a');
         $res = $this->db->query("SELECT a.id, {$display} AS nome FROM autori a ORDER BY nome ASC LIMIT 1000");
         if ($res instanceof \mysqli_result) {
             while ($row = $res->fetch_assoc()) {
-                $out[] = ['id' => (int) $row['id'], 'nome' => (string) $row['nome']];
+                $id = (int) $row['id'];
+                $byId[$id] = ['id' => $id, 'nome' => (string) $row['nome']];
             }
             $res->free();
         }
+
+        $includeIds = array_values(array_unique(array_filter(
+            array_map('intval', $includeIds),
+            static fn(int $id): bool => $id > 0 && !isset($byId[$id])
+        )));
+        if ($includeIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($includeIds), '?'));
+            $extraStmt = $this->db->prepare(
+                "SELECT a.id, {$display} AS nome FROM autori a WHERE a.id IN ({$placeholders})"
+            );
+            if ($extraStmt !== false) {
+                $extraStmt->bind_param(str_repeat('i', count($includeIds)), ...$includeIds);
+                $extraStmt->execute();
+                $extra = $extraStmt->get_result();
+                while ($extra instanceof \mysqli_result && ($row = $extra->fetch_assoc())) {
+                    $id = (int) $row['id'];
+                    $byId[$id] = ['id' => $id, 'nome' => (string) $row['nome']];
+                }
+                $extraStmt->close();
+            }
+        }
+
+        $out = array_values($byId);
+        usort($out, static fn(array $a, array $b): int => strnatcasecmp($a['nome'], $b['nome']));
         return $out;
     }
 

@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\DeweyDataFiles;
 use App\Support\I18n;
 
 class DeweyApiController
@@ -17,20 +18,10 @@ class DeweyApiController
         $locale = $this->getActiveLocale();
 
         if (!isset(self::$deweyDataCache[$locale])) {
-            // Prima prova a caricare il nuovo formato completo (con decimali)
-            $jsonFile = ($locale === 'en_US') ? 'dewey_completo_en.json' : 'dewey_completo_it.json';
-            $jsonPath = __DIR__ . '/../../data/dewey/' . $jsonFile;
-
-            // Fallback al vecchio formato se il completo non esiste
-            if (!file_exists($jsonPath)) {
-                $jsonFile = ($locale === 'en_US') ? 'dewey_en.json' : 'dewey.json';
-                $jsonPath = __DIR__ . '/../../data/dewey/' . $jsonFile;
-            }
-
-            // Fallback finale al file italiano
-            if (!file_exists($jsonPath)) {
-                $jsonPath = __DIR__ . '/../../data/dewey/dewey_completo_it.json';
-            }
+            // Prefer the full-locale file written by Dewey Editor, retain the
+            // language-prefix file as an upgrade fallback, then fall back to
+            // Italian when the selected locale has no Dewey dataset.
+            $jsonPath = DeweyDataFiles::resolveReadPath($locale, 'it_IT');
 
             if (!file_exists($jsonPath)) {
                 throw new \Exception('Dewey JSON file not found');

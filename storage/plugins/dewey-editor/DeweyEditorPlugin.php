@@ -25,7 +25,6 @@ class DeweyEditorPlugin
     /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private ?int $pluginId = null;
-    private string $dataDir;
     private string $backupDir;
 
     private const MAX_BACKUPS = 5;
@@ -53,7 +52,6 @@ class DeweyEditorPlugin
     {
         $this->db = $db;
         $this->hookManager = $hookManager;
-        $this->dataDir = dirname(__DIR__, 3) . '/data/dewey';
         $this->backupDir = dirname(__DIR__, 3) . '/storage/backups/dewey';
 
         $result = $db->query("SELECT id FROM plugins WHERE name = 'dewey-editor' LIMIT 1");
@@ -604,8 +602,7 @@ class DeweyEditorPlugin
      */
     private function getJsonPath(string $locale): string
     {
-        $filename = "dewey_completo_{$locale}.json";
-        return $this->dataDir . '/' . $filename;
+        return \App\Support\DeweyDataFiles::canonicalPath($locale);
     }
 
     /**
@@ -620,16 +617,7 @@ class DeweyEditorPlugin
      */
     private function resolveDataPath(string $locale): string
     {
-        $canonical = $this->getJsonPath($locale);
-        if (is_file($canonical)) {
-            return $canonical;
-        }
-        $langCode = strtolower(substr($locale, 0, 2));
-        $legacy = $this->dataDir . "/dewey_completo_{$langCode}.json";
-        if (is_file($legacy)) {
-            return $legacy;
-        }
-        return $canonical;
+        return \App\Support\DeweyDataFiles::resolveReadPath($locale);
     }
 
     private function createBackup(string $locale): void

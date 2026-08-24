@@ -189,6 +189,7 @@ class AiService
                 'connect_timeout' => 10,
                 'max_redirects'   => 0,
                 'https_only'      => true,
+                'ssrf_guard'      => true,
             ]);
 
             if (!$res['ok'] || $res['body'] === '') {
