@@ -50,7 +50,7 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; th
     fail "invalid version '$VERSION'; expected X.Y.Z or X.Y.Z-(alpha|beta|rc).N"
 fi
 
-readonly TAG_NAME="v${VERSION}"
+declare -rx TAG_NAME="v${VERSION}"
 IS_PRERELEASE=false
 if [[ "$VERSION" == *-* ]]; then
     IS_PRERELEASE=true
@@ -144,7 +144,6 @@ if [[ "$IS_PRERELEASE" == false ]]; then
 fi
 
 release_token="$(gh auth token)"
-TAG_NAME="$TAG_NAME" \
 GITHUB_SHA="$head_sha" \
 GITHUB_REPOSITORY="$REPOSITORY" \
 GH_TOKEN="$release_token" \
