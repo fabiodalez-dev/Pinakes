@@ -5,7 +5,6 @@
  * @var string $error
  * @var string $success
  */
-use App\Support\HtmlHelper;
 ?>
 <div class="flex-1 overflow-x-hidden">
 

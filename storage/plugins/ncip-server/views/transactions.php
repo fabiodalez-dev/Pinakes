@@ -6,7 +6,6 @@
  * @var int $page
  * @var int $perPage
  */
-use App\Support\HtmlHelper;
 
 $totalPages = (int) ceil($total / max(1, $perPage));
 $statusColors = [

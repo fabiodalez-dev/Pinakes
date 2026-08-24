@@ -8,7 +8,6 @@
   "plugin_url": "https://www.niso.org/standards-committees/openurl",
   "requires_php": "8.1",
   "requires_app": "0.7.2",
-  "max_app_version": "0.7.9",
   "path": "openurl-resolver",
   "main_file": "wrapper.php",
   "metadata": {

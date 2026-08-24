@@ -1822,8 +1822,27 @@ class ArchivesPlugin
         }
         if (!$wasInTransaction) { $db->begin_transaction(); }
         try {
+            // Free the UNIQUE-indexed identifiers on soft-delete so the codes
+            // can be reissued to a new/corrected record. Neither uq_reference
+            // (institution_code, reference_code) nor uq_ark_identifier is scoped
+            // by deleted_at, so leaving the values in place would permanently
+            // block reuse — the same reason core libri nullifies isbn10/13/ean.
+            // reference_code is NOT NULL and only VARCHAR(64), so rather than
+            // overwriting it (which would lose the original code needed for audit
+            // and reference lookups) I APPEND a per-id token, truncating the
+            // original prefix just enough to keep the result within 64 chars with
+            // the token intact. This frees the combined key while preserving the
+            // original code as a readable prefix; ark_identifier is nullable and
+            // set to NULL (multiple NULLs are allowed in a UNIQUE index).
             $stmt = $this->db->prepare(
-                'UPDATE archival_units SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+                "UPDATE archival_units
+                    SET deleted_at = NOW(),
+                        reference_code = CONCAT(
+                            LEFT(reference_code, GREATEST(0, 64 - CHAR_LENGTH(CONCAT('__deleted_', id)))),
+                            '__deleted_', id
+                        ),
+                        ark_identifier = NULL
+                  WHERE id = ? AND deleted_at IS NULL"
             );
             if ($stmt === false) {
                 SecureLogger::error('[Archives] delete prepare failed: ' . $this->db->error, ['id' => $id]);

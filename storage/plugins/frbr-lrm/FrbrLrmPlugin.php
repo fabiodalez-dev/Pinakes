@@ -72,6 +72,9 @@ class FrbrLrmPlugin
         try {
             $this->registerHookInDb('app.routes.register', 'registerRoutes', 20);
             $this->registerHookInDb('admin.menu.render', 'renderAdminMenuEntry', 20);
+            // Flagship integration (#6): inject the "link this book to a Work"
+            // panel into the book edit form via the shared book-form hook.
+            $this->registerHookInDb('book.form.fields', 'renderBookOperaPanel', 20);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -124,6 +127,26 @@ class FrbrLrmPlugin
         // ── Admin: delete opera (soft-delete) ──
         $app->post('/admin/opere/{id:[0-9]+}/delete', function (ServerRequestInterface $req, ResponseInterface $res, array $args) use ($plugin): ResponseInterface {
             return $plugin->adminDeleteAction($req, $res, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // ── Admin: create an espressione under an opera ──
+        $app->post('/admin/opere/{id:[0-9]+}/espressioni', function (ServerRequestInterface $req, ResponseInterface $res, array $args) use ($plugin): ResponseInterface {
+            return $plugin->adminEspressioneStoreAction($req, $res, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // ── Admin: edit espressione form ──
+        $app->get('/admin/opere/espressioni/{eid:[0-9]+}/edit', function (ServerRequestInterface $req, ResponseInterface $res, array $args) use ($plugin): ResponseInterface {
+            return $plugin->adminEspressioneEditAction($req, $res, (int) $args['eid']);
+        })->add($adminMiddleware);
+
+        // ── Admin: update espressione ──
+        $app->post('/admin/opere/espressioni/{eid:[0-9]+}/edit', function (ServerRequestInterface $req, ResponseInterface $res, array $args) use ($plugin): ResponseInterface {
+            return $plugin->adminEspressioneUpdateAction($req, $res, (int) $args['eid']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // ── Admin: delete espressione (soft-delete) ──
+        $app->post('/admin/opere/espressioni/{eid:[0-9]+}/delete', function (ServerRequestInterface $req, ResponseInterface $res, array $args) use ($plugin): ResponseInterface {
+            return $plugin->adminEspressioneDeleteAction($req, $res, (int) $args['eid']);
         })->add($csrfMiddleware)->add($adminMiddleware);
 
         // ── Admin: attach a book to an opera (from the book edit form) ──
@@ -183,9 +206,8 @@ class FrbrLrmPlugin
     private static function schemaSteps(): array
     {
         return [
-            'opere'              => self::ddlOpere(),
-            'espressioni'        => self::ddlEspressioni(),
-            'libri_autori_ruoli' => self::ddlLibriAutoriRuoli(),
+            'opere'       => self::ddlOpere(),
+            'espressioni' => self::ddlEspressioni(),
         ];
     }
 
@@ -320,28 +342,13 @@ class FrbrLrmPlugin
             SQL;
     }
 
-    private static function ddlLibriAutoriRuoli(): string
-    {
-        return <<<SQL
-            CREATE TABLE IF NOT EXISTS `libri_autori_ruoli` (
-              `id` INT NOT NULL AUTO_INCREMENT,
-              `libro_id` INT NOT NULL,
-              `autore_id` INT NOT NULL,
-              `relator_code` VARCHAR(3) NOT NULL COMMENT 'MARC21 relator code: aut, edt, trl, ill, ctb...',
-              `relator_label` VARCHAR(100) DEFAULT NULL,
-              `ordine` SMALLINT NOT NULL DEFAULT 0,
-              `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-              PRIMARY KEY (`id`),
-              UNIQUE KEY `uq_libro_autore_relator` (`libro_id`,`autore_id`,`relator_code`),
-              KEY `idx_lar_autore` (`autore_id`),
-              KEY `idx_lar_relator` (`relator_code`),
-              CONSTRAINT `fk_lar_libro` FOREIGN KEY (`libro_id`)
-                REFERENCES `libri` (`id`) ON DELETE CASCADE,
-              CONSTRAINT `fk_lar_autore` FOREIGN KEY (`autore_id`)
-                REFERENCES `autori` (`id`) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            SQL;
-    }
+    // NOTE: an earlier draft also created a `libri_autori_ruoli` table for
+    // MARC21 relator codes (aut/edt/trl/ill/ctb), but nothing ever read or
+    // wrote it. Rather than ship an orphaned table and advertise a feature
+    // that does not exist, the table creation and its manifest claim were
+    // removed. The translator/curator/reviser roles that ARE modelled live
+    // on the `espressioni` rows. If relator-code assignment is implemented
+    // later it should re-introduce the table via ensureSchema().
 
     // ─────────────────────────────────────────────────────────────────────
     // Admin menu (hook `admin.menu.render`)
@@ -414,6 +421,7 @@ class FrbrLrmPlugin
             'opera' => $opera,
             'edizioni' => $repo->editionsForOpera($id),
             'espressioni' => (new EspressioniRepository($this->db))->listForOpera($id),
+            'autori' => $this->autoriForSelect(),
             'pageTitle' => $opera['titolo_uniforme'],
         ]);
     }
@@ -445,16 +453,137 @@ class FrbrLrmPlugin
         return $this->redirect($response, '/admin/opere');
     }
 
-    /** Attach a book to an opera (POST from the book edit form). */
+    /**
+     * Attach (or, with an empty opera_id, detach) a book to/from an opera.
+     * POSTed from the book edit form's Opera panel. Answers JSON to an AJAX
+     * caller and 302-redirects a plain form submit, so the endpoint is usable
+     * both ways.
+     */
     public function attachBookToOperaAction(ServerRequestInterface $request, ResponseInterface $response, int $libroId): ResponseInterface
     {
         $data = (array) $request->getParsedBody();
         $operaId = !empty($data['opera_id']) ? (int) $data['opera_id'] : null;
+        $wantsJson = $this->wantsJson($request);
+
+        // Reject a non-existent / soft-deleted opera so we never store a dangling FK.
+        if ($operaId !== null && !(new OpereRepository($this->db))->exists($operaId)) {
+            if ($wantsJson) {
+                return $this->json($response, ['success' => false, 'error' => __('Opera non trovata')], 404);
+            }
+            return $this->redirect($response, '/admin/books/' . $libroId);
+        }
+
         $stmt = $this->db->prepare('UPDATE libri SET opera_id = ? WHERE id = ? AND deleted_at IS NULL');
         $stmt->bind_param('ii', $operaId, $libroId);
         $stmt->execute();
         $stmt->close();
+
+        if ($wantsJson) {
+            $opera = $operaId !== null ? (new OpereRepository($this->db))->getForBook($libroId) : null;
+            return $this->json($response, ['success' => true, 'opera' => $opera]);
+        }
         return $this->redirect($response, '/admin/books/' . $libroId);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Book-form hook (book.form.fields) — link a manifestation to a Work
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Render the "link this book to an Opera" panel inside the book edit form.
+     *
+     * @param array<string, mixed>|null $book
+     */
+    public function renderBookOperaPanel(?array $book, ?int $bookId): void
+    {
+        $id = $bookId ?? (is_array($book) ? (int) ($book['id'] ?? 0) : 0);
+        $currentOpera = $id > 0 ? (new OpereRepository($this->db))->getForBook($id) : null;
+        $csrf = \App\Support\Csrf::ensureToken();
+        include __DIR__ . '/views/book/opera-panel.php';
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Admin actions — espressioni CRUD (tied to a Work)
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** Allowed Expression types — must match the `espressioni.tipo_espressione` ENUM. */
+    private const TIPI_ESPRESSIONE = [
+        'testo', 'traduzione', 'revisione', 'adattamento', 'edizione_critica', 'audio', 'altro',
+    ];
+
+    public function adminEspressioneStoreAction(ServerRequestInterface $request, ResponseInterface $response, int $operaId): ResponseInterface
+    {
+        if (!(new OpereRepository($this->db))->exists($operaId)) {
+            return $this->redirect($response, '/admin/opere');
+        }
+        $data = $this->sanitizeEspressioneInput((array) $request->getParsedBody());
+        $data['opera_id'] = $operaId;
+        (new EspressioniRepository($this->db))->create($data);
+        return $this->redirect($response, '/admin/opere/' . $operaId);
+    }
+
+    public function adminEspressioneEditAction(ServerRequestInterface $request, ResponseInterface $response, int $espressioneId): ResponseInterface
+    {
+        $repo = new EspressioniRepository($this->db);
+        $espressione = $repo->getById($espressioneId);
+        if ($espressione === null) {
+            return $this->redirect($response, '/admin/opere');
+        }
+        $currentAuthorIds = array_values(array_filter([
+            (int) ($espressione['traduttore_autore_id'] ?? 0),
+            (int) ($espressione['curatore_autore_id'] ?? 0),
+            (int) ($espressione['revisore_autore_id'] ?? 0),
+        ], static fn(int $id): bool => $id > 0));
+        return $this->renderView($response, 'admin/espressioni/form', [
+            'espressione' => $espressione,
+            // Always include the currently linked people even when they fall
+            // outside the first 1,000 alphabetical rows. Otherwise the select
+            // has no matching option and an unrelated edit silently NULLs the
+            // translator/curator/reviser relationship on submit.
+            'autori' => $this->autoriForSelect($currentAuthorIds),
+            'pageTitle' => __('Modifica espressione'),
+        ]);
+    }
+
+    public function adminEspressioneUpdateAction(ServerRequestInterface $request, ResponseInterface $response, int $espressioneId): ResponseInterface
+    {
+        $repo = new EspressioniRepository($this->db);
+        $espressione = $repo->getById($espressioneId);
+        if ($espressione === null) {
+            return $this->redirect($response, '/admin/opere');
+        }
+        $data = $this->sanitizeEspressioneInput((array) $request->getParsedBody());
+        $repo->update($espressioneId, $data);
+        return $this->redirect($response, '/admin/opere/' . (int) $espressione['opera_id']);
+    }
+
+    public function adminEspressioneDeleteAction(ServerRequestInterface $request, ResponseInterface $response, int $espressioneId): ResponseInterface
+    {
+        $repo = new EspressioniRepository($this->db);
+        $espressione = $repo->getById($espressioneId);
+        if ($espressione === null) {
+            return $this->redirect($response, '/admin/opere');
+        }
+        $operaId = (int) $espressione['opera_id'];
+        $repo->softDelete($espressioneId);
+        return $this->redirect($response, '/admin/opere/' . $operaId);
+    }
+
+    /**
+     * Normalise the espressione form payload: clamp the type to the ENUM and
+     * pass the remaining fields through as-is for the repository to bind.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function sanitizeEspressioneInput(array $data): array
+    {
+        $tipo = (string) ($data['tipo_espressione'] ?? 'testo');
+        if (!in_array($tipo, self::TIPI_ESPRESSIONE, true)) {
+            $tipo = 'testo';
+        }
+        $data['tipo_espressione'] = $tipo;
+        return $data;
     }
 
     /** Opera autocomplete JSON for the attach UI. */
@@ -544,18 +673,65 @@ class FrbrLrmPlugin
         return $response->withHeader('Location', url($path))->withStatus(302);
     }
 
-    /** @return array<int, array{id:int, nome:string}> */
-    private function autoriForSelect(): array
+    /** Does the caller want a JSON response (fetch/XHR) rather than a redirect? */
+    private function wantsJson(ServerRequestInterface $request): bool
     {
-        $out = [];
+        if (strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest') {
+            return true;
+        }
+        return str_contains($request->getHeaderLine('Accept'), 'application/json');
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function json(ResponseInterface $response, array $payload, int $status = 200): ResponseInterface
+    {
+        $response->getBody()->write((string) json_encode($payload, JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+    }
+
+    /**
+     * @param list<int> $includeIds IDs that must be present beyond the display cap
+     * @return array<int, array{id:int, nome:string}>
+     */
+    private function autoriForSelect(array $includeIds = []): array
+    {
+        /** @var array<int, array{id:int, nome:string}> $byId */
+        $byId = [];
         $display = \App\Support\AuthorName::displaySql('a');
         $res = $this->db->query("SELECT a.id, {$display} AS nome FROM autori a ORDER BY nome ASC LIMIT 1000");
         if ($res instanceof \mysqli_result) {
             while ($row = $res->fetch_assoc()) {
-                $out[] = ['id' => (int) $row['id'], 'nome' => (string) $row['nome']];
+                $id = (int) $row['id'];
+                $byId[$id] = ['id' => $id, 'nome' => (string) $row['nome']];
             }
             $res->free();
         }
+
+        $includeIds = array_values(array_unique(array_filter(
+            array_map('intval', $includeIds),
+            static fn(int $id): bool => $id > 0 && !isset($byId[$id])
+        )));
+        if ($includeIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($includeIds), '?'));
+            $extraStmt = $this->db->prepare(
+                "SELECT a.id, {$display} AS nome FROM autori a WHERE a.id IN ({$placeholders})"
+            );
+            if ($extraStmt !== false) {
+                $extraStmt->bind_param(str_repeat('i', count($includeIds)), ...$includeIds);
+                $extraStmt->execute();
+                $extra = $extraStmt->get_result();
+                while ($extra instanceof \mysqli_result && ($row = $extra->fetch_assoc())) {
+                    $id = (int) $row['id'];
+                    $byId[$id] = ['id' => $id, 'nome' => (string) $row['nome']];
+                }
+                $extraStmt->close();
+            }
+        }
+
+        $out = array_values($byId);
+        usort($out, static fn(array $a, array $b): int => strnatcasecmp($a['nome'], $b['nome']));
         return $out;
     }
 

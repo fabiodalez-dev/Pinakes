@@ -46,7 +46,8 @@ final class HttpClient
      * @param array<string,string> $headers Extra request headers
      * @param array<string,mixed>  $options Overrides: timeout, connect_timeout,
      *                                       user_agent, max_redirects, verify,
-     *                                       query (array), https_only (bool)
+     *                                       query (array), https_only (bool),
+     *                                       ssrf_guard (bool)
      * @return array{ok:bool,status:int,body:string}
      */
     public static function get(string $url, array $headers = [], array $options = []): array
@@ -110,6 +111,7 @@ final class HttpClient
         // Authorization token (e.g. the Discogs API), which must never travel
         // over cleartext after a redirect.
         $httpsOnly = (bool) ($options['https_only'] ?? false);
+        $ssrfGuard = (bool) ($options['ssrf_guard'] ?? false);
         $allowedSchemes = $httpsOnly ? ['https'] : ['http', 'https'];
 
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
@@ -117,8 +119,57 @@ final class HttpClient
             return ['ok' => false, 'status' => 0, 'body' => ''];
         }
 
+        // For caller-configurable endpoints, fail closed unless the host
+        // resolves exclusively to public addresses and cURL is available for
+        // connection pinning. Scheme validation alone is not an SSRF boundary:
+        // http://127.0.0.1 and DNS names resolving to RFC1918 space are still
+        // syntactically valid HTTP(S) URLs.
+        $pinnedHost = strtolower(rtrim((string) parse_url($url, PHP_URL_HOST), '.'));
+        $pinnedPorts = [];
+        if ($ssrfGuard) {
+            if ($pinnedHost === '' || !\extension_loaded('curl')) {
+                return ['ok' => false, 'status' => 0, 'body' => ''];
+            }
+            $pinnedIp = SsrfGuard::resolvePinnedIp($pinnedHost);
+            if ($pinnedIp === null) {
+                SecureLogger::warning('HttpClient SSRF guard rejected endpoint host', ['host' => $pinnedHost]);
+                return ['ok' => false, 'status' => 0, 'body' => ''];
+            }
+            $options['pin_ip'] = $pinnedIp;
+            $initialPort = (int) (parse_url($url, PHP_URL_PORT) ?? ($scheme === 'https' ? 443 : 80));
+            $pinnedPorts = array_values(array_unique([$initialPort, 80, 443]));
+        }
+
         $userAgent = (string) ($options['user_agent'] ?? self::DEFAULT_USER_AGENT);
         $maxRedirects = (int) ($options['max_redirects'] ?? self::DEFAULT_MAX_REDIRECTS);
+
+        $redirectOptions = $maxRedirects > 0
+            ? ['max' => $maxRedirects, 'protocols' => $allowedSchemes, 'strict' => false]
+            : false;
+        if ($ssrfGuard && is_array($redirectOptions)) {
+            // CURLOPT_RESOLVE keeps every same-authority hop on the vetted IP.
+            // Reject cross-host and unpinned-port redirects: accepting them
+            // would re-enter DNS without validating/pinning the new target.
+            $redirectOptions['on_redirect'] = static function (
+                \Psr\Http\Message\RequestInterface $request,
+                \Psr\Http\Message\ResponseInterface $response,
+                \Psr\Http\Message\UriInterface $uri
+            ) use (
+                $pinnedHost,
+                $pinnedPorts,
+                $allowedSchemes
+            ): void {
+                unset($request, $response);
+                $redirectScheme = strtolower($uri->getScheme());
+                $redirectHost = strtolower(rtrim($uri->getHost(), '.'));
+                $redirectPort = $uri->getPort() ?? ($redirectScheme === 'https' ? 443 : 80);
+                if ($redirectHost !== $pinnedHost
+                    || !in_array($redirectScheme, $allowedSchemes, true)
+                    || !in_array($redirectPort, $pinnedPorts, true)) {
+                    throw new \RuntimeException('SSRF guard rejected redirect target');
+                }
+            };
+        }
 
         $guzzleOptions = [
             RequestOptions::TIMEOUT => (float) ($options['timeout'] ?? self::DEFAULT_TIMEOUT),
@@ -126,9 +177,7 @@ final class HttpClient
             RequestOptions::VERIFY => $options['verify'] ?? true,
             RequestOptions::HTTP_ERRORS => false,
             RequestOptions::HEADERS => ['User-Agent' => $userAgent] + $headers,
-            RequestOptions::ALLOW_REDIRECTS => $maxRedirects > 0
-                ? ['max' => $maxRedirects, 'protocols' => $allowedSchemes, 'strict' => false]
-                : false,
+            RequestOptions::ALLOW_REDIRECTS => $redirectOptions,
         ];
 
         // Optional IP pinning (SSRF / DNS-rebind defense). When the caller has
@@ -140,8 +189,15 @@ final class HttpClient
             $pinHost = strtolower((string) parse_url($url, PHP_URL_HOST));
             $pinPort = (int) (parse_url($url, PHP_URL_PORT) ?? ($scheme === 'https' ? 443 : 80));
             if ($pinHost !== '') {
+                $ports = $pinnedPorts !== [] ? $pinnedPorts : [$pinPort];
+                $curlPin = str_contains($options['pin_ip'], ':')
+                    ? '[' . $options['pin_ip'] . ']'
+                    : $options['pin_ip'];
                 $guzzleOptions['curl'] = [
-                    CURLOPT_RESOLVE => ["$pinHost:$pinPort:" . $options['pin_ip']],
+                    CURLOPT_RESOLVE => array_map(
+                        static fn(int $port): string => "$pinHost:$port:$curlPin",
+                        $ports
+                    ),
                 ];
             }
         }
@@ -164,7 +220,7 @@ final class HttpClient
                 'status' => $response->getStatusCode(),
                 'body' => (string) $response->getBody(),
             ];
-        } catch (GuzzleException $e) {
+        } catch (GuzzleException|\RuntimeException $e) {
             // Transport-level failure (DNS / connection / TLS). Mirror the old
             // `curl_exec() === false` path: surface an empty, non-ok result.
             SecureLogger::warning('HttpClient request failed', [

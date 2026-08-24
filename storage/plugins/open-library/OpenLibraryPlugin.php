@@ -2,8 +2,6 @@
 
 namespace App\Plugins\OpenLibrary;
 
-use App\Support\Hooks;
-
 /**
  * Open Library API Plugin
  *
@@ -29,21 +27,6 @@ class OpenLibraryPlugin
     {
         $this->db = $db;
         $this->hookManager = $hookManager;
-    }
-
-    /**
-     * Activate the plugin and register all hooks
-     */
-    public function activate(): void
-    {
-        // Add Open Library as a scraping source with high priority
-        Hooks::add('scrape.sources', [$this, 'addOpenLibrarySource'], 5);
-
-        // Use custom scraping logic for Open Library API
-        Hooks::add('scrape.fetch.custom', [$this, 'fetchFromOpenLibrary'], 5);
-
-        // Enrich data with additional information
-        Hooks::add('scrape.data.modify', [$this, 'enrichWithOpenLibraryData'], 10);
     }
 
     /**

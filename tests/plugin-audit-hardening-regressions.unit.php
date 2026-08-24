@@ -1,0 +1,70 @@
+<?php
+declare(strict_types=1);
+
+/** Regression coverage for the follow-up review fixes on PR #376. */
+
+$root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
+
+$passed = 0;
+function auditOk(bool $condition, string $message): void
+{
+    global $passed;
+    if (!$condition) {
+        fwrite(STDERR, "FAIL: {$message}\n");
+        exit(1);
+    }
+    $passed++;
+    fwrite(STDOUT, "PASS: {$message}\n");
+}
+function auditRead(string $path): string
+{
+    $content = file_get_contents($path);
+    auditOk($content !== false, 'read ' . basename($path));
+    return (string) $content;
+}
+
+// SSRF guard: private literals must be rejected before any connection attempt.
+$loopback = \App\Support\HttpClient::get('http://127.0.0.1:9/test', [], ['ssrf_guard' => true]);
+auditOk($loopback === ['ok' => false, 'status' => 0, 'body' => ''], 'HttpClient blocks IPv4 loopback');
+$private = \App\Support\HttpClient::get('https://10.0.0.1/test', [], ['ssrf_guard' => true]);
+auditOk($private === ['ok' => false, 'status' => 0, 'body' => ''], 'HttpClient blocks RFC1918 targets');
+
+$ai = auditRead($root . '/storage/plugins/book-club/src/AiService.php');
+$sru = auditRead($root . '/storage/plugins/z39-server/classes/SruClient.php');
+auditOk(substr_count($ai, "'ssrf_guard'      => true") === 1, 'Book Club enables the SSRF guard');
+auditOk(substr_count($sru, "'ssrf_guard'      => true") === 1, 'SRU enables the SSRF guard');
+
+// Dewey readers and writers must agree on the full-locale canonical path.
+auditOk(
+    basename(\App\Support\DeweyDataFiles::canonicalPath('it_IT')) === 'dewey_completo_it_IT.json',
+    'Dewey canonical path retains the full locale'
+);
+auditOk(
+    basename(\App\Support\DeweyDataFiles::resolveReadPath('it_IT')) === 'dewey_completo_it.json',
+    'Dewey reads fall back to the legacy file before migration'
+);
+$deweyApi = auditRead($root . '/app/Controllers/DeweyApiController.php');
+$deweyAuto = auditRead($root . '/app/Support/DeweyAutoPopulator.php');
+$deweyPlugin = auditRead($root . '/storage/plugins/dewey-editor/DeweyEditorPlugin.php');
+auditOk(str_contains($deweyApi, 'DeweyDataFiles::resolveReadPath'), 'Dewey API uses the shared resolver');
+auditOk(str_contains($deweyAuto, 'DeweyDataFiles::canonicalPath'), 'Dewey auto-populator writes the canonical file');
+auditOk(str_contains($deweyPlugin, 'DeweyDataFiles::canonicalPath'), 'Dewey Editor writes the canonical file');
+
+// ResourceSync must advertise the representation actually returned by <loc>.
+$resourceSync = auditRead($root . '/storage/plugins/resource-sync/ResourceSyncPlugin.php');
+auditOk(
+    substr_count($resourceSync, "writeAttribute('type', \$this->resourceType())") === 2,
+    'ResourceSync derives MIME type in both resource and change lists'
+);
+auditOk(
+    str_contains($resourceSync, "return \$this->bibframeActive() ? 'application/ld+json' : 'text/html';"),
+    'ResourceSync HTML fallback declares text/html'
+);
+
+// Editing an Expression must retain role authors beyond the 1,000-row picker cap.
+$frbr = auditRead($root . '/storage/plugins/frbr-lrm/FrbrLrmPlugin.php');
+auditOk(str_contains($frbr, "'autori' => \$this->autoriForSelect(\$currentAuthorIds)"), 'Expression edit includes current role authors');
+auditOk(str_contains($frbr, 'WHERE a.id IN ({$placeholders})'), 'FRBR fetches required authors beyond the cap');
+
+fwrite(STDOUT, "\nAll {$passed} assertions passed.\n");

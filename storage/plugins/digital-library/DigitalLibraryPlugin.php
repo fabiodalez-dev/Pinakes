@@ -15,7 +15,7 @@ declare(strict_types=1);
  * - Optional and fully disableable
  *
  * @package Pinakes\Plugins\DigitalLibrary
- * @version 1.1.0
+ * @version 1.3.2
  */
 class DigitalLibraryPlugin
 {
@@ -129,8 +129,64 @@ class DigitalLibraryPlugin
             ]));
         }
 
+        // Ensure the schema columns exist. Upgrades re-call onActivate() (not
+        // onInstall()) for an already-active plugin, so the schema logic must
+        // run here too — per the project's Plugin Schema Rule.
+        $this->ensureSchema();
+
         // Register hooks in database
         $this->registerHooks();
+    }
+
+    /**
+     * Ensure the digital-content columns exist on `libri`.
+     *
+     * Idempotent (SHOW COLUMNS guards make it safe to call repeatedly) and
+     * called from BOTH onActivate() and onInstall() so the schema is never
+     * skipped on an upgrade of an already-active plugin. Widths match the
+     * canonical installer/database/schema.sql definition (VARCHAR(255)).
+     */
+    private function ensureSchema(): void
+    {
+        if (!$this->db) {
+            return;
+        }
+
+        $this->ensureColumn(
+            'file_url',
+            "ALTER TABLE libri ADD COLUMN file_url VARCHAR(255) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie"
+        );
+        $this->ensureColumn(
+            'audio_url',
+            "ALTER TABLE libri ADD COLUMN audio_url VARCHAR(255) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url"
+        );
+    }
+
+    /**
+     * Add a column to `libri` if it is missing, failing loudly on any DDL
+     * error. Returning silently would let onActivate() complete with a partial
+     * schema (missing file_url/audio_url), so a later book save then fails.
+     */
+    private function ensureColumn(string $column, string $alterSql): void
+    {
+        if (!$this->db) {
+            return;
+        }
+
+        $result = $this->db->query("SHOW COLUMNS FROM libri LIKE '" . $this->db->real_escape_string($column) . "'");
+        if ($result === false) {
+            $err = "[Digital Library] SHOW COLUMNS for {$column} failed: " . $this->db->error;
+            \App\Support\SecureLogger::error($err);
+            throw new \RuntimeException($err);
+        }
+
+        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
+            if ($this->db->query($alterSql) === false) {
+                $err = "[Digital Library] ALTER TABLE adding {$column} failed: " . $this->db->error;
+                \App\Support\SecureLogger::error($err);
+                throw new \RuntimeException($err);
+            }
+        }
     }
 
     /**
@@ -157,22 +213,8 @@ class DigitalLibraryPlugin
      */
     public function onInstall(): void
     {
-        // Verify database columns exist
-        if (!$this->db) {
-            return;
-        }
-
-        $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'file_url'");
-        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
-            // Add file_url column if missing
-            $this->db->query("ALTER TABLE libri ADD COLUMN file_url VARCHAR(500) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie");
-        }
-
-        $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'audio_url'");
-        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
-            // Add audio_url column if missing
-            $this->db->query("ALTER TABLE libri ADD COLUMN audio_url VARCHAR(500) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url");
-        }
+        // Verify database columns exist (shared idempotent schema logic).
+        $this->ensureSchema();
     }
 
     /**

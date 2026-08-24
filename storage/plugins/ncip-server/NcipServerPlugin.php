@@ -149,7 +149,9 @@ class NcipServerPlugin
                 created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 KEY idx_partner  (partner_id),
                 KEY idx_status   (status),
-                KEY idx_prestito (prestito_id)
+                KEY idx_prestito (prestito_id),
+                CONSTRAINT ncip_transactions_ibfk_1 FOREIGN KEY (partner_id) REFERENCES ncip_partners (id) ON DELETE SET NULL,
+                CONSTRAINT ncip_transactions_ibfk_2 FOREIGN KEY (prestito_id) REFERENCES prestiti (id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ];
     }
@@ -169,9 +171,89 @@ class NcipServerPlugin
             }
         }
 
+        // CREATE TABLE IF NOT EXISTS is a no-op for a pre-existing
+        // ncip_transactions table, so the two FK constraints are never applied
+        // on an upgrade from a build that shipped the table without them.
+        // Add them idempotently now (safe to re-run). If the FK migration
+        // fails, mark ncip_transactions as failed so onActivate()/onInstall()
+        // do NOT register hooks against a half-applied schema.
+        if (!in_array('ncip_transactions', $failed, true) && !$this->ensureForeignKeys()) {
+            $failed[] = 'ncip_transactions';
+        }
+
         // Core schema changes for prestiti.ncip_request_id and origine ENUM are in migrate_0.7.4.sql
 
         return ['created' => $created, 'failed' => $failed];
+    }
+
+    /**
+     * Add the two ncip_transactions foreign keys when missing. Detects each FK
+     * by column + referenced table (name-agnostic) via KEY_COLUMN_USAGE, nulls
+     * out orphan rows that would violate the constraint, then ALTERs it in with
+     * ON DELETE SET NULL. Idempotent and safe to re-run from onActivate/onInstall.
+     * All table/column names below are static literals — no user input.
+     *
+     * @return bool True when every FK is present (or was added); false when any
+     *              probe/cleanup/ALTER failed so the caller can report the schema
+     *              as half-applied instead of registering hooks over it.
+     */
+    private function ensureForeignKeys(): bool
+    {
+        $fks = [
+            ['column' => 'partner_id',  'ref_table' => 'ncip_partners', 'ref_col' => 'id', 'name' => 'ncip_transactions_ibfk_1'],
+            ['column' => 'prestito_id', 'ref_table' => 'prestiti',      'ref_col' => 'id', 'name' => 'ncip_transactions_ibfk_2'],
+        ];
+
+        $ok = true;
+        foreach ($fks as $fk) {
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) AS c FROM information_schema.KEY_COLUMN_USAGE
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = 'ncip_transactions'
+                   AND COLUMN_NAME = ?
+                   AND REFERENCED_TABLE_NAME = ?"
+            );
+            if ($stmt === false) {
+                SecureLogger::error('[NcipServer] FK probe prepare failed: ' . $this->db->error);
+                $ok = false;
+                continue;
+            }
+            $stmt->bind_param('ss', $fk['column'], $fk['ref_table']);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[NcipServer] FK probe failed for ' . $fk['column'] . ': ' . $stmt->error);
+                $stmt->close();
+                $ok = false;
+                continue;
+            }
+            $res = $stmt->get_result();
+            $exists = $res instanceof \mysqli_result && ((int) ($res->fetch_assoc()['c'] ?? 0)) > 0;
+            $stmt->close();
+            if ($exists) {
+                continue;
+            }
+
+            // Null out orphan references that would fail the FK on ADD.
+            if ($this->db->query(
+                "UPDATE ncip_transactions t
+                 LEFT JOIN {$fk['ref_table']} r ON t.{$fk['column']} = r.{$fk['ref_col']}
+                 SET t.{$fk['column']} = NULL
+                 WHERE t.{$fk['column']} IS NOT NULL AND r.{$fk['ref_col']} IS NULL"
+            ) === false) {
+                SecureLogger::error('[NcipServer] Orphan cleanup for ' . $fk['column'] . ' failed: ' . $this->db->error);
+                $ok = false;
+                continue;
+            }
+
+            $alter = "ALTER TABLE ncip_transactions
+                      ADD CONSTRAINT {$fk['name']}
+                      FOREIGN KEY ({$fk['column']}) REFERENCES {$fk['ref_table']} ({$fk['ref_col']}) ON DELETE SET NULL";
+            if ($this->db->query($alter) === false) {
+                SecureLogger::error('[NcipServer] Adding FK ' . $fk['name'] . ' failed: ' . $this->db->error);
+                $ok = false;
+            }
+        }
+
+        return $ok;
     }
 
     // ─── Hook registration ────────────────────────────────────────────────────
