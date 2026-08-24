@@ -197,12 +197,45 @@ class NcipServerPlugin
      *              probe/cleanup/ALTER failed so the caller can report the schema
      *              as half-applied instead of registering hooks over it.
      */
-    private function ensureForeignKeys(): bool
+    /**
+     * Single source of truth for the ncip_transactions foreign keys, shared by
+     * ensureForeignKeys() (which adds them) and expectedForeignKeys() (which
+     * lets PluginManager's boot-time self-heal detect them missing after a
+     * stale-class upgrade). Keep the two in sync via this list.
+     *
+     * @return list<array{column:string, ref_table:string, ref_col:string, name:string}>
+     */
+    private static function foreignKeyDefs(): array
     {
-        $fks = [
+        return [
             ['column' => 'partner_id',  'ref_table' => 'ncip_partners', 'ref_col' => 'id', 'name' => 'ncip_transactions_ibfk_1'],
             ['column' => 'prestito_id', 'ref_table' => 'prestiti',      'ref_col' => 'id', 'name' => 'ncip_transactions_ibfk_2'],
         ];
+    }
+
+    /**
+     * Declared to PluginManager::bundledSchemaIncomplete() so an already-active
+     * ncip at the same version whose FKs are missing (stale-class admin-UI
+     * upgrade) self-heals on the next boot by re-running onActivate.
+     *
+     * @return list<array{table:string, column:string, ref_table:string}>
+     */
+    public function expectedForeignKeys(): array
+    {
+        $out = [];
+        foreach (self::foreignKeyDefs() as $fk) {
+            $out[] = [
+                'table'     => 'ncip_transactions',
+                'column'    => $fk['column'],
+                'ref_table' => $fk['ref_table'],
+            ];
+        }
+        return $out;
+    }
+
+    private function ensureForeignKeys(): bool
+    {
+        $fks = self::foreignKeyDefs();
 
         $ok = true;
         foreach ($fks as $fk) {

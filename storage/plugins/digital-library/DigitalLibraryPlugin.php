@@ -152,14 +152,41 @@ class DigitalLibraryPlugin
             return;
         }
 
-        $this->ensureColumn(
-            'file_url',
-            "ALTER TABLE libri ADD COLUMN file_url VARCHAR(255) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie"
-        );
-        $this->ensureColumn(
-            'audio_url',
-            "ALTER TABLE libri ADD COLUMN audio_url VARCHAR(255) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url"
-        );
+        foreach (self::columnDefs() as $column => $alterSql) {
+            $this->ensureColumn($column, $alterSql);
+        }
+    }
+
+    /**
+     * Single source of truth for the columns digital-library adds to `libri`,
+     * shared by ensureSchema() (which adds them) and expectedColumns() (which
+     * lets PluginManager's boot-time self-heal detect them missing after a
+     * stale-class upgrade). Keep the two in sync via this list.
+     *
+     * @return array<string,string> column => ADD COLUMN DDL
+     */
+    private static function columnDefs(): array
+    {
+        return [
+            'file_url'  => "ALTER TABLE libri ADD COLUMN file_url VARCHAR(255) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie",
+            'audio_url' => "ALTER TABLE libri ADD COLUMN audio_url VARCHAR(255) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url",
+        ];
+    }
+
+    /**
+     * Declared to PluginManager::bundledSchemaIncomplete() so an already-active
+     * digital-library at the same version whose columns are missing (stale-class
+     * admin-UI upgrade) self-heals on the next boot by re-running onActivate.
+     *
+     * @return list<array{table:string, column:string}>
+     */
+    public function expectedColumns(): array
+    {
+        $out = [];
+        foreach (array_keys(self::columnDefs()) as $column) {
+            $out[] = ['table' => 'libri', 'column' => $column];
+        }
+        return $out;
     }
 
     /**

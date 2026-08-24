@@ -41,7 +41,15 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.61 — latest
+### v0.7.67 — latest
+
+A reliability fix for plugin upgrades: a foreign key or column added by a bundled plugin is now applied automatically after an in-place upgrade of an already-active plugin, instead of being silently skipped.
+
+### Fixes
+
+- **Plugin schema self-heal now covers foreign keys and columns, not only tables.** An admin-UI upgrade runs a plugin's old code until the next page load, so a foreign key or column introduced in a release never ran at upgrade time even though the version was bumped. The boot-time self-heal now detects a declared foreign key or column missing and re-applies it on the next request — `ncip_transactions`' foreign keys and `libri.file_url`/`libri.audio_url` heal themselves with no manual step. See **[CHANGELOG.md](CHANGELOG.md)**.
+
+### v0.7.61
 
 Physical-copy management from the book page, with availability derived from the copies — plus a per-user interface language and a safe upgrade path for existing catalogues.
 

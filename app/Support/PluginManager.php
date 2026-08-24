@@ -102,13 +102,30 @@ class PluginManager
      */
     /**
      * Cheap boot-time schema-presence probe used by the self-heal in
-     * autoRegisterBundledPlugins(). A schema-owning plugin may declare
-     * `expectedTables(): list<string>`; if any of those tables is missing the
-     * plugin's schema is behind and ensureSchema must be re-run. Plugins that
-     * do not declare the method never trigger a rebuild. One read-only
-     * information_schema query, no locks — safe to call on every boot.
+     * autoRegisterBundledPlugins(). A schema-owning plugin may declare its
+     * expected surface via any of:
+     *   - `expectedTables(): list<string>`
+     *   - `expectedColumns(): list<array{table:string, column:string}>`
+     *   - `expectedForeignKeys(): list<array{table:string, column:string, ref_table:string}>`
+     * If ANY declared table / column / FK is missing, the plugin's schema is
+     * behind and ensureSchema/onActivate must be re-run. This is the ONLY path
+     * that applies a schema change added in a release on an admin-UI upgrade:
+     * that upgrade runs the plugin's OLD class (already in memory from
+     * loadActivePlugins) even though the version is bumped, so the new
+     * ensureSchema never runs at upgrade time (stale-class trap, ncip FK,
+     * bibliodoc 2026-08-24). Plugins that declare nothing never trigger a
+     * rebuild. Each probe is one read-only information_schema query, no locks —
+     * safe on every boot.
      */
     private function bundledSchemaIncomplete(object $instance): bool
+    {
+        return $this->expectedTablesMissing($instance)
+            || $this->expectedColumnsMissing($instance)
+            || $this->expectedForeignKeysMissing($instance);
+    }
+
+    /** True when a declared expectedTables() entry is absent from the schema. */
+    private function expectedTablesMissing(object $instance): bool
     {
         if (!method_exists($instance, 'expectedTables')) {
             return false;
@@ -138,6 +155,114 @@ class PluginManager
         }
         $present = (int) $res->fetch_row()[0];
         return $present < count($escaped);
+    }
+
+    /**
+     * True when a declared expectedColumns() entry is absent. A plugin that adds
+     * a column to an existing table (its own or a core table, e.g.
+     * digital-library's file_url/audio_url on `libri`) declares it as
+     * {table, column}. If the prepare fails we return false — "cannot prove
+     * missing" must not churn onActivate on every boot.
+     */
+    private function expectedColumnsMissing(object $instance): bool
+    {
+        if (!method_exists($instance, 'expectedColumns')) {
+            return false;
+        }
+        try {
+            $columns = $instance->expectedColumns();
+        } catch (\Throwable $e) {
+            return false;
+        }
+        if (!is_array($columns) || $columns === []) {
+            return false;
+        }
+        foreach ($columns as $col) {
+            if (!is_array($col)) {
+                continue;
+            }
+            $table  = (string) ($col['table'] ?? '');
+            $column = (string) ($col['column'] ?? '');
+            if ($table === '' || $column === '') {
+                continue;
+            }
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?"
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('ss', $table, $column);
+            if (!$stmt->execute()) {
+                // A probe failure is not proof the column is missing — returning
+                // "missing" here would churn onActivate DDL on every boot.
+                $stmt->close();
+                return false;
+            }
+            $present = 0;
+            $stmt->bind_result($present);
+            $stmt->fetch();
+            $stmt->close();
+            if ((int) $present === 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when a declared expectedForeignKeys() entry is absent. Mirrors the
+     * probe a plugin's own ensureForeignKeys() uses (REFERENCED_TABLE_NAME is
+     * non-NULL only for real FKs, so a same-named plain index is not matched).
+     */
+    private function expectedForeignKeysMissing(object $instance): bool
+    {
+        if (!method_exists($instance, 'expectedForeignKeys')) {
+            return false;
+        }
+        try {
+            $fks = $instance->expectedForeignKeys();
+        } catch (\Throwable $e) {
+            return false;
+        }
+        if (!is_array($fks) || $fks === []) {
+            return false;
+        }
+        foreach ($fks as $fk) {
+            if (!is_array($fk)) {
+                continue;
+            }
+            $table    = (string) ($fk['table'] ?? '');
+            $column   = (string) ($fk['column'] ?? '');
+            $refTable = (string) ($fk['ref_table'] ?? '');
+            if ($table === '' || $column === '' || $refTable === '') {
+                continue;
+            }
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                   AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME = ?"
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('sss', $table, $column, $refTable);
+            if (!$stmt->execute()) {
+                // A probe failure is not proof the FK is missing — returning
+                // "missing" here would churn onActivate DDL on every boot.
+                $stmt->close();
+                return false;
+            }
+            $present = 0;
+            $stmt->bind_result($present);
+            $stmt->fetch();
+            $stmt->close();
+            if ((int) $present === 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public function autoRegisterBundledPlugins(): int
