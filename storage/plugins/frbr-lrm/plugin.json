@@ -2,7 +2,7 @@
   "name": "frbr-lrm",
   "display_name": "FRBR / IFLA LRM (Opere & Espressioni)",
   "description": "Introduce il modello concettuale FRBR / IFLA LRM (2017) nel catalogo: tabelle opzionali `opere` (Work) ed `espressioni` (Expression) che permettono di raggruppare più edizioni della stessa opera sotto un unico record e distinguere traduzioni/revisioni/adattamenti dalle manifestazioni fisiche (con i ruoli di traduttore / curatore / revisore sulle Espressioni). Aggiunge il pannello «Collega a Opera» sul form libro con autocomplete e la pagina pubblica /opera/{slug} che elenca tutte le edizioni disponibili di un'opera. Le tabelle sono opzionali: con il plugin disattivato il catalogo `libri` continua a funzionare invariato (le FK opera_id / espressione_id restano NULL).",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "changelog": "v1.0.0 (Pinakes 0.7.14 — issue #134): modello Work/Expression FRBR-LRM. Tabelle opere, espressioni. ALTER libri ADD opera_id, espressione_id (FK nullable, idempotente via INFORMATION_SCHEMA guard). CRUD admin /admin/opere, CRUD espressioni legate all'opera, attach-to-opera sul form libro con autocomplete, pagina pubblica /opera/{slug}. Predisposto per il cross-link con reicat-sbn (opere.sbn_work_bid) e rda-registry (output Work/Expression JSON-LD).",
   "author": "Fabiodalez",
   "author_url": "",

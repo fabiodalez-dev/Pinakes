@@ -15,7 +15,7 @@ declare(strict_types=1);
  * - Optional and fully disableable
  *
  * @package Pinakes\Plugins\DigitalLibrary
- * @version 1.3.1
+ * @version 1.3.2
  */
 class DigitalLibraryPlugin
 {

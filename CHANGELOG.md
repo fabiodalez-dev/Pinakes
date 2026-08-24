@@ -2,6 +2,59 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.66] - 2026-08-24
+
+A full audit of all 20 bundled plugins — security, correctness and schema fixes — plus four previously-orphaned plugin features wired into the UI.
+
+### Security
+
+- **Centralised SSRF guard for caller-configurable endpoints**: `HttpClient` gains
+  an `ssrf_guard` option that resolves the target host, rejects hosts resolving to
+  private/reserved address space, pins the connection to the vetted public IP, and
+  rejects cross-host/port/scheme redirects. Enabled for the book-club AI endpoint
+  and the z39 SRU client, both of which also moved off raw `curl` onto the guarded
+  client.
+- **book-club AI settings are admin-only**: the global API key and outbound
+  endpoint were reachable by `staff` (AdminAuthMiddleware admits both roles); an
+  inline admin re-check now gates both read and save.
+- **resource-sync** Basic Auth is rate-limited; **dewey-editor** destructive
+  endpoints require admin inline; **digital-library** file-preview links get
+  `rel="noopener"`.
+
+### Features
+
+- **api-book-scraper settings page** is wired (`hasSettingsPage`/
+  `getSettingsViewPath`) — previously a 404.
+- **z39-server UNIMARC import** completes the advertised round-trip: a pasted or
+  uploaded UNIMARC record pre-fills the book form (like the SBN import), never a
+  direct insert, so validation and soft-delete rules are preserved.
+- **viaf-authority** surfaces a VIAF/ISNI panel on the author edit page via the
+  existing `author.form.fields` hook.
+- **frbr-lrm** wires Book↔Work linking and full Expression CRUD into the admin UI
+  via `book.form.fields`; the manifest drops the unbuilt dedup/relator claims.
+
+### Fixed
+
+- **api-book-scraper no longer wipes its stored API key** on a settings save that
+  leaves the key field blank (blank means "keep the existing key").
+- **archives soft-delete** frees the UNIQUE `reference_code`/`ark_identifier` for
+  reuse by appending a per-id token (truncated to fit `VARCHAR(64)`), keeping the
+  original code as a readable prefix.
+- **dewey-editor** keys its data file off the full locale (`en_US` ≠ `en_GB`) with
+  a legacy fallback; readers and writers share one resolver.
+- Plugin hook registration (api-book-scraper) is now transactional and rethrows on
+  failure; removed dead `activate()` code in discogs/open-library; aligned
+  plugin.json versions and dropped stale `max_app_version` fields.
+
+### Upgrade
+
+- The five plugins with schema or hook changes (ncip-server, digital-library,
+  frbr-lrm, viaf-authority, z39-server) get a plugin.json version bump so the
+  Updater re-runs their `ensureSchema()`/hook registration on existing installs —
+  the ncip `ncip_transactions` FOREIGN KEYs, digital-library's `file_url`/
+  `audio_url` columns and the new frbr/viaf hooks are applied on upgrade, not only
+  on fresh install. No core SQL migration.
+
 ## [0.7.65] - 2026-08-22
 
 Add-to-calendar links in loan emails, the #366 legacy ready-pickup backfill, and a public-facing SEO pass.
