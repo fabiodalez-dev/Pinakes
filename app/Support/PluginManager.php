@@ -194,11 +194,15 @@ class PluginManager
                 return false;
             }
             $stmt->bind_param('ss', $table, $column);
-            $present = 0;
-            if ($stmt->execute()) {
-                $stmt->bind_result($present);
-                $stmt->fetch();
+            if (!$stmt->execute()) {
+                // A probe failure is not proof the column is missing — returning
+                // "missing" here would churn onActivate DDL on every boot.
+                $stmt->close();
+                return false;
             }
+            $present = 0;
+            $stmt->bind_result($present);
+            $stmt->fetch();
             $stmt->close();
             if ((int) $present === 0) {
                 return true;
@@ -244,11 +248,15 @@ class PluginManager
                 return false;
             }
             $stmt->bind_param('sss', $table, $column, $refTable);
-            $present = 0;
-            if ($stmt->execute()) {
-                $stmt->bind_result($present);
-                $stmt->fetch();
+            if (!$stmt->execute()) {
+                // A probe failure is not proof the FK is missing — returning
+                // "missing" here would churn onActivate DDL on every boot.
+                $stmt->close();
+                return false;
             }
+            $present = 0;
+            $stmt->bind_result($present);
+            $stmt->fetch();
             $stmt->close();
             if ((int) $present === 0) {
                 return true;

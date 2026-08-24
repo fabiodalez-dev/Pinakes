@@ -127,16 +127,29 @@ set_exception_handler(function (\Throwable $e) use ($cleanup): void {
 /* ================= Scenario A — ncip-server foreign keys ================= */
 $ncip = $db->query("SELECT id, is_active, version FROM plugins WHERE name='ncip-server'")->fetch_assoc();
 if (!$ncip) {
-    echo "NOTE: ncip-server not registered — skipping FK scenario\n";
+    // ncip-server is a bundled plugin: a missing row means this environment
+    // never registered it, which would let the gate pass WITHOUT testing FK
+    // self-heal at all. Fail loudly instead of silently skipping.
+    if (is_dir(__DIR__ . '/../storage/plugins/ncip-server')) {
+        throw new \RuntimeException('ncip-server is bundled on disk but not registered in `plugins` — cannot verify FK self-heal');
+    }
 } else {
     $ncipId       = (int) $ncip['id'];
     $ncipActive0  = (int) $ncip['is_active'];
     $ncipVersion0 = (string) $ncip['version'];
     $ncipDisk     = $diskVersion('ncip-server');
 
-    // Restore exactly as found: original active flag + version; if it was
-    // inactive, drop the hooks our activation registered.
+    // Restore exactly as found: re-add the FKs we drop below (so a mid-scenario
+    // failure never leaves ncip_transactions without its referential
+    // integrity), original active flag + version, and — if it was inactive —
+    // the hooks our activation registered.
     $restores[] = function (mysqli $db) use ($ncipId, $ncipActive0, $ncipVersion0): void {
+        if (!$db->query("SELECT 1 FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ncip_transactions' AND COLUMN_NAME='partner_id' AND REFERENCED_TABLE_NAME='ncip_partners'")->num_rows) {
+            @$db->query("ALTER TABLE ncip_transactions ADD CONSTRAINT ncip_transactions_ibfk_1 FOREIGN KEY (partner_id) REFERENCES ncip_partners (id) ON DELETE SET NULL");
+        }
+        if (!$db->query("SELECT 1 FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ncip_transactions' AND COLUMN_NAME='prestito_id' AND REFERENCED_TABLE_NAME='prestiti'")->num_rows) {
+            @$db->query("ALTER TABLE ncip_transactions ADD CONSTRAINT ncip_transactions_ibfk_2 FOREIGN KEY (prestito_id) REFERENCES prestiti (id) ON DELETE SET NULL");
+        }
         if ($ncipActive0 === 0) {
             $db->query("DELETE FROM plugin_hooks WHERE plugin_id={$ncipId}");
         }
@@ -172,7 +185,11 @@ if (!$ncip) {
 /* ================= Scenario B — digital-library columns ================= */
 $dl = $db->query("SELECT id, is_active, version FROM plugins WHERE name='digital-library'")->fetch_assoc();
 if (!$dl) {
-    echo "NOTE: digital-library not registered — skipping column scenario\n";
+    // Same contract as ncip above: a bundled-but-unregistered plugin must fail
+    // the gate rather than let it pass without exercising the column self-heal.
+    if (is_dir(__DIR__ . '/../storage/plugins/digital-library')) {
+        throw new \RuntimeException('digital-library is bundled on disk but not registered in `plugins` — cannot verify column self-heal');
+    }
 } else {
     $dlId       = (int) $dl['id'];
     $dlActive0  = (int) $dl['is_active'];
@@ -216,6 +233,12 @@ if (!$dl) {
     // Idempotent.
     $runSync();
     check($columnExists('libri', 'audio_url'), 'B06 idempotent: column intact after a second sync');
+}
+
+// Belt and suspenders: if neither scenario ran a single assertion, the gate
+// would report success without verifying anything. Refuse to pass empty.
+if ($TESTNO === 0) {
+    throw new \RuntimeException('no self-heal scenario executed — neither ncip-server nor digital-library was verifiable');
 }
 
 $cleanup();
