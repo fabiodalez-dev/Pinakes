@@ -3,6 +3,7 @@
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
 ## [0.7.66]
+
 A full audit of all 20 bundled plugins — security, correctness and schema fixes — plus four previously-orphaned plugin features wired into the UI.
 
 ### Security
