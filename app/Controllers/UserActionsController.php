@@ -619,6 +619,33 @@ class UserActionsController
                 return $this->back($response, ['loan_error' => 'not_eligible']);
             }
 
+            // #384 coherence: the reservation-vs-loan decision is the SAME
+            // shared gate used by the book-detail modal endpoint
+            // (ReservationsController::createReservation). When the title has
+            // physical copies but no in-library copy can serve the requested
+            // window without depending on a preceding borrower returning on
+            // time (or an earlier FIFO reservation consumes the only capacity
+            // slot), the gate creates a REAL prenotazioni.attiva waitlist row
+            // instead of letting this route commit a bare prestiti.pendente
+            // that admin approval would then reject (HTTP 400). Legacy books
+            // with no `copie` rows keep the bare-pending fallback (I6). The
+            // gate runs inside THIS transaction (inCallerTransaction: true)
+            // under the canonical book lock taken above and never commits it.
+            // Checked BEFORE the max-active-loans cap, mirroring
+            // createReservation: a waitlist reservation does not consume an
+            // active-loan slot until promotion.
+            $routing = (new \App\Services\LoanRequestGate($db))
+                ->route($libroId, $utenteId, $data_prestito, $data_scadenza, inCallerTransaction: true);
+            if ($routing->isReservation()) {
+                $db->commit();
+                // Reuse the reserve() success contract: the frontend already
+                // renders reserve_success as "queued in the waitlist".
+                return $this->back($response, [
+                    'reserve_success' => 1,
+                    'reserve_date' => $data_prestito,
+                ]);
+            }
+
             // Enforce max active loans per user (admin setting; 0 = no limit)
             $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {

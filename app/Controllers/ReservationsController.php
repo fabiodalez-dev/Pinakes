@@ -421,31 +421,21 @@ class ReservationsController
             }
 
             // #384: the public button is deliberately unified (loan when a copy
-            // is in hand, reservation otherwise). Date-disjoint availability is
-            // not enough to promise an out copy: borrowers may return it late.
-            // With physical rows but no in-library copy that can serve the window
-            // without a preceding return, occupy the requested period through the
-            // real FIFO waitlist instead of committing a bare, capacity-free
-            // pending loan that an admin cannot safely approve.
-            $hasPhysicalCopies = $capacity->hasPhysicalCopies($bookId);
-            $assignableCopyId = $hasPhysicalCopies
-                ? $this->findAssignableInLibraryCopyThrough($bookId, $endDate)
-                : null;
+            // is in hand, reservation otherwise). The reservation-vs-loan
+            // decision lives in the shared LoanRequestGate so THIS endpoint and
+            // POST /user/loan (UserActionsController::loan) can never diverge:
+            // with physical rows but no in-library copy that can serve the
+            // window without a preceding return, the gate occupies the period
+            // through the real FIFO waitlist instead of letting a bare,
+            // capacity-free pending loan be created. The gate runs inside THIS
+            // transaction (inCallerTransaction: true) under the canonical book
+            // lock taken above.
+            $routing = (new \App\Services\LoanRequestGate($this->db))
+                ->route($bookId, $userId, $startDate, $endDate, inCallerTransaction: true);
+            $assignableCopyId = $routing->assignableCopyId;
 
-            // Active waitlist reservations are book-level commitments and have no
-            // copia_id, so the physical-copy query above cannot see them. Require
-            // one capacity slot to remain free over the whole horizon from today
-            // through the requested end: otherwise the new loan would depend on a
-            // preceding reservation being promoted, collected and returned on time.
-            $hasIndependentCapacityThroughEnd = $capacity->hasFreeCapacity(
-                $bookId,
-                \App\Support\DateHelper::today(),
-                $endDate,
-                excludeUserId: $userId
-            );
-
-            if ($hasPhysicalCopies && ($assignableCopyId === null || !$hasIndependentCapacityThroughEnd)) {
-                $reservationId = $this->createActiveReservation($bookId, $userId, $startDate, $endDate);
+            if ($routing->isReservation()) {
+                $reservationId = (int) $routing->reservationId;
                 $this->db->commit();
 
                 $response->getBody()->write(json_encode([
@@ -593,112 +583,11 @@ class ReservationsController
         }
     }
 
-    /**
-     * Return a locked copy physically in the library that can serve the requested
-     * period, or null when none exists.
-     * `prenotato` is intentionally accepted only when every existing commitment
-     * starts after the requested period: the copy can serve the earlier window
-     * without depending on anybody returning it first. A preceding commitment,
-     * even when date-disjoint, routes to the waitlist for the same reason as a
-     * `prestato` copy (#384): its contractual due date is not a guaranteed return.
-     *
-     * The caller holds the book row lock, which serializes all canonical
-     * circulation writers for this title; FOR UPDATE also locks the chosen copy
-     * before the decision is used.
-     */
-    private function findAssignableInLibraryCopyThrough(int $bookId, string $endDate): ?int
-    {
-        $stmt = $this->db->prepare("
-            SELECT c.id
-            FROM copie c
-            WHERE c.libro_id = ?
-              AND c.stato IN ('disponibile', 'prenotato')
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM prestiti p
-                  WHERE p.copia_id = c.id
-                    AND p.data_prestito <= ?
-                    AND (
-                        (p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
-                        OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL)
-                    )
-              )
-            -- #384: among compatible copies, preserve future commitments already
-            -- bound to a sibling. Prefer a copy with no later commitment (or whose
-            -- next one is furthest away) so binding this loan never makes an
-            -- existing scheduled loan depend on this borrower returning on time.
-            -- Kept identical to the FIFO-promotion allocator (ReservationManager)
-            -- and the approval Step-2d allocator so all three sites agree (I3).
-            ORDER BY COALESCE((
-                SELECT MIN(future.data_prestito)
-                FROM prestiti future
-                WHERE future.copia_id = c.id
-                  AND future.data_prestito > ?
-                  AND (
-                      (future.attivo = 1 AND future.stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
-                      OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL)
-                  )
-            ), '9999-12-31') DESC,
-            c.id ASC
-            LIMIT 1
-            FOR UPDATE
-        ");
-        $stmt->bind_param('iss', $bookId, $endDate, $endDate);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        return $row !== null ? (int) $row['id'] : null;
-    }
-
-    /**
-     * Insert a real active waitlist reservation inside the caller transaction.
-     * The canonical book lock makes MAX(queue_position)+1 race-safe.
-     */
-    private function createActiveReservation(int $bookId, int $userId, string $startDate, string $endDate): int
-    {
-        $posStmt = $this->db->prepare("
-            SELECT COALESCE(MAX(queue_position), 0) + 1 AS pos
-            FROM prenotazioni
-            WHERE libro_id = ? AND stato = 'attiva'
-        ");
-        $posStmt->bind_param('i', $bookId);
-        $posStmt->execute();
-        $position = (int) ($posStmt->get_result()->fetch_assoc()['pos'] ?? 1);
-        $posStmt->close();
-
-        $startDateTime = $startDate . ' 00:00:00';
-        $endDateTime = $endDate . ' 23:59:59';
-        $stmt = $this->db->prepare("
-            INSERT INTO prenotazioni
-                (libro_id, utente_id, queue_position, stato,
-                 data_prenotazione, data_scadenza_prenotazione,
-                 data_inizio_richiesta, data_fine_richiesta)
-            VALUES (?, ?, ?, 'attiva', ?, ?, ?, ?)
-        ");
-        $stmt->bind_param(
-            'iiissss',
-            $bookId,
-            $userId,
-            $position,
-            $startDateTime,
-            $endDateTime,
-            $startDate,
-            $endDate
-        );
-        $stmt->execute();
-        $reservationId = (int) $this->db->insert_id;
-        $stmt->close();
-        if ($reservationId <= 0) {
-            throw new \RuntimeException('Failed to create the waitlist reservation.');
-        }
-
-        $integrity = new \App\Support\DataIntegrity($this->db);
-        if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
-            throw new \RuntimeException('Failed to recalculate availability after reservation creation.');
-        }
-
-        return $reservationId;
-    }
+    // findAssignableInLibraryCopyThrough() and createActiveReservation() moved
+    // verbatim into App\Services\LoanRequestGate: the #384 routing decision and
+    // the waitlist write it may perform are shared with POST /user/loan
+    // (UserActionsController::loan) so the two public entry points can never
+    // diverge again.
 
     /**
      * Promote a newly-created request through the canonical approval pipeline
