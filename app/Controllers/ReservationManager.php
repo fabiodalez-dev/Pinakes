@@ -434,6 +434,12 @@ class ReservationManager
             // righe aperte devono rappresentare due copie fisiche distinte.
             // #366 residual: un 'in_corso' scaduto per data ma non ancora
             // flippato dal cron blocca come 'in_ritardo' (open-ended).
+            // #384 multi-copy: fra più copie compatibili, preserva gli impegni
+            // futuri già assegnati. Una copia senza impegni successivi viene
+            // scelta per prima; altrimenti si usa quella il cui prossimo impegno
+            // è più lontano. Così la promozione FIFO non si appoggia alla
+            // restituzione puntuale della stessa copia quando una sorella resta
+            // completamente libera.
             $today = \App\Support\DateHelper::today();
             $promotedUserId = (int) $reservation['utente_id'];
             $copyStmt = $this->db->prepare("
@@ -460,9 +466,20 @@ class ReservationManager
                         OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
                     )
                 )
+                ORDER BY COALESCE((
+                    SELECT MIN(future.data_prestito)
+                    FROM prestiti future
+                    WHERE future.copia_id = c.id
+                    AND future.data_prestito > ?
+                    AND (
+                        (future.attivo = 1 AND future.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo'))
+                        OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL)
+                    )
+                ), '9999-12-31') DESC,
+                c.id ASC
                 LIMIT 1
             ");
-            $copyStmt->bind_param('iiisss', $bookId, $bookId, $promotedUserId, $endDate, $today, $startDate);
+            $copyStmt->bind_param('iiissss', $bookId, $bookId, $promotedUserId, $endDate, $today, $startDate, $endDate);
             $copyStmt->execute();
             $copyResult = $copyStmt->get_result();
             $copy = $copyResult->fetch_assoc();

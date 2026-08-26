@@ -475,10 +475,26 @@ class LoanApprovalController
                               OR (prior.attivo = 0 AND prior.stato = 'pendente' AND prior.copia_id IS NOT NULL)
                           )
                     )
-                    ORDER BY c.id ASC
+                    -- #384 (I3): among copies with no PRECEDING dependency, prefer
+                    -- one with no LATER commitment (or whose next one is furthest),
+                    -- so approval never binds the copy a future scheduled loan needs
+                    -- while a free sibling sits idle. Identical ordering to the
+                    -- request gate (findAssignableInLibraryCopyThrough) and the FIFO
+                    -- promotion allocator (ReservationManager) so all three agree.
+                    ORDER BY COALESCE((
+                        SELECT MIN(future.data_prestito)
+                        FROM prestiti future
+                        WHERE future.copia_id = c.id
+                          AND future.data_prestito > ?
+                          AND (
+                              (future.attivo = 1 AND future.stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                              OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL)
+                          )
+                    ), '9999-12-31') DESC,
+                    c.id ASC
                     LIMIT 1
                 ");
-                $overlapStmt->bind_param('iiiisssis', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito, $loanId, $dataScadenza);
+                $overlapStmt->bind_param('iiiisssiss', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito, $loanId, $dataScadenza, $dataScadenza);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;

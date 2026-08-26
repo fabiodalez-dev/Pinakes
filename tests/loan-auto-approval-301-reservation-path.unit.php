@@ -24,6 +24,8 @@ declare(strict_types=1);
  *                    the requested window → real waitlist reservation;
  *   - multi-copy allocation prefers the sibling that needs no prior return.
  *   - an earlier active FIFO reservation consumes the only independent slot;
+ *   - request gate AND approval prefer the idle sibling over a copy pinned to a
+ *                    LATER scheduled loan (I3: future-commitment-aware ordering);
  *   - a copy-bound pending claim closes the post-commit auto-approval race.
  *
  * Run: php tests/loan-auto-approval-301-reservation-path.unit.php
@@ -31,6 +33,7 @@ declare(strict_types=1);
 
 use App\Controllers\ReservationsController;
 use App\Controllers\LoanApprovalController;
+use App\Controllers\ReservationManager;
 use App\Models\CopyRepository;
 use App\Models\SettingsRepository;
 use App\Support\DateHelper;
@@ -225,6 +228,23 @@ $loanField = static function (int $loanId, string $col) use ($db) {
     $v = $stmt->get_result()->fetch_assoc()['v'] ?? null;
     $stmt->close();
     return $v;
+};
+
+$openLoanForUser = static function (int $bookId, int $userId) use ($db): ?array {
+    $stmt = $db->prepare("
+        SELECT id, copia_id, stato, attivo
+        FROM prestiti
+        WHERE libro_id = ? AND utente_id = ?
+          AND ((attivo = 0 AND stato = 'pendente')
+               OR (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')))
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    $stmt->bind_param('ii', $bookId, $userId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc() ?: null;
+    $stmt->close();
+    return $row;
 };
 
 $makeActiveLoan = static function (int $bookId, int $copyId, int $userId, string $start, string $end) use ($db): int {
@@ -619,8 +639,11 @@ $check(
 
 // Capacity-aware multi-copy mirror: a single unbound predecessor does not taint
 // every copy when another independent slot remains throughout the horizon.
+// Exercise the real FIFO promotion too: it must take the clean sibling, not the
+// copy already pinned to the later scheduled loan.
 $fifoMultiBookId = $makeBook(2);
-$makeActiveReservation($fifoMultiBookId, $makeUser(), $precedingStart, $precedingEnd);
+$fifoMultiOwner = $makeUser();
+$fifoMultiReservationId = $makeActiveReservation($fifoMultiBookId, $fifoMultiOwner, $today, $precedingEnd);
 $fifoMultiRequester = $makeUser();
 $resAfterFifoMulti = $callCreate($fifoMultiBookId, $fifoMultiRequester, $afterStart, $afterEnd);
 $fifoMultiLoanId = (int) ($resAfterFifoMulti['payload']['loan_request_id'] ?? 0);
@@ -630,6 +653,26 @@ $check(
     '54 automatic approval binds a physical copy while the other slot covers FIFO capacity'
 );
 $check($reservationForUser($fifoMultiBookId, $fifoMultiRequester) === null, '55 no unnecessary follower reservation is created with independent capacity');
+$laterCopyId = (int) $loanField($fifoMultiLoanId, 'copia_id');
+$promotionSucceeded = (new ReservationManager($db))->processBookAvailability($fifoMultiBookId);
+$promotedLoan = $openLoanForUser($fifoMultiBookId, $fifoMultiOwner);
+$check(
+    $promotionSucceeded === true
+        && ($reservationForUser($fifoMultiBookId, $fifoMultiOwner)['stato'] ?? '') === 'completata'
+        && $fifoMultiReservationId > 0,
+    '56 the eligible FIFO reservation is promoted by the real allocation path'
+);
+$check(
+    $promotedLoan !== null
+        && (int) $promotedLoan['copia_id'] > 0
+        && (int) $promotedLoan['copia_id'] !== $laterCopyId,
+    '57 FIFO promotion binds the clean sibling instead of the later loan copy'
+);
+$check(
+    $loanField($fifoMultiLoanId, 'stato') === 'prenotato'
+        && (int) $loanField($fifoMultiLoanId, 'copia_id') === $laterCopyId,
+    '58 the later scheduled loan remains pinned to its original copy'
+);
 
 // The approval endpoint must enforce the same invariant independently. This is
 // essential for old/manual bare pending rows and is the last guard if a request
@@ -640,15 +683,60 @@ $manualPriorCopyId = $copyIdsForBook($manualPriorBookId)[0];
 $makeScheduledLoan($manualPriorBookId, $manualPriorCopyId, $makeUser(), $precedingStart, $precedingEnd);
 $manualFollowerLoan = $makeBarePending($manualPriorBookId, $makeUser(), $afterStart, $afterEnd);
 $manualPriorApproval = $callApprove($manualFollowerLoan);
-$check($manualPriorApproval['status'] === 400, '56 approval rejects a date-disjoint copy that still requires a preceding return');
-$check($loanField($manualFollowerLoan, 'stato') === 'pendente', '57 rejected approval leaves the durable request pending for safe handling');
+$check($manualPriorApproval['status'] === 400, '59 approval rejects a date-disjoint copy that still requires a preceding return');
+$check($loanField($manualFollowerLoan, 'stato') === 'pendente', '60 rejected approval leaves the durable request pending for safe handling');
 
 $manualFifoBookId = $makeBook(1);
 $makeActiveReservation($manualFifoBookId, $makeUser(), $precedingStart, $precedingEnd);
 $manualFifoLoan = $makeBarePending($manualFifoBookId, $makeUser(), $afterStart, $afterEnd);
 $manualFifoApproval = $callApprove($manualFifoLoan);
-$check($manualFifoApproval['status'] === 400, '58 approval also rejects an earlier unbound FIFO commitment on the only slot');
-$check($loanField($manualFifoLoan, 'copia_id') === null, '59 rejected FIFO-edge request remains copy-less');
+$check($manualFifoApproval['status'] === 400, '61 approval also rejects an earlier unbound FIFO commitment on the only slot');
+$check($loanField($manualFifoLoan, 'copia_id') === null, '62 rejected FIFO-edge request remains copy-less');
+
+// ── N. #384 I3: allocator prefers the free sibling over one carrying a FUTURE
+// firm loan. Distinct from J (preceding return, killed by the NOT EXISTS filter):
+// here BOTH copies clear the preceding-commitment predicate because the only
+// other commitment starts AFTER the request window. The tie is broken purely by
+// the future-commitment-aware ORDER BY — the copy already pinned to a later
+// scheduled loan must lose to the idle sibling so I1 (no firm loan depends on a
+// return) and I4 (the future loan keeps its copy) both hold. The fix touches two
+// independent sites; N-gate exercises the request gate, N-approval the approval
+// endpoint, so a regression at either site is caught.
+echo "N. #384 I3: allocator avoids a copy bound to a later scheduled loan\n";
+// A future window (so auto-approval yields a *scheduled* loan, not an immediate
+// da_ritirare), placed strictly BEFORE the +6..+12 commitment that pins C1.
+$earlyStart = (new DateTimeImmutable($today))->modify('+2 days')->format('Y-m-d');
+$earlyEnd = (new DateTimeImmutable($today))->modify('+3 days')->format('Y-m-d');
+
+// N-gate: auto-approval path (request gate → findAssignableInLibraryCopyThrough).
+$i3GateBookId = $makeBook(2);
+[$i3GateLaterCopyId, $i3GateFreeCopyId] = $copyIdsForBook($i3GateBookId);
+$i3GateFutureLoanId = $makeScheduledLoan($i3GateBookId, $i3GateLaterCopyId, $makeUser(), $afterStart, $afterEnd);
+$i3GateRequester = $makeUser();
+$resI3Gate = $callCreate($i3GateBookId, $i3GateRequester, $earlyStart, $earlyEnd);
+$i3GateLoanId = (int) ($resI3Gate['payload']['loan_request_id'] ?? 0);
+$check(($resI3Gate['payload']['status'] ?? '') === 'scheduled', '63 an earlier request with a free sibling stays in the loan flow');
+$check(
+    $i3GateLoanId > 0 && (int) $loanField($i3GateLoanId, 'copia_id') === $i3GateFreeCopyId,
+    '64 request gate binds the idle sibling, not the copy holding a later scheduled loan'
+);
+$check(
+    (int) $loanField($i3GateFutureLoanId, 'copia_id') === $i3GateLaterCopyId,
+    '65 the pre-existing future loan stays pinned to its original copy'
+);
+
+// N-approval: the approval endpoint (Step 2d copy selection) must break the same
+// tie identically for a bare pending row that never went through the gate.
+$i3ApprBookId = $makeBook(2);
+[$i3ApprLaterCopyId, $i3ApprFreeCopyId] = $copyIdsForBook($i3ApprBookId);
+$makeScheduledLoan($i3ApprBookId, $i3ApprLaterCopyId, $makeUser(), $afterStart, $afterEnd);
+$i3ApprLoan = $makeBarePending($i3ApprBookId, $makeUser(), $earlyStart, $earlyEnd);
+$i3ApprResult = $callApprove($i3ApprLoan);
+$check(($i3ApprResult['status'] ?? 0) === 200, '66 approval accepts the earlier request when a free sibling exists');
+$check(
+    (int) $loanField($i3ApprLoan, 'copia_id') === $i3ApprFreeCopyId,
+    '67 approval Step 2d binds the idle sibling, keeping the later loan independent'
+);
 
 // ── M. F007: a post-commit settings-read failure degrades to pending ────────
 // The helper runs AFTER the request row is committed. If its SettingsRepository
@@ -675,8 +763,8 @@ try {
 } catch (\Throwable $e) {
     $faultThrew = true;
 }
-$check($faultThrew === false, '60 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
-$check($faultResult === null, '61 failed post-commit settings read degrades to null → pending_approval');
+$check($faultThrew === false, '68 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
+$check($faultResult === null, '69 failed post-commit settings read degrades to null → pending_approval');
 
 $cleanup();
 $db->close();

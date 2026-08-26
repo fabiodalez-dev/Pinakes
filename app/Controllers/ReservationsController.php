@@ -623,11 +623,27 @@ class ReservationsController
                         OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                     )
               )
-            ORDER BY c.id
+            -- #384: among compatible copies, preserve future commitments already
+            -- bound to a sibling. Prefer a copy with no later commitment (or whose
+            -- next one is furthest away) so binding this loan never makes an
+            -- existing scheduled loan depend on this borrower returning on time.
+            -- Kept identical to the FIFO-promotion allocator (ReservationManager)
+            -- and the approval Step-2d allocator so all three sites agree (I3).
+            ORDER BY COALESCE((
+                SELECT MIN(future.data_prestito)
+                FROM prestiti future
+                WHERE future.copia_id = c.id
+                  AND future.data_prestito > ?
+                  AND (
+                      (future.attivo = 1 AND future.stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                      OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL)
+                  )
+            ), '9999-12-31') DESC,
+            c.id ASC
             LIMIT 1
             FOR UPDATE
         ");
-        $stmt->bind_param('is', $bookId, $endDate);
+        $stmt->bind_param('iss', $bookId, $endDate, $endDate);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
