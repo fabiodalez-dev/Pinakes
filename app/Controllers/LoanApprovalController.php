@@ -538,7 +538,21 @@ class LoanApprovalController
             // non è assegnabile in approvazione (double-issue, vedi confirmPickup).
             $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento', 'prestato'];
             if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
-                throw new \RuntimeException(__('Copia non disponibile per il prestito'));
+                // #384: the copy-selection query legitimately hands back a copy
+                // that is physically out ('prestato') when it is assignable for a
+                // date-DISJOINT future window (future scheduling on a currently-out
+                // copy). Flipping such a copy to 'prenotato' now would corrupt the
+                // active loan still holding it, so this terminal check rejects it —
+                // but it must do so with a graceful 400 (the same canonical outcome
+                // as the capacity/overlap gates above), NOT an uncaught throw that
+                // surfaces as HTTP 500 "Internal error during approval". The request
+                // then degrades to pending_approval instead of erroring.
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Nessuna copia disponibile per il periodo richiesto')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
             $copyRepo = new \App\Models\CopyRepository($db);
