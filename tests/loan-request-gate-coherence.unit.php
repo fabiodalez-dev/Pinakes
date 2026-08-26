@@ -31,6 +31,8 @@ declare(strict_types=1);
 use App\Controllers\UserActionsController;
 use App\Models\CopyRepository;
 use App\Models\SettingsRepository;
+use App\Plugins\MobileApi\Controllers\ActionsController as MobileActionsController;
+use App\Plugins\MobileApi\Support\AppAuthMiddleware;
 use App\Plugins\NcipServer\NcipServerPlugin;
 use App\Services\LoanRequestGate;
 use App\Support\DateHelper;
@@ -41,6 +43,10 @@ use Slim\Psr7\Response as SlimResponse;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
+require_once $root . '/storage/plugins/mobile-api/src/Support/AppAuthMiddleware.php';
+require_once $root . '/storage/plugins/mobile-api/src/Support/JsonBody.php';
+require_once $root . '/storage/plugins/mobile-api/src/Support/ResponseEnvelope.php';
+require_once $root . '/storage/plugins/mobile-api/src/Controllers/ActionsController.php';
 require_once $root . '/storage/plugins/ncip-server/NcipServerPlugin.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -454,8 +460,50 @@ $check(
 );
 $check($reservationForUser($autoBookId, $autoRequester) === null, '27 auto-approved servable request creates no waitlist row');
 
-// ── H. NCIP RequestItem shares #384 routing and cancellation ───────────────
-echo "H. NCIP RequestItem: held copy becomes a linked, cancellable reservation\n";
+// ── H. Mobile API preserves the canonical #384 outcome ────────────────────
+echo "H. Mobile API: canonical loan→waitlist routing remains a 201 reservation\n";
+$mobileBookId = $makeBook(1);
+$mobileCopyId = $copyIdsForBook($mobileBookId)[0];
+$makeCommitment($mobileBookId, $mobileCopyId, $makeUser(), $staleStart, $staleEnd, 'da_ritirare', 'prenotato');
+$mobileRequester = $makeUser();
+$_SESSION['user'] = ['id' => $mobileRequester, 'tipo_utente' => 'standard'];
+$mobileRequest = (new ServerRequestFactory())
+    ->createServerRequest('POST', '/api/v1/reservations')
+    ->withAttribute(AppAuthMiddleware::ATTR_USER, ['id' => $mobileRequester])
+    ->withParsedBody(['book_id' => $mobileBookId, 'desired_date' => $today]);
+$mobileResponse = (new MobileActionsController($db))
+    ->requestReservation($mobileRequest, new SlimResponse());
+unset($_SESSION['user']);
+$mobileBody = json_decode((string) $mobileResponse->getBody(), true);
+$check(
+    $mobileResponse->getStatusCode() === 201
+        && ($mobileBody['error'] ?? null) === null
+        && ($mobileBody['data']['type'] ?? null) === 'reservation',
+    '27a Mobile API reports the committed gate outcome as HTTP 201 data.type=reservation, never a false 500'
+);
+$check(
+    $reservationForUser($mobileBookId, $mobileRequester) !== null
+        && $barePendingCount($mobileBookId, $mobileRequester) === 0,
+    '27b Mobile API leaves exactly the canonical waitlist shape behind'
+);
+
+// #381: the explicit loan route must cancel a ready-for-pickup loan without
+// passing through the ambiguous prenotazioni/prestiti numeric id space.
+$_SESSION['user'] = ['id' => $autoRequester, 'tipo_utente' => 'standard'];
+$cancelLoanRequest = (new ServerRequestFactory())
+    ->createServerRequest('DELETE', '/api/v1/loans/' . (int) $autoLoan['id'])
+    ->withAttribute(AppAuthMiddleware::ATTR_USER, ['id' => $autoRequester]);
+$cancelLoanResponse = (new MobileActionsController($db))
+    ->cancelLoan($cancelLoanRequest, new SlimResponse(), (int) $autoLoan['id']);
+unset($_SESSION['user']);
+$cancelledLoanState = (string) ($db->query('SELECT stato FROM prestiti WHERE id = ' . (int) $autoLoan['id'])->fetch_row()[0] ?? '');
+$check(
+    $cancelLoanResponse->getStatusCode() === 200 && $cancelledLoanState === 'annullato',
+    '27c Mobile DELETE /loans/{id} cancels the owned da_ritirare loan (#381)'
+);
+
+// ── I. NCIP RequestItem shares #384 routing and cancellation ───────────────
+echo "I. NCIP RequestItem: held copy becomes a linked, cancellable reservation\n";
 $check($ncipSchemaResult['failed'] === [], '28 NCIP schema exposes the reservation audit relation');
 
 $ncipBookId = $makeBook(1);

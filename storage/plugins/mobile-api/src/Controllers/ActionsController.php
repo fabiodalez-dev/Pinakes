@@ -253,6 +253,17 @@ final class ActionsController
                     );
                 }
 
+                // #384: loan() owns the final, transaction-safe routing decision.
+                // Its broader requested window can legitimately route to the FIFO
+                // waitlist even when the cheap one-day pre-check above said that
+                // today was free (for example, a preceding/future commitment makes
+                // the copy unsafe for the full loan period). The reservation is
+                // already committed at this point, so translating reserve_success
+                // as a 500 would both lie to the app and encourage a duplicate retry.
+                if (isset($outcome['reserve_success'])) {
+                    return $this->reservationCreatedResponse($response, $userId, $bookId);
+                }
+
                 return $this->mapActionError($response, (string) ($outcome['loan_error'] ?? 'db'));
             }
 
@@ -265,17 +276,7 @@ final class ActionsController
             $outcome   = $this->redirectOutcome($result);
 
             if (isset($outcome['reserve_success'])) {
-                // Register an availability watcher so the push dispatcher notifies
-                // this user (and clears the watcher) when the title is loanable
-                // again. Best-effort: a failure here never breaks the reservation.
-                $this->watchAvailability($userId, $bookId);
-
-                return ResponseEnvelope::success(
-                    $response,
-                    ['type' => 'reservation', 'book_id' => $bookId],
-                    ['message' => __('Prenotazione registrata.')],
-                    201
-                );
+                return $this->reservationCreatedResponse($response, $userId, $bookId);
             }
 
             return $this->mapActionError($response, (string) ($outcome['reserve_error'] ?? 'db'));
@@ -330,6 +331,44 @@ final class ActionsController
             return ResponseEnvelope::error($response, 'cancel_failed', __('Impossibile annullare la prenotazione.'), 409);
         } catch (\Throwable $e) {
             SecureLogger::error('[MobileApi] cancel reservation failed: ' . $e->getMessage());
+            return ResponseEnvelope::error($response, 'internal_error', __('Operazione non disponibile.'), 500);
+        }
+    }
+
+    // ─── DELETE /loans/{id} ─────────────────────────────────────────────────
+
+    /**
+     * Cancel one of THIS user's cancellable loan rows through an unambiguous
+     * loan-specific route. This includes `da_ritirare` (#381), in addition to
+     * pending and scheduled requests. The legacy DELETE /reservations/{id}
+     * fallback remains available to older clients, but table ids can collide;
+     * new clients must use this endpoint for rows returned by /me/loans.
+     */
+    public function cancelLoan(Request $request, ResponseInterface $response, int $loanId): ResponseInterface
+    {
+        $userId = $this->userId($request);
+        if ($userId === 0) {
+            return $this->unauth($response);
+        }
+        if ($loanId <= 0 || !$this->isCancellableLoan($userId, $loanId)) {
+            return ResponseEnvelope::error($response, 'not_found', __('Prestito non trovato.'), 404);
+        }
+
+        try {
+            $delegated = $request->withParsedBody(['loan_id' => $loanId]);
+            $result = (new UserActionsController())->cancelLoan($delegated, new SlimResponse(), $this->db);
+            $outcome = $this->redirectOutcome($result);
+
+            if (isset($outcome['canceled'])) {
+                return ResponseEnvelope::success($response, null, ['message' => __('Prestito annullato.')], 200);
+            }
+            if (($outcome['error'] ?? '') === 'not_found') {
+                return ResponseEnvelope::error($response, 'not_found', __('Prestito non trovato.'), 404);
+            }
+
+            return ResponseEnvelope::error($response, 'cancel_failed', __('Impossibile annullare il prestito.'), 409);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[MobileApi] cancel loan failed: ' . $e->getMessage());
             return ResponseEnvelope::error($response, 'internal_error', __('Operazione non disponibile.'), 500);
         }
     }
@@ -996,7 +1035,49 @@ final class ActionsController
                 && $dueAt <= DateHelper::today(),
             'returned_at'  => $this->nullableString($r['data_restituzione'] ?? null),
             'renewals'     => isset($r['renewals']) ? (int) $r['renewals'] : null,
+            // Additive since 1.4.4: drives the native cancel affordance. The
+            // dedicated DELETE /loans/{id} re-checks ownership/state, so this is
+            // only a presentation hint and never an authorization decision.
+            'cancellable'  => in_array($status, ['pendente', 'prenotato', 'da_ritirare'], true),
         ];
+    }
+
+    private function isCancellableLoan(int $userId, int $loanId): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT 1 FROM prestiti
+              WHERE id = ? AND utente_id = ?
+                AND ((attivo = 0 AND stato = 'pendente')
+                  OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare')))
+              LIMIT 1"
+        );
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('ii', $loanId, $userId);
+        $stmt->execute();
+        $exists = ($res = $stmt->get_result()) !== false && $res->num_rows > 0;
+        $stmt->close();
+
+        return $exists;
+    }
+
+    private function reservationCreatedResponse(
+        ResponseInterface $response,
+        int $userId,
+        int $bookId
+    ): ResponseInterface {
+        // Register an availability watcher so the push dispatcher notifies this
+        // user (and clears the watcher) when the title is loanable again.
+        // Best-effort: a failure here never breaks the committed reservation.
+        $this->watchAvailability($userId, $bookId);
+
+        return ResponseEnvelope::success(
+            $response,
+            ['type' => 'reservation', 'book_id' => $bookId],
+            ['message' => __('Prenotazione registrata.')],
+            201
+        );
     }
 
     /**
