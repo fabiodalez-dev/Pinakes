@@ -426,10 +426,14 @@ test.describe.serial('Loan overlap model (#157) — 39 scenarios', () => {
     // #384 supersedes the old disjoint-stacking allowance. The only copy is held
     // by an active loan that PRECEDES this window (ends day 10, this starts day
     // 11): binding it here would make this loan depend on that borrower returning
-    // on time. Approval is refused and the request stays pendente so it is handled
-    // as a reservation instead — the same outcome as the overlapping D.25/D.26.
+    // on time. A legacy bare pending row cannot be converted here into a real
+    // reservation: approval must fail cleanly and leave it untouched. New public
+    // requests are routed directly to prenotazioni.attiva before reaching this
+    // endpoint; this is the defensive fallback for old/manual pending rows.
+    expect(res.status).toBe(400);
+    expect(res.body && res.body.success).toBe(false);
     expect(dbQuery(`SELECT stato FROM prestiti WHERE id=${id}`)).toBe('pendente');
-    expect(res.body && res.body.success).not.toBe(true);
+    expect(qInt(`SELECT copia_id IS NULL FROM prestiti WHERE id=${id}`)).toBe(1);
   });
 
   // ════════════════════════════════════════════════════════════════════════
