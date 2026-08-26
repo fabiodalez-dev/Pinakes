@@ -24,7 +24,10 @@ $loanActionTranslations = array_merge([
     'cancelPickupTitle' => __('Annullare il ritiro?'),
     'cancelPickupText' => __('La copia tornerà disponibile per gli altri utenti. Vuoi annullare questo prestito?'),
     'cancelPickupButton' => __('Annulla Prestito'),
-    'cancelPickupReason' => __('Ritiro non effettuato entro il termine previsto'),
+    // Neutral reason (emailed via sendPickupCancelledNotification): the same
+    // handler now cancels non-expired pickups too (#381), so it must not assert
+    // the pickup deadline was missed.
+    'cancelPickupReason' => __('Ritiro annullato'),
     'successCancelPickupTitle' => __('Prestito annullato!'),
     // Add missing translations for the Swal dialogs in prestiti/index.php
     'Approva Prestito?' => __('Approva Prestito?'),

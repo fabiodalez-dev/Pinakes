@@ -275,6 +275,10 @@ class AutoriController
                 'ssrf_guard'   => true,
                 'https_only'   => true,
                 'max_redirects' => 3,
+                // Abort mid-transfer past the photo size cap so an oversized or
+                // endless response can't exhaust memory before storeAuthorPhotoBytes.
+                'max_bytes'    => 5 * 1024 * 1024,
+                'timeout'      => 15,
             ]);
             if (empty($res['ok']) || (int) $res['status'] < 200 || (int) $res['status'] >= 300 || (string) $res['body'] === '') {
                 return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,

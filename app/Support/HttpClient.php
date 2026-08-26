@@ -47,7 +47,8 @@ final class HttpClient
      * @param array<string,mixed>  $options Overrides: timeout, connect_timeout,
      *                                       user_agent, max_redirects, verify,
      *                                       query (array), https_only (bool),
-     *                                       ssrf_guard (bool)
+     *                                       ssrf_guard (bool), max_bytes (int —
+     *                                       abort the download past this size)
      * @return array{ok:bool,status:int,body:string}
      */
     public static function get(string $url, array $headers = [], array $options = []): array
@@ -210,6 +211,27 @@ final class HttpClient
         }
         if (isset($options[RequestOptions::BODY])) {
             $guzzleOptions[RequestOptions::BODY] = $options[RequestOptions::BODY];
+        }
+
+        // Hard download cap (DoS guard for caller-configurable endpoints): abort
+        // as soon as the body exceeds max_bytes, so a huge or endless response
+        // cannot exhaust memory before a post-download size check. Content-Length
+        // is advisory (server-controlled), so it is only an early-out; the
+        // progress cap during transfer is the real boundary. A breach throws,
+        // which the catch below turns into an ok=false result.
+        $maxBytes = (int) ($options['max_bytes'] ?? 0);
+        if ($maxBytes > 0) {
+            $guzzleOptions[RequestOptions::ON_HEADERS] = static function (\Psr\Http\Message\ResponseInterface $response) use ($maxBytes): void {
+                $declared = $response->getHeaderLine('Content-Length');
+                if ($declared !== '' && (int) $declared > $maxBytes) {
+                    throw new \RuntimeException('HttpClient: response Content-Length exceeds max_bytes');
+                }
+            };
+            $guzzleOptions[RequestOptions::PROGRESS] = static function ($downloadTotal, $downloadedBytes) use ($maxBytes): void {
+                if ((int) $downloadedBytes > $maxBytes) {
+                    throw new \RuntimeException('HttpClient: downloaded body exceeds max_bytes');
+                }
+            };
         }
 
         try {
