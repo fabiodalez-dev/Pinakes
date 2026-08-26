@@ -1828,13 +1828,20 @@ class NotificationService {
             }
             $stmt->close();
 
+            // cancelPickup also serves voluntary, pre-deadline cancellations
+            // (#381): never invent an expired-deadline reason when callers do not
+            // provide one. The fallback is rendered in the RECIPIENT's language
+            // (the email is per-recipient-locale), not the current/install locale.
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
+            $currentLocale = \App\Support\I18n::getLocale();
+            \App\Support\I18n::setLocale($recipientLocale);
+            $fallbackReason = __('Ritiro annullato');
+            \App\Support\I18n::setLocale($currentLocale);
+
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                // cancelPickup also serves voluntary, pre-deadline cancellations
-                // (#381): never invent an expired-deadline reason when callers do
-                // not provide one.
-                'motivo' => $reason ?: __('Ritiro annullato')
+                'motivo' => $reason !== '' ? $reason : $fallbackReason,
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_cancelled', $variables);

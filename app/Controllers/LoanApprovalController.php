@@ -1253,9 +1253,12 @@ class LoanApprovalController
                 : 'annullato';
 
             // Audit note + processed_by distinguish the staff action from the
-            // automatic expiry sweep even when the terminal state is scaduto.
+            // automatic expiry sweep even when the terminal state is scaduto. The
+            // note wording must match the terminal outcome (scaduto vs annullato)
+            // so history reads truthfully.
             $cancelledBy = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
-            $noteSuffix = "\n[Staff] " . __('Ritiro annullato il') . ' '
+            $noteLabel = $terminalState === 'scaduto' ? __('Ritiro scaduto il') : __('Ritiro annullato il');
+            $noteSuffix = "\n[Staff] " . $noteLabel . ' '
                 . implode('/', array_reverse(explode('-', $today))) . ' — ' . $reason;
             $updateStmt = $db->prepare("
                 UPDATE prestiti

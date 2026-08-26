@@ -131,6 +131,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
   let testUserId = 0;
   let testBookId = 0;
   let loanId     = 0;
+  let reservationId = 0;
 
   // ── Setup ──────────────────────────────────────────────────────────────
   test.beforeAll(async ({ browser }) => {
@@ -566,51 +567,55 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     expect(text).toMatch(/Prenota/);
   });
 
-  test('6.2: User makes reservation request (creates prestiti row)', async () => {
-    // The unified flow creates a prestiti row via POST /api/libro/{id}/reservation.
-    // Even though copie have stato='prestato', they are still "lendable" (not perso/danneggiato),
-    // and with no overlapping prestiti rows, the availability API shows dates as free.
+  test('6.2: User makes reservation request (creates prenotazioni row)', async () => {
+    // #384: the unified flow routes to a REAL waitlist reservation when the title
+    // has physical copies but none is assignable now (every copy is 'prestato').
+    // A contractual due date is not a guaranteed return, so the request must NOT
+    // become a copy-less pending loan that bypasses the queue — it becomes a
+    // prenotazioni.attiva row.
     const futureISO = appDateOffsetISO(14);
 
     const ok = await requestLoanViaSwal(userPage, futureISO);
     expect(ok).toBe(true);
 
-    // DB verify: new prestiti row with stato=pendente
+    // DB verify: a real active waitlist reservation, and NO pending loan bypass.
     const newId = parseInt(
-      dbQuery(`SELECT id FROM prestiti WHERE utente_id=${testUserId} AND libro_id=${testBookId} AND stato='pendente' ORDER BY id DESC LIMIT 1`),
+      dbQuery(`SELECT id FROM prenotazioni WHERE utente_id=${testUserId} AND libro_id=${testBookId} AND stato='attiva' ORDER BY id DESC LIMIT 1`),
       10,
     );
     expect(newId).toBeGreaterThan(0);
-    loanId = newId;
+    reservationId = newId;
+
+    const pendingLoans = parseInt(
+      dbQuery(`SELECT COUNT(*) FROM prestiti WHERE utente_id=${testUserId} AND libro_id=${testBookId} AND stato='pendente'`),
+      10,
+    );
+    expect(pendingLoans).toBe(0);
   });
 
   test('6.3: Duplicate reservation prevention', async () => {
-    const futureISO = appDateOffsetISO(14);
+    // The user already holds an active reservation (6.2), so the request flow
+    // (F040) short-circuits with an info dialog and never opens the date picker —
+    // the duplicate is blocked at the UI before any submission.
+    await userPage.goto(`${BASE}/libro/${testBookId}`);
+    await userPage.waitForLoadState('networkidle');
+    await userPage.locator('#btn-request-loan').click();
+    await userPage.waitForSelector('.swal2-popup', { timeout: 8000 });
+    await expect(userPage.locator('.swal2-popup')).toContainText('prenotazione attiva');
+    // No Flatpickr date picker is shown for a duplicate.
+    expect(await userPage.locator('#swal-date-start').count()).toBe(0);
+    await dismissSwal(userPage);
 
-    const ok = await requestLoanViaSwal(userPage, futureISO);
-    expect(ok).toBe(false); // duplicate
-
-    // DB verify: still only 1 pending
+    // DB verify: still only 1 active reservation (no duplicate created)
     const count = parseInt(
-      dbQuery(`SELECT COUNT(*) FROM prestiti WHERE utente_id=${testUserId} AND libro_id=${testBookId} AND stato='pendente'`),
+      dbQuery(`SELECT COUNT(*) FROM prenotazioni WHERE utente_id=${testUserId} AND libro_id=${testBookId} AND stato='attiva'`),
       10,
     );
     expect(count).toBe(1);
   });
 
   test('6.4: User cancels a reservation (prenotazioni table)', async () => {
-    // Create a prenotazioni row directly to test the cancel flow
-    const startISO = appDateOffsetISO(30);
-    const endISO = appDateOffsetISO(60);
-
-    dbQuery(
-      `INSERT INTO prenotazioni (libro_id, utente_id, queue_position, stato, data_prenotazione, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta, created_at)
-       VALUES (${testBookId}, ${testUserId}, 1, 'attiva', '${startISO} 00:00:00', '${endISO} 23:59:59', '${startISO}', '${endISO}', NOW())`,
-    );
-    const reservationId = parseInt(
-      dbQuery(`SELECT id FROM prenotazioni WHERE utente_id=${testUserId} AND libro_id=${testBookId} AND stato='attiva' ORDER BY id DESC LIMIT 1`),
-      10,
-    );
+    // Cancel the reservation created end-to-end in 6.2 (no direct insert needed).
     expect(reservationId).toBeGreaterThan(0);
 
     // Navigate to user reservations
@@ -638,7 +643,9 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
   });
 
   test('6.5: Restore copies', async () => {
-    // Clean up: delete pending loan from 6.2
+    // Clean up: the 6.2 flow now creates a reservation (cancelled in 6.4); drop any
+    // residual reservation and any stray pending loan for this user/book.
+    dbQuery(`DELETE FROM prenotazioni WHERE utente_id=${testUserId} AND libro_id=${testBookId}`);
     dbQuery(`DELETE FROM prestiti WHERE utente_id=${testUserId} AND stato='pendente'`);
 
     // Restore copy status
