@@ -49,8 +49,9 @@ try {
 }
 
 /**
- * Records that the method got past the JOIN + fetch (resolveRecipientLocale is
- * the first call after a successful fetch) without opening an SMTP connection.
+ * Records that the method got past the JOIN + fetch. resolveRecipientLocale is
+ * the first call after a successful fetch, so the injected exception stops the
+ * flow before sendWithRetry() can contact SMTP or the local mail transport.
  */
 final class RecordingCancelNotificationService extends NotificationService
 {
@@ -61,7 +62,7 @@ final class RecordingCancelNotificationService extends NotificationService
     {
         $this->localeResolved = true;
         $this->capturedEmail = $email;
-        return 'it_IT';
+        throw new RuntimeException('Injected stop before sending the test notification');
     }
 }
 

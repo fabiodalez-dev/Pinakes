@@ -732,7 +732,7 @@ $i3ApprBookId = $makeBook(2);
 $makeScheduledLoan($i3ApprBookId, $i3ApprLaterCopyId, $makeUser(), $afterStart, $afterEnd);
 $i3ApprLoan = $makeBarePending($i3ApprBookId, $makeUser(), $earlyStart, $earlyEnd);
 $i3ApprResult = $callApprove($i3ApprLoan);
-$check(($i3ApprResult['status'] ?? 0) === 200, '66 approval accepts the earlier request when a free sibling exists');
+$check($i3ApprResult['status'] === 200, '66 approval accepts the earlier request when a free sibling exists');
 $check(
     (int) $loanField($i3ApprLoan, 'copia_id') === $i3ApprFreeCopyId,
     '67 approval Step 2d binds the idle sibling, keeping the later loan independent'
