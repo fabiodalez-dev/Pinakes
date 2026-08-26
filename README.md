@@ -41,11 +41,20 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.67 — latest
+### v0.7.68 — latest
 
-A reliability fix for plugin upgrades: a foreign key or column added by a bundled plugin is now applied automatically after an in-place upgrade of an already-active plugin, instead of being silently skipped.
+Circulation fixes. A request for a book that is currently out no longer fails on approval — it becomes a real waitlist reservation — and the copy chosen for a loan is now picked consistently everywhere, so a scheduled future loan never comes to depend on someone else returning early.
 
 ### Fixes
+
+- **A request for an already-loaned single-copy book becomes a reservation instead of failing (#384).** Approving such a request used to return an error; it now lands on the waitlist when no copy is free through the requested dates, and proceeds as a normal loan when one is.
+- **Copy allocation is consistent across the request gate, approval and waitlist promotion (#384).** A copy whose availability would depend on an earlier borrower returning on time is never bound, and a free copy without a later scheduled loan is preferred over one a future loan already needs.
+- **A "waiting for pickup" loan can be cancelled again (#381)**, resolving to cancelled — or expired when the pickup deadline has passed — and restoring the copy without touching other loans or reservations. The cancel/expire email now also reaches the borrower even when the book has since been archived.
+- **Author photos entered as a URL now display (#382)** — the image is downloaded on save instead of stored as a bare link. See **[CHANGELOG.md](CHANGELOG.md)**.
+
+### v0.7.67
+
+A reliability fix for plugin upgrades: a foreign key or column added by a bundled plugin is now applied automatically after an in-place upgrade of an already-active plugin, instead of being silently skipped.
 
 - **Plugin schema self-heal now covers foreign keys and columns, not only tables.** An admin-UI upgrade runs a plugin's old code until the next page load, so a foreign key or column introduced in a release never ran at upgrade time even though the version was bumped. The boot-time self-heal now detects a declared foreign key or column missing and re-applies it on the next request — `ncip_transactions`' foreign keys and `libri.file_url`/`libri.audio_url` heal themselves with no manual step. See **[CHANGELOG.md](CHANGELOG.md)**.
 
