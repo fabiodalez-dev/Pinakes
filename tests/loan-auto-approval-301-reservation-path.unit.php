@@ -23,11 +23,14 @@ declare(strict_types=1);
  *   - scheduled, awaiting-pickup and copy-bound pending commitments preceding
  *                    the requested window → real waitlist reservation;
  *   - multi-copy allocation prefers the sibling that needs no prior return.
+ *   - an earlier active FIFO reservation consumes the only independent slot;
+ *   - a copy-bound pending claim closes the post-commit auto-approval race.
  *
  * Run: php tests/loan-auto-approval-301-reservation-path.unit.php
  */
 
 use App\Controllers\ReservationsController;
+use App\Controllers\LoanApprovalController;
 use App\Models\CopyRepository;
 use App\Models\SettingsRepository;
 use App\Support\DateHelper;
@@ -283,6 +286,30 @@ $makeCopyBoundCommitment = static function (
     return $loanId;
 };
 
+$makeBarePending = static function (int $bookId, int $userId, string $start, string $end) use ($db): int {
+    $stmt = $db->prepare("
+        INSERT INTO prestiti
+            (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+        VALUES (?, ?, ?, ?, 'pendente', 'richiesta', 0)
+    ");
+    $stmt->bind_param('iiss', $bookId, $userId, $start, $end);
+    $stmt->execute();
+    $loanId = (int) $db->insert_id;
+    $stmt->close();
+    return $loanId;
+};
+
+$callApprove = static function (int $loanId) use ($db): array {
+    $request = (new ServerRequestFactory())
+        ->createServerRequest('POST', '/admin/loans/approve')
+        ->withParsedBody(['loan_id' => $loanId]);
+    $result = (new LoanApprovalController())->approveLoan($request, new SlimResponse(), $db);
+    return [
+        'status' => $result->getStatusCode(),
+        'payload' => json_decode((string) $result->getBody(), true) ?: [],
+    ];
+};
+
 $copyIdsForBook = static function (int $bookId) use ($db): array {
     $stmt = $db->prepare('SELECT id FROM copie WHERE libro_id = ? ORDER BY id');
     $stmt->bind_param('i', $bookId);
@@ -290,6 +317,29 @@ $copyIdsForBook = static function (int $bookId) use ($db): array {
     $ids = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'id'));
     $stmt->close();
     return $ids;
+};
+
+$makeActiveReservation = static function (
+    int $bookId,
+    int $userId,
+    string $start,
+    string $end,
+    int $queuePosition = 1
+) use ($db): int {
+    $startDt = $start . ' 00:00:00';
+    $endDt = $end . ' 23:59:59';
+    $stmt = $db->prepare("
+        INSERT INTO prenotazioni
+            (libro_id, utente_id, queue_position, stato,
+             data_prenotazione, data_scadenza_prenotazione,
+             data_inizio_richiesta, data_fine_richiesta)
+        VALUES (?, ?, ?, 'attiva', ?, ?, ?, ?)
+    ");
+    $stmt->bind_param('iiissss', $bookId, $userId, $queuePosition, $startDt, $endDt, $start, $end);
+    $stmt->execute();
+    $reservationId = (int) $db->insert_id;
+    $stmt->close();
+    return $reservationId;
 };
 
 $reservationForUser = static function (int $bookId, int $userId) use ($db): ?array {
@@ -544,7 +594,63 @@ $check(
 );
 $check($reservationForUser($safeBookId, $safeRequester) === null, '48 no waitlist row is created while a safe sibling exists');
 
-// ── K. F007: a post-commit settings-read failure degrades to pending ────────
+// An unbound FIFO reservation is invisible to per-copy SQL, but it still owns
+// book-level capacity. On a single-copy title a subsequent request must join the
+// queue instead of assuming that the earlier reservation will be promoted,
+// collected and returned on time.
+echo "K. #384 active-reservation predecessor participates in the safety gate\n";
+$fifoBookId = $makeBook(1);
+$fifoOwner = $makeUser();
+$fifoReservationId = $makeActiveReservation($fifoBookId, $fifoOwner, $precedingStart, $precedingEnd);
+$fifoFollower = $makeUser();
+$resAfterFifo = $callCreate($fifoBookId, $fifoFollower, $afterStart, $afterEnd);
+$check(($resAfterFifo['payload']['status'] ?? '') === 'reserved', '49 request after an active single-copy FIFO commitment stays in the waitlist');
+$followerReservation = $reservationForUser($fifoBookId, $fifoFollower);
+$check(
+    $followerReservation !== null && (int) $followerReservation['queue_position'] === 2,
+    '50 follower receives the next FIFO position'
+);
+$check($openLoanCountForUser($fifoBookId, $fifoFollower) === 0, '51 no bare pending loan bypasses the earlier active reservation');
+$check(
+    ($reservationForUser($fifoBookId, $fifoOwner)['stato'] ?? '') === 'attiva'
+        && $fifoReservationId > 0,
+    '52 predecessor reservation remains active and unchanged'
+);
+
+// Capacity-aware multi-copy mirror: a single unbound predecessor does not taint
+// every copy when another independent slot remains throughout the horizon.
+$fifoMultiBookId = $makeBook(2);
+$makeActiveReservation($fifoMultiBookId, $makeUser(), $precedingStart, $precedingEnd);
+$fifoMultiRequester = $makeUser();
+$resAfterFifoMulti = $callCreate($fifoMultiBookId, $fifoMultiRequester, $afterStart, $afterEnd);
+$fifoMultiLoanId = (int) ($resAfterFifoMulti['payload']['loan_request_id'] ?? 0);
+$check(($resAfterFifoMulti['payload']['status'] ?? '') === 'scheduled', '53 a second independent copy preserves the scheduled-loan path');
+$check(
+    $fifoMultiLoanId > 0 && $loanField($fifoMultiLoanId, 'copia_id') !== null,
+    '54 automatic approval binds a physical copy while the other slot covers FIFO capacity'
+);
+$check($reservationForUser($fifoMultiBookId, $fifoMultiRequester) === null, '55 no unnecessary follower reservation is created with independent capacity');
+
+// The approval endpoint must enforce the same invariant independently. This is
+// essential for old/manual bare pending rows and is the last guard if a request
+// reaches approval after concurrent state changes.
+echo "L. #384 approval rejects every preceding-return-only candidate\n";
+$manualPriorBookId = $makeBook(1);
+$manualPriorCopyId = $copyIdsForBook($manualPriorBookId)[0];
+$makeScheduledLoan($manualPriorBookId, $manualPriorCopyId, $makeUser(), $precedingStart, $precedingEnd);
+$manualFollowerLoan = $makeBarePending($manualPriorBookId, $makeUser(), $afterStart, $afterEnd);
+$manualPriorApproval = $callApprove($manualFollowerLoan);
+$check($manualPriorApproval['status'] === 400, '56 approval rejects a date-disjoint copy that still requires a preceding return');
+$check($loanField($manualFollowerLoan, 'stato') === 'pendente', '57 rejected approval leaves the durable request pending for safe handling');
+
+$manualFifoBookId = $makeBook(1);
+$makeActiveReservation($manualFifoBookId, $makeUser(), $precedingStart, $precedingEnd);
+$manualFifoLoan = $makeBarePending($manualFifoBookId, $makeUser(), $afterStart, $afterEnd);
+$manualFifoApproval = $callApprove($manualFifoLoan);
+$check($manualFifoApproval['status'] === 400, '58 approval also rejects an earlier unbound FIFO commitment on the only slot');
+$check($loanField($manualFifoLoan, 'copia_id') === null, '59 rejected FIFO-edge request remains copy-less');
+
+// ── M. F007: a post-commit settings-read failure degrades to pending ────────
 // The helper runs AFTER the request row is committed. If its SettingsRepository
 // read throws (e.g. the connection died in the post-commit window), the helper
 // must CATCH it and return null — so the endpoint reports pending_approval with
@@ -553,7 +659,7 @@ $check($reservationForUser($safeBookId, $safeRequester) === null, '48 no waitlis
 // guard would then permanently block the user's retry). Simulated by invoking
 // the private helper against a closed connection: pre-fix the settings read sat
 // OUTSIDE the try and this invoke would throw; post-fix it is caught → null.
-echo "K. F007: settings-read failure in the post-commit helper degrades to pending (never escapes)\n";
+echo "M. F007: settings-read failure in the post-commit helper degrades to pending (never escapes)\n";
 $deadDb = $socket !== '' && file_exists($socket)
     ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
     : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
@@ -569,8 +675,8 @@ try {
 } catch (\Throwable $e) {
     $faultThrew = true;
 }
-$check($faultThrew === false, '49 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
-$check($faultResult === null, '50 failed post-commit settings read degrades to null → pending_approval');
+$check($faultThrew === false, '60 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
+$check($faultResult === null, '61 failed post-commit settings read degrades to null → pending_approval');
 
 $cleanup();
 $db->close();

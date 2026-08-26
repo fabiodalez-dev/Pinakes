@@ -420,10 +420,12 @@ class LoanApprovalController
             // Step 2: If no valid pre-assigned copy, check global availability and find a new copy
             if (!$selectedCopy) {
                 // The pending row does not occupy capacity unless it already has a
-                // copy (handled above). Use the canonical per-day peak gate instead
-                // of summing all intervals that merely touch the requested range.
+                // copy (handled above). Check the whole horizon through the requested
+                // end, not only the requested window: a fully occupied earlier day
+                // means this loan would depend on a preceding loan/reservation being
+                // collected and returned on time, which is the bypass fixed by #384.
                 $capacity = new \App\Services\CapacityService($db);
-                if (!$capacity->hasFreeCapacity($libroId, $dataPrestito, $dataScadenza, excludePrestitoId: $loanId)) {
+                if (!$capacity->hasFreeCapacity($libroId, $today, $dataScadenza, excludePrestitoId: $loanId)) {
                     $db->rollback();
                     $response->getBody()->write(json_encode([
                         'success' => false,
@@ -459,13 +461,11 @@ class LoanApprovalController
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                         )
                     )
-                    -- Prefer a copy that does not depend on a preceding return.
-                    -- The unified book-page route (#384) only creates a loan
-                    -- request when such a copy exists; without this ordering a
-                    -- multi-copy approval could pass that gate and then bind a
-                    -- different, date-disjoint copy whose earlier borrower may
-                    -- return it late.
-                    ORDER BY EXISTS (
+                    -- A preference is insufficient: if every candidate has a
+                    -- preceding commitment, ORDER BY would still return the least
+                    -- bad one and recreate #384. Require a copy whose use does not
+                    -- depend on any earlier borrower returning on time.
+                    AND NOT EXISTS (
                         SELECT 1 FROM prestiti prior
                         WHERE prior.copia_id = c.id
                           AND prior.id != ?
@@ -474,7 +474,8 @@ class LoanApprovalController
                               (prior.attivo = 1 AND prior.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                               OR (prior.attivo = 0 AND prior.stato = 'pendente' AND prior.copia_id IS NOT NULL)
                           )
-                    ) ASC, c.id ASC
+                    )
+                    ORDER BY c.id ASC
                     LIMIT 1
                 ");
                 $overlapStmt->bind_param('iiiisssis', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito, $loanId, $dataScadenza);
@@ -484,25 +485,17 @@ class LoanApprovalController
                 $overlapStmt->close();
             }
 
-            // Step 3: Final fallback using CopyRepository
+            // Step 3: Step 2 is the authoritative allocator. The historical
+            // CopyRepository fallback only repeated a looser date-overlap query;
+            // after #384 it could reintroduce the exact preceding-return candidate
+            // deliberately rejected above.
             if (!$selectedCopy) {
-                // Fallback: try date-aware method to find available copy for the requested period
-                $copyRepo = new \App\Models\CopyRepository($db);
-                $availableCopies = $copyRepo->getAvailableByBookIdForDateRange($libroId, $dataPrestito, $dataScadenza);
-                $availableCopies = array_values(array_filter(
-                    $availableCopies,
-                    static fn (array $copy): bool => !in_array((int) $copy['id'], $borrowerCommittedCopyIds, true)
-                ));
-
-                if (empty($availableCopies)) {
-                    $db->rollback();
-                    $response->getBody()->write(json_encode([
-                        'success' => false,
-                        'message' => __('Nessuna copia disponibile per il periodo richiesto')
-                    ]));
-                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-                }
-                $selectedCopy = $availableCopies[0];
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Nessuna copia disponibile per il periodo richiesto')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
             // Lock selected copy and re-check overlap to prevent race
@@ -1156,11 +1149,6 @@ class LoanApprovalController
         // integralmente nell'email e nella nota di audit.
         $reason = $data['reason'] ?? '';
         $reason = is_scalar($reason) ? trim((string) $reason) : '';
-        if ($reason === '') {
-            // The endpoint also handles a voluntary cancellation before the
-            // deadline (#381), so the default must not imply a missed pickup.
-            $reason = __('Ritiro annullato');
-        }
         $reason = mb_substr($reason, 0, 500);
 
         if ($loanId <= 0) {
@@ -1251,6 +1239,14 @@ class LoanApprovalController
             $terminalState = $pickupDeadline !== null && $pickupDeadline < $today
                 ? 'scaduto'
                 : 'annullato';
+            // The audit note is rendered in the current staff locale. Keep the raw
+            // reason untouched for NotificationService: when it is empty, that
+            // service must translate its fallback in the recipient's locale.
+            $auditReason = $reason !== ''
+                ? $reason
+                : ($terminalState === 'scaduto'
+                    ? __('Ritiro scaduto')
+                    : __('Ritiro annullato'));
 
             // Audit note + processed_by distinguish the staff action from the
             // automatic expiry sweep even when the terminal state is scaduto. The
@@ -1259,7 +1255,7 @@ class LoanApprovalController
             $cancelledBy = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
             $noteLabel = $terminalState === 'scaduto' ? __('Ritiro scaduto il') : __('Ritiro annullato il');
             $noteSuffix = "\n[Staff] " . $noteLabel . ' '
-                . implode('/', array_reverse(explode('-', $today))) . ' — ' . $reason;
+                . implode('/', array_reverse(explode('-', $today))) . ' — ' . $auditReason;
             $updateStmt = $db->prepare("
                 UPDATE prestiti
                 SET stato = ?, attivo = 0, pickup_deadline = NULL,
@@ -1317,10 +1313,16 @@ class LoanApprovalController
             $reassignmentService->flushDeferredNotifications();
             $reservationManager->flushDeferredNotifications();
 
-            // Send notification to user about cancelled pickup (outside transaction)
+            // Send the notification matching the persisted terminal state. Preserve
+            // the original deadline because the closed row clears pickup_deadline.
             try {
                 $notificationService = new \App\Support\NotificationService($db);
-                $notificationService->sendPickupCancelledNotification($loanId, $reason);
+                $notificationService->sendPickupCancelledNotification(
+                    $loanId,
+                    $reason,
+                    $terminalState,
+                    $pickupDeadline
+                );
             } catch (\Throwable $notifError) {
                 \App\Support\SecureLogger::warning("[cancelPickup] Notification error for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail - cancellation already committed
@@ -1328,7 +1330,9 @@ class LoanApprovalController
 
             $response->getBody()->write(json_encode([
                 'success' => true,
-                'message' => __('Ritiro annullato con successo')
+                'message' => $terminalState === 'scaduto'
+                    ? __('Ritiro scaduto')
+                    : __('Ritiro annullato con successo')
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 

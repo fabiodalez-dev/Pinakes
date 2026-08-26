@@ -319,6 +319,10 @@ try {
             && ($row['pickup_deadline'] ?? null) === null,
         "P2-5: an on-time cancellation is 'annullato' and clears the deadline"
     );
+    check(
+        str_contains((string) ($row['note'] ?? ''), __('Ritiro annullato il')),
+        'P2-5: on-time cancellation history uses cancellation wording'
+    );
     $copyState = (string) $db->query("SELECT stato FROM copie WHERE id = {$copyOnTime}")->fetch_row()[0];
     check($copyState === 'disponibile', 'P2-5: an on-time cancellation releases its physical copy');
 
@@ -329,7 +333,7 @@ try {
 
     $request = (new ServerRequestFactory())
         ->createServerRequest('POST', '/admin/loans/cancel-pickup')
-        ->withParsedBody(['loan_id' => $expiredPickup, 'reason' => 'Test neutral cancellation']);
+        ->withParsedBody(['loan_id' => $expiredPickup]);
     $resp = (new LoanApprovalController())->cancelPickup($request, (new ResponseFactory())->createResponse(), $db);
     $body = $jsonBody($resp);
     $row = $loanRow($expiredPickup);
@@ -340,6 +344,12 @@ try {
             && (int) ($row['attivo'] ?? 1) === 0
             && ($row['pickup_deadline'] ?? null) === null,
         "P2-5: a past-deadline pickup remains 'scaduto' and clears the deadline"
+    );
+    check(
+        ($body['message'] ?? '') === __('Ritiro scaduto')
+            && str_contains((string) ($row['note'] ?? ''), __('Ritiro scaduto il'))
+            && !str_contains((string) ($row['note'] ?? ''), __('Ritiro annullato il')),
+        'P2-5: expired response and history use expiry wording, never cancellation wording'
     );
     $copyState = (string) $db->query("SELECT stato FROM copie WHERE id = {$copyExpiredPickup}")->fetch_row()[0];
     check($copyState === 'disponibile', 'P2-5: closing an expired pickup releases its physical copy');

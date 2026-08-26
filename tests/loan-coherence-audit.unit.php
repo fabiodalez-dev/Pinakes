@@ -185,7 +185,7 @@ $checks['user dashboard views use the app clock for overdue'] =
 // 11. #301: the book-detail modal path (createReservation) must honour the
 //     automatic-approval setting like UserActionsController::loan does.
 $checks['createReservation honours auto_approve_requests (#301)'] =
-    str_contains($reservations, 'autoApproveLoanRequest($request, $loanRequestId)')
+    str_contains($reservations, 'autoApproveLoanRequest($request, $loanRequestId, true)')
     && str_contains($reservations, "'automatic_loan_approval'");
 
 // 12. rejectLoan must keep an audit row (annullato), never DELETE it.

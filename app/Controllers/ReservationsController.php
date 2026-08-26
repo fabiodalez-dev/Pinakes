@@ -207,8 +207,10 @@ class ReservationsController
      * Handle the unified loan/reservation calendar submission.
      *
      * If at least one physical copy is in the library and can serve the requested
-     * window without depending on a preceding return, create the normal bare loan
-     * request (`prestiti.pendente`) and optionally auto-approve it. If the title
+     * window without depending on a preceding return, create the normal loan
+     * request (`prestiti.pendente`) and optionally auto-approve it. The automatic
+     * path pins that exact safe copy before releasing the book lock; manual requests
+     * remain copy-less until staff approval. If the title
      * has physical copies but every copy is currently out or already committed,
      * create a real period-bearing waitlist reservation
      * (`prenotazioni.attiva`) instead (#384). A contractual due date is not proof
@@ -425,7 +427,24 @@ class ReservationsController
             // without a preceding return, occupy the requested period through the
             // real FIFO waitlist instead of committing a bare, capacity-free
             // pending loan that an admin cannot safely approve.
-            if ($capacity->hasPhysicalCopies($bookId) && !$this->hasAssignableInLibraryCopyThrough($bookId, $endDate)) {
+            $hasPhysicalCopies = $capacity->hasPhysicalCopies($bookId);
+            $assignableCopyId = $hasPhysicalCopies
+                ? $this->findAssignableInLibraryCopyThrough($bookId, $endDate)
+                : null;
+
+            // Active waitlist reservations are book-level commitments and have no
+            // copia_id, so the physical-copy query above cannot see them. Require
+            // one capacity slot to remain free over the whole horizon from today
+            // through the requested end: otherwise the new loan would depend on a
+            // preceding reservation being promoted, collected and returned on time.
+            $hasIndependentCapacityThroughEnd = $capacity->hasFreeCapacity(
+                $bookId,
+                \App\Support\DateHelper::today(),
+                $endDate,
+                excludeUserId: $userId
+            );
+
+            if ($hasPhysicalCopies && ($assignableCopyId === null || !$hasIndependentCapacityThroughEnd)) {
                 $reservationId = $this->createActiveReservation($bookId, $userId, $startDate, $endDate);
                 $this->db->commit();
 
@@ -459,16 +478,53 @@ class ReservationsController
                 }
             }
 
-            // Create pending loan request with origine='richiesta' (manual request from user)
-            $stmt = $this->db->prepare("
-                INSERT INTO prestiti
-                (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
-                VALUES (?, ?, ?, ?, 'pendente', 'richiesta', 0)
-            ");
-            $stmt->bind_param('iiss', $bookId, $userId, $startDate, $endDate);
+            // Read the setting while the canonical book lock is still held. With
+            // automatic approval enabled, persist the exact safe copia_id in the
+            // pending row: copy-bound pending rows occupy canonical capacity, so a
+            // second request cannot slip through after this transaction commits and
+            // before approveLoan() reacquires the lock. Manual requests intentionally
+            // remain copy-less and keep their existing review-queue semantics.
+            $autoApproveEnabled = false;
+            try {
+                $autoApproveEnabled = (new \App\Models\SettingsRepository($this->db))->autoApproveLoanRequests();
+            } catch (\Throwable $settingError) {
+                // A settings lookup failure must not discard an otherwise valid
+                // request. Leave it copy-less for staff review and report the fault.
+                \App\Support\SecureLogger::warning('Automatic-loan setting unavailable; request left for manual approval', [
+                    'book_id' => $bookId,
+                    'user_id' => $userId,
+                    'error' => $settingError->getMessage(),
+                ]);
+            }
+
+            $preassignedCopyId = $autoApproveEnabled ? $assignableCopyId : null;
+            if ($preassignedCopyId !== null) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO prestiti
+                    (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+                    VALUES (?, ?, ?, ?, ?, 'pendente', 'richiesta', 0)
+                ");
+                $stmt->bind_param('iiiss', $bookId, $preassignedCopyId, $userId, $startDate, $endDate);
+            } else {
+                $stmt = $this->db->prepare("
+                    INSERT INTO prestiti
+                    (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+                    VALUES (?, ?, ?, ?, 'pendente', 'richiesta', 0)
+                ");
+                $stmt->bind_param('iiss', $bookId, $userId, $startDate, $endDate);
+            }
 
             if ($stmt->execute()) {
                 $loanRequestId = (int) $this->db->insert_id;
+                if ($preassignedCopyId !== null) {
+                    // A copy-bound pending row is a real canonical hold. Keep the
+                    // denormalized book counters coherent even if the subsequent
+                    // post-commit automatic approval fails and staff must finish it.
+                    $integrity = new \App\Support\DataIntegrity($this->db);
+                    if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
+                        throw new \RuntimeException('Failed to recalculate availability after automatic copy claim.');
+                    }
+                }
                 $this->db->commit();
 
                 // #301: honour the automatic-approval setting on THIS entry point
@@ -480,7 +536,9 @@ class ReservationsController
                 // ?string: the persisted state ('prenotato' scheduled loan /
                 // 'da_ritirare' immediate pickup) on success, null when the
                 // request stays pending (setting off / approval failed).
-                $loanState = $this->autoApproveLoanRequest($request, $loanRequestId);
+                $loanState = $autoApproveEnabled
+                    ? $this->autoApproveLoanRequest($request, $loanRequestId, true)
+                    : null;
 
                 if ($loanState === null) {
                     // Send notification to admins (an auto-approved request no
@@ -536,7 +594,8 @@ class ReservationsController
     }
 
     /**
-     * True when a copy physically in the library can serve the requested period.
+     * Return a locked copy physically in the library that can serve the requested
+     * period, or null when none exists.
      * `prenotato` is intentionally accepted only when every existing commitment
      * starts after the requested period: the copy can serve the earlier window
      * without depending on anybody returning it first. A preceding commitment,
@@ -547,7 +606,7 @@ class ReservationsController
      * circulation writers for this title; FOR UPDATE also locks the chosen copy
      * before the decision is used.
      */
-    private function hasAssignableInLibraryCopyThrough(int $bookId, string $endDate): bool
+    private function findAssignableInLibraryCopyThrough(int $bookId, string $endDate): ?int
     {
         $stmt = $this->db->prepare("
             SELECT c.id
@@ -570,9 +629,9 @@ class ReservationsController
         ");
         $stmt->bind_param('is', $bookId, $endDate);
         $stmt->execute();
-        $available = $stmt->get_result()->fetch_assoc() !== null;
+        $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return $available;
+        return $row !== null ? (int) $row['id'] : null;
     }
 
     /**
@@ -631,16 +690,16 @@ class ReservationsController
      * UserActionsController::autoApproveLoanRequest — a failure deliberately
      * leaves the request pending so an administrator can still process it.
      */
-    private function autoApproveLoanRequest($request, int $loanId): ?string
+    private function autoApproveLoanRequest($request, int $loanId, ?bool $knownEnabled = null): ?string
     {
-        // The settings read runs INSIDE the try: this helper is called AFTER the
-        // request is committed, so a DB hiccup in the SettingsRepository lookup
-        // must degrade to "left pending" (return null) rather than escape to the
-        // outer transaction catch, which would report a 500 for an already
-        // durable request and let the duplicate guard block the user's retry.
+        // When the caller already captured the setting under the book lock it
+        // passes that decision in $knownEnabled. Legacy/internal callers may omit
+        // it; their post-commit settings read stays inside this try so a DB hiccup
+        // degrades to "left pending" instead of escaping after the durable INSERT.
         try {
-            $settings = new \App\Models\SettingsRepository($this->db);
-            if (!$settings->autoApproveLoanRequests()) {
+            $enabled = $knownEnabled
+                ?? (new \App\Models\SettingsRepository($this->db))->autoApproveLoanRequests();
+            if (!$enabled) {
                 // A disabled setting is not a failure: leave the request pending
                 // for an admin without logging any warning noise.
                 return null;
