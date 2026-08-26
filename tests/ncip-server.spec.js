@@ -743,11 +743,19 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
         expect(parseInt(result)).toBe(1);
     });
 
-    test('15. ncip_transactions table exists', async () => {
+    test('15. ncip_transactions table and reservation audit relation exist', async () => {
         const result = dbQuery(
             "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ncip_transactions'"
         );
         expect(parseInt(result)).toBe(1);
+        const reservationColumn = dbQuery(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ncip_transactions' AND COLUMN_NAME = 'prenotazione_id'"
+        );
+        expect(parseInt(reservationColumn)).toBe(1);
+        const reservationFk = dbQuery(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ncip_transactions' AND COLUMN_NAME = 'prenotazione_id' AND REFERENCED_TABLE_NAME = 'prenotazioni'"
+        );
+        expect(parseInt(reservationFk)).toBe(1);
     });
 
     test('16. prestiti.ncip_request_id column exists', async () => {

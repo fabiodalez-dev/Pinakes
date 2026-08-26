@@ -143,6 +143,7 @@ class NcipServerPlugin
                 partner_id   INT          NULL,
                 message_type VARCHAR(64)  NOT NULL,
                 prestito_id  INT          NULL,
+                prenotazione_id INT       NULL,
                 request_id   VARCHAR(255) NULL,
                 status       ENUM('pending','success','error') NOT NULL DEFAULT 'pending',
                 error_msg    VARCHAR(1000) NULL,
@@ -150,9 +151,19 @@ class NcipServerPlugin
                 KEY idx_partner  (partner_id),
                 KEY idx_status   (status),
                 KEY idx_prestito (prestito_id),
+                KEY idx_prenotazione (prenotazione_id),
                 CONSTRAINT ncip_transactions_ibfk_1 FOREIGN KEY (partner_id) REFERENCES ncip_partners (id) ON DELETE SET NULL,
-                CONSTRAINT ncip_transactions_ibfk_2 FOREIGN KEY (prestito_id) REFERENCES prestiti (id) ON DELETE SET NULL
+                CONSTRAINT ncip_transactions_ibfk_2 FOREIGN KEY (prestito_id) REFERENCES prestiti (id) ON DELETE SET NULL,
+                CONSTRAINT ncip_transactions_ibfk_3 FOREIGN KEY (prenotazione_id) REFERENCES prenotazioni (id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        ];
+    }
+
+    /** @return array<string,string> column => ADD COLUMN DDL */
+    private static function columnDefs(): array
+    {
+        return [
+            'prenotazione_id' => 'ALTER TABLE ncip_transactions ADD COLUMN prenotazione_id INT NULL AFTER prestito_id',
         ];
     }
 
@@ -171,12 +182,15 @@ class NcipServerPlugin
             }
         }
 
-        // CREATE TABLE IF NOT EXISTS is a no-op for a pre-existing
-        // ncip_transactions table, so the two FK constraints are never applied
-        // on an upgrade from a build that shipped the table without them.
-        // Add them idempotently now (safe to re-run). If the FK migration
-        // fails, mark ncip_transactions as failed so onActivate()/onInstall()
-        // do NOT register hooks against a half-applied schema.
+        // CREATE TABLE IF NOT EXISTS is a no-op for a pre-existing table. Add
+        // newer columns before their FKs so an active plugin upgrades safely.
+        if (!in_array('ncip_transactions', $failed, true) && !$this->ensureColumns()) {
+            $failed[] = 'ncip_transactions';
+        }
+
+        // The FK constraints are likewise not applied by CREATE TABLE on an
+        // existing schema. Add them idempotently after every column is present;
+        // fail activation rather than register hooks over a partial schema.
         if (!in_array('ncip_transactions', $failed, true) && !$this->ensureForeignKeys()) {
             $failed[] = 'ncip_transactions';
         }
@@ -187,7 +201,53 @@ class NcipServerPlugin
     }
 
     /**
-     * Add the two ncip_transactions foreign keys when missing. Detects each FK
+     * Columns required on an existing ncip_transactions table. Exposed to the
+     * PluginManager so a same-version stale-class upgrade self-heals on boot.
+     *
+     * @return list<array{table:string, column:string}>
+     */
+    public function expectedColumns(): array
+    {
+        $out = [];
+        foreach (array_keys(self::columnDefs()) as $column) {
+            $out[] = ['table' => 'ncip_transactions', 'column' => $column];
+        }
+        return $out;
+    }
+
+    private function ensureColumns(): bool
+    {
+        foreach (self::columnDefs() as $column => $alterSql) {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = \'ncip_transactions\'
+                   AND COLUMN_NAME = ?'
+            );
+            if ($stmt === false) {
+                SecureLogger::error('[NcipServer] Column probe prepare failed: ' . $this->db->error);
+                return false;
+            }
+            $stmt->bind_param('s', $column);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[NcipServer] Column probe failed for ' . $column . ': ' . $stmt->error);
+                $stmt->close();
+                return false;
+            }
+            $result = $stmt->get_result();
+            $exists = $result instanceof \mysqli_result
+                && ((int) ($result->fetch_assoc()['c'] ?? 0)) > 0;
+            $stmt->close();
+            if (!$exists && $this->db->query($alterSql) === false) {
+                SecureLogger::error('[NcipServer] Adding column ' . $column . ' failed: ' . $this->db->error);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Add the ncip_transactions foreign keys when missing. Detects each FK
      * by column + referenced table (name-agnostic) via KEY_COLUMN_USAGE, nulls
      * out orphan rows that would violate the constraint, then ALTERs it in with
      * ON DELETE SET NULL. Idempotent and safe to re-run from onActivate/onInstall.
@@ -201,7 +261,7 @@ class NcipServerPlugin
      * Single source of truth for the ncip_transactions foreign keys, shared by
      * ensureForeignKeys() (which adds them) and expectedForeignKeys() (which
      * lets PluginManager's boot-time self-heal detect them missing after a
-     * stale-class upgrade). Keep the two in sync via this list.
+     * stale-class upgrade). Keep them in sync via this list.
      *
      * @return list<array{column:string, ref_table:string, ref_col:string, name:string}>
      */
@@ -210,6 +270,7 @@ class NcipServerPlugin
         return [
             ['column' => 'partner_id',  'ref_table' => 'ncip_partners', 'ref_col' => 'id', 'name' => 'ncip_transactions_ibfk_1'],
             ['column' => 'prestito_id', 'ref_table' => 'prestiti',      'ref_col' => 'id', 'name' => 'ncip_transactions_ibfk_2'],
+            ['column' => 'prenotazione_id', 'ref_table' => 'prenotazioni', 'ref_col' => 'id', 'name' => 'ncip_transactions_ibfk_3'],
         ];
     }
 
@@ -504,7 +565,7 @@ class NcipServerPlugin
 
         $rows = [];
         $stmt = $this->db->prepare(
-            'SELECT id, message_type, partner_id, prestito_id, request_id, status, created_at
+            'SELECT id, message_type, partner_id, prestito_id, prenotazione_id, request_id, status, created_at
                FROM ncip_transactions
               ORDER BY id DESC
               LIMIT ? OFFSET ?'
@@ -1001,14 +1062,14 @@ class NcipServerPlugin
         $loanDays = $loanDays > 0 ? $loanDays : 30;
         $dueDate = (new \DateTimeImmutable($today))->modify("+{$loanDays} days")->format('Y-m-d');
         $failureReason = 'db_error';
-        $loanId = $this->createLoanNcip(
+        $requestOutcome = $this->createRequestItemNcip(
             $itemId,
             $userId,
             $dueDate,
             $requestId !== '' ? $requestId : null,
             $failureReason
         );
-        if ($loanId === null) {
+        if ($requestOutcome === null) {
             $problemType = match ($failureReason) {
                 'not_found'   => 'unknown-item',
                 'duplicate'   => 'duplicate-request',
@@ -1016,14 +1077,12 @@ class NcipServerPlugin
                 'max_loans'   => 'user-loan-limit-reached',
                 default       => 'temporary-processing-failure',
             };
-            SecureLogger::error('[NcipServer] createLoanNcip failed: ' . $failureReason);
+            SecureLogger::error('[NcipServer] createRequestItemNcip failed: ' . $failureReason);
             return $this->xmlResponse(
                 $response,
                 $this->buildProblem('Failed to create ILL request', $problemType)
             );
         }
-
-        $this->logTransaction('RequestItem', $loanId, $requestId !== '' ? $requestId : null);
 
         return $this->xmlResponse($response, $this->buildRequestItemResponse($itemId, $userId, $dueDate));
     }
@@ -1097,8 +1156,6 @@ class NcipServerPlugin
                 $this->buildProblem('No active ILL request for this item', 'item-not-checked-out')
             );
         }
-
-        $this->logTransaction('CancelRequestItem', $cancelResult['loan_id'], null);
 
         // Like handleRenewItem, answer with the borrower the locked row
         // resolved: when the client omitted UserId the request-derived value
@@ -1751,14 +1808,15 @@ class NcipServerPlugin
 
     /**
      * @param-out string $failureReason Stable rejection reason for RequestItem.
+     * @return array{loan_id:?int,reservation_id:?int}|null
      */
-    private function createLoanNcip(
+    private function createRequestItemNcip(
         int $bookId,
         int $userId,
         string $dueDate,
         ?string $requestId,
         ?string &$failureReason = null
-    ): ?int
+    ): ?array
     {
         $failureReason = 'db_error';
         $today = \App\Support\DateHelper::today();
@@ -1817,6 +1875,34 @@ class NcipServerPlugin
                 return null;
             }
 
+            // RequestItem is a Hold request: apply the same #384 gate as every
+            // core patron entry point. If the only capacity depends on an
+            // earlier return, persist a real FIFO reservation instead of a
+            // bare pending loan that staff approval would inevitably reject.
+            $routing = (new \App\Services\LoanRequestGate($this->db))->route(
+                $bookId,
+                $userId,
+                $today,
+                $dueDate,
+                inCallerTransaction: true
+            );
+            if ($routing->isReservation()) {
+                $reservationId = (int) $routing->reservationId;
+                if (!$this->insertTransactionRecord(
+                    'RequestItem',
+                    null,
+                    $requestId,
+                    $reservationId
+                )) {
+                    throw new \RuntimeException('Failed to audit NCIP reservation request.');
+                }
+                $this->db->commit();
+                return ['loan_id' => null, 'reservation_id' => $reservationId];
+            }
+
+            // A waitlist reservation does not consume an active-loan slot.
+            // Enforce the cap only after the gate kept the request on the loan
+            // path, matching ReservationsController/UserActionsController.
             $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
                 $count = $this->db->prepare(
@@ -1846,6 +1932,10 @@ class NcipServerPlugin
             if (!$stmt->execute()) { $stmt->close(); $this->db->rollback(); return null; }
             $id = (int) $stmt->insert_id;
             $stmt->close();
+
+            if (!$this->insertTransactionRecord('RequestItem', $id, $requestId, null)) {
+                throw new \RuntimeException('Failed to audit NCIP loan request.');
+            }
             $this->db->commit();
 
             if ($id > 0) {
@@ -1858,16 +1948,17 @@ class NcipServerPlugin
                     ]);
                 }
             }
-            return $id > 0 ? $id : null;
+            return $id > 0 ? ['loan_id' => $id, 'reservation_id' => null] : null;
         } catch (\Throwable $e) {
             $this->db->rollback();
-            SecureLogger::error('[NcipServer] createLoanNcip failed: ' . $e->getMessage());
+            SecureLogger::error('[NcipServer] createRequestItemNcip failed: ' . $e->getMessage());
             return null;
         }
     }
 
     /**
-     * Resolve and cancel one still-pending NCIP request atomically.
+     * Resolve and cancel one still-pending NCIP loan request or active NCIP
+     * waitlist reservation atomically.
      *
      * The book lock is acquired before the pending-request lookup, matching the
      * lock order used by RequestItem and approval. Consequently a concurrent
@@ -1875,11 +1966,12 @@ class NcipServerPlugin
      * visible here) or waits until cancellation commits. Ambiguity detection is
      * therefore based on the same locked state that the UPDATE mutates.
      *
-     * @return array{status:'cancelled', loan_id:int, user_id:int}|array{status:'not_found'|'ambiguous'}
+     * @return array{status:'cancelled', loan_id:?int, reservation_id:?int, user_id:int}|array{status:'not_found'|'ambiguous'}
      */
     private function cancelPendingNcipRequest(int $bookId, ?int $userId): array
     {
         $inTransaction = false;
+        $reservationManager = null;
         try {
             $this->db->begin_transaction();
             $inTransaction = true;
@@ -1924,48 +2016,156 @@ class NcipServerPlugin
                 : [];
             $loanStmt->close();
 
-            if ($lockedLoans === []) {
+            // A #384-routed RequestItem is represented by prenotazioni, not
+            // prestiti. Resolve only rows carrying an explicit successful NCIP
+            // transaction link: a web-created reservation for the same patron
+            // must never be cancellable through this protocol endpoint.
+            $reservationUserFilter = $userId !== null ? ' AND r.utente_id = ?' : '';
+            $reservationStmt = $this->db->prepare(
+                "SELECT r.id, r.libro_id, r.utente_id, r.queue_position
+                   FROM prenotazioni r
+                   JOIN ncip_transactions tx ON tx.prenotazione_id = r.id
+                  WHERE r.libro_id = ? AND r.stato = 'attiva'
+                    AND tx.message_type = 'RequestItem' AND tx.status = 'success'
+                    AND tx.prestito_id IS NULL{$reservationUserFilter}
+                  ORDER BY tx.created_at DESC, tx.id DESC
+                  LIMIT 2 FOR UPDATE"
+            );
+            if ($reservationStmt === false) {
+                throw new \RuntimeException('reservation lock prepare failed: ' . $this->db->error);
+            }
+            if ($userId !== null) {
+                $reservationStmt->bind_param('ii', $bookId, $userId);
+            } else {
+                $reservationStmt->bind_param('i', $bookId);
+            }
+            $reservationStmt->execute();
+            $reservationResult = $reservationStmt->get_result();
+            $lockedReservations = $reservationResult instanceof \mysqli_result
+                ? $reservationResult->fetch_all(MYSQLI_ASSOC)
+                : [];
+            $reservationStmt->close();
+
+            $candidateCount = count($lockedLoans) + count($lockedReservations);
+            if ($candidateCount === 0) {
                 $this->db->rollback();
                 $inTransaction = false;
                 return ['status' => 'not_found'];
             }
-            if (count($lockedLoans) > 1) {
+            if ($candidateCount > 1) {
                 $this->db->rollback();
                 $inTransaction = false;
                 return ['status' => 'ambiguous'];
             }
-            $lockedLoan = $lockedLoans[0];
-            $loanId = (int) $lockedLoan['id'];
-            $resolvedUserId = (int) $lockedLoan['utente_id'];
 
-            // Repeat every lifecycle/identity predicate in the write itself.
-            // The row lock makes a lost race impossible, while the guarded
-            // UPDATE also protects this invariant from future refactors.
-            $update = $this->db->prepare(
-                "UPDATE prestiti
-                    SET stato = 'annullato', attivo = 0, updated_at = NOW()
-                  WHERE id = ? AND libro_id = ? AND utente_id = ?
-                    AND origine = 'ncip' AND attivo = 0 AND stato = 'pendente'
-                    AND copia_id IS NULL"
-            );
-            if ($update === false) {
-                throw new \RuntimeException('cancel prepare failed: ' . $this->db->error);
+            $loanId = null;
+            $reservationId = null;
+            if ($lockedLoans !== []) {
+                $lockedLoan = $lockedLoans[0];
+                $loanId = (int) $lockedLoan['id'];
+                $resolvedUserId = (int) $lockedLoan['utente_id'];
+
+                // Repeat every lifecycle/identity predicate in the write itself.
+                $update = $this->db->prepare(
+                    "UPDATE prestiti
+                        SET stato = 'annullato', attivo = 0, updated_at = NOW()
+                      WHERE id = ? AND libro_id = ? AND utente_id = ?
+                        AND origine = 'ncip' AND attivo = 0 AND stato = 'pendente'
+                        AND copia_id IS NULL"
+                );
+                if ($update === false) {
+                    throw new \RuntimeException('loan cancel prepare failed: ' . $this->db->error);
+                }
+                $update->bind_param('iii', $loanId, $bookId, $resolvedUserId);
+                $update->execute();
+                $affected = $update->affected_rows;
+                $update->close();
+            } else {
+                $lockedReservation = $lockedReservations[0];
+                $reservationId = (int) $lockedReservation['id'];
+                $resolvedUserId = (int) $lockedReservation['utente_id'];
+
+                $update = $this->db->prepare(
+                    "UPDATE prenotazioni
+                        SET stato = 'annullata', updated_at = NOW()
+                      WHERE id = ? AND libro_id = ? AND utente_id = ?
+                        AND stato = 'attiva'"
+                );
+                if ($update === false) {
+                    throw new \RuntimeException('reservation cancel prepare failed: ' . $this->db->error);
+                }
+                $update->bind_param('iii', $reservationId, $bookId, $resolvedUserId);
+                $update->execute();
+                $affected = $update->affected_rows;
+                $update->close();
+
+                if ($affected === 1) {
+                    // Preserve dense FIFO positions, then immediately use any
+                    // capacity freed by the cancellation just like the web and
+                    // admin cancellation paths.
+                    $reorder = $this->db->prepare(
+                        "SELECT id FROM prenotazioni
+                          WHERE libro_id = ? AND stato = 'attiva'
+                          ORDER BY queue_position ASC, id ASC
+                          FOR UPDATE"
+                    );
+                    $reorder->bind_param('i', $bookId);
+                    $reorder->execute();
+                    $rows = $reorder->get_result();
+                    $position = 1;
+                    $setPosition = $this->db->prepare(
+                        'UPDATE prenotazioni SET queue_position = ? WHERE id = ?'
+                    );
+                    while ($row = $rows->fetch_assoc()) {
+                        $rowId = (int) $row['id'];
+                        $setPosition->bind_param('ii', $position, $rowId);
+                        $setPosition->execute();
+                        $position++;
+                    }
+                    $setPosition->close();
+                    $reorder->close();
+
+                    $reservationManager = new \App\Controllers\ReservationManager($this->db);
+                    $reservationManager->setExternalTransaction(true);
+                    for ($guard = 0; $guard < 1000 && $reservationManager->processBookAvailability($bookId); $guard++) {
+                        // Promote until the newly-freed capacity is exhausted.
+                    }
+
+                    $integrity = new \App\Support\DataIntegrity($this->db);
+                    if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
+                        throw new \RuntimeException('Failed to recalculate availability after NCIP reservation cancellation.');
+                    }
+                }
             }
-            $update->bind_param('iii', $loanId, $bookId, $resolvedUserId);
-            $update->execute();
-            $affected = $update->affected_rows;
-            $update->close();
+
             if ($affected !== 1) {
                 $this->db->rollback();
                 $inTransaction = false;
                 return ['status' => 'not_found'];
             }
 
+            if (!$this->insertTransactionRecord('CancelRequestItem', $loanId, null, $reservationId)) {
+                throw new \RuntimeException('Failed to audit NCIP request cancellation.');
+            }
+
             $this->db->commit();
             $inTransaction = false;
+
+            if ($reservationManager !== null) {
+                try {
+                    $reservationManager->flushDeferredNotifications();
+                } catch (\Throwable $notificationError) {
+                    SecureLogger::warning('[NcipServer] deferred reservation notification failed', [
+                        'book_id' => $bookId,
+                        'error' => $notificationError->getMessage(),
+                    ]);
+                }
+            }
+
             return [
                 'status' => 'cancelled',
                 'loan_id' => $loanId,
+                'reservation_id' => $reservationId,
                 'user_id' => $resolvedUserId,
             ];
         } catch (\Throwable $e) {
@@ -1984,16 +2184,36 @@ class NcipServerPlugin
         }
     }
 
-    private function logTransaction(string $messageType, int $prestitoId, ?string $requestId): void
+    private function logTransaction(
+        string $messageType,
+        ?int $prestitoId,
+        ?string $requestId,
+        ?int $reservationId = null
+    ): void
+    {
+        $this->insertTransactionRecord($messageType, $prestitoId, $requestId, $reservationId);
+    }
+
+    private function insertTransactionRecord(
+        string $messageType,
+        ?int $prestitoId,
+        ?string $requestId,
+        ?int $reservationId
+    ): bool
     {
         $stmt = $this->db->prepare(
-            "INSERT INTO ncip_transactions (partner_id, message_type, prestito_id, request_id, status, created_at)
-             VALUES (?, ?, ?, ?, 'success', NOW())"
+            "INSERT INTO ncip_transactions
+                (partner_id, message_type, prestito_id, prenotazione_id, request_id, status, created_at)
+             VALUES (?, ?, ?, ?, ?, 'success', NOW())"
         );
-        if ($stmt === false) { return; }
-        $stmt->bind_param('isis', $this->currentPartnerId, $messageType, $prestitoId, $requestId);
-        $stmt->execute();
+        if ($stmt === false) {
+            return false;
+        }
+        $partnerId = $this->currentPartnerId;
+        $stmt->bind_param('isiis', $partnerId, $messageType, $prestitoId, $reservationId, $requestId);
+        $ok = $stmt->execute();
         $stmt->close();
+        return $ok;
     }
 
     /**

@@ -16,7 +16,8 @@ Circulation fixes. A request for a book that is currently out no longer fails on
 
 ### Internal
 
-- New behavioural coverage for the reservation-routing gate, the three copy-selection sites (I1 preceding-dependency and I3 future-commitment ordering) and the soft-deleted-book pickup notification, each driving the real controllers against a seeded database and failing on the pre-fix code by design.
+- The reservation-vs-loan decision now lives in a single shared `LoanRequestGate` that **every** public request entry point routes through (the book-detail modal, `POST /user/loan`, and the NCIP `RequestItem` service), so the #384 contract can never diverge between paths. NCIP `RequestItem` creates a real FIFO reservation when no copy is assignable instead of a bare pending request; `ncip_transactions` gains a `prenotazione_id` audit link (added to existing installs by the plugin schema self-heal), and `CancelRequestItem` cancels the linked reservation, reorders the queue and runs any promotions. Bundled ncip-server plugin bumped to 1.0.4.
+- New behavioural coverage for the reservation-routing gate, the three copy-selection sites (I1 preceding-dependency and I3 future-commitment ordering), the soft-deleted-book pickup notification and the NCIP request/cancel lifecycle, each driving the real controllers against a seeded database and failing on the pre-fix code by design.
 
 ## [0.7.67]
 

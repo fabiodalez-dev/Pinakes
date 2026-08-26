@@ -18,10 +18,12 @@ final class LoanRequestGateResult
         /** The prenotazioni.attiva row created when outcome is RESERVED, else null. */
         public readonly ?int $reservationId,
         /**
-         * The in-library copy (already locked FOR UPDATE) that can serve the
-         * requested window without depending on a preceding return, or null.
-         * Only meaningful when outcome is LOAN; callers that auto-approve may
-         * pre-bind it to the pending row to close the post-commit race.
+         * The in-library copy locked FOR UPDATE that can serve the requested
+         * window without depending on a preceding return. Non-null only when
+         * route() runs inside the caller's transaction: that caller still owns
+         * the lock and may pre-bind the id before commit. Standalone routing
+         * commits its own transaction and deliberately returns null here rather
+         * than exposing a stale, no-longer-locked claim.
          */
         public readonly ?int $assignableCopyId,
         /** False only for legacy aggregate-only books with no `copie` rows (I6). */

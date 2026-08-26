@@ -69,7 +69,20 @@ $reservationsController = auditRead($root . '/app/Controllers/ReservationsContro
 auditOk(
     str_contains($reservationsController, '$preassignedCopyId = $autoApproveEnabled ? $assignableCopyId : null')
         && str_contains($reservationsController, '(libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)'),
-    'auto-approved requests persist a copy-bound hold before commit'
+    'createReservation auto-approved requests persist a copy-bound hold before commit'
+);
+$userActionsController = auditRead($root . '/app/Controllers/UserActionsController.php');
+$userActionsPreclaimPos = strpos($userActionsController, '$preassignedCopyId = $autoApproveEnabled');
+$userActionsCommitAfterPreclaim = $userActionsPreclaimPos !== false
+    ? strpos($userActionsController, '$db->commit();', $userActionsPreclaimPos)
+    : false;
+auditOk(
+    str_contains($userActionsController, '$preassignedCopyId = $autoApproveEnabled ? $routing->assignableCopyId : null')
+        && str_contains($userActionsController, '(libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo)')
+        && $userActionsPreclaimPos !== false
+        && $userActionsCommitAfterPreclaim !== false
+        && $userActionsPreclaimPos < $userActionsCommitAfterPreclaim,
+    'POST /user/loan auto-approved requests persist the gate-selected copy before commit'
 );
 
 $ai = auditRead($root . '/storage/plugins/book-club/src/AiService.php');

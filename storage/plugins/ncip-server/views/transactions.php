@@ -66,6 +66,7 @@ foreach ($partners as $p) {
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Tipo Messaggio") ?></th>
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Partner") ?></th>
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("ID Prestito") ?></th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("ID Prenotazione") ?></th>
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("ID Richiesta") ?></th>
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Stato") ?></th>
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Data") ?></th>
@@ -90,6 +91,9 @@ foreach ($partners as $p) {
               </td>
               <td class="px-5 py-3 text-sm text-gray-600 dark:text-gray-300 font-mono">
                 <?= (int) ($tx['prestito_id'] ?? 0) ?: '—' ?>
+              </td>
+              <td class="px-5 py-3 text-sm text-gray-600 dark:text-gray-300 font-mono">
+                <?= (int) ($tx['prenotazione_id'] ?? 0) ?: '—' ?>
               </td>
               <td class="px-5 py-3 text-sm text-gray-500 dark:text-gray-400 font-mono max-w-xs truncate">
                 <?= htmlspecialchars((string) ($tx['request_id'] ?? '—'), ENT_QUOTES, 'UTF-8') ?>

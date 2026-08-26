@@ -37,7 +37,9 @@ use App\Support\DateHelper;
  * $inCallerTransaction=true the gate NEVER commits or rolls back: the row
  * locks it takes and the reservation it may insert stay inside the caller's
  * transaction. With false it opens, commits and (on failure) rolls back its
- * own transaction, acquiring the canonical book lock itself.
+ * own transaction, acquiring the canonical book lock itself. A standalone
+ * OUTCOME_LOAN is decision-only: commit releases the copy lock, so its result
+ * intentionally carries no assignableCopyId claim.
  */
 final class LoanRequestGate
 {
@@ -127,6 +129,10 @@ final class LoanRequestGate
 
             if ($ownTransaction) {
                 $this->db->commit();
+                // The commit releases the selected copy's FOR UPDATE lock. Do
+                // not export its id as a safe claim: a standalone caller must
+                // reroute inside the transaction that persists its loan.
+                $assignableCopyId = null;
             }
             return new LoanRequestGateResult(self::OUTCOME_LOAN, null, $assignableCopyId, $hasPhysicalCopies);
         } catch (\Throwable $e) {

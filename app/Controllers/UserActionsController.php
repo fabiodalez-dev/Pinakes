@@ -661,11 +661,39 @@ class UserActionsController
                 }
             }
 
-            // Always create the canonical pending request first. When automatic
-            // approval is enabled, the same race-safe approval controller used by
-            // admins promotes it immediately after request creation.
-            $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'pendente', 0)");
-            $stmt->bind_param('iiss', $libroId, $utenteId, $data_prestito, $data_scadenza);
+            // Capture the setting while the canonical book/copy locks are still
+            // held. With automatic approval enabled, persist the exact copy
+            // selected by LoanRequestGate in the pending row BEFORE commit: the
+            // copy-bound pending is canonical capacity, so a concurrent request
+            // cannot pass the gate in the post-commit approval window. This is
+            // the same claim protocol used by ReservationsController.
+            $autoApproveEnabled = false;
+            try {
+                $autoApproveEnabled = (new \App\Models\SettingsRepository($db))->autoApproveLoanRequests();
+            } catch (\Throwable $settingError) {
+                SecureLogger::warning('Automatic-loan setting unavailable; request left for manual approval', [
+                    'book_id' => $libroId,
+                    'user_id' => $utenteId,
+                    'error' => $settingError->getMessage(),
+                ]);
+            }
+
+            $preassignedCopyId = $autoApproveEnabled ? $routing->assignableCopyId : null;
+            if ($preassignedCopyId !== null) {
+                $stmt = $db->prepare("
+                    INSERT INTO prestiti
+                        (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo)
+                    VALUES (?, ?, ?, ?, ?, 'pendente', 0)
+                ");
+                $stmt->bind_param('iiiss', $libroId, $preassignedCopyId, $utenteId, $data_prestito, $data_scadenza);
+            } else {
+                $stmt = $db->prepare("
+                    INSERT INTO prestiti
+                        (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo)
+                    VALUES (?, ?, ?, ?, 'pendente', 0)
+                ");
+                $stmt->bind_param('iiss', $libroId, $utenteId, $data_prestito, $data_scadenza);
+            }
 
             if (!$stmt->execute()) {
                 $stmt->close();
@@ -675,6 +703,13 @@ class UserActionsController
 
             $newLoanId = (int) $db->insert_id;
             $stmt->close();
+
+            if ($preassignedCopyId !== null) {
+                $integrity = new \App\Support\DataIntegrity($db);
+                if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after automatic copy claim.');
+                }
+            }
             $db->commit();
 
             // Promote immediately before performing slower email I/O, minimizing
@@ -682,14 +717,14 @@ class UserActionsController
             // same copy. The canonical approval path re-checks every constraint.
             // ?string: the persisted state ('prenotato'/'da_ritirare') on
             // success, null when the request stays pending.
-            $autoApproved = $this->autoApproveLoanRequest($request, $db, $newLoanId);
+            $autoApproved = $this->autoApproveLoanRequest($request, $db, $newLoanId, $autoApproveEnabled);
 
             // A successfully auto-approved request no longer needs admin action.
             // Emitting the old "new request" notification here left a stale
             // approval link pointing at a loan that was already da_ritirare.
             if (!$autoApproved) {
                 try {
-                    $notificationService = new \App\Support\NotificationService($db);
+                    $notificationService = $this->createNotificationService($db);
                     $notificationService->notifyLoanRequest($newLoanId);
                 } catch (\Throwable $e) {
                     SecureLogger::warning(__('Notifica richiesta prestito fallita'), ['error' => $e->getMessage()]);
@@ -886,16 +921,22 @@ class UserActionsController
      * A failure deliberately leaves the request pending, so an administrator can
      * still process it instead of losing an otherwise valid request.
      */
-    private function autoApproveLoanRequest(Request $request, mysqli $db, int $loanId): ?string
+    private function autoApproveLoanRequest(
+        Request $request,
+        mysqli $db,
+        int $loanId,
+        ?bool $knownEnabled = null
+    ): ?string
     {
-        // The settings read runs INSIDE the try: this helper is called AFTER the
-        // request is committed, so a DB hiccup in the SettingsRepository lookup
-        // must degrade to "left pending" (return null) rather than escape to the
-        // outer transaction catch, which would roll back and report a failure for
-        // an already durable request.
+        // The normal request path captures the setting under the book lock and
+        // passes it in $knownEnabled, keeping its pre-commit copy claim and its
+        // post-commit approval decision identical. Legacy/reflection callers may
+        // omit it; their settings read remains inside this try so a DB hiccup
+        // degrades to "left pending" instead of escaping after the durable INSERT.
         try {
-            $settings = new \App\Models\SettingsRepository($db);
-            if (!$settings->autoApproveLoanRequests()) {
+            $enabled = $knownEnabled
+                ?? (new \App\Models\SettingsRepository($db))->autoApproveLoanRequests();
+            if (!$enabled) {
                 // A disabled setting is not a failure: leave the request pending
                 // for an admin without logging any warning noise.
                 return null;
@@ -932,6 +973,16 @@ class UserActionsController
         }
 
         return null;
+    }
+
+    /**
+     * Factory seam for request notifications. Production receives the normal
+     * service; DB-backed controller tests override it with a no-op so exercising
+     * the manual queue never contacts an external mail transport.
+     */
+    protected function createNotificationService(mysqli $db): \App\Support\NotificationService
+    {
+        return new \App\Support\NotificationService($db);
     }
 
     /**

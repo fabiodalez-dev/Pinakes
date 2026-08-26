@@ -144,11 +144,17 @@ if (!$ncip) {
     // integrity), original active flag + version, and — if it was inactive —
     // the hooks our activation registered.
     $restores[] = function (mysqli $db) use ($ncipId, $ncipActive0, $ncipVersion0): void {
+        if (!$db->query("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ncip_transactions' AND COLUMN_NAME='prenotazione_id'")->num_rows) {
+            @$db->query('ALTER TABLE ncip_transactions ADD COLUMN prenotazione_id INT NULL AFTER prestito_id');
+        }
         if (!$db->query("SELECT 1 FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ncip_transactions' AND COLUMN_NAME='partner_id' AND REFERENCED_TABLE_NAME='ncip_partners'")->num_rows) {
             @$db->query("ALTER TABLE ncip_transactions ADD CONSTRAINT ncip_transactions_ibfk_1 FOREIGN KEY (partner_id) REFERENCES ncip_partners (id) ON DELETE SET NULL");
         }
         if (!$db->query("SELECT 1 FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ncip_transactions' AND COLUMN_NAME='prestito_id' AND REFERENCED_TABLE_NAME='prestiti'")->num_rows) {
             @$db->query("ALTER TABLE ncip_transactions ADD CONSTRAINT ncip_transactions_ibfk_2 FOREIGN KEY (prestito_id) REFERENCES prestiti (id) ON DELETE SET NULL");
+        }
+        if (!$db->query("SELECT 1 FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ncip_transactions' AND COLUMN_NAME='prenotazione_id' AND REFERENCED_TABLE_NAME='prenotazioni'")->num_rows) {
+            @$db->query("ALTER TABLE ncip_transactions ADD CONSTRAINT ncip_transactions_ibfk_3 FOREIGN KEY (prenotazione_id) REFERENCES prenotazioni (id) ON DELETE SET NULL");
         }
         if ($ncipActive0 === 0) {
             $db->query("DELETE FROM plugin_hooks WHERE plugin_id={$ncipId}");
@@ -162,24 +168,34 @@ if (!$ncip) {
     $runSync();
     check($fkExists('ncip_transactions', 'partner_id', 'ncip_partners'), 'A01 baseline: ncip FK partner_id present');
     check($fkExists('ncip_transactions', 'prestito_id', 'prestiti'), 'A02 baseline: ncip FK prestito_id present');
+    check($columnExists('ncip_transactions', 'prenotazione_id'), 'A03 baseline: ncip reservation audit column present');
+    check($fkExists('ncip_transactions', 'prenotazione_id', 'prenotazioni'), 'A04 baseline: ncip FK prenotazione_id present');
 
-    // Break: drop both FKs, pin version == disk (the stale-class upgrade state),
+    // Break: drop all FKs, pin version == disk (the stale-class upgrade state),
     // keep active + hooks. Pre-fix, the same-version branch skips ensureSchema.
     @$db->query("ALTER TABLE ncip_transactions DROP FOREIGN KEY ncip_transactions_ibfk_1");
     @$db->query("ALTER TABLE ncip_transactions DROP FOREIGN KEY ncip_transactions_ibfk_2");
+    @$db->query("ALTER TABLE ncip_transactions DROP FOREIGN KEY ncip_transactions_ibfk_3");
     $v = $db->real_escape_string($ncipDisk);
     $db->query("UPDATE plugins SET version='{$v}', is_active=1 WHERE id={$ncipId}");
-    check(!$fkExists('ncip_transactions', 'partner_id', 'ncip_partners'), 'A03 setup: FK partner_id dropped, version already == disk');
-    check(!$fkExists('ncip_transactions', 'prestito_id', 'prestiti'), 'A04 setup: FK prestito_id dropped');
-    check($hookCount($ncipId) > 0, 'A05 setup: ncip active with hooks present (stale-class scenario)');
+    check(!$fkExists('ncip_transactions', 'partner_id', 'ncip_partners'), 'A05 setup: FK partner_id dropped, version already == disk');
+    check(!$fkExists('ncip_transactions', 'prestito_id', 'prestiti'), 'A06 setup: FK prestito_id dropped');
+    check(!$fkExists('ncip_transactions', 'prenotazione_id', 'prenotazioni'), 'A07 setup: FK prenotazione_id dropped');
+    check($hookCount($ncipId) > 0, 'A08 setup: ncip active with hooks present (stale-class scenario)');
 
     $runSync();
-    check($fkExists('ncip_transactions', 'partner_id', 'ncip_partners'), 'A06 same-version sync SELF-HEALS ncip FK partner_id (the bibliodoc bug)');
-    check($fkExists('ncip_transactions', 'prestito_id', 'prestiti'), 'A07 same-version sync SELF-HEALS ncip FK prestito_id');
+    check($fkExists('ncip_transactions', 'partner_id', 'ncip_partners'), 'A09 same-version sync SELF-HEALS ncip FK partner_id (the bibliodoc bug)');
+    check($fkExists('ncip_transactions', 'prestito_id', 'prestiti'), 'A10 same-version sync SELF-HEALS ncip FK prestito_id');
+    check($fkExists('ncip_transactions', 'prenotazione_id', 'prenotazioni'), 'A11 same-version sync SELF-HEALS ncip FK prenotazione_id');
 
     // Idempotent: a second sync on a healthy schema is a no-op.
     $runSync();
-    check($fkExists('ncip_transactions', 'partner_id', 'ncip_partners'), 'A08 idempotent: FKs intact after a second sync');
+    check(
+        $fkExists('ncip_transactions', 'partner_id', 'ncip_partners')
+            && $fkExists('ncip_transactions', 'prestito_id', 'prestiti')
+            && $fkExists('ncip_transactions', 'prenotazione_id', 'prenotazioni'),
+        'A12 idempotent: all FKs intact after a second sync'
+    );
 }
 
 /* ================= Scenario B — digital-library columns ================= */
