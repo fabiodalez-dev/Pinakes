@@ -30,6 +30,33 @@ auditOk($loopback === ['ok' => false, 'status' => 0, 'body' => ''], 'HttpClient 
 $private = \App\Support\HttpClient::get('https://10.0.0.1/test', [], ['ssrf_guard' => true]);
 auditOk($private === ['ok' => false, 'status' => 0, 'body' => ''], 'HttpClient blocks RFC1918 targets');
 
+// #382 / PR #383 review follow-up: author-photo downloads must be bounded
+// during transfer, not merely checked after the entire body is in memory.
+$authors = auditRead($root . '/app/Controllers/AutoriController.php');
+$httpClient = auditRead($root . '/app/Support/HttpClient.php');
+auditOk(
+    str_contains($authors, "'max_bytes'    => 5 * 1024 * 1024"),
+    'author URL download passes the 5 MB transfer cap'
+);
+auditOk(
+    str_contains($httpClient, 'RequestOptions::PROGRESS')
+        && str_contains($httpClient, 'downloaded body exceeds max_bytes'),
+    'HttpClient aborts an in-progress response after max_bytes'
+);
+
+// #381 / PR #383 review follow-up: every caller, including an API request that
+// omits `reason`, must receive neutral cancellation wording.
+$loanSwal = auditRead($root . '/app/Views/partials/loan-actions-swal.php');
+$notifications = auditRead($root . '/app/Support/NotificationService.php');
+auditOk(
+    str_contains($loanSwal, "'cancelPickupReason' => __('Ritiro annullato')"),
+    'pickup cancellation dialog submits a neutral reason'
+);
+auditOk(
+    str_contains($notifications, "'motivo' => \$reason ?: __('Ritiro annullato')"),
+    'pickup cancellation email fallback is neutral too'
+);
+
 $ai = auditRead($root . '/storage/plugins/book-club/src/AiService.php');
 $sru = auditRead($root . '/storage/plugins/z39-server/classes/SruClient.php');
 auditOk(substr_count($ai, "'ssrf_guard'      => true") === 1, 'Book Club enables the SSRF guard');

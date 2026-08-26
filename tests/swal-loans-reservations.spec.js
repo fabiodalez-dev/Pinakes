@@ -9,7 +9,7 @@
  *   - app/Views/prestiti/index.php            (approve/reject widget, export, pickup)
  *   - app/Views/prestiti/dettagli_prestito.php(approve/reject on details page)
  *   - app/Views/admin/pending_loans.php       (return + cancel-reservation toasts)
- *   - app/Views/partials/loan-actions-swal.php(cancel expired pickup)
+ *   - app/Views/partials/loan-actions-swal.php(cancel pickup, early + expired)
  *   - app/Views/user_dashboard/prenotazioni.php (review submit success/error/warning)
  *   - app/Views/profile/reservations.php      (review submit success/error)
  *
@@ -420,7 +420,34 @@ test.describe.serial('SweetAlert: loans & reservations cluster', () => {
     ).toBe('restituito:0');
   });
 
-  // partials/loan-actions-swal.php:286 (confirm-destructive cancel expired pickup)
+  // #381: a cancellation on the pickup deadline is voluntary/on-time, not an
+  // expiry. The new non-expired button must persist annullato, clear the
+  // deadline and release the copy.
+  test('pending dashboard: cancel non-expired pickup records annullato and frees the copy', async () => {
+    clearLoans();
+    const copia = makeCopy();
+    dbExec(`UPDATE copie SET stato = 'prenotato' WHERE id = ${copia}`);
+    const loanId = makeLoan({ stato: 'da_ritirare', attivo: 1, copiaId: copia });
+    dbExec(`UPDATE prestiti SET pickup_deadline = CURDATE() WHERE id = ${loanId}`);
+
+    await adminPage.goto(`${BASE}/admin/loans/pending`);
+    const cancelBtn = adminPage.locator(`.cancel-pickup-btn[data-loan-id="${loanId}"]`).first();
+    await expect(cancelBtn).toBeVisible({ timeout: 10000 });
+    await cancelBtn.click();
+
+    await adminPage.waitForSelector('.swal2-popup', { timeout: 8000 });
+    await expect(adminPage.locator('.swal2-popup')).not.toContainText('termine per il ritiro è scaduto');
+    await adminPage.locator('.swal2-confirm').click();
+
+    await adminPage.waitForSelector('.swal2-icon.swal2-success', { timeout: 12000 });
+    await expect.poll(
+      () => dbQuery(`SELECT CONCAT(stato, ':', attivo, ':', IF(pickup_deadline IS NULL, 'null', 'set')) FROM prestiti WHERE id = ${loanId}`),
+      { timeout: 10000 }
+    ).toBe('annullato:0:null');
+    expect(dbQuery(`SELECT stato FROM copie WHERE id = ${copia}`)).toBe('disponibile');
+  });
+
+  // partials/loan-actions-swal.php: cancel an actually expired pickup
   test('pending dashboard: cancel expired pickup shows warning confirm + expires loan', async () => {
     clearLoans();
     const copia = makeCopy();

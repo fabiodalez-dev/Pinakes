@@ -1831,7 +1831,10 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'motivo' => $reason ?: __('Ritiro non effettuato entro la scadenza')
+                // cancelPickup also serves voluntary, pre-deadline cancellations
+                // (#381): never invent an expired-deadline reason when callers do
+                // not provide one.
+                'motivo' => $reason ?: __('Ritiro annullato')
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_cancelled', $variables);

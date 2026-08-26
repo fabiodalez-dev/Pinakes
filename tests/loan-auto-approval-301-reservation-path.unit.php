@@ -15,6 +15,14 @@ declare(strict_types=1);
  *                    'da_ritirare' with a copy assigned, via the same
  *                    canonical approval pipeline as the admin button;
  *   - setting ON with no lendable copy → graceful: request left pending.
+ *   - a single copy physically out today → a real waitlist reservation is
+ *                    created for a date-disjoint future window (#384);
+ *   - multi-copy title with one free sibling → normal scheduling still works.
+ *   - an in-library `prenotato` copy with a disjoint future commitment remains
+ *                    assignable for an earlier loan;
+ *   - scheduled, awaiting-pickup and copy-bound pending commitments preceding
+ *                    the requested window → real waitlist reservation;
+ *   - multi-copy allocation prefers the sibling that needs no prior return.
  *
  * Run: php tests/loan-auto-approval-301-reservation-path.unit.php
  */
@@ -216,6 +224,104 @@ $loanField = static function (int $loanId, string $col) use ($db) {
     return $v;
 };
 
+$makeActiveLoan = static function (int $bookId, int $copyId, int $userId, string $start, string $end) use ($db): int {
+    $stmt = $db->prepare("
+        INSERT INTO prestiti
+            (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+        VALUES (?, ?, ?, ?, ?, 'in_corso', 'diretto', 1)
+    ");
+    $stmt->bind_param('iiiss', $bookId, $copyId, $userId, $start, $end);
+    $stmt->execute();
+    $loanId = (int) $db->insert_id;
+    $stmt->close();
+    $copyStmt = $db->prepare("UPDATE copie SET stato = 'prestato' WHERE id = ?");
+    $copyStmt->bind_param('i', $copyId);
+    $copyStmt->execute();
+    $copyStmt->close();
+    return $loanId;
+};
+
+$makeScheduledLoan = static function (int $bookId, int $copyId, int $userId, string $start, string $end) use ($db): int {
+    $stmt = $db->prepare("
+        INSERT INTO prestiti
+            (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+        VALUES (?, ?, ?, ?, ?, 'prenotato', 'diretto', 1)
+    ");
+    $stmt->bind_param('iiiss', $bookId, $copyId, $userId, $start, $end);
+    $stmt->execute();
+    $loanId = (int) $db->insert_id;
+    $stmt->close();
+    $copyStmt = $db->prepare("UPDATE copie SET stato = 'prenotato' WHERE id = ?");
+    $copyStmt->bind_param('i', $copyId);
+    $copyStmt->execute();
+    $copyStmt->close();
+    return $loanId;
+};
+
+$makeCopyBoundCommitment = static function (
+    int $bookId,
+    int $copyId,
+    int $userId,
+    string $start,
+    string $end,
+    string $state,
+    int $active
+) use ($db): int {
+    $stmt = $db->prepare("
+        INSERT INTO prestiti
+            (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+        VALUES (?, ?, ?, ?, ?, ?, 'prenotazione', ?)
+    ");
+    $stmt->bind_param('iiisssi', $bookId, $copyId, $userId, $start, $end, $state, $active);
+    $stmt->execute();
+    $loanId = (int) $db->insert_id;
+    $stmt->close();
+    $copyStmt = $db->prepare("UPDATE copie SET stato = 'prenotato' WHERE id = ?");
+    $copyStmt->bind_param('i', $copyId);
+    $copyStmt->execute();
+    $copyStmt->close();
+    return $loanId;
+};
+
+$copyIdsForBook = static function (int $bookId) use ($db): array {
+    $stmt = $db->prepare('SELECT id FROM copie WHERE libro_id = ? ORDER BY id');
+    $stmt->bind_param('i', $bookId);
+    $stmt->execute();
+    $ids = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'id'));
+    $stmt->close();
+    return $ids;
+};
+
+$reservationForUser = static function (int $bookId, int $userId) use ($db): ?array {
+    $stmt = $db->prepare("
+        SELECT id, stato, queue_position, data_inizio_richiesta, data_fine_richiesta
+        FROM prenotazioni
+        WHERE libro_id = ? AND utente_id = ?
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    $stmt->bind_param('ii', $bookId, $userId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc() ?: null;
+    $stmt->close();
+    return $row;
+};
+
+$openLoanCountForUser = static function (int $bookId, int $userId) use ($db): int {
+    $stmt = $db->prepare("
+        SELECT COUNT(*) AS n
+        FROM prestiti
+        WHERE libro_id = ? AND utente_id = ?
+          AND ((attivo = 0 AND stato = 'pendente')
+               OR (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')))
+    ");
+    $stmt->bind_param('ii', $bookId, $userId);
+    $stmt->execute();
+    $count = (int) ($stmt->get_result()->fetch_assoc()['n'] ?? 0);
+    $stmt->close();
+    return $count;
+};
+
 $settings = new SettingsRepository($db);
 
 // ── A. Setting OFF: the manual approval queue is preserved ──────────────────
@@ -285,7 +391,160 @@ $loanFutureId = (int) ($resFuture['payload']['loan_request_id'] ?? 0);
 $check($loanFutureId > 0 && $loanField($loanFutureId, 'stato') === 'prenotato', "21 loan persisted as 'prenotato' (scheduled)");
 $check($loanField($loanFutureId, 'pickup_deadline') === null, '22 scheduled loan has no pickup_deadline yet');
 
-// ── E. F007: a post-commit settings-read failure degrades to pending ────────
+// ── E. #384: a currently-out single copy creates a REAL reservation ────────
+// The requested future window starts the day after the contractual due date,
+// exactly like the reporter's screenshot. A due date is not a physical return:
+// the unified button must create prenotazioni.attiva, not a copy-less loan
+// request that bypasses the queue and cannot be approved while the copy is out.
+echo "E. #384: out single copy + date-disjoint future window → waitlist reservation\n";
+$settings->set('loans', 'auto_approve_requests', '1');
+$outBookId = $makeBook(1);
+$outCopyId = $copyIdsForBook($outBookId)[0];
+$currentBorrower = $makeUser();
+$currentDue = (new DateTimeImmutable($today))->modify('+3 days')->format('Y-m-d');
+$currentLoanId = $makeActiveLoan($outBookId, $outCopyId, $currentBorrower, $today, $currentDue);
+$waitingUser = $makeUser();
+$waitStart = (new DateTimeImmutable($currentDue))->modify('+1 day')->format('Y-m-d');
+$waitEnd = (new DateTimeImmutable($waitStart))->modify('+14 days')->format('Y-m-d');
+$resWait = $callCreate($outBookId, $waitingUser, $waitStart, $waitEnd);
+$check($resWait['status'] === 200 && ($resWait['payload']['success'] ?? false) === true, '23 out-copy submission is accepted as a reservation');
+$check(($resWait['payload']['status'] ?? '') === 'reserved' && ($resWait['payload']['auto_approved'] ?? null) === false, '24 response identifies a real waitlist reservation');
+$waitRow = $reservationForUser($outBookId, $waitingUser);
+$check(
+    $waitRow !== null
+        && (int) $waitRow['id'] === (int) ($resWait['payload']['reservation_id'] ?? 0)
+        && $waitRow['stato'] === 'attiva'
+        && (int) $waitRow['queue_position'] === 1,
+    '25 active FIFO reservation is persisted and returned in the payload'
+);
+$check(
+    $waitRow !== null
+        && $waitRow['data_inizio_richiesta'] === $waitStart
+        && $waitRow['data_fine_richiesta'] === $waitEnd,
+    '26 reservation preserves the requested future interval'
+);
+$check($openLoanCountForUser($outBookId, $waitingUser) === 0, '27 no pending loan request bypasses the reservation queue');
+$check(
+    $loanField($currentLoanId, 'stato') === 'in_corso'
+        && (int) $loanField($currentLoanId, 'attivo') === 1
+        && $db->query("SELECT stato FROM copie WHERE id = {$outCopyId}")->fetch_row()[0] === 'prestato',
+    '28 current loan and physically-out copy remain untouched'
+);
+$duplicateWait = $callCreate($outBookId, $waitingUser, $waitStart, $waitEnd);
+$check($duplicateWait['status'] === 400, '29 duplicate submission cannot create a second reservation or loan');
+
+// Multi-copy edge: one out copy must not force the whole title into the
+// waitlist while a genuinely free sibling can serve the future loan.
+echo "F. #384 multi-copy: free sibling preserves normal scheduling\n";
+$multiBookId = $makeBook(2);
+[$multiOutCopy, $multiFreeCopy] = $copyIdsForBook($multiBookId);
+$multiCurrentLoan = $makeActiveLoan($multiBookId, $multiOutCopy, $makeUser(), $today, $currentDue);
+$multiRequester = $makeUser();
+$resMulti = $callCreate($multiBookId, $multiRequester, $waitStart, $waitEnd);
+$check(($resMulti['payload']['status'] ?? '') === 'scheduled' && ($resMulti['payload']['auto_approved'] ?? false) === true, '30 free sibling keeps the auto-approved scheduled-loan flow');
+$multiLoanId = (int) ($resMulti['payload']['loan_request_id'] ?? 0);
+$check(
+    $multiLoanId > 0
+        && (int) $loanField($multiLoanId, 'copia_id') === $multiFreeCopy
+        && $loanField($multiLoanId, 'stato') === 'prenotato',
+    '31 scheduled loan binds only the genuinely free sibling'
+);
+$check(
+    $loanField($multiCurrentLoan, 'stato') === 'in_corso'
+        && (int) $loanField($multiCurrentLoan, 'copia_id') === $multiOutCopy,
+    '32 existing loan on the other copy remains intact'
+);
+$check($reservationForUser($multiBookId, $multiRequester) === null, '33 no waitlist row is created when a sibling is assignable');
+
+// A `prenotato` copy can still be physically in the library: if its future
+// commitment is date-disjoint, the canonical approval path deliberately lets
+// it serve an earlier loan. The #384 routing gate must mirror that behavior and
+// reserve only when the copy is out, period-conflicted, or requires a preceding
+// borrower to return it first.
+echo "G. #384 scheduled edge: in-library prenotato copy remains assignable\n";
+$scheduledBookId = $makeBook(1);
+$scheduledCopyId = $copyIdsForBook($scheduledBookId)[0];
+$laterStart = (new DateTimeImmutable($today))->modify('+15 days')->format('Y-m-d');
+$laterEnd = (new DateTimeImmutable($today))->modify('+30 days')->format('Y-m-d');
+$laterLoanId = $makeScheduledLoan($scheduledBookId, $scheduledCopyId, $makeUser(), $laterStart, $laterEnd);
+$earlierRequester = $makeUser();
+$earlierEnd = (new DateTimeImmutable($today))->modify('+14 days')->format('Y-m-d');
+$resEarlier = $callCreate($scheduledBookId, $earlierRequester, $today, $earlierEnd);
+$check(
+    ($resEarlier['payload']['status'] ?? '') === 'approved'
+        && ($resEarlier['payload']['auto_approved'] ?? false) === true,
+    '34 disjoint future commitment does not force the immediate request into the waitlist'
+);
+$earlierLoanId = (int) ($resEarlier['payload']['loan_request_id'] ?? 0);
+$check(
+    $earlierLoanId > 0
+        && (int) $loanField($earlierLoanId, 'copia_id') === $scheduledCopyId
+        && $loanField($earlierLoanId, 'stato') === 'da_ritirare',
+    '35 immediate loan reuses the in-library prenotato copy for the disjoint earlier window'
+);
+$check(
+    $loanField($laterLoanId, 'stato') === 'prenotato'
+        && (int) $loanField($laterLoanId, 'copia_id') === $scheduledCopyId,
+    '36 the existing future commitment remains scheduled on the same copy'
+);
+$check($reservationForUser($scheduledBookId, $earlierRequester) === null, '37 no waitlist row is created for a period-assignable in-library copy');
+
+// Temporal mirror: an in-library copy is NOT safe for a requested window that
+// follows an existing commitment. Serving that request would depend on the
+// earlier borrower returning on time, exactly the assumption rejected by #384.
+echo "H. #384 scheduled edge: a preceding commitment routes to the waitlist\n";
+$precedingBookId = $makeBook(1);
+$precedingCopyId = $copyIdsForBook($precedingBookId)[0];
+$precedingStart = (new DateTimeImmutable($today))->modify('+2 days')->format('Y-m-d');
+$precedingEnd = (new DateTimeImmutable($today))->modify('+5 days')->format('Y-m-d');
+$precedingLoanId = $makeScheduledLoan($precedingBookId, $precedingCopyId, $makeUser(), $precedingStart, $precedingEnd);
+$afterStart = (new DateTimeImmutable($today))->modify('+6 days')->format('Y-m-d');
+$afterEnd = (new DateTimeImmutable($today))->modify('+12 days')->format('Y-m-d');
+$afterRequester = $makeUser();
+$resAfter = $callCreate($precedingBookId, $afterRequester, $afterStart, $afterEnd);
+$check(($resAfter['payload']['status'] ?? '') === 'reserved', '38 request after a scheduled loan becomes a reservation');
+$check($reservationForUser($precedingBookId, $afterRequester) !== null, '39 the post-commitment waitlist row is persisted');
+$check($openLoanCountForUser($precedingBookId, $afterRequester) === 0, '40 no pending loan bypasses the preceding scheduled commitment');
+$check($loanField($precedingLoanId, 'stato') === 'prenotato', '41 the preceding scheduled loan remains untouched');
+
+// The same return dependency exists for an awaiting-pickup loan and for a
+// copy-bound conversion pending approval, even though both keep the physical
+// copy in `prenotato` rather than `prestato`.
+echo "I. #384 in-library holds: da_ritirare and bound pending route to waitlist\n";
+$pickupBookId = $makeBook(1);
+$pickupCopyId = $copyIdsForBook($pickupBookId)[0];
+$pickupCommitment = $makeCopyBoundCommitment($pickupBookId, $pickupCopyId, $makeUser(), $today, $currentDue, 'da_ritirare', 1);
+$pickupRequester = $makeUser();
+$resAfterPickup = $callCreate($pickupBookId, $pickupRequester, $waitStart, $waitEnd);
+$check(($resAfterPickup['payload']['status'] ?? '') === 'reserved', '42 request after da_ritirare becomes a reservation');
+$check($loanField($pickupCommitment, 'stato') === 'da_ritirare', '43 awaiting-pickup predecessor remains untouched');
+
+$pendingBookId = $makeBook(1);
+$pendingCopyId = $copyIdsForBook($pendingBookId)[0];
+$boundPending = $makeCopyBoundCommitment($pendingBookId, $pendingCopyId, $makeUser(), $today, $currentDue, 'pendente', 0);
+$pendingRequester = $makeUser();
+$resAfterPending = $callCreate($pendingBookId, $pendingRequester, $waitStart, $waitEnd);
+$check(($resAfterPending['payload']['status'] ?? '') === 'reserved', '44 request after a copy-bound pending conversion becomes a reservation');
+$check($loanField($boundPending, 'stato') === 'pendente', '45 copy-bound pending predecessor remains untouched');
+
+// Multi-copy: a tainted earlier commitment must not force a waitlist when a
+// clean sibling exists, and approval must bind that clean sibling rather than
+// selecting the lower-id date-disjoint predecessor copy.
+echo "J. #384 multi-copy allocation prefers a no-prior-return sibling\n";
+$safeBookId = $makeBook(2);
+[$priorCopyId, $safeCopyId] = $copyIdsForBook($safeBookId);
+$makeScheduledLoan($safeBookId, $priorCopyId, $makeUser(), $precedingStart, $precedingEnd);
+$safeRequester = $makeUser();
+$resSafe = $callCreate($safeBookId, $safeRequester, $afterStart, $afterEnd);
+$safeLoanId = (int) ($resSafe['payload']['loan_request_id'] ?? 0);
+$check(($resSafe['payload']['status'] ?? '') === 'scheduled', '46 clean sibling keeps the post-commitment request in the loan flow');
+$check(
+    $safeLoanId > 0 && (int) $loanField($safeLoanId, 'copia_id') === $safeCopyId,
+    '47 allocator binds the clean sibling, not the copy awaiting an earlier return'
+);
+$check($reservationForUser($safeBookId, $safeRequester) === null, '48 no waitlist row is created while a safe sibling exists');
+
+// ── K. F007: a post-commit settings-read failure degrades to pending ────────
 // The helper runs AFTER the request row is committed. If its SettingsRepository
 // read throws (e.g. the connection died in the post-commit window), the helper
 // must CATCH it and return null — so the endpoint reports pending_approval with
@@ -294,7 +553,7 @@ $check($loanField($loanFutureId, 'pickup_deadline') === null, '22 scheduled loan
 // guard would then permanently block the user's retry). Simulated by invoking
 // the private helper against a closed connection: pre-fix the settings read sat
 // OUTSIDE the try and this invoke would throw; post-fix it is caught → null.
-echo "E. F007: settings-read failure in the post-commit helper degrades to pending (never escapes)\n";
+echo "K. F007: settings-read failure in the post-commit helper degrades to pending (never escapes)\n";
 $deadDb = $socket !== '' && file_exists($socket)
     ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
     : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
@@ -310,8 +569,8 @@ try {
 } catch (\Throwable $e) {
     $faultThrew = true;
 }
-$check($faultThrew === false, '23 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
-$check($faultResult === null, '24 failed post-commit settings read degrades to null → pending_approval');
+$check($faultThrew === false, '49 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
+$check($faultResult === null, '50 failed post-commit settings read degrades to null → pending_approval');
 
 $cleanup();
 $db->close();

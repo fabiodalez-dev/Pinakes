@@ -459,9 +459,25 @@ class LoanApprovalController
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                         )
                     )
+                    -- Prefer a copy that does not depend on a preceding return.
+                    -- The unified book-page route (#384) only creates a loan
+                    -- request when such a copy exists; without this ordering a
+                    -- multi-copy approval could pass that gate and then bind a
+                    -- different, date-disjoint copy whose earlier borrower may
+                    -- return it late.
+                    ORDER BY EXISTS (
+                        SELECT 1 FROM prestiti prior
+                        WHERE prior.copia_id = c.id
+                          AND prior.id != ?
+                          AND prior.data_prestito <= ?
+                          AND (
+                              (prior.attivo = 1 AND prior.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                              OR (prior.attivo = 0 AND prior.stato = 'pendente' AND prior.copia_id IS NOT NULL)
+                          )
+                    ) ASC, c.id ASC
                     LIMIT 1
                 ");
-                $overlapStmt->bind_param('iiiisss', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito);
+                $overlapStmt->bind_param('iiiisssis', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito, $loanId, $dataScadenza);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
@@ -1141,7 +1157,9 @@ class LoanApprovalController
         $reason = $data['reason'] ?? '';
         $reason = is_scalar($reason) ? trim((string) $reason) : '';
         if ($reason === '') {
-            $reason = __('Ritiro non effettuato');
+            // The endpoint also handles a voluntary cancellation before the
+            // deadline (#381), so the default must not imply a missed pickup.
+            $reason = __('Ritiro annullato');
         }
         $reason = mb_substr($reason, 0, 500);
 
@@ -1189,7 +1207,7 @@ class LoanApprovalController
             // Poi lock + ri-verifica del prestito con le guardie di stato.
             // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today
             $stmt = $db->prepare("
-                SELECT id, libro_id, copia_id, utente_id, stato
+                SELECT id, libro_id, copia_id, utente_id, stato, pickup_deadline
                 FROM prestiti
                 WHERE id = ? AND attivo = 1
                 AND (stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= ?))
@@ -1223,21 +1241,30 @@ class LoanApprovalController
 
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
 
-            // Mark loan as expired (not picked up). Nota di audit + processed_by
-            // come per checkExpiredPickups/rejectLoan: senza, l'annullamento
-            // manuale dello staff e la scadenza automatica del cron sarebbero
-            // indistinguibili a posteriori.
+            // #381: a voluntary cancellation before (or on) the pickup deadline
+            // is `annullato`; only an actually elapsed deadline is `scaduto`.
+            // Keeping the two terminal outcomes distinct preserves history and
+            // reporting semantics (annullato = cancelled, scaduto = expired).
+            // Legacy rows without a deadline are necessarily treated as a manual
+            // cancellation because there is no expiry fact to assert.
+            $pickupDeadline = !empty($loan['pickup_deadline']) ? (string) $loan['pickup_deadline'] : null;
+            $terminalState = $pickupDeadline !== null && $pickupDeadline < $today
+                ? 'scaduto'
+                : 'annullato';
+
+            // Audit note + processed_by distinguish the staff action from the
+            // automatic expiry sweep even when the terminal state is scaduto.
             $cancelledBy = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
             $noteSuffix = "\n[Staff] " . __('Ritiro annullato il') . ' '
                 . implode('/', array_reverse(explode('-', $today))) . ' — ' . $reason;
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'scaduto', attivo = 0, pickup_deadline = NULL,
+                SET stato = ?, attivo = 0, pickup_deadline = NULL,
                     processed_by = COALESCE(?, processed_by),
                     note = CONCAT(COALESCE(note, ''), ?)
                 WHERE id = ?
             ");
-            $updateStmt->bind_param('isi', $cancelledBy, $noteSuffix, $loanId);
+            $updateStmt->bind_param('sisi', $terminalState, $cancelledBy, $noteSuffix, $loanId);
             $updateStmt->execute();
             $updateStmt->close();
 

@@ -2841,6 +2841,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrf = meta ? meta.getAttribute('content') : '';
     const successRangeTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     const successFootnote = <?php echo json_encode(__('Riceverai una conferma via email appena la richiesta sarà approvata.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    // #384: the unified calendar creates a real waitlist reservation when no
+    // physical copy is assignable now. Keep that outcome explicit instead of
+    // describing it as a loan request or an already-scheduled loan.
+    const reservationRangeTpl = <?php echo json_encode(__('Prenotazione dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const reservationTitle = <?php echo json_encode(__('Prenotazione effettuata con successo'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const reservationFootnote = <?php echo json_encode(__('La prenotazione resterà in coda finché una copia non sarà effettivamente disponibile.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     // #301: con l'auto-approvazione attiva il server risponde auto_approved=true
     // e il prestito è GIÀ in attesa di ritiro — il copy "appena sarà approvata"
     // sarebbe falso e l'utente aspetterebbe un'approvazione già avvenuta.
@@ -3138,7 +3144,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (res.ok && result.success) {
               await updateReservationsBadge();
               const effectiveEndDate = formValues.endDate || addDaysToIso(formValues.startDate, defaultRequestLoanDays);
-              const successHtml = successRangeTpl
+              const isWaitlistReservation = result.status === 'reserved';
+              const rangeTemplate = isWaitlistReservation ? reservationRangeTpl : successRangeTpl;
+              const successHtml = rangeTemplate
                 .replace('%1$s', formatDateIT(formValues.startDate))
                 .replace('%2$s', formatDateIT(effectiveEndDate));
 
@@ -3149,8 +3157,10 @@ document.addEventListener('DOMContentLoaded', function() {
               const approvedFootnoteText = isScheduled ? scheduledFootnote : approvedFootnote;
               Swal.fire({
                 icon: 'success',
-                title: isAutoApproved ? (isScheduled ? scheduledTitle : approvedTitle) : __('Richiesta Inviata!'),
-                html: `${successHtml}<br><small>${isAutoApproved ? approvedFootnoteText : successFootnote}</small>`
+                title: isWaitlistReservation
+                  ? reservationTitle
+                  : (isAutoApproved ? (isScheduled ? scheduledTitle : approvedTitle) : __('Richiesta Inviata!')),
+                html: `${successHtml}<br><small>${isWaitlistReservation ? reservationFootnote : (isAutoApproved ? approvedFootnoteText : successFootnote)}</small>`
               });
               return;
             } else {

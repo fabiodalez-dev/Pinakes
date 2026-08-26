@@ -204,14 +204,20 @@ class ReservationsController
     }
 
     /**
-     * Create a user loan REQUEST (D19 — name kept for route stability).
+     * Handle the unified loan/reservation calendar submission.
      *
-     * Despite the name, this writes a BARE `prestiti` row with stato='pendente'
-     * and origine='richiesta' and NO copia_id. Per the canonical occupancy model
-     * this *unbounded* request does NOT occupy capacity — only a period-bearing
-     * `prenotazioni` waitlist row (stato='attiva') occupies its promised period.
-     * It correctly runs a per-day capacity pre-check + a post-lock recheck before
-     * inserting. Do not confuse it with the waitlist (`prenotazioni`).
+     * If at least one physical copy is in the library and can serve the requested
+     * window without depending on a preceding return, create the normal bare loan
+     * request (`prestiti.pendente`) and optionally auto-approve it. If the title
+     * has physical copies but every copy is currently out or already committed,
+     * create a real period-bearing waitlist reservation
+     * (`prenotazioni.attiva`) instead (#384). A contractual due date is not proof
+     * that an out copy will actually be back, so such a request must not bypass
+     * the reservation queue merely because its future dates are disjoint.
+     *
+     * Legacy aggregate-only books intentionally keep the pending-loan fallback:
+     * without a `copie` row the reservation promotion pipeline can never bind a
+     * physical copy.
      */
     public function createReservation($request, $response, $args)
     {
@@ -398,7 +404,46 @@ class ReservationsController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
             }
 
-            // Enforce max active loans per user (admin setting; 0 = no limit)
+            // Re-check availability after acquiring the canonical book lock.
+            // The pre-lock check is only a fast fail; this one closes the race
+            // with returns, approvals, cancellations and other reservations.
+            if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
+                $postLockConflicts = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
+                $this->db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Nessuna copia disponibile nelle date richieste'),
+                    'conflict_dates' => $postLockConflicts
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // #384: the public button is deliberately unified (loan when a copy
+            // is in hand, reservation otherwise). Date-disjoint availability is
+            // not enough to promise an out copy: borrowers may return it late.
+            // With physical rows but no in-library copy that can serve the window
+            // without a preceding return, occupy the requested period through the
+            // real FIFO waitlist instead of committing a bare, capacity-free
+            // pending loan that an admin cannot safely approve.
+            if ($capacity->hasPhysicalCopies($bookId) && !$this->hasAssignableInLibraryCopyThrough($bookId, $endDate)) {
+                $reservationId = $this->createActiveReservation($bookId, $userId, $startDate, $endDate);
+                $this->db->commit();
+
+                $response->getBody()->write(json_encode([
+                    'success' => true,
+                    'message' => __('Prenotazione effettuata con successo'),
+                    'reservation_id' => $reservationId,
+                    'auto_approved' => false,
+                    'status' => 'reserved',
+                    'loan_state' => null,
+                ]));
+                return $response->withHeader('Content-Type', 'application/json');
+            }
+
+            // Enforce max active loans per user (admin setting; 0 = no limit).
+            // A real waitlist reservation is intentionally handled above: like
+            // UserActionsController::reserve(), it does not consume an active-
+            // loan slot until promotion.
             $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
                 $cntStmt = $this->db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
@@ -412,19 +457,6 @@ class ReservationsController
                     $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai raggiunto il numero massimo di prestiti attivi consentiti')]));
                     return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
                 }
-            }
-
-            // Re-check availability after acquiring lock to avoid races, through
-            // the same CapacityService gate as the pre-check.
-            if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
-                $postLockConflicts = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
-                $this->db->rollback();
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'message' => __('Nessuna copia disponibile nelle date richieste'),
-                    'conflict_dates' => $postLockConflicts
-                ]));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
             // Create pending loan request with origine='richiesta' (manual request from user)
@@ -501,6 +533,96 @@ class ReservationsController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore del server')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
+    }
+
+    /**
+     * True when a copy physically in the library can serve the requested period.
+     * `prenotato` is intentionally accepted only when every existing commitment
+     * starts after the requested period: the copy can serve the earlier window
+     * without depending on anybody returning it first. A preceding commitment,
+     * even when date-disjoint, routes to the waitlist for the same reason as a
+     * `prestato` copy (#384): its contractual due date is not a guaranteed return.
+     *
+     * The caller holds the book row lock, which serializes all canonical
+     * circulation writers for this title; FOR UPDATE also locks the chosen copy
+     * before the decision is used.
+     */
+    private function hasAssignableInLibraryCopyThrough(int $bookId, string $endDate): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT c.id
+            FROM copie c
+            WHERE c.libro_id = ?
+              AND c.stato IN ('disponibile', 'prenotato')
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM prestiti p
+                  WHERE p.copia_id = c.id
+                    AND p.data_prestito <= ?
+                    AND (
+                        (p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                        OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL)
+                    )
+              )
+            ORDER BY c.id
+            LIMIT 1
+            FOR UPDATE
+        ");
+        $stmt->bind_param('is', $bookId, $endDate);
+        $stmt->execute();
+        $available = $stmt->get_result()->fetch_assoc() !== null;
+        $stmt->close();
+        return $available;
+    }
+
+    /**
+     * Insert a real active waitlist reservation inside the caller transaction.
+     * The canonical book lock makes MAX(queue_position)+1 race-safe.
+     */
+    private function createActiveReservation(int $bookId, int $userId, string $startDate, string $endDate): int
+    {
+        $posStmt = $this->db->prepare("
+            SELECT COALESCE(MAX(queue_position), 0) + 1 AS pos
+            FROM prenotazioni
+            WHERE libro_id = ? AND stato = 'attiva'
+        ");
+        $posStmt->bind_param('i', $bookId);
+        $posStmt->execute();
+        $position = (int) ($posStmt->get_result()->fetch_assoc()['pos'] ?? 1);
+        $posStmt->close();
+
+        $startDateTime = $startDate . ' 00:00:00';
+        $endDateTime = $endDate . ' 23:59:59';
+        $stmt = $this->db->prepare("
+            INSERT INTO prenotazioni
+                (libro_id, utente_id, queue_position, stato,
+                 data_prenotazione, data_scadenza_prenotazione,
+                 data_inizio_richiesta, data_fine_richiesta)
+            VALUES (?, ?, ?, 'attiva', ?, ?, ?, ?)
+        ");
+        $stmt->bind_param(
+            'iiissss',
+            $bookId,
+            $userId,
+            $position,
+            $startDateTime,
+            $endDateTime,
+            $startDate,
+            $endDate
+        );
+        $stmt->execute();
+        $reservationId = (int) $this->db->insert_id;
+        $stmt->close();
+        if ($reservationId <= 0) {
+            throw new \RuntimeException('Failed to create the waitlist reservation.');
+        }
+
+        $integrity = new \App\Support\DataIntegrity($this->db);
+        if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
+            throw new \RuntimeException('Failed to recalculate availability after reservation creation.');
+        }
+
+        return $reservationId;
     }
 
     /**
