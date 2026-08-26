@@ -766,6 +766,34 @@ try {
 $check($faultThrew === false, '68 a settings-read failure is caught inside the helper (does not escape to the outer catch)');
 $check($faultResult === null, '69 failed post-commit settings read degrades to null → pending_approval');
 
+// ── O. #384 I1 (CodeRabbit): FIFO promotion refuses a copy with a PRECEDING
+// commitment. C1 carries a stale da_ritirare hold that ENDED before the
+// promotion window opens today, so its copy is still 'prenotato' yet its
+// future-commitment key equals the free C2's sentinel — ordering alone would
+// pick the lower id (C1). The prior-dependency NOT EXISTS, previously only in
+// the request gate and approval Step 2d, must now reject C1 so promotion binds
+// C2 and never makes the promoted hold depend on an earlier borrower returning.
+echo "O. #384 I1: FIFO promotion avoids a copy with a preceding commitment\n";
+$i1BookId = $makeBook(2);
+[$i1PrecedingCopyId, $i1FreeCopyId] = $copyIdsForBook($i1BookId);
+$i1StaleStart = (new DateTimeImmutable($today))->modify('-5 days')->format('Y-m-d');
+$i1StaleEnd = (new DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+$i1PrecedingLoanId = $makeCopyBoundCommitment($i1BookId, $i1PrecedingCopyId, $makeUser(), $i1StaleStart, $i1StaleEnd, 'da_ritirare', 1);
+$i1Owner = $makeUser();
+$i1OwnerEnd = (new DateTimeImmutable($today))->modify('+3 days')->format('Y-m-d');
+$makeActiveReservation($i1BookId, $i1Owner, $today, $i1OwnerEnd);
+$i1Promoted = (new ReservationManager($db))->processBookAvailability($i1BookId);
+$i1PromotedLoan = $openLoanForUser($i1BookId, $i1Owner);
+$check($i1Promoted === true, '70 the eligible FIFO reservation is promoted');
+$check(
+    $i1PromotedLoan !== null && (int) $i1PromotedLoan['copia_id'] === $i1FreeCopyId,
+    '71 FIFO promotion binds the free sibling, not the copy with a preceding hold'
+);
+$check(
+    (int) $loanField($i1PrecedingLoanId, 'copia_id') === $i1PrecedingCopyId,
+    '72 the preceding da_ritirare hold stays pinned to its original copy'
+);
+
 $cleanup();
 $db->close();
 echo "\n{$pass} checks passed\n";

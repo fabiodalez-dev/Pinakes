@@ -1819,11 +1819,12 @@ class NotificationService {
         ?string $pickupDeadline = null
     ): bool {
         try {
+            // CI-SOFT-DELETE-EXEMPT: this terminal pickup notice must reach the borrower even after the book was soft-deleted — cancelPickup() deliberately locks and closes the loan without a deleted_at filter, so the expired/cancelled email must still fire (same rationale as the overdue/expiry notices above).
             $stmt = $this->db->prepare("
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
