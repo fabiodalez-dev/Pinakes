@@ -6971,5 +6971,11 @@
   "Revisore": "Bearbeiter",
   "Salva espressione": "Expression speichern",
   "Eliminare questa espressione?": "Diese Expression löschen?",
-  "Aggiungi espressione": "Expression hinzufügen"
+  "Aggiungi espressione": "Expression hinzufügen",
+  "Annulla Ritiro": "Abholung stornieren",
+  "Annullare il ritiro?": "Abholung stornieren?",
+  "La copia tornerà disponibile per gli altri utenti. Vuoi annullare questo prestito?": "Das Exemplar wird wieder für andere Benutzer verfügbar. Möchten Sie diese Ausleihe stornieren?",
+  "Inserisci un URL immagine valido (https://).": "Geben Sie eine gültige Bild-URL ein (https://).",
+  "Impossibile scaricare l'immagine dall'URL indicato.": "Das Bild konnte von der angegebenen URL nicht heruntergeladen werden.",
+  "Impossibile elaborare l'immagine.": "Das Bild konnte nicht verarbeitet werden."
 }

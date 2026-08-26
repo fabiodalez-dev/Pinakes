@@ -19,8 +19,10 @@ $loanActionTranslations = array_merge([
     'confirmPickupText' => __('Questa azione conferma che l\'utente ha ritirato il libro.'),
     'pickupButton' => __('Conferma Ritiro'),
     'successPickupTitle' => __('Ritiro confermato!'),
-    'cancelPickupTitle' => __('Annullare il prestito scaduto?'),
-    'cancelPickupText' => __('Il termine per il ritiro è scaduto. Vuoi annullare questo prestito?'),
+    // Neutral wording: the cancel-pickup action now also serves a not-yet-expired
+    // pickup (#381), so the dialog must not assert the deadline has passed.
+    'cancelPickupTitle' => __('Annullare il ritiro?'),
+    'cancelPickupText' => __('La copia tornerà disponibile per gli altri utenti. Vuoi annullare questo prestito?'),
     'cancelPickupButton' => __('Annulla Prestito'),
     'cancelPickupReason' => __('Ritiro non effettuato entro il termine previsto'),
     'successCancelPickupTitle' => __('Prestito annullato!'),

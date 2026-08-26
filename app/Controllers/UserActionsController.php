@@ -140,13 +140,16 @@ class UserActionsController
         // — stesso pattern di cancelReservation qui sotto. Lockare prima la
         // riga prestiti incrocerebbe i lock con i percorsi di creazione/
         // approvazione (che vanno libri -> prestiti) causando deadlock.
-        // Note: 'pendente' has attivo=0, 'prenotato' has attivo=1
+        // Note: 'pendente' has attivo=0, 'prenotato'/'da_ritirare' have attivo=1.
+        // 'da_ritirare' (approved, waiting for pickup) must be user-cancellable too
+        // (#381): its copy is held in copie.stato='prenotato' exactly like a
+        // 'prenotato' loan, so the same release path below applies.
         $lookupStmt = $db->prepare("
             SELECT libro_id
             FROM prestiti
             WHERE id = ? AND utente_id = ? AND (
                 (attivo = 0 AND stato = 'pendente')
-                OR (attivo = 1 AND stato = 'prenotato')
+                OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
             )
         ");
         $lookupStmt->bind_param('ii', $loanId, $uid);
@@ -179,7 +182,7 @@ class UserActionsController
                 FROM prestiti
                 WHERE id = ? AND utente_id = ? AND (
                     (attivo = 0 AND stato = 'pendente')
-                    OR (attivo = 1 AND stato = 'prenotato')
+                    OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
                 )
                 FOR UPDATE
             ");
@@ -196,9 +199,12 @@ class UserActionsController
 
             // Mark as cancelled
             $cancelNote = "\n[User] Annullato dall'utente";
+            // pickup_deadline = NULL: a 'da_ritirare' loan carries a deadline;
+            // clear it on cancel so the expiry cron / PickupDeadlineBackfill (#366)
+            // cannot act on a dead deadline.
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'annullato', attivo = 0, updated_at = NOW(), note = CONCAT(COALESCE(note, ''), ?)
+                SET stato = 'annullato', attivo = 0, pickup_deadline = NULL, updated_at = NOW(), note = CONCAT(COALESCE(note, ''), ?)
                 WHERE id = ?
             ");
             $updateStmt->bind_param('si', $cancelNote, $loanId);
@@ -209,11 +215,13 @@ class UserActionsController
             // 'pendente' promosso dalla coda (attivo=0 con copia_id): prima solo
             // il ramo 'prenotato' riassegnava subito e la copia del pendente
             // annullato restava in attesa dello sweep di manutenzione.
-            if ($loan['copia_id'] && in_array((string) $loan['stato'], ['prenotato', 'pendente'], true)) {
+            if ($loan['copia_id'] && in_array((string) $loan['stato'], ['prenotato', 'pendente', 'da_ritirare'], true)) {
                 $copiaId = (int) $loan['copia_id'];
 
-                // Update copy status to available (if it was 'prenotato'; la copia
-                // di un pendente promosso resta 'disponibile' e l'UPDATE è no-op)
+                // Update copy status to available. Both 'prenotato' and 'da_ritirare'
+                // hold the copy in copie.stato='prenotato', so this guarded UPDATE
+                // frees it; a promoted 'pendente' keeps its copy 'disponibile' and
+                // the UPDATE is a no-op.
                 $copyStmt = $db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ? AND stato = 'prenotato'");
                 $copyStmt->bind_param('i', $copiaId);
                 $copyStmt->execute();

@@ -223,7 +223,8 @@ class AutoriController
      * `error` so the caller can surface it instead of silently saving no photo.
      *
      * @return array{foto: string, deleteOnSuccess: ?string, deleteOnFailure: ?string, error?: string}
-     *         foto = stored value (`/uploads/...` path, external `https?://` URL, or '')
+     *         foto = stored value (a local `/uploads/autori/...` path or '' — a
+     *         pasted URL is downloaded server-side, #382, never stored verbatim)
      */
     private function resolveAuthorPhoto(Request $request, array $data, string $existing): array
     {
@@ -245,48 +246,41 @@ class AutoriController
             } catch (\Throwable $e) {
                 $bytes = '';
             }
-            // SECURITY: never trust the client-supplied MIME — validate the real
-            // bytes and derive the extension from the detected type.
-            $info = ($bytes !== '' && strlen($bytes) <= 5 * 1024 * 1024)
-                ? @getimagesizefromstring($bytes) : false;
-            $detected = is_array($info) ? (string) $info['mime'] : '';
-            $allowed = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'];
-            if (!isset($allowed[$detected])) {
-                return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
-                        'error' => __('Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.')];
-            }
-            $dir = dirname(__DIR__, 2) . '/public/uploads/autori';
-            if (!is_dir($dir)) {
-                @mkdir($dir, 0775, true);
-            }
-            $name = 'autore_' . bin2hex(random_bytes(8)) . '.' . $allowed[$detected];
-            $dest = $dir . '/' . $name;
-            // Re-encode through GD to strip any embedded payload (mirrors cover handling).
-            if (!$this->reencodeAuthorPhoto($bytes, $detected, $dest)) {
-                \App\Support\SecureLogger::error('Author photo re-encode failed (unsupported or corrupt image)');
-                return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
-                        'error' => __('Impossibile elaborare l\'immagine caricata.')];
-            }
-            @chmod($dest, 0644);
-            $stored = '/uploads/autori/' . $name;
-            return [
-                'foto' => $stored,
-                'deleteOnSuccess' => ($existing !== '' && $existing !== $stored) ? $existing : null,
-                'deleteOnFailure' => $stored, // remove this fresh upload if the DB write fails
-            ];
+            // SECURITY: never trust the client-supplied MIME. The shared helper
+            // validates the real bytes (size/format/pixels), re-encodes via GD to
+            // strip any embedded payload, and stores under /uploads/autori.
+            return $this->storeAuthorPhotoBytes($bytes, $existing);
         }
 
-        // 2) A pasted URL takes priority over the remove flag too.
+        // 2) A pasted URL. #382: download it server-side and store a local
+        //    /uploads/autori file. Storing the external URL verbatim left the
+        //    <img> blocked by the app CSP img-src (external hosts are not
+        //    allow-listed), so the photo never displayed. Serving it same-origin
+        //    also fixes mixed-content (http image on an https page) and remote
+        //    hotlink protection.
         $urlRaw = trim((string) ($data['foto_url'] ?? ''));
         if ($urlRaw !== '') {
             if (!filter_var($urlRaw, FILTER_VALIDATE_URL)) {
                 $urlRaw = 'https://' . ltrim($urlRaw, '/');
             }
-            if (filter_var($urlRaw, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $urlRaw) === 1) {
-                // Switching from a local file to a URL: drop the file only after the DB write.
-                $deleteOld = ($urlRaw !== $existing) ? $existing : null;
-                return ['foto' => $urlRaw, 'deleteOnSuccess' => $deleteOld, 'deleteOnFailure' => null];
+            if (!filter_var($urlRaw, FILTER_VALIDATE_URL) || preg_match('#^https://#i', $urlRaw) !== 1) {
+                return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
+                        'error' => __('Inserisci un URL immagine valido (https://).')];
             }
+            // Full SSRF guard via HttpClient: the host must resolve to a public
+            // IP, the connection is pinned to it (CURLOPT_RESOLVE, DNS-rebind
+            // safe), and cross-host/scheme/port redirects are rejected. HTTPS-only,
+            // mirroring the book-cover download boundary.
+            $res = \App\Support\HttpClient::get($urlRaw, [], [
+                'ssrf_guard'   => true,
+                'https_only'   => true,
+                'max_redirects' => 3,
+            ]);
+            if (empty($res['ok']) || (int) $res['status'] < 200 || (int) $res['status'] >= 300 || (string) $res['body'] === '') {
+                return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
+                        'error' => __('Impossibile scaricare l\'immagine dall\'URL indicato.')];
+            }
+            return $this->storeAuthorPhotoBytes((string) $res['body'], $existing);
         }
 
         // 3) No new photo data → apply the remove flag as a fallback.
@@ -295,6 +289,57 @@ class AutoriController
         }
 
         return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null]; // unchanged
+    }
+
+    /**
+     * Validate raw image bytes (real MIME, size, pixel count), re-encode through
+     * GD to public/uploads/autori, and return the resolveAuthorPhoto() result
+     * shape. Shared by the upload branch and the download-by-URL branch (#382) so
+     * a pasted URL is stored as a same-origin local file with the SAME guards as
+     * an upload. A rejected image returns an `error` (never a silent no-photo).
+     *
+     * @return array{foto: string, deleteOnSuccess: ?string, deleteOnFailure: ?string, error?: string}
+     */
+    private function storeAuthorPhotoBytes(string $bytes, string $existing): array
+    {
+        if ($bytes === '' || strlen($bytes) > 5 * 1024 * 1024) {
+            return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
+                    'error' => __('La foto supera la dimensione massima di 5 MB.')];
+        }
+        // SECURITY: derive the type from the real bytes, never a client-supplied MIME.
+        $info = @getimagesizefromstring($bytes);
+        $detected = is_array($info) ? (string) $info['mime'] : '';
+        $allowed = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        if (!isset($allowed[$detected])) {
+            return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
+                    'error' => __('Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.')];
+        }
+        // Reject oversized images BEFORE the GD decode (OOM/DoS guard, mirrors
+        // covers). Reaching here implies $info is the getimagesizefromstring array.
+        $w = (int) $info[0];
+        $h = (int) $info[1];
+        if ($w <= 0 || $h <= 0 || ($w * $h) > 20_000_000) {
+            return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
+                    'error' => __('Immagine troppo grande da processare.')];
+        }
+        $dir = dirname(__DIR__, 2) . '/public/uploads/autori';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        $name = 'autore_' . bin2hex(random_bytes(8)) . '.' . $allowed[$detected];
+        $dest = $dir . '/' . $name;
+        if (!$this->reencodeAuthorPhoto($bytes, $detected, $dest)) {
+            \App\Support\SecureLogger::error('Author photo re-encode failed (unsupported or corrupt image)');
+            return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
+                    'error' => __('Impossibile elaborare l\'immagine.')];
+        }
+        @chmod($dest, 0644);
+        $stored = '/uploads/autori/' . $name;
+        return [
+            'foto' => $stored,
+            'deleteOnSuccess' => ($existing !== '' && $existing !== $stored) ? $existing : null,
+            'deleteOnFailure' => $stored, // remove this fresh file if the DB write fails
+        ];
     }
 
     /**
