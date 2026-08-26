@@ -6,7 +6,9 @@
 //   - replacing a local photo drops the OLD file only AFTER the DB write (deferred
 //     cleanup), never leaving the row pointing at a deleted file;
 //   - a non-image masquerading as .png is REJECTED (photo unchanged, no orphan);
-//   - an external https URL is stored verbatim (preview must not url()-wrap it);
+//   - an external https URL is DOWNLOADED server-side and stored as a local
+//     /uploads/autori path (#382: the app CSP img-src blocks external hosts, so
+//     the raw URL is never kept verbatim — it is served same-origin);
 //   - the "remove" action clears the photo and deletes the local file;
 //   - posting an update for a non-existent author returns 404 (no masked redirect).
 const { test, expect } = require('@playwright/test');
@@ -118,21 +120,28 @@ test.describe('#163 — author photo lifecycle (CodeRabbit-hardened)', () => {
     expect(afterCount).toBe(beforeCount); // no orphan written
   });
 
-  test('4. external https URL is stored verbatim and the local file is dropped', async () => {
+  test('4. external https URL is downloaded to /uploads/autori and served same-origin (#382)', async () => {
     const localBefore = fotoOf(authorId);
     const localDisk = diskPathOf(localBefore);
-    const ext = 'https://upload.wikimedia.org/wikipedia/commons/a/a0/example.jpg';
+    // A real, stable public HTTPS image (reachable from CI, like the ISBN-scrape
+    // phase). The pasted URL must be downloaded server-side, not kept verbatim:
+    // the app CSP img-src does not allow-list external hosts, so a raw external
+    // <img src> would silently not render.
+    const ext = 'https://raw.githubusercontent.com/fabiodalez-dev/Pinakes/main/docs/catalog.png';
     await openEdit();
     await page.fill('#foto_url', ext);
     await saveEdit();
-    expect(fotoOf(authorId)).toBe(ext);
-    if (localBefore.startsWith('/uploads/autori/')) {
-      expect(fs.existsSync(localDisk)).toBe(false); // switching to URL removed the local file
+    const stored = fotoOf(authorId);
+    expect(stored.startsWith('/uploads/autori/')).toBe(true); // downloaded, not the raw URL
+    expect(stored).not.toBe(ext);
+    if (localBefore.startsWith('/uploads/autori/') && localBefore !== stored) {
+      expect(fs.existsSync(localDisk)).toBe(false); // the previous local file was dropped
     }
-    // preview must use the URL directly, not url()-wrapped
+    // preview must render the stored LOCAL path (same-origin), never the external URL
     await openEdit();
     const src = await page.locator('#author-photo-current img').getAttribute('src');
-    expect(src).toBe(ext);
+    expect(src).toContain('/uploads/autori/');
+    expect(src).not.toBe(ext);
   });
 
   test('5. "remove photo" clears the stored value', async () => {

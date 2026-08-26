@@ -6971,5 +6971,11 @@
   "Revisore": "Revisor",
   "Salva espressione": "Gem udtryk",
   "Eliminare questa espressione?": "Slet dette udtryk?",
-  "Aggiungi espressione": "Tilføj udtryk"
+  "Aggiungi espressione": "Tilføj udtryk",
+  "Annulla Ritiro": "Annullér afhentning",
+  "Annullare il ritiro?": "Vil du annullere afhentningen?",
+  "La copia tornerà disponibile per gli altri utenti. Vuoi annullare questo prestito?": "Eksemplaret bliver tilgængeligt igen for andre brugere. Vil du annullere dette udlån?",
+  "Inserisci un URL immagine valido (https://).": "Indtast en gyldig billed-URL (https://).",
+  "Impossibile scaricare l'immagine dall'URL indicato.": "Billedet kunne ikke hentes fra den angivne URL.",
+  "Impossibile elaborare l'immagine.": "Billedet kunne ikke behandles."
 }

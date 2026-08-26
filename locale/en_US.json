@@ -6971,5 +6971,11 @@
   "Revisore": "Reviser",
   "Salva espressione": "Save expression",
   "Eliminare questa espressione?": "Delete this expression?",
-  "Aggiungi espressione": "Add expression"
+  "Aggiungi espressione": "Add expression",
+  "Annulla Ritiro": "Cancel Pickup",
+  "Annullare il ritiro?": "Cancel the pickup?",
+  "La copia tornerà disponibile per gli altri utenti. Vuoi annullare questo prestito?": "The copy will become available again for other users. Do you want to cancel this loan?",
+  "Inserisci un URL immagine valido (https://).": "Enter a valid image URL (https://).",
+  "Impossibile scaricare l'immagine dall'URL indicato.": "Could not download the image from the given URL.",
+  "Impossibile elaborare l'immagine.": "Could not process the image."
 }
