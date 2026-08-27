@@ -30,10 +30,13 @@ opcache.revalidate_freq=2
 ; pipeline guarantees that invalidation.
 opcache.validate_timestamps=1
 
-; JIT: intentionally NOT enabled here. It is off by default (opcache.jit_buffer_size=0)
-; and Pinakes is DB/IO-bound — JIT compiles CPU-bound loops, so it yields
-; ~nothing for this workload while adding memory overhead and (historically)
-; edge-case bugs.
+; JIT: intentionally DISABLED. Pinakes is DB/IO-bound — JIT compiles CPU-bound
+; loops, so it yields ~nothing for this workload while adding memory overhead
+; and (historically) edge-case bugs. Set BOTH directives explicitly: opcache.jit
+; alone is not enough because opcache.jit_buffer_size defaults to a non-zero value
+; on some builds (notably PHP 8.4+), which would still reserve JIT memory.
+opcache.jit=disable
+opcache.jit_buffer_size=0
 
 ; ===================================
 ; MEMORY & PERFORMANCE
