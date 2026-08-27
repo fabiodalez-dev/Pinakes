@@ -28,7 +28,12 @@ declare(strict_types=1);
  *    remember() records one logical lookup despite its mutex double-check;
  *  - in-flight loaders cannot publish stale data into a newer generation;
  *  - generation bumps are atomic across concurrent processes;
- *  - time-gated GC is actually reached by normal file-cache writes.
+ *  - time-gated GC is actually reached by normal file-cache writes;
+ *  - counter writes are atomic (temp + rename): the on-disk counter is a
+ *    complete valid payload after every bump, no .tmp residue is left, and a
+ *    simulated write failure leaves the previous value intact (adamsreview
+ *    F1: an in-place ftruncate+fwrite could leave the file empty and reset
+ *    the namespace generation below an already-climbed value).
  *
  * FAILS BY DESIGN on the pre-refactor QueryCache: stats()/bumpGeneration()
  * do not exist there (fatal Error), and the "stale file left on disk after
@@ -302,6 +307,75 @@ try {
             '36 file writes schedule time-gated GC (APCu selected here)'
         );
     }
+
+    // ── Atomic counter writes: temp+rename, never empty/partial ─────────
+    // The generation counter is file-backed regardless of backend, so these
+    // assertions are meaningful everywhere. A mid-write failure must never
+    // leave the counter file empty (that would re-initialize the namespace at
+    // time(), potentially BELOW a counter that climbed past wall-clock,
+    // resurrecting invalidated TTL-live entries).
+    $atomicReflection = new ReflectionClass(QueryCache::class);
+    $storageKeyMethod = $atomicReflection->getMethod('generationStorageKey');
+    $atomicMemo = $atomicReflection->getProperty('generationCache');
+    $genPath = $cacheDir . '/' . $storageKeyMethod->invoke(null, 'schema_table_');
+
+    $readCounter = static function () use ($genPath): ?int {
+        clearstatcache();
+        $content = @file_get_contents($genPath);
+        if ($content === false || $content === '') {
+            return null;
+        }
+        $data = @unserialize($content, ['allowed_classes' => false]);
+        if (!is_array($data) || !isset($data['value']) || !is_int($data['value'])) {
+            return null;
+        }
+        return $data['value'];
+    };
+
+    $alwaysValid = true;
+    $monotonic = true;
+    $prevOnDisk = null;
+    for ($i = 0; $i < 30; $i++) {
+        QueryCache::bumpGeneration('schema_table_');
+        $onDisk = $readCounter();
+        if ($onDisk === null) {
+            $alwaysValid = false;
+            break;
+        }
+        if ($prevOnDisk !== null && $onDisk <= $prevOnDisk) {
+            $monotonic = false;
+            break;
+        }
+        $prevOnDisk = $onDisk;
+    }
+    $check($alwaysValid, '37 counter file is a complete valid payload after every bump (never empty/partial)');
+    $check($monotonic, '38 counter value strictly monotonic across rapid bumps');
+
+    $tmpResidue = glob($genPath . '.tmp.*');
+    $check($tmpResidue === false || $tmpResidue === [], '39 no .tmp residue left behind by successful bumps');
+
+    // Simulated write failure: occupy the exact temp path the next bump will
+    // use (deterministic: pid + private monotonic sequence) with a directory,
+    // so the temp-file write fails. The previous counter value must remain
+    // intact on disk — under the old ftruncate-then-write scheme an
+    // equivalent failure wiped the file.
+    $seqProp = $atomicReflection->getProperty('generationTmpSeq');
+    $blockedTmp = $genPath . '.tmp.' . getmypid() . '.' . $seqProp->getValue(null);
+    $beforeFailure = $readCounter();
+    if (!@mkdir($blockedTmp)) {
+        throw new RuntimeException('could not create blocking directory for write-failure simulation');
+    }
+    try {
+        QueryCache::bumpGeneration('schema_table_'); // write fails → legacy fallback
+    } finally {
+        @rmdir($blockedTmp);
+    }
+    $check(
+        $beforeFailure !== null && $readCounter() === $beforeFailure,
+        '40 failed counter write leaves the previous on-disk value intact (no truncation)'
+    );
+    // Drop the request-local fallback generation installed by the failed bump.
+    $atomicMemo->setValue(null, []);
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: {$e->getMessage()}\n");
     exit(1);

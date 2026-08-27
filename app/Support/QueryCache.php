@@ -67,6 +67,15 @@ class QueryCache
     /** Avoid checking the GC marker more than once in the same request. */
     private static bool $gcCheckedThisRequest = false;
 
+    /**
+     * Monotonic per-process sequence for generation temp filenames. Combined
+     * with getmypid() it yields a collision-free name without any time- or
+     * random-based component (two live processes never share a PID; a stale
+     * leftover from a crashed same-PID process is only ever overwritten while
+     * holding the namespace writer lock, so it is safe to reuse).
+     */
+    private static int $generationTmpSeq = 0;
+
     /** @var int Instrumentation: total get() calls this request */
     private static int $statGets = 0;
 
@@ -703,12 +712,30 @@ class QueryCache
     /**
      * Initialize or atomically increment a namespace generation.
      *
+     * Crash/IO safety: the counter file itself is NEVER truncated or written
+     * in place. The new payload goes to a temp file in the same directory
+     * (flushed + fsynced) and is then rename()d over the counter path —
+     * atomic on POSIX — so a failed write leaves the previous counter intact
+     * and a reader can never observe an empty/partial file. An in-place
+     * ftruncate+fwrite scheme could leave the file empty on a mid-write
+     * failure, making the next initializer fall back to time() — potentially
+     * LOWER than a counter that had climbed past wall-clock, which would make
+     * invalidated-but-TTL-live entries reachable again.
+     *
+     * Writer serialization: because rename() swaps the inode, an flock held
+     * on the counter file itself would not serialize concurrent writers (the
+     * second writer would lock the OLD inode). Writers therefore serialize on
+     * a dedicated sibling lock file (<counter>.lock) that is never unlinked
+     * (gc() skips it), held across the whole read-current → write-temp →
+     * rename sequence, so concurrent bumps cannot lose an increment.
+     *
      * @param bool $increment true for invalidation, false for initialize-if-missing
      */
     private static function mutateGenerationFile(string $ns, bool $increment): ?int
     {
         $path = self::getCacheDir() . '/' . self::generationStorageKey($ns);
-        $handle = @fopen($path, 'c+');
+
+        $handle = @fopen($path . '.lock', 'c');
         if ($handle === false) {
             return null;
         }
@@ -718,7 +745,7 @@ class QueryCache
                 return null;
             }
 
-            $current = self::generationFromHandle($handle);
+            $current = self::readGenerationFile($ns);
             if ($current !== null && !$increment) {
                 return $current;
             }
@@ -730,22 +757,53 @@ class QueryCache
                 'created' => time(),
             ]);
 
-            rewind($handle);
-            if (!ftruncate($handle, 0)) {
+            if (!self::replaceGenerationFile($path, $payload)) {
                 return null;
             }
-
-            $written = fwrite($handle, $payload);
-            if ($written === false || $written !== strlen($payload) || !fflush($handle)) {
-                return null;
-            }
-            @chmod($path, 0660);
 
             return $next;
         } finally {
             flock($handle, LOCK_UN);
             fclose($handle);
         }
+    }
+
+    /**
+     * Atomically replace the counter file with $payload via temp + rename.
+     * Must be called while holding the namespace writer lock. Returns false
+     * (leaving the previous counter untouched) on any failure.
+     */
+    private static function replaceGenerationFile(string $path, string $payload): bool
+    {
+        $tmpPath = $path . '.tmp.' . getmypid() . '.' . self::$generationTmpSeq++;
+
+        $tmp = @fopen($tmpPath, 'w');
+        if ($tmp === false) {
+            return false;
+        }
+
+        $written = fwrite($tmp, $payload);
+        $flushed = $written === strlen($payload) && fflush($tmp);
+        // Persist the payload before publishing the name: a rename made
+        // durable before its data could surface an empty file after a crash.
+        if ($flushed && function_exists('fsync')) {
+            $flushed = fsync($tmp);
+        }
+        fclose($tmp);
+
+        if (!$flushed) {
+            @unlink($tmpPath);
+            return false;
+        }
+
+        @chmod($tmpPath, 0660);
+
+        if (!@rename($tmpPath, $path)) {
+            @unlink($tmpPath);
+            return false;
+        }
+
+        return true;
     }
 
     /** Parse a generation payload from an already locked file handle. */
@@ -954,6 +1012,20 @@ class QueryCache
                 continue;
             }
 
+            // Generation temp files (counter payloads awaiting their atomic
+            // rename) are not cache entries: never parse them, and only
+            // remove residue left behind by a crashed writer once it is
+            // unambiguously stale.
+            if (str_contains(basename($file), '.tmp.')) {
+                $tmpMtime = @filemtime($file);
+                if ($tmpMtime !== false
+                    && $tmpMtime < $now - self::LOCK_STALE_SECONDS
+                    && @unlink($file)) {
+                    $count++;
+                }
+                continue;
+            }
+
             $handle = @fopen($file, 'r');
             if ($handle === false) {
                 if (@unlink($file)) {
@@ -963,9 +1035,11 @@ class QueryCache
             }
 
             try {
-                // Generation counters and ordinary entries are written under an
-                // exclusive lock. GC must take that same exclusive lock or it
-                // could mistake an in-progress truncate/write for corruption.
+                // Ordinary entries are written in place under an exclusive
+                // lock (file_put_contents LOCK_EX); GC must take that same
+                // exclusive lock or it could mistake an in-progress write for
+                // corruption. Generation counters are replaced atomically via
+                // temp + rename, so any inode opened here is always complete.
                 if (!flock($handle, LOCK_EX)) {
                     continue;
                 }
@@ -998,6 +1072,14 @@ class QueryCache
         if ($lockFiles !== false) {
             $staleTime = $now - self::LOCK_STALE_SECONDS;
             foreach ($lockFiles as $lockFile) {
+                // Generation writer locks are deliberately persistent: writers
+                // flock() the same never-recreated file to serialize bumps.
+                // Unlinking one here would let a new writer create a second
+                // lock inode at the same path and race the current holder.
+                if (str_starts_with(basename($lockFile), 'pinakes_gen_')) {
+                    continue;
+                }
+
                 $lockMtime = @filemtime($lockFile);
                 if ($lockMtime !== false && $lockMtime < $staleTime) {
                     if (@unlink($lockFile)) {
