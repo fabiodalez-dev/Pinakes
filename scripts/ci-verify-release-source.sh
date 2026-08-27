@@ -52,30 +52,59 @@ elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
   pr_number="$(jq -r '.[0].number' <<<"$matching_pulls")"
   pr_branch="$(jq -r '.[0].head.ref' <<<"$matching_pulls")"
   pr_state="$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" \
-    --json headRefOid,mergeStateStatus)"
+    --json headRefOid,mergeStateStatus,mergeable,reviewDecision)"
   pr_head="$(jq -r '.headRefOid' <<<"$pr_state")"
   merge_state="$(jq -r '.mergeStateStatus' <<<"$pr_state")"
+  mergeable="$(jq -r '.mergeable' <<<"$pr_state")"
+  review_decision="$(jq -r '.reviewDecision // ""' <<<"$pr_state")"
   if [[ "$pr_head" != "$GITHUB_SHA" ]]; then
     echo "Prerelease PR #${pr_number} moved from tagged commit ${GITHUB_SHA} to ${pr_head}" >&2
     exit 1
   fi
-  # Why UNSTABLE is accepted alongside CLEAN: this very script runs inside the
-  # tag-triggered "Verified Release" workflow, whose check run attaches to the
-  # tagged commit — which IS the PR head. While this job is in progress GitHub
-  # reports the PR as UNSTABLE ("mergeable, but a non-required status is
-  # pending/failing"), so demanding CLEAN here is circular: the check that must
-  # pass keeps the PR from ever being CLEAN. UNSTABLE by definition still means
-  # the PR is mergeable (no conflicts, branch protection satisfied); the only
-  # thing it relaxes versus CLEAN is non-required statuses — and the loop below
-  # closes exactly that gap by independently requiring every branch-protection
-  # REQUIRED check to be green, excluding only this release workflow's own
-  # check run (tag-triggered, so by construction never a PR-required check).
-  # BLOCKED, DIRTY, BEHIND and UNKNOWN remain fatal: merge conflicts, missing
-  # approvals or unmet branch protection still veto the prerelease.
-  if [[ "$merge_state" != "CLEAN" && "$merge_state" != "UNSTABLE" ]]; then
-    echo "Prerelease PR #${pr_number} is not merge-ready (mergeStateStatus=${merge_state})" >&2
+
+  # Audit every visible check, not only required checks, before interpreting
+  # mergeStateStatus. The tag-triggered Verified Release check is attached to
+  # the same commit as the PR head. GitHub may report that circular in-progress
+  # check as either UNSTABLE or BLOCKED; the latter was observed in production
+  # even though the PR was CLEAN immediately before the tag was pushed.
+  all_checks_json="$(gh pr checks "$pr_number" --repo "$GITHUB_REPOSITORY" \
+    --json name,state,bucket,workflow || true)"
+  if ! jq -e 'type == "array" and length > 0' >/dev/null <<<"$all_checks_json"; then
+    echo "Prerelease PR #${pr_number} has no readable check result" >&2
     exit 1
   fi
+  non_self_failing="$(jq -r --arg self_workflow "Verified Release" \
+    '.[] | select(.workflow != $self_workflow) | select(.bucket != "pass") | "\(.workflow // "external") / \(.name): \(.state)"' \
+    <<<"$all_checks_json")"
+  self_is_pending_or_failed="$(jq -r --arg self_workflow "Verified Release" \
+    'any(.[]; .workflow == $self_workflow and .bucket != "pass")' <<<"$all_checks_json")"
+
+  case "$merge_state" in
+    CLEAN|UNSTABLE)
+      ;;
+    BLOCKED)
+      # Accept BLOCKED only when it is demonstrably the release workflow's own
+      # circular check: GitHub still considers the PR mergeable, no review is
+      # missing/rejected, every other visible check passed, and this workflow
+      # has a pending/failed check attached to the head. A genuinely blocked PR
+      # (conflict, required review, policy or any other check) remains fatal.
+      if [[ "$mergeable" != "MERGEABLE" \
+        || "$review_decision" == "REVIEW_REQUIRED" \
+        || "$review_decision" == "CHANGES_REQUESTED" \
+        || "$self_is_pending_or_failed" != "true" \
+        || -n "$non_self_failing" ]]; then
+        echo "Prerelease PR #${pr_number} is genuinely blocked (mergeable=${mergeable}, reviewDecision=${review_decision:-none})" >&2
+        if [[ -n "$non_self_failing" ]]; then
+          printf '%s\n' "$non_self_failing" >&2
+        fi
+        exit 1
+      fi
+      ;;
+    *)
+      echo "Prerelease PR #${pr_number} is not merge-ready (mergeStateStatus=${merge_state})" >&2
+      exit 1
+      ;;
+  esac
 
   checks_json="$(gh pr checks "$pr_number" --repo "$GITHUB_REPOSITORY" \
     --required --json name,state,bucket,workflow || true)"

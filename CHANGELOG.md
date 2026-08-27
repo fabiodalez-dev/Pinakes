@@ -2,6 +2,14 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.69-rc.4]
+
+Fourth release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
+
+### Fixed
+
+- Prerelease source verification now handles GitHub's observed circular `BLOCKED` state for the tag workflow itself. It accepts that state only when the PR remains mergeable, no review is missing or rejected, every other visible check is green, and the sole blocker is the current Verified Release check; genuine conflicts, policy failures and review blocks still fail closed.
+
 ## [0.7.69-rc.3]
 
 Third release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.

@@ -32,21 +32,23 @@ if [[ "${1:-}" == api ]]; then
     *) printf '[[{"number":341,"draft":false,"base":{"ref":"main"},"head":{"sha":"sha-rc","ref":"release/0.7.59-rc.1","repo":{"full_name":"fabiodalez-dev/Pinakes"}}}]]\n' ;;
   esac
 elif [[ "${1:-} ${2:-}" == "pr view" ]]; then
-  if [[ "$*" == *"headRefOid,mergeStateStatus"* ]]; then
-    printf '{"headRefOid":"%s","mergeStateStatus":"%s"}\n' \
-      "${FAKE_PR_HEAD:-sha-rc}" "${FAKE_MERGE_STATE:-CLEAN}"
+  if [[ "$*" == *"headRefOid,mergeStateStatus,mergeable,reviewDecision"* ]]; then
+    printf '{"headRefOid":"%s","mergeStateStatus":"%s","mergeable":"%s","reviewDecision":"%s"}\n' \
+      "${FAKE_PR_HEAD:-sha-rc}" "${FAKE_MERGE_STATE:-CLEAN}" \
+      "${FAKE_MERGEABLE:-MERGEABLE}" "${FAKE_REVIEW_DECISION:-}"
   else
     printf '%s\n' "${FAKE_FINAL_PR_HEAD:-${FAKE_PR_HEAD:-sha-rc}}"
   fi
 elif [[ "${1:-} ${2:-}" == "pr checks" ]]; then
   case "${FAKE_CHECKS:-pass}" in
     pending)
-      printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass"},{"name":"Full E2E","state":"IN_PROGRESS","bucket":"pending"}]\n'
+      printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"IN_PROGRESS","bucket":"pending","workflow":"E2E"}]\n'
       exit 8
       ;;
-    missing_coderabbit) printf '[{"name":"Full E2E","state":"SUCCESS","bucket":"pass"}]\n' ;;
+    self_blocked) printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"},{"name":"Verify and build release (read-only)","state":"IN_PROGRESS","bucket":"pending","workflow":"Verified Release"}]\n'; exit 8 ;;
+    missing_coderabbit) printf '[{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"}]\n' ;;
     empty) printf '[]\n' ;;
-    *) printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass"},{"name":"Full E2E","state":"SUCCESS","bucket":"pass"}]\n' ;;
+    *) printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"}]\n' ;;
   esac
 else
   echo "unexpected gh invocation: $*" >&2
@@ -97,6 +99,9 @@ run_case "RC from draft PR" fail "0.7.59-rc.3" "sha-rc" FAKE_PR_KIND=draft
 run_case "RC from fork" fail "0.7.59-rc.3" "sha-rc" FAKE_PR_KIND=external
 run_case "RC from non-release branch" fail "0.7.59-rc.3" "sha-rc" FAKE_PR_KIND=wrong_branch
 run_case "RC from blocked PR" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED
+run_case "RC accepts BLOCKED caused only by its own tag check" pass "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked
+run_case "RC rejects self-blocked state when GitHub reports a conflict" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked FAKE_MERGEABLE=CONFLICTING
+run_case "RC rejects self-blocked state when a review is required" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked FAKE_REVIEW_DECISION=REVIEW_REQUIRED
 run_case "RC with pending required check" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=pending
 run_case "RC without required CodeRabbit" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=missing_coderabbit
 run_case "RC without required checks" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=empty
