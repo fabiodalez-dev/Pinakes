@@ -28,7 +28,10 @@ $twitterTitle = $seoTitle;
 $twitterDescription = $seoDescription;
 $twitterImage = $ogImage;
 
-$locale = $_SESSION['locale'] ?? 'it_IT';
+// Session locale wins (unchanged); on the sessionless anonymous path
+// (issue #387 step 6) fall back to the request locale resolved by
+// public/index.php from the pinakes_locale cookie / install default.
+$locale = $_SESSION['locale'] ?? (\App\Support\I18n::getLocale() ?: 'it_IT');
 if (class_exists('IntlDateFormatter')) {
     $dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
     $timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);

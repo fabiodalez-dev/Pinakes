@@ -26,11 +26,14 @@ class LanguageController
         // Set locale in I18n
         I18n::setLocale($locale);
 
-        // Save in session
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
+        // Save in session — but only when one is already open (logged-in
+        // users and cookie-bearing visitors). A sessionless anonymous visitor
+        // (issue #387 step 6) must NOT be handed a session just to remember
+        // the language: the choice is persisted in the pinakes_locale cookie
+        // below, which public/index.php reads on the no-session path.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION['locale'] = $locale;
         }
-        $_SESSION['locale'] = $locale;
 
         // Save to database if user is logged in
         if (isset($_SESSION['user']['id'])) {
@@ -44,11 +47,29 @@ class LanguageController
             }
         }
 
+        // Persist the choice in a cookie so the anonymous no-session path
+        // (issue #387 step 6) resolves the locale deterministically without a
+        // session. $locale is normalized and validated against the available
+        // locales above, so the value is always a safe xx_XX code. HTTPS
+        // detection mirrors AuthController::loginForm() (honours
+        // X-Forwarded-Proto/-Ssl behind TLS-terminating proxies).
+        $forwardedProto = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+        $forwardedSsl = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? ''));
+        $secure = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+            || $forwardedProto === 'https'
+            || $forwardedSsl === 'on';
+        $basePath = rtrim(\App\Support\HtmlHelper::getBasePath(), '/');
+        $cookiePath = ($basePath === '' ? '' : $basePath) . '/';
+        $cookie = 'pinakes_locale=' . rawurlencode($locale)
+            . '; Path=' . $cookiePath
+            . '; Max-Age=31536000; SameSite=Lax; HttpOnly' . ($secure ? '; Secure' : '');
+
         // Determine safe redirect target
         $queryParams = $request->getQueryParams();
         $redirect = $this->sanitizeRedirect($queryParams['redirect'] ?? '/');
 
         return $response
+            ->withAddedHeader('Set-Cookie', $cookie)
             ->withHeader('Location', $redirect)
             ->withStatus(302);
     }

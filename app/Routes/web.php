@@ -128,6 +128,31 @@ return function (App $app): void {
         return $response->withHeader('Content-Type', 'application/json');
     });
 
+    // Lazy CSRF endpoint (issue #387 step 6). Sessionless anonymous pages
+    // carry no CSRF token in their cacheable HTML; JS fetches one from here
+    // right before a state-changing request (see public/assets/js/
+    // csrf-helper.js). Starting the session on demand mints the same
+    // session-backed token CsrfMiddleware validates — protection is
+    // unchanged, only WHEN the token is minted moves. The hardened session
+    // ini parameters were already applied unconditionally in public/index.php,
+    // so this lazy session_start() uses the exact same secure cookie settings.
+    // The same-origin policy keeps the JSON unreadable cross-site (no CORS
+    // headers are emitted) and no-store keeps any cache from persisting a
+    // per-visitor token. Technical endpoint → literal path, like /health.
+    $app->get('/csrf-token', function ($request, $response) {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        $payload = json_encode(['token' => \App\Support\Csrf::ensureToken()], JSON_HEX_TAG);
+        $response->getBody()->write((string) $payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('Pragma', 'no-cache')
+            ->withHeader('Vary', 'Cookie')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
+    });
+
     // Private uploaded files (digital-library content, archive documents,
     // generic storage). public/.htaccess routes ONLY these private prefixes
     // here instead of serving them directly, so the global middleware stack
