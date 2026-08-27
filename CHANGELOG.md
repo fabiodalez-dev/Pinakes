@@ -2,6 +2,14 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.69-rc.5]
+
+Fifth release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
+
+### Fixed
+
+- Tag pushes no longer start the migration workflow a second time on the already-verified PR commit. Prerelease verification also waits for any concurrently attached non-release check to settle before evaluating GitHub's merge state, while terminal failures and bounded-timeout checks continue to fail closed.
+
 ## [0.7.69-rc.4]
 
 Fourth release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.

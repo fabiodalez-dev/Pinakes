@@ -46,6 +46,22 @@ elif [[ "${1:-} ${2:-}" == "pr checks" ]]; then
       exit 8
       ;;
     self_blocked) printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"},{"name":"Verify and build release (read-only)","state":"IN_PROGRESS","bucket":"pending","workflow":"Verified Release"}]\n'; exit 8 ;;
+    pending_then_pass)
+      if [[ "$*" == *"--required"* ]]; then
+        printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"}]\n'
+      else
+        count=0
+        [[ -f "$FAKE_CHECK_COUNTER_FILE" ]] && read -r count <"$FAKE_CHECK_COUNTER_FILE"
+        count=$((count + 1))
+        printf '%s\n' "$count" >"$FAKE_CHECK_COUNTER_FILE"
+        if ((count == 1)); then
+          printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Tag migration check","state":"IN_PROGRESS","bucket":"pending","workflow":"Test Database Migrations"},{"name":"Verify and build release (read-only)","state":"IN_PROGRESS","bucket":"pending","workflow":"Verified Release"}]\n'
+          exit 8
+        fi
+        printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Tag migration check","state":"SUCCESS","bucket":"pass","workflow":"Test Database Migrations"},{"name":"Verify and build release (read-only)","state":"IN_PROGRESS","bucket":"pending","workflow":"Verified Release"}]\n'
+        exit 8
+      fi
+      ;;
     missing_coderabbit) printf '[{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"}]\n' ;;
     empty) printf '[]\n' ;;
     *) printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"}]\n' ;;
@@ -63,6 +79,7 @@ failed=0
 run_case() {
   local name="$1" expected="$2" version="$3" sha="$4"
   shift 4
+  rm -f -- "$test_root/check-counter"
   printf '{"version":"%s"}\n' "$version" >"$test_root/repo/version.json"
   if (cd "$test_root/repo" && env \
       PATH="$test_root/bin:$PATH" \
@@ -70,6 +87,9 @@ run_case() {
       GITHUB_SHA="$sha" \
       GITHUB_REPOSITORY="fabiodalez-dev/Pinakes" \
       GH_TOKEN="test-token" \
+      RELEASE_CHECK_MAX_ATTEMPTS=2 \
+      RELEASE_CHECK_POLL_INTERVAL_SECONDS=0 \
+      FAKE_CHECK_COUNTER_FILE="$test_root/check-counter" \
       "$@" \
       bash scripts/ci-verify-release-source.sh >/dev/null 2>&1); then
     actual=pass
@@ -100,6 +120,7 @@ run_case "RC from fork" fail "0.7.59-rc.3" "sha-rc" FAKE_PR_KIND=external
 run_case "RC from non-release branch" fail "0.7.59-rc.3" "sha-rc" FAKE_PR_KIND=wrong_branch
 run_case "RC from blocked PR" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED
 run_case "RC accepts BLOCKED caused only by its own tag check" pass "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked
+run_case "RC waits for a tag-triggered check before accepting its own block" pass "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=pending_then_pass
 run_case "RC rejects self-blocked state when GitHub reports a conflict" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked FAKE_MERGEABLE=CONFLICTING
 run_case "RC rejects self-blocked state when a review is required" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked FAKE_REVIEW_DECISION=REVIEW_REQUIRED
 run_case "RC with pending required check" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=pending
