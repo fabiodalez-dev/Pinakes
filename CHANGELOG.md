@@ -2,6 +2,17 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.69-rc.2]
+
+Second release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
+
+### Fixed
+
+- File-cache stampede protection now uses a bounded pool of persistent mutex inodes. Cache flushes, prefix invalidation and garbage collection never unlink a lock that a current or rolling-deploy worker may already have open; late lock acquisition also rechecks the cache before recomputing.
+- Shared public book payloads no longer retain the large FULLTEXT `search_index` column or private LibraryThing patron/loan fields. Catalog queries also remove redundant `DISTINCT` aggregation and unused taxonomy joins.
+- Bulk author deletion invalidates cached public book-detail DTOs immediately after its transaction commits.
+- APCu flush treats a concurrent disappearance as success instead of reporting a false maintenance failure.
+
 ## [0.7.69-rc.1]
 
 Release candidate for a performance/caching overhaul (issue #387). No schema change, no new required configuration — every install upgrades with identical behaviour on a cold cache. Bundles three reviewed pieces:
