@@ -30,6 +30,61 @@ auditOk($loopback === ['ok' => false, 'status' => 0, 'body' => ''], 'HttpClient 
 $private = \App\Support\HttpClient::get('https://10.0.0.1/test', [], ['ssrf_guard' => true]);
 auditOk($private === ['ok' => false, 'status' => 0, 'body' => ''], 'HttpClient blocks RFC1918 targets');
 
+// #382 / PR #383 review follow-up: author-photo downloads must be bounded
+// during transfer, not merely checked after the entire body is in memory.
+$authors = auditRead($root . '/app/Controllers/AutoriController.php');
+$httpClient = auditRead($root . '/app/Support/HttpClient.php');
+auditOk(
+    str_contains($authors, "'max_bytes'    => 5 * 1024 * 1024"),
+    'author URL download passes the 5 MB transfer cap'
+);
+auditOk(
+    str_contains($httpClient, 'RequestOptions::PROGRESS')
+        && str_contains($httpClient, 'downloaded body exceeds max_bytes'),
+    'HttpClient aborts an in-progress response after max_bytes'
+);
+
+// #381 / PR #383 review follow-up: every caller, including an API request that
+// omits `reason`, must receive neutral cancellation wording.
+$loanSwal = auditRead($root . '/app/Views/partials/loan-actions-swal.php');
+$notifications = auditRead($root . '/app/Support/NotificationService.php');
+auditOk(
+    str_contains($loanSwal, "'cancelPickupReason' => __('Ritiro annullato')"),
+    'pickup cancellation dialog submits a neutral reason'
+);
+auditOk(
+    str_contains($notifications, "\$reason !== ''")
+        && str_contains($notifications, "\$this->translateInLocale('Ritiro annullato', \$recipientLocale)"),
+    'pickup cancellation email fallback is neutral, recipient-localized and preserves "0"'
+);
+auditOk(
+    str_contains($notifications, "\$terminalState === 'scaduto'")
+        && str_contains($notifications, "'loan_pickup_expired'"),
+    'an already-expired pickup uses the expired notification template'
+);
+
+// #384 concurrency follow-up: an automatic request must hold its selected copy
+// before the creation transaction releases the canonical book lock.
+$reservationsController = auditRead($root . '/app/Controllers/ReservationsController.php');
+auditOk(
+    str_contains($reservationsController, '$preassignedCopyId = $autoApproveEnabled ? $assignableCopyId : null')
+        && str_contains($reservationsController, '(libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)'),
+    'createReservation auto-approved requests persist a copy-bound hold before commit'
+);
+$userActionsController = auditRead($root . '/app/Controllers/UserActionsController.php');
+$userActionsPreclaimPos = strpos($userActionsController, '$preassignedCopyId = $autoApproveEnabled');
+$userActionsCommitAfterPreclaim = $userActionsPreclaimPos !== false
+    ? strpos($userActionsController, '$db->commit();', $userActionsPreclaimPos)
+    : false;
+auditOk(
+    str_contains($userActionsController, '$preassignedCopyId = $autoApproveEnabled ? $routing->assignableCopyId : null')
+        && str_contains($userActionsController, '(libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo)')
+        && $userActionsPreclaimPos !== false
+        && $userActionsCommitAfterPreclaim !== false
+        && $userActionsPreclaimPos < $userActionsCommitAfterPreclaim,
+    'POST /user/loan auto-approved requests persist the gate-selected copy before commit'
+);
+
 $ai = auditRead($root . '/storage/plugins/book-club/src/AiService.php');
 $sru = auditRead($root . '/storage/plugins/z39-server/classes/SruClient.php');
 auditOk(substr_count($ai, "'ssrf_guard'      => true") === 1, 'Book Club enables the SSRF guard');

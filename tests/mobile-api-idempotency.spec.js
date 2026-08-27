@@ -163,6 +163,7 @@ const ENDPOINTS = [
     { name: 'POST /reservations',                method: 'POST',   path: '/reservations',                 auth: true,  kind: 'conflict2',
         body: (ctx) => ({ book_id: ctx.bookId }), firstAny: true /* 1st may 201 or 422 (availability); 2nd identical must be rejected */ },
     { name: 'DELETE /reservations/{reservationId}', method: 'DELETE', path: '/reservations/{reservationId}', auth: true, kind: 'gone2' },
+    { name: 'DELETE /loans/{loanId}',               method: 'DELETE', path: '/loans/{loanId}',               auth: true, kind: 'gone2' },
     { name: 'GET /me/wishlist',                  method: 'GET',    path: '/me/wishlist',                  auth: true,  kind: 'safeGet' },
     { name: 'POST /me/wishlist',                 method: 'POST',   path: '/me/wishlist',                  auth: true,  kind: 'write2xx',
         body: (ctx) => ({ book_id: ctx.bookId }) /* adding twice must not duplicate; both 2xx */ },
@@ -343,6 +344,22 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
             ctx.reservationId = parseInt(dbScalar(`SELECT id FROM prenotazioni WHERE utente_id=${ctx.userId} ORDER BY id DESC LIMIT 1`) || '0', 10);
         } catch { ctx.reservationId = 0; }
 
+        // Dedicated pending loan for the unambiguous Mobile API 1.4.4 route.
+        // Prefer a different title from the reservation fixture so duplicate
+        // circulation guards cannot pre-empt the setup.
+        try {
+            const loanBookId = parseInt(dbScalar(
+                `SELECT id FROM libri WHERE deleted_at IS NULL AND id != ${ctx.bookId} ORDER BY id LIMIT 1`
+            ) || String(ctx.bookId), 10);
+            dbExec(`INSERT INTO prestiti
+                        (utente_id, libro_id, data_prestito, data_scadenza, stato, attivo, created_at)
+                    VALUES (${ctx.userId}, ${loanBookId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'pendente', 0, NOW())`);
+            ctx.loanId = parseInt(dbScalar(
+                `SELECT id FROM prestiti WHERE utente_id=${ctx.userId} AND stato='pendente' ORDER BY id DESC LIMIT 1`
+            ) || '0', 10);
+        } catch { ctx.loanId = 0; }
+
+
         // Pre-add the wishlist book so DELETE /me/wishlist/{bookId} has something to remove on call #1.
         try { dbExec(`INSERT IGNORE INTO wishlist (utente_id, libro_id) VALUES (${ctx.userId}, ${ctx.bookId})`); } catch {}
 
@@ -391,8 +408,8 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         try { dbExec(`DELETE FROM mobile_push_subscriptions WHERE user_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM wishlist WHERE utente_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM prenotazioni WHERE utente_id=${ctx.userId}`); } catch {}
+        try { dbExec(`DELETE FROM prestiti WHERE utente_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM recensioni WHERE utente_id=${ctx.userId}`); } catch {}
-        try { dbExec(`DELETE FROM prestiti WHERE utente_id=${ctx.userId} AND stato='restituito' AND copia_id IS NULL`); } catch {}
         try { dbExec(`DELETE FROM bookclub_progress WHERE user_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM bookclub_votes WHERE user_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM bookclub_meeting_rsvps WHERE user_id=${ctx.userId}`); } catch {}

@@ -582,6 +582,17 @@ class MobileApiPlugin
                 return (new ActionsController($db))->cancelReservation($request, $response, (int) $args['id']);
             })->add($quotaMw())->add($authMw());
 
+            // Explicit loan route avoids the id-space ambiguity of the legacy
+            // /reservations/{id} compatibility endpoint and exposes the #381
+            // waiting-for-pickup cancellation contract to native clients.
+            $group->delete('/loans/{id:[0-9]+}', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response,
+                array $args
+            ) use ($db): ResponseInterface {
+                return (new ActionsController($db))->cancelLoan($request, $response, (int) $args['id']);
+            })->add($quotaMw())->add($authMw());
+
             $group->get('/me/wishlist', function (
                 ServerRequestInterface $request,
                 ResponseInterface $response

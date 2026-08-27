@@ -420,10 +420,12 @@ class LoanApprovalController
             // Step 2: If no valid pre-assigned copy, check global availability and find a new copy
             if (!$selectedCopy) {
                 // The pending row does not occupy capacity unless it already has a
-                // copy (handled above). Use the canonical per-day peak gate instead
-                // of summing all intervals that merely touch the requested range.
+                // copy (handled above). Check the whole horizon through the requested
+                // end, not only the requested window: a fully occupied earlier day
+                // means this loan would depend on a preceding loan/reservation being
+                // collected and returned on time, which is the bypass fixed by #384.
                 $capacity = new \App\Services\CapacityService($db);
-                if (!$capacity->hasFreeCapacity($libroId, $dataPrestito, $dataScadenza, excludePrestitoId: $loanId)) {
+                if (!$capacity->hasFreeCapacity($libroId, $today, $dataScadenza, excludePrestitoId: $loanId)) {
                     $db->rollback();
                     $response->getBody()->write(json_encode([
                         'success' => false,
@@ -459,34 +461,57 @@ class LoanApprovalController
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                         )
                     )
+                    -- A preference is insufficient: if every candidate has a
+                    -- preceding commitment, ORDER BY would still return the least
+                    -- bad one and recreate #384. Require a copy whose use does not
+                    -- depend on any earlier borrower returning on time.
+                    AND NOT EXISTS (
+                        SELECT 1 FROM prestiti prior
+                        WHERE prior.copia_id = c.id
+                          AND prior.id != ?
+                          AND prior.data_prestito <= ?
+                          AND (
+                              (prior.attivo = 1 AND prior.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                              OR (prior.attivo = 0 AND prior.stato = 'pendente' AND prior.copia_id IS NOT NULL)
+                          )
+                    )
+                    -- #384 (I3): among copies with no PRECEDING dependency, prefer
+                    -- one with no LATER commitment (or whose next one is furthest),
+                    -- so approval never binds the copy a future scheduled loan needs
+                    -- while a free sibling sits idle. Identical ordering to the
+                    -- request gate (findAssignableInLibraryCopyThrough) and the FIFO
+                    -- promotion allocator (ReservationManager) so all three agree.
+                    ORDER BY COALESCE((
+                        SELECT MIN(future.data_prestito)
+                        FROM prestiti future
+                        WHERE future.copia_id = c.id
+                          AND future.data_prestito > ?
+                          AND (
+                              (future.attivo = 1 AND future.stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                              OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL)
+                          )
+                    ), '9999-12-31') DESC,
+                    c.id ASC
                     LIMIT 1
                 ");
-                $overlapStmt->bind_param('iiiisss', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito);
+                $overlapStmt->bind_param('iiiisssiss', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito, $loanId, $dataScadenza, $dataScadenza);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
                 $overlapStmt->close();
             }
 
-            // Step 3: Final fallback using CopyRepository
+            // Step 3: Step 2 is the authoritative allocator. The historical
+            // CopyRepository fallback only repeated a looser date-overlap query;
+            // after #384 it could reintroduce the exact preceding-return candidate
+            // deliberately rejected above.
             if (!$selectedCopy) {
-                // Fallback: try date-aware method to find available copy for the requested period
-                $copyRepo = new \App\Models\CopyRepository($db);
-                $availableCopies = $copyRepo->getAvailableByBookIdForDateRange($libroId, $dataPrestito, $dataScadenza);
-                $availableCopies = array_values(array_filter(
-                    $availableCopies,
-                    static fn (array $copy): bool => !in_array((int) $copy['id'], $borrowerCommittedCopyIds, true)
-                ));
-
-                if (empty($availableCopies)) {
-                    $db->rollback();
-                    $response->getBody()->write(json_encode([
-                        'success' => false,
-                        'message' => __('Nessuna copia disponibile per il periodo richiesto')
-                    ]));
-                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-                }
-                $selectedCopy = $availableCopies[0];
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Nessuna copia disponibile per il periodo richiesto')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
             // Lock selected copy and re-check overlap to prevent race
@@ -1140,9 +1165,6 @@ class LoanApprovalController
         // integralmente nell'email e nella nota di audit.
         $reason = $data['reason'] ?? '';
         $reason = is_scalar($reason) ? trim((string) $reason) : '';
-        if ($reason === '') {
-            $reason = __('Ritiro non effettuato');
-        }
         $reason = mb_substr($reason, 0, 500);
 
         if ($loanId <= 0) {
@@ -1189,7 +1211,7 @@ class LoanApprovalController
             // Poi lock + ri-verifica del prestito con le guardie di stato.
             // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today
             $stmt = $db->prepare("
-                SELECT id, libro_id, copia_id, utente_id, stato
+                SELECT id, libro_id, copia_id, utente_id, stato, pickup_deadline
                 FROM prestiti
                 WHERE id = ? AND attivo = 1
                 AND (stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= ?))
@@ -1223,21 +1245,41 @@ class LoanApprovalController
 
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
 
-            // Mark loan as expired (not picked up). Nota di audit + processed_by
-            // come per checkExpiredPickups/rejectLoan: senza, l'annullamento
-            // manuale dello staff e la scadenza automatica del cron sarebbero
-            // indistinguibili a posteriori.
+            // #381: a voluntary cancellation before (or on) the pickup deadline
+            // is `annullato`; only an actually elapsed deadline is `scaduto`.
+            // Keeping the two terminal outcomes distinct preserves history and
+            // reporting semantics (annullato = cancelled, scaduto = expired).
+            // Legacy rows without a deadline are necessarily treated as a manual
+            // cancellation because there is no expiry fact to assert.
+            $pickupDeadline = !empty($loan['pickup_deadline']) ? (string) $loan['pickup_deadline'] : null;
+            $terminalState = $pickupDeadline !== null && $pickupDeadline < $today
+                ? 'scaduto'
+                : 'annullato';
+            // The audit note is rendered in the current staff locale. Keep the raw
+            // reason untouched for NotificationService: when it is empty, that
+            // service must translate its fallback in the recipient's locale.
+            $auditReason = $reason !== ''
+                ? $reason
+                : ($terminalState === 'scaduto'
+                    ? __('Ritiro scaduto')
+                    : __('Ritiro annullato'));
+
+            // Audit note + processed_by distinguish the staff action from the
+            // automatic expiry sweep even when the terminal state is scaduto. The
+            // note wording must match the terminal outcome (scaduto vs annullato)
+            // so history reads truthfully.
             $cancelledBy = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
-            $noteSuffix = "\n[Staff] " . __('Ritiro annullato il') . ' '
-                . implode('/', array_reverse(explode('-', $today))) . ' — ' . $reason;
+            $noteLabel = $terminalState === 'scaduto' ? __('Ritiro scaduto il') : __('Ritiro annullato il');
+            $noteSuffix = "\n[Staff] " . $noteLabel . ' '
+                . implode('/', array_reverse(explode('-', $today))) . ' — ' . $auditReason;
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'scaduto', attivo = 0, pickup_deadline = NULL,
+                SET stato = ?, attivo = 0, pickup_deadline = NULL,
                     processed_by = COALESCE(?, processed_by),
                     note = CONCAT(COALESCE(note, ''), ?)
                 WHERE id = ?
             ");
-            $updateStmt->bind_param('isi', $cancelledBy, $noteSuffix, $loanId);
+            $updateStmt->bind_param('sisi', $terminalState, $cancelledBy, $noteSuffix, $loanId);
             $updateStmt->execute();
             $updateStmt->close();
 
@@ -1287,10 +1329,16 @@ class LoanApprovalController
             $reassignmentService->flushDeferredNotifications();
             $reservationManager->flushDeferredNotifications();
 
-            // Send notification to user about cancelled pickup (outside transaction)
+            // Send the notification matching the persisted terminal state. Preserve
+            // the original deadline because the closed row clears pickup_deadline.
             try {
                 $notificationService = new \App\Support\NotificationService($db);
-                $notificationService->sendPickupCancelledNotification($loanId, $reason);
+                $notificationService->sendPickupCancelledNotification(
+                    $loanId,
+                    $reason,
+                    $terminalState,
+                    $pickupDeadline
+                );
             } catch (\Throwable $notifError) {
                 \App\Support\SecureLogger::warning("[cancelPickup] Notification error for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail - cancellation already committed
@@ -1298,7 +1346,9 @@ class LoanApprovalController
 
             $response->getBody()->write(json_encode([
                 'success' => true,
-                'message' => __('Ritiro annullato con successo')
+                'message' => $terminalState === 'scaduto'
+                    ? __('Ritiro scaduto')
+                    : __('Ritiro annullato con successo')
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 

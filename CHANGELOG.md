@@ -2,6 +2,24 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.68]
+
+Circulation fixes. A request for a book that is currently out no longer fails on approval — it becomes a real waitlist reservation — and copy allocation is made consistent everywhere a copy is chosen. Also restores the "waiting for pickup" cancel action (#381), the terminal pickup email for archived books, and author photos supplied as a URL (#382).
+
+### Fixed
+
+- **A request for an already-loaned single-copy book now routes to the waitlist instead of failing on approval (#384).** The request used to be recorded as a pending loan, and approving it returned HTTP 500 because no copy could be allocated for the overlapping window. The reservation-vs-loan decision is now unified in one gate: when no copy is assignable through the requested window but physical copies exist, a real `prenotazioni` waitlist reservation is created; when a copy is free the loan proceeds (auto-approving where enabled). Legacy copy-less titles keep the pending-approval fallback.
+- **Copy allocation is consistent across every site that picks a copy (#384).** The request gate, the approval step and the FIFO waitlist promotion now share one rule: a copy carrying a *preceding* commitment — one whose availability would depend on an earlier borrower returning on time — is never bound, and among otherwise-free copies the one with no *later* scheduled loan is preferred. A future scheduled loan therefore never comes to depend on a new borrower returning early, and an idle sibling is used instead of the copy a later loan already needs.
+- **A "waiting for pickup" loan can be cancelled again (#381).** The cancel action resolves to `annullato` — or `scaduto` when the pickup deadline has already passed — restores the copy to availability, and never interferes with other loans or later reservations on the same or another copy.
+- **The terminal pickup email reaches the borrower even for a soft-deleted book.** The cancel/expire notification query filtered out soft-deleted books, so a borrower whose book had since been archived silently lost the expired/cancelled email even though the loan was closed; the notice now fires regardless.
+- **Author photos supplied as a URL now display (#382).** A photo entered as a remote URL is downloaded into `uploads/autori` on save instead of being stored as a bare link the page could not render.
+
+### Internal
+
+- The reservation-vs-loan decision now lives in a single shared `LoanRequestGate` that **every** public request entry point routes through (the book-detail modal, `POST /user/loan`, and the NCIP `RequestItem` service), so the #384 contract can never diverge between paths. NCIP `RequestItem` creates a real FIFO reservation when no copy is assignable instead of a bare pending request; `ncip_transactions` gains a `prenotazione_id` audit link (added to existing installs by the plugin schema self-heal), and `CancelRequestItem` cancels the linked reservation, reorders the queue and runs any promotions. Bundled ncip-server plugin bumped to 1.0.4.
+- The companion Mobile API now preserves that same outcome at the JSON boundary: when the canonical loan path routes an apparently-immediate request to the FIFO waitlist it returns HTTP 201 with `data.type=reservation`, never a false 500 after committing the reservation. Mobile API 1.4.4 also exposes `DELETE /loans/{id}` and a `cancellable` loan hint so native clients can safely cancel pending, scheduled and `da_ritirare` loans (#381) without relying on the overlapping numeric id spaces of loans and reservations.
+- New behavioural coverage for the reservation-routing gate, the three copy-selection sites (I1 preceding-dependency and I3 future-commitment ordering), the soft-deleted-book pickup notification and the NCIP request/cancel lifecycle, each driving the real controllers against a seeded database and failing on the pre-fix code by design.
+
 ## [0.7.67]
 
 Fixes a silent upgrade gap discovered on a live install: a foreign key or column that a bundled plugin adds in a release was not applied when an already-active plugin was upgraded through the admin UI, even though the plugin version was bumped.

@@ -204,14 +204,22 @@ class ReservationsController
     }
 
     /**
-     * Create a user loan REQUEST (D19 — name kept for route stability).
+     * Handle the unified loan/reservation calendar submission.
      *
-     * Despite the name, this writes a BARE `prestiti` row with stato='pendente'
-     * and origine='richiesta' and NO copia_id. Per the canonical occupancy model
-     * this *unbounded* request does NOT occupy capacity — only a period-bearing
-     * `prenotazioni` waitlist row (stato='attiva') occupies its promised period.
-     * It correctly runs a per-day capacity pre-check + a post-lock recheck before
-     * inserting. Do not confuse it with the waitlist (`prenotazioni`).
+     * If at least one physical copy is in the library and can serve the requested
+     * window without depending on a preceding return, create the normal loan
+     * request (`prestiti.pendente`) and optionally auto-approve it. The automatic
+     * path pins that exact safe copy before releasing the book lock; manual requests
+     * remain copy-less until staff approval. If the title
+     * has physical copies but every copy is currently out or already committed,
+     * create a real period-bearing waitlist reservation
+     * (`prenotazioni.attiva`) instead (#384). A contractual due date is not proof
+     * that an out copy will actually be back, so such a request must not bypass
+     * the reservation queue merely because its future dates are disjoint.
+     *
+     * Legacy aggregate-only books intentionally keep the pending-loan fallback:
+     * without a `copie` row the reservation promotion pipeline can never bind a
+     * physical copy.
      */
     public function createReservation($request, $response, $args)
     {
@@ -398,7 +406,53 @@ class ReservationsController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
             }
 
-            // Enforce max active loans per user (admin setting; 0 = no limit)
+            // Re-check availability after acquiring the canonical book lock.
+            // The pre-lock check is only a fast fail; this one closes the race
+            // with returns, approvals, cancellations and other reservations.
+            if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
+                $postLockConflicts = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
+                $this->db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Nessuna copia disponibile nelle date richieste'),
+                    'conflict_dates' => $postLockConflicts
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // #384: the public button is deliberately unified (loan when a copy
+            // is in hand, reservation otherwise). The reservation-vs-loan
+            // decision lives in the shared LoanRequestGate so THIS endpoint and
+            // POST /user/loan (UserActionsController::loan) can never diverge:
+            // with physical rows but no in-library copy that can serve the
+            // window without a preceding return, the gate occupies the period
+            // through the real FIFO waitlist instead of letting a bare,
+            // capacity-free pending loan be created. The gate runs inside THIS
+            // transaction (inCallerTransaction: true) under the canonical book
+            // lock taken above.
+            $routing = (new \App\Services\LoanRequestGate($this->db))
+                ->route($bookId, $userId, $startDate, $endDate, inCallerTransaction: true);
+            $assignableCopyId = $routing->assignableCopyId;
+
+            if ($routing->isReservation()) {
+                $reservationId = (int) $routing->reservationId;
+                $this->db->commit();
+
+                $response->getBody()->write(json_encode([
+                    'success' => true,
+                    'message' => __('Prenotazione effettuata con successo'),
+                    'reservation_id' => $reservationId,
+                    'auto_approved' => false,
+                    'status' => 'reserved',
+                    'loan_state' => null,
+                ]));
+                return $response->withHeader('Content-Type', 'application/json');
+            }
+
+            // Enforce max active loans per user (admin setting; 0 = no limit).
+            // A real waitlist reservation is intentionally handled above: like
+            // UserActionsController::reserve(), it does not consume an active-
+            // loan slot until promotion.
             $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
                 $cntStmt = $this->db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
@@ -414,29 +468,53 @@ class ReservationsController
                 }
             }
 
-            // Re-check availability after acquiring lock to avoid races, through
-            // the same CapacityService gate as the pre-check.
-            if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
-                $postLockConflicts = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
-                $this->db->rollback();
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'message' => __('Nessuna copia disponibile nelle date richieste'),
-                    'conflict_dates' => $postLockConflicts
-                ]));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            // Read the setting while the canonical book lock is still held. With
+            // automatic approval enabled, persist the exact safe copia_id in the
+            // pending row: copy-bound pending rows occupy canonical capacity, so a
+            // second request cannot slip through after this transaction commits and
+            // before approveLoan() reacquires the lock. Manual requests intentionally
+            // remain copy-less and keep their existing review-queue semantics.
+            $autoApproveEnabled = false;
+            try {
+                $autoApproveEnabled = (new \App\Models\SettingsRepository($this->db))->autoApproveLoanRequests();
+            } catch (\Throwable $settingError) {
+                // A settings lookup failure must not discard an otherwise valid
+                // request. Leave it copy-less for staff review and report the fault.
+                \App\Support\SecureLogger::warning('Automatic-loan setting unavailable; request left for manual approval', [
+                    'book_id' => $bookId,
+                    'user_id' => $userId,
+                    'error' => $settingError->getMessage(),
+                ]);
             }
 
-            // Create pending loan request with origine='richiesta' (manual request from user)
-            $stmt = $this->db->prepare("
-                INSERT INTO prestiti
-                (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
-                VALUES (?, ?, ?, ?, 'pendente', 'richiesta', 0)
-            ");
-            $stmt->bind_param('iiss', $bookId, $userId, $startDate, $endDate);
+            $preassignedCopyId = $autoApproveEnabled ? $assignableCopyId : null;
+            if ($preassignedCopyId !== null) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO prestiti
+                    (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+                    VALUES (?, ?, ?, ?, ?, 'pendente', 'richiesta', 0)
+                ");
+                $stmt->bind_param('iiiss', $bookId, $preassignedCopyId, $userId, $startDate, $endDate);
+            } else {
+                $stmt = $this->db->prepare("
+                    INSERT INTO prestiti
+                    (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+                    VALUES (?, ?, ?, ?, 'pendente', 'richiesta', 0)
+                ");
+                $stmt->bind_param('iiss', $bookId, $userId, $startDate, $endDate);
+            }
 
             if ($stmt->execute()) {
                 $loanRequestId = (int) $this->db->insert_id;
+                if ($preassignedCopyId !== null) {
+                    // A copy-bound pending row is a real canonical hold. Keep the
+                    // denormalized book counters coherent even if the subsequent
+                    // post-commit automatic approval fails and staff must finish it.
+                    $integrity = new \App\Support\DataIntegrity($this->db);
+                    if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
+                        throw new \RuntimeException('Failed to recalculate availability after automatic copy claim.');
+                    }
+                }
                 $this->db->commit();
 
                 // #301: honour the automatic-approval setting on THIS entry point
@@ -448,7 +526,9 @@ class ReservationsController
                 // ?string: the persisted state ('prenotato' scheduled loan /
                 // 'da_ritirare' immediate pickup) on success, null when the
                 // request stays pending (setting off / approval failed).
-                $loanState = $this->autoApproveLoanRequest($request, $loanRequestId);
+                $loanState = $autoApproveEnabled
+                    ? $this->autoApproveLoanRequest($request, $loanRequestId, true)
+                    : null;
 
                 if ($loanState === null) {
                     // Send notification to admins (an auto-approved request no
@@ -503,22 +583,28 @@ class ReservationsController
         }
     }
 
+    // findAssignableInLibraryCopyThrough() and createActiveReservation() moved
+    // verbatim into App\Services\LoanRequestGate: the #384 routing decision and
+    // the waitlist write it may perform are shared with POST /user/loan
+    // (UserActionsController::loan) so the two public entry points can never
+    // diverge again.
+
     /**
      * Promote a newly-created request through the canonical approval pipeline
      * when the automatic-approval setting is on (#301). Mirrors
      * UserActionsController::autoApproveLoanRequest — a failure deliberately
      * leaves the request pending so an administrator can still process it.
      */
-    private function autoApproveLoanRequest($request, int $loanId): ?string
+    private function autoApproveLoanRequest($request, int $loanId, ?bool $knownEnabled = null): ?string
     {
-        // The settings read runs INSIDE the try: this helper is called AFTER the
-        // request is committed, so a DB hiccup in the SettingsRepository lookup
-        // must degrade to "left pending" (return null) rather than escape to the
-        // outer transaction catch, which would report a 500 for an already
-        // durable request and let the duplicate guard block the user's retry.
+        // When the caller already captured the setting under the book lock it
+        // passes that decision in $knownEnabled. Legacy/internal callers may omit
+        // it; their post-commit settings read stays inside this try so a DB hiccup
+        // degrades to "left pending" instead of escaping after the durable INSERT.
         try {
-            $settings = new \App\Models\SettingsRepository($this->db);
-            if (!$settings->autoApproveLoanRequests()) {
+            $enabled = $knownEnabled
+                ?? (new \App\Models\SettingsRepository($this->db))->autoApproveLoanRequests();
+            if (!$enabled) {
                 // A disabled setting is not a failure: leave the request pending
                 // for an admin without logging any warning noise.
                 return null;

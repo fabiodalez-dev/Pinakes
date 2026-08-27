@@ -45,7 +45,10 @@ $check(
         && str_contains($settingsView, 'class="toggle-checkbox sr-only"'),
     'loan settings persist an accessible toggle using the existing switch component'
 );
-$autoApproveCall = strpos($actions, 'autoApproveLoanRequest($request, $db, $newLoanId)');
+// Param-agnostic marker: the call gained a pre-read $autoApproveEnabled arg when
+// /user/loan started pre-binding the copy before commit. The invariant this
+// guards is the ORDER (auto-approve → guard → admin notify), not the exact args.
+$autoApproveCall = strpos($actions, 'autoApproveLoanRequest($request, $db, $newLoanId');
 $autoApprovedGuard = strpos($actions, 'if (!$autoApproved)');
 $notifyCall = strpos($actions, 'notifyLoanRequest($newLoanId)');
 $check(

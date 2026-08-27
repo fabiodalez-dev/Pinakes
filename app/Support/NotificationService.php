@@ -1806,15 +1806,25 @@ class NotificationService {
     }
 
     /**
-     * Invia notifica quando un ritiro viene annullato dall'admin
+     * Invia la notifica coerente con la chiusura manuale del ritiro.
+     *
+     * Il metodo mantiene il nome storico, ma `cancelPickup` può chiudere anche un
+     * ritiro la cui deadline è già trascorsa. In quel caso usa il template di
+     * scadenza, non quello di annullamento volontario.
      */
-    public function sendPickupCancelledNotification(int $loanId, string $reason = ''): bool {
+    public function sendPickupCancelledNotification(
+        int $loanId,
+        string $reason = '',
+        string $terminalState = 'annullato',
+        ?string $pickupDeadline = null
+    ): bool {
         try {
+            // CI-SOFT-DELETE-EXEMPT: this terminal pickup notice must reach the borrower even after the book was soft-deleted — cancelPickup() deliberately locks and closes the loan without a deleted_at filter, so the expired/cancelled email must still fire (same rationale as the overdue/expiry notices above).
             $stmt = $this->db->prepare("
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -1828,10 +1838,29 @@ class NotificationService {
             }
             $stmt->close();
 
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
+
+            if ($terminalState === 'scaduto') {
+                $effectiveDeadline = $pickupDeadline ?: ($loan['pickup_deadline'] ?? null);
+                $formattedDeadline = $effectiveDeadline
+                    ? $this->formatEmailDate((string) $effectiveDeadline, false, $recipientLocale)
+                    : '';
+                return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_expired', [
+                    'utente_nome' => $loan['utente_nome'],
+                    'libro_titolo' => $loan['libro_titolo'],
+                    'scadenza_ritiro' => $formattedDeadline,
+                    'pickup_deadline' => $formattedDeadline,
+                ]);
+            }
+
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'motivo' => $reason ?: __('Ritiro non effettuato entro la scadenza')
+                // Preserve every explicitly supplied value, including "0". Only
+                // an actually empty reason receives a recipient-localized fallback.
+                'motivo' => $reason !== ''
+                    ? $reason
+                    : $this->translateInLocale('Ritiro annullato', $recipientLocale),
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_cancelled', $variables);

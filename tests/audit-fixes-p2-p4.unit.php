@@ -17,6 +17,8 @@ declare(strict_types=1);
  *       BEFORE sending: between the caller's commit and the deferred flush the
  *       retry sweep (cron/admin login) could send the same
  *       'reservation_book_available' email, then the flush sent it again.
+ *  P2-5 cancelPickup() must record an on-time staff cancellation as
+ *       'annullato', while preserving 'scaduto' for a deadline already passed.
  *  P3-1 store() must cap pickup_deadline at data_scadenza like approveLoan()
  *       and activateScheduledLoans().
  *  P3-2 bulkExtend() and update()'s due-date extension must run the borrower
@@ -295,6 +297,62 @@ try {
     // it awaits the admin's confirmation of the physical pickup.
     $promotedLoans = (int) $db->query("SELECT COUNT(*) FROM prestiti WHERE libro_id = {$bookQ} AND utente_id = {$resUser2} AND stato = 'pendente'")->fetch_row()[0];
     check($promotedLoans === 1, 'P2-2: the promotion created the successor conversion loan (pendente)');
+
+    /* =============== P2-5: cancelPickup keeps cancel/expiry distinct ===== */
+    $onTimeUser = $mkUser();
+    [$bookOnTime, [$copyOnTime]] = $mkBook(1);
+    $onTimePickup = $mkLoan($bookOnTime, $copyOnTime, $onTimeUser, 'da_ritirare', $d(-2), $d(10), $d(0));
+    $setCopyState($copyOnTime, 'prenotato');
+
+    $_SESSION['user'] = ['tipo_utente' => 'admin', 'id' => $resUser1];
+    $request = (new ServerRequestFactory())
+        ->createServerRequest('POST', '/admin/loans/cancel-pickup')
+        ->withParsedBody(['loan_id' => $onTimePickup]);
+    $resp = (new LoanApprovalController())->cancelPickup($request, (new ResponseFactory())->createResponse(), $db);
+    $body = $jsonBody($resp);
+    $row = $loanRow($onTimePickup);
+
+    check(($body['success'] ?? null) === true, 'P2-5: staff can cancel a pickup on its deadline');
+    check(
+        ($row['stato'] ?? '') === 'annullato'
+            && (int) ($row['attivo'] ?? 1) === 0
+            && ($row['pickup_deadline'] ?? null) === null,
+        "P2-5: an on-time cancellation is 'annullato' and clears the deadline"
+    );
+    check(
+        str_contains((string) ($row['note'] ?? ''), __('Ritiro annullato il')),
+        'P2-5: on-time cancellation history uses cancellation wording'
+    );
+    $copyState = (string) $db->query("SELECT stato FROM copie WHERE id = {$copyOnTime}")->fetch_row()[0];
+    check($copyState === 'disponibile', 'P2-5: an on-time cancellation releases its physical copy');
+
+    $expiredPickupUser = $mkUser();
+    [$bookExpiredPickup, [$copyExpiredPickup]] = $mkBook(1);
+    $expiredPickup = $mkLoan($bookExpiredPickup, $copyExpiredPickup, $expiredPickupUser, 'da_ritirare', $d(-3), $d(10), $d(-1));
+    $setCopyState($copyExpiredPickup, 'prenotato');
+
+    $request = (new ServerRequestFactory())
+        ->createServerRequest('POST', '/admin/loans/cancel-pickup')
+        ->withParsedBody(['loan_id' => $expiredPickup]);
+    $resp = (new LoanApprovalController())->cancelPickup($request, (new ResponseFactory())->createResponse(), $db);
+    $body = $jsonBody($resp);
+    $row = $loanRow($expiredPickup);
+
+    check(($body['success'] ?? null) === true, 'P2-5: staff can close an already-expired pickup');
+    check(
+        ($row['stato'] ?? '') === 'scaduto'
+            && (int) ($row['attivo'] ?? 1) === 0
+            && ($row['pickup_deadline'] ?? null) === null,
+        "P2-5: a past-deadline pickup remains 'scaduto' and clears the deadline"
+    );
+    check(
+        ($body['message'] ?? '') === __('Ritiro scaduto')
+            && str_contains((string) ($row['note'] ?? ''), __('Ritiro scaduto il'))
+            && !str_contains((string) ($row['note'] ?? ''), __('Ritiro annullato il')),
+        'P2-5: expired response and history use expiry wording, never cancellation wording'
+    );
+    $copyState = (string) $db->query("SELECT stato FROM copie WHERE id = {$copyExpiredPickup}")->fetch_row()[0];
+    check($copyState === 'disponibile', 'P2-5: closing an expired pickup releases its physical copy');
 
     /* =============== P2-3: chase-up senders on an archived book =========== */
     $overdueUser = $mkUser();

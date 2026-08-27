@@ -633,3 +633,7 @@ docs/prototypes/
 .adams-reviews/
 .installed
 .installed.backup
+
+# Local-only release blog hook — reads credentials from ~/.pinakes-release-hook.env
+# and is operational tooling kept out of the repo by request.
+scripts/publish-release-article.sh

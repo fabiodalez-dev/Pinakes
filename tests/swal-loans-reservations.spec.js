@@ -9,7 +9,7 @@
  *   - app/Views/prestiti/index.php            (approve/reject widget, export, pickup)
  *   - app/Views/prestiti/dettagli_prestito.php(approve/reject on details page)
  *   - app/Views/admin/pending_loans.php       (return + cancel-reservation toasts)
- *   - app/Views/partials/loan-actions-swal.php(cancel expired pickup)
+ *   - app/Views/partials/loan-actions-swal.php(cancel pickup, early + expired)
  *   - app/Views/user_dashboard/prenotazioni.php (review submit success/error/warning)
  *   - app/Views/profile/reservations.php      (review submit success/error)
  *
@@ -18,6 +18,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -102,8 +103,8 @@ function makeCopy() {
  * stato/attivo/copia are caller-controlled to drive each Swal path.
  */
 function makeLoan({ stato, attivo, copiaId = null, dataPrestito = null, dataScadenza = null, origine = 'richiesta' }) {
-  const today = dataPrestito || dbQuery('SELECT CURDATE()');
-  const due = dataScadenza || dbQuery('SELECT DATE_ADD(CURDATE(), INTERVAL 14 DAY)');
+  const today = dataPrestito || appTodayISO();
+  const due = dataScadenza || appDateOffsetISO(14);
   const copiaSql = copiaId === null ? 'NULL' : String(copiaId);
   dbExec(`INSERT INTO prestiti
             (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo, created_at, updated_at)
@@ -116,10 +117,12 @@ function makeLoan({ stato, attivo, copiaId = null, dataPrestito = null, dataScad
 }
 
 function makeReservation() {
+  const today = appTodayISO();
+  const due = appDateOffsetISO(14);
   dbExec(`INSERT INTO prenotazioni
             (libro_id, utente_id, data_prenotazione, data_inizio_richiesta, data_fine_richiesta, queue_position, stato, created_at, updated_at)
           VALUES
-            (${bookId}, ${userId}, NOW(), CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), 1, 'attiva', NOW(), NOW())`);
+            (${bookId}, ${userId}, NOW(), '${escapeSql(today)}', '${escapeSql(due)}', 1, 'attiva', NOW(), NOW())`);
   return parseInt(dbQuery(
     `SELECT id FROM prenotazioni WHERE utente_id = ${userId} AND stato = 'attiva' ORDER BY id DESC LIMIT 1`
   ), 10);
@@ -420,13 +423,40 @@ test.describe.serial('SweetAlert: loans & reservations cluster', () => {
     ).toBe('restituito:0');
   });
 
-  // partials/loan-actions-swal.php:286 (confirm-destructive cancel expired pickup)
+  // #381: a cancellation on the pickup deadline is voluntary/on-time, not an
+  // expiry. The new non-expired button must persist annullato, clear the
+  // deadline and release the copy.
+  test('pending dashboard: cancel non-expired pickup records annullato and frees the copy', async () => {
+    clearLoans();
+    const copia = makeCopy();
+    dbExec(`UPDATE copie SET stato = 'prenotato' WHERE id = ${copia}`);
+    const loanId = makeLoan({ stato: 'da_ritirare', attivo: 1, copiaId: copia });
+    dbExec(`UPDATE prestiti SET pickup_deadline = '${escapeSql(appTodayISO())}' WHERE id = ${loanId}`);
+
+    await adminPage.goto(`${BASE}/admin/loans/pending`);
+    const cancelBtn = adminPage.locator(`.cancel-pickup-btn[data-loan-id="${loanId}"]`).first();
+    await expect(cancelBtn).toBeVisible({ timeout: 10000 });
+    await cancelBtn.click();
+
+    await adminPage.waitForSelector('.swal2-popup', { timeout: 8000 });
+    await expect(adminPage.locator('.swal2-popup')).not.toContainText('termine per il ritiro è scaduto');
+    await adminPage.locator('.swal2-confirm').click();
+
+    await adminPage.waitForSelector('.swal2-icon.swal2-success', { timeout: 12000 });
+    await expect.poll(
+      () => dbQuery(`SELECT CONCAT(stato, ':', attivo, ':', IF(pickup_deadline IS NULL, 'null', 'set')) FROM prestiti WHERE id = ${loanId}`),
+      { timeout: 10000 }
+    ).toBe('annullato:0:null');
+    expect(dbQuery(`SELECT stato FROM copie WHERE id = ${copia}`)).toBe('disponibile');
+  });
+
+  // partials/loan-actions-swal.php: cancel an actually expired pickup
   test('pending dashboard: cancel expired pickup shows warning confirm + expires loan', async () => {
     clearLoans();
     const copia = makeCopy();
     const loanId = makeLoan({ stato: 'da_ritirare', attivo: 1, copiaId: copia });
     // Past pickup deadline so the cancel-pickup card renders.
-    dbExec(`UPDATE prestiti SET pickup_deadline = DATE_SUB(CURDATE(), INTERVAL 2 DAY) WHERE id = ${loanId}`);
+    dbExec(`UPDATE prestiti SET pickup_deadline = '${escapeSql(appDateOffsetISO(-2))}' WHERE id = ${loanId}`);
 
     await adminPage.goto(`${BASE}/admin/loans/pending`);
     const cancelBtn = adminPage.locator(`.cancel-pickup-btn[data-loan-id="${loanId}"]`).first();
