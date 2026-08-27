@@ -1,6 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { flushCache } = require('./helpers/flush-cache');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -85,6 +86,12 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
       dbExec(`INSERT INTO volumi (opera_id, volume_id, numero_volume, titolo_volume)
               VALUES (${parentWorkId}, ${vid}, ${i}, 'Part ${i}')`);
     }
+
+    // The books/series above are seeded via direct SQL, which bypasses the app
+    // and thus never invalidates the page cache (#387). A book-detail or bare
+    // /catalogo entry primed by an earlier spec in this shard would otherwise be
+    // served stale, hiding the freshly-seeded ISSN / sibling volumes.
+    await flushCache();
   });
 
   test.afterAll(async () => {
