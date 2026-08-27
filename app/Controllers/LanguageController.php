@@ -58,8 +58,11 @@ class LanguageController
         $secure = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
             || $forwardedProto === 'https'
             || $forwardedSsl === 'on';
+        $basePath = rtrim(\App\Support\HtmlHelper::getBasePath(), '/');
+        $cookiePath = ($basePath === '' ? '' : $basePath) . '/';
         $cookie = 'pinakes_locale=' . rawurlencode($locale)
-            . '; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly' . ($secure ? '; Secure' : '');
+            . '; Path=' . $cookiePath
+            . '; Max-Age=31536000; SameSite=Lax; HttpOnly' . ($secure ? '; Secure' : '');
 
         // Determine safe redirect target
         $queryParams = $request->getQueryParams();

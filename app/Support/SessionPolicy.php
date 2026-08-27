@@ -6,58 +6,55 @@ namespace App\Support;
 /**
  * Decides whether the current HTTP request needs a PHP session.
  *
- * Step 6 of the caching overhaul (issue #387): the anonymous public request
- * path must be sessionless so a later PR can put anonymous pages behind a
- * shared full-page/edge cache. A request is served WITHOUT a session only
- * when ALL of the following hold:
- *
- *   1. The method is read-only (GET/HEAD). Every state-changing method
- *      (POST/PUT/PATCH/DELETE/…) keeps the session so CSRF validation always
- *      has its session-backed token store — this also covers login and every
- *      other auth POST by construction.
- *   2. The request carries NO auth-related cookie: no session cookie
- *      (session_name()), no remember_token (persistent login) and no
- *      csrf_login (login form double-submit cookie). Any hint of an
- *      authenticated — or authenticating — browser keeps the exact current
- *      session behavior.
- *   3. The path is not an auth/contact route (in any registered locale).
- *      Those pages mint session-backed CSRF tokens into their HTML forms
- *      (login, register, forgot/reset password, contact) and must keep
- *      opening the session so the subsequent POST validates.
- *
- * Fail-safe direction: anything unknown (CLI, missing method, malformed
- * path) requires a session — correctness over cacheability.
+ * Only explicitly known, read-only public routes may skip session_start().
+ * Keeping this as an allow-list is intentional: plugin routes and future
+ * pages may render session-backed forms or consume flash/auth state, so an
+ * unknown route must remain sessionful until it is audited.
  */
 final class SessionPolicy
 {
     /**
-     * Route keys whose GET pages need a session (they render session-backed
-     * CSRF form tokens, or belong to the authentication flow). Mirrors
-     * PrivateModeMiddleware::AUTH_ROUTE_KEYS plus the contact form.
+     * Audited public route families that do not require server-side session
+     * state for an anonymous GET/HEAD. A translated route also matches its
+     * descendants (for example /book/42 or /events/summer-reading).
      *
      * @var string[]
      */
-    private const SESSION_ROUTE_KEYS = [
-        'login', 'logout', 'register', 'register_success',
-        'verify_email', 'forgot_password', 'reset_password',
-        'contact', 'contact_submit',
+    private const SESSIONLESS_ROUTE_KEYS = [
+        'catalog', 'catalog_legacy',
+        'book', 'book_legacy',
+        'author', 'publisher', 'genre',
+        'events',
+        'about', 'privacy', 'cookies',
+        'api_catalog', 'api_book', 'api_home',
     ];
 
     /**
-     * Legacy English aliases always registered in web.php regardless of the
-     * install locale (see the login allow-list in PrivateModeMiddleware).
+     * Non-translated public endpoints audited for sessionless access.
+     * Descendant matching is enabled only for entries ending in a slash.
      *
      * @var string[]
      */
-    private const LEGACY_SESSION_PATHS = ['/login', '/login.php', '/logout'];
+    private const SESSIONLESS_PATHS = [
+        '/',
+        '/home.php',
+        '/health',
+        '/csrf-token',
+        '/robots.txt',
+        '/sitemap.xml',
+        '/feed.xml',
+        '/llms.txt',
+        '/language/',
+        '/uploads/',
+        '/proxy/cover',
+    ];
 
-    /** @var string[]|null Cached localized session-route prefixes. */
-    private static ?array $sessionRoutesCache = null;
+    /** @var string[]|null Cached localized public-route prefixes. */
+    private static ?array $sessionlessRoutesCache = null;
 
     /**
      * True when the request must be served with a PHP session (the default,
-     * conservative outcome); false only for the anonymous no-cookie
-     * read-only path described in the class docblock.
+     * conservative outcome); false only for an audited anonymous public path.
      *
      * @param string               $method   HTTP method ('' outside HTTP, e.g. CLI)
      * @param array<string, mixed> $cookies  Request cookies ($_COOKIE)
@@ -70,45 +67,61 @@ final class SessionPolicy
         string $path,
         ?string $basePath = null
     ): bool {
-        // 1. Only read-only methods can be sessionless. CLI/unknown ('') and
-        //    every state-changing method keep the session.
         if (!in_array(strtoupper($method), ['GET', 'HEAD'], true)) {
             return true;
         }
 
-        // 2. Any auth-related cookie keeps the exact current behavior.
-        if (isset($cookies[session_name()])) {
-            return true;
-        }
-        if (isset($cookies['remember_token'])) {
-            return true;
-        }
-        if (isset($cookies['csrf_login'])) {
+        // Any authentication-flow state makes the response visitor-specific.
+        if (
+            isset($cookies[session_name()])
+            || isset($cookies['remember_token'])
+            || isset($cookies['csrf_login'])
+        ) {
             return true;
         }
 
-        // 3. Auth/contact routes mint session-backed CSRF form tokens.
-        return self::isSessionRoute($path, $basePath);
+        return !self::isSessionlessRoute($path, $basePath);
     }
 
     /**
-     * True when the path matches an auth/contact route in any registered
-     * locale (or a legacy English alias), after stripping the base path of
-     * sub-folder installs.
+     * Match only audited public routes after safely removing a subfolder base
+     * path. The boundary check prevents /pinakes-other from being mistaken for
+     * an installation mounted at /pinakes.
      */
-    private static function isSessionRoute(string $path, ?string $basePath = null): bool
+    private static function isSessionlessRoute(string $path, ?string $basePath = null): bool
     {
-        $basePath = $basePath ?? HtmlHelper::getBasePath();
-        $basePath = rtrim($basePath, '/');
-        if ($basePath !== '' && str_starts_with($path, $basePath)) {
-            $path = substr($path, strlen($basePath));
+        $basePath = rtrim($basePath ?? HtmlHelper::getBasePath(), '/');
+        if ($basePath !== '') {
+            if ($path === $basePath) {
+                $path = '/';
+            } elseif (str_starts_with($path, $basePath . '/')) {
+                $path = substr($path, strlen($basePath));
+            } else {
+                return false;
+            }
         }
+
         $path = '/' . ltrim($path, '/');
         if ($path !== '/') {
             $path = rtrim($path, '/');
         }
 
-        foreach (self::sessionRoutes() as $route) {
+        foreach (self::SESSIONLESS_PATHS as $publicPath) {
+            if ($publicPath === '/') {
+                if ($path === '/') {
+                    return true;
+                }
+            } elseif (str_ends_with($publicPath, '/')) {
+                $prefix = rtrim($publicPath, '/');
+                if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
+                    return true;
+                }
+            } elseif ($path === $publicPath) {
+                return true;
+            }
+        }
+
+        foreach (self::sessionlessRoutes() as $route) {
             if ($path === $route || str_starts_with($path, $route . '/')) {
                 return true;
             }
@@ -118,61 +131,48 @@ final class SessionPolicy
     }
 
     /**
-     * All localized variants of the session-requiring routes, computed from
-     * the locale route files on disk (file-based, safe before the DB/container
-     * are available) plus the static English fallbacks and legacy aliases.
+     * Build every localized variant directly from route files, before the
+     * application container/database is available.
      *
      * @return string[]
      */
-    private static function sessionRoutes(): array
+    private static function sessionlessRoutes(): array
     {
-        if (self::$sessionRoutesCache !== null) {
-            return self::$sessionRoutesCache;
+        if (self::$sessionlessRoutesCache !== null) {
+            return self::$sessionlessRoutesCache;
         }
 
         $routes = [];
         foreach (self::registeredLocales() as $locale) {
-            foreach (self::SESSION_ROUTE_KEYS as $key) {
+            foreach (self::SESSIONLESS_ROUTE_KEYS as $key) {
                 $route = RouteTranslator::getRouteForLocale($key, $locale);
                 if ($route !== '' && $route !== '/') {
                     $routes[rtrim($route, '/')] = true;
                 }
             }
         }
-        foreach (self::LEGACY_SESSION_PATHS as $legacy) {
-            $routes[$legacy] = true;
-        }
 
-        self::$sessionRoutesCache = array_keys($routes);
-        return self::$sessionRoutesCache;
+        self::$sessionlessRoutesCache = array_keys($routes);
+        return self::$sessionlessRoutesCache;
     }
 
-    /**
-     * Locales that have a route-translation file on disk. Falls back to the
-     * locales whose route variants web.php always registers.
-     *
-     * @return string[]
-     */
+    /** @return string[] */
     private static function registeredLocales(): array
     {
         $locales = [];
         $files = glob(__DIR__ . '/../../locale/routes_*.json');
         foreach (($files === false ? [] : $files) as $file) {
-            if (preg_match('/routes_([A-Za-z]{2}_[A-Za-z]{2})\.json$/', $file, $m) === 1) {
-                $locales[] = $m[1];
+            if (preg_match('/routes_([A-Za-z]{2}_[A-Za-z]{2})\.json$/', $file, $matches) === 1) {
+                $locales[] = $matches[1];
             }
         }
-        if ($locales === []) {
-            $locales = ['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'];
-        }
-        return $locales;
+
+        return $locales !== [] ? $locales : ['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'];
     }
 
-    /**
-     * Test hook: clear the computed route cache.
-     */
+    /** Test hook: clear the computed route cache. */
     public static function clearCache(): void
     {
-        self::$sessionRoutesCache = null;
+        self::$sessionlessRoutesCache = null;
     }
 }

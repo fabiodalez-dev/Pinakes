@@ -327,15 +327,11 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     ini_set('session.gc_probability', '1');
     ini_set('session.gc_divisor', '100');
 
-    // Step 6 of the caching overhaul (issue #387): an anonymous request that
-    // carries no auth-related cookie and targets no auth/contact route is
-    // served WITHOUT a session, so a later PR can put anonymous pages behind
-    // a shared full-page cache. Not starting the session also means the
-    // response emits no Set-Cookie. Any request with a session cookie, a
-    // remember_token, a csrf_login cookie, any non-GET/HEAD method (login and
-    // every other state-changing request) or an auth/contact path keeps the
-    // exact pre-existing session behavior. The predicate fails safe: when in
-    // doubt (CLI, malformed URI) the session is started.
+    // Step 6 of the caching overhaul (issue #387): audited public GET/HEAD
+    // routes can be served without a session when no auth-flow cookie exists,
+    // allowing a later shared full-page cache to reuse the response. Unknown,
+    // plugin and state-changing routes fail safe by retaining the pre-existing
+    // session behavior. See SessionPolicy for the deliberately narrow list.
     $sessionUriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
     $needsSession = !is_string($sessionUriPath) || \App\Support\SessionPolicy::requiresSession(
         (string) ($_SERVER['REQUEST_METHOD'] ?? ''),
@@ -503,18 +499,20 @@ if (!$isCli) {
         error_log("Failed to load languages from database: " . $e->getMessage());
     }
 
+    $localeRestoredFromSession = false;
     if (!empty($_SESSION['locale'])) {
         $sessionLocale = (string)$_SESSION['locale'];
-        if (!\App\Support\I18n::setLocale($sessionLocale)) {
+        $localeRestoredFromSession = \App\Support\I18n::setLocale($sessionLocale);
+        if (!$localeRestoredFromSession) {
             unset($_SESSION['locale']);
         }
-    } elseif (session_status() !== PHP_SESSION_ACTIVE) {
-        // Sessionless anonymous request (issue #387 step 6): the language
-        // choice is persisted in the pinakes_locale cookie written by
-        // /language/{locale}, so the anonymous locale is deterministic
-        // per-request (cookie/URL, not session) and a cached page can be
-        // correct per-locale. setLocale() validates against the available
-        // locales, so an unknown/tampered cookie value is simply ignored.
+    }
+
+    if (!$localeRestoredFromSession) {
+        // The cookie also covers a newly opened session (for example one
+        // created because remember_token/csrf_login is present) that does not
+        // yet contain a locale. A valid session locale always wins. setLocale
+        // validates the normalized cookie against the available locales.
         $cookieLocale = $_COOKIE['pinakes_locale'] ?? '';
         if (is_string($cookieLocale) && $cookieLocale !== '') {
             \App\Support\I18n::setLocale(\App\Support\I18n::normalizeLocaleCode($cookieLocale));

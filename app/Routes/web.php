@@ -146,8 +146,11 @@ return function (App $app): void {
         $payload = json_encode(['token' => \App\Support\Csrf::ensureToken()], JSON_HEX_TAG);
         $response->getBody()->write((string) $payload);
         return $response
-            ->withHeader('Content-Type', 'application/json')
-            ->withHeader('Cache-Control', 'no-store, private');
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('Pragma', 'no-cache')
+            ->withHeader('Vary', 'Cookie')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
     });
 
     // Private uploaded files (digital-library content, archive documents,

@@ -5,8 +5,8 @@ declare(strict_types=1);
  * Step 6 of the caching overhaul (issue #387): sessionless anonymous request
  * path with lazy CSRF. Security invariants:
  *
- *   1. SessionPolicy: only a read-only, cookie-less, non-auth-route request
- *      is sessionless; everything else keeps the session (fail-safe).
+ *   1. SessionPolicy: only audited, read-only, cookie-less public routes are
+ *      sessionless; unknown and plugin routes keep the session (fail-safe).
  *   2. Csrf stays fail-closed with no session data: missing/invalid tokens
  *      are rejected; a lazily minted token (GET /csrf-token flow) validates.
  *   3. CsrfMiddleware still rejects missing/invalid tokens on POST and still
@@ -48,7 +48,12 @@ $check(!SessionPolicy::requiresSession('GET', [], '/catalog', ''), 'GET /catalog
 $check(!SessionPolicy::requiresSession('GET', [], '/catalogo', ''), 'GET /catalogo (it) with no cookies is sessionless');
 $check(!SessionPolicy::requiresSession('HEAD', [], '/book/42', ''), 'HEAD /book/42 with no cookies is sessionless');
 $check(!SessionPolicy::requiresSession('GET', [], '/language/en_US', ''), 'GET /language/{locale} is sessionless (cookie-based)');
+$check(!SessionPolicy::requiresSession('GET', [], '/csrf-token', ''), 'lazy token endpoint reaches its own session_start');
 $check(!SessionPolicy::requiresSession('GET', ['pinakes_locale' => 'de_DE'], '/catalog', ''), 'locale cookie alone does not force a session');
+
+// Unknown/plugin/canonical catch-all routes stay sessionful until audited.
+$check(SessionPolicy::requiresSession('GET', [], '/club/summer', ''), 'unknown plugin route keeps the session');
+$check(SessionPolicy::requiresSession('GET', [], '/author-slug/book-slug/42', ''), 'unclassified canonical route keeps the session');
 
 // Session kept: any state-changing / unknown method.
 $check(SessionPolicy::requiresSession('POST', [], '/anything', ''), 'POST always keeps the session');
@@ -87,6 +92,7 @@ $check(SessionPolicy::requiresSession('GET', [], '/reset-password/sometoken', ''
 // Base path handling (sub-folder installs).
 $check(SessionPolicy::requiresSession('GET', [], '/pinakes/login', '/pinakes'), 'base-path auth route keeps the session');
 $check(!SessionPolicy::requiresSession('GET', [], '/pinakes/catalog', '/pinakes'), 'base-path public route is sessionless');
+$check(SessionPolicy::requiresSession('GET', [], '/pinakes-other/catalog', '/pinakes'), 'base-path stripping requires a path boundary');
 
 // ---------------------------------------------------------------------------
 // 2. Csrf fail-closed without a session + lazy mint flow
@@ -104,6 +110,23 @@ $_SESSION = [];
 $minted = Csrf::ensureToken();
 $check($minted !== '' && Csrf::validate($minted), 'lazily minted token validates');
 $check(!Csrf::validate($minted . 'x'), 'tampered minted token is rejected');
+
+// Browser helper invariants. The behavioral counterpart is exercised by the
+// browser suite; these guards keep the security-critical implementation from
+// silently regressing during a refactor.
+$csrfHelper = file_get_contents(dirname(__DIR__) . '/public/assets/js/csrf-helper.js');
+$check(is_string($csrfHelper) && str_contains($csrfHelper, 'let lazyTokenPromise = null'), 'lazy CSRF mint is single-flight');
+$check(is_string($csrfHelper) && str_contains($csrfHelper, '.finally(function()'), 'single-flight promise is cleared after completion');
+$check(is_string($csrfHelper) && str_contains($csrfHelper, 'window.location.origin'), 'CSRF header is limited to same-origin requests');
+$check(is_string($csrfHelper) && str_contains($csrfHelper, 'new Headers(options.headers || {})'), 'Headers instances are preserved');
+
+$frontController = file_get_contents(dirname(__DIR__) . '/public/index.php');
+$check(
+    is_string($frontController)
+        && str_contains($frontController, '$localeRestoredFromSession')
+        && str_contains($frontController, 'if (!$localeRestoredFromSession)'),
+    'locale cookie falls back when an active session has no valid locale'
+);
 
 // ---------------------------------------------------------------------------
 // 3. CsrfMiddleware behavior (direct invocation)
