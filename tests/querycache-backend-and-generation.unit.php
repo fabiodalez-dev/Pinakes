@@ -24,7 +24,11 @@ declare(strict_types=1);
  *  - security: a file-backend payload replaced with a bare serialized
  *    object is neutralized by unserialize(..., allowed_classes=false)
  *    (get() returns null, poisoned file removed);
- *  - stats() hit/miss counters move correctly across a miss and a hit.
+ *  - stats() hit/miss counters move correctly across a miss and a hit, and
+ *    remember() records one logical lookup despite its mutex double-check;
+ *  - in-flight loaders cannot publish stale data into a newer generation;
+ *  - generation bumps are atomic across concurrent processes;
+ *  - time-gated GC is actually reached by normal file-cache writes.
  *
  * FAILS BY DESIGN on the pre-refactor QueryCache: stats()/bumpGeneration()
  * do not exist there (fatal Error), and the "stale file left on disk after
@@ -211,6 +215,93 @@ try {
         '30 stats(): hit_ratio consistent with counters'
     );
     QueryCache::delete($hitKey);
+
+    // ── remember() must not publish across an invalidation ──────────────
+    $inFlightKey = $key("home_qc_inflight_{$run}");
+    $inFlight = QueryCache::remember($inFlightKey, static function (): string {
+        // Simulate a committed mutation/invalidation while an older loader is
+        // still computing. Its result may be returned to that caller, but must
+        // remain stored under the old generation and be unreachable afterwards.
+        ContentCache::homeContentChanged();
+        return 'pre-invalidation-value';
+    }, 300);
+    $check($inFlight === 'pre-invalidation-value', '31 in-flight loader returns its callback value');
+    $check(QueryCache::get($inFlightKey) === null, '32 in-flight loader cannot populate the newer generation');
+
+    // ── remember() instrumentation counts logical lookups only ──────────
+    $statsRememberKey = $key("qc_stats_remember_{$run}");
+    $beforeRemember = QueryCache::stats();
+    QueryCache::remember($statsRememberKey, static fn(): string => 'v', 60);
+    $afterRemember = QueryCache::stats();
+    $check(($afterRemember['gets'] - $beforeRemember['gets']) === 1, '33 cold remember() counts one logical get');
+    $check(($afterRemember['misses'] - $beforeRemember['misses']) === 1, '34 cold remember() counts one logical miss');
+
+    // ── Generation increments remain atomic across processes ───────────
+    if (function_exists('pcntl_fork') && function_exists('pcntl_waitpid')) {
+        $reflection = new ReflectionClass(QueryCache::class);
+        $generationMethod = $reflection->getMethod('currentGeneration');
+        $generationMemo = $reflection->getProperty('generationCache');
+
+        QueryCache::bumpGeneration('schema_table_');
+        $generationMemo->setValue(null, []);
+        $beforeGeneration = $generationMethod->invoke(null, 'schema_table_');
+
+        $children = [];
+        $childCount = 6;
+        $bumpsPerChild = 20;
+        for ($child = 0; $child < $childCount; $child++) {
+            $pid = pcntl_fork();
+            if ($pid === -1) {
+                throw new RuntimeException('pcntl_fork failed');
+            }
+            if ($pid === 0) {
+                for ($i = 0; $i < $bumpsPerChild; $i++) {
+                    QueryCache::bumpGeneration('schema_table_');
+                }
+                exit(0);
+            }
+            $children[] = $pid;
+        }
+        foreach ($children as $pid) {
+            pcntl_waitpid($pid, $status);
+            if (!pcntl_wifexited($status) || pcntl_wexitstatus($status) !== 0) {
+                throw new RuntimeException('generation bump child failed');
+            }
+        }
+
+        // The parent intentionally held its request-local memo while children
+        // worked; clear it to model the next request reading the canonical file.
+        $generationMemo->setValue(null, []);
+        $afterGeneration = $generationMethod->invoke(null, 'schema_table_');
+        $check(
+            ($afterGeneration - $beforeGeneration) === $childCount * $bumpsPerChild,
+            '35 concurrent generation bumps have no lost updates or rollback'
+        );
+    } else {
+        $source = file_get_contents($root . '/app/Support/QueryCache.php');
+        $check(
+            is_string($source) && str_contains($source, 'flock($handle, LOCK_EX)'),
+            '35 generation mutation uses an exclusive lock (pcntl unavailable)'
+        );
+    }
+
+    // ── File GC is wired into writes ────────────────────────────────────
+    if ($backend === 'file') {
+        $gcMarker = $cacheDir . '/.pinakes_gc';
+        @touch($gcMarker, time() - 7200);
+        $reflection = new ReflectionClass(QueryCache::class);
+        $reflection->getProperty('gcCheckedThisRequest')->setValue(null, false);
+
+        $expiredKey = $key("qc_gc_expired_{$run}");
+        QueryCache::set($expiredKey, 'expired', -1);
+        $check($filesFor($expiredKey) === [], '36 time-gated GC reclaims expired generation leftovers');
+    } else {
+        $source = file_get_contents($root . '/app/Support/QueryCache.php');
+        $check(
+            is_string($source) && str_contains($source, 'self::maybeGc();'),
+            '36 file writes schedule time-gated GC (APCu selected here)'
+        );
+    }
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: {$e->getMessage()}\n");
     exit(1);

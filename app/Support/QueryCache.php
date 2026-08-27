@@ -37,21 +37,35 @@ class QueryCache
     ];
 
     /**
-     * TTL for generation counter entries (~1 year). Must outlive any data TTL:
-     * if a generation counter is ever lost, it is re-initialized to time(),
-     * which is monotonic w.r.t. every previously issued generation, so stale
-     * entries can never be resurrected.
+     * TTL for generation counter entries (~1 year). It intentionally outlives
+     * every data TTL, so all entries that referenced an expired counter are
+     * already expired before the counter can be initialized again.
      */
     private const GENERATION_TTL = 31536000;
 
     /** Stale threshold (seconds) shared by the file lock and the APCu lock sentinel */
     private const LOCK_STALE_SECONDS = 300;
 
+    /** Run file-cache garbage collection at most once per hour. */
+    private const GC_INTERVAL_SECONDS = 3600;
+
     /** @var string Base directory for file cache */
     private static string $cacheDir = '';
 
     /** @var bool|null Whether APCu is available (cached check = deterministic backend per request) */
     private static ?bool $apcuAvailable = null;
+
+    /**
+     * Request-local namespace generations. The canonical counters live on
+     * disk so FPM/APCu and CLI/file users observe the same invalidations; the
+     * memo avoids an extra filesystem read for every cache operation.
+     *
+     * @var array<string, int>
+     */
+    private static array $generationCache = [];
+
+    /** Avoid checking the GC marker more than once in the same request. */
+    private static bool $gcCheckedThisRequest = false;
 
     /** @var int Instrumentation: total get() calls this request */
     private static int $statGets = 0;
@@ -117,7 +131,9 @@ class QueryCache
      * Uses mutex locking to prevent cache stampede (thundering herd problem).
      * Only one process computes the value while others wait. The mutex lives
      * in the selected backend: an apcu_add() sentinel when APCu holds the
-     * values (no filesystem I/O on the APCu hot path), a .lock file otherwise.
+     * values, a .lock file otherwise. Generation-tracked keys read their small
+     * canonical generation file once per namespace/request so CLI and FPM stay
+     * coherent even when APCu is disabled for CLI.
      *
      * @param string $key Unique cache key
      * @param callable $callback Function to generate value if not cached
@@ -126,17 +142,26 @@ class QueryCache
      */
     public static function remember(string $key, callable $callback, int $ttl = 300): mixed
     {
-        // Try to get from cache first
-        $cached = self::get($key);
+        // Resolve the generation exactly once. If an invalidation happens while
+        // the callback is running, the result is written under this old storage
+        // key and therefore stays unreachable from the new generation.
+        $hashedKey = self::hashKey($key);
+
+        // This is the one logical lookup represented in stats(). Mutex
+        // double-checks below deliberately use backendGet() without counters.
+        self::$statGets++;
+        $cached = self::backendGet($hashedKey);
         if ($cached !== null) {
+            self::$statHits++;
             return $cached;
         }
+        self::$statMisses++;
 
         if (self::hasApcu()) {
-            return self::rememberWithApcuLock($key, $callback, $ttl);
+            return self::rememberWithApcuLock($key, $hashedKey, $callback, $ttl);
         }
 
-        return self::rememberWithFileLock($key, $callback, $ttl);
+        return self::rememberWithFileLock($key, $hashedKey, $callback, $ttl);
     }
 
     /**
@@ -147,25 +172,31 @@ class QueryCache
      *  - same 8s bounded wait, then the FIX F008 final-attempt pass and
      *    SecureLogger warning before proceeding unprotected.
      */
-    private static function rememberWithApcuLock(string $key, callable $callback, int $ttl): mixed
+    private static function rememberWithApcuLock(
+        string $key,
+        string $hashedKey,
+        callable $callback,
+        int $ttl
+    ): mixed
     {
-        // Lock identity is the logical key (not the generation-resolved storage
-        // key) so concurrent callers agree on the mutex even across a bump.
-        $lockKey = 'pinakes_lock_' . md5($key);
+        // The lock follows the resolved generation. A request for a new
+        // generation must not wait for (or consume) an old-generation loader.
+        $lockKey = 'pinakes_lock_' . md5($hashedKey);
+        $lockToken = random_int(1, PHP_INT_MAX);
 
-        $lockAcquired = apcu_add($lockKey, 1, self::LOCK_STALE_SECONDS);
+        $lockAcquired = apcu_add($lockKey, $lockToken, self::LOCK_STALE_SECONDS);
         $timedOut = false;
+        $start = microtime(true);
 
         try {
             if (!$lockAcquired) {
-                $start = microtime(true);
                 $maxWaitSeconds = 8.0;
                 $sleepMicros = 200000;
 
                 while (true) {
                     usleep($sleepMicros);
 
-                    $lockAcquired = apcu_add($lockKey, 1, self::LOCK_STALE_SECONDS);
+                    $lockAcquired = apcu_add($lockKey, $lockToken, self::LOCK_STALE_SECONDS);
                     if ($lockAcquired) {
                         break;
                     }
@@ -176,7 +207,7 @@ class QueryCache
                     }
                 }
 
-                $cached = self::get($key);
+                $cached = self::backendGet($hashedKey);
                 if ($cached !== null) {
                     return $cached;
                 }
@@ -188,7 +219,7 @@ class QueryCache
                 if ($timedOut) {
                     $finalAttempts = 5;
                     for ($i = 0; $i < $finalAttempts; $i++) {
-                        if (apcu_add($lockKey, 1, self::LOCK_STALE_SECONDS)) {
+                        if (apcu_add($lockKey, $lockToken, self::LOCK_STALE_SECONDS)) {
                             $lockAcquired = true;
                             break;
                         }
@@ -207,17 +238,48 @@ class QueryCache
                 }
             }
 
+            // Always double-check after acquiring the sentinel. Another worker
+            // may have populated the value between our first miss and apcu_add(),
+            // or immediately before a final retry acquired the released lock.
+            if ($lockAcquired) {
+                $cached = self::backendGet($hashedKey);
+                if ($cached !== null) {
+                    return $cached;
+                }
+            }
+
             // Execute callback to get fresh value
             $value = $callback();
 
-            // Store in cache
-            self::set($key, $value, $ttl);
+            // Store under the generation resolved before the callback.
+            self::backendSet($hashedKey, $value, $ttl);
 
             return $value;
         } finally {
             if ($lockAcquired) {
+                self::releaseApcuLock($lockKey, $lockToken);
+            }
+        }
+    }
+
+    /** Release an APCu sentinel only when it is still owned by this caller. */
+    private static function releaseApcuLock(string $lockKey, int $lockToken): void
+    {
+        if (function_exists('apcu_cas')) {
+            // CAS keeps an expired/reacquired successor lock from being deleted
+            // by the previous owner. The temporary zero remains locked until
+            // this caller deletes it immediately below.
+            if (apcu_cas($lockKey, $lockToken, 0)) {
                 apcu_delete($lockKey);
             }
+            return;
+        }
+
+        // Compatibility fallback for unusual APCu builds without apcu_cas().
+        $success = false;
+        $current = apcu_fetch($lockKey, $success);
+        if ($success && $current === $lockToken) {
+            apcu_delete($lockKey);
         }
     }
 
@@ -225,10 +287,15 @@ class QueryCache
      * remember() body for the file backend: the original flock()-based
      * stampede protection, unchanged.
      */
-    private static function rememberWithFileLock(string $key, callable $callback, int $ttl): mixed
+    private static function rememberWithFileLock(
+        string $key,
+        string $hashedKey,
+        callable $callback,
+        int $ttl
+    ): mixed
     {
         // Acquire mutex lock to prevent stampede
-        $lockKey = self::hashKey($key) . '.lock';
+        $lockKey = $hashedKey . '.lock';
         $lockFile = self::getCacheDir() . '/' . $lockKey;
 
         // Check lock file mtime BEFORE fopen (fopen 'c' mode can update mtime)
@@ -278,7 +345,7 @@ class QueryCache
                 usleep($sleepMicros);
             }
 
-            $cached = self::get($key);
+            $cached = self::backendGet($hashedKey);
             if ($cached !== null) {
                 return $cached;
             }
@@ -319,8 +386,8 @@ class QueryCache
             // Execute callback to get fresh value
             $value = $callback();
 
-            // Store in cache
-            self::set($key, $value, $ttl);
+            // Store under the generation resolved before the callback.
+            self::backendSet($hashedKey, $value, $ttl);
 
             return $value;
         } finally {
@@ -378,12 +445,17 @@ class QueryCache
     public static function delete(string $key): bool
     {
         $hashedKey = self::hashKey($key);
+        $successFiles = self::deleteFromFile($hashedKey);
+        $successApcu = true;
 
+        // Invalidation intentionally reaches both stores when this SAPI can
+        // access APCu. This preserves web/FPM -> CLI/file coherence while data
+        // writes themselves remain single-backend.
         if (self::hasApcu()) {
-            return apcu_delete($hashedKey);
+            $successApcu = apcu_delete($hashedKey) || !apcu_exists($hashedKey);
         }
 
-        return self::deleteFromFile($hashedKey);
+        return $successFiles && $successApcu;
     }
 
     /**
@@ -405,12 +477,19 @@ class QueryCache
             return;
         }
 
-        $genKey = self::generationStorageKey($ns);
-        $current = self::backendGet($genKey);
-        // max(current+1, time()): monotonic even if the counter was ever lost
-        // and re-initialized (init value is time(), see currentGeneration()).
-        $next = is_int($current) ? max($current + 1, time()) : time();
-        self::backendSet($genKey, $next, self::GENERATION_TTL);
+        $next = self::mutateGenerationFile($ns, true);
+        if ($next === null) {
+            // If the canonical counter cannot be persisted, fall back to the
+            // physical invalidation used before namespace generations. Keep a
+            // request-local unique generation as an additional safety net so
+            // this process cannot reuse the old key after the invalidation.
+            self::legacyClearByPrefix($ns);
+            self::$generationCache[$ns] = -random_int(1, PHP_INT_MAX);
+            return;
+        }
+
+        self::$generationCache[$ns] = $next;
+        self::maybeGc();
     }
 
     /**
@@ -558,10 +637,7 @@ class QueryCache
         return null;
     }
 
-    /**
-     * Storage key of a namespace's generation counter. Deliberately outside
-     * every namespace prefix so it never resolves through itself.
-     */
+    /** Storage filename of a namespace's canonical generation counter. */
     private static function generationStorageKey(string $ns): string
     {
         $safe = preg_replace('/[^A-Za-z0-9_\-]/', '_', $ns);
@@ -570,22 +646,126 @@ class QueryCache
     }
 
     /**
-     * Current generation of a namespace. Missing counters are initialized to
-     * time(): monotonic w.r.t. every generation ever issued before, so a lost
-     * counter can never make previously invalidated entries reachable again.
+     * Current generation of a namespace.
+     *
+     * The canonical counter is deliberately file-backed even when APCu is the
+     * selected data backend. PHP-FPM and CLI commonly disagree on APCu
+     * availability (apc.enable_cli is normally off); one shared file keeps
+     * invalidation coherent across those SAPIs. The value is memoized for the
+     * remainder of this request, so each namespace costs at most one file read.
      */
     private static function currentGeneration(string $ns): int
     {
-        $genKey = self::generationStorageKey($ns);
-        $value = self::backendGet($genKey);
-        if (is_int($value)) {
-            return $value;
+        if (isset(self::$generationCache[$ns])) {
+            return self::$generationCache[$ns];
         }
 
-        $gen = time();
-        self::backendSet($genKey, $gen, self::GENERATION_TTL);
+        $gen = self::readGenerationFile($ns);
+        if ($gen === null) {
+            // Initialize under an exclusive lock. A concurrent initializer may
+            // win; mutateGenerationFile(false) then returns its value unchanged.
+            $gen = self::mutateGenerationFile($ns, false);
+        }
+
+        if ($gen === null) {
+            // Graceful degradation when the cache directory is unavailable:
+            // a process-unique negative generation prevents stale cross-request
+            // reuse while still allowing repeat lookups within this request.
+            $gen = -random_int(1, PHP_INT_MAX);
+        }
+
+        self::$generationCache[$ns] = $gen;
 
         return $gen;
+    }
+
+    /** Read a valid generation file under a shared lock. */
+    private static function readGenerationFile(string $ns): ?int
+    {
+        $path = self::getCacheDir() . '/' . self::generationStorageKey($ns);
+        $handle = @fopen($path, 'r');
+        if ($handle === false) {
+            return null;
+        }
+
+        try {
+            if (!flock($handle, LOCK_SH)) {
+                return null;
+            }
+
+            return self::generationFromHandle($handle);
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    /**
+     * Initialize or atomically increment a namespace generation.
+     *
+     * @param bool $increment true for invalidation, false for initialize-if-missing
+     */
+    private static function mutateGenerationFile(string $ns, bool $increment): ?int
+    {
+        $path = self::getCacheDir() . '/' . self::generationStorageKey($ns);
+        $handle = @fopen($path, 'c+');
+        if ($handle === false) {
+            return null;
+        }
+
+        try {
+            if (!flock($handle, LOCK_EX)) {
+                return null;
+            }
+
+            $current = self::generationFromHandle($handle);
+            if ($current !== null && !$increment) {
+                return $current;
+            }
+
+            $next = $current !== null ? max($current + 1, time()) : time();
+            $payload = serialize([
+                'value' => $next,
+                'expires' => time() + self::GENERATION_TTL,
+                'created' => time(),
+            ]);
+
+            rewind($handle);
+            if (!ftruncate($handle, 0)) {
+                return null;
+            }
+
+            $written = fwrite($handle, $payload);
+            if ($written === false || $written !== strlen($payload) || !fflush($handle)) {
+                return null;
+            }
+            @chmod($path, 0660);
+
+            return $next;
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    /** Parse a generation payload from an already locked file handle. */
+    private static function generationFromHandle($handle): ?int
+    {
+        rewind($handle);
+        $content = stream_get_contents($handle);
+        if ($content === false || $content === '') {
+            return null;
+        }
+
+        $data = @unserialize($content, ['allowed_classes' => false]);
+        if (!is_array($data)
+            || !isset($data['expires'], $data['value'])
+            || (int) $data['expires'] < time()
+            || !is_int($data['value'])) {
+            return null;
+        }
+
+        return $data['value'];
     }
 
     /**
@@ -678,9 +858,59 @@ class QueryCache
         $result = @file_put_contents($path, serialize($data), LOCK_EX);
         if ($result !== false) {
             @chmod($path, 0660);
+            self::maybeGc();
         }
 
         return $result !== false;
+    }
+
+    /**
+     * Run file-cache GC at most once per configured interval and never make a
+     * request wait behind another collector. Generation invalidation leaves
+     * old filenames unreachable, so TTL alone is insufficient: without this
+     * scheduled sweep those files would remain on disk forever.
+     */
+    private static function maybeGc(): void
+    {
+        if (self::$gcCheckedThisRequest) {
+            return;
+        }
+        self::$gcCheckedThisRequest = true;
+
+        $cacheDir = self::getCacheDir();
+        $marker = $cacheDir . '/.pinakes_gc';
+        clearstatcache(true, $marker);
+        $lastRun = @filemtime($marker);
+        if ($lastRun !== false && $lastRun >= time() - self::GC_INTERVAL_SECONDS) {
+            return;
+        }
+
+        $lockPath = $cacheDir . '/.pinakes_gc.lock';
+        $lock = @fopen($lockPath, 'c');
+        if ($lock === false) {
+            return;
+        }
+
+        try {
+            if (!flock($lock, LOCK_EX | LOCK_NB)) {
+                return;
+            }
+
+            // Recheck after acquiring the lock: another process may have run
+            // GC between the optimistic marker check and flock().
+            clearstatcache(true, $marker);
+            $lastRun = @filemtime($marker);
+            if ($lastRun !== false && $lastRun >= time() - self::GC_INTERVAL_SECONDS) {
+                return;
+            }
+
+            // Mark before scanning so a fatal error cannot trigger a GC storm.
+            @touch($marker);
+            self::gc();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     /**
@@ -724,21 +954,43 @@ class QueryCache
                 continue;
             }
 
-            $content = @file_get_contents($file);
-            if ($content === false) {
+            $handle = @fopen($file, 'r');
+            if ($handle === false) {
                 if (@unlink($file)) {
                     $count++;
                 }
                 continue;
             }
 
-            // Use safe unserialize to prevent object injection attacks
-            $data = @unserialize($content, ['allowed_classes' => false]);
-            // Delete if: not an array, missing 'expires' key (corrupted), or expired
-            if (!is_array($data) || !isset($data['expires']) || $data['expires'] < $now) {
-                if (@unlink($file)) {
+            try {
+                // Generation counters and ordinary entries are written under an
+                // exclusive lock. GC must take that same exclusive lock or it
+                // could mistake an in-progress truncate/write for corruption.
+                if (!flock($handle, LOCK_EX)) {
+                    continue;
+                }
+
+                $content = stream_get_contents($handle);
+                $delete = false;
+                if ($content === false) {
+                    $delete = true;
+                } else {
+                    // Use safe unserialize to prevent object injection attacks.
+                    $data = @unserialize($content, ['allowed_classes' => false]);
+                    $delete = !is_array($data)
+                        || !isset($data['expires'])
+                        || $data['expires'] < $now;
+                }
+
+                // Unlink while the inode is still exclusively locked. Waiting
+                // until after unlock would let a concurrent writer refresh the
+                // same path between our expiry check and unlink().
+                if ($delete && @unlink($file)) {
                     $count++;
                 }
+            } finally {
+                flock($handle, LOCK_UN);
+                fclose($handle);
             }
         }
 
