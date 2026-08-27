@@ -25,6 +25,7 @@ final class ContentCache
         QueryCache::bumpGeneration('catalog_');
         QueryCache::bumpGeneration('home_');
         QueryCache::bumpGeneration('genre_tree_');
+        QueryCache::bumpGeneration('book_detail_');
     }
 
     /**
@@ -53,5 +54,16 @@ final class ContentCache
     public static function homeContentChanged(): void
     {
         QueryCache::bumpGeneration('home_');
+    }
+
+    /**
+     * A review was approved, rejected or deleted: the cached public reviews
+     * block ('book_reviews_' namespace, book-detail page) is stale. New
+     * reviews are created as 'pendente' (never publicly visible), so only
+     * moderation transitions need to invalidate.
+     */
+    public static function reviewsChanged(): void
+    {
+        QueryCache::bumpGeneration('book_reviews_');
     }
 }

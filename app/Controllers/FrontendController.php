@@ -294,17 +294,9 @@ class FrontendController
             LIMIT ? OFFSET ?
         ";
 
-        $stmt_books = $db->prepare($books_query);
-        $final_params = array_merge($query_params, [$limit, $offset]);
-        $final_types = $param_types . 'ii';
-        $stmt_books->bind_param($final_types, ...$final_params);
-        $stmt_books->execute();
-        $books_result = $stmt_books->get_result();
-
-        $books = [];
-        while ($book = $books_result->fetch_assoc()) {
-            $books[] = $book;
-        }
+        // Listing rows: cached only for the bounded filter states (availability
+        // fields stripped from the cached copy and merged back live per request).
+        $books = $this->loadCatalogPageRows($db, $books_query, $param_types, $query_params, $filters, $limit, $offset, $page);
 
         // Ottieni le opzioni per i filtri
         $filter_options = $this->getFilterOptions($db, $filters);
@@ -404,17 +396,9 @@ class FrontendController
             LIMIT ? OFFSET ?
         ";
 
-        $stmt_books = $db->prepare($books_query);
-        $final_params = array_merge($query_params, [$limit, $offset]);
-        $final_types = $param_types . 'ii';
-        $stmt_books->bind_param($final_types, ...$final_params);
-        $stmt_books->execute();
-        $books_result = $stmt_books->get_result();
-
-        $books = [];
-        while ($book = $books_result->fetch_assoc()) {
-            $books[] = $book;
-        }
+        // Listing rows: cached only for the bounded filter states (availability
+        // fields stripped from the cached copy and merged back live per request).
+        $books = $this->loadCatalogPageRows($db, $books_query, $param_types, $query_params, $filters, $limit, $offset, $page);
 
         // Render only the books grid
         ob_start();
@@ -509,39 +493,33 @@ class FrontendController
 
         $book_id = (int)$params['id'];
 
-        // Query per recuperare i dettagli completi del libro con gerarchia generi
-        $query = "
-            SELECT l.*,
-                   a.nome AS autore_principale,
-                   g.nome AS genere,
-                   gp.id AS genere_parent_id_resolved,
-                   gp.nome AS genere_parent,
-                   gpp.id AS genere_grandparent_id,
-                   gpp.nome AS genere_grandparent,
-                   sg.nome AS sottogenere,
-                   e.nome AS editore
-            FROM libri l
-            LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo = 'principale'
-            LEFT JOIN autori a ON la.autore_id = a.id
-            LEFT JOIN generi g ON l.genere_id = g.id
-            LEFT JOIN generi gp ON g.parent_id = gp.id
-            LEFT JOIN generi gpp ON gp.parent_id = gpp.id
-            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
-            LEFT JOIN editori e ON l.editore_id = e.id
-            WHERE l.id = ? AND l.deleted_at IS NULL
-            LIMIT 1
-        ";
+        // Static book-detail DTO (issue #387 step 4): the book row, its
+        // authors, publishers, series and related volumes are identical for
+        // every visitor and change only through admin write paths that all
+        // funnel into ContentCache::booksChanged() → 'book_detail_' generation
+        // bump. Live availability (copie_disponibili/copie_totali/stato) is
+        // deliberately EXCLUDED from the cached payload and re-read from the
+        // database on every request further below: a stale availability number
+        // is a user-facing correctness bug (double-loan), a stale title is not.
+        $locale = \App\Support\I18n::getLocale();
+        $detail = \App\Support\QueryCache::remember(
+            'book_detail_' . $locale . '_' . $book_id,
+            function () use ($db, $book_id): ?array {
+                return $this->buildBookDetailStatic($db, $book_id);
+            },
+            300
+        );
 
-        $stmt = $db->prepare($query);
-        $stmt->bind_param("i", $book_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if (!$result || $result->num_rows == 0) {
+        // A missing/soft-deleted book yields null, which remember() treats as
+        // a miss on the next request — 404s are never negatively cached.
+        if (!is_array($detail) || !isset($detail['book'])) {
             return $this->render404($response);
         }
 
-        $book = $result->fetch_assoc();
+        $book = $detail['book'];
+        $authors = $detail['authors'];
+        $seriesBooks = $detail['seriesBooks'];
+        $related_books = $detail['related_books'];
 
         // Ensure canonical URL structure (author slug + book slug + ID)
         $canonicalPath = book_url([
@@ -560,90 +538,54 @@ class FrontendController
             return $response->withHeader('Location', $canonicalPath)->withStatus(301);
         }
 
-        // Query per ottenere tutti gli autori del libro
-        $query_authors = "
-            SELECT a.*, la.ruolo
-            FROM autori a
-            JOIN libri_autori la ON a.id = la.autore_id
-            WHERE la.libro_id = ?
-            ORDER BY
-                CASE la.ruolo
-                    WHEN 'principale' THEN 1
-                    WHEN 'co-autore' THEN 2
-                    WHEN 'traduttore' THEN 3
-                    WHEN 'illustratore' THEN 4
-                    WHEN 'curatore' THEN 5
-                    WHEN 'colorista' THEN 6
-                    ELSE 7
-                END
-        ";
-
-        $stmt_authors = $db->prepare($query_authors);
-        $stmt_authors->bind_param("i", $book_id);
-        $stmt_authors->execute();
-        $result_authors = $stmt_authors->get_result();
-
-        $authors = [];
-        while ($author = $result_authors->fetch_assoc()) {
-            $authors[] = $author;
-        }
-
-        // Publishers (issue #143): full ordered list for multi-publisher books.
-        // Falls back to the single primary publisher for pre-#143 data.
-        $book['editori'] = [];
-        $stmtPub = $db->prepare(
-            'SELECT e.id, e.nome FROM libri_editori le JOIN editori e ON le.editore_id = e.id WHERE le.libro_id = ? ORDER BY le.ordine, e.nome'
+        // LIVE availability merge — NEVER served from cache. One indexed
+        // primary-key lookup refreshes copie_disponibili/copie_totali/stato
+        // for the book and its related volumes; the soft-delete-aware read is
+        // also the authority on whether the book still exists.
+        $liveAvailability = $this->fetchLiveAvailability(
+            $db,
+            array_merge([$book_id], array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $related_books))
         );
-        if ($stmtPub) {
-            $stmtPub->bind_param('i', $book_id);
-            $stmtPub->execute();
-            $resPub = $stmtPub->get_result();
-            while ($pub = $resPub->fetch_assoc()) {
-                $book['editori'][] = $pub;
+        if (!isset($liveAvailability[$book_id])) {
+            // Soft-deleted after the DTO was cached: the live read wins → 404.
+            return $this->render404($response);
+        }
+        $book = array_merge($book, $liveAvailability[$book_id]);
+        $freshRelated = [];
+        foreach ($related_books as $row) {
+            $rowId = (int) ($row['id'] ?? 0);
+            if (!isset($liveAvailability[$rowId])) {
+                continue; // soft-deleted since the DTO was cached
             }
-            $stmtPub->close();
+            $freshRelated[] = array_merge($row, $liveAvailability[$rowId]);
         }
-        if ($book['editori'] === [] && !empty($book['editore'])) {
-            $book['editori'][] = ['id' => (int) ($book['editore_id'] ?? 0), 'nome' => (string) $book['editore']];
-        }
+        $related_books = $freshRelated;
 
-        // Get approved reviews and statistics
-        $recensioniRepo = new RecensioniRepository($db);
-        $reviews = $recensioniRepo->getApprovedReviewsForBook($book_id);
-        $reviewStats = $recensioniRepo->getReviewStats($book_id);
-
-        // Other volumes in the same series (collana)
-        $seriesBooks = [];
-        $collana = trim((string) ($book['collana'] ?? ''));
-        if ($collana !== '') {
-            $stmtSeries = $db->prepare("
-                SELECT l.id, l.titolo, l.numero_serie, l.copertina_url,
-                       (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                        WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale,
-                       (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                        WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
-                FROM libri l
-                WHERE l.collana = ? AND l.id != ? AND l.deleted_at IS NULL
-                ORDER BY
-                    CASE WHEN TRIM(l.numero_serie) REGEXP '^[0-9]+$' THEN 0 ELSE 1 END,
-                    CAST(l.numero_serie AS UNSIGNED),
-                    l.titolo
-            ");
-            if ($stmtSeries) {
-                $stmtSeries->bind_param('si', $collana, $book_id);
-                $stmtSeries->execute();
-                $resSeries = $stmtSeries->get_result();
-                while ($row = $resSeries->fetch_assoc()) {
-                    $seriesBooks[] = $row;
-                }
-                $stmtSeries->close();
-            } else {
-                \App\Support\SecureLogger::warning('FrontendController: series query prepare failed', ['db_error' => $db->error]);
-            }
-        }
-
-        // Get related books (pass seriesBooks to avoid duplicate collana query)
-        $related_books = $this->getRelatedBooks($db, $book_id, $book, $authors, $seriesBooks);
+        // Approved reviews + statistics: cached per book ('book_reviews_'
+        // namespace), invalidated on moderation (approve/reject/delete →
+        // ContentCache::reviewsChanged()). New reviews are 'pendente' and
+        // never publicly visible, so submission does not need to invalidate.
+        $reviewsBlock = \App\Support\QueryCache::remember(
+            'book_reviews_' . $locale . '_' . $book_id,
+            static function () use ($db, $book_id): array {
+                $recensioniRepo = new RecensioniRepository($db);
+                return [
+                    'reviews' => $recensioniRepo->getApprovedReviewsForBook($book_id),
+                    'stats' => $recensioniRepo->getReviewStats($book_id),
+                ];
+            },
+            300
+        );
+        $reviews = is_array($reviewsBlock['reviews'] ?? null) ? $reviewsBlock['reviews'] : [];
+        $reviewStats = is_array($reviewsBlock['stats'] ?? null) ? $reviewsBlock['stats'] : [
+            'total_reviews' => 0,
+            'average_rating' => 0,
+            'one_star' => 0,
+            'two_star' => 0,
+            'three_star' => 0,
+            'four_star' => 0,
+            'five_star' => 0,
+        ];
 
         // Social sharing
         $sharingProviders = array_values(array_filter(array_map('trim', explode(',', (string) ConfigStore::get('sharing.enabled_providers', '')))));
@@ -715,6 +657,320 @@ class FrontendController
         return $response
             ->withHeader('Content-Type', 'text/html')
             ->withHeader('Link', implode(', ', $signLinks));
+    }
+
+    /**
+     * Fields whose value depends on live circulation state. They are stripped
+     * from every cached payload and re-read from the database at request time
+     * (fetchLiveAvailability), so a warm cache can never serve a stale
+     * availability number.
+     */
+    private const LIVE_AVAILABILITY_FIELDS = ['copie_disponibili', 'copie_totali', 'stato'];
+
+    /**
+     * Highest catalog page number eligible for the page-rows cache. Together
+     * with hasBoundedCatalogCacheKey() this keeps the cached key space finite
+     * (locale × 4 availability states × 6 sorts × N pages); deeper pages are
+     * request-controlled long-tail traffic and always hit the database.
+     */
+    private const CATALOG_PAGE_CACHE_MAX_PAGE = 10;
+
+    /**
+     * Build the visitor-independent portion of the book-detail page: the book
+     * row (WITHOUT the live availability fields), its authors, publishers
+     * (issue #143), same-series volumes and related volumes (also stripped of
+     * availability). Returns null when the book does not exist or is
+     * soft-deleted — callers must treat that as a 404.
+     *
+     * Cached by bookDetail() under the 'book_detail_' namespace; every book
+     * write path (create/edit/soft-delete, author/publisher/genre/series
+     * mutations, imports, availability recomputes) funnels into
+     * ContentCache::booksChanged(), which bumps that generation.
+     *
+     * @return array{book: array<string, mixed>, authors: array<int, array<string, mixed>>,
+     *               seriesBooks: array<int, array<string, mixed>>,
+     *               related_books: array<int, array<string, mixed>>}|null
+     */
+    private function buildBookDetailStatic(mysqli $db, int $book_id): ?array
+    {
+        // Query per recuperare i dettagli completi del libro con gerarchia generi
+        $query = "
+            SELECT l.*,
+                   a.nome AS autore_principale,
+                   g.nome AS genere,
+                   gp.id AS genere_parent_id_resolved,
+                   gp.nome AS genere_parent,
+                   gpp.id AS genere_grandparent_id,
+                   gpp.nome AS genere_grandparent,
+                   sg.nome AS sottogenere,
+                   e.nome AS editore
+            FROM libri l
+            LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo = 'principale'
+            LEFT JOIN autori a ON la.autore_id = a.id
+            LEFT JOIN generi g ON l.genere_id = g.id
+            LEFT JOIN generi gp ON g.parent_id = gp.id
+            LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
+            LEFT JOIN editori e ON l.editore_id = e.id
+            WHERE l.id = ? AND l.deleted_at IS NULL
+            LIMIT 1
+        ";
+
+        $stmt = $db->prepare($query);
+        $stmt->bind_param("i", $book_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if (!$result || $result->num_rows == 0) {
+            return null;
+        }
+
+        $book = $result->fetch_assoc();
+
+        // Query per ottenere tutti gli autori del libro
+        $query_authors = "
+            SELECT a.*, la.ruolo
+            FROM autori a
+            JOIN libri_autori la ON a.id = la.autore_id
+            WHERE la.libro_id = ?
+            ORDER BY
+                CASE la.ruolo
+                    WHEN 'principale' THEN 1
+                    WHEN 'co-autore' THEN 2
+                    WHEN 'traduttore' THEN 3
+                    WHEN 'illustratore' THEN 4
+                    WHEN 'curatore' THEN 5
+                    WHEN 'colorista' THEN 6
+                    ELSE 7
+                END
+        ";
+
+        $stmt_authors = $db->prepare($query_authors);
+        $stmt_authors->bind_param("i", $book_id);
+        $stmt_authors->execute();
+        $result_authors = $stmt_authors->get_result();
+
+        $authors = [];
+        while ($author = $result_authors->fetch_assoc()) {
+            $authors[] = $author;
+        }
+
+        // Publishers (issue #143): full ordered list for multi-publisher books.
+        // Falls back to the single primary publisher for pre-#143 data.
+        $book['editori'] = [];
+        $stmtPub = $db->prepare(
+            'SELECT e.id, e.nome FROM libri_editori le JOIN editori e ON le.editore_id = e.id WHERE le.libro_id = ? ORDER BY le.ordine, e.nome'
+        );
+        if ($stmtPub) {
+            $stmtPub->bind_param('i', $book_id);
+            $stmtPub->execute();
+            $resPub = $stmtPub->get_result();
+            while ($pub = $resPub->fetch_assoc()) {
+                $book['editori'][] = $pub;
+            }
+            $stmtPub->close();
+        }
+        if ($book['editori'] === [] && !empty($book['editore'])) {
+            $book['editori'][] = ['id' => (int) ($book['editore_id'] ?? 0), 'nome' => (string) $book['editore']];
+        }
+
+        // Other volumes in the same series (collana)
+        $seriesBooks = [];
+        $collana = trim((string) ($book['collana'] ?? ''));
+        if ($collana !== '') {
+            $stmtSeries = $db->prepare("
+                SELECT l.id, l.titolo, l.numero_serie, l.copertina_url,
+                       (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                        WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale,
+                       (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                        WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
+                FROM libri l
+                WHERE l.collana = ? AND l.id != ? AND l.deleted_at IS NULL
+                ORDER BY
+                    CASE WHEN TRIM(l.numero_serie) REGEXP '^[0-9]+$' THEN 0 ELSE 1 END,
+                    CAST(l.numero_serie AS UNSIGNED),
+                    l.titolo
+            ");
+            if ($stmtSeries) {
+                $stmtSeries->bind_param('si', $collana, $book_id);
+                $stmtSeries->execute();
+                $resSeries = $stmtSeries->get_result();
+                while ($row = $resSeries->fetch_assoc()) {
+                    $seriesBooks[] = $row;
+                }
+                $stmtSeries->close();
+            } else {
+                \App\Support\SecureLogger::warning('FrontendController: series query prepare failed', ['db_error' => $db->error]);
+            }
+        }
+
+        // Get related books (pass seriesBooks to avoid duplicate collana query)
+        $related_books = $this->getRelatedBooks($db, $book_id, $book, $authors, $seriesBooks);
+
+        return [
+            'book' => $this->stripLiveAvailability($book),
+            'authors' => $authors,
+            'seriesBooks' => $seriesBooks,
+            'related_books' => array_map(
+                fn (array $row): array => $this->stripLiveAvailability($row),
+                $related_books
+            ),
+        ];
+    }
+
+    /**
+     * Remove the live availability fields from a row destined for the cache.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function stripLiveAvailability(array $row): array
+    {
+        foreach (self::LIVE_AVAILABILITY_FIELDS as $field) {
+            unset($row[$field]);
+        }
+
+        return $row;
+    }
+
+    /**
+     * Read the CURRENT availability of the given books straight from the
+     * database (soft-delete aware). This is the only source of the
+     * copie_disponibili/copie_totali/stato values the frontend renders — by
+     * design it runs on every request and is never cached.
+     *
+     * @param array<int, int> $ids
+     * @return array<int, array{copie_disponibili: int, copie_totali: int, stato: mixed}>
+     */
+    private function fetchLiveAvailability(mysqli $db, array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $db->prepare(
+            "SELECT id, copie_disponibili, copie_totali, stato FROM libri WHERE id IN ({$placeholders}) AND deleted_at IS NULL"
+        );
+        if ($stmt === false) {
+            \App\Support\SecureLogger::error('FrontendController: live availability prepare failed', ['db_error' => $db->error]);
+            throw new \RuntimeException('Live availability query failed');
+        }
+
+        $types = str_repeat('i', count($ids));
+        $stmt->bind_param($types, ...$ids);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $live = [];
+        if ($result !== false) {
+            while ($row = $result->fetch_assoc()) {
+                $live[(int) $row['id']] = [
+                    'copie_disponibili' => (int) $row['copie_disponibili'],
+                    'copie_totali' => (int) $row['copie_totali'],
+                    'stato' => $row['stato'],
+                ];
+            }
+        }
+        $stmt->close();
+
+        return $live;
+    }
+
+    /**
+     * Merge fresh availability into cached listing rows, dropping rows whose
+     * book was soft-deleted after the cache entry was written (defence in
+     * depth on top of the booksChanged() generation bump).
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function mergeLiveAvailability(mysqli $db, array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        $live = $this->fetchLiveAvailability($db, array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $rows));
+
+        $fresh = [];
+        foreach ($rows as $row) {
+            $rowId = (int) ($row['id'] ?? 0);
+            if (!isset($live[$rowId])) {
+                continue;
+            }
+            $fresh[] = array_merge($row, $live[$rowId]);
+        }
+
+        return $fresh;
+    }
+
+    /**
+     * Load one page of catalog listing rows. For the finite, high-traffic
+     * bounded filter states (same bounding as the facets cache, plus a page
+     * cap and the canonicalized sort) the rows are cached WITHOUT their live
+     * availability fields, which are merged back fresh on every request.
+     * Unbounded states (free text, ids, years, deep pages) always query.
+     *
+     * @param array<int, mixed> $query_params
+     * @param array<string, mixed> $filters
+     * @return array<int, array<string, mixed>>
+     */
+    private function loadCatalogPageRows(
+        mysqli $db,
+        string $books_query,
+        string $param_types,
+        array $query_params,
+        array $filters,
+        int $limit,
+        int $offset,
+        int $page
+    ): array {
+        $fetch = static function () use ($db, $books_query, $param_types, $query_params, $limit, $offset): array {
+            $stmt_books = $db->prepare($books_query);
+            $final_params = array_merge($query_params, [$limit, $offset]);
+            $final_types = $param_types . 'ii';
+            $stmt_books->bind_param($final_types, ...$final_params);
+            $stmt_books->execute();
+            $books_result = $stmt_books->get_result();
+
+            $books = [];
+            while ($book = $books_result->fetch_assoc()) {
+                $books[] = $book;
+            }
+            $stmt_books->close();
+
+            return $books;
+        };
+
+        if (!$this->hasBoundedCatalogCacheKey($filters) || $page < 1 || $page > self::CATALOG_PAGE_CACHE_MAX_PAGE) {
+            return $fetch();
+        }
+
+        // Key: locale + bounded filter signature + canonical sort + page. The
+        // sort goes through buildOrderBy() so arbitrary request strings
+        // collapse onto the six real orderings instead of fragmenting keys.
+        $cacheKey = 'catalog_page_' . \App\Support\I18n::getLocale() . '_' . md5(serialize([
+            $this->normalizeFiltersForCache($filters),
+            $this->buildOrderBy((string) ($filters['sort'] ?? 'newest')),
+            $page,
+        ]));
+
+        $rows = \App\Support\QueryCache::remember($cacheKey, function () use ($fetch): array {
+            // Live availability never enters the cache (hard rule): strip it
+            // here, mergeLiveAvailability() re-reads it per request.
+            return array_map(
+                fn (array $row): array => $this->stripLiveAvailability($row),
+                $fetch()
+            );
+        }, 120);
+
+        if (!is_array($rows)) {
+            return $fetch();
+        }
+
+        return $this->mergeLiveAvailability($db, $rows);
     }
 
     private function render404(Response $response): Response

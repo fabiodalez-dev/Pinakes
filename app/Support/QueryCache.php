@@ -34,6 +34,8 @@ class QueryCache
         'genre_tree_',
         'plugins_maintenance_',
         'schema_table_',
+        'book_detail_',
+        'book_reviews_',
     ];
 
     /**
