@@ -532,6 +532,13 @@ class FrontendController
         $seriesBooks = $detail['seriesBooks'];
         $related_books = $detail['related_books'];
 
+        // Series/collection name shown by the "Nella stessa collana" heading.
+        // buildBookDetailStatic() computes an identically-named local $collana
+        // for the sibling query but does not return it, so re-derive it here in
+        // the render scope from the (cached) book row — the field survives
+        // stripLiveAvailability(), which only removes copie_*/stato.
+        $collana = trim((string) ($book['collana'] ?? ''));
+
         // Ensure canonical URL structure (author slug + book slug + ID)
         $canonicalPath = book_url([
             'id' => $book_id,
