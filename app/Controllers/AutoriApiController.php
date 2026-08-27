@@ -314,6 +314,11 @@ class AutoriApiController
             // Commit transaction
             $db->commit();
 
+            // Public book-detail DTOs embed the linked author rows. This API
+            // bypasses AuthorRepository, so invalidate immediately after the
+            // transaction commits instead of serving deleted authors for TTL.
+            \App\Support\ContentCache::booksChanged();
+
             // Rebuild the search_index of the (now author-less) books so the
             // deleted authors' names no longer surface in catalog search.
             \App\Support\SearchIndexBuilder::rebuildMany($db, array_values($affectedBookIds));

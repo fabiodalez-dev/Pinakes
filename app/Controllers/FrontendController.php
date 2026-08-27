@@ -237,15 +237,14 @@ class FrontendController
             ? \App\Support\Hooks::apply('frontend.catalog.archive_results', [], [$searchTerm])
             : [];
 
-        // Query base senza JOIN con autori per evitare duplicati
-        // Include genre parents/grandparents to support filtering at any level
+        // Query base without the many-to-many authors join, so one book stays
+        // one row. g + gp are sufficient for filtering every supported genre
+        // level; sottogenere matches directly on l.sottogenere_id.
         $base_query = "
             FROM libri l
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
-            LEFT JOIN generi gpp ON gp.parent_id = gpp.id
-            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             WHERE l.deleted_at IS NULL
         ";
 
@@ -253,11 +252,12 @@ class FrontendController
             $base_query .= " AND " . implode(' AND ', $where_conditions['conditions']);
         }
 
-        // Cached total: the COUNT(DISTINCT) scan is identical for every page of
-        // the same filter set. Short TTL; book mutations clear the 'catalog_'
-        // prefix so admin edits show up immediately.
+        // Cached total is identical for every page of the same filter set.
+        // Every join in base_query is many-to-one and filter-only relations use
+        // EXISTS, so one libri row can never multiply: COUNT(*) avoids the
+        // unnecessary DISTINCT aggregation. Short TTL; mutations invalidate it.
         $catalogCacheSuffix = md5(serialize($this->normalizeFiltersForCache($filters)));
-        $count_query = "SELECT COUNT(DISTINCT l.id) as total " . $base_query;
+        $count_query = "SELECT COUNT(*) as total " . $base_query;
         $countLoader = function () use ($db, $count_query, $param_types, $query_params) {
             $stmt_count = $db->prepare($count_query);
             if (!empty($query_params)) {
@@ -280,7 +280,7 @@ class FrontendController
         // re-running the correlated subquery twice per row (once for the
         // NULLs-last predicate, once for the sort value).
         $books_query = "
-            SELECT DISTINCT l.*,
+            SELECT l.*,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
@@ -339,15 +339,13 @@ class FrontendController
         // returning archive matches in the search-as-you-type JSON payload.
         // catalog() still renders archives in its empty-state block.
 
-        // Query base senza JOIN con autori per evitare duplicati
-        // Include genre parents/grandparents/subgenre to support filtering at any level
+        // Same one-row-per-book join shape as catalog(). g + gp cover the
+        // hierarchy predicates; no unused grandparent/subgenre joins here.
         $base_query = "
             FROM libri l
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
-            LEFT JOIN generi gpp ON gp.parent_id = gpp.id
-            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             WHERE l.deleted_at IS NULL
         ";
 
@@ -355,11 +353,10 @@ class FrontendController
             $base_query .= " AND " . implode(' AND ', $where_conditions['conditions']);
         }
 
-        // Cached total: the COUNT(DISTINCT) scan is identical for every page of
-        // the same filter set. Short TTL; book mutations clear the 'catalog_'
-        // prefix so admin edits show up immediately.
+        // The base joins are many-to-one, so COUNT(*) is exact without a
+        // DISTINCT aggregation (same invariant as catalog()).
         $catalogCacheSuffix = md5(serialize($this->normalizeFiltersForCache($filters)));
-        $count_query = "SELECT COUNT(DISTINCT l.id) as total " . $base_query;
+        $count_query = "SELECT COUNT(*) as total " . $base_query;
         $countLoader = function () use ($db, $count_query, $param_types, $query_params) {
             $stmt_count = $db->prepare($count_query);
             if (!empty($query_params)) {
@@ -382,7 +379,7 @@ class FrontendController
         // re-running the correlated subquery twice per row (once for the
         // NULLs-last predicate, once for the sort value).
         $books_query = "
-            SELECT DISTINCT l.*,
+            SELECT l.*,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
@@ -430,7 +427,7 @@ class FrontendController
         $available_books = null;
         if (($params['with_stats'] ?? '') === '1') {
             $availabilityLoader = function () use ($db, $base_query, $param_types, $query_params) {
-                $available_stmt = $db->prepare("SELECT COUNT(DISTINCT l.id) as total " . $base_query . " AND l.copie_disponibili > 0");
+                $available_stmt = $db->prepare("SELECT COUNT(*) as total " . $base_query . " AND l.copie_disponibili > 0");
                 if ($available_stmt === false) {
                     \App\Support\SecureLogger::error('Available-books count prepare failed', ['db_error' => $db->error]);
                     return 0;
@@ -536,7 +533,7 @@ class FrontendController
         // buildBookDetailStatic() computes an identically-named local $collana
         // for the sibling query but does not return it, so re-derive it here in
         // the render scope from the (cached) book row — the field survives
-        // stripLiveAvailability(), which only removes copie_*/stato.
+        // stripSharedCacheFields(), which preserves display metadata.
         $collana = trim((string) ($book['collana'] ?? ''));
 
         // Ensure canonical URL structure (author slug + book slug + ID)
@@ -678,6 +675,21 @@ class FrontendController
      * availability number.
      */
     private const LIVE_AVAILABILITY_FIELDS = ['copie_disponibili', 'copie_totali', 'stato'];
+
+    /**
+     * Columns fetched by l.* that must never enter a shared public cache.
+     * search_index is a potentially large denormalized MEDIUMTEXT used only by
+     * SQL; the remaining LibraryThing fields are explicitly private in the
+     * frontend and may contain patron identity or loan dates.
+     */
+    private const SHARED_CACHE_EXCLUDED_FIELDS = [
+        'search_index',
+        'private_comment',
+        'lending_patron',
+        'lending_status',
+        'lending_start',
+        'lending_end',
+    ];
 
     /**
      * Highest catalog page number eligible for the page-rows cache. Together
@@ -824,11 +836,11 @@ class FrontendController
         $related_books = $this->getRelatedBooks($db, $book_id, $book, $authors, $seriesBooks);
 
         return [
-            'book' => $this->stripLiveAvailability($book),
+            'book' => $this->stripSharedCacheFields($book),
             'authors' => $authors,
             'seriesBooks' => $seriesBooks,
             'related_books' => array_map(
-                fn (array $row): array => $this->stripLiveAvailability($row),
+                fn (array $row): array => $this->stripSharedCacheFields($row),
                 $related_books
             ),
         ];
@@ -840,9 +852,12 @@ class FrontendController
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
-    private function stripLiveAvailability(array $row): array
+    private function stripSharedCacheFields(array $row): array
     {
         foreach (self::LIVE_AVAILABILITY_FIELDS as $field) {
+            unset($row[$field]);
+        }
+        foreach (self::SHARED_CACHE_EXCLUDED_FIELDS as $field) {
             unset($row[$field]);
         }
 
@@ -982,7 +997,7 @@ class FrontendController
             // Live availability never enters the cache (hard rule): strip it
             // here, mergeLiveAvailability() re-reads it per request.
             return array_map(
-                fn (array $row): array => $this->stripLiveAvailability($row),
+                fn (array $row): array => $this->stripSharedCacheFields($row),
                 $fetch()
             );
         }, 120);

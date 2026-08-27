@@ -60,6 +60,18 @@ echo "Catalogue cache cardinality:\n";
 $controller = new \App\Controllers\FrontendController();
 $reflection = new ReflectionClass($controller);
 $bounded = $reflection->getMethod('hasBoundedCatalogCacheKey');
+$stripShared = $reflection->getMethod('stripSharedCacheFields');
+$stripped = $stripShared->invoke($controller, [
+    'titolo' => 'Visible',
+    'copie_disponibili' => 1,
+    'search_index' => str_repeat('large-index ', 100),
+    'private_comment' => 'secret',
+    'lending_patron' => 'Patron Name',
+]);
+$check(
+    $stripped === ['titolo' => 'Visible'],
+    'shared public cache excludes live, search-only and privacy-sensitive book columns'
+);
 $base = [
     'search' => '',
     'genere_id' => 0,
@@ -89,6 +101,19 @@ foreach ([
 }
 $frontend = $read('app/Controllers/FrontendController.php');
 $check(!str_contains($frontend, 'QueryCache::remember($cacheKeyGeneri'), 'genre query has no second unbounded per-filter cache');
+$catalogStart = strpos($frontend, 'public function catalog(');
+$catalogApiStart = strpos($frontend, 'public function catalogAPI(');
+$catalogApiEnd = strpos($frontend, 'public function bookDetail(', $catalogApiStart ?: 0);
+$catalogQueries = $catalogStart !== false && $catalogApiStart !== false && $catalogApiEnd !== false
+    ? substr($frontend, $catalogStart, $catalogApiEnd - $catalogStart)
+    : '';
+$check(
+    substr_count($catalogQueries, '$count_query = "SELECT COUNT(*) as total " . $base_query;') === 2
+        && !str_contains($catalogQueries, 'SELECT DISTINCT l.*,')
+        && !str_contains($catalogQueries, 'LEFT JOIN generi gpp')
+        && !str_contains($catalogQueries, 'LEFT JOIN generi sg'),
+    'catalog queries avoid redundant DISTINCT and unused taxonomy joins'
+);
 $availabilityStart = strpos($frontend, '$availabilityLoader = function');
 $availabilityEnd = strpos($frontend, '$available_books = $this->rememberCatalogValue', $availabilityStart ?: 0);
 $availabilityBody = $availabilityStart !== false && $availabilityEnd !== false
@@ -235,6 +260,7 @@ foreach ([
     'app/Models/PublisherRepository.php',
     'app/Models/GenereRepository.php',
     'app/Services/BulkEnrichmentService.php',
+    'app/Controllers/AutoriApiController.php',
     'app/Controllers/LibriApiController.php',
     'app/Controllers/CsvImportController.php',
     'app/Controllers/LibraryThingImportController.php',

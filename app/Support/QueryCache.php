@@ -45,8 +45,15 @@ class QueryCache
      */
     private const GENERATION_TTL = 31536000;
 
-    /** Stale threshold (seconds) shared by the file lock and the APCu lock sentinel */
+    /** Stale threshold (seconds) for APCu sentinels and abandoned temp files. */
     private const LOCK_STALE_SECONDS = 300;
+
+    /**
+     * Number of persistent file-mutex stripes (three hexadecimal digits).
+     * A bounded pool avoids one never-removed lock file per cache key while
+     * preserving a stable inode for flock() across every waiter.
+     */
+    private const FILE_MUTEX_HEX_LENGTH = 3;
 
     /** Run file-cache garbage collection at most once per hour. */
     private const GC_INTERVAL_SECONDS = 3600;
@@ -294,10 +301,7 @@ class QueryCache
         }
     }
 
-    /**
-     * remember() body for the file backend: the original flock()-based
-     * stampede protection, unchanged.
-     */
+    /** remember() body for the file backend with flock()-based protection. */
     private static function rememberWithFileLock(
         string $key,
         string $hashedKey,
@@ -305,14 +309,12 @@ class QueryCache
         int $ttl
     ): mixed
     {
-        // Acquire mutex lock to prevent stampede
-        $lockKey = $hashedKey . '.lock';
-        $lockFile = self::getCacheDir() . '/' . $lockKey;
-
-        // Check lock file mtime BEFORE fopen (fopen 'c' mode can update mtime)
-        clearstatcache(true, $lockFile);
-        $initialLockMtime = @filemtime($lockFile);
-
+        // Lock files are deliberately persistent and striped. Unlinking a
+        // flock() path is unsafe: a waiter can still hold the old inode while
+        // a new worker creates and locks a second inode at the same pathname,
+        // allowing duplicate callbacks for the same key. A fixed 4096-file
+        // pool gives all workers a stable inode without unbounded lock files.
+        $lockFile = self::fileMutexPath($hashedKey);
         $lockHandle = @fopen($lockFile, 'c');
 
         if ($lockHandle === false) {
@@ -320,36 +322,21 @@ class QueryCache
             return $callback();
         }
 
+        @chmod($lockFile, 0660);
+
         try {
             $lockAcquired = false;
-            $staleLock = false;
-            $timedOut = false;
             $start = microtime(true);
             $maxWaitSeconds = 8.0;
-            $staleThreshold = self::LOCK_STALE_SECONDS;
             $sleepMicros = 200000;
 
-            // Check if lock file was already stale before we opened it
-            if ($initialLockMtime !== false && (time() - $initialLockMtime) > $staleThreshold) {
-                $staleLock = true;
-            }
-
-            while (!$staleLock) {
+            while (true) {
                 $lockAcquired = flock($lockHandle, LOCK_EX | LOCK_NB);
                 if ($lockAcquired) {
                     break;
                 }
 
-                // Re-check mtime periodically (using clearstatcache for fresh stat)
-                clearstatcache(true, $lockFile);
-                $lockMtime = @filemtime($lockFile);
-                if ($lockMtime !== false && (time() - $lockMtime) > $staleThreshold) {
-                    $staleLock = true;
-                    continue; // re-evaluate while(!$staleLock) → exits loop
-                }
-
                 if ((microtime(true) - $start) >= $maxWaitSeconds) {
-                    $timedOut = true;
                     break;
                 }
 
@@ -361,13 +348,13 @@ class QueryCache
                 return $cached;
             }
 
-            // FIX F008: When the wait loop timed out without acquiring the lock and
-            // without detecting a stale lock, we previously fell through to $callback()
+            // When the wait loop times out without acquiring the lock, do not
+            // immediately fall through to $callback()
             // + self::set() WITHOUT holding any lock. That defeats the stampede
             // protection: every concurrent caller that timed out would run the
             // (expensive) callback in parallel. Attempt one final LOCK_EX acquisition
             // (with a short bounded retry) so at most one caller proceeds unprotected.
-            if ($timedOut && !$lockAcquired && !$staleLock) {
+            if (!$lockAcquired) {
                 // FIX F008: short blocking-ish retry — try a few non-blocking attempts
                 // separated by usleep so we don't risk holding the request indefinitely.
                 $finalAttempts = 5;
@@ -377,6 +364,16 @@ class QueryCache
                         break;
                     }
                     usleep(100000); // 100ms between attempts → up to ~500ms extra wait
+                }
+
+                // The previous owner may have populated the key between the
+                // pre-retry read and this late acquisition. Recheck while
+                // holding the mutex before invoking the expensive callback.
+                if ($lockAcquired) {
+                    $cached = self::backendGet($hashedKey);
+                    if ($cached !== null) {
+                        return $cached;
+                    }
                 }
 
                 // FIX F008: observability — if we still couldn't acquire the lock we
@@ -406,11 +403,15 @@ class QueryCache
                 flock($lockHandle, LOCK_UN);
             }
             fclose($lockHandle);
-            // Clean up lock file (best effort) - also clean up on timeout to prevent accumulation
-            if ($lockAcquired || $staleLock || $timedOut) {
-                @unlink($lockFile);
-            }
         }
+    }
+
+    /** Stable path in the bounded persistent file-mutex pool. */
+    private static function fileMutexPath(string $hashedKey): string
+    {
+        $stripe = substr(md5($hashedKey), 0, self::FILE_MUTEX_HEX_LENGTH);
+
+        return self::getCacheDir() . '/pinakes_mutex_' . $stripe . '.lock';
     }
 
     /**
@@ -537,6 +538,10 @@ class QueryCache
         if (self::hasApcu()) {
             $iterator = new \APCUIterator('/^' . preg_quote($hashedPrefix, '/') . '/');
             foreach ($iterator as $item) {
+                // Never remove a mutex sentinel while a loader may own it.
+                if (str_starts_with($item['key'], 'pinakes_lock_')) {
+                    continue;
+                }
                 if (apcu_delete($item['key'])) {
                     $count++;
                 }
@@ -556,6 +561,12 @@ class QueryCache
         }
 
         foreach ($files as $file) {
+            // Lock paths keep a stable inode across current workers and across
+            // rolling deployments that may still have an older worker waiting
+            // on a legacy per-key lock file.
+            if (str_ends_with($file, '.lock')) {
+                continue;
+            }
             if (@unlink($file)) {
                 $count++;
             }
@@ -589,7 +600,7 @@ class QueryCache
                 if (str_starts_with($item['key'], 'pinakes_lock_')) {
                     continue;
                 }
-                if (!apcu_delete($item['key'])) {
+                if (!apcu_delete($item['key']) && apcu_exists($item['key'])) {
                     $successApcu = false;
                 }
             }
@@ -1095,27 +1106,6 @@ class QueryCache
                     flock($handle, LOCK_UN);
                 }
                 fclose($handle);
-            }
-        }
-
-        $lockFiles = glob($cacheDir . '/*.lock');
-        if ($lockFiles !== false) {
-            $staleTime = $now - self::LOCK_STALE_SECONDS;
-            foreach ($lockFiles as $lockFile) {
-                // Generation writer locks are deliberately persistent: writers
-                // flock() the same never-recreated file to serialize bumps.
-                // Unlinking one here would let a new writer create a second
-                // lock inode at the same path and race the current holder.
-                if (str_starts_with(basename($lockFile), 'pinakes_gen_')) {
-                    continue;
-                }
-
-                $lockMtime = @filemtime($lockFile);
-                if ($lockMtime !== false && $lockMtime < $staleTime) {
-                    if (@unlink($lockFile)) {
-                        $count++;
-                    }
-                }
             }
         }
 

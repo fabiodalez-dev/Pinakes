@@ -419,6 +419,53 @@ try {
     }
     QueryCache::gc();
     $check(!file_exists($busyPath), '46 GC reclaims the expired entry once its lock is released');
+
+    // File mutexes must keep one stable inode. Removing the pathname after an
+    // unlock lets an already-open waiter lock the old inode while a newcomer
+    // creates and locks a second inode, defeating stampede protection.
+    if ($backend === 'file') {
+        $mutexReflection = new ReflectionClass(QueryCache::class);
+        $hashMethod = $mutexReflection->getMethod('hashKey');
+        $mutexPathMethod = $mutexReflection->getMethod('fileMutexPath');
+        $mutexKey = $key("qc_mutex_inode_{$run}");
+        $mutexPath = $mutexPathMethod->invoke(null, $hashMethod->invoke(null, $mutexKey));
+
+        QueryCache::remember($mutexKey, static fn(): string => 'first', 60);
+        clearstatcache(true, $mutexPath);
+        $mutexInode = @fileinode($mutexPath);
+        $check($mutexInode !== false, '47 file remember() leaves its striped mutex inode persistent');
+
+        QueryCache::delete($mutexKey);
+        QueryCache::remember($mutexKey, static fn(): string => 'second', 60);
+        clearstatcache(true, $mutexPath);
+        $check(
+            @fileinode($mutexPath) === $mutexInode,
+            '48 repeated file remember() operations reuse the same mutex inode'
+        );
+
+        @touch($mutexPath, time() - 7200);
+        QueryCache::gc();
+        clearstatcache(true, $mutexPath);
+        $check(file_exists($mutexPath), '49 GC preserves persistent striped mutexes');
+    } else {
+        $source = file_get_contents($root . '/app/Support/QueryCache.php');
+        $persistentMutex = is_string($source)
+            && str_contains($source, "'/pinakes_mutex_'")
+            && !str_contains($source, '@unlink($lockFile);');
+        $check($persistentMutex, '47 file backend uses a persistent striped mutex pool');
+        $check($persistentMutex, '48 file mutex paths are never unlinked after remember()');
+        $check(
+            is_string($source) && str_contains($source, "if (str_ends_with(\$file, '.lock'))"),
+            '49 GC preserves persistent striped mutexes'
+        );
+    }
+
+    $legacyLock = $cacheDir . "/pinakes_qc_legacy_lock_{$run}_waiter.lock";
+    file_put_contents($legacyLock, '');
+    QueryCache::clearByPrefix("qc_legacy_lock_{$run}_");
+    clearstatcache(true, $legacyLock);
+    $check(file_exists($legacyLock), '50 prefix invalidation preserves legacy lock inodes during rolling deploys');
+    @unlink($legacyLock);
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: {$e->getMessage()}\n");
     exit(1);
