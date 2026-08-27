@@ -13,6 +13,7 @@
 // Run: /tmp/run-e2e.sh tests/catalog-subtitle-align-298.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { flushCache } = require('./helpers/flush-cache');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const DB_USER = process.env.E2E_DB_USER || '';
@@ -57,15 +58,19 @@ const SEED = [
   { t: `${TAG} Foxtrot`, s: 'Another subtitle, second one' },
 ];
 
-test.beforeAll(() => {
+test.beforeAll(async () => {
   db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`);
   for (const b of SEED) {
     const sub = b.s === null ? 'NULL' : sqlq(b.s);
     db(`INSERT INTO libri (titolo, sottotitolo, stato) VALUES (${sqlq(b.t)}, ${sub}, 'disponibile')`);
   }
+  // Direct SQL seeding bypasses ContentCache — the bare /catalogo page 1 these
+  // tests pin their fixture to may be cached from an earlier spec in the run.
+  await flushCache();
 });
-test.afterAll(() => {
+test.afterAll(async () => {
   db(`DELETE FROM libri WHERE titolo LIKE ${sqlq(TAG + '%')}`);
+  await flushCache();
 });
 
 test('#298: subtitle space is reserved per row so cards stay aligned', async ({ page }) => {

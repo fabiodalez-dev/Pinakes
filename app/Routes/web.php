@@ -128,6 +128,32 @@ return function (App $app): void {
         return $response->withHeader('Content-Type', 'application/json');
     });
 
+    // TEST-ONLY page-cache flush (E2E infrastructure, NOT a production route).
+    // E2E specs that mutate the DB directly (bypassing the app code and its
+    // ContentCache generation bumps) call this endpoint before asserting on a
+    // cached frontend page, replicating the invalidation a real edit performs.
+    // Gated STRICTLY on a server-side env var that only the CI virtual host
+    // sets (`SetEnv PINAKES_E2E_CACHE_FLUSH 1`, next to the existing
+    // PINAKES_E2E_* flags): nothing client-controllable — no header, cookie or
+    // query parameter — is consulted, so a remote caller cannot enable it.
+    // When the flag is absent/empty the route throws the same
+    // HttpNotFoundException an unregistered path produces, making it inert in
+    // production. GET is deliberate: it keeps the call outside CsrfMiddleware
+    // and the only side effect is dropping cache entries (idempotent).
+    $app->get('/_e2e/flush-cache', function ($request, $response) {
+        $flag = $_ENV['PINAKES_E2E_CACHE_FLUSH']
+            ?? getenv('PINAKES_E2E_CACHE_FLUSH')
+            ?: '';
+        if ($flag !== '1' && strtolower((string) $flag) !== 'true') {
+            throw new \Slim\Exception\HttpNotFoundException($request);
+        }
+        \App\Support\QueryCache::flush();
+        $response->getBody()->write((string) json_encode(['flushed' => true]));
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private');
+    });
+
     // Lazy CSRF endpoint (issue #387 step 6). Sessionless anonymous pages
     // carry no CSRF token in their cacheable HTML; JS fetches one from here
     // right before a state-changing request (see public/assets/js/

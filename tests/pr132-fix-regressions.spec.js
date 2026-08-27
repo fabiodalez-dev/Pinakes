@@ -24,6 +24,7 @@
 
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { flushCache } = require('./helpers/flush-cache');
 
 // ─── Environment ──────────────────────────────────────────────────────────────
 
@@ -566,6 +567,9 @@ test.describe('F048 — book-detail.php author ruolo is HTML-escaped', () => {
         dbExec(
             `UPDATE libri_autori SET ruolo='traduttore' WHERE libro_id=${bookId} AND autore_id=${authorId}`
         );
+        // The author list (with ruolo) is part of the cached book-detail DTO,
+        // already populated by F048-1 — a direct DB write must flush it.
+        await flushCache();
         await page.goto(`${BASE}/libro/${bookId}`);
         const content = await page.content();
         // "Traduttore" (ucfirst'd) should appear as plain text.

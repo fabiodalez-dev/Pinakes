@@ -1,6 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { flushCache } = require('./helpers/flush-cache');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -76,6 +77,9 @@ test.describe.serial('Issue #81: Audiobook MP3 Player', () => {
     }
     if (testBookId) {
       dbQuery(`UPDATE libri SET audio_url='${FAKE_AUDIO_URL}' WHERE id=${testBookId}`);
+      // Direct DB write bypasses ContentCache — this pre-existing book's
+      // public detail page may already be cached without audio_url.
+      await flushCache();
     }
   });
 
@@ -86,6 +90,8 @@ test.describe.serial('Issue #81: Audiobook MP3 Player', () => {
         ? 'NULL'
         : `'${String(originalAudioUrl).replace(/'/g, "''")}'`;
       dbQuery(`UPDATE libri SET audio_url=${restored} WHERE id=${testBookId}`);
+      // Don't leave the fake audio_url cached for later specs.
+      await flushCache();
     }
     await context?.close();
   });

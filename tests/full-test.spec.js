@@ -1,6 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { flushCache } = require('./helpers/flush-cache');
 const fs = require('fs');
 const path = require('path');
 
@@ -2994,6 +2995,9 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     // Directly set genere_id = root, sottogenere_id = child via DB
     // This mirrors what the controller normalization does
     dbQuery(`UPDATE libri SET genere_id=${rootId}, sottogenere_id=${childId} WHERE id=${bookId}`);
+    // Direct DB write bypasses ContentCache invalidation — flush the page
+    // cache or the (already visited) public detail page is served stale.
+    await flushCache();
 
     // 1) Admin book detail page
     await page.goto(`${BASE}/admin/books/${bookId}`);

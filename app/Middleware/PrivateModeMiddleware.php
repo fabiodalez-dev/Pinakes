@@ -49,6 +49,11 @@ class PrivateModeMiddleware implements MiddlewareInterface
         '/uploads/settings/',
         '/installer', '/language/', '/health', '/favicon', '/robots.txt',
         '/.well-known/',
+        // Test-only cache-flush endpoint (web.php): the route 404s unless the
+        // server env sets PINAKES_E2E_CACHE_FLUSH=1, so allowing the prefix
+        // exposes nothing in production. E2E specs must be able to flush the
+        // page cache even while a test has private mode enabled.
+        '/_e2e/',
         // Security scan F3 (CWE-862): /feed.xml, /sitemap(.xml) and /llms.txt
         // are content-bearing — they leak book titles, authors, descriptions and
         // enumerate every catalog URL to unauthenticated visitors. In private
