@@ -581,6 +581,12 @@ class QueryCache
         if (self::hasApcu()) {
             $iterator = new \APCUIterator('/^pinakes_/');
             foreach ($iterator as $item) {
+                // Never remove a live mutex: deleting it while its owner is
+                // computing would allow a second worker to acquire a new
+                // lock for the same key. The sentinel expires on its own.
+                if (str_starts_with($item['key'], 'pinakes_lock_')) {
+                    continue;
+                }
                 if (!apcu_delete($item['key'])) {
                     $successApcu = false;
                 }
@@ -594,11 +600,27 @@ class QueryCache
             $files = glob($cacheDir . '/pinakes_*');
             if ($files !== false) {
                 foreach ($files as $file) {
+                    $basename = basename($file);
+                    // Generation writer locks must keep the same inode for
+                    // their entire lifetime. Counter files are superseded by
+                    // the generation bumps below, rather than deleted while
+                    // another process may be updating them.
+                    if (str_ends_with($basename, '.lock')
+                        || str_starts_with($basename, 'pinakes_gen_')) {
+                        continue;
+                    }
                     if (!@unlink($file)) {
                         $successFiles = false;
                     }
                 }
             }
+        }
+
+        // Publish a generation newer than every value visible before the
+        // flush. An in-flight loader may still finish afterwards, but it will
+        // write under its captured old generation and remain unreachable.
+        foreach (self::NAMESPACE_PREFIXES as $namespace) {
+            self::bumpGeneration($namespace);
         }
 
         return $successApcu && $successFiles;
@@ -735,10 +757,12 @@ class QueryCache
     {
         $path = self::getCacheDir() . '/' . self::generationStorageKey($ns);
 
-        $handle = @fopen($path . '.lock', 'c');
+        $lockPath = $path . '.lock';
+        $handle = @fopen($lockPath, 'c');
         if ($handle === false) {
             return null;
         }
+        @chmod($lockPath, 0660);
 
         try {
             if (!flock($handle, LOCK_EX)) {
@@ -1034,13 +1058,15 @@ class QueryCache
                 continue;
             }
 
+            $locked = false;
             try {
                 // Ordinary entries are written in place under an exclusive
                 // lock (file_put_contents LOCK_EX); GC must take that same
                 // exclusive lock or it could mistake an in-progress write for
                 // corruption. Generation counters are replaced atomically via
                 // temp + rename, so any inode opened here is always complete.
-                if (!flock($handle, LOCK_EX)) {
+                $locked = flock($handle, LOCK_EX | LOCK_NB);
+                if (!$locked) {
                     continue;
                 }
 
@@ -1063,7 +1089,9 @@ class QueryCache
                     $count++;
                 }
             } finally {
-                flock($handle, LOCK_UN);
+                if ($locked) {
+                    flock($handle, LOCK_UN);
+                }
                 fclose($handle);
             }
         }

@@ -177,6 +177,15 @@ try {
             @unlink($file);
         }
     }
+
+    // delete() only targets the current generation. Remove older-generation
+    // fixtures too, so a native APCu run does not leak entries until TTL.
+    if (class_exists('APCUIterator')) {
+        $iterator = new APCUIterator('/^pinakes_.*' . preg_quote($run, '/') . '/');
+        foreach ($iterator as $entry) {
+            apcu_delete($entry['key']);
+        }
+    }
 }
 
 echo "\n{$pass} checks passed\n";

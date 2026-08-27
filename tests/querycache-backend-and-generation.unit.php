@@ -376,6 +376,49 @@ try {
     );
     // Drop the request-local fallback generation installed by the failed bump.
     $atomicMemo->setValue(null, []);
+
+    // ── Full flush preserves synchronization and invalidation barriers ──
+    QueryCache::bumpGeneration('schema_table_');
+    clearstatcache(true, $genPath . '.lock');
+    $lockInodeBefore = @fileinode($genPath . '.lock');
+    $flushKey = $key("schema_table_flush_{$run}");
+    QueryCache::set($flushKey, 'stale', 300);
+    $check(QueryCache::flush(), '41 full flush succeeds');
+    clearstatcache(true, $genPath . '.lock');
+    $check(
+        $lockInodeBefore !== false
+            && file_exists($genPath . '.lock')
+            && @fileinode($genPath . '.lock') === $lockInodeBefore,
+        '42 full flush preserves the persistent generation-lock inode'
+    );
+    $lockMode = @fileperms($genPath . '.lock');
+    $check(
+        $lockMode !== false && ($lockMode & 0777) === 0660,
+        '43 generation writer lock has group-writable 0660 permissions'
+    );
+    $check(QueryCache::get($flushKey) === null, '44 full flush publishes a newer generation barrier');
+
+    // GC is request-time maintenance. A busy entry must be skipped rather
+    // than making an application request wait for another writer.
+    $busyPath = $cacheDir . '/pinakes_gc_busy_' . $run;
+    file_put_contents($busyPath, serialize([
+        'value' => 'expired',
+        'expires' => time() - 10,
+        'created' => time() - 20,
+    ]));
+    $busyHandle = fopen($busyPath, 'r');
+    if ($busyHandle === false || !flock($busyHandle, LOCK_EX | LOCK_NB)) {
+        throw new RuntimeException('could not lock busy GC fixture');
+    }
+    try {
+        QueryCache::gc();
+        $check(file_exists($busyPath), '45 GC skips an entry currently locked by another writer');
+    } finally {
+        flock($busyHandle, LOCK_UN);
+        fclose($busyHandle);
+    }
+    QueryCache::gc();
+    $check(!file_exists($busyPath), '46 GC reclaims the expired entry once its lock is released');
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: {$e->getMessage()}\n");
     exit(1);
