@@ -178,6 +178,23 @@ foreach (array_keys($cacheKeys) as $key) {
 \App\Support\QueryCache::delete($boundedKey);
 \App\Support\QueryCache::delete('catalog_' . $runKey . '_unbounded');
 \App\Support\QueryCache::delete('i18n_languages');
+
+// Generation bumps make old entries unreachable, so delete() can only remove
+// the current generation. Reclaim every fixture from this run explicitly in
+// both possible stores without flushing unrelated application/test entries.
+if (\App\Support\QueryCache::stats()['backend'] === 'apcu' && class_exists('APCUIterator')) {
+    $runPattern = '/^pinakes_.*' . preg_quote($runKey, '/') . '/';
+    foreach (new APCUIterator($runPattern) as $entry) {
+        apcu_delete($entry['key']);
+    }
+}
+$leftovers = glob(__DIR__ . '/../storage/cache/pinakes_*' . $runKey . '*');
+if ($leftovers !== false) {
+    foreach ($leftovers as $leftover) {
+        @unlink($leftover);
+    }
+}
+
 $i18nReflection->getProperty('languagesCache')->setValue(null, null);
 $i18nReflection->getProperty('languagesLoadedFromDb')->setValue(null, false);
 
