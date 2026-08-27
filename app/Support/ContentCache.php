@@ -13,18 +13,20 @@ namespace App\Support;
 final class ContentCache
 {
     private static bool $booksInvalidationDeferred = false;
+    private static bool $availabilityInvalidationDeferred = false;
 
     /**
-     * A book (or its availability) changed: invalidate catalog counts/facets,
-     * every home entry (home_page_data_v1 and home_api_count_*), and the
-     * cached genre tree. O(1) generation bumps — previously cached entries in
-     * these namespaces become unreachable immediately, no scan/delete storm.
+     * Book metadata or taxonomy changed: invalidate catalog counts/facets,
+     * every home entry (home_page_data_v1 and home_api_count_*), the cached
+     * genre tree and static detail DTOs. Availability-only writes use the
+     * narrower availabilityChanged() path below.
      */
     public static function booksChanged(): void
     {
         QueryCache::bumpGeneration('catalog_');
         QueryCache::bumpGeneration('home_');
         QueryCache::bumpGeneration('genre_tree_');
+        QueryCache::bumpGeneration('book_detail_');
     }
 
     /**
@@ -48,10 +50,52 @@ final class ContentCache
     }
 
     /**
+     * Only circulation-derived availability changed. Catalog membership,
+     * counts and the home dataset must be refreshed, while the static
+     * book-detail DTO deliberately remains valid because its availability is
+     * always merged from a live query.
+     */
+    public static function availabilityChanged(): void
+    {
+        QueryCache::bumpGeneration('catalog_');
+        QueryCache::bumpGeneration('home_');
+    }
+
+    /**
+     * Defer and coalesce availability invalidation for caller-owned
+     * transactions. A broader deferred booksChanged() subsumes this work.
+     */
+    public static function deferAvailabilityChanged(): void
+    {
+        if (self::$booksInvalidationDeferred || self::$availabilityInvalidationDeferred) {
+            return;
+        }
+
+        self::$availabilityInvalidationDeferred = true;
+        register_shutdown_function(static function (): void {
+            self::$availabilityInvalidationDeferred = false;
+            if (!self::$booksInvalidationDeferred) {
+                self::availabilityChanged();
+            }
+        });
+    }
+
+    /**
      * Home CMS content or events changed: the cached home dataset is stale.
      */
     public static function homeContentChanged(): void
     {
         QueryCache::bumpGeneration('home_');
+    }
+
+    /**
+     * A review was approved, rejected or deleted: the cached public reviews
+     * block ('book_reviews_' namespace, book-detail page) is stale. New
+     * reviews are created as 'pendente' (never publicly visible), so only
+     * moderation transitions need to invalidate.
+     */
+    public static function reviewsChanged(): void
+    {
+        QueryCache::bumpGeneration('book_reviews_');
     }
 }

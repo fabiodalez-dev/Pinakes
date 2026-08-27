@@ -341,6 +341,10 @@ class SeriesRepository
             $stmtUpsert->execute();
             $stmtUpsert->close();
         }
+
+        // Series data (collana / numero_serie / sibling volumes) is part of the
+        // cached book-detail DTO (#387): invalidate on every series mutation.
+        \App\Support\ContentCache::deferBooksChanged();
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -668,6 +672,10 @@ class SeriesRepository
             }
         }
 
+        if ($ok) {
+            \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
+        }
+
         return $ok;
     }
 
@@ -700,6 +708,10 @@ class SeriesRepository
                 $this->promoteLegacySeries($bookId);
                 $affected++;
             }
+        }
+
+        if ($affected > 0) {
+            \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
         }
 
         return $affected;
@@ -801,6 +813,8 @@ class SeriesRepository
             }
         }
 
+        \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
+
         return count($bookIds);
     }
 
@@ -867,6 +881,8 @@ class SeriesRepository
                 $stmtBackfill->close();
             }
         }
+
+        \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
 
         return $affected;
     }
@@ -945,6 +961,8 @@ class SeriesRepository
                 $stmtDelete->close();
             }
         }
+
+        \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
 
         return $affected;
     }

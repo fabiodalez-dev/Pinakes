@@ -2755,6 +2755,10 @@ class LibriController
         $stmt->execute();
         $stmt->close();
 
+        // The cover URL is part of the cached book-detail DTO and catalog rows
+        // (#387): invalidate so the new cover shows without waiting for the TTL.
+        \App\Support\ContentCache::booksChanged();
+
         $response->getBody()->write(json_encode(['success' => true, 'fetched' => true, 'cover_url' => $coverUrl]));
         return $response->withHeader('Content-Type', 'application/json');
     }
@@ -3843,6 +3847,11 @@ class LibriController
                             $stmt->bind_param('si', $coverData['file_url'], $book['id']);
                             $stmt->execute();
                             $stmt->close();
+
+                            // Cover is in the cached book-detail DTO / catalog rows
+                            // (#387). Defer collapses the whole bulk sync into a
+                            // single invalidation at shutdown.
+                            \App\Support\ContentCache::deferBooksChanged();
 
                             $synced++;
                             error_log("[Cover Sync] Cover downloaded for book ID {$book['id']}: {$coverData['file_url']}");

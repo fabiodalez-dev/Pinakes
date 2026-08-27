@@ -193,6 +193,10 @@ class ReviewsController
                 $stmt->bind_param('isii', $rating, $textOrNull, $existingId, $userId);
                 $stmt->execute();
                 $stmt->close();
+                // An approved review may just have become pending again. Keep
+                // the public web review block coherent with this plugin write
+                // path, which intentionally bypasses RecensioniRepository.
+                \App\Support\ContentCache::reviewsChanged();
                 $reviewId = $existingId;
                 $created = false;
             } else {
@@ -258,6 +262,10 @@ class ReviewsController
             if (!$removed) {
                 return ResponseEnvelope::error($response, 'not_found', __('Nessuna recensione da eliminare.'), 404);
             }
+
+            // The deleted row may have been approved and present in the public
+            // book-detail cache. This plugin write bypasses the core repository.
+            \App\Support\ContentCache::reviewsChanged();
 
             return ResponseEnvelope::success($response, null, [], 200);
         } catch (\Throwable $e) {
