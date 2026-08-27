@@ -502,6 +502,16 @@ class FrontendController
         // database on every request further below: a stale availability number
         // is a user-facing correctness bug (double-loan), a stale title is not.
         $locale = \App\Support\I18n::getLocale();
+
+        // Live availability is read FIRST — it is also the soft-delete-aware proof
+        // that the book exists. Reading it before remember() means an unknown id
+        // never creates a cache entry (bounded, mirrors hasBoundedCatalogCacheKey);
+        // a raw scan of nonexistent ids cannot grow storage/cache. Reused below.
+        $liveBook = $this->fetchLiveAvailability($db, [$book_id]);
+        if (!isset($liveBook[$book_id])) {
+            return $this->render404($response);
+        }
+
         $detail = \App\Support\QueryCache::remember(
             'book_detail_' . $locale . '_' . $book_id,
             function () use ($db, $book_id): ?array {
@@ -510,8 +520,9 @@ class FrontendController
             300
         );
 
-        // A missing/soft-deleted book yields null, which remember() treats as
-        // a miss on the next request — 404s are never negatively cached.
+        // Defence in depth: a soft-delete racing between the live read above and
+        // the DTO build yields null (remember() treats null as a miss — never
+        // negatively cached).
         if (!is_array($detail) || !isset($detail['book'])) {
             return $this->render404($response);
         }
@@ -538,26 +549,20 @@ class FrontendController
             return $response->withHeader('Location', $canonicalPath)->withStatus(301);
         }
 
-        // LIVE availability merge — NEVER served from cache. One indexed
-        // primary-key lookup refreshes copie_disponibili/copie_totali/stato
-        // for the book and its related volumes; the soft-delete-aware read is
-        // also the authority on whether the book still exists.
-        $liveAvailability = $this->fetchLiveAvailability(
-            $db,
-            array_merge([$book_id], array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $related_books))
-        );
-        if (!isset($liveAvailability[$book_id])) {
-            // Soft-deleted after the DTO was cached: the live read wins → 404.
-            return $this->render404($response);
-        }
-        $book = array_merge($book, $liveAvailability[$book_id]);
+        // LIVE availability merge — NEVER served from cache. The book's own
+        // availability was already read above ($liveBook); here we only refresh
+        // the related volumes (one indexed primary-key lookup), reusing $liveBook
+        // for the book itself rather than querying it twice.
+        $relatedIds = array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $related_books);
+        $liveRelated = $relatedIds !== [] ? $this->fetchLiveAvailability($db, $relatedIds) : [];
+        $book = array_merge($book, $liveBook[$book_id]);
         $freshRelated = [];
         foreach ($related_books as $row) {
             $rowId = (int) ($row['id'] ?? 0);
-            if (!isset($liveAvailability[$rowId])) {
+            if (!isset($liveRelated[$rowId])) {
                 continue; // soft-deleted since the DTO was cached
             }
-            $freshRelated[] = array_merge($row, $liveAvailability[$rowId]);
+            $freshRelated[] = array_merge($row, $liveRelated[$rowId]);
         }
         $related_books = $freshRelated;
 
@@ -858,8 +863,12 @@ class FrontendController
             "SELECT id, copie_disponibili, copie_totali, stato FROM libri WHERE id IN ({$placeholders}) AND deleted_at IS NULL"
         );
         if ($stmt === false) {
+            // Degrade gracefully instead of throwing: this runs on the most
+            // trafficked public pages. An empty map lets the caller decide —
+            // the book-detail path 404s (existence unknown), the catalog path
+            // renders rows without availability — rather than a hard 500.
             \App\Support\SecureLogger::error('FrontendController: live availability prepare failed', ['db_error' => $db->error]);
-            throw new \RuntimeException('Live availability query failed');
+            return [];
         }
 
         $types = str_repeat('i', count($ids));

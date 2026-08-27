@@ -14,6 +14,7 @@ final class ContentCache
 {
     private static bool $booksInvalidationDeferred = false;
     private static bool $availabilityInvalidationDeferred = false;
+    private static bool $reviewsInvalidationDeferred = false;
 
     /**
      * Book metadata or taxonomy changed: invalidate catalog counts/facets,
@@ -97,5 +98,27 @@ final class ContentCache
     public static function reviewsChanged(): void
     {
         QueryCache::bumpGeneration('book_reviews_');
+    }
+
+    /**
+     * Defer and coalesce review-cache invalidation for caller-owned
+     * transactions (moderation runs inside a transaction). Bumping the
+     * generation immediately would let a concurrent public read populate the
+     * new generation with pre-commit rows, and no second bump happens after
+     * commit — the public page would show the stale moderation state for the
+     * TTL. Shutdown runs after the controller has committed (or rolled back);
+     * duplicate calls collapse into a single invalidation.
+     */
+    public static function deferReviewsChanged(): void
+    {
+        if (self::$reviewsInvalidationDeferred) {
+            return;
+        }
+
+        self::$reviewsInvalidationDeferred = true;
+        register_shutdown_function(static function (): void {
+            self::$reviewsInvalidationDeferred = false;
+            self::reviewsChanged();
+        });
     }
 }

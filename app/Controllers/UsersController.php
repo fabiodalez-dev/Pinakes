@@ -519,7 +519,7 @@ class UsersController
         // only when that rendered identity actually changed.
         if ((string) ($original['nome'] ?? '') !== $nome
             || (string) ($original['cognome'] ?? '') !== $cognome) {
-            \App\Support\ContentCache::reviewsChanged();
+            \App\Support\ContentCache::deferReviewsChanged();
         }
 
         // Keep the current browser session coherent when an administrator edits

@@ -297,7 +297,7 @@ class RecensioniRepository
             if ($result) {
                 // The review becomes publicly visible: drop the cached
                 // book-detail reviews block (O(1) generation bump).
-                \App\Support\ContentCache::reviewsChanged();
+                \App\Support\ContentCache::deferReviewsChanged();
             }
 
             return $result;
@@ -329,7 +329,7 @@ class RecensioniRepository
             if ($result) {
                 // An already-approved review can be rejected: it must leave
                 // the cached public reviews block immediately.
-                \App\Support\ContentCache::reviewsChanged();
+                \App\Support\ContentCache::deferReviewsChanged();
             }
 
             return $result;
@@ -354,7 +354,7 @@ class RecensioniRepository
             if ($result) {
                 // A deleted approved review must disappear from the cached
                 // public reviews block immediately.
-                \App\Support\ContentCache::reviewsChanged();
+                \App\Support\ContentCache::deferReviewsChanged();
             }
 
             return $result;

@@ -51,9 +51,15 @@
       headers.set('X-CSRF-Token', token);
     }
 
-    // Add Content-Type for JSON requests if not already set
+    // Only default the Content-Type to JSON for string bodies that actually
+    // look like JSON (object/array). The Fetch spec assigns text/plain to a bare
+    // string; forcing application/json on e.g. 'a=1' would make the server
+    // misparse a form/plain payload. An explicit caller Content-Type is kept.
     if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
+      const trimmed = options.body.trimStart();
+      if (trimmed.charAt(0) === '{' || trimmed.charAt(0) === '[') {
+        headers.set('Content-Type', 'application/json');
+      }
     }
 
     // Create merged options with headers

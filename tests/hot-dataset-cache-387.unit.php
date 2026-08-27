@@ -211,7 +211,11 @@ try {
     [, $bodyR2] = $renderBookPage($bookId);
     $check(!str_contains($bodyR2, $reviewTitle), 'raw-SQL approval does not appear while the reviews cache is warm (block IS cached)');
 
-    // The real moderation path must invalidate immediately.
+    // The real moderation path DEFERS invalidation to request shutdown, so a
+    // concurrent public read during the caller's open transaction cannot
+    // populate the new generation with pre-commit rows. Within this single
+    // process the shutdown hook has not fired yet, so the cached block is still
+    // the old one; a manual reviewsChanged() stands in for the shutdown.
     $db->query("UPDATE recensioni SET stato = 'pendente' WHERE id = {$reviewId}");
     $repo = new RecensioniRepository($db);
     $check($repo->approveReview($reviewId, $userId), 'approveReview() succeeds');
@@ -220,12 +224,16 @@ try {
         isset($approvedRows[0]) && !array_key_exists('utente_email', $approvedRows[0]),
         'public review DTO does not cache reviewer email'
     );
+    [, $bodyR3a] = $renderBookPage($bookId);
+    $check(!str_contains($bodyR3a, $reviewTitle), 'approval is NOT applied mid-transaction (invalidation deferred to shutdown)');
+    ContentCache::reviewsChanged(); // simulate the request-shutdown deferred flush
     [, $bodyR3] = $renderBookPage($bookId);
-    $check(str_contains($bodyR3, $reviewTitle), 'approved review visible immediately (approve bumps book_reviews_)');
+    $check(str_contains($bodyR3, $reviewTitle), 'approved review visible after the deferred invalidation fires');
 
     $check($repo->deleteReview($reviewId), 'deleteReview() succeeds');
+    ContentCache::reviewsChanged(); // deferred → simulate shutdown flush
     [, $bodyR4] = $renderBookPage($bookId);
-    $check(!str_contains($bodyR4, $reviewTitle), 'deleted review disappears immediately (delete bumps book_reviews_)');
+    $check(!str_contains($bodyR4, $reviewTitle), 'deleted review disappears after the deferred invalidation fires');
 
     echo "\nC. Bounded catalog page rows (static rows cached, availability live):\n";
 
@@ -300,8 +308,8 @@ try {
     $check(
         str_contains($usersController, "original['nome']")
             && str_contains($usersController, "original['cognome']")
-            && str_contains($usersController, 'ContentCache::reviewsChanged()'),
-        'admin reviewer-name edits invalidate cached public review DTOs'
+            && str_contains($usersController, 'ContentCache::deferReviewsChanged()'),
+        'admin reviewer-name edits invalidate cached public review DTOs (deferred to shutdown)'
     );
 } catch (\Throwable $e) {
     $failed++;

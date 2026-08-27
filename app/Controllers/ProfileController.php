@@ -250,7 +250,7 @@ class ProfileController
         if ($updated) {
             // The cached reviews block (#387) stores the reviewer display name as
             // CONCAT(nome,' ',cognome), so a name change must invalidate it.
-            \App\Support\ContentCache::reviewsChanged();
+            \App\Support\ContentCache::deferReviewsChanged();
             // Update session data
             $_SESSION['user']['name'] = trim($nome . ' ' . $cognome);
             // Apply locale change immediately (only when locale was in the form)
