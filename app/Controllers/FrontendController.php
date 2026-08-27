@@ -505,6 +505,9 @@ class FrontendController
         // never creates a cache entry (bounded, mirrors hasBoundedCatalogCacheKey);
         // a raw scan of nonexistent ids cannot grow storage/cache. Reused below.
         $liveBook = $this->fetchLiveAvailability($db, [$book_id]);
+        if ($liveBook === null) {
+            return $this->renderAvailabilityUnavailable($response);
+        }
         if (!isset($liveBook[$book_id])) {
             return $this->render404($response);
         }
@@ -560,13 +563,20 @@ class FrontendController
         $relatedIds = array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $related_books);
         $liveRelated = $relatedIds !== [] ? $this->fetchLiveAvailability($db, $relatedIds) : [];
         $book = array_merge($book, $liveBook[$book_id]);
-        $freshRelated = [];
-        foreach ($related_books as $row) {
-            $rowId = (int) ($row['id'] ?? 0);
-            if (!isset($liveRelated[$rowId])) {
-                continue; // soft-deleted since the DTO was cached
+        if ($liveRelated === null) {
+            // The main book's availability is known, so keep rendering the
+            // page. Preserve static related-volume metadata, but do not invent
+            // availability values for it while the second live query is down.
+            $freshRelated = $related_books;
+        } else {
+            $freshRelated = [];
+            foreach ($related_books as $row) {
+                $rowId = (int) ($row['id'] ?? 0);
+                if (!isset($liveRelated[$rowId])) {
+                    continue; // soft-deleted since the DTO was cached
+                }
+                $freshRelated[] = array_merge($row, $liveRelated[$rowId]);
             }
-            $freshRelated[] = array_merge($row, $liveRelated[$rowId]);
         }
         $related_books = $freshRelated;
 
@@ -871,9 +881,11 @@ class FrontendController
      * design it runs on every request and is never cached.
      *
      * @param array<int, int> $ids
-     * @return array<int, array{copie_disponibili: int, copie_totali: int, stato: mixed}>
+     * @return array<int, array{copie_disponibili: int, copie_totali: int, stato: mixed}>|null
+     *         null means the live query failed; an empty array is a successful
+     *         query that found no active books.
      */
-    private function fetchLiveAvailability(mysqli $db, array $ids): array
+    private function fetchLiveAvailability(mysqli $db, array $ids): ?array
     {
         $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
         if ($ids === []) {
@@ -881,25 +893,29 @@ class FrontendController
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $db->prepare(
-            "SELECT id, copie_disponibili, copie_totali, stato FROM libri WHERE id IN ({$placeholders}) AND deleted_at IS NULL"
-        );
-        if ($stmt === false) {
-            // Degrade gracefully instead of throwing: this runs on the most
-            // trafficked public pages. An empty map lets the caller decide —
-            // the book-detail path 404s (existence unknown), the catalog path
-            // renders rows without availability — rather than a hard 500.
-            \App\Support\SecureLogger::error('FrontendController: live availability prepare failed', ['db_error' => $db->error]);
-            return [];
-        }
+        $stmt = null;
 
-        $types = str_repeat('i', count($ids));
-        $stmt->bind_param($types, ...$ids);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        try {
+            $stmt = $db->prepare(
+                "SELECT id, copie_disponibili, copie_totali, stato FROM libri WHERE id IN ({$placeholders}) AND deleted_at IS NULL"
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException('mysqli::prepare returned false: ' . $db->error);
+            }
 
-        $live = [];
-        if ($result !== false) {
+            $types = str_repeat('i', count($ids));
+            if (!$stmt->bind_param($types, ...$ids)) {
+                throw new \RuntimeException('mysqli_stmt::bind_param returned false: ' . $stmt->error);
+            }
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('mysqli_stmt::execute returned false: ' . $stmt->error);
+            }
+            $result = $stmt->get_result();
+            if ($result === false) {
+                throw new \RuntimeException('mysqli_stmt::get_result returned false: ' . $stmt->error);
+            }
+
+            $live = [];
             while ($row = $result->fetch_assoc()) {
                 $live[(int) $row['id']] = [
                     'copie_disponibili' => (int) $row['copie_disponibili'],
@@ -907,10 +923,22 @@ class FrontendController
                     'stato' => $row['stato'],
                 ];
             }
-        }
-        $stmt->close();
 
-        return $live;
+            return $live;
+        } catch (\Throwable $e) {
+            // This query protects the correctness of every public availability
+            // indicator. Keep a DB outage distinct from a successful no-row
+            // result: detail returns a retryable 503, while catalog keeps its
+            // cached rows instead of incorrectly rendering an empty grid.
+            \App\Support\SecureLogger::error('FrontendController: live availability query failed', [
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        } finally {
+            if ($stmt instanceof \mysqli_stmt) {
+                $stmt->close();
+            }
+        }
     }
 
     /**
@@ -928,6 +956,9 @@ class FrontendController
         }
 
         $live = $this->fetchLiveAvailability($db, array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $rows));
+        if ($live === null) {
+            return $rows;
+        }
 
         $fresh = [];
         foreach ($rows as $row) {
@@ -1007,6 +1038,20 @@ class FrontendController
         }
 
         return $this->mergeLiveAvailability($db, $rows);
+    }
+
+    private function renderAvailabilityUnavailable(Response $response): Response
+    {
+        ob_start();
+        include __DIR__ . '/../Views/errors/500.php';
+        $content = ob_get_clean();
+
+        $response->getBody()->write($content);
+        return $response
+            ->withHeader('Content-Type', 'text/html')
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('Retry-After', '30')
+            ->withStatus(503);
     }
 
     private function render404(Response $response): Response

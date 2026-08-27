@@ -123,6 +123,22 @@ $check(
     str_contains($availabilityBody, 'return 0;') && str_contains($availabilityBody, '$available_books = 0;'),
     'available-book DB failures return a cacheable zero instead of repeated null misses'
 );
+$check(
+    str_contains($frontend, 'private function fetchLiveAvailability(mysqli $db, array $ids): ?array')
+        && str_contains($frontend, 'catch (\\Throwable $e)')
+        && str_contains($frontend, 'if ($live === null)')
+        && str_contains($frontend, 'return $rows;'),
+    'live-availability failures are distinguished from empty results and preserve cached catalog rows'
+);
+
+$fetchLiveAvailability = $reflection->getMethod('fetchLiveAvailability');
+$mergeLiveAvailability = $reflection->getMethod('mergeLiveAvailability');
+$unavailableDb = new mysqli();
+$failedLiveRead = $fetchLiveAvailability->invoke($controller, $unavailableDb, [42]);
+$cachedCatalogRows = [['id' => 42, 'titolo' => 'Cached title']];
+$preservedRows = $mergeLiveAvailability->invoke($controller, $unavailableDb, $cachedCatalogRows);
+$check($failedLiveRead === null, 'live-availability query exceptions return an explicit failure result');
+$check($preservedRows === $cachedCatalogRows, 'catalog rows survive a live-availability database outage');
 
 echo "\nBehavioural cache contracts:\n";
 $runKey = 'pr323_' . bin2hex(random_bytes(6));

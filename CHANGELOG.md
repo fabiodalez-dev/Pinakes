@@ -2,6 +2,14 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.69-rc.3]
+
+Third release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
+
+### Fixed
+
+- Live availability reads now handle failures from the complete MySQLi statement lifecycle, not only `prepare()`. A database outage is distinct from a successful empty result: book detail returns a retryable, non-cacheable 503 instead of a false 404, while a cached catalog page keeps its rows instead of collapsing to an empty grid.
+
 ## [0.7.69-rc.2]
 
 Second release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
