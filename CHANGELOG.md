@@ -2,6 +2,20 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.69-rc.1]
+
+Release candidate for a performance/caching overhaul (issue #387). No schema change, no new required configuration — every install upgrades with identical behaviour on a cold cache. Bundles three reviewed pieces:
+
+### Performance
+
+- **Single-backend query cache with O(1) invalidation.** `QueryCache` now uses one backend per request (APCu when available, else file) instead of writing to both on every set, and invalidates the content namespaces (catalog, home, genre-tree, book-detail, reviews) through monotonic generation counters — a bump makes every prior entry unreachable without scanning or deleting. The counters are file-backed and written atomically (temp + `rename()`), so a failed write can never wipe one and re-expose invalidated data; a scheduled non-blocking GC reclaims orphaned files. Per-request hit/miss instrumentation (`QueryCache::stats()`) is available for a later diagnostics surface.
+- **Hot public datasets are cached, availability stays live.** The book-detail static DTO (metadata/authors/publishers/series/related), the reviews block and the bounded catalog listing pages are cached per locale, while `copie_disponibili`/`copie_totali`/`stato` are stripped before storage and re-read live on every request — a stale availability number can never be served. Every write-path that changes a cached column (book edit, cover download, series mutation, reviewer name, author enrichment) invalidates the right namespace.
+- **Sessionless anonymous request path + lazy CSRF.** Anonymous read-only requests with no auth cookie no longer open a PHP session or embed a per-visitor CSRF token in the HTML (the token is minted on demand via `GET /csrf-token`), clearing the two blockers to a future shared edge cache. CSRF validation is unchanged — every state-changing request still opens a session and is validated exactly as before; private-mode gating and the login/remember-me flows are untouched. Only the genuinely public `/uploads` subtrees (covers, author photos, branding) are treated as sessionless; the private ones stay behind the session.
+
+### Internal
+
+- OPcache guidance in `php.ini.recommended` corrected (JIT explicitly disabled, `fast_shutdown` removed, sizing driven by `opcache_get_status()`). Extensive new behavioural coverage for the cache backend, generation invalidation, atomicity, the availability split and the sessionless/CSRF predicate.
+
 ## [0.7.68]
 
 Circulation fixes. A request for a book that is currently out no longer fails on approval — it becomes a real waitlist reservation — and copy allocation is made consistent everywhere a copy is chosen. Also restores the "waiting for pickup" cancel action (#381), the terminal pickup email for archived books, and author photos supplied as a URL (#382).
