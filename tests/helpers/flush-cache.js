@@ -26,27 +26,46 @@
  */
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 
+// GitHub Actions (and most CI) set CI=true. In CI a flush that never happened
+// silently corrupts every subsequent assertion after a direct-DB write, so it
+// must FAIL the run loudly. Locally the endpoint may legitimately be absent
+// (no PINAKES_E2E_CACHE_FLUSH / no APCu): keep the tolerant one-shot warning so
+// a dev without the flag configured still gets a usable run plus a hint.
+const IS_CI = !!process.env.CI;
+
 let warned = false;
 
 /** Flush the app's page cache from inside the app process. */
 async function flushCache() {
+  let res;
   try {
-    const res = await fetch(`${BASE}/_e2e/flush-cache`, { redirect: 'manual' });
-    if (!res.ok && !warned) {
-      warned = true;
-      // Non-fatal: without the flush the run behaves exactly like before this
-      // helper existed (assertion may hit a stale cached page). The warning
-      // turns that mystery into an actionable config hint.
-      console.warn(
-        `[flush-cache] GET /_e2e/flush-cache returned ${res.status} — ` +
-        'set "SetEnv PINAKES_E2E_CACHE_FLUSH 1" in the E2E Apache vhost so ' +
-        'direct-DB test writes can invalidate the page cache.'
-      );
-    }
+    res = await fetch(`${BASE}/_e2e/flush-cache`, { redirect: 'manual' });
   } catch (err) {
+    const msg = `[flush-cache] request to ${BASE}/_e2e/flush-cache failed: ${err && err.message}`;
+    if (IS_CI) {
+      throw new Error(msg);
+    }
     if (!warned) {
       warned = true;
-      console.warn(`[flush-cache] request failed: ${err && err.message}`);
+      console.warn(msg);
+    }
+    return;
+  }
+
+  if (!res.ok) {
+    // The route returns 404 when PINAKES_E2E_CACHE_FLUSH is unset and 500 when
+    // QueryCache::flush() reported a real delete failure — both mean the page
+    // cache was NOT reliably cleared and a stale read is possible.
+    const msg =
+      `[flush-cache] GET /_e2e/flush-cache returned ${res.status} — ` +
+      'ensure "SetEnv PINAKES_E2E_CACHE_FLUSH 1" is set in the E2E Apache ' +
+      'vhost so direct-DB test writes can invalidate the page cache.';
+    if (IS_CI) {
+      throw new Error(msg);
+    }
+    if (!warned) {
+      warned = true;
+      console.warn(msg);
     }
   }
 }

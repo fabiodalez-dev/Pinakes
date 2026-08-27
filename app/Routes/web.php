@@ -147,9 +147,13 @@ return function (App $app): void {
         if ($flag !== '1' && strtolower((string) $flag) !== 'true') {
             throw new \Slim\Exception\HttpNotFoundException($request);
         }
-        \App\Support\QueryCache::flush();
-        $response->getBody()->write((string) json_encode(['flushed' => true]));
+        // Honour the flush result: a false return means a real apcu_delete /
+        // unlink failure. Surface it as HTTP 500 so the E2E helper can fail the
+        // run loudly instead of proceeding to read a stale cached page.
+        $flushed = \App\Support\QueryCache::flush();
+        $response->getBody()->write((string) json_encode(['flushed' => $flushed]));
         return $response
+            ->withStatus($flushed ? 200 : 500)
             ->withHeader('Content-Type', 'application/json; charset=UTF-8')
             ->withHeader('Cache-Control', 'no-store, private');
     });
