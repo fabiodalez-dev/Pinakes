@@ -139,6 +139,15 @@ $check(
     'locale cookie falls back when an active session has no valid locale'
 );
 
+$homeEventsView = file_get_contents(
+    dirname(__DIR__) . '/app/Views/frontend/home-sections/events.php'
+);
+$check(
+    is_string($homeEventsView)
+        && str_contains($homeEventsView, '\\App\\Support\\I18n::getLocale()'),
+    'sessionless home events use the locale resolved before rendering'
+);
+
 // ---------------------------------------------------------------------------
 // 3. CsrfMiddleware behavior (direct invocation)
 // ---------------------------------------------------------------------------
