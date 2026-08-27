@@ -515,6 +515,13 @@ class UsersController
         }
         $stmt->close();
 
+        // Public review DTOs include the reviewer's display name. Invalidate
+        // only when that rendered identity actually changed.
+        if ((string) ($original['nome'] ?? '') !== $nome
+            || (string) ($original['cognome'] ?? '') !== $cognome) {
+            \App\Support\ContentCache::reviewsChanged();
+        }
+
         // Keep the current browser session coherent when an administrator edits
         // their own account; other users pick up the persisted locale at login.
         if ($currentUserId === $id) {

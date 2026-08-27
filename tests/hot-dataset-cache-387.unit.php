@@ -26,6 +26,8 @@ declare(strict_types=1);
  *     generation-tracked; booksChanged() bumps book_detail_ but not
  *     book_reviews_; availabilityChanged() leaves book_detail_ intact;
  *     reviewsChanged() bumps only book_reviews_.
+ *  E. Indirect write paths — authority updates invalidate book DTOs and
+ *     admin edits of reviewer names invalidate rendered review DTOs.
  *
  * FAILS BY DESIGN on pre-change code: without the DTO cache the page would
  * show the NEW title in step A (assertion "old title still served" fails), and
@@ -282,6 +284,24 @@ try {
     $check(
         substr_count($mobileReviews, 'ContentCache::reviewsChanged()') >= 2,
         'mobile review edit/delete paths invalidate the public reviews block'
+    );
+
+    echo "\nE. Indirect write-path invalidation:\n";
+
+    $authorityPlugin = (string) file_get_contents(
+        $root . '/storage/plugins/viaf-authority/ViafAuthorityPlugin.php'
+    );
+    $check(
+        substr_count($authorityPlugin, 'ContentCache::booksChanged()') >= 2,
+        'VIAF and ISNI author updates invalidate cached book-detail DTOs'
+    );
+
+    $usersController = (string) file_get_contents($root . '/app/Controllers/UsersController.php');
+    $check(
+        str_contains($usersController, "original['nome']")
+            && str_contains($usersController, "original['cognome']")
+            && str_contains($usersController, 'ContentCache::reviewsChanged()'),
+        'admin reviewer-name edits invalidate cached public review DTOs'
     );
 } catch (\Throwable $e) {
     $failed++;
