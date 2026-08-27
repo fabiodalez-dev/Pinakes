@@ -284,7 +284,11 @@ $httpsDetected = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
     || (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on');
 
-// Secure session configuration
+// Secure session configuration. The ini parameters below are ALWAYS applied
+// (even when no session is started for this request) so that any session
+// started later in the request — e.g. the lazy GET /csrf-token endpoint or
+// the /language/{locale} switch — inherits the exact same hardened cookie
+// settings instead of PHP's defaults.
 if (session_status() !== PHP_SESSION_ACTIVE) {
     // Use application-local session storage to avoid /tmp cleanup issues.
     // Create the directory if missing: otherwise PHP silently falls back to the
@@ -323,23 +327,41 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     ini_set('session.gc_probability', '1');
     ini_set('session.gc_divisor', '100');
 
-    session_start();
+    // Step 6 of the caching overhaul (issue #387): an anonymous request that
+    // carries no auth-related cookie and targets no auth/contact route is
+    // served WITHOUT a session, so a later PR can put anonymous pages behind
+    // a shared full-page cache. Not starting the session also means the
+    // response emits no Set-Cookie. Any request with a session cookie, a
+    // remember_token, a csrf_login cookie, any non-GET/HEAD method (login and
+    // every other state-changing request) or an auth/contact path keeps the
+    // exact pre-existing session behavior. The predicate fails safe: when in
+    // doubt (CLI, malformed URI) the session is started.
+    $sessionUriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+    $needsSession = !is_string($sessionUriPath) || \App\Support\SessionPolicy::requiresSession(
+        (string) ($_SERVER['REQUEST_METHOD'] ?? ''),
+        $_COOKIE,
+        $sessionUriPath
+    );
 
-    // Regenera session ID periodicamente per prevenire session hijacking.
-    // delete_old_session = FALSE on purpose: with TRUE the previous session
-    // file is destroyed immediately, so concurrent in-flight AJAX requests
-    // (common on DataTable-heavy admin pages) that still carry the old ID are
-    // rejected by use_strict_mode and the user is bounced to login. Keeping the
-    // old session briefly (it is GC'd at gc_maxlifetime) lets those concurrent
-    // requests finish on the old ID while the browser switches to the new
-    // cookie. The security-critical regeneration still happens with TRUE at
-    // login (AuthController), which is what defends against fixation. Interval
-    // raised 5min -> 30min to keep the number of lingering rotated sessions low.
-    if (!isset($_SESSION['last_regeneration'])) {
-        $_SESSION['last_regeneration'] = time();
-    } elseif (time() - $_SESSION['last_regeneration'] > 1800) { // Ogni 30 minuti
-        session_regenerate_id(false);
-        $_SESSION['last_regeneration'] = time();
+    if ($needsSession) {
+        session_start();
+
+        // Regenera session ID periodicamente per prevenire session hijacking.
+        // delete_old_session = FALSE on purpose: with TRUE the previous session
+        // file is destroyed immediately, so concurrent in-flight AJAX requests
+        // (common on DataTable-heavy admin pages) that still carry the old ID are
+        // rejected by use_strict_mode and the user is bounced to login. Keeping the
+        // old session briefly (it is GC'd at gc_maxlifetime) lets those concurrent
+        // requests finish on the old ID while the browser switches to the new
+        // cookie. The security-critical regeneration still happens with TRUE at
+        // login (AuthController), which is what defends against fixation. Interval
+        // raised 5min -> 30min to keep the number of lingering rotated sessions low.
+        if (!isset($_SESSION['last_regeneration'])) {
+            $_SESSION['last_regeneration'] = time();
+        } elseif (time() - $_SESSION['last_regeneration'] > 1800) { // Ogni 30 minuti
+            session_regenerate_id(false);
+            $_SESSION['last_regeneration'] = time();
+        }
     }
 }
 
@@ -485,6 +507,17 @@ if (!$isCli) {
         $sessionLocale = (string)$_SESSION['locale'];
         if (!\App\Support\I18n::setLocale($sessionLocale)) {
             unset($_SESSION['locale']);
+        }
+    } elseif (session_status() !== PHP_SESSION_ACTIVE) {
+        // Sessionless anonymous request (issue #387 step 6): the language
+        // choice is persisted in the pinakes_locale cookie written by
+        // /language/{locale}, so the anonymous locale is deterministic
+        // per-request (cookie/URL, not session) and a cached page can be
+        // correct per-locale. setLocale() validates against the available
+        // locales, so an unknown/tampered cookie value is simply ignored.
+        $cookieLocale = $_COOKIE['pinakes_locale'] ?? '';
+        if (is_string($cookieLocale) && $cookieLocale !== '') {
+            \App\Support\I18n::setLocale(\App\Support\I18n::normalizeLocaleCode($cookieLocale));
         }
     }
 }
