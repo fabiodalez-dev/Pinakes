@@ -24,7 +24,8 @@ declare(strict_types=1);
  *       - booksChanged() invalidates the rows.
  *  D. Namespace mechanics — 'book_detail_' and 'book_reviews_' are
  *     generation-tracked; booksChanged() bumps book_detail_ but not
- *     book_reviews_; reviewsChanged() bumps only book_reviews_.
+ *     book_reviews_; availabilityChanged() leaves book_detail_ intact;
+ *     reviewsChanged() bumps only book_reviews_.
  *
  * FAILS BY DESIGN on pre-change code: without the DTO cache the page would
  * show the NEW title in step A (assertion "old title still served" fails), and
@@ -212,6 +213,11 @@ try {
     $db->query("UPDATE recensioni SET stato = 'pendente' WHERE id = {$reviewId}");
     $repo = new RecensioniRepository($db);
     $check($repo->approveReview($reviewId, $userId), 'approveReview() succeeds');
+    $approvedRows = $repo->getApprovedReviewsForBook($bookId);
+    $check(
+        isset($approvedRows[0]) && !array_key_exists('utente_email', $approvedRows[0]),
+        'public review DTO does not cache reviewer email'
+    );
     [, $bodyR3] = $renderBookPage($bookId);
     $check(str_contains($bodyR3, $reviewTitle), 'approved review visible immediately (approve bumps book_reviews_)');
 
@@ -259,12 +265,24 @@ try {
     QueryCache::set('book_detail_' . $nsRun, 'dto', 120);
     QueryCache::set('book_reviews_' . $nsRun, 'reviews', 120);
     QueryCache::set('catalog_page_' . $nsRun, 'rows', 120);
+    ContentCache::availabilityChanged();
+    $check(QueryCache::get('book_detail_' . $nsRun) === 'dto', 'availabilityChanged leaves static book_detail_ DTOs warm');
+    $check(QueryCache::get('catalog_page_' . $nsRun) === null, 'availabilityChanged bumps catalog_page_* membership');
+    QueryCache::set('catalog_page_' . $nsRun, 'rows', 120);
     ContentCache::booksChanged();
     $check(QueryCache::get('book_detail_' . $nsRun) === null, 'booksChanged bumps book_detail_');
     $check(QueryCache::get('catalog_page_' . $nsRun) === null, 'booksChanged bumps catalog_page_* (catalog_ namespace)');
     $check(QueryCache::get('book_reviews_' . $nsRun) === 'reviews', 'booksChanged leaves book_reviews_ alone');
     ContentCache::reviewsChanged();
     $check(QueryCache::get('book_reviews_' . $nsRun) === null, 'reviewsChanged bumps book_reviews_');
+
+    $mobileReviews = (string) file_get_contents(
+        $root . '/storage/plugins/mobile-api/src/Controllers/ReviewsController.php'
+    );
+    $check(
+        substr_count($mobileReviews, 'ContentCache::reviewsChanged()') >= 2,
+        'mobile review edit/delete paths invalidate the public reviews block'
+    );
 } catch (\Throwable $e) {
     $failed++;
     echo "FAIL  unexpected exception: {$e->getMessage()} @ {$e->getFile()}:{$e->getLine()}\n";

@@ -214,10 +214,10 @@ $contentCache = $read('app/Support/ContentCache.php');
 $checkCacheNamespace($frontend, 'home_api_count_', 'home_', $contentCache, 'home API counts');
 $check(str_contains($contentCache, 'function deferBooksChanged'), 'transaction-owned writers can defer invalidation');
 $integrity = $read('app/Support/DataIntegrity.php');
-$check(str_contains($integrity, 'ContentCache::deferBooksChanged()'), 'DataIntegrity defers invalidation for outer transactions');
+$check(str_contains($integrity, 'ContentCache::deferAvailabilityChanged()'), 'DataIntegrity defers availability invalidation for outer transactions');
 $check(
-    substr_count($integrity, 'ContentCache::booksChanged()') >= 2,
-    'single and global standalone recalculations invalidate after their commits'
+    substr_count($integrity, 'ContentCache::availabilityChanged()') >= 2,
+    'single and global standalone recalculations invalidate availability after their commits'
 );
 $settingsRepository = $read('app/Models/SettingsRepository.php');
 $check(

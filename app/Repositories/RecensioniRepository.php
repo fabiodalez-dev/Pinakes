@@ -201,8 +201,7 @@ class RecensioniRepository
         try {
             $stmt = $this->db->prepare("
                 SELECT r.*,
-                       CONCAT(u.nome, ' ', u.cognome) as utente_nome,
-                       u.email as utente_email
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome
                 FROM recensioni r
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.libro_id = ?

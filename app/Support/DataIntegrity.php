@@ -151,9 +151,9 @@ class DataIntegrity {
 
             if (!$insideTransaction) {
                 $this->db->commit();
-                ContentCache::booksChanged();
+                ContentCache::availabilityChanged();
             } else {
-                ContentCache::deferBooksChanged();
+                ContentCache::deferAvailabilityChanged();
             }
 
         } catch (\Throwable $e) {
@@ -246,7 +246,7 @@ class DataIntegrity {
                 $processed++;
             }
             if ($chunkDirty) {
-                ContentCache::booksChanged();
+                ContentCache::availabilityChanged();
             }
 
             // Report progress
@@ -417,9 +417,9 @@ class DataIntegrity {
             // once per book.
             if ($result && !$skipCacheInvalidation) {
                 if ($insideTransaction) {
-                    ContentCache::deferBooksChanged();
+                    ContentCache::deferAvailabilityChanged();
                 } else {
-                    ContentCache::booksChanged();
+                    ContentCache::availabilityChanged();
                 }
             }
 

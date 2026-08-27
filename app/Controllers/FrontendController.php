@@ -683,9 +683,10 @@ class FrontendController
      * soft-deleted — callers must treat that as a 404.
      *
      * Cached by bookDetail() under the 'book_detail_' namespace; every book
-     * write path (create/edit/soft-delete, author/publisher/genre/series
-     * mutations, imports, availability recomputes) funnels into
-     * ContentCache::booksChanged(), which bumps that generation.
+     * metadata write path (create/edit/soft-delete, author/publisher/genre/
+     * series mutations and imports) funnels into ContentCache::booksChanged(),
+     * which bumps that generation. Availability-only recomputes use
+     * availabilityChanged() and intentionally leave this static DTO warm.
      *
      * @return array{book: array<string, mixed>, authors: array<int, array<string, mixed>>,
      *               seriesBooks: array<int, array<string, mixed>>,
@@ -722,10 +723,12 @@ class FrontendController
         $result = $stmt->get_result();
 
         if (!$result || $result->num_rows == 0) {
+            $stmt->close();
             return null;
         }
 
         $book = $result->fetch_assoc();
+        $stmt->close();
 
         // Query per ottenere tutti gli autori del libro
         $query_authors = "
@@ -754,6 +757,7 @@ class FrontendController
         while ($author = $result_authors->fetch_assoc()) {
             $authors[] = $author;
         }
+        $stmt_authors->close();
 
         // Publishers (issue #143): full ordered list for multi-publisher books.
         // Falls back to the single primary publisher for pre-#143 data.
@@ -955,6 +959,7 @@ class FrontendController
             $this->normalizeFiltersForCache($filters),
             $this->buildOrderBy((string) ($filters['sort'] ?? 'newest')),
             $page,
+            $limit,
         ]));
 
         $rows = \App\Support\QueryCache::remember($cacheKey, function () use ($fetch): array {
