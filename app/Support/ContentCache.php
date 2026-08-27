@@ -15,15 +15,16 @@ final class ContentCache
     private static bool $booksInvalidationDeferred = false;
 
     /**
-     * A book (or its availability) changed: clear catalog counts/facets,
+     * A book (or its availability) changed: invalidate catalog counts/facets,
      * every home entry (home_page_data_v1 and home_api_count_*), and the
-     * cached genre tree.
+     * cached genre tree. O(1) generation bumps — previously cached entries in
+     * these namespaces become unreachable immediately, no scan/delete storm.
      */
     public static function booksChanged(): void
     {
-        QueryCache::clearByPrefix('catalog_');
-        QueryCache::clearByPrefix('home_');
-        QueryCache::clearByPrefix('genre_tree_');
+        QueryCache::bumpGeneration('catalog_');
+        QueryCache::bumpGeneration('home_');
+        QueryCache::bumpGeneration('genre_tree_');
     }
 
     /**
@@ -31,7 +32,7 @@ final class ContentCache
      * in an outer transaction cannot safely invalidate immediately: another
      * request could rebuild the cache from pre-commit rows. Shutdown runs after
      * the controller has committed (or rolled back), and duplicate calls from a
-     * batch collapse into a single prefix sweep.
+     * batch collapse into a single invalidation.
      */
     public static function deferBooksChanged(): void
     {
@@ -51,6 +52,6 @@ final class ContentCache
      */
     public static function homeContentChanged(): void
     {
-        QueryCache::clearByPrefix('home_');
+        QueryCache::bumpGeneration('home_');
     }
 }

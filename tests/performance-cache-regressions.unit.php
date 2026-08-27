@@ -46,8 +46,12 @@ $checkCacheNamespace = static function (
         $keys !== [] && count(array_filter($keys, static fn(string $key): bool => str_starts_with($key, $namespace))) === count($keys),
         "{$label} keys use the {$namespace} namespace"
     );
+    // Either invalidation form targets the namespace: the legacy prefix scan
+    // or the O(1) generation bump (issue #387) — both make every prior entry
+    // in the namespace unservable.
     $check(
-        str_contains($invalidator, "QueryCache::clearByPrefix('{$namespace}')"),
+        str_contains($invalidator, "QueryCache::clearByPrefix('{$namespace}')")
+            || str_contains($invalidator, "QueryCache::bumpGeneration('{$namespace}')"),
         "{$label} invalidator clears the {$namespace} namespace"
     );
 };
