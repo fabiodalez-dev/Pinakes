@@ -45,7 +45,16 @@ final class SessionPolicy
         '/feed.xml',
         '/llms.txt',
         '/language/',
-        '/uploads/',
+        // Only the genuinely public /uploads subtrees are sessionless. The
+        // private ones — /uploads/digital/, /uploads/archives/documents/,
+        // /uploads/storage/ — are deliberately NOT listed: PrivateModeMiddleware
+        // keeps them behind the login wall, and a blanket '/uploads/' would stamp
+        // them session-free / cache-eligible, which the later shared edge cache
+        // would turn into unauthenticated content disclosure. Mirrors
+        // PrivateModeMiddleware::ALLOWED_PREFIXES (which exposes only settings).
+        '/uploads/copertine/', // public book covers (catalog + book page)
+        '/uploads/autori/',    // public author photos
+        '/uploads/settings/',  // admin-uploaded branding/logo
         '/proxy/cover',
     ];
 

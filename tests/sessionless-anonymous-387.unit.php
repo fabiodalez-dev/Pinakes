@@ -51,6 +51,17 @@ $check(!SessionPolicy::requiresSession('GET', [], '/language/en_US', ''), 'GET /
 $check(!SessionPolicy::requiresSession('GET', [], '/csrf-token', ''), 'lazy token endpoint reaches its own session_start');
 $check(!SessionPolicy::requiresSession('GET', ['pinakes_locale' => 'de_DE'], '/catalog', ''), 'locale cookie alone does not force a session');
 
+// adamsreview F1 (#390): only the PUBLIC /uploads subtrees are sessionless.
+$check(!SessionPolicy::requiresSession('GET', [], '/uploads/copertine/12.jpg', ''), 'public book cover is sessionless');
+$check(!SessionPolicy::requiresSession('GET', [], '/uploads/autori/3.png', ''), 'public author photo is sessionless');
+$check(!SessionPolicy::requiresSession('GET', [], '/uploads/settings/logo.png', ''), 'public branding is sessionless');
+// The PRIVATE subtrees must NOT be sessionless (else the future edge cache would
+// make them cache-eligible → unauthenticated disclosure). PrivateModeMiddleware
+// gates them; SessionPolicy must not stamp them session-free.
+$check(SessionPolicy::requiresSession('GET', [], '/uploads/digital/secret.pdf', ''), 'private digital-library file keeps the session (not cache-eligible)');
+$check(SessionPolicy::requiresSession('GET', [], '/uploads/archives/documents/x.pdf', ''), 'private archive document keeps the session');
+$check(SessionPolicy::requiresSession('GET', [], '/uploads/storage/x.bin', ''), 'private storage file keeps the session');
+
 // Unknown/plugin/canonical catch-all routes stay sessionful until audited.
 $check(SessionPolicy::requiresSession('GET', [], '/club/summer', ''), 'unknown plugin route keeps the session');
 $check(SessionPolicy::requiresSession('GET', [], '/author-slug/book-slug/42', ''), 'unclassified canonical route keeps the session');
