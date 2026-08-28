@@ -46,6 +46,8 @@ elif [[ "${1:-} ${2:-}" == "pr checks" ]]; then
       exit 8
       ;;
     self_blocked) printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"},{"name":"Verify and build release (read-only)","state":"IN_PROGRESS","bucket":"pending","workflow":"Verified Release"}]\n'; exit 8 ;;
+    self_cancelled) printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"},{"name":"Verify and build release (read-only)","state":"CANCELLED","bucket":"cancel","workflow":"Verified Release"}]\n'; exit 1 ;;
+    self_skipped) printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"},{"name":"Verify and build release (read-only)","state":"SKIPPED","bucket":"skipping","workflow":"Verified Release"}]\n' ;;
     pending_then_pass)
       if [[ "$*" == *"--required"* ]]; then
         printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"}]\n'
@@ -121,6 +123,8 @@ run_case "RC from non-release branch" fail "0.7.59-rc.3" "sha-rc" FAKE_PR_KIND=w
 run_case "RC from blocked PR" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED
 run_case "RC accepts BLOCKED caused only by its own tag check" pass "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked
 run_case "RC waits for a tag-triggered check before accepting its own block" pass "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=pending_then_pass
+run_case "RC rejects BLOCKED with only a cancelled self check" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_cancelled
+run_case "RC rejects BLOCKED with only a skipped self check" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_skipped
 run_case "RC rejects self-blocked state when GitHub reports a conflict" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked FAKE_MERGEABLE=CONFLICTING
 run_case "RC rejects self-blocked state when a review is required" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked FAKE_REVIEW_DECISION=REVIEW_REQUIRED
 run_case "RC with pending required check" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=pending

@@ -124,7 +124,8 @@ elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
     '.[] | select(.workflow != $self_workflow) | select(.bucket != "pass") | "\(.workflow // "external") / \(.name): \(.state)"' \
     <<<"$all_checks_json")"
   self_is_pending_or_failed="$(jq -r --arg self_workflow "Verified Release" \
-    'any(.[]; .workflow == $self_workflow and .bucket != "pass")' <<<"$all_checks_json")"
+    'any(.[]; .workflow == $self_workflow and (.bucket == "pending" or .bucket == "fail"))' \
+    <<<"$all_checks_json")"
 
   case "$merge_state" in
     CLEAN|UNSTABLE)

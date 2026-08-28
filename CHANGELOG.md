@@ -2,6 +2,14 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.69-rc.6]
+
+Sixth release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
+
+### Fixed
+
+- The circular prerelease-check exception now recognizes only an actively pending or failed Verified Release run. A cancelled, skipped or neutral self-check can no longer satisfy the `BLOCKED` safeguard; regression tests cover both terminal buckets.
+
 ## [0.7.69-rc.5]
 
 Fifth release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
