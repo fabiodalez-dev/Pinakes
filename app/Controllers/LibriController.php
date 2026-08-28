@@ -2757,7 +2757,10 @@ class LibriController
 
         // The cover URL is part of the cached book-detail DTO and catalog rows
         // (#387): invalidate so the new cover shows without waiting for the TTL.
-        \App\Support\ContentCache::booksChanged();
+        // Deferred so a bulk cover fetch that hits this endpoint repeatedly
+        // collapses to a single generation bump + edge purge at shutdown
+        // instead of one per book.
+        \App\Support\ContentCache::deferBooksChanged();
 
         $response->getBody()->write(json_encode(['success' => true, 'fetched' => true, 'cover_url' => $coverUrl]));
         return $response->withHeader('Content-Type', 'application/json');
