@@ -170,8 +170,8 @@ $boundedLoader = static function () use (&$boundedCalls): string {
     $boundedCalls++;
     return 'bounded-' . $boundedCalls;
 };
-$firstBounded = $rememberCatalogValue->invoke($controller, $boundedKey, $base, $boundedLoader);
-$secondBounded = $rememberCatalogValue->invoke($controller, $boundedKey, $base, $boundedLoader);
+$firstBounded = $rememberCatalogValue->invoke($controller, $unavailableDb, $boundedKey, $base, $boundedLoader);
+$secondBounded = $rememberCatalogValue->invoke($controller, $unavailableDb, $boundedKey, $base, $boundedLoader);
 $check($firstBounded === 'bounded-1' && $secondBounded === 'bounded-1' && $boundedCalls === 1, 'bounded catalogue state executes its loader once');
 
 $unboundedCalls = 0;
@@ -180,8 +180,8 @@ $unboundedLoader = static function () use (&$unboundedCalls): string {
     return 'unbounded-' . $unboundedCalls;
 };
 $unboundedFilters = array_replace($base, ['search' => $runKey]);
-$firstUnbounded = $rememberCatalogValue->invoke($controller, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
-$secondUnbounded = $rememberCatalogValue->invoke($controller, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
+$firstUnbounded = $rememberCatalogValue->invoke($controller, $unavailableDb, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
+$secondUnbounded = $rememberCatalogValue->invoke($controller, $unavailableDb, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
 $check($firstUnbounded === 'unbounded-1' && $secondUnbounded === 'unbounded-2' && $unboundedCalls === 2, 'unbounded catalogue state bypasses persistent cache on every call');
 
 // Cross-request caches can be exercised without a live query: pre-seed the

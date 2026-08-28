@@ -2,6 +2,20 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.71-rc.1]
+
+First release candidate for catalog denormalization. Existing installs receive an idempotent migration; Redis remains deliberately deferred.
+
+### Performance
+
+- Bounded catalog counts and facet payloads are materialized in MySQL with the same generation token and short safety TTL used by `QueryCache`. APCu remains the fastest same-host layer, while separate nodes, SAPIs and file-cache processes reuse one shared aggregate instead of repeating six catalog scans.
+- Public catalog rows read a write-maintained principal-author projection instead of executing three correlated `libri_autori` subqueries per book. Principal/co-author priority, explicit credit order, pseudonym display and author sorting remain deterministic.
+
+### Compatibility and consistency
+
+- Book, author, import and enrichment write paths rebuild the author projection through the existing `SearchIndexBuilder` maintenance funnel. During a rolling upgrade, catalog queries retain the legacy subquery fallback until all projection columns exist.
+- Materialized aggregates fail open to live SQL if the table, generation counter or MySQL named lock is unavailable. Content and availability invalidation still use `ContentCache`; no second availability source is introduced.
+
 ## [0.7.70-rc.1]
 
 First release candidate for LiteSpeed full-page caching. No schema change and no required server dependency: the feature is disabled by default and configured by administrators from Settings → Advanced.

@@ -314,14 +314,15 @@ class AutoriApiController
             // Commit transaction
             $db->commit();
 
-            // Public book-detail DTOs embed the linked author rows. This API
-            // bypasses AuthorRepository, so invalidate immediately after the
-            // transaction commits instead of serving deleted authors for TTL.
-            \App\Support\ContentCache::booksChanged();
-
-            // Rebuild the search_index of the (now author-less) books so the
-            // deleted authors' names no longer surface in catalog search.
+            // Rebuild every derived author field before publishing the cache
+            // generation bump. Otherwise a concurrent catalog miss could fill
+            // the new generation from the old projection during this window.
             \App\Support\SearchIndexBuilder::rebuildMany($db, array_values($affectedBookIds));
+
+            // Public book-detail DTOs embed the linked author rows. This API
+            // bypasses AuthorRepository, so invalidate after the derived data
+            // is coherent and the transaction has committed.
+            \App\Support\ContentCache::booksChanged();
         } catch (\Throwable $e) {
             $db->rollback();
             AppLog::error('autori.bulk_delete.transaction_failed', ['error' => $e->getMessage()]);

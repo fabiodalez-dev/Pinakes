@@ -505,6 +505,27 @@ class QueryCache
     }
 
     /**
+     * Return the generation currently used by a known cache namespace.
+     *
+     * Materialized database projections use the same token as QueryCache so a
+     * single ContentCache bump makes both layers unreachable atomically. The
+     * value is intentionally exposed only for the fixed namespaces above;
+     * arbitrary prefixes still use physical invalidation and have no stable
+     * generation contract.
+     *
+     * @param string $namespace Namespace prefix, with or without trailing '_'
+     */
+    public static function namespaceGeneration(string $namespace): int
+    {
+        $ns = str_ends_with($namespace, '_') ? $namespace : $namespace . '_';
+        if (!in_array($ns, self::NAMESPACE_PREFIXES, true)) {
+            throw new \InvalidArgumentException('Unknown generation-tracked cache namespace: ' . $namespace);
+        }
+
+        return self::currentGeneration($ns);
+    }
+
+    /**
      * Clear all cache entries with a given prefix
      *
      * For the known content namespaces this is an O(1) generation bump (the

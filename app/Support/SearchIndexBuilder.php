@@ -175,7 +175,17 @@ final class SearchIndexBuilder
             }
         }
         $ids = array_values($ids);
-        if ($ids === [] || !self::columnExists($db)) {
+        if ($ids === []) {
+            return;
+        }
+
+        // The same write paths that maintain search_index also own the
+        // catalog's principal-author projection. Keep this before the
+        // search_index schema guard so a partially upgraded installation can
+        // repair whichever derived structure is already available.
+        CatalogAuthorProjection::rebuildMany($db, $ids);
+
+        if (!self::columnExists($db)) {
             return;
         }
 

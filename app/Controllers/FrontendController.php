@@ -272,6 +272,7 @@ class FrontendController
             return (int) ($total_row['total'] ?? 0);
         };
         $total_books = $this->rememberCatalogValue(
+            $db,
             'catalog_count_' . $catalogCacheSuffix,
             $filters,
             $countLoader
@@ -284,12 +285,7 @@ class FrontendController
         // NULLs-last predicate, once for the sort value).
         $books_query = "
             SELECT l.*,
-                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome,
-                   (SELECT SUBSTRING_INDEX(" . \App\Support\AuthorName::preferredSql('a') . ", ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_cognome,
+                   " . $this->catalogAuthorSelect($db) . ",
                    e.nome AS editore,
                    g.nome AS genere
             " . $base_query . "
@@ -373,6 +369,7 @@ class FrontendController
             return (int) ($total_row['total'] ?? 0);
         };
         $total_books = $this->rememberCatalogValue(
+            $db,
             'catalog_count_' . $catalogCacheSuffix,
             $filters,
             $countLoader
@@ -385,12 +382,7 @@ class FrontendController
         // NULLs-last predicate, once for the sort value).
         $books_query = "
             SELECT l.*,
-                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome,
-                   (SELECT SUBSTRING_INDEX(" . \App\Support\AuthorName::preferredSql('a') . ", ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_cognome,
+                   " . $this->catalogAuthorSelect($db) . ",
                    e.nome AS editore,
                    g.nome AS genere
             " . $base_query . "
@@ -456,6 +448,7 @@ class FrontendController
                 return $available_books;
             };
             $available_books = $this->rememberCatalogValue(
+                $db,
                 'catalog_avail_' . $catalogCacheSuffix,
                 $filters,
                 $availabilityLoader
@@ -1316,6 +1309,37 @@ class FrontendController
         return $columnCache[$column];
     }
 
+    /**
+     * Catalog author columns with an upgrade-window fallback.
+     *
+     * New installs read the write-maintained projection directly. During a
+     * rolling deployment before the migration is applied, preserve the legacy
+     * correlated queries so public catalog pages remain available.
+     */
+    private function catalogAuthorSelect(mysqli $db): string
+    {
+        if (\App\Support\CatalogAuthorProjection::columnsExist($db)) {
+            return 'l.catalog_author_display AS autore, '
+                . 'l.catalog_author_name AS autore_principale_nome, '
+                . 'l.catalog_author_sort AS autore_cognome';
+        }
+
+        return '(SELECT ' . \App\Support\AuthorName::displaySql('a')
+            . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+               WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')
+               ORDER BY (la.ruolo = 'principale') DESC,
+                        COALESCE(la.ordine_credito, 2147483647), la.autore_id LIMIT 1) AS autore, "
+            . "(SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+               WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')
+               ORDER BY (la.ruolo = 'principale') DESC,
+                        COALESCE(la.ordine_credito, 2147483647), la.autore_id LIMIT 1) AS autore_principale_nome, "
+            . '(SELECT SUBSTRING_INDEX(' . \App\Support\AuthorName::preferredSql('a') . ", ' ', -1)
+               FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+               WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')
+               ORDER BY (la.ruolo = 'principale') DESC,
+                        COALESCE(la.ordine_credito, 2147483647), la.autore_id LIMIT 1) AS autore_cognome";
+    }
+
     private function buildOrderBy(string $sort): string
     {
         switch ($sort) {
@@ -1353,7 +1377,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         return $this->computeFilterOptions($db, $filters);
     };
 
-    return $this->rememberCatalogValue($cacheKey, $filters, $loader);
+    return $this->rememberCatalogValue($db, $cacheKey, $filters, $loader);
 }
 
 /**
@@ -1375,13 +1399,26 @@ private function normalizeFiltersForCache(array $filters): array
  *
  * @param callable(): mixed $loader
  */
-private function rememberCatalogValue(string $key, array $filters, callable $loader): mixed
+private function rememberCatalogValue(mysqli $db, string $key, array $filters, callable $loader): mixed
 {
     if (!$this->hasBoundedCatalogCacheKey($filters)) {
         return $loader();
     }
 
-    return \App\Support\QueryCache::remember($key, $loader, 120);
+    return \App\Support\QueryCache::remember(
+        $key,
+        static fn (): mixed => \App\Support\CatalogSnapshot::remember(
+            $db,
+            $key,
+            // QueryCache::remember() has already resolved and memoized this
+            // namespace generation for its own effective key, so the DB row
+            // and the APCu/file entry are guaranteed to use the same token.
+            \App\Support\QueryCache::namespaceGeneration('catalog_'),
+            $loader,
+            120
+        ),
+        120
+    );
 }
 
 private function hasBoundedCatalogCacheKey(array $filters): bool
