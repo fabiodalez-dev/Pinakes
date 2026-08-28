@@ -136,6 +136,14 @@ final class ConfigStore
             'sharing' => [
                 'enabled_providers' => 'facebook,x,whatsapp,email',
             ],
+            'cache' => [
+                // LiteSpeed full-page caching is explicitly opt-in. These DB
+                // values are editable by administrators in Settings > General.
+                'litespeed_enabled' => false,
+                'litespeed_home_ttl' => 300,
+                'litespeed_catalog_ttl' => 120,
+                'litespeed_book_ttl' => 300,
+            ],
         ];
 
         $localizedDefaults = self::getLocaleDefaultTexts();

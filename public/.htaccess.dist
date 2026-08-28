@@ -5,9 +5,27 @@
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
+    # === Pinakes LiteSpeed privacy bypass ===
+    # Prevent LiteSpeed from serving a shared cache entry before PHP can apply
+    # its user/session checks. A sole locale cookie is safe because the
+    # application varies public pages on pinakes_locale.
+    <IfModule LiteSpeed>
+        RewriteRule .* - [E=Cache-Vary:pinakes_locale]
+
+        RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+        RewriteRule .* - [E=Cache-Control:no-cache]
+
+        RewriteCond %{HTTP:Authorization} .
+        RewriteRule .* - [E=Cache-Control:no-cache]
+
+        RewriteCond %{HTTP:Cookie} !^$
+        RewriteCond %{HTTP:Cookie} !^\s*pinakes_locale=[A-Za-z]{2}_[A-Za-z]{2}\s*;?\s*$ [NC]
+        RewriteRule .* - [E=Cache-Control:no-cache]
+    </IfModule>
+    # === end Pinakes LiteSpeed privacy bypass ===
+
     # Redirect all requests to index.php
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^ index.php [QSA,L]
 </IfModule>
-

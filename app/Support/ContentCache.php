@@ -28,6 +28,11 @@ final class ContentCache
         QueryCache::bumpGeneration('home_');
         QueryCache::bumpGeneration('genre_tree_');
         QueryCache::bumpGeneration('book_detail_');
+        LiteSpeedCache::queuePurge([
+            LiteSpeedCache::TAG_HOME,
+            LiteSpeedCache::TAG_CATALOG,
+            LiteSpeedCache::TAG_BOOKS,
+        ]);
     }
 
     /**
@@ -44,10 +49,7 @@ final class ContentCache
         }
 
         self::$booksInvalidationDeferred = true;
-        register_shutdown_function(static function (): void {
-            self::$booksInvalidationDeferred = false;
-            self::booksChanged();
-        });
+        register_shutdown_function([self::class, 'flushDeferred']);
     }
 
     /**
@@ -60,6 +62,11 @@ final class ContentCache
     {
         QueryCache::bumpGeneration('catalog_');
         QueryCache::bumpGeneration('home_');
+        LiteSpeedCache::queuePurge([
+            LiteSpeedCache::TAG_HOME,
+            LiteSpeedCache::TAG_CATALOG,
+            LiteSpeedCache::TAG_BOOKS,
+        ]);
     }
 
     /**
@@ -73,12 +80,7 @@ final class ContentCache
         }
 
         self::$availabilityInvalidationDeferred = true;
-        register_shutdown_function(static function (): void {
-            self::$availabilityInvalidationDeferred = false;
-            if (!self::$booksInvalidationDeferred) {
-                self::availabilityChanged();
-            }
-        });
+        register_shutdown_function([self::class, 'flushDeferred']);
     }
 
     /**
@@ -87,6 +89,7 @@ final class ContentCache
     public static function homeContentChanged(): void
     {
         QueryCache::bumpGeneration('home_');
+        LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_HOME]);
     }
 
     /**
@@ -98,6 +101,7 @@ final class ContentCache
     public static function reviewsChanged(): void
     {
         QueryCache::bumpGeneration('book_reviews_');
+        LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_BOOKS]);
     }
 
     /**
@@ -116,9 +120,29 @@ final class ContentCache
         }
 
         self::$reviewsInvalidationDeferred = true;
-        register_shutdown_function(static function (): void {
+        register_shutdown_function([self::class, 'flushDeferred']);
+    }
+
+    /**
+     * Execute every coalesced invalidation after the transaction owner has
+     * returned. HTTP middleware calls this before emitting purge headers;
+     * registered shutdown callbacks remain the CLI and fatal-error fallback.
+     */
+    public static function flushDeferred(): void
+    {
+        if (self::$booksInvalidationDeferred) {
+            self::$booksInvalidationDeferred = false;
+            // The broad invalidation subsumes availability.
+            self::$availabilityInvalidationDeferred = false;
+            self::booksChanged();
+        } elseif (self::$availabilityInvalidationDeferred) {
+            self::$availabilityInvalidationDeferred = false;
+            self::availabilityChanged();
+        }
+
+        if (self::$reviewsInvalidationDeferred) {
             self::$reviewsInvalidationDeferred = false;
             self::reviewsChanged();
-        });
+        }
     }
 }

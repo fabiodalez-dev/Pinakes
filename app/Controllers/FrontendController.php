@@ -212,7 +212,9 @@ class FrontendController
         $content = ob_get_clean();
 
         $response->getBody()->write($content);
-        return $response->withHeader('Content-Type', 'text/html');
+        return $response
+            ->withHeader('Content-Type', 'text/html')
+            ->withHeader(\App\Support\LiteSpeedCache::MARKER_HEADER, 'home');
     }
 
     public function catalog(Request $request, Response $response, mysqli $db): Response
@@ -317,7 +319,9 @@ class FrontendController
         $content = ob_get_clean();
 
         $response->getBody()->write($content);
-        return $response->withHeader('Content-Type', 'text/html');
+        return $response
+            ->withHeader('Content-Type', 'text/html')
+            ->withHeader(\App\Support\LiteSpeedCache::MARKER_HEADER, 'catalog');
     }
 
     public function catalogAPI(Request $request, Response $response, mysqli $db): Response
@@ -473,6 +477,103 @@ class FrontendController
 
         $response->getBody()->write(json_encode($data));
         return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Public, no-store batch endpoint used to hydrate availability fragments in
+     * LiteSpeed-cached HTML. It exposes only the same counts/status already
+     * visible on public catalog cards and caps input to prevent query abuse.
+     */
+    public function edgeAvailability(Request $request, Response $response, mysqli $db): Response
+    {
+        $raw = (string) ($request->getQueryParams()['ids'] ?? '');
+        $withStats = (string) ($request->getQueryParams()['stats'] ?? '') === '1';
+        if (($raw === '' && !$withStats) || ($raw !== '' && preg_match('/^\d+(?:,\d+){0,99}$/D', $raw) !== 1)) {
+            $response->getBody()->write((string) json_encode(['success' => false, 'message' => 'invalid_ids']));
+            return $response
+                ->withStatus(400)
+                ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+                ->withHeader('Cache-Control', 'no-store, private')
+                ->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
+        }
+
+        $ids = $raw === '' ? [] : array_values(array_unique(array_map('intval', explode(',', $raw))));
+        $live = $this->fetchLiveAvailability($db, $ids);
+        if ($live === null) {
+            $response->getBody()->write((string) json_encode(['success' => false, 'message' => 'availability_unavailable']));
+            return $response
+                ->withStatus(503)
+                ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+                ->withHeader('Cache-Control', 'no-store, private')
+                ->withHeader('Retry-After', '30')
+                ->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
+        }
+
+        $books = [];
+        foreach ($live as $id => $row) {
+            $available = $row['copie_disponibili'] > 0;
+            $state = $available ? 'available' : match ((string) $row['stato']) {
+                'prenotato' => 'reserved',
+                'prestato' => 'borrowed',
+                default => 'unavailable',
+            };
+            $label = match ($state) {
+                'available' => __('Disponibile'),
+                'reserved' => __('Prenotato'),
+                'borrowed' => __('In prestito'),
+                default => __('Non disponibile'),
+            };
+            $books[(string) $id] = [
+                'available' => $available,
+                'copies_available' => $row['copie_disponibili'],
+                'copies_total' => $row['copie_totali'],
+                'state' => $state,
+                'label' => $label,
+                'detail_label' => $available
+                    ? ($row['copie_totali'] > 1
+                        ? $row['copie_disponibili'] . '/' . $row['copie_totali'] . ' ' . __('Disponibili')
+                        : __('Disponibile'))
+                    : __('Non disponibile oggi'),
+                'action_label' => $available ? __('Richiedi Prestito') : __('Prenota Quando Disponibile'),
+            ];
+        }
+
+        $payload = ['success' => true, 'books' => $books];
+        if ($withStats) {
+            try {
+                $statsResult = $db->query(
+                    'SELECT COUNT(*) AS total_books, '
+                    . 'COALESCE(SUM(copie_disponibili > 0), 0) AS available_books '
+                    . 'FROM libri WHERE deleted_at IS NULL'
+                );
+                if ($statsResult === false) {
+                    throw new \RuntimeException('availability stats query returned false: ' . $db->error);
+                }
+                $stats = $statsResult->fetch_assoc() ?: [];
+                $payload['stats'] = [
+                    'total_books' => (int) ($stats['total_books'] ?? 0),
+                    'available_books' => (int) ($stats['available_books'] ?? 0),
+                ];
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error('FrontendController: live availability stats failed', [
+                    'error' => $e->getMessage(),
+                ]);
+                $response->getBody()->write((string) json_encode(['success' => false, 'message' => 'availability_unavailable']));
+                return $response
+                    ->withStatus(503)
+                    ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+                    ->withHeader('Cache-Control', 'no-store, private')
+                    ->withHeader('Retry-After', '30')
+                    ->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
+            }
+        }
+
+        $response->getBody()->write((string) json_encode($payload, JSON_UNESCAPED_UNICODE));
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('Pragma', 'no-cache')
+            ->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
     }
 
     /**
@@ -675,7 +776,8 @@ class FrontendController
         $response->getBody()->write($content);
         return $response
             ->withHeader('Content-Type', 'text/html')
-            ->withHeader('Link', implode(', ', $signLinks));
+            ->withHeader('Link', implode(', ', $signLinks))
+            ->withHeader(\App\Support\LiteSpeedCache::MARKER_HEADER, 'book:' . $book_id);
     }
 
     /**

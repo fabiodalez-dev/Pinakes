@@ -28,6 +28,27 @@
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
+    # === Pinakes LiteSpeed privacy bypass ===
+    # Application response headers are too late
+    # when LSCache can answer before PHP, so any mutation, Authorization header
+    # or visitor-specific cookie prevents a cache hit at the web-server layer.
+    # A sole validated locale cookie is safe and is varied independently at
+    # lookup time and by the application's X-LiteSpeed-Vary response header.
+    <IfModule LiteSpeed>
+        RewriteRule .* - [E=Cache-Vary:pinakes_locale]
+
+        RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+        RewriteRule .* - [E=Cache-Control:no-cache]
+
+        RewriteCond %{HTTP:Authorization} .
+        RewriteRule .* - [E=Cache-Control:no-cache]
+
+        RewriteCond %{HTTP:Cookie} !^$
+        RewriteCond %{HTTP:Cookie} !^\s*pinakes_locale=[A-Za-z]{2}_[A-Za-z]{2}\s*;?\s*$ [NC]
+        RewriteRule .* - [E=Cache-Control:no-cache]
+    </IfModule>
+    # === end Pinakes LiteSpeed privacy bypass ===
+
     # Allow direct access to PUBLIC static files in /uploads/ (covers, events,
     # CMS images, branding).
     RewriteCond %{REQUEST_URI} ^/uploads/ [NC]

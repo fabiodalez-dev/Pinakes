@@ -2,6 +2,26 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.70-rc.1]
+
+First release candidate for LiteSpeed full-page caching. No schema change and no required server dependency: the feature is disabled by default and configured by administrators from Settings → General.
+
+### Performance
+
+- Anonymous home, catalog/search and canonical book pages can now be cached by LiteSpeed/LSCache with independent TTLs, locale-aware variation and tag-based purge. Authenticated requests, private mode, mutations, authorization headers, visitor-specific cookies, `Set-Cookie` responses and every unmarked route fail closed to `no-cache`.
+- Book and card availability remains live outside shared HTML. A public `no-store` batch endpoint hydrates availability, copy counts, loan actions and the home aggregate after render; requests are capped and batched in groups of 100, soft-deleted books are excluded and failures leave stale fragments hidden.
+- Canonical anonymous book routes now complete the sessionless path after Slim routing, while lookalike plugin and unknown routes retain the conservative session behavior.
+
+### Administration and cache coherence
+
+- Administrators can enable LiteSpeed and choose separate home, catalog and book TTLs directly in Settings → General, with server and CLI-purge diagnostics. The controls use the existing settings layout and are translated in every bundled locale; staff cannot view or forge them.
+- Content, availability, review and home writes emit scoped LiteSpeed tags. Successful admin/staff mutations also purge shared HTML defensively so theme, language, plugin and future settings changes cannot leave stale pages. CLI/import jobs use a locked durable queue and a secret-authenticated purge endpoint that remains reachable in private mode.
+- Shared cached HTML uses a stable hash-based Content Security Policy instead of reusing per-response nonces. Apache/LiteSpeed lookup-time rules bypass cache before PHP for mutations, authorization and every cookie except the validated locale cookie; fresh-install and example `.htaccess` files carry the same protection.
+
+### Internal
+
+- New behavioral coverage verifies cache admission/bypass, locale variation, CSP stabilization, private-mode purge access, tag invalidation, admin controls, live hydration and large-page batching. Unit-test runs explicitly disable outbound CLI purge dispatch.
+
 ## [0.7.69-rc.6]
 
 Sixth release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.

@@ -333,31 +333,13 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     // plugin and state-changing routes fail safe by retaining the pre-existing
     // session behavior. See SessionPolicy for the deliberately narrow list.
     $sessionUriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
-    $needsSession = !is_string($sessionUriPath) || \App\Support\SessionPolicy::requiresSession(
+    $needsSession = !is_string($sessionUriPath) || \App\Support\SessionPolicy::requiresEarlySession(
         (string) ($_SERVER['REQUEST_METHOD'] ?? ''),
-        $_COOKIE,
-        $sessionUriPath
+        $_COOKIE
     );
 
     if ($needsSession) {
-        session_start();
-
-        // Regenera session ID periodicamente per prevenire session hijacking.
-        // delete_old_session = FALSE on purpose: with TRUE the previous session
-        // file is destroyed immediately, so concurrent in-flight AJAX requests
-        // (common on DataTable-heavy admin pages) that still carry the old ID are
-        // rejected by use_strict_mode and the user is bounced to login. Keeping the
-        // old session briefly (it is GC'd at gc_maxlifetime) lets those concurrent
-        // requests finish on the old ID while the browser switches to the new
-        // cookie. The security-critical regeneration still happens with TRUE at
-        // login (AuthController), which is what defends against fixation. Interval
-        // raised 5min -> 30min to keep the number of lingering rotated sessions low.
-        if (!isset($_SESSION['last_regeneration'])) {
-            $_SESSION['last_regeneration'] = time();
-        } elseif (time() - $_SESSION['last_regeneration'] > 1800) { // Ogni 30 minuti
-            session_regenerate_id(false);
-            $_SESSION['last_regeneration'] = time();
-        }
+        \App\Support\SessionRuntime::start();
     }
 }
 
@@ -541,6 +523,10 @@ if ($basePath !== '') {
     $app->setBasePath($basePath);
 }
 
+// Registered before RoutingMiddleware so Slim executes it after routing and
+// the middleware can distinguish the audited canonical book pattern from an
+// unknown/plugin route with a similar-looking path.
+$app->add(new \App\Middleware\RoutedSessionMiddleware());
 $app->addRoutingMiddleware();
 
 // Error middleware (dev-friendly by default; tune in settings)
@@ -665,6 +651,10 @@ $app->add(new \App\Middleware\RememberMeMiddleware($container->get('db')));
 
 // BasePathMiddleware: rewrites Location headers for subfolder installs
 $app->add(new \App\Middleware\BasePathMiddleware());
+
+// Outermost response policy: applies LiteSpeed headers only to controller-
+// marked anonymous HTML and emits tag purges after write transactions commit.
+$app->add(new \App\Middleware\LiteSpeedCacheMiddleware());
 
 // Routes
 (require __DIR__ . '/../app/Routes/web.php')($app);

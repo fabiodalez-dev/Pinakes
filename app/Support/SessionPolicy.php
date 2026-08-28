@@ -13,6 +13,9 @@ namespace App\Support;
  */
 final class SessionPolicy
 {
+    /** Exact Slim pattern for the public canonical book-detail route. */
+    private const CANONICAL_BOOK_PATTERN = '/{authorSlug}/{bookSlug}/{id:\\d+}';
+
     /**
      * Audited public route families that do not require server-side session
      * state for an anonymous GET/HEAD. A translated route also matches its
@@ -40,6 +43,7 @@ final class SessionPolicy
         '/home.php',
         '/health',
         '/csrf-token',
+        '/api/edge/availability',
         '/robots.txt',
         '/sitemap.xml',
         '/feed.xml',
@@ -76,20 +80,46 @@ final class SessionPolicy
         string $path,
         ?string $basePath = null
     ): bool {
-        if (!in_array(strtoupper($method), ['GET', 'HEAD'], true)) {
-            return true;
-        }
-
-        // Any authentication-flow state makes the response visitor-specific.
-        if (
-            isset($cookies[session_name()])
-            || isset($cookies['remember_token'])
-            || isset($cookies['csrf_login'])
-        ) {
+        if (self::requiresEarlySession($method, $cookies)) {
             return true;
         }
 
         return !self::isSessionlessRoute($path, $basePath);
+    }
+
+    /** Mutations and authentication state must have a session before bootstrap. */
+    public static function requiresEarlySession(string $method, array $cookies): bool
+    {
+        if (!in_array(strtoupper($method), ['GET', 'HEAD'], true)) {
+            return true;
+        }
+
+        return isset($cookies[session_name()])
+            || isset($cookies['remember_token'])
+            || isset($cookies['csrf_login']);
+    }
+
+    /**
+     * Final decision once Slim has resolved the exact route pattern.
+     * Unknown/plugin routes remain sessionful; only the canonical pattern is
+     * added to the existing path-based public allow-list.
+     */
+    public static function requiresRoutedSession(
+        string $method,
+        array $cookies,
+        string $path,
+        ?string $routePattern,
+        ?string $basePath = null
+    ): bool {
+        if (self::requiresEarlySession($method, $cookies)) {
+            return true;
+        }
+
+        if ($routePattern === self::CANONICAL_BOOK_PATTERN) {
+            return false;
+        }
+
+        return self::requiresSession($method, $cookies, $path, $basePath);
     }
 
     /**

@@ -1,25 +1,34 @@
 <?php
 use App\Support\HtmlHelper;
+$edgeCacheEnabled = \App\Support\LiteSpeedCache::enabled();
 
 $createBookUrl = static function ($book) {
     return book_url($book);
 };
 
-$getBookStatusBadge = static function ($book) {
+$getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
     ob_start();
+    if ($edgeCacheEnabled) {
+        echo '<span class="book-status-badge status-unavailable" data-live-book-id="' . (int) $book['id'] . '" data-live-role="badge" data-live-pending="1"><span data-live-label></span>';
+        $staticBook = $book;
+        unset($staticBook['copie_disponibili'], $staticBook['copie_totali'], $staticBook['stato']);
+        do_action('book.badge.digital_icons', $staticBook);
+        echo '</span>';
+        return ob_get_clean();
+    }
     $available = ($book['copie_disponibili'] ?? 0) > 0;
     $stato = $book['stato'] ?? '';
     // "In prestito" is shown ONLY for stato='prestato'. Every other not-available
     // case — 'non_disponibile', or a stale/unexpected stato on a zero-copy book —
     // falls to "Non disponibile" rather than being mislabelled as on loan (#303 review).
     if ($available) {
-        echo '<span class="book-status-badge status-available">' . htmlspecialchars(__("Disponibile"), ENT_QUOTES, 'UTF-8');
+        echo '<span class="book-status-badge status-available"><span data-live-label>' . htmlspecialchars(__("Disponibile"), ENT_QUOTES, 'UTF-8') . '</span>';
     } elseif ($stato === 'prenotato') {
-        echo '<span class="book-status-badge status-reserved">' . htmlspecialchars(__("Prenotato"), ENT_QUOTES, 'UTF-8');
+        echo '<span class="book-status-badge status-reserved"><span data-live-label>' . htmlspecialchars(__("Prenotato"), ENT_QUOTES, 'UTF-8') . '</span>';
     } elseif ($stato === 'prestato') {
-        echo '<span class="book-status-badge status-borrowed">' . htmlspecialchars(__("In prestito"), ENT_QUOTES, 'UTF-8');
+        echo '<span class="book-status-badge status-borrowed"><span data-live-label>' . htmlspecialchars(__("In prestito"), ENT_QUOTES, 'UTF-8') . '</span>';
     } else {
-        echo '<span class="book-status-badge status-unavailable">' . htmlspecialchars(__("Non disponibile"), ENT_QUOTES, 'UTF-8');
+        echo '<span class="book-status-badge status-unavailable"><span data-live-label>' . htmlspecialchars(__("Non disponibile"), ENT_QUOTES, 'UTF-8') . '</span>';
     }
     // Hook: Allow plugins to add icons to status badge (e.g., eBook/audio icons)
     do_action('book.badge.digital_icons', $book);

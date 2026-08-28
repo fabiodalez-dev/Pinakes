@@ -158,6 +158,27 @@ return function (App $app): void {
             ->withHeader('Cache-Control', 'no-store, private');
     });
 
+    // Authenticated loopback target used by CLI/import jobs to turn their
+    // durable purge queue into a LiteSpeed response header. The secret is
+    // operator-managed via environment, never stored or rendered in admin UI.
+    $app->post('/_pinakes/litespeed-purge', function ($request, $response) {
+        $provided = trim($request->getHeaderLine('X-Pinakes-Purge-Secret'));
+        if (!\App\Support\LiteSpeedCache::authorizesPurgeSecret($provided)) {
+            throw new \Slim\Exception\HttpNotFoundException($request);
+        }
+
+        $tags = \App\Support\LiteSpeedCache::consumeQueuedPurge();
+        $response->getBody()->write((string) json_encode(['purged' => $tags !== [], 'tags' => count($tags)]));
+        $response = $response
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
+        if ($tags !== []) {
+            $response = $response->withHeader('X-LiteSpeed-Purge', \App\Support\LiteSpeedCache::purgeHeader($tags));
+        }
+        return $response;
+    });
+
     // Lazy CSRF endpoint (issue #387 step 6). Sessionless anonymous pages
     // carry no CSRF token in their cacheable HTML; JS fetches one from here
     // right before a state-changing request (see public/assets/js/
@@ -182,6 +203,12 @@ return function (App $app): void {
             ->withHeader('Vary', 'Cookie')
             ->withHeader('X-Content-Type-Options', 'nosniff');
     });
+
+    $app->get('/api/edge/availability', function ($request, $response) use ($app) {
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        return $controller->edgeAvailability($request, $response, $container->get('db'));
+    })->add(new \App\Middleware\RateLimitMiddleware(300, 60, 'edge-availability'));
 
     // Private uploaded files (digital-library content, archive documents,
     // generic storage). public/.htaccess routes ONLY these private prefixes

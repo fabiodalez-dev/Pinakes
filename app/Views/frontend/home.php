@@ -1047,6 +1047,9 @@ function loadLatestBooks(page = 1) {
             } else {
                 grid.innerHTML += data.html;
             }
+            // When edge caching is enabled, card availability is deliberately
+            // absent from the HTML returned by this endpoint as well.
+            grid.dispatchEvent(new Event('pinakes:catalog-grid-updated', { bubbles: true }));
 
             currentLatestPage = data.pagination.current_page;
             hasMoreLatestBooks = data.pagination.current_page < data.pagination.total_pages;

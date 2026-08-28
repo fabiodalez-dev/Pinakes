@@ -60,6 +60,7 @@ $heroBgUrl = $heroBgImage !== '' ? url($heroBgImage) : assetUrl('books.jpg');
             // The client-side loadStats() fetch only runs as a fallback when
             // the values are missing (data-server-rendered absent).
             $heroStatsServerRendered = isset($heroTotalBooks, $heroAvailableBooks);
+            $edgeCacheEnabled = \App\Support\LiteSpeedCache::enabled();
             ?>
             <div class="hero-stats">
                 <div class="hero-stat">
@@ -75,8 +76,10 @@ $heroBgUrl = $heroBgImage !== '' ? url($heroBgImage) : assetUrl('books.jpg');
                     <span class="hero-stat-label"><?= __("Libri Totali") ?></span>
                 </div>
                 <div class="hero-stat">
-                    <span class="hero-stat-number" id="available-books"<?= $heroStatsServerRendered ? ' data-server-rendered="1"' : '' ?>>
-                        <?php if ($heroStatsServerRendered): ?>
+                    <span class="hero-stat-number" id="available-books"<?= $heroStatsServerRendered ? ' data-server-rendered="1"' : '' ?><?= $edgeCacheEnabled ? ' data-live-stat="available_books" data-live-pending="1"' : '' ?>>
+                        <?php if ($edgeCacheEnabled): ?>
+                            <?php // Intentionally empty: availability never enters shared HTML. ?>
+                        <?php elseif ($heroStatsServerRendered): ?>
                             <?= (int) $heroAvailableBooks ?>
                         <?php else: ?>
                         <div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" role="status" style="width: 2rem; height: 2rem;">

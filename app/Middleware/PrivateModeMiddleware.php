@@ -75,6 +75,11 @@ class PrivateModeMiddleware implements MiddlewareInterface
         '/api/v1',
     ];
 
+    /** Exact infrastructure endpoints authenticated without a web session. */
+    private const SELF_AUTHENTICATING_PATHS = [
+        '/_pinakes/litespeed-purge',
+    ];
+
     public function process(Request $request, RequestHandler $handler): Response
     {
         // Authenticated users are never restricted by this middleware.
@@ -119,6 +124,10 @@ class PrivateModeMiddleware implements MiddlewareInterface
 
     private function isAllowed(string $path): bool
     {
+        if (in_array($path, self::SELF_AUTHENTICATING_PATHS, true)) {
+            return true;
+        }
+
         // API surfaces with their own public/authenticated route policy: defer
         // to that policy instead of pre-empting with a web-session-based 401.
         foreach (self::SELF_AUTHENTICATING_API_PREFIXES as $prefix) {
