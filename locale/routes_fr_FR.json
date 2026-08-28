@@ -32,6 +32,5 @@
   "archives": "/archives",
   "archive_item": "/archives",
   "bibframe.book": "/api/bibframe/book/{id}",
-  "api_edge_availability": "/api/edge/availability",
-  "admin.settings": "/admin/settings"
+  "api_edge_availability": "/api/edge/availability"
 }

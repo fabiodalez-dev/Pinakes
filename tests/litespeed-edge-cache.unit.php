@@ -182,7 +182,7 @@ $advancedMethod = strstr($settingsController, 'public function updateAdvancedSet
 $generalMethod = strstr($settingsController, 'public function updateGeneral');
 $check(is_string($advancedMethod) && str_contains(substr($advancedMethod, 0, 8000), "repository->set('cache'"), 'Advanced settings endpoint owns cache persistence');
 $check(is_string($generalMethod) && !str_contains(substr($generalMethod, 0, 12000), "repository->set('cache'"), 'General settings endpoint cannot mutate cache policy');
-$check(str_contains($advancedMethod ?: '', "route_path('admin.settings') . '?tab=advanced'"), 'Advanced cache redirects use the centralized, base-aware settings route');
+$check(str_contains($advancedMethod ?: '', "url('/admin/settings') . '?tab=advanced'"), 'Advanced cache redirect uses url() admin literal — base-path aware and Rule 4 compliant (no route_path for admin routes)');
 $check(str_contains($configStore, "!empty(\$raw['cache'])"), 'database cache settings are mapped back into ConfigStore');
 $check(str_contains($configStore, "'litespeed_enabled'"), 'persisted LiteSpeed enablement is normalized as a boolean');
 $check(str_contains($htaccess, 'E=Cache-Control:no-cache'), 'Apache/LiteSpeed config bypasses private lookups before PHP');
