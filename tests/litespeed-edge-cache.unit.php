@@ -207,7 +207,7 @@ $check(str_contains($routesSource, "RateLimitMiddleware(300, 60, 'edge-availabil
 
 foreach (glob(dirname(__DIR__) . '/locale/??_??.json') ?: [] as $localeFile) {
     $localeJson = (string) file_get_contents($localeFile);
-    foreach (['30 minuti', '1 ora', '2 ore'] as $durationKey) {
+    foreach (['1 minuto', '2 minuti', '5 minuti', '10 minuti', '15 minuti', '30 minuti', '1 ora', '2 ore', '4 ore', '8 ore', '12 ore', '24 ore'] as $durationKey) {
         $check(substr_count($localeJson, '"' . $durationKey . '":') === 1, basename($localeFile) . " has one {$durationKey} translation key");
     }
     $check(substr_count($localeJson, '"Verifica disponibilità":') === 1, basename($localeFile) . ' translates the neutral availability label');
