@@ -235,67 +235,6 @@ $activeTab = $activeTab ?? 'general';
             </div>
           </div>
 
-          <?php if (!empty($isAdmin)): ?>
-          <!-- LiteSpeed full-page cache -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="space-y-4">
-              <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                <i class="fas fa-bolt text-gray-500"></i>
-                <?= __("Cache pagine LiteSpeed") ?>
-              </h2>
-              <p class="text-sm text-gray-600"><?= __("Accelera home, catalogo e schede libro per i visitatori anonimi. Utenti autenticati, sessioni e richieste private vengono sempre escluse.") ?></p>
-              <div class="flex flex-wrap gap-2 text-xs">
-                <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 <?= !empty($appSettings['litespeed_server_detected']) ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' ?>">
-                  <i class="fas <?= !empty($appSettings['litespeed_server_detected']) ? 'fa-check-circle' : 'fa-exclamation-triangle' ?>"></i>
-                  <?= !empty($appSettings['litespeed_server_detected']) ? __("Server LiteSpeed rilevato") : __("LiteSpeed non rilevato in questa richiesta") ?>
-                </span>
-                <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 <?= !empty($appSettings['litespeed_cli_purge_configured']) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' ?>">
-                  <i class="fas fa-terminal"></i>
-                  <?= !empty($appSettings['litespeed_cli_purge_configured']) ? __("Purge CLI configurato") : __("Purge CLI non configurato") ?>
-                </span>
-                <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 <?= !empty($appSettings['litespeed_lookup_bypass_installed']) ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' ?>">
-                  <i class="fas <?= !empty($appSettings['litespeed_lookup_bypass_installed']) ? 'fa-shield-alt' : 'fa-exclamation-triangle' ?>"></i>
-                  <?= !empty($appSettings['litespeed_lookup_bypass_installed']) ? __("Protezione pre-cache installata") : __("Protezione pre-cache non installata") ?>
-                </span>
-              </div>
-            </div>
-            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
-              <label class="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" id="litespeed_enabled" name="litespeed_enabled" value="1"
-                       <?= (($appSettings['litespeed_enabled'] ?? '0') === '1') ? 'checked' : '' ?>
-                       class="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
-                <span>
-                  <span class="block text-sm font-medium text-gray-900"><?= __("Abilita cache full-page LiteSpeed") ?></span>
-                  <span class="block text-xs text-gray-500 mt-1"><?= __("Attivala solo su LiteSpeed/OpenLiteSpeed con LSCache abilitata. Se il modulo non è presente, gli header vengono ignorati senza interrompere il sito.") ?></span>
-                </span>
-              </label>
-
-              <?php
-              $ttlOptions = [60 => __('1 minuto'), 120 => __('2 minuti'), 300 => __('5 minuti'), 600 => __('10 minuti'), 900 => __('15 minuti'), 1800 => __('30 minuti'), 3600 => __('1 ora'), 7200 => __('2 ore'), 14400 => __('4 ore'), 28800 => __('8 ore'), 43200 => __('12 ore'), 86400 => __('24 ore')];
-              $ttlFields = [
-                  'litespeed_home_ttl' => __('Home'),
-                  'litespeed_catalog_ttl' => __('Catalogo e ricerca'),
-                  'litespeed_book_ttl' => __('Scheda libro'),
-              ];
-              ?>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <?php foreach ($ttlFields as $field => $label): ?>
-                <div>
-                  <label for="<?= $field ?>" class="block text-xs font-medium text-gray-700 mb-1"><?= $label ?></label>
-                  <select id="<?= $field ?>" name="<?= $field ?>" class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3">
-                    <?php $selectedTtl = (int) ($appSettings[$field] ?? ($field === 'litespeed_catalog_ttl' ? 120 : 300)); ?>
-                    <?php foreach ($ttlOptions as $seconds => $ttlLabel): ?>
-                    <option value="<?= $seconds ?>" <?= $selectedTtl === $seconds ? 'selected' : '' ?>><?= htmlspecialchars($ttlLabel, ENT_QUOTES, 'UTF-8') ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <?php endforeach; ?>
-              </div>
-              <p class="text-xs text-gray-500"><i class="fas fa-shield-alt mr-1"></i><?= __("Disponibilità copie e azioni di prestito restano live e non vengono affidate all'HTML in cache.") ?></p>
-            </div>
-          </div>
-          <?php endif; ?>
-
           <div class="flex justify-end">
             <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-save"></i>

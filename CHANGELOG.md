@@ -4,7 +4,7 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 
 ## [0.7.70-rc.1]
 
-First release candidate for LiteSpeed full-page caching. No schema change and no required server dependency: the feature is disabled by default and configured by administrators from Settings → General.
+First release candidate for LiteSpeed full-page caching. No schema change and no required server dependency: the feature is disabled by default and configured by administrators from Settings → Advanced.
 
 ### Performance
 
@@ -14,7 +14,7 @@ First release candidate for LiteSpeed full-page caching. No schema change and no
 
 ### Administration and cache coherence
 
-- Administrators can enable LiteSpeed and choose separate home, catalog and book TTLs directly in Settings → General, with server and CLI-purge diagnostics. The controls use the existing settings layout and are translated in every bundled locale; staff cannot view or forge them.
+- Administrators can enable LiteSpeed and choose separate home, catalog and book TTLs directly in Settings → Advanced, with server and CLI-purge diagnostics. The controls use the existing settings layout and are translated in every bundled locale; staff cannot view or forge them.
 - Content, availability, review and home writes emit scoped LiteSpeed tags. Successful admin/staff mutations also purge shared HTML defensively so theme, language, plugin and future settings changes cannot leave stale pages. CLI/import jobs use a locked durable queue and a secret-authenticated purge endpoint that remains reachable in private mode.
 - Shared cached HTML uses a stable hash-based Content Security Policy instead of reusing per-response nonces. Apache/LiteSpeed lookup-time rules bypass cache before PHP for mutations, authorization and every cookie except the validated locale cookie; fresh-install and example `.htaccess` files carry the same protection.
 

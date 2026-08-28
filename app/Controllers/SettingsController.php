@@ -94,13 +94,6 @@ class SettingsController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
-        $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
-        $wantsLiteSpeed = isset($data['litespeed_enabled']) && $data['litespeed_enabled'] === '1';
-        if ($isAdmin && $wantsLiteSpeed && !LiteSpeedCache::ensureLookupBypass()) {
-            $_SESSION['error_message'] = __('Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.');
-            return $this->redirect($response, '/admin/settings?tab=general');
-        }
-
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
@@ -165,26 +158,6 @@ class SettingsController
 
         // Identity/footer values appear on every public page.
         LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_ALL]);
-
-        // Full-page caching changes public delivery semantics and is therefore
-        // admin-only even though staff may access the wider settings screen.
-        if ($isAdmin) {
-            $allowedTtls = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
-            $cacheSettings = [
-                'litespeed_enabled' => isset($data['litespeed_enabled']) && $data['litespeed_enabled'] === '1' ? '1' : '0',
-                'litespeed_home_ttl' => (string) $this->validatedCacheTtl($data['litespeed_home_ttl'] ?? 300, 300, $allowedTtls),
-                'litespeed_catalog_ttl' => (string) $this->validatedCacheTtl($data['litespeed_catalog_ttl'] ?? 120, 120, $allowedTtls),
-                'litespeed_book_ttl' => (string) $this->validatedCacheTtl($data['litespeed_book_ttl'] ?? 300, 300, $allowedTtls),
-            ];
-            foreach ($cacheSettings as $key => $value) {
-                $repository->set('cache', $key, $value);
-                ConfigStore::set('cache.' . $key, $key === 'litespeed_enabled' ? $value === '1' : (int) $value);
-            }
-
-            // Purge the old policy immediately when toggling or changing TTLs;
-            // force=true also covers the transition from enabled to disabled.
-            LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_ALL], true);
-        }
 
         $_SESSION['success_message'] = __('Impostazioni generali aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=general');
@@ -933,6 +906,13 @@ class SettingsController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
+        $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
+        $wantsLiteSpeed = isset($data['litespeed_enabled']) && $data['litespeed_enabled'] === '1';
+        if ($isAdmin && $wantsLiteSpeed && !LiteSpeedCache::ensureLookupBypass()) {
+            $_SESSION['error_message'] = __('Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.');
+            return $this->redirect($response, '/admin/settings?tab=advanced');
+        }
+
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
@@ -972,8 +952,25 @@ class SettingsController
             }
         }
 
+        // Full-page caching changes public delivery semantics and is therefore
+        // admin-only even though staff may access the wider Advanced tab.
+        if ($isAdmin) {
+            $allowedTtls = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
+            $cacheSettings = [
+                'litespeed_enabled' => $wantsLiteSpeed ? '1' : '0',
+                'litespeed_home_ttl' => (string) $this->validatedCacheTtl($data['litespeed_home_ttl'] ?? 300, 300, $allowedTtls),
+                'litespeed_catalog_ttl' => (string) $this->validatedCacheTtl($data['litespeed_catalog_ttl'] ?? 120, 120, $allowedTtls),
+                'litespeed_book_ttl' => (string) $this->validatedCacheTtl($data['litespeed_book_ttl'] ?? 300, 300, $allowedTtls),
+            ];
+            foreach ($cacheSettings as $key => $value) {
+                $repository->set('cache', $key, $value);
+                ConfigStore::set('cache.' . $key, $key === 'litespeed_enabled' ? $value === '1' : (int) $value);
+            }
+        }
+
         // In particular, enabling private mode must evict every public page
         // before subsequent anonymous lookups can be answered at the edge.
+        // force=true also covers disabling LiteSpeed or changing its TTLs.
         LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_ALL], true);
 
         // Auto-attivazione toggle Privacy: se c'è codice analytics/marketing, attiva i rispettivi toggle

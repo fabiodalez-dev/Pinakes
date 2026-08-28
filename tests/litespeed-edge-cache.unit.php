@@ -146,14 +146,21 @@ $check(
 );
 
 $settingsView = (string) file_get_contents(dirname(__DIR__) . '/app/Views/settings/index.php');
+$advancedSettingsView = (string) file_get_contents(dirname(__DIR__) . '/app/Views/settings/advanced-tab.php');
+$settingsController = (string) file_get_contents(dirname(__DIR__) . '/app/Controllers/SettingsController.php');
 $htaccess = (string) file_get_contents(dirname(__DIR__) . '/public/.htaccess');
 $htaccessDist = (string) file_get_contents(dirname(__DIR__) . '/public/.htaccess.dist');
 $liveJs = (string) file_get_contents(dirname(__DIR__) . '/public/assets/js/live-availability.js');
 $homeHero = (string) file_get_contents(dirname(__DIR__) . '/app/Views/frontend/home-sections/hero.php');
 $homeView = (string) file_get_contents(dirname(__DIR__) . '/app/Views/frontend/home.php');
 $routesSource = (string) file_get_contents(dirname(__DIR__) . '/app/Routes/web.php');
-$check(str_contains($settingsView, 'name="litespeed_enabled"'), 'General settings exposes the LiteSpeed opt-in toggle');
-$check(str_contains($settingsView, "'litespeed_catalog_ttl' =>"), 'General settings exposes per-surface TTL controls');
+$check(!str_contains($settingsView, 'name="litespeed_enabled"'), 'General settings no longer mixes identity with infrastructure controls');
+$check(str_contains($advancedSettingsView, 'name="litespeed_enabled"'), 'Advanced settings exposes the LiteSpeed opt-in toggle');
+$check(str_contains($advancedSettingsView, "'litespeed_catalog_ttl' =>"), 'Advanced settings exposes per-surface TTL controls');
+$advancedMethod = strstr($settingsController, 'public function updateAdvancedSettings');
+$generalMethod = strstr($settingsController, 'public function updateGeneral');
+$check(is_string($advancedMethod) && str_contains(substr($advancedMethod, 0, 8000), "repository->set('cache'"), 'Advanced settings endpoint owns cache persistence');
+$check(is_string($generalMethod) && !str_contains(substr($generalMethod, 0, 12000), "repository->set('cache'"), 'General settings endpoint cannot mutate cache policy');
 $check(str_contains($htaccess, 'E=Cache-Control:no-cache'), 'Apache/LiteSpeed config bypasses private lookups before PHP');
 $check(str_contains($htaccess, 'pinakes_locale='), 'lookup bypass permits only the locale cookie exception');
 $check(str_contains($htaccess, 'E=Cache-Vary:pinakes_locale'), 'locale participates in the LiteSpeed lookup key before PHP');
