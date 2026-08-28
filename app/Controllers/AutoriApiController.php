@@ -323,11 +323,30 @@ class AutoriApiController
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
-        // Post-commit maintenance: the deletion is already permanent, so an
-        // error here must not roll back a committed transaction nor turn a
-        // successful operation into a 500 — but the cache generation still has
-        // to be published, and booksChanged() must run even if the reindex
-        // fails (they were previously inside the rollback try).
+        // Post-commit maintenance runs outside the rollback try: the deletion is
+        // already permanent, so a reindex/invalidation error must not undo it.
+        $this->postCommitMaintenance($db, $affectedBookIds);
+
+        AppLog::info('autori.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'affected' => $affected,
+            'message' => sprintf(__('%d autori eliminati'), $affected)
+        ], JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Reindex the affected books and publish the cache generation bump AFTER the
+     * bulk-delete transaction has committed. Each step is isolated so an error
+     * cannot roll back the committed deletion or turn a successful operation
+     * into a 500, and booksChanged() still runs if the reindex fails.
+     *
+     * @param int[] $affectedBookIds
+     */
+    private function postCommitMaintenance(mysqli $db, array $affectedBookIds): void
+    {
         try {
             // Rebuild every derived author field before publishing the cache
             // generation bump, so a concurrent catalog miss cannot fill the new
@@ -343,15 +362,6 @@ class AutoriApiController
         } catch (\Throwable $e) {
             AppLog::error('autori.bulk_delete.cache_invalidation_failed', ['error' => $e->getMessage()]);
         }
-
-        AppLog::info('autori.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);
-
-        $response->getBody()->write(json_encode([
-            'success' => true,
-            'affected' => $affected,
-            'message' => sprintf(__('%d autori eliminati'), $affected)
-        ], JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json');
     }
 
     /**
