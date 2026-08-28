@@ -109,6 +109,19 @@ $applyMigration = static function () use ($db, $root): void {
         ],
         $sql
     );
+    // Safety guard: the rewrite above only covers backtick- and single-quote-
+    // wrapped references. If a future migration edit changes the reference
+    // form (a bare `libri`, different spacing) the substitution would silently
+    // miss it and the DDL below would ALTER the REAL application tables. Refuse
+    // to run if any real table name survives as a standalone identifier — the
+    // sandbox copies are prefixed (zz_m71_), so they never trip \b<name>\b.
+    foreach (['libri_autori', 'catalog_materialized_snapshots', 'libri', 'autori'] as $realTable) {
+        if (preg_match('/\b' . preg_quote($realTable, '/') . '\b/', $sql) === 1) {
+            throw new \RuntimeException(
+                "migration rewrite missed real table '{$realTable}'; refusing to run DDL against production tables"
+            );
+        }
+    }
     foreach (m71SplitSql($sql) as $statement) {
         $db->query($statement);
     }

@@ -40,6 +40,9 @@ async function flushCache() {
   let res;
   try {
     res = await fetch(`${BASE}/_e2e/flush-cache`, { redirect: 'manual' });
+    // Drain the body even on non-2xx so Undici can release the socket back to
+    // the pool instead of leaving it half-read across the many call sites.
+    await res.arrayBuffer().catch(() => {});
   } catch (err) {
     const msg = `[flush-cache] request to ${BASE}/_e2e/flush-cache failed: ${err && err.message}`;
     if (IS_CI) {

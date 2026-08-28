@@ -136,8 +136,8 @@ try {
     // migration backfill window (C) or a row nulled by a failed rebuild (D) —
     // so the catalog falls back to the always-correct live subqueries. Probed on
     // fresh connections because isReadable() caches its positive result per
-    // connection; tolerant of the baseline so a partially-backfilled fixture DB
-    // cannot make the transition assertions flaky.
+    // connection. The fixture is fully rebuilt below so the baseline is a
+    // genuine "readable" state before a single book is flipped.
     $freshDb = static function () use ($socket, $env): \mysqli {
         $conn = $socket !== '' && file_exists($socket)
             ? new \mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ''), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
@@ -152,11 +152,24 @@ try {
             $conn->close();
         }
     };
-    $baseReadable = $probeReadable($freshDb());
+    // Complete the whole fixture projection first: isReadable() is global, so a
+    // single OTHER book missing its sort key would make the baseline false and
+    // both transition checks tautological (they would pass without the NULL or
+    // the repair doing anything). Rebuild every live book, assert the baseline
+    // is genuinely readable, THEN flip a single book.
+    $allBookIds = [];
+    $allBooksResult = $db->query('SELECT id FROM libri WHERE deleted_at IS NULL');
+    if ($allBooksResult instanceof \mysqli_result) {
+        while ($idRow = $allBooksResult->fetch_assoc()) {
+            $allBookIds[] = (int) $idRow['id'];
+        }
+    }
+    \App\Support\CatalogAuthorProjection::rebuildMany($db, $allBookIds);
+    $check($probeReadable($freshDb()) === true, 'the fixture projection is complete, so the checks below are not tautological');
     $db->query("UPDATE libri SET catalog_author_sort = NULL WHERE id = {$bookId}");
     $check($probeReadable($freshDb()) === false, 'isReadable() is false while a linked book has an author but no sort key');
     SearchIndexBuilder::rebuild($db, $bookId);
-    $check($probeReadable($freshDb()) === $baseReadable, 'isReadable() returns to baseline once the projection is repaired');
+    $check($probeReadable($freshDb()) === true, 'isReadable() returns to true once the projection is repaired');
 
     $newPseudonym = 'Carroll Updated';
     $stmt = $db->prepare('UPDATE autori SET pseudonimo = ? WHERE id = ?');

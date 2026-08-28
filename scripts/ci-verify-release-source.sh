@@ -84,7 +84,7 @@ elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
     fi
 
     terminal_non_self="$(jq -r --arg self_workflow "Verified Release" \
-      '.[] | select(.workflow != $self_workflow) | select(.bucket != "pass" and .bucket != "pending") | "\(.workflow // "external") / \(.name): \(.state)"' \
+      '.[] | select(.workflow != $self_workflow) | select(.bucket != "pass" and .bucket != "pending" and .bucket != "skipping") | "\(.workflow // "external") / \(.name): \(.state)"' \
       <<<"$all_checks_json")"
     if [[ -n "$terminal_non_self" ]]; then
       echo "Prerelease PR #${pr_number} has non-passing checks:" >&2
@@ -121,7 +121,7 @@ elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
     exit 1
   fi
   non_self_failing="$(jq -r --arg self_workflow "Verified Release" \
-    '.[] | select(.workflow != $self_workflow) | select(.bucket != "pass") | "\(.workflow // "external") / \(.name): \(.state)"' \
+    '.[] | select(.workflow != $self_workflow) | select(.bucket != "pass" and .bucket != "skipping") | "\(.workflow // "external") / \(.name): \(.state)"' \
     <<<"$all_checks_json")"
   self_is_pending_or_failed="$(jq -r --arg self_workflow "Verified Release" \
     'any(.[]; .workflow == $self_workflow and (.bucket == "pending" or .bucket == "fail"))' \

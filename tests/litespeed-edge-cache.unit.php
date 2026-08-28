@@ -200,7 +200,7 @@ $check(str_contains($catalogGrid, 'book-status-badge availability-pending'), 'ca
 $check(str_contains($homeGrid, 'book-status-badge availability-pending'), 'home cards use a neutral pending badge');
 $check(str_contains($homeHero, '$heroStatsServerRendered && !$edgeCacheEnabled'), 'edge availability stat is not marked server-rendered');
 $check(substr_count($homeHero, 'animate-spin') >= 3, 'edge availability stat renders the loading indicator');
-$check(str_contains($frontendController, "QueryCache::remember(\n                    'home_edge_availability_stats'"), 'edge home aggregate is cached briefly');
+$check(preg_match("/QueryCache::remember\\(\\s*'home_edge_availability_stats'/", $frontendController) === 1, 'edge home aggregate is cached briefly');
 $check(str_contains($homeView, "grid.dispatchEvent(new Event('pinakes:catalog-grid-updated'"), 'dynamically loaded home cards are hydrated live');
 $check(str_contains($homeView, 'if (availableBooksEl.dataset.liveStat) return;'), 'home avoids racing the dedicated edge stats hydrator');
 $check(str_contains($routesSource, "RateLimitMiddleware(300, 60, 'edge-availability')"), 'public live-availability endpoint is rate limited');
