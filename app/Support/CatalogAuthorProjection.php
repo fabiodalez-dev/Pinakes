@@ -15,8 +15,11 @@ final class CatalogAuthorProjection
 {
     private const REBUILD_CHUNK = 500;
 
-    /** @var \WeakMap<\mysqli, true>|null */
+    /** @var \WeakMap<\mysqli, true>|null Positive cache: the three columns exist. */
     private static ?\WeakMap $columnsKnownPresent = null;
+
+    /** @var \WeakMap<\mysqli, true>|null Positive cache: the projection is complete and safe to read. */
+    private static ?\WeakMap $readableKnown = null;
 
     private function __construct()
     {
@@ -83,9 +86,50 @@ final class CatalogAuthorProjection
                 $stmt->close();
             }
         } catch (\Throwable $e) {
-            // Derived display data must never abort a book/author save. The
-            // legacy SELECT remains available until the projection is repaired.
+            // Derived display data must never abort a book/author save.
             SecureLogger::warning('CatalogAuthorProjection rebuild failed', [
+                'count' => count($ids),
+                'error' => $e->getMessage(),
+            ]);
+            // A failed rebuild leaves STALE display values on these rows, which
+            // the next cache generation would republish as fresh. Null them so
+            // isReadable() detects the gap and the whole catalog falls back to
+            // the always-correct live author subqueries until a later rebuild
+            // (a subsequent contributor edit, or a full reindex) repairs them.
+            // Best effort: if this write also fails there is nothing safe left
+            // to do beyond the warning already logged above.
+            self::invalidateRows($db, $ids);
+        }
+    }
+
+    /**
+     * Null the materialized author columns for the given books so the read
+     * path stops trusting them. Used as the failure fallback for rebuildMany().
+     *
+     * @param int[] $ids already-normalized, non-empty positive ids
+     */
+    private static function invalidateRows(\mysqli $db, array $ids): void
+    {
+        try {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $db->prepare(
+                "UPDATE libri SET catalog_author_display = NULL,
+                    catalog_author_name = NULL, catalog_author_sort = NULL
+                 WHERE id IN ({$placeholders})"
+            );
+            if ($stmt === false) {
+                return;
+            }
+            $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
+            $stmt->execute();
+            $stmt->close();
+            // Drop any positive readability cache for this connection so a
+            // later read on it re-probes and sees the gap.
+            if (self::$readableKnown !== null) {
+                unset(self::$readableKnown[$db]);
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning('CatalogAuthorProjection invalidation failed', [
                 'count' => count($ids),
                 'error' => $e->getMessage(),
             ]);
@@ -113,5 +157,64 @@ final class CatalogAuthorProjection
         }
 
         return isset(self::$columnsKnownPresent[$db]);
+    }
+
+    /**
+     * Whether the catalog read path may trust the materialized author columns.
+     *
+     * `columnsExist()` only proves the schema is present, which is NOT enough
+     * for reads: during the migration's ADD COLUMN → backfill window the
+     * columns exist but are still NULL (wrong sort / empty author), and a
+     * failed runtime rebuild nulls the affected rows via invalidateRows(). In
+     * both cases the projection is incomplete and the reader must fall back to
+     * the live author subqueries. A book is "incomplete" when it has a
+     * principal/co-author with a non-empty name (so the backfill would have
+     * produced a sort key) yet its catalog_author_sort is NULL — the exact
+     * condition that leaves ordering and display wrong.
+     *
+     * Probed once per connection (positive result cached, matching
+     * columnsExist) so the hot catalog path pays a single indexed lookup.
+     */
+    public static function isReadable(\mysqli $db): bool
+    {
+        if (!self::columnsExist($db)) {
+            return false;
+        }
+
+        self::$readableKnown ??= new \WeakMap();
+        if (isset(self::$readableKnown[$db])) {
+            return true;
+        }
+
+        try {
+            $result = $db->query(
+                "SELECT EXISTS(
+                    SELECT 1 FROM libri l
+                    WHERE l.deleted_at IS NULL
+                      AND l.catalog_author_sort IS NULL
+                      AND EXISTS(
+                          SELECT 1 FROM libri_autori la
+                          JOIN autori a ON a.id = la.autore_id
+                          WHERE la.libro_id = l.id
+                            AND la.ruolo IN ('principale', 'co-autore')
+                            AND (TRIM(COALESCE(a.nome, '')) <> ''
+                                 OR TRIM(COALESCE(a.pseudonimo, '')) <> '')
+                      )
+                ) AS incomplete"
+            );
+            $row = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
+            if ($row !== null && (int) $row['incomplete'] === 0) {
+                self::$readableKnown[$db] = true;
+                return true;
+            }
+        } catch (\Throwable $e) {
+            // A failed probe must not upgrade to the materialized path: the
+            // live subqueries are always correct, only slower.
+            SecureLogger::warning('CatalogAuthorProjection readability probe failed', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return false;
     }
 }

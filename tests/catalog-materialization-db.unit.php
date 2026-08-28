@@ -25,14 +25,27 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     $env[trim($key)] = trim(trim($value), "\"'");
 }
 
+// In CI the schema/DB gate provides a seeded database, so a missing
+// connection or an unapplied migration is a real failure that must turn the
+// pipeline red — never a silent green. Locally (no CI) the same conditions are
+// an acceptable skip so the test can be run ad hoc without a full DB.
+$requireDb = in_array(strtolower((string) getenv('CI')), ['1', 'true', 'yes'], true);
+$skipOrFail = static function (string $message) use ($requireDb): void {
+    if ($requireDb) {
+        fwrite(STDERR, 'FAIL: ' . $message . " (CI requires a seeded database)\n");
+        exit(1);
+    }
+    echo 'SKIP: ' . $message . "\n";
+    exit(0);
+};
+
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
 try {
     $db = $socket !== '' && file_exists($socket)
         ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ''), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
         : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ''), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
 } catch (Throwable $e) {
-    echo 'SKIP: database not reachable (' . $e->getMessage() . ")\n";
-    exit(0);
+    $skipOrFail('database not reachable (' . $e->getMessage() . ')');
 }
 $db->set_charset('utf8mb4');
 
@@ -43,8 +56,7 @@ $required = $db->query(
     . "AND TABLE_NAME='catalog_materialized_snapshots') AS snapshots"
 )->fetch_assoc();
 if ((int) ($required['cols'] ?? 0) !== 3 || (int) ($required['snapshots'] ?? 0) !== 1) {
-    echo "SKIP: 0.7.71 catalog materialization migration is not applied\n";
-    exit(0);
+    $skipOrFail('0.7.71 catalog materialization migration is not applied');
 }
 
 $passed = 0;
@@ -118,6 +130,33 @@ try {
     $check(($row['catalog_author_display'] ?? '') === 'Lewis Carroll (' . $realName . ')', 'runtime rebuild selects the principal and preserves pseudonym display');
     $check(($row['catalog_author_name'] ?? '') === $realName, 'runtime rebuild stores the canonical principal name');
     $check(($row['catalog_author_sort'] ?? '') === 'Carroll', 'runtime rebuild stores the preferred surname sort key');
+
+    // Read-path completeness gate (findings C + D). isReadable() must reject the
+    // materialized columns while any linked book is missing its sort key — the
+    // migration backfill window (C) or a row nulled by a failed rebuild (D) —
+    // so the catalog falls back to the always-correct live subqueries. Probed on
+    // fresh connections because isReadable() caches its positive result per
+    // connection; tolerant of the baseline so a partially-backfilled fixture DB
+    // cannot make the transition assertions flaky.
+    $freshDb = static function () use ($socket, $env): \mysqli {
+        $conn = $socket !== '' && file_exists($socket)
+            ? new \mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ''), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
+            : new \mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ''), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
+        $conn->set_charset('utf8mb4');
+        return $conn;
+    };
+    $probeReadable = static function (\mysqli $conn): bool {
+        try {
+            return \App\Support\CatalogAuthorProjection::isReadable($conn);
+        } finally {
+            $conn->close();
+        }
+    };
+    $baseReadable = $probeReadable($freshDb());
+    $db->query("UPDATE libri SET catalog_author_sort = NULL WHERE id = {$bookId}");
+    $check($probeReadable($freshDb()) === false, 'isReadable() is false while a linked book has an author but no sort key');
+    SearchIndexBuilder::rebuild($db, $bookId);
+    $check($probeReadable($freshDb()) === $baseReadable, 'isReadable() returns to baseline once the projection is repaired');
 
     $newPseudonym = 'Carroll Updated';
     $stmt = $db->prepare('UPDATE autori SET pseudonimo = ? WHERE id = ?');

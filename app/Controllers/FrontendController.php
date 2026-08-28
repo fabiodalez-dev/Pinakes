@@ -1310,15 +1310,20 @@ class FrontendController
     }
 
     /**
-     * Catalog author columns with an upgrade-window fallback.
+     * Catalog author columns with a completeness-gated fallback.
      *
-     * New installs read the write-maintained projection directly. During a
-     * rolling deployment before the migration is applied, preserve the legacy
-     * correlated queries so public catalog pages remain available.
+     * The write-maintained projection is read only when
+     * CatalogAuthorProjection::isReadable() proves it is complete — the columns
+     * exist AND no book is missing its backfilled sort key. That covers three
+     * cases where the materialized values would otherwise be wrong: a fresh
+     * install before the migration, the migration's ADD COLUMN → backfill
+     * window (columns present but still NULL), and a failed runtime rebuild
+     * (affected rows nulled). In all of them the legacy correlated subqueries
+     * keep the public catalog correct until the projection is repaired.
      */
     private function catalogAuthorSelect(mysqli $db): string
     {
-        if (\App\Support\CatalogAuthorProjection::columnsExist($db)) {
+        if (\App\Support\CatalogAuthorProjection::isReadable($db)) {
             return 'l.catalog_author_display AS autore, '
                 . 'l.catalog_author_name AS autore_principale_nome, '
                 . 'l.catalog_author_sort AS autore_cognome';
