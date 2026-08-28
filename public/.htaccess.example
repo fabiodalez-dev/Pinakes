@@ -24,9 +24,13 @@
     </IfModule>
     # === end Pinakes LiteSpeed privacy bypass ===
 
-    # Allow direct access to static files in /uploads/ directory
-    RewriteCond %{REQUEST_URI} ^/uploads/ [NC]
-    RewriteRule ^ - [L]
+    # PRIVATE uploaded content (digital-library files, archive documents,
+    # generic storage) must go through index.php so PrivateModeMiddleware gates
+    # it — never serve it directly. Relative pattern is subdirectory-safe.
+    RewriteRule ^uploads/(digital|archives/documents|storage)/ index.php [QSA,L]
+
+    # Allow direct access to the remaining PUBLIC static files in /uploads/.
+    RewriteRule ^uploads/ - [L]
 
     # Redirect all requests to index.php
     RewriteCond %{REQUEST_FILENAME} !-f

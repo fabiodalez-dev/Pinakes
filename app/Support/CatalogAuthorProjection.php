@@ -43,6 +43,16 @@ final class CatalogAuthorProjection
         }
 
         try {
+            // A book with many contributors must not have its GROUP_CONCAT
+            // truncated at the 1024-byte session default — the migration
+            // backfill raises the same limit. SearchIndexBuilder only sets it
+            // AFTER this call (for its own search_index pass), so the author
+            // projection must raise it itself. Best-effort; a larger limit is
+            // harmless for the rest of the connection.
+            try {
+                $db->query('SET SESSION group_concat_max_len = 1000000');
+            } catch (\Throwable $ignored) {
+            }
             $display = AuthorName::displaySql('a');
             $preferred = AuthorName::preferredSql('a');
             foreach (array_chunk($ids, self::REBUILD_CHUNK) as $chunk) {
@@ -85,6 +95,9 @@ final class CatalogAuthorProjection
                 $stmt->execute();
                 $stmt->close();
             }
+            // A rebuild that completed proves the projection is writable and
+            // consistent again; lift any prior degraded sentinel.
+            self::clearDegraded();
         } catch (\Throwable $e) {
             // Derived display data must never abort a book/author save.
             SecureLogger::warning('CatalogAuthorProjection rebuild failed', [
@@ -96,9 +109,13 @@ final class CatalogAuthorProjection
             // isReadable() detects the gap and the whole catalog falls back to
             // the always-correct live author subqueries until a later rebuild
             // (a subsequent contributor edit, or a full reindex) repairs them.
-            // Best effort: if this write also fails there is nothing safe left
-            // to do beyond the warning already logged above.
-            self::invalidateRows($db, $ids);
+            if (!self::invalidateRows($db, $ids)) {
+                // Even the null-out failed, so the affected rows keep stale
+                // non-null values the completeness probe cannot see. Distrust
+                // the whole projection via the persistent sentinel until a
+                // later rebuild succeeds and clears it.
+                self::markDegraded();
+            }
         }
     }
 
@@ -107,8 +124,10 @@ final class CatalogAuthorProjection
      * path stops trusting them. Used as the failure fallback for rebuildMany().
      *
      * @param int[] $ids already-normalized, non-empty positive ids
+     * @return bool true when the rows were nulled, false when even this
+     *              best-effort write could not run.
      */
-    private static function invalidateRows(\mysqli $db, array $ids): void
+    private static function invalidateRows(\mysqli $db, array $ids): bool
     {
         try {
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -118,7 +137,7 @@ final class CatalogAuthorProjection
                  WHERE id IN ({$placeholders})"
             );
             if ($stmt === false) {
-                return;
+                return false;
             }
             $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
             $stmt->execute();
@@ -128,11 +147,51 @@ final class CatalogAuthorProjection
             if (self::$readableKnown !== null) {
                 unset(self::$readableKnown[$db]);
             }
+            return true;
         } catch (\Throwable $e) {
             SecureLogger::warning('CatalogAuthorProjection invalidation failed', [
                 'count' => count($ids),
                 'error' => $e->getMessage(),
             ]);
+            return false;
+        }
+    }
+
+    /**
+     * Filesystem "projection degraded" sentinel. When a rebuild fails AND the
+     * best-effort null-out also fails, the affected rows keep STALE but
+     * non-null values that isReadable()'s NULL-based completeness probe cannot
+     * detect. A sentinel file (which survives a broken DB connection, unlike a
+     * DB marker) forces the whole catalog onto the always-correct live author
+     * subqueries until the next successful rebuild lifts it.
+     */
+    private static function degradedSentinelPath(): string
+    {
+        return dirname(__DIR__, 2) . '/storage/cache/catalog-author-projection.degraded';
+    }
+
+    private static function markDegraded(): void
+    {
+        $path = self::degradedSentinelPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0770, true);
+        }
+        @file_put_contents($path, (string) time(), LOCK_EX);
+    }
+
+    private static function isDegraded(): bool
+    {
+        return is_file(self::degradedSentinelPath());
+    }
+
+    private static function clearDegraded(): void
+    {
+        $path = self::degradedSentinelPath();
+        if (is_file($path)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed
+            // application-owned sentinel path, no user input.
+            @unlink($path);
         }
     }
 
@@ -178,6 +237,15 @@ final class CatalogAuthorProjection
     public static function isReadable(\mysqli $db): bool
     {
         if (!self::columnsExist($db)) {
+            return false;
+        }
+
+        // A prior rebuild failed so badly it could not even null the affected
+        // rows: their stale non-null values would slip past the completeness
+        // probe below, so distrust the projection until a rebuild clears the
+        // sentinel. Checked before the per-connection positive cache so the
+        // degradation is honoured immediately, not only on fresh connections.
+        if (self::isDegraded()) {
             return false;
         }
 

@@ -24,6 +24,12 @@
     </IfModule>
     # === end Pinakes LiteSpeed privacy bypass ===
 
+    # PRIVATE uploaded content (digital-library files, archive documents,
+    # generic storage) must go through index.php so PrivateModeMiddleware gates
+    # it — otherwise these existing files are served directly by the -f rule
+    # below. Relative pattern is subdirectory-safe. See public/.htaccess.
+    RewriteRule ^uploads/(digital|archives/documents|storage)/ index.php [QSA,L]
+
     # Redirect all requests to index.php
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d

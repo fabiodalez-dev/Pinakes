@@ -47,13 +47,40 @@ final class LiteSpeedCache
             return self::$lookupBypassCache;
         }
         $content = @file_get_contents($path ?? self::htaccessPath());
-        $installed = is_string($content)
-            && str_contains($content, self::HTACCESS_MARKER)
-            && str_contains($content, self::HTACCESS_END_MARKER);
+        $installed = is_string($content) && self::blockHasProtectiveRules($content);
         if ($usesDefaultPath) {
             self::$lookupBypassCache = $installed;
         }
         return $installed;
+    }
+
+    /**
+     * A marker pair is not proof of protection: a hand-edited (or truncated)
+     * file can carry the two comments around an EMPTY block, which would let
+     * the admin enable LSCache with none of the fail-closed rules in place —
+     * a shared hit could then be served for an authenticated, cookie-bearing
+     * or Authorization request. Require the block to actually contain the
+     * no-cache guards for non-GET/HEAD methods, Authorization headers and any
+     * non-locale cookie before treating the bypass as installed.
+     */
+    private static function blockHasProtectiveRules(string $content): bool
+    {
+        $start = strpos($content, self::HTACCESS_MARKER);
+        if ($start === false) {
+            return false;
+        }
+        $end = strpos($content, self::HTACCESS_END_MARKER, $start);
+        if ($end === false) {
+            return false;
+        }
+        $block = substr($content, $start, $end - $start);
+
+        // Each guard must appear inside the marked block, and there must be a
+        // no-cache action to pair with them.
+        return str_contains($block, 'E=Cache-Control:no-cache')
+            && str_contains($block, '%{HTTP:Authorization}')
+            && (str_contains($block, '!^(GET|HEAD)$') || str_contains($block, '!^(GET|HEAD)'))
+            && str_contains($block, 'pinakes_locale=');
     }
 
     /**
@@ -74,6 +101,15 @@ final class LiteSpeedCache
 
         $content = @file_get_contents($path);
         if (!is_string($content)) {
+            // file_get_contents() also fails on a PRESENT but unreadable file.
+            // atomicWrite() renames into place, which needs only directory
+            // write permission, so seeding from .dist here would clobber the
+            // operator's existing (merely unreadable) .htaccess and its custom
+            // rules. Only fall back to the template when the target is truly
+            // absent.
+            if (file_exists($path)) {
+                return false;
+            }
             $content = @file_get_contents($path . '.dist');
             if (!is_string($content) || !str_contains($content, self::HTACCESS_MARKER)) {
                 return false;
