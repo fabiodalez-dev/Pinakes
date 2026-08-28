@@ -15,6 +15,8 @@ First release candidate for catalog denormalization. Existing installs receive a
 
 - Book, author, import and enrichment write paths rebuild the author projection through the existing `SearchIndexBuilder` maintenance funnel. During a rolling upgrade, catalog queries retain the legacy subquery fallback until all projection columns exist.
 - Materialized aggregates fail open to live SQL if the table, generation counter or MySQL named lock is unavailable. Content and availability invalidation still use `ContentCache`; no second availability source is introduced.
+- Projection degradation tracking now coordinates readers and writers through a stable sibling lock and fails closed on partial or corrupt state. Profile review-cache invalidation compares against the locked database before-value instead of a potentially stale session.
+- The Apache-based official Docker image permanently disables LiteSpeed/LSCache at runtime and in Settings, even when an imported database or forged request asks to enable it; file/APCu query caching remains available normally.
 
 ## [0.7.70-rc.1]
 

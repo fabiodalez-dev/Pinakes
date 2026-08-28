@@ -20,6 +20,7 @@ use App\Middleware\LiteSpeedCacheMiddleware;
 use App\Support\CatalogAuthorProjection;
 use App\Support\CatalogSnapshot;
 use App\Support\ConfigStore;
+use App\Support\ContainerRuntime;
 use App\Support\ContentSecurityPolicy;
 use App\Support\LiteSpeedCache;
 use App\Support\QueryCache;
@@ -179,10 +180,21 @@ try {
             }
         };
     };
+    $containerRuntime = ContainerRuntime::detected();
     $home = $middleware->process($request(), $handler('home'));
-    $check($home->getHeaderLine('X-LiteSpeed-Cache-Control') === 'public,max-age=300', 'marked anonymous home response is publicly cacheable');
+    $check(
+        $home->getHeaderLine('X-LiteSpeed-Cache-Control') === ($containerRuntime ? 'no-cache' : 'public,max-age=300'),
+        $containerRuntime
+            ? 'Docker forces marked anonymous home responses to bypass LSCache'
+            : 'marked anonymous home response is publicly cacheable'
+    );
     $head = $middleware->process($request('HEAD'), $handler('catalog'));
-    $check($head->getHeaderLine('X-LiteSpeed-Cache-Control') === 'public,max-age=120', 'marked anonymous HEAD response is cacheable');
+    $check(
+        $head->getHeaderLine('X-LiteSpeed-Cache-Control') === ($containerRuntime ? 'no-cache' : 'public,max-age=120'),
+        $containerRuntime
+            ? 'Docker forces marked anonymous HEAD responses to bypass LSCache'
+            : 'marked anonymous HEAD response is cacheable'
+    );
     $post = $middleware->process($request('POST'), $handler('catalog'));
     $check($post->getHeaderLine('X-LiteSpeed-Cache-Control') === 'no-cache', 'mutating response is never publicly cached');
     $authorized = $middleware->process($request('GET', ['Authorization' => 'Bearer secret']), $handler('catalog'));
@@ -190,7 +202,15 @@ try {
     $privateResponse = $middleware->process($request(), $handler('home', 200, 'private, no-store'));
     $check($privateResponse->getHeaderLine('X-LiteSpeed-Cache-Control') === 'no-cache', 'private/no-store controller response remains uncacheable');
     $book = $middleware->process($request(), $handler('book:42'));
-    $check(str_contains($book->getHeaderLine('X-LiteSpeed-Tag'), 'pinakes_book_42'), 'book response carries its precise purge tag');
+    $check(
+        $containerRuntime
+            ? $book->getHeaderLine('X-LiteSpeed-Cache-Control') === 'no-cache'
+                && $book->getHeaderLine('X-LiteSpeed-Tag') === ''
+            : str_contains($book->getHeaderLine('X-LiteSpeed-Tag'), 'pinakes_book_42'),
+        $containerRuntime
+            ? 'Docker omits the book purge tag and forces LSCache bypass'
+            : 'book response carries its precise purge tag'
+    );
 
     echo "D. QueryCache generation behavior\n";
     $run = bin2hex(random_bytes(8));

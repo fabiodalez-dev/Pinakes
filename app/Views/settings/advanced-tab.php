@@ -19,6 +19,12 @@ use App\Support\HtmlHelper;
         </h2>
         <p class="text-sm text-gray-600"><?= __("Accelera home, catalogo e schede libro per i visitatori anonimi. Utenti autenticati, sessioni e richieste private vengono sempre escluse.") ?></p>
         <div class="flex flex-wrap gap-2 text-xs">
+          <?php if (!empty($appSettings['litespeed_container_blocked'])): ?>
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 bg-gray-200 text-gray-800">
+            <i class="fab fa-docker"></i>
+            <?= __("LiteSpeed non disponibile nella versione Docker") ?>
+          </span>
+          <?php else: ?>
           <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 <?= !empty($appSettings['litespeed_server_detected']) ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' ?>">
             <i class="fas <?= !empty($appSettings['litespeed_server_detected']) ? 'fa-check-circle' : 'fa-exclamation-triangle' ?>"></i>
             <?= !empty($appSettings['litespeed_server_detected']) ? __("Server LiteSpeed rilevato") : __("LiteSpeed non rilevato in questa richiesta") ?>
@@ -31,16 +37,22 @@ use App\Support\HtmlHelper;
             <i class="fas <?= !empty($appSettings['litespeed_lookup_bypass_installed']) ? 'fa-shield-alt' : 'fa-exclamation-triangle' ?>"></i>
             <?= !empty($appSettings['litespeed_lookup_bypass_installed']) ? __("Protezione pre-cache installata") : __("Protezione pre-cache non installata") ?>
           </span>
+          <?php endif; ?>
         </div>
       </div>
       <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <label class="flex items-start gap-3 cursor-pointer">
           <input type="checkbox" id="litespeed_enabled" name="litespeed_enabled" value="1"
                  <?= (($appSettings['litespeed_enabled'] ?? '0') === '1') ? 'checked' : '' ?>
+                 <?= !empty($appSettings['litespeed_container_blocked']) ? 'disabled aria-disabled="true"' : '' ?>
                  class="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
           <span>
             <span class="block text-sm font-medium text-gray-900"><?= __("Abilita cache full-page LiteSpeed") ?></span>
-            <span class="block text-xs text-gray-500 mt-1"><?= __("Attivala solo su LiteSpeed/OpenLiteSpeed con LSCache abilitata. Se il modulo non è presente, gli header vengono ignorati senza interrompere il sito.") ?></span>
+            <span class="block text-xs text-gray-500 mt-1">
+              <?= !empty($appSettings['litespeed_container_blocked'])
+                ? __("La versione Docker usa Apache e mantiene LiteSpeed permanentemente disabilitato.")
+                : __("Attivala solo su LiteSpeed/OpenLiteSpeed con LSCache abilitata. Se il modulo non è presente, gli header vengono ignorati senza interrompere il sito.") ?>
+            </span>
           </span>
         </label>
 
@@ -56,7 +68,7 @@ use App\Support\HtmlHelper;
           <?php foreach ($ttlFields as $field => $label): ?>
           <div>
             <label for="<?= $field ?>" class="block text-xs font-medium text-gray-700 mb-1"><?= $label ?></label>
-            <select id="<?= $field ?>" name="<?= $field ?>" class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3">
+            <select id="<?= $field ?>" name="<?= $field ?>" <?= !empty($appSettings['litespeed_container_blocked']) ? 'disabled aria-disabled="true"' : '' ?> class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3">
               <?php $selectedTtl = (int) ($appSettings[$field] ?? ($field === 'litespeed_catalog_ttl' ? 120 : 300)); ?>
               <?php foreach ($ttlOptions as $seconds => $ttlLabel): ?>
               <option value="<?= $seconds ?>" <?= $selectedTtl === $seconds ? 'selected' : '' ?>><?= htmlspecialchars($ttlLabel, ENT_QUOTES, 'UTF-8') ?></option>

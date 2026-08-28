@@ -249,6 +249,93 @@ if (is_string($commented)) {
     unlink($commented);
 }
 
+// Token presence is insufficient: every condition must belong to the
+// immediately following no-cache rule, and the locale vary rule is mandatory.
+$unpairedCookie = tempnam(sys_get_temp_dir(), 'pinakes-htaccess-unpaired-');
+if (is_string($unpairedCookie)) {
+    file_put_contents(
+        $unpairedCookie,
+        "# === Pinakes LiteSpeed privacy bypass ===\n"
+        . "RewriteRule .* - [E=Cache-Vary:pinakes_locale]\n"
+        . "RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)\$ [NC]\n"
+        . "RewriteRule .* - [E=Cache-Control:no-cache]\n"
+        . "RewriteCond %{HTTP:Authorization} .\n"
+        . "RewriteRule .* - [E=Cache-Control:no-cache]\n"
+        . "RewriteCond %{HTTP:Cookie} !^\$\n"
+        . "RewriteCond %{HTTP:Cookie} !^\\s*pinakes_locale=[A-Za-z]{2}_[A-Za-z]{2}\\s*;?\\s*\$ [NC]\n"
+        . "# === end Pinakes LiteSpeed privacy bypass ===\n"
+        . "RewriteRule unrelated - [E=Cache-Control:no-cache]\n"
+    );
+    $check(
+        !LiteSpeedCache::lookupBypassInstalled($unpairedCookie),
+        'cookie conditions without their immediately following no-cache rule are rejected'
+    );
+    unlink($unpairedCookie);
+}
+
+$missingVary = tempnam(sys_get_temp_dir(), 'pinakes-htaccess-no-vary-');
+if (is_string($missingVary)) {
+    file_put_contents($missingVary, str_replace('RewriteRule .* - [E=Cache-Vary:pinakes_locale]', '', $htaccess));
+    $check(
+        !LiteSpeedCache::lookupBypassInstalled($missingVary),
+        'a protective block without the lookup-time locale vary is rejected'
+    );
+    unlink($missingVary);
+}
+
+$extraCondition = tempnam(sys_get_temp_dir(), 'pinakes-htaccess-extra-condition-');
+if (is_string($extraCondition)) {
+    file_put_contents(
+        $extraCondition,
+        str_replace(
+            "RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)\$ [NC]\n",
+            "RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)\$ [NC]\nRewriteCond %{HTTP:X-Never} ^present\$\n",
+            $htaccess
+        )
+    );
+    $check(
+        !LiteSpeedCache::lookupBypassInstalled($extraCondition),
+        'an extra condition that narrows the method bypass is rejected'
+    );
+    unlink($extraCondition);
+}
+
+$lookalikeLocale = tempnam(sys_get_temp_dir(), 'pinakes-htaccess-lookalike-locale-');
+if (is_string($lookalikeLocale)) {
+    file_put_contents(
+        $lookalikeLocale,
+        str_replace(
+            '!^\s*pinakes_locale=[A-Za-z]{2}_[A-Za-z]{2}\s*;?\s*$',
+            '!^evil-pinakes_locale=.*$',
+            $htaccess
+        )
+    );
+    $check(
+        !LiteSpeedCache::lookupBypassInstalled($lookalikeLocale),
+        'a lookalike locale-cookie exception cannot satisfy the privacy guard'
+    );
+    unlink($lookalikeLocale);
+}
+
+// Docker is an Apache-only distribution. Runtime enforcement must win over a
+// stale database opt-in and cannot rely solely on the disabled UI control.
+$previousDockerFlag = getenv('PINAKES_DOCKER');
+$_ENV['PINAKES_DOCKER'] = '1';
+putenv('PINAKES_DOCKER=1');
+$setConfig(true);
+$check(LiteSpeedCache::blockedByContainer(), 'Docker runtime is detected explicitly');
+$check(!LiteSpeedCache::enabled(), 'Docker runtime permanently overrides a stored LiteSpeed opt-in');
+if ($previousDockerFlag === false) {
+    putenv('PINAKES_DOCKER');
+    unset($_ENV['PINAKES_DOCKER']);
+} else {
+    putenv('PINAKES_DOCKER=' . $previousDockerFlag);
+    $_ENV['PINAKES_DOCKER'] = $previousDockerFlag;
+}
+$check(str_contains($settingsController, '$liteSpeedBlockedByContainer'), 'Advanced POST enforces the Docker LiteSpeed block server-side');
+$check(str_contains($settingsController, '? $repository->get(\'cache\', \'litespeed_home_ttl\''), 'Docker Advanced saves preserve disabled LiteSpeed TTL values');
+$check(str_contains($advancedSettingsView, "'litespeed_container_blocked'"), 'Advanced UI renders the Docker-specific disabled state');
+
 echo "-- database-backed cache settings --\n";
 $dbSettingsProperty = new ReflectionProperty(ConfigStore::class, 'dbSettingsCache');
 $configProperty->setValue(null, null);

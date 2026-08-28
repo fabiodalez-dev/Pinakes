@@ -14,12 +14,17 @@ namespace App\Support;
 final class CatalogAuthorProjection
 {
     private const REBUILD_CHUNK = 500;
+    /** Non-book id used internally when the sentinel payload is indeterminate. */
+    private const DEGRADED_UNKNOWN_ID = 0;
 
     /** @var \WeakMap<\mysqli, true>|null Positive cache: the three columns exist. */
     private static ?\WeakMap $columnsKnownPresent = null;
 
     /** @var \WeakMap<\mysqli, true>|null Positive cache: the projection is complete and safe to read. */
     private static ?\WeakMap $readableKnown = null;
+
+    /** A failed sentinel write keeps this PHP process on the live-query path. */
+    private static bool $degradedWriteFailed = false;
 
     private function __construct()
     {
@@ -96,7 +101,8 @@ final class CatalogAuthorProjection
                 $stmt->close();
             }
             // These ids were just re-materialized: drop them from the degraded
-            // set (the sentinel is removed once nothing remains). A rebuild of
+            // set (the sentinel becomes the canonical healthy payload once
+            // nothing remains). A rebuild of
             // unrelated books does NOT lift the degradation of other rows.
             self::clearDegradedFor($ids);
         } catch (\Throwable $e) {
@@ -168,81 +174,163 @@ final class CatalogAuthorProjection
      *
      * The file stores the exact ids that failed both writes, one per line, so a
      * later successful rebuild of UNRELATED books does NOT lift the sentinel —
-     * only rebuilding the recorded ids clears them, and the file is removed once
-     * the set is empty. isReadable() distrusts the projection while any id
-     * remains. (The sentinel is per-node: on a multi-node deployment a failure
-     * degrades only the node that observed it, which is the safe direction.)
+     * only rebuilding the recorded ids clears them, and the payload becomes the
+     * canonical healthy marker once the set is empty. isReadable() distrusts
+     * the projection while any id remains. The sentinel is installation-local,
+     * matching the current
+     * file/APCu cache phase; cross-server cache coherence belongs to the later
+     * Redis phase and must not be inferred from this local fallback.
      */
     private static function degradedSentinelPath(): string
     {
         return dirname(__DIR__, 2) . '/storage/cache/catalog-author-projection.degraded';
     }
 
+    /** Stable sibling inode used by every sentinel reader and writer. */
+    private static function degradedLockPath(): string
+    {
+        return self::degradedSentinelPath() . '.lock';
+    }
+
     /** @return array<int, true> */
     private static function readDegradedSet(): array
     {
         $path = self::degradedSentinelPath();
+        if (self::$degradedWriteFailed) {
+            return [self::DEGRADED_UNKNOWN_ID => true];
+        }
+        if (!is_dir(dirname($path))) {
+            return [];
+        }
+
+        $lock = @fopen(self::degradedLockPath(), 'c');
+        if ($lock === false) {
+            return [self::DEGRADED_UNKNOWN_ID => true];
+        }
+        try {
+            if (!flock($lock, LOCK_SH)) {
+                return [self::DEGRADED_UNKNOWN_ID => true];
+            }
+
+            return self::readDegradedPayload($path);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /**
+     * Read the payload while the caller owns the sibling lock.
+     *
+     * @return array<int, true> Empty only for an absent file or the canonical
+     *                          '-' payload; unreadable/partial/corrupt data is
+     *                          represented by the fail-closed id 0.
+     */
+    private static function readDegradedPayload(string $path): array
+    {
         if (!is_file($path)) {
             return [];
         }
         $raw = @file_get_contents($path);
         if (!is_string($raw) || $raw === '') {
+            return [self::DEGRADED_UNKNOWN_ID => true];
+        }
+        $raw = trim($raw);
+        if ($raw === '-') {
             return [];
         }
+
         $set = [];
-        foreach (preg_split('/\s+/', trim($raw)) ?: [] as $token) {
-            $id = (int) $token;
-            if ($id > 0) {
-                $set[$id] = true;
+        foreach (preg_split('/\s+/', $raw) ?: [] as $token) {
+            if ($token === '' || !ctype_digit($token)) {
+                return [self::DEGRADED_UNKNOWN_ID => true];
             }
+            $id = (int) $token;
+            if ($id <= 0) {
+                return [self::DEGRADED_UNKNOWN_ID => true];
+            }
+            $set[$id] = true;
         }
-        return $set;
+
+        return $set !== [] ? $set : [self::DEGRADED_UNKNOWN_ID => true];
     }
 
     /**
-     * Locked read-modify-write of the degraded id set. Deletes the file when
-     * the resulting set is empty.
+     * Locked read-modify-write of the degraded id set. Readers use the same
+     * stable sibling lock, so they can never observe the truncate/write window.
+     * The payload is retained as '-' when empty; never unlinking it removes the
+     * post-unlock check/unlink race that could erase another writer's ids.
      *
      * @param callable(array<int, true>): array<int, true> $mutator
+     * @param bool $writeWhenMissing mark operations create the payload; a clear
+     *                               may no-op under the lock on the common path.
      */
-    private static function mutateDegradedSet(callable $mutator): void
+    private static function mutateDegradedSet(callable $mutator, bool $writeWhenMissing = true): void
     {
         $path = self::degradedSentinelPath();
         $dir = dirname($path);
         if (!is_dir($dir)) {
             @mkdir($dir, 0770, true);
         }
-        $handle = @fopen($path, 'c+');
-        if ($handle === false) {
+        $lock = @fopen(self::degradedLockPath(), 'c');
+        if ($lock === false) {
+            self::$degradedWriteFailed = true;
             return;
         }
+        // Cron/CLI and the web worker may use different users but a shared
+        // application group. Match the cache directory's group-writable policy.
+        @chmod(self::degradedLockPath(), 0660);
         try {
-            if (!flock($handle, LOCK_EX)) {
+            if (!flock($lock, LOCK_EX)) {
+                self::$degradedWriteFailed = true;
                 return;
             }
-            $existing = stream_get_contents($handle) ?: '';
-            $set = [];
-            foreach (preg_split('/\s+/', trim($existing)) ?: [] as $token) {
-                $id = (int) $token;
-                if ($id > 0) {
-                    $set[$id] = true;
-                }
+
+            if (!$writeWhenMissing && !is_file($path)) {
+                return;
             }
+
+            $set = self::readDegradedPayload($path);
             $set = $mutator($set);
-            rewind($handle);
-            ftruncate($handle, 0);
-            if ($set !== []) {
-                fwrite($handle, implode("\n", array_keys($set)) . "\n");
+
+            // An unknown/corrupt state cannot be cleared by rebuilding an
+            // arbitrary subset: retain a fail-closed payload until an operator
+            // repairs/removes it or a full repair path is introduced.
+            if (isset($set[self::DEGRADED_UNKNOWN_ID])) {
+                $payload = "!\n";
+            } elseif ($set === []) {
+                $payload = "-\n";
+            } else {
+                ksort($set, SORT_NUMERIC);
+                $payload = implode("\n", array_keys($set)) . "\n";
             }
-            fflush($handle);
-            flock($handle, LOCK_UN);
+
+            $handle = @fopen($path, 'c+');
+            if ($handle === false) {
+                self::$degradedWriteFailed = true;
+                return;
+            }
+            @chmod($path, 0660);
+            try {
+                rewind($handle);
+                if (!ftruncate($handle, 0)) {
+                    self::$degradedWriteFailed = true;
+                    return;
+                }
+                $written = fwrite($handle, $payload);
+                $flushed = $written === strlen($payload) && fflush($handle);
+                if ($flushed && function_exists('fsync')) {
+                    $flushed = fsync($handle);
+                }
+                if (!$flushed) {
+                    self::$degradedWriteFailed = true;
+                }
+            } finally {
+                fclose($handle);
+            }
         } finally {
-            fclose($handle);
-        }
-        if (self::readDegradedSet() === [] && is_file($path)) {
-            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed
-            // application-owned sentinel path, no user input.
-            @unlink($path);
+            flock($lock, LOCK_UN);
+            fclose($lock);
         }
     }
 
@@ -261,23 +349,20 @@ final class CatalogAuthorProjection
     }
 
     /**
-     * Remove the just-rebuilt ids from the degraded set; the file is deleted
-     * once nothing remains. A rebuild of unrelated books leaves the recorded
-     * ids — and therefore the degradation — in place.
+     * Remove the just-rebuilt ids from the degraded set; the payload becomes
+     * the canonical healthy marker once nothing remains. A rebuild of unrelated
+     * books leaves the recorded ids — and therefore the degradation — in place.
      *
      * @param int[] $ids
      */
     private static function clearDegradedFor(array $ids): void
     {
-        if (!is_file(self::degradedSentinelPath())) {
-            return; // common success path: nothing was ever degraded
-        }
         self::mutateDegradedSet(static function (array $set) use ($ids): array {
             foreach ($ids as $id) {
                 unset($set[(int) $id]);
             }
             return $set;
-        });
+        }, false);
     }
 
     private static function isDegraded(): bool

@@ -21,8 +21,15 @@ final class LiteSpeedCache
 
     public static function enabled(): bool
     {
-        return filter_var(ConfigStore::get('cache.litespeed_enabled', false), FILTER_VALIDATE_BOOLEAN)
+        return !self::blockedByContainer()
+            && filter_var(ConfigStore::get('cache.litespeed_enabled', false), FILTER_VALIDATE_BOOLEAN)
             && self::lookupBypassInstalled();
+    }
+
+    /** LiteSpeed/LSCache is unsupported by the official Apache Docker image. */
+    public static function blockedByContainer(): bool
+    {
+        return ContainerRuntime::detected();
     }
 
     public static function ttlFor(string $page): int
@@ -80,17 +87,106 @@ final class LiteSpeedCache
         // NOT be treated as installed — otherwise the admin could enable LSCache
         // with the protection disabled and a shared hit could be served to an
         // authenticated / cookie-bearing / Authorization request.
-        $active = implode("\n", array_filter(
-            preg_split('/\R/', $block) ?: [],
-            static fn (string $line): bool => !str_starts_with(ltrim($line), '#')
-        ));
+        $directives = [];
+        foreach (preg_split('/\R/', $block) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            $directives[] = $line;
+        }
 
-        // Each guard must appear on an active line inside the marked block, and
-        // there must be a no-cache action to pair with them.
-        return str_contains($active, 'E=Cache-Control:no-cache')
-            && str_contains($active, '%{HTTP:Authorization}')
-            && (str_contains($active, '!^(GET|HEAD)$') || str_contains($active, '!^(GET|HEAD)'))
-            && str_contains($active, 'pinakes_locale=');
+        $methodGuard = false;
+        $authorizationGuard = false;
+        $cookieGuard = false;
+        $localeVary = false;
+
+        foreach ($directives as $index => $directive) {
+            if (self::isLocaleVaryRule($directive)) {
+                $localeVary = true;
+            }
+            if (!self::isNoCacheRule($directive)) {
+                continue;
+            }
+
+            // RewriteCond applies only to the immediately following
+            // RewriteRule. Walk back over that rule's contiguous condition
+            // group; unrelated tokens elsewhere in the marker cannot satisfy
+            // this validator.
+            $conditions = [];
+            for ($i = $index - 1; $i >= 0; $i--) {
+                $condition = self::parseRewriteCondition($directives[$i]);
+                if ($condition === null) {
+                    break;
+                }
+                array_unshift($conditions, $condition);
+            }
+
+            // Extra conditions would narrow the bypass and could make it miss
+            // the request it is meant to protect. Accept only the exact groups
+            // installed by ensureLookupBypass(), and reject OR chaining.
+            if (count($conditions) === 1) {
+                [$subject, $pattern] = $conditions[0];
+                $methodGuard = $methodGuard || (
+                    strcasecmp($subject, '%{REQUEST_METHOD}') === 0
+                    && $pattern === '!^(GET|HEAD)$'
+                    && self::hasOnlyFlags($conditions[0][2], ['NC'])
+                );
+                $authorizationGuard = $authorizationGuard || (
+                    strcasecmp($subject, '%{HTTP:Authorization}') === 0
+                    && $pattern === '.'
+                    && self::hasOnlyFlags($conditions[0][2], [])
+                );
+            }
+
+            if (count($conditions) === 2) {
+                [$nonEmptyCookie, $localeException] = $conditions;
+                if (strcasecmp($nonEmptyCookie[0], '%{HTTP:Cookie}') === 0
+                    && $nonEmptyCookie[1] === '!^$'
+                    && self::hasOnlyFlags($nonEmptyCookie[2], [])
+                    && strcasecmp($localeException[0], '%{HTTP:Cookie}') === 0
+                    && $localeException[1] === '!^\s*pinakes_locale=[A-Za-z]{2}_[A-Za-z]{2}\s*;?\s*$'
+                    && self::hasOnlyFlags($localeException[2], ['NC'])) {
+                    $cookieGuard = true;
+                }
+            }
+        }
+
+        return $methodGuard && $authorizationGuard && $cookieGuard && $localeVary;
+    }
+
+    /** @return array{string, string, string}|null Parsed subject, pattern and flags. */
+    private static function parseRewriteCondition(string $directive): ?array
+    {
+        $parts = preg_split('/\s+/', $directive, 4);
+        if (!is_array($parts) || count($parts) < 3 || strcasecmp($parts[0], 'RewriteCond') !== 0) {
+            return null;
+        }
+
+        return [$parts[1], $parts[2], $parts[3] ?? ''];
+    }
+
+    /** Compare an Apache flags token without depending on order or case. */
+    private static function hasOnlyFlags(string $flags, array $expected): bool
+    {
+        $flags = trim($flags, "[] \t");
+        $actual = $flags === '' ? [] : array_map('strtoupper', explode(',', $flags));
+        $expected = array_map('strtoupper', $expected);
+        sort($actual);
+        sort($expected);
+        return $actual === $expected;
+    }
+
+    /** True only for an active RewriteRule that sets LSCache's no-cache flag. */
+    private static function isNoCacheRule(string $directive): bool
+    {
+        return preg_match('/^RewriteRule\s+\.\*\s+-\s+\[E=Cache-Control:no-cache\]$/i', $directive) === 1;
+    }
+
+    /** True only for the request-lookup locale vary rule. */
+    private static function isLocaleVaryRule(string $directive): bool
+    {
+        return preg_match('/^RewriteRule\s+\.\*\s+-\s+\[E=Cache-Vary:pinakes_locale\]$/i', $directive) === 1;
     }
 
     /**

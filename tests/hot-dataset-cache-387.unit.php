@@ -311,6 +311,15 @@ try {
             && str_contains($usersController, 'ContentCache::deferReviewsChanged()'),
         'admin reviewer-name edits invalidate cached public review DTOs (deferred to shutdown)'
     );
+
+    $profileController = (string) file_get_contents($root . '/app/Controllers/ProfileController.php');
+    $check(
+        str_contains($profileController, 'SELECT nome, cognome FROM utenti WHERE id = ? FOR UPDATE')
+            && str_contains($profileController, '$previousDisplayName')
+            && str_contains($profileController, '$newDisplayName !== $previousDisplayName')
+            && !str_contains($profileController, '$newDisplayName !== (string) ($_SESSION[\'user\'][\'name\']'),
+        'self-service reviewer-name edits compare the locked DB before-value, not a stale session'
+    );
 } catch (\Throwable $e) {
     $failed++;
     echo "FAIL  unexpected exception: {$e->getMessage()} @ {$e->getFile()}:{$e->getLine()}\n";

@@ -490,6 +490,13 @@ class SettingsController
             $logo = '';
         }
 
+        $liteSpeedBlockedByContainer = LiteSpeedCache::blockedByContainer();
+        $liteSpeedEnabled = $repository->get(
+            'cache',
+            'litespeed_enabled',
+            (bool) ConfigStore::get('cache.litespeed_enabled', false) ? '1' : '0'
+        );
+
         return [
             'name' => $name,
             'logo' => $logo,
@@ -500,11 +507,10 @@ class SettingsController
             'social_linkedin' => $repository->get('app', 'social_linkedin', $config['social_linkedin'] ?? ''),
             'social_bluesky' => $repository->get('app', 'social_bluesky', $config['social_bluesky'] ?? ''),
             'social_telegram' => $repository->get('app', 'social_telegram', $config['social_telegram'] ?? ''),
-            'litespeed_enabled' => $repository->get(
-                'cache',
-                'litespeed_enabled',
-                (bool) ConfigStore::get('cache.litespeed_enabled', false) ? '1' : '0'
-            ),
+            // Never render a stale database opt-in as active in Docker. The
+            // runtime and POST handler enforce the same restriction.
+            'litespeed_enabled' => $liteSpeedBlockedByContainer ? '0' : $liteSpeedEnabled,
+            'litespeed_container_blocked' => $liteSpeedBlockedByContainer,
             'litespeed_home_ttl' => (int) $repository->get('cache', 'litespeed_home_ttl', (string) ConfigStore::get('cache.litespeed_home_ttl', 300)),
             'litespeed_catalog_ttl' => (int) $repository->get('cache', 'litespeed_catalog_ttl', (string) ConfigStore::get('cache.litespeed_catalog_ttl', 120)),
             'litespeed_book_ttl' => (int) $repository->get('cache', 'litespeed_book_ttl', (string) ConfigStore::get('cache.litespeed_book_ttl', 300)),
@@ -907,7 +913,12 @@ class SettingsController
         // CSRF validated by CsrfMiddleware
 
         $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
-        $wantsLiteSpeed = isset($data['litespeed_enabled']) && $data['litespeed_enabled'] === '1';
+        $liteSpeedBlockedByContainer = LiteSpeedCache::blockedByContainer();
+        $requestedLiteSpeed = isset($data['litespeed_enabled']) && $data['litespeed_enabled'] === '1';
+        // A forged POST and a stale DB value must not enable LiteSpeed in the
+        // Apache Docker image. Persist 0 so exported/restored settings agree
+        // with the runtime restriction as well.
+        $wantsLiteSpeed = !$liteSpeedBlockedByContainer && $requestedLiteSpeed;
         if ($isAdmin && $wantsLiteSpeed && !LiteSpeedCache::ensureLookupBypass()) {
             $_SESSION['error_message'] = __('Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.');
             return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
@@ -956,11 +967,23 @@ class SettingsController
         // admin-only even though staff may access the wider Advanced tab.
         if ($isAdmin) {
             $allowedTtls = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
+            // Docker renders the LiteSpeed controls disabled, so browsers omit
+            // their values from the POST. Preserve the stored TTLs instead of
+            // silently resetting them while another Advanced option is saved.
+            $homeTtl = $liteSpeedBlockedByContainer
+                ? $repository->get('cache', 'litespeed_home_ttl', '300')
+                : ($data['litespeed_home_ttl'] ?? 300);
+            $catalogTtl = $liteSpeedBlockedByContainer
+                ? $repository->get('cache', 'litespeed_catalog_ttl', '120')
+                : ($data['litespeed_catalog_ttl'] ?? 120);
+            $bookTtl = $liteSpeedBlockedByContainer
+                ? $repository->get('cache', 'litespeed_book_ttl', '300')
+                : ($data['litespeed_book_ttl'] ?? 300);
             $cacheSettings = [
                 'litespeed_enabled' => $wantsLiteSpeed ? '1' : '0',
-                'litespeed_home_ttl' => (string) $this->validatedCacheTtl($data['litespeed_home_ttl'] ?? 300, 300, $allowedTtls),
-                'litespeed_catalog_ttl' => (string) $this->validatedCacheTtl($data['litespeed_catalog_ttl'] ?? 120, 120, $allowedTtls),
-                'litespeed_book_ttl' => (string) $this->validatedCacheTtl($data['litespeed_book_ttl'] ?? 300, 300, $allowedTtls),
+                'litespeed_home_ttl' => (string) $this->validatedCacheTtl($homeTtl, 300, $allowedTtls),
+                'litespeed_catalog_ttl' => (string) $this->validatedCacheTtl($catalogTtl, 120, $allowedTtls),
+                'litespeed_book_ttl' => (string) $this->validatedCacheTtl($bookTtl, 300, $allowedTtls),
             ];
             foreach ($cacheSettings as $key => $value) {
                 $repository->set('cache', $key, $value);
@@ -998,7 +1021,9 @@ class SettingsController
         ConfigStore::set('system.catalogue_mode', $catalogueMode === '1');
         ConfigStore::clearCache();
 
-        $_SESSION['success_message'] = __('Impostazioni avanzate aggiornate correttamente.');
+        $_SESSION['success_message'] = $liteSpeedBlockedByContainer && $requestedLiteSpeed
+            ? __('Impostazioni avanzate aggiornate. LiteSpeed resta disabilitato perché non è disponibile nella versione Docker.')
+            : __('Impostazioni avanzate aggiornate correttamente.');
         return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
     }
 

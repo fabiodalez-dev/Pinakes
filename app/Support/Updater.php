@@ -2932,18 +2932,7 @@ class Updater
      */
     private function isRunningInContainer(): bool
     {
-        if (is_file('/.dockerenv') || is_file('/run/.containerenv')) {
-            return true;
-        }
-        $flag = $_ENV['PINAKES_DOCKER'] ?? (getenv('PINAKES_DOCKER') ?: '');
-        if (is_string($flag) && $flag !== '' && $flag !== '0') {
-            return true;
-        }
-        $cgroup = @file_get_contents('/proc/1/cgroup');
-        if (is_string($cgroup) && preg_match('/\b(docker|containerd|kubepods|libpod)\b/', $cgroup) === 1) {
-            return true;
-        }
-        return false;
+        return ContainerRuntime::detected();
     }
 
     /**
