@@ -33,7 +33,7 @@ $check(str_contains($snapshot, 'GET_LOCK') && str_contains($snapshot, 'RELEASE_L
 $check(str_contains($snapshot, 'return $loader();') && str_contains($snapshot, '!SchemaInfo::hasTable'), 'pre-migration installs fail open to live aggregates');
 $check(str_contains($projection, "la.ruolo IN ('principale', 'co-autore')"), 'projection excludes non-creator contributor roles');
 $check(str_contains($projection, "COALESCE(la.ordine_credito, 2147483647)"), 'projection selection has a deterministic credit-order tie-break');
-$check(str_contains($frontend, 'CatalogAuthorProjection::columnsExist($db)'), 'catalog keeps an explicit rolling-upgrade fallback');
+$check(str_contains($frontend, 'CatalogAuthorProjection::isReadable($db)'), 'catalog keeps an explicit rolling-upgrade fallback (completeness-gated: backfill window + failed rebuild)');
 $bulkDeleteStart = strpos($authorsApi, 'public function bulkDelete(');
 $bulkExportStart = strpos($authorsApi, 'public function bulkExport(');
 $bulkDelete = $bulkDeleteStart !== false && $bulkExportStart !== false
