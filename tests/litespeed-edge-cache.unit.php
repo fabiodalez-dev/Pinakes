@@ -230,6 +230,25 @@ if ($fixtureReady) {
     unlink($fixture);
 }
 
+// A block that carries BOTH markers but has its no-cache guards commented out
+// must NOT count as installed — otherwise an admin could enable LSCache with no
+// protection applied before PHP.
+$commented = tempnam(sys_get_temp_dir(), 'pinakes-htaccess-commented-');
+if (is_string($commented)) {
+    file_put_contents(
+        $commented,
+        "# === Pinakes LiteSpeed privacy bypass ===\n"
+        . "#    RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)\$ [NC]\n"
+        . "#    RewriteRule .* - [E=Cache-Control:no-cache]\n"
+        . "#    RewriteCond %{HTTP:Authorization} .\n"
+        . "#    RewriteRule .* - [E=Cache-Control:no-cache]\n"
+        . "#    pinakes_locale=\n"
+        . "# === end Pinakes LiteSpeed privacy bypass ===\n"
+    );
+    $check(!LiteSpeedCache::lookupBypassInstalled($commented), 'a bypass block with only commented-out guards is not considered installed');
+    unlink($commented);
+}
+
 echo "-- database-backed cache settings --\n";
 $dbSettingsProperty = new ReflectionProperty(ConfigStore::class, 'dbSettingsCache');
 $configProperty->setValue(null, null);

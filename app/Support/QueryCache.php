@@ -731,8 +731,10 @@ class QueryCache
         try {
             return -random_int(1, PHP_INT_MAX);
         } catch (\Throwable $e) {
-            self::$sentinelCounter++;
-            return -(int) ((time() % 1000000000) * 1000 + (self::$sentinelCounter % 1000)) - 1;
+            // Monotonic, never wrapped: a modulo would repeat a generation after
+            // enough fallbacks in one process, letting a late callback rewrite a
+            // key a newer request then reuses.
+            return -(++self::$sentinelCounter);
         }
     }
 

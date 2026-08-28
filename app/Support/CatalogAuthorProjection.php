@@ -95,9 +95,10 @@ final class CatalogAuthorProjection
                 $stmt->execute();
                 $stmt->close();
             }
-            // A rebuild that completed proves the projection is writable and
-            // consistent again; lift any prior degraded sentinel.
-            self::clearDegraded();
+            // These ids were just re-materialized: drop them from the degraded
+            // set (the sentinel is removed once nothing remains). A rebuild of
+            // unrelated books does NOT lift the degradation of other rows.
+            self::clearDegradedFor($ids);
         } catch (\Throwable $e) {
             // Derived display data must never abort a book/author save.
             SecureLogger::warning('CatalogAuthorProjection rebuild failed', [
@@ -110,11 +111,11 @@ final class CatalogAuthorProjection
             // the always-correct live author subqueries until a later rebuild
             // (a subsequent contributor edit, or a full reindex) repairs them.
             if (!self::invalidateRows($db, $ids)) {
-                // Even the null-out failed, so the affected rows keep stale
-                // non-null values the completeness probe cannot see. Distrust
-                // the whole projection via the persistent sentinel until a
-                // later rebuild succeeds and clears it.
-                self::markDegraded();
+                // Even the null-out failed, so THESE rows keep stale non-null
+                // values the completeness probe cannot see. Record them in the
+                // persistent sentinel; the catalog falls back to live until each
+                // recorded id is rebuilt.
+                self::markDegraded($ids);
             }
         }
     }
@@ -163,36 +164,125 @@ final class CatalogAuthorProjection
      * non-null values that isReadable()'s NULL-based completeness probe cannot
      * detect. A sentinel file (which survives a broken DB connection, unlike a
      * DB marker) forces the whole catalog onto the always-correct live author
-     * subqueries until the next successful rebuild lifts it.
+     * subqueries until the STILL-degraded rows are rebuilt.
+     *
+     * The file stores the exact ids that failed both writes, one per line, so a
+     * later successful rebuild of UNRELATED books does NOT lift the sentinel —
+     * only rebuilding the recorded ids clears them, and the file is removed once
+     * the set is empty. isReadable() distrusts the projection while any id
+     * remains. (The sentinel is per-node: on a multi-node deployment a failure
+     * degrades only the node that observed it, which is the safe direction.)
      */
     private static function degradedSentinelPath(): string
     {
         return dirname(__DIR__, 2) . '/storage/cache/catalog-author-projection.degraded';
     }
 
-    private static function markDegraded(): void
+    /** @return array<int, true> */
+    private static function readDegradedSet(): array
+    {
+        $path = self::degradedSentinelPath();
+        if (!is_file($path)) {
+            return [];
+        }
+        $raw = @file_get_contents($path);
+        if (!is_string($raw) || $raw === '') {
+            return [];
+        }
+        $set = [];
+        foreach (preg_split('/\s+/', trim($raw)) ?: [] as $token) {
+            $id = (int) $token;
+            if ($id > 0) {
+                $set[$id] = true;
+            }
+        }
+        return $set;
+    }
+
+    /**
+     * Locked read-modify-write of the degraded id set. Deletes the file when
+     * the resulting set is empty.
+     *
+     * @param callable(array<int, true>): array<int, true> $mutator
+     */
+    private static function mutateDegradedSet(callable $mutator): void
     {
         $path = self::degradedSentinelPath();
         $dir = dirname($path);
         if (!is_dir($dir)) {
             @mkdir($dir, 0770, true);
         }
-        @file_put_contents($path, (string) time(), LOCK_EX);
-    }
-
-    private static function isDegraded(): bool
-    {
-        return is_file(self::degradedSentinelPath());
-    }
-
-    private static function clearDegraded(): void
-    {
-        $path = self::degradedSentinelPath();
-        if (is_file($path)) {
+        $handle = @fopen($path, 'c+');
+        if ($handle === false) {
+            return;
+        }
+        try {
+            if (!flock($handle, LOCK_EX)) {
+                return;
+            }
+            $existing = stream_get_contents($handle) ?: '';
+            $set = [];
+            foreach (preg_split('/\s+/', trim($existing)) ?: [] as $token) {
+                $id = (int) $token;
+                if ($id > 0) {
+                    $set[$id] = true;
+                }
+            }
+            $set = $mutator($set);
+            rewind($handle);
+            ftruncate($handle, 0);
+            if ($set !== []) {
+                fwrite($handle, implode("\n", array_keys($set)) . "\n");
+            }
+            fflush($handle);
+            flock($handle, LOCK_UN);
+        } finally {
+            fclose($handle);
+        }
+        if (self::readDegradedSet() === [] && is_file($path)) {
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed
             // application-owned sentinel path, no user input.
             @unlink($path);
         }
+    }
+
+    /** @param int[] $ids */
+    private static function markDegraded(array $ids): void
+    {
+        self::mutateDegradedSet(static function (array $set) use ($ids): array {
+            foreach ($ids as $id) {
+                $id = (int) $id;
+                if ($id > 0) {
+                    $set[$id] = true;
+                }
+            }
+            return $set;
+        });
+    }
+
+    /**
+     * Remove the just-rebuilt ids from the degraded set; the file is deleted
+     * once nothing remains. A rebuild of unrelated books leaves the recorded
+     * ids — and therefore the degradation — in place.
+     *
+     * @param int[] $ids
+     */
+    private static function clearDegradedFor(array $ids): void
+    {
+        if (!is_file(self::degradedSentinelPath())) {
+            return; // common success path: nothing was ever degraded
+        }
+        self::mutateDegradedSet(static function (array $set) use ($ids): array {
+            foreach ($ids as $id) {
+                unset($set[(int) $id]);
+            }
+            return $set;
+        });
+    }
+
+    private static function isDegraded(): bool
+    {
+        return self::readDegradedSet() !== [];
     }
 
     public static function columnsExist(\mysqli $db): bool

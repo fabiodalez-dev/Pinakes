@@ -313,16 +313,6 @@ class AutoriApiController
 
             // Commit transaction
             $db->commit();
-
-            // Rebuild every derived author field before publishing the cache
-            // generation bump. Otherwise a concurrent catalog miss could fill
-            // the new generation from the old projection during this window.
-            \App\Support\SearchIndexBuilder::rebuildMany($db, array_values($affectedBookIds));
-
-            // Public book-detail DTOs embed the linked author rows. This API
-            // bypasses AuthorRepository, so invalidate after the derived data
-            // is coherent and the transaction has committed.
-            \App\Support\ContentCache::booksChanged();
         } catch (\Throwable $e) {
             $db->rollback();
             AppLog::error('autori.bulk_delete.transaction_failed', ['error' => $e->getMessage()]);
@@ -331,6 +321,27 @@ class AutoriApiController
                 'error' => __('Errore interno del database')
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Post-commit maintenance: the deletion is already permanent, so an
+        // error here must not roll back a committed transaction nor turn a
+        // successful operation into a 500 — but the cache generation still has
+        // to be published, and booksChanged() must run even if the reindex
+        // fails (they were previously inside the rollback try).
+        try {
+            // Rebuild every derived author field before publishing the cache
+            // generation bump, so a concurrent catalog miss cannot fill the new
+            // generation from the old projection during this window.
+            \App\Support\SearchIndexBuilder::rebuildMany($db, array_values($affectedBookIds));
+        } catch (\Throwable $e) {
+            AppLog::error('autori.bulk_delete.reindex_failed', ['error' => $e->getMessage()]);
+        }
+        try {
+            // Public book-detail DTOs embed the linked author rows. This API
+            // bypasses AuthorRepository, so invalidate after the commit.
+            \App\Support\ContentCache::booksChanged();
+        } catch (\Throwable $e) {
+            AppLog::error('autori.bulk_delete.cache_invalidation_failed', ['error' => $e->getMessage()]);
         }
 
         AppLog::info('autori.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);

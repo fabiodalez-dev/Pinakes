@@ -75,12 +75,22 @@ final class LiteSpeedCache
         }
         $block = substr($content, $start, $end - $start);
 
-        // Each guard must appear inside the marked block, and there must be a
-        // no-cache action to pair with them.
-        return str_contains($block, 'E=Cache-Control:no-cache')
-            && str_contains($block, '%{HTTP:Authorization}')
-            && (str_contains($block, '!^(GET|HEAD)$') || str_contains($block, '!^(GET|HEAD)'))
-            && str_contains($block, 'pinakes_locale=');
+        // Only ACTIVE (uncommented) directive lines count. A block whose
+        // no-cache guards are commented out (`# RewriteRule ... no-cache`) must
+        // NOT be treated as installed — otherwise the admin could enable LSCache
+        // with the protection disabled and a shared hit could be served to an
+        // authenticated / cookie-bearing / Authorization request.
+        $active = implode("\n", array_filter(
+            preg_split('/\R/', $block) ?: [],
+            static fn (string $line): bool => !str_starts_with(ltrim($line), '#')
+        ));
+
+        // Each guard must appear on an active line inside the marked block, and
+        // there must be a no-cache action to pair with them.
+        return str_contains($active, 'E=Cache-Control:no-cache')
+            && str_contains($active, '%{HTTP:Authorization}')
+            && (str_contains($active, '!^(GET|HEAD)$') || str_contains($active, '!^(GET|HEAD)'))
+            && str_contains($active, 'pinakes_locale=');
     }
 
     /**

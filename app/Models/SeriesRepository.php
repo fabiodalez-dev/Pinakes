@@ -313,6 +313,12 @@ class SeriesRepository
             $stmt->close();
         }
 
+        // Series data (collana / numero_serie / sibling volumes) is part of the
+        // cached book-detail DTO (#387). Invalidate right after the libri write
+        // and BEFORE the early returns below, so a missing collane table or an
+        // install without memberships still refreshes the caches.
+        \App\Support\ContentCache::deferBooksChanged();
+
         $collanaId = $this->ensureCollana($collana, [], false);
         if ($collanaId === null || !$this->supportsMemberships()) {
             return;
@@ -341,10 +347,6 @@ class SeriesRepository
             $stmtUpsert->execute();
             $stmtUpsert->close();
         }
-
-        // Series data (collana / numero_serie / sibling volumes) is part of the
-        // cached book-detail DTO (#387): invalidate on every series mutation.
-        \App\Support\ContentCache::deferBooksChanged();
     }
 
     /** @return array<int, array<string, mixed>> */
