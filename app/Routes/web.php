@@ -204,7 +204,7 @@ return function (App $app): void {
             ->withHeader('X-Content-Type-Options', 'nosniff');
     });
 
-    $app->get('/api/edge/availability', function ($request, $response) use ($app) {
+    $app->get(RouteTranslator::getRouteForLocale('api_edge_availability', 'en_US'), function ($request, $response) use ($app) {
         $container = $app->getContainer();
         $controller = new \App\Controllers\FrontendController($container);
         return $controller->edgeAvailability($request, $response, $container->get('db'));

@@ -9,7 +9,8 @@ $createBookUrl = static function ($book) {
 $getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
     ob_start();
     if ($edgeCacheEnabled) {
-        echo '<span class="book-status-badge status-unavailable" data-live-book-id="' . (int) $book['id'] . '" data-live-role="badge" data-live-pending="1"><span data-live-label></span>';
+        echo '<span class="book-status-badge availability-pending" data-live-book-id="' . (int) $book['id'] . '" data-live-role="badge" data-live-pending="1"><span data-live-label>'
+            . htmlspecialchars(__("Verifica disponibilità"), ENT_QUOTES, 'UTF-8') . '</span>';
         $staticBook = $book;
         unset($staticBook['copie_disponibili'], $staticBook['copie_totali'], $staticBook['stato']);
         do_action('book.badge.digital_icons', $staticBook);
@@ -317,6 +318,11 @@ $getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
 
 .status-unavailable {
     /* Neutral grey — theme-agnostic, signals "not circulating" without alarm */
+    background: #6b7280;
+    color: white;
+}
+
+.availability-pending {
     background: #6b7280;
     color: white;
 }

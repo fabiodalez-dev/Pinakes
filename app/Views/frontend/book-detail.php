@@ -748,6 +748,12 @@ $additional_css = "
         letter-spacing: 0.12em;
     }
 
+    .availability-badge.availability-pending {
+        background: #6b7280;
+        color: white;
+        border-color: #6b7280;
+    }
+
     .available {
         background: rgba(16, 185, 129, 0.9);
         color: #1a1a1a;
@@ -1736,6 +1742,11 @@ $additional_css = "
         box-shadow: none;
     }
 
+    .related-availability-badge.availability-pending {
+        background: #6b7280;
+        color: white;
+    }
+
     /* When a digital icon (eBook/audio) is injected next to the availability
        check, the pill grows to fit both — drop the icon's own left margin so
        the spacing is the flex gap alone (no overlap). */
@@ -1927,7 +1938,7 @@ ob_start();
                     <div class="mt-4">
                         <span class="availability-badge <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'available' : 'unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="detail-badge" data-live-pending="1"' : '' ?>>
                             <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : (($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle') ?> mr-2" aria-hidden="true"></i>
-                            <span data-live-label><?= $edgeCacheEnabled ? '' : (($book['copie_disponibili'] > 0)
+                            <span data-live-label><?= $edgeCacheEnabled ? htmlspecialchars(__("Verifica disponibilità"), ENT_QUOTES, 'UTF-8') : (($book['copie_disponibili'] > 0)
                                 ? ($book['copie_totali'] > 1
                                     ? "{$book['copie_disponibili']}/{$book['copie_totali']} " . __("Disponibili")
                                     : __("Disponibile"))
@@ -1951,9 +1962,9 @@ ob_start();
                 <?php if (!$isCatalogueMode): ?>
                 <div class="action-buttons text-center mb-4" id="book-action-buttons">
                     <!-- Always show the calendar to choose dates -->
-                    <button id="btn-request-loan" type="button" class="ui-button <?= !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="action" data-live-pending="1" disabled' : '' ?>>
+                    <button id="btn-request-loan" type="button" class="ui-button <?= !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="action" data-live-pending="1"' : '' ?>>
                         <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : ((($book['copie_disponibili'] ?? 0) > 0) ? 'book-reader' : 'calendar-alt') ?> mr-2"></i>
-                        <span data-live-label><?= $edgeCacheEnabled ? '' : ((($book['copie_disponibili'] ?? 0) > 0) ? __('Richiedi Prestito') : __('Prenota Quando Disponibile')) ?></span>
+                        <span data-live-label><?= $edgeCacheEnabled ? __('Verifica disponibilità') : ((($book['copie_disponibili'] ?? 0) > 0) ? __('Richiedi Prestito') : __('Prenota Quando Disponibile')) ?></span>
                     </button>
                     <?php $isLogged = !empty($_SESSION['user'] ?? null); ?>
                     <?php if ($isLogged): ?>
@@ -2483,14 +2494,14 @@ ob_start();
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
                                 <span class="book-status-inline <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'is-available' : 'is-unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="status" data-live-pending="1"' : '' ?>>
-                                    <?= $edgeCacheEnabled ? '' : (($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non disponibile oggi")) ?>
+                                    <?= $edgeCacheEnabled ? __("Verifica disponibilità") : (($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non disponibile oggi")) ?>
                                 </span>
                             </div>
                         </div>
 
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Copie Disponibili") ?></div>
-                            <div class="meta-value"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="count" data-live-pending="1"' : '' ?>><?= $edgeCacheEnabled ? '' : ((int) $book['copie_disponibili'] . ' / ' . (int) $book['copie_totali']) ?></div>
+                            <div class="meta-value <?= $edgeCacheEnabled ? 'availability-pending' : '' ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="count" data-live-pending="1"' : '' ?>><?= $edgeCacheEnabled ? __("Verifica disponibilità") : ((int) $book['copie_disponibili'] . ' / ' . (int) $book['copie_totali']) ?></div>
                         </div>
 
                         <?php if (!empty($book['collocazione'])): ?>
@@ -2599,8 +2610,9 @@ ob_start();
                                  loading="lazy">
                         </a>
                         <?php if (($related['copie_disponibili'] ?? 0) > 0 || $edgeCacheEnabled): ?>
-                        <span class="related-availability-badge available-badge"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $related['id'] . '" data-live-role="related" data-live-pending="1"' : '' ?>>
+                        <span class="related-availability-badge <?= $edgeCacheEnabled ? 'availability-pending' : 'available-badge' ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $related['id'] . '" data-live-role="related" data-live-pending="1"' : '' ?>>
                             <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : 'check-circle' ?>" aria-hidden="true"></i>
+                            <?php if ($edgeCacheEnabled): ?><span data-live-label><?= __("Verifica disponibilità") ?></span><?php endif; ?>
                             <?php
                             // Hook: Allow plugins to add icons to related book badge (e.g., eBook/audio icons)
                             $pluginRelated = $related;

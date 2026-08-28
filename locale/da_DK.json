@@ -5189,9 +5189,6 @@
   "Errore di sistema durante l'importazione": "Systemfejl under import",
   "es. Q12345": "f.eks. Q12345",
   "Durata sessione": "Sessionsvarighed",
-  "30 minuti": "30 minutter",
-  "1 ora": "1 time",
-  "2 ore": "2 timer",
   "3 ore": "3 timer",
   "6 ore": "6 timer",
   "12 ore": "12 timer",
@@ -7005,5 +7002,6 @@
   "Disponibilità copie e azioni di prestito restano live e non vengono affidate all'HTML in cache.": "Eksemplartilgængelighed og lånehandlinger forbliver live og hentes aldrig fra cachelagret HTML.",
   "Protezione pre-cache installata": "Pre-cache-beskyttelse installeret",
   "Protezione pre-cache non installata": "Pre-cache-beskyttelse ikke installeret",
-  "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.": "LiteSpeed kan ikke aktiveres: public/.htaccess kan ikke skrives til eller opdateres sikkert."
+  "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.": "LiteSpeed kan ikke aktiveres: public/.htaccess kan ikke skrives til eller opdateres sikkert.",
+  "Verifica disponibilità": "Tjek tilgængelighed"
 }

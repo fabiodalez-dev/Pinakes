@@ -45,7 +45,10 @@ final class LiteSpeedCacheMiddleware implements MiddlewareInterface
         $marker = trim($response->getHeaderLine(LiteSpeedCache::MARKER_HEADER));
         $response = $response->withoutHeader(LiteSpeedCache::MARKER_HEADER);
         if (!LiteSpeedCache::enabled()) {
-            return $response;
+            // An upstream LiteSpeed configuration may still have generic cache
+            // rules. Disabling the feature in Pinakes must therefore be an
+            // explicit bypass, not merely the absence of a public-cache header.
+            return $response->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
         }
 
         if (!$this->isCacheable($request, $response, $marker)) {

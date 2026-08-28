@@ -5189,9 +5189,6 @@
   "Errore di sistema durante l'importazione": "System error during import",
   "es. Q12345": "e.g. Q12345",
   "Durata sessione": "Session duration",
-  "30 minuti": "30 minutes",
-  "1 ora": "1 hour",
-  "2 ore": "2 hours",
   "3 ore": "3 hours",
   "6 ore": "6 hours",
   "12 ore": "12 hours",
@@ -7005,5 +7002,6 @@
   "Disponibilità copie e azioni di prestito restano live e non vengono affidate all'HTML in cache.": "Copy availability and loan actions stay live and are never taken from cached HTML.",
   "Protezione pre-cache installata": "Pre-cache protection installed",
   "Protezione pre-cache non installata": "Pre-cache protection not installed",
-  "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.": "LiteSpeed cannot be enabled: public/.htaccess is not writable or cannot be updated safely."
+  "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.": "LiteSpeed cannot be enabled: public/.htaccess is not writable or cannot be updated safely.",
+  "Verifica disponibilità": "Check availability"
 }

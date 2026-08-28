@@ -57,6 +57,8 @@ class RouteTranslator
         'api_catalog' => '/api/catalog',
         'api_book' => '/api/book',
         'api_home' => '/api/home',
+        'api_edge_availability' => '/api/edge/availability',
+        'admin.settings' => '/admin/settings',
         'language_switch' => '/language',
         'bibframe.book'   => '/api/bibframe/book/{id}',
     ];

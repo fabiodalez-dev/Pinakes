@@ -1,14 +1,17 @@
 (function () {
   'use strict';
 
+  var hydrationGeneration = 0;
+
   function updateElement(element, data) {
     var role = element.getAttribute('data-live-role') || 'badge';
     if (role === 'badge') {
-      element.classList.remove('status-available', 'status-reserved', 'status-borrowed', 'status-unavailable', 'available', 'unavailable');
+      element.classList.remove('status-available', 'status-reserved', 'status-borrowed', 'status-unavailable', 'available', 'unavailable', 'availability-pending');
       element.classList.add(data.state === 'available' ? 'status-available' : 'status-' + data.state);
       var label = element.querySelector('[data-live-label]');
       (label || element).textContent = data.label;
     } else if (role === 'detail-badge') {
+      element.classList.remove('availability-pending');
       element.classList.toggle('available', data.available);
       element.classList.toggle('unavailable', !data.available);
       var icon = element.querySelector('i');
@@ -16,10 +19,12 @@
       var detailLabel = element.querySelector('[data-live-label]');
       if (detailLabel) detailLabel.textContent = data.detail_label;
     } else if (role === 'status') {
+      element.classList.remove('availability-pending');
       element.classList.toggle('is-available', data.available);
       element.classList.toggle('is-unavailable', !data.available);
       element.textContent = data.available ? data.label : data.detail_label;
     } else if (role === 'count') {
+      element.classList.remove('availability-pending');
       element.textContent = data.copies_available + ' / ' + data.copies_total;
     } else if (role === 'action') {
       element.classList.toggle('btn-primary', data.available);
@@ -30,12 +35,19 @@
       if (actionLabel) actionLabel.textContent = data.action_label;
       element.disabled = false;
     } else if (role === 'related') {
+      element.classList.remove('availability-pending');
+      element.classList.toggle('available-badge', data.available);
+      var relatedIcon = element.querySelector('i');
+      if (relatedIcon) relatedIcon.className = 'fas fa-check-circle';
+      var relatedLabel = element.querySelector('[data-live-label]');
+      if (relatedLabel) relatedLabel.remove();
       element.hidden = !data.available;
     }
     element.removeAttribute('data-live-pending');
   }
 
   function hydrate() {
+    var generation = ++hydrationGeneration;
     var elements = Array.prototype.slice.call(document.querySelectorAll('[data-live-book-id]'));
     var statElements = Array.prototype.slice.call(document.querySelectorAll('[data-live-stat]'));
     if (!elements.length && !statElements.length) return;
@@ -62,6 +74,7 @@
         return payload;
       });
     })).then(function (payloads) {
+      if (generation !== hydrationGeneration) return;
       var books = {};
       var stats = null;
       payloads.forEach(function (payload) {
@@ -71,7 +84,6 @@
       elements.forEach(function (element) {
         var data = books[element.getAttribute('data-live-book-id')];
         if (data) updateElement(element, data);
-        else element.remove();
       });
       statElements.forEach(function (element) {
         var key = element.getAttribute('data-live-stat');
@@ -81,8 +93,9 @@
         }
       });
     }).catch(function () {
-      // Fail closed: pending availability stays hidden/disabled. The server-side
-      // loan gate remains authoritative, but stale cached counts are never shown.
+      if (generation !== hydrationGeneration) return;
+      // Keep the neutral, actionable fallback. The server-side loan gate remains
+      // authoritative, and no stale availability count is shown.
     });
   }
 

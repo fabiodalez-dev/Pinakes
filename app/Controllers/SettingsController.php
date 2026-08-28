@@ -910,7 +910,7 @@ class SettingsController
         $wantsLiteSpeed = isset($data['litespeed_enabled']) && $data['litespeed_enabled'] === '1';
         if ($isAdmin && $wantsLiteSpeed && !LiteSpeedCache::ensureLookupBypass()) {
             $_SESSION['error_message'] = __('Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.');
-            return $this->redirect($response, '/admin/settings?tab=advanced');
+            return $this->redirect($response, route_path('admin.settings') . '?tab=advanced');
         }
 
         $repository = new SettingsRepository($db);
@@ -999,7 +999,7 @@ class SettingsController
         ConfigStore::clearCache();
 
         $_SESSION['success_message'] = __('Impostazioni avanzate aggiornate correttamente.');
-        return $this->redirect($response, '/admin/settings?tab=advanced');
+        return $this->redirect($response, route_path('admin.settings') . '?tab=advanced');
     }
 
     public function regenerateSitemap(Request $request, Response $response, mysqli $db): Response

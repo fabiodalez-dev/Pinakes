@@ -1008,6 +1008,9 @@ function loadStats() {
 
     // Values already rendered server-side: skip the aggregate API call.
     if (totalBooksEl.dataset.serverRendered === '1' && availableBooksEl.dataset.serverRendered === '1') return;
+    // Edge-cached pages hydrate the availability counter through the dedicated
+    // no-store endpoint. Avoid racing that request with the broader catalog API.
+    if (availableBooksEl.dataset.liveStat) return;
 
     // Ask the catalog API for the available-books aggregate. The endpoint only
     // computes that extra COUNT when with_stats=1 is present, so the live

@@ -76,9 +76,11 @@ $heroBgUrl = $heroBgImage !== '' ? url($heroBgImage) : assetUrl('books.jpg');
                     <span class="hero-stat-label"><?= __("Libri Totali") ?></span>
                 </div>
                 <div class="hero-stat">
-                    <span class="hero-stat-number" id="available-books"<?= $heroStatsServerRendered ? ' data-server-rendered="1"' : '' ?><?= $edgeCacheEnabled ? ' data-live-stat="available_books" data-live-pending="1"' : '' ?>>
+                    <span class="hero-stat-number" id="available-books"<?= $heroStatsServerRendered && !$edgeCacheEnabled ? ' data-server-rendered="1"' : '' ?><?= $edgeCacheEnabled ? ' data-live-stat="available_books" data-live-pending="1"' : '' ?>>
                         <?php if ($edgeCacheEnabled): ?>
-                            <?php // Intentionally empty: availability never enters shared HTML. ?>
+                        <div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" role="status" style="width: 2rem; height: 2rem;">
+                            <span class="sr-only"><?= __("Caricamento...") ?></span>
+                        </div>
                         <?php elseif ($heroStatsServerRendered): ?>
                             <?= (int) $heroAvailableBooks ?>
                         <?php else: ?>

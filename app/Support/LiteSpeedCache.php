@@ -367,7 +367,21 @@ HTACCESS;
             return false;
         }
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-        return in_array($scheme, ['http', 'https'], true);
+        if ($scheme === 'https') {
+            return true;
+        }
+        if ($scheme !== 'http') {
+            return false;
+        }
+
+        // The purge secret grants cache-wide invalidation. Plain HTTP is safe
+        // only when the request never leaves the host; remote endpoints must
+        // use TLS so the secret cannot be observed in transit.
+        $host = strtolower(rtrim((string) parse_url($url, PHP_URL_HOST), '.'));
+        if (in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            return true;
+        }
+        return false;
     }
 
     /** @param mixed[] $tags @return string[] */

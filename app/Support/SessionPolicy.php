@@ -29,7 +29,7 @@ final class SessionPolicy
         'author', 'publisher', 'genre',
         'events',
         'about', 'privacy', 'cookies',
-        'api_catalog', 'api_book', 'api_home',
+        'api_catalog', 'api_book', 'api_home', 'api_edge_availability',
     ];
 
     /**
@@ -43,7 +43,6 @@ final class SessionPolicy
         '/home.php',
         '/health',
         '/csrf-token',
-        '/api/edge/availability',
         '/robots.txt',
         '/sitemap.xml',
         '/feed.xml',

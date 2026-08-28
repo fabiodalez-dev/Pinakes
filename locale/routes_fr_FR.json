@@ -31,5 +31,7 @@
   "language_switch": "/langue",
   "archives": "/archives",
   "archive_item": "/archives",
-  "bibframe.book": "/api/bibframe/book/{id}"
+  "bibframe.book": "/api/bibframe/book/{id}",
+  "api_edge_availability": "/api/edge/availability",
+  "admin.settings": "/admin/settings"
 }

@@ -7,6 +7,7 @@ use App\Repositories\RecensioniRepository;
 use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
+use App\Support\QueryCache;
 use App\Support\RouteTranslator;
 use mysqli;
 use Psr\Container\ContainerInterface;
@@ -541,15 +542,29 @@ class FrontendController
         $payload = ['success' => true, 'books' => $books];
         if ($withStats) {
             try {
-                $statsResult = $db->query(
-                    'SELECT COUNT(*) AS total_books, '
-                    . 'COALESCE(SUM(copie_disponibili > 0), 0) AS available_books '
-                    . 'FROM libri WHERE deleted_at IS NULL'
+                // This endpoint is deliberately no-store at HTTP level, but the
+                // aggregate itself may be shared briefly across workers. The
+                // home_ namespace is bumped by availability/content write paths,
+                // so changes invalidate it immediately instead of waiting for TTL.
+                $stats = QueryCache::remember(
+                    'home_edge_availability_stats',
+                    static function () use ($db): array {
+                        $statsResult = $db->query(
+                            'SELECT COUNT(*) AS total_books, '
+                            . 'COALESCE(SUM(copie_disponibili > 0), 0) AS available_books '
+                            . 'FROM libri WHERE deleted_at IS NULL'
+                        );
+                        if ($statsResult === false) {
+                            throw new \RuntimeException('availability stats query returned false: ' . $db->error);
+                        }
+                        $row = $statsResult->fetch_assoc() ?: [];
+                        return [
+                            'total_books' => (int) ($row['total_books'] ?? 0),
+                            'available_books' => (int) ($row['available_books'] ?? 0),
+                        ];
+                    },
+                    30
                 );
-                if ($statsResult === false) {
-                    throw new \RuntimeException('availability stats query returned false: ' . $db->error);
-                }
-                $stats = $statsResult->fetch_assoc() ?: [];
                 $payload['stats'] = [
                     'total_books' => (int) ($stats['total_books'] ?? 0),
                     'available_books' => (int) ($stats['available_books'] ?? 0),
