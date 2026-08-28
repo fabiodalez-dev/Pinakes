@@ -744,24 +744,55 @@ class QueryCache
         return $gen;
     }
 
-    /** Read a valid generation file under a shared lock. */
-    private static function readGenerationFile(string $ns): ?int
+    /**
+     * Read a valid generation file.
+     *
+     * Readers coordinate with mutateGenerationFile() on the sibling .lock file
+     * BEFORE opening the counter: rename() swaps the inode, so a reader that had
+     * already opened the old inode would keep reading the pre-invalidation
+     * generation even after the bump completed (its handle stays on the stale
+     * inode). Acquiring the shared lock first guarantees the reader opens
+     * whatever inode is current once any in-flight writer has released its
+     * exclusive lock — closing the read-stale-after-invalidation race.
+     *
+     * @param bool $coordinate false only when the caller already holds the .lock
+     *                         exclusively (mutateGenerationFile) — taking it
+     *                         again would self-deadlock.
+     */
+    private static function readGenerationFile(string $ns, bool $coordinate = true): ?int
     {
         $path = self::getCacheDir() . '/' . self::generationStorageKey($ns);
-        $handle = @fopen($path, 'r');
-        if ($handle === false) {
-            return null;
+
+        $lockHandle = false;
+        if ($coordinate) {
+            $lockHandle = @fopen($path . '.lock', 'c');
+            if ($lockHandle !== false && !flock($lockHandle, LOCK_SH)) {
+                fclose($lockHandle);
+                $lockHandle = false;
+            }
         }
 
         try {
-            if (!flock($handle, LOCK_SH)) {
+            $handle = @fopen($path, 'r');
+            if ($handle === false) {
                 return null;
             }
 
-            return self::generationFromHandle($handle);
+            try {
+                if (!flock($handle, LOCK_SH)) {
+                    return null;
+                }
+
+                return self::generationFromHandle($handle);
+            } finally {
+                flock($handle, LOCK_UN);
+                fclose($handle);
+            }
         } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
+            if ($lockHandle !== false) {
+                flock($lockHandle, LOCK_UN);
+                fclose($lockHandle);
+            }
         }
     }
 
@@ -803,7 +834,9 @@ class QueryCache
                 return null;
             }
 
-            $current = self::readGenerationFile($ns);
+            // This writer already holds the exclusive .lock; re-coordinating on
+            // it inside readGenerationFile() would self-deadlock.
+            $current = self::readGenerationFile($ns, false);
             if ($current !== null && !$increment) {
                 return $current;
             }

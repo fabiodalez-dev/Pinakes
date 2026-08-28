@@ -8,7 +8,10 @@ $createBookUrl = static function ($book) {
 
 $getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
     ob_start();
-    if ($edgeCacheEnabled) {
+    // Neutral, client-hydrated badge when the shared edge cache is on OR when
+    // the server-side availability read failed (_availability_unknown) — never
+    // fall through to a false "Non disponibile" on a missing availability field.
+    if ($edgeCacheEnabled || !empty($book['_availability_unknown'])) {
         echo '<span class="book-status-badge availability-pending" data-live-book-id="' . (int) $book['id'] . '" data-live-role="badge" data-live-pending="1"><span data-live-label>'
             . htmlspecialchars(__("Verifica disponibilità"), ENT_QUOTES, 'UTF-8') . '</span>';
         $staticBook = $book;

@@ -44,6 +44,17 @@ class FrontendController
         $latestBooksTotal = $homeData['latestBooksTotal'];
         $genres_with_books = $homeData['genres_with_books'];
         $genreCarouselEnabled = $homeData['genreCarouselEnabled'];
+
+        // Availability was stripped before the shared home cache was written;
+        // re-read it live per request (a stale count is a double-loan risk),
+        // exactly as the catalog does. On a read failure the rows are flagged
+        // _availability_unknown and the grid shows the neutral badge.
+        $latest_books = $this->mergeLiveAvailability($db, $latest_books);
+        foreach ($genres_with_books as $gi => $gsection) {
+            if (isset($gsection['books']) && is_array($gsection['books'])) {
+                $genres_with_books[$gi]['books'] = $this->mergeLiveAvailability($db, $gsection['books']);
+            }
+        }
         $homeEvents = $homeData['homeEvents'];
         $heroTotalBooks = $homeData['totalBooks'];
         $heroAvailableBooks = $homeData['availableBooks'];
@@ -1067,7 +1078,15 @@ class FrontendController
 
         $live = $this->fetchLiveAvailability($db, array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $rows));
         if ($live === null) {
-            return $rows;
+            // The availability query failed. The cached rows have their
+            // availability stripped, so returning them as-is would render every
+            // book as "Non disponibile" (zero copies). Flag them instead so the
+            // grid shows the neutral "Verifica disponibilità" badge, which the
+            // client hydrates from the live batch endpoint.
+            return array_map(static function (array $row): array {
+                $row['_availability_unknown'] = true;
+                return $row;
+            }, $rows);
         }
 
         $fresh = [];
@@ -2454,6 +2473,16 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                     $fallbackResult->free();
                 }
             }
+        }
+
+        // This payload is stored in the SHARED home cache (home_page_data_v1).
+        // Strip live availability (copie_*/stato — a stale count is a
+        // double-loan risk) AND the private/non-shareable columns (l.* pulled
+        // private_comment, lending_patron, search_index, …). Availability is
+        // re-read live per request in home() via mergeLiveAvailability().
+        $latest_books = array_map([$this, 'stripSharedCacheFields'], $latest_books);
+        foreach ($genres_with_books as $gi => $gsection) {
+            $genres_with_books[$gi]['books'] = array_map([$this, 'stripSharedCacheFields'], $gsection['books']);
         }
 
         return [
