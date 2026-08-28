@@ -3345,6 +3345,22 @@ class Updater
                 $this->debugLog('WARNING', 'Pickup deadline backfill failed; it will retry on the next upgrade run');
             }
 
+            // 0.7.72: the edge-cache privacy block shipped in 0.7.70/0.7.71
+            // WITHOUT `CacheLookup on`, so LSWS ignored the app's cache headers
+            // and no page was ever served from edge cache — the admin toggle
+            // was inert. Heal public/.htaccess in place on upgrade so an install
+            // that had LiteSpeed enabled starts caching without a manual re-save.
+            // Only touch the file when the operator actually opted in, never in
+            // the Apache Docker image, and treat a non-writable file as a
+            // deferrable warning (a re-save from the admin UI still heals it).
+            // Idempotent: a no-op once CacheLookup is already present.
+            if (!LiteSpeedCache::blockedByContainer()
+                && filter_var(ConfigStore::get('cache.litespeed_enabled', false), FILTER_VALIDATE_BOOLEAN)
+                && !LiteSpeedCache::ensureLookupBypass()
+            ) {
+                $this->debugLog('WARNING', 'LiteSpeed CacheLookup heal deferred; public/.htaccess not writable');
+            }
+
             return [
                 'success' => true,
                 'executed' => $executed,

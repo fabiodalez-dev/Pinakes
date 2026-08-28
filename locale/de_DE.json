@@ -7004,5 +7004,11 @@
   "Protezione pre-cache installata": "Pre-Cache-Schutz installiert",
   "Protezione pre-cache non installata": "Pre-Cache-Schutz nicht installiert",
   "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.": "LiteSpeed kann nicht aktiviert werden: public/.htaccess ist nicht beschreibbar oder kann nicht sicher aktualisiert werden.",
-  "Verifica disponibilità": "Verfügbarkeit prüfen"
+  "Verifica disponibilità": "Verfügbarkeit prüfen",
+  "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.": "Inhaltsänderungen machen den Cache bereits automatisch ungültig. Mit dieser Schaltfläche leerst du sofort die von LiteSpeed gespeicherten anonymen Seiten und erzwingst eine sofortige Aktualisierung.",
+  "Svuota cache edge": "Edge-Cache leeren",
+  "Cache edge LiteSpeed svuotata.": "LiteSpeed-Edge-Cache geleert.",
+  "Solo un amministratore può svuotare la cache.": "Nur ein Administrator kann den Cache leeren.",
+  "LiteSpeed non è attivo su questo server: non c'è nulla da svuotare.": "LiteSpeed ist auf diesem Server nicht aktiv: Es gibt nichts zu leeren.",
+  "LiteSpeed non rilevato in questa richiesta: non c'è nulla da svuotare da qui.": "LiteSpeed bei dieser Anfrage nicht erkannt: Hier gibt es nichts zu leeren."
 }

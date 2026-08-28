@@ -2,6 +2,23 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.71-rc.2]
+
+Fixes the LiteSpeed edge cache so the admin toggle actually caches, and adds an on-demand purge control. No schema change.
+
+### Performance
+
+- The edge-cache privacy block shipped in 0.7.70/0.7.71 without `CacheLookup on`, so LiteSpeed ignored the application's cache headers and never served a page from edge cache — the Settings → Advanced toggle enabled the response headers but stored nothing. The generated, fresh-install and example `.htaccess` now enable LSCache request lookup, and an upgraded install heals its existing block in place (no manual re-save) so an admin who had LiteSpeed enabled starts caching immediately.
+- `LiteSpeedCache::enabled()` now additionally requires the lookup directive to be present, so the admin diagnostics and the front-end pending-availability fallbacks only treat caching as live when the server will actually honour it. The Apache-based official Docker image continues to disable LiteSpeed entirely.
+
+### Administration
+
+- Settings → Advanced gains a "Clear edge cache" button that purges every Pinakes-tagged LiteSpeed entry on demand, for when an admin wants an immediate refresh instead of waiting for content-change invalidation. Translated in every bundled locale.
+
+### Internal
+
+- New behavioral coverage verifies that a fresh install enables lookup, that a legacy privacy block missing `CacheLookup on` self-heals in place exactly once and idempotently, and that the purge control is wired end to end.
+
 ## [0.7.71-rc.1]
 
 First release candidate for catalog denormalization. Existing installs receive an idempotent migration; Redis remains deliberately deferred.

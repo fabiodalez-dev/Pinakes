@@ -1058,6 +1058,42 @@ class SettingsController
         return $this->redirect($response, '/admin/settings?tab=advanced');
     }
 
+    /**
+     * Drop every Pinakes-tagged entry from the LiteSpeed edge cache on demand.
+     *
+     * Emitting X-LiteSpeed-Purge on THIS response is the interactive equivalent
+     * of the CLI loopback purge: LSWS discards the tagged edge entries when it
+     * processes the header, regardless of this (admin, cookie-bearing) request
+     * being itself uncacheable. A non-LiteSpeed server simply ignores the
+     * unknown header, so the signal is safe to send unconditionally.
+     */
+    public function purgeLiteSpeedCache(Request $request, Response $response, mysqli $db): Response
+    {
+        // CSRF validated by CsrfMiddleware
+        $redirect = $this->redirect($response, '/admin/settings?tab=advanced');
+
+        // AdminAuthMiddleware also admits staff; a shared-cache flush is an
+        // admin-only action, so re-check the role inline before purging.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Solo un amministratore può svuotare la cache.');
+            return $redirect;
+        }
+
+        // Only claim a purge when LiteSpeed caching is actually active on this
+        // server; otherwise the X-LiteSpeed-Purge header is a no-op and a
+        // success message would be misleading (e.g. on plain Apache).
+        if (!LiteSpeedCache::enabled() || !LiteSpeedCache::serverDetected()) {
+            $_SESSION['error_message'] = __('LiteSpeed non è attivo su questo server: non c\'è nulla da svuotare.');
+            return $redirect;
+        }
+
+        $_SESSION['success_message'] = __('Cache edge LiteSpeed svuotata.');
+        return $redirect->withHeader(
+            'X-LiteSpeed-Purge',
+            LiteSpeedCache::purgeHeader([LiteSpeedCache::TAG_ALL])
+        );
+    }
+
     private function loadContactMessages(mysqli $db): array
     {
         $messages = [];

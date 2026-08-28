@@ -18,12 +18,14 @@ final class LiteSpeedCache
     private static array $queuedTags = [];
     private static bool $cliDispatcherRegistered = false;
     private static ?bool $lookupBypassCache = null;
+    private static ?bool $cacheLookupCache = null;
 
     public static function enabled(): bool
     {
         return !self::blockedByContainer()
             && filter_var(ConfigStore::get('cache.litespeed_enabled', false), FILTER_VALIDATE_BOOLEAN)
-            && self::lookupBypassInstalled();
+            && self::lookupBypassInstalled()
+            && self::cacheLookupInstalled();
     }
 
     /** LiteSpeed/LSCache is unsupported by the official Apache Docker image. */
@@ -57,6 +59,29 @@ final class LiteSpeedCache
         $installed = is_string($content) && self::blockHasProtectiveRules($content);
         if ($usesDefaultPath) {
             self::$lookupBypassCache = $installed;
+        }
+        return $installed;
+    }
+
+    /**
+     * True when the privacy block also enables LSCache request lookup
+     * (`CacheLookup on`). This is the FUNCTIONAL gate: without it LSWS ignores
+     * the X-LiteSpeed-Cache-Control response headers and never serves a page
+     * from edge cache, so a toggle-on with the header emission alone is inert.
+     * enabled() requires both this and lookupBypassInstalled() (the security
+     * gate) so the admin UI and views only treat caching as live when the
+     * server will actually honour it.
+     */
+    public static function cacheLookupInstalled(?string $path = null): bool
+    {
+        $usesDefaultPath = $path === null;
+        if ($usesDefaultPath && self::$cacheLookupCache !== null) {
+            return self::$cacheLookupCache;
+        }
+        $content = @file_get_contents($path ?? self::htaccessPath());
+        $installed = is_string($content) && self::blockHasCacheLookup($content);
+        if ($usesDefaultPath) {
+            self::$cacheLookupCache = $installed;
         }
         return $installed;
     }
@@ -155,6 +180,35 @@ final class LiteSpeedCache
         return $methodGuard && $authorizationGuard && $cookieGuard && $localeVary;
     }
 
+    /**
+     * True when the marker block carries an ACTIVE `CacheLookup on` directive.
+     * Commented-out lines do not count — a healed block must actually enable
+     * the LSCache lookup, not merely mention it.
+     */
+    private static function blockHasCacheLookup(string $content): bool
+    {
+        $start = strpos($content, self::HTACCESS_MARKER);
+        if ($start === false) {
+            return false;
+        }
+        $end = strpos($content, self::HTACCESS_END_MARKER, $start);
+        if ($end === false) {
+            return false;
+        }
+        $block = substr($content, $start, $end - $start);
+
+        foreach (preg_split('/\R/', $block) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            if (preg_match('/^CacheLookup\s+on$/i', $line) === 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @return array{string, string, string}|null Parsed subject, pattern and flags. */
     private static function parseRewriteCondition(string $directive): ?array
     {
@@ -198,12 +252,6 @@ final class LiteSpeedCache
     {
         $usesDefaultPath = $path === null;
         $path ??= self::htaccessPath();
-        if (self::lookupBypassInstalled($path)) {
-            if ($usesDefaultPath) {
-                self::$lookupBypassCache = true;
-            }
-            return true;
-        }
 
         $content = @file_get_contents($path);
         if (!is_string($content)) {
@@ -217,13 +265,35 @@ final class LiteSpeedCache
                 return false;
             }
             $content = @file_get_contents($path . '.dist');
-            if (!is_string($content) || !str_contains($content, self::HTACCESS_MARKER)) {
+            if (!is_string($content)
+                || !str_contains($content, self::HTACCESS_MARKER)
+                || !self::blockHasCacheLookup($content)
+            ) {
                 return false;
             }
             $written = self::atomicWrite($path, $content, 0644);
-            if ($usesDefaultPath) {
-                self::$lookupBypassCache = $written ? true : null;
+            self::rememberBypassState($usesDefaultPath, $written ? true : null);
+            return $written;
+        }
+
+        // The privacy guards are already installed. Two sub-cases:
+        if (self::blockHasProtectiveRules($content)) {
+            if (self::blockHasCacheLookup($content)) {
+                self::rememberBypassState($usesDefaultPath, true);
+                return true;
             }
+
+            // Legacy block from a pre-CacheLookup release: the fail-closed
+            // guards are present but LSCache lookup was never enabled, so the
+            // edge cache is inert. Heal in place so an UPGRADED install starts
+            // serving edge cache without a manual admin re-save.
+            $healed = self::healCacheLookup($content);
+            if ($healed === null) {
+                return false;
+            }
+            $permissions = @fileperms($path);
+            $written = self::atomicWrite($path, $healed, is_int($permissions) ? ($permissions & 0777) : 0644);
+            self::rememberBypassState($usesDefaultPath, $written ? true : null);
             return $written;
         }
 
@@ -245,6 +315,11 @@ final class LiteSpeedCache
     # Prevent a shared hit before PHP can apply user/session checks. A sole
     # validated locale cookie is safe because responses vary on that cookie.
     <IfModule LiteSpeed>
+        # Enable LSCache request lookup/store for this vhost. Without it LSWS
+        # ignores the X-LiteSpeed-Cache-Control response headers and no page is
+        # ever served from edge cache.
+        CacheLookup on
+
         # The locale must be part of the lookup key before PHP is reached.
         # X-LiteSpeed-Vary repeats this on cacheable responses, but this rule
         # also protects the first lookup after a worker/cache restart.
@@ -265,10 +340,60 @@ HTACCESS;
         $updated = str_replace($anchor, $anchor . $block, $content);
         $permissions = @fileperms($path);
         $written = self::atomicWrite($path, $updated, is_int($permissions) ? ($permissions & 0777) : 0644);
-        if ($usesDefaultPath) {
-            self::$lookupBypassCache = $written ? true : null;
-        }
+        self::rememberBypassState($usesDefaultPath, $written ? true : null);
         return $written;
+    }
+
+    /**
+     * Insert `CacheLookup on` at the top of an existing privacy block's
+     * <IfModule LiteSpeed> so a pre-CacheLookup install starts serving edge
+     * cache. Operates strictly on the substring between the block markers and
+     * fails closed (null) if the block's single IfModule opener is not found —
+     * a hand-mangled block must not be silently rewritten.
+     */
+    private static function healCacheLookup(string $content): ?string
+    {
+        $start = strpos($content, self::HTACCESS_MARKER);
+        if ($start === false) {
+            return null;
+        }
+        $end = strpos($content, self::HTACCESS_END_MARKER, $start);
+        if ($end === false) {
+            return null;
+        }
+        $blockEnd = $end + strlen(self::HTACCESS_END_MARKER);
+        $block = substr($content, $start, $blockEnd - $start);
+
+        // Match the block's single <IfModule LiteSpeed> opener line while
+        // tolerating CRLF and indentation, and reuse its exact line ending for
+        // the injected directive so a Windows-edited .htaccess heals too.
+        if (preg_match_all('/^[ \t]*<IfModule LiteSpeed>[ \t]*\r?\n/m', $block, $matches) !== 1) {
+            return null;
+        }
+        $opener = $matches[0][0];
+        $eol = str_ends_with($opener, "\r\n") ? "\r\n" : "\n";
+        $injected = $opener
+            . "        # Enable LSCache request lookup/store for this vhost. Without it LSWS{$eol}"
+            . "        # ignores the X-LiteSpeed-Cache-Control response headers and no page is{$eol}"
+            . "        # ever served from edge cache.{$eol}"
+            . "        CacheLookup on{$eol}{$eol}";
+        $newBlock = str_replace($opener, $injected, $block);
+
+        return substr($content, 0, $start) . $newBlock . substr($content, $blockEnd);
+    }
+
+    /**
+     * The protective guards and CacheLookup are always written together, so
+     * their in-request caches move as one. A confirmed/written block sets both
+     * true; a failed write clears both to null so the next read re-checks disk.
+     */
+    private static function rememberBypassState(bool $usesDefaultPath, ?bool $state): void
+    {
+        if (!$usesDefaultPath) {
+            return;
+        }
+        self::$lookupBypassCache = $state;
+        self::$cacheLookupCache = $state;
     }
 
     public static function cliPurgeConfigured(): bool

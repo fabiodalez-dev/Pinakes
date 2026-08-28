@@ -189,6 +189,17 @@ $check(str_contains($htaccess, 'E=Cache-Control:no-cache'), 'Apache/LiteSpeed co
 $check(str_contains($htaccess, 'pinakes_locale='), 'lookup bypass permits only the locale cookie exception');
 $check(str_contains($htaccess, 'E=Cache-Vary:pinakes_locale'), 'locale participates in the LiteSpeed lookup key before PHP');
 $check(str_contains($htaccessDist, 'E=Cache-Control:no-cache'), 'fresh-install htaccess ships the lookup-time bypass');
+$check(str_contains($htaccess, "\n        CacheLookup on\n"), 'shipped htaccess enables LSCache request lookup');
+$check(str_contains($htaccessDist, 'CacheLookup on'), 'fresh-install htaccess enables LSCache request lookup');
+$check(str_contains($advancedSettingsView, 'advanced/purge-litespeed'), 'Advanced settings exposes the edge-cache purge button');
+$check(str_contains($routesSource, "/admin/settings/advanced/purge-litespeed"), 'edge-cache purge route is registered');
+$check(str_contains($settingsController, 'function purgeLiteSpeedCache'), 'purge controller action exists');
+$check(str_contains($settingsController, "'X-LiteSpeed-Purge'"), 'purge action emits the LiteSpeed purge header on its response');
+$purgeMethod = strstr($settingsController, 'function purgeLiteSpeedCache');
+$purgeBody = is_string($purgeMethod) ? substr($purgeMethod, 0, 1200) : '';
+$check(str_contains($purgeBody, "!== 'admin'"), 'edge purge re-checks the admin role (AdminAuthMiddleware also admits staff)');
+$check(str_contains($purgeBody, 'serverDetected') && str_contains($purgeBody, 'LiteSpeedCache::enabled'), 'edge purge only claims a flush when LiteSpeed is actually active here (no false success on Apache)');
+$check(str_contains($advancedSettingsView, 'disabled:cursor-not-allowed'), 'purge button is rendered disabled when this request is not served by LiteSpeed');
 $check(str_contains($liveJs, "cache: 'no-store'"), 'availability hydration always bypasses HTTP cache');
 $check(str_contains($liveJs, 'hydrationGeneration'), 'obsolete hydration responses cannot overwrite a newer catalog render');
 $check(str_contains($liveJs, 'neutral, actionable fallback'), 'availability failures retain a usable neutral fallback');
@@ -211,6 +222,7 @@ foreach (glob(dirname(__DIR__) . '/locale/??_??.json') ?: [] as $localeFile) {
         $check(substr_count($localeJson, '"' . $durationKey . '":') === 1, basename($localeFile) . " has one {$durationKey} translation key");
     }
     $check(substr_count($localeJson, '"Verifica disponibilità":') === 1, basename($localeFile) . ' translates the neutral availability label');
+    $check(substr_count($localeJson, '"Svuota cache edge":') === 1, basename($localeFile) . ' translates the edge-cache purge button');
     $check(substr_count($localeJson, '"Impossibile elaborare l\'immagine.":') === 1, basename($localeFile) . ' has one image-processing error key');
 }
 
@@ -224,10 +236,58 @@ if ($fixtureReady) {
     $healed = (string) file_get_contents($fixture);
     $check(substr_count($healed, '# === Pinakes LiteSpeed privacy bypass ===') === 1, 'self-heal inserts one marked bypass block');
     $check(str_contains($healed, 'E=Cache-Vary:pinakes_locale'), 'self-healed bypass includes lookup-time locale vary');
+    $check(substr_count($healed, "\n        CacheLookup on\n") === 1, 'self-healed bypass enables LSCache lookup exactly once');
     $check(LiteSpeedCache::lookupBypassInstalled($fixture), 'self-healed .htaccess passes the installation diagnostic');
+    $check(LiteSpeedCache::cacheLookupInstalled($fixture), 'self-healed .htaccess reports LSCache lookup enabled');
     $check(LiteSpeedCache::ensureLookupBypass($fixture), 'self-heal is idempotent');
     $check((string) file_get_contents($fixture) === $healed, 'idempotent self-heal leaves the file byte-identical');
     unlink($fixture);
+}
+
+echo "-- legacy privacy block without CacheLookup self-heals --\n";
+// bibliodoc's real pre-fix state: 0.7.70/0.7.71 shipped the privacy guards but
+// never enabled LSCache lookup, so the edge cache was inert. An upgrade must
+// insert `CacheLookup on` in place without duplicating the block.
+$legacyBlock = str_replace(
+    "    <IfModule LiteSpeed>\n"
+    . "        # Enable LSCache request lookup/store for this vhost. Without it LSWS\n"
+    . "        # ignores the X-LiteSpeed-Cache-Control response headers and no page is\n"
+    . "        # ever served from edge cache.\n"
+    . "        CacheLookup on\n\n"
+    . "        RewriteRule .* - [E=Cache-Vary:pinakes_locale]",
+    "    <IfModule LiteSpeed>\n"
+    . "        RewriteRule .* - [E=Cache-Vary:pinakes_locale]",
+    $htaccess
+);
+$check($legacyBlock !== $htaccess && !str_contains($legacyBlock, 'CacheLookup on'), 'legacy fixture drops CacheLookup while keeping the guards');
+$legacyFixture = tempnam(sys_get_temp_dir(), 'pinakes-htaccess-legacy-');
+if (is_string($legacyFixture) && file_put_contents($legacyFixture, $legacyBlock) !== false) {
+    $check(LiteSpeedCache::lookupBypassInstalled($legacyFixture), 'legacy block still satisfies the privacy diagnostic');
+    $check(!LiteSpeedCache::cacheLookupInstalled($legacyFixture), 'legacy block is correctly flagged as lookup-disabled');
+    $check(LiteSpeedCache::ensureLookupBypass($legacyFixture), 'upgrade heals a legacy block in place');
+    $legacyHealed = (string) file_get_contents($legacyFixture);
+    $check(substr_count($legacyHealed, '# === Pinakes LiteSpeed privacy bypass ===') === 1, 'heal does not duplicate the marked block');
+    $check(substr_count($legacyHealed, "\n        CacheLookup on\n") === 1, 'heal inserts CacheLookup exactly once');
+    $check(LiteSpeedCache::cacheLookupInstalled($legacyFixture), 'healed legacy block now reports lookup enabled');
+    $check(LiteSpeedCache::lookupBypassInstalled($legacyFixture), 'healed legacy block preserves the privacy guards');
+    $check(LiteSpeedCache::ensureLookupBypass($legacyFixture) && (string) file_get_contents($legacyFixture) === $legacyHealed, 'legacy heal is idempotent');
+    unlink($legacyFixture);
+}
+
+echo "-- self-heal tolerates CRLF line endings --\n";
+// A .htaccess edited on Windows carries CRLF; the heal must find the opener and
+// reuse the file's line ending instead of assuming LF.
+$crlfFixture = tempnam(sys_get_temp_dir(), 'pinakes-htaccess-crlf-');
+$crlfLegacy = str_replace("\n", "\r\n", $legacyBlock);
+if (is_string($crlfFixture) && file_put_contents($crlfFixture, $crlfLegacy) !== false) {
+    $check(!LiteSpeedCache::cacheLookupInstalled($crlfFixture), 'CRLF legacy block is flagged lookup-disabled');
+    $check(LiteSpeedCache::ensureLookupBypass($crlfFixture), 'CRLF legacy block heals');
+    $crlfHealed = (string) file_get_contents($crlfFixture);
+    $check(str_contains($crlfHealed, "CacheLookup on\r\n"), 'CRLF heal reuses the file CRLF line ending');
+    $check(substr_count($crlfHealed, 'CacheLookup on') === 1, 'CRLF heal inserts CacheLookup exactly once');
+    $check(LiteSpeedCache::cacheLookupInstalled($crlfFixture), 'healed CRLF block reports lookup enabled');
+    $check(LiteSpeedCache::lookupBypassInstalled($crlfFixture), 'healed CRLF block preserves privacy guards');
+    unlink($crlfFixture);
 }
 
 // A block that carries BOTH markers but has its no-cache guards commented out

@@ -7004,5 +7004,11 @@
   "Protezione pre-cache installata": "Pre-cache-beskyttelse installeret",
   "Protezione pre-cache non installata": "Pre-cache-beskyttelse ikke installeret",
   "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.": "LiteSpeed kan ikke aktiveres: public/.htaccess kan ikke skrives til eller opdateres sikkert.",
-  "Verifica disponibilità": "Tjek tilgængelighed"
+  "Verifica disponibilità": "Tjek tilgængelighed",
+  "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.": "Ændringer i indholdet ugyldiggør allerede cachen automatisk. Brug denne knap til straks at rydde de anonyme sider, som LiteSpeed har gemt, og fremtvinge en øjeblikkelig opdatering.",
+  "Svuota cache edge": "Ryd edge-cache",
+  "Cache edge LiteSpeed svuotata.": "LiteSpeed edge-cache ryddet.",
+  "Solo un amministratore può svuotare la cache.": "Kun en administrator kan rydde cachen.",
+  "LiteSpeed non è attivo su questo server: non c'è nulla da svuotare.": "LiteSpeed er ikke aktiv på denne server: der er intet at rydde.",
+  "LiteSpeed non rilevato in questa richiesta: non c'è nulla da svuotare da qui.": "LiteSpeed blev ikke registreret i denne forespørgsel: der er intet at rydde herfra."
 }

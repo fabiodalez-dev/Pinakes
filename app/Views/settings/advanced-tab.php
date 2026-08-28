@@ -589,6 +589,35 @@ use App\Support\HtmlHelper;
     </div>
   </form>
 
+  <?php if (empty($appSettings['litespeed_container_blocked'])
+           && ($appSettings['litespeed_enabled'] ?? '0') === '1'):
+    $liteSpeedActiveHere = !empty($appSettings['litespeed_server_detected']); ?>
+  <!-- LiteSpeed edge cache maintenance (own form, outside the settings form) -->
+  <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
+    <div class="border-b border-gray-200 px-6 py-4 max-sm:!px-0 max-sm:!border-0">
+      <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+        <i class="fas fa-broom text-gray-500"></i>
+        <?= __("Cache pagine LiteSpeed") ?>
+      </h2>
+      <p class="text-sm text-gray-600 mt-1"><?= __("Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.") ?></p>
+    </div>
+    <div class="p-6 space-y-3 max-sm:!p-0">
+      <form action="<?= htmlspecialchars(url('/admin/settings/advanced/purge-litespeed'), ENT_QUOTES, 'UTF-8') ?>" method="post">
+        <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+        <button type="submit"
+                <?= $liteSpeedActiveHere ? '' : 'disabled aria-disabled="true"' ?>
+                class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          <i class="fas fa-broom"></i>
+          <?= __("Svuota cache edge") ?>
+        </button>
+      </form>
+      <?php if (!$liteSpeedActiveHere): ?>
+      <p class="text-xs text-amber-800"><i class="fas fa-exclamation-triangle mr-1"></i><?= __("LiteSpeed non rilevato in questa richiesta: non c'è nulla da svuotare da qui.") ?></p>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <?php
     $lastGeneratedRaw = $advancedSettings['sitemap_last_generated_at'] ?? '';
     $lastGeneratedDisplay = null;

@@ -10,6 +10,11 @@
     # its user/session checks. A sole locale cookie is safe because the
     # application varies public pages on pinakes_locale.
     <IfModule LiteSpeed>
+        # Enable LSCache request lookup/store for this vhost. Without it LSWS
+        # ignores the X-LiteSpeed-Cache-Control response headers and no page is
+        # ever served from edge cache.
+        CacheLookup on
+
         RewriteRule .* - [E=Cache-Vary:pinakes_locale]
 
         RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]

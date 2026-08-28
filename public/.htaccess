@@ -35,6 +35,11 @@
     # A sole validated locale cookie is safe and is varied independently at
     # lookup time and by the application's X-LiteSpeed-Vary response header.
     <IfModule LiteSpeed>
+        # Enable LSCache request lookup/store for this vhost. Without it LSWS
+        # ignores the X-LiteSpeed-Cache-Control response headers and no page is
+        # ever served from edge cache.
+        CacheLookup on
+
         RewriteRule .* - [E=Cache-Vary:pinakes_locale]
 
         RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
