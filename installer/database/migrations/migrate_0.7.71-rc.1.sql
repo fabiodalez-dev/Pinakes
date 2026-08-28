@@ -55,7 +55,7 @@ LEFT JOIN (
                CASE
                    WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
                     AND TRIM(COALESCE(a.nome, '')) <> ''
-                    AND BINARY TRIM(COALESCE(a.pseudonimo, '')) <> BINARY TRIM(COALESCE(a.nome, ''))
+                    AND CAST(TRIM(COALESCE(a.pseudonimo, '')) AS BINARY) <> CAST(TRIM(COALESCE(a.nome, '')) AS BINARY)
                        THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
                    WHEN TRIM(COALESCE(a.nome, '')) <> '' THEN TRIM(a.nome)
                    ELSE TRIM(COALESCE(a.pseudonimo, ''))

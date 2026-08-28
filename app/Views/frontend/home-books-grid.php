@@ -1,6 +1,9 @@
 <?php
 use App\Support\HtmlHelper;
-$edgeCacheEnabled = \App\Support\LiteSpeedCache::enabled();
+// Also require an actual LiteSpeed server: enabled() only checks config + the
+// installed .htaccess bypass, so on Apache the client-hydrated "pending" badge
+// would otherwise reach no-JS visitors and crawlers instead of the real status.
+$edgeCacheEnabled = \App\Support\LiteSpeedCache::enabled() && \App\Support\LiteSpeedCache::serverDetected();
 
 $createBookUrl = static function ($book) {
     return book_url($book);

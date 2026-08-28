@@ -85,6 +85,9 @@ class QueryCache
      */
     private static int $generationTmpSeq = 0;
 
+    /** Monotonic tie-breaker for the CSPRNG-less negative generation sentinel. */
+    private static int $sentinelCounter = 0;
+
     /** @var int Instrumentation: total get() calls this request */
     private static int $statGets = 0;
 
@@ -496,7 +499,7 @@ class QueryCache
             // request-local unique generation as an additional safety net so
             // this process cannot reuse the old key after the invalidation.
             self::legacyClearByPrefix($ns);
-            self::$generationCache[$ns] = -random_int(1, PHP_INT_MAX);
+            self::$generationCache[$ns] = self::negativeSentinelGeneration();
             return;
         }
 
@@ -537,8 +540,12 @@ class QueryCache
      */
     public static function clearByPrefix(string $prefix): int
     {
-        if (in_array($prefix, self::NAMESPACE_PREFIXES, true)) {
-            self::bumpGeneration($prefix);
+        // Normalize like bumpGeneration() so a caller passing 'catalog' rather
+        // than 'catalog_' still takes the O(1) generation bump instead of the
+        // legacy O(n) scan.
+        $ns = str_ends_with($prefix, '_') ? $prefix : $prefix . '_';
+        if (in_array($ns, self::NAMESPACE_PREFIXES, true)) {
+            self::bumpGeneration($ns);
             return 0;
         }
 
@@ -711,6 +718,25 @@ class QueryCache
     }
 
     /**
+     * A process-unique NEGATIVE generation used as a last-resort sentinel when
+     * the canonical counter cannot be persisted. random_int() throws when the
+     * CSPRNG is unavailable, and bumpGeneration() reaches this from
+     * ContentCache::flushDeferred() — which runs OUTSIDE ErrorMiddleware — so
+     * an uncaught exception would abort the request. Fall back to a
+     * monotonically-decreasing non-crypto value (uniqueness, not
+     * unpredictability, is what this sentinel needs).
+     */
+    private static function negativeSentinelGeneration(): int
+    {
+        try {
+            return -random_int(1, PHP_INT_MAX);
+        } catch (\Throwable $e) {
+            self::$sentinelCounter++;
+            return -(int) ((time() % 1000000000) * 1000 + (self::$sentinelCounter % 1000)) - 1;
+        }
+    }
+
+    /**
      * Current generation of a namespace.
      *
      * The canonical counter is deliberately file-backed even when APCu is the
@@ -736,7 +762,7 @@ class QueryCache
             // Graceful degradation when the cache directory is unavailable:
             // a process-unique negative generation prevents stale cross-request
             // reuse while still allowing repeat lookups within this request.
-            $gen = -random_int(1, PHP_INT_MAX);
+            $gen = self::negativeSentinelGeneration();
         }
 
         self::$generationCache[$ns] = $gen;

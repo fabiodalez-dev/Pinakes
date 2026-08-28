@@ -59,7 +59,12 @@ class LanguageController
             || $forwardedProto === 'https'
             || $forwardedSsl === 'on';
         $basePath = rtrim(\App\Support\HtmlHelper::getBasePath(), '/');
-        $cookiePath = ($basePath === '' ? '' : $basePath) . '/';
+        // No trailing slash: a cookie Path of "/subfolder/" fails RFC 6265
+        // path-matching for the base URL itself ("/subfolder"), so the locale
+        // cookie would not be sent on the app root of a subdirectory install.
+        // "/subfolder" matches "/subfolder", "/subfolder/" and "/subfolder/*"
+        // without leaking to a sibling like "/subfolderX".
+        $cookiePath = $basePath === '' ? '/' : $basePath;
         $cookie = 'pinakes_locale=' . rawurlencode($locale)
             . '; Path=' . $cookiePath
             . '; Max-Age=31536000; SameSite=Lax; HttpOnly' . ($secure ? '; Secure' : '');
