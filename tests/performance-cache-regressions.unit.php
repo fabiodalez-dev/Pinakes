@@ -127,8 +127,8 @@ $check(
     str_contains($frontend, 'private function fetchLiveAvailability(mysqli $db, array $ids): ?array')
         && str_contains($frontend, 'catch (\\Throwable $e)')
         && str_contains($frontend, 'if ($live === null)')
-        && str_contains($frontend, 'return $rows;'),
-    'live-availability failures are distinguished from empty results and preserve cached catalog rows'
+        && str_contains($frontend, '_availability_unknown'),
+    'live-availability failures are distinguished from empty results and flag rows for neutral rendering'
 );
 
 $fetchLiveAvailability = $reflection->getMethod('fetchLiveAvailability');
@@ -138,7 +138,13 @@ $failedLiveRead = $fetchLiveAvailability->invoke($controller, $unavailableDb, [4
 $cachedCatalogRows = [['id' => 42, 'titolo' => 'Cached title']];
 $preservedRows = $mergeLiveAvailability->invoke($controller, $unavailableDb, $cachedCatalogRows);
 $check($failedLiveRead === null, 'live-availability query exceptions return an explicit failure result');
-$check($preservedRows === $cachedCatalogRows, 'catalog rows survive a live-availability database outage');
+$check(
+    count($preservedRows) === 1
+        && (int) ($preservedRows[0]['id'] ?? 0) === 42
+        && ($preservedRows[0]['titolo'] ?? null) === 'Cached title'
+        && !empty($preservedRows[0]['_availability_unknown']),
+    'catalog rows survive a live-availability database outage, flagged for neutral rendering'
+);
 
 echo "\nBehavioural cache contracts:\n";
 $runKey = 'pr323_' . bin2hex(random_bytes(6));
