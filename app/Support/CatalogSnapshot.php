@@ -7,10 +7,11 @@ namespace App\Support;
  * Shared materialization for bounded catalog aggregates.
  *
  * QueryCache remains the fast per-worker layer. This table-backed projection
- * lets separate application nodes, SAPIs and file-cache processes reuse the
- * same expensive count/facet payload. Rows carry the canonical catalog
+ * lets APCu and file-backed SAPIs sharing one installation generation reuse
+ * the same expensive count/facet payload. Rows carry the canonical catalog
  * generation, so ContentCache invalidation remains O(1) and an older in-flight
- * request can never overwrite a newer projection.
+ * request can never overwrite a newer projection. Cross-server coherence is
+ * intentionally left to the later Redis phase.
  */
 final class CatalogSnapshot
 {

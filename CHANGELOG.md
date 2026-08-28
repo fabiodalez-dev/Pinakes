@@ -8,7 +8,7 @@ First release candidate for catalog denormalization. Existing installs receive a
 
 ### Performance
 
-- Bounded catalog counts and facet payloads are materialized in MySQL with the same generation token and short safety TTL used by `QueryCache`. APCu remains the fastest same-host layer, while separate nodes, SAPIs and file-cache processes reuse one shared aggregate instead of repeating six catalog scans.
+- Bounded catalog counts and facet payloads are materialized in MySQL with the same generation token and short safety TTL used by `QueryCache`. APCu remains the fastest same-host layer, while CLI/file-cache SAPIs that share the installation generation reuse the aggregate instead of repeating six catalog scans. Cross-server coherence remains deferred to the Redis phase.
 - Public catalog rows read a write-maintained principal-author projection instead of executing three correlated `libri_autori` subqueries per book. Principal/co-author priority, explicit credit order, pseudonym display and author sorting remain deterministic.
 
 ### Compatibility and consistency

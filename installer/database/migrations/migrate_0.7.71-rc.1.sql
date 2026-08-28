@@ -2,8 +2,8 @@
 --
 -- Existing installs receive three nullable, write-maintained display columns
 -- that replace the public catalog's three correlated author subqueries. The
--- snapshot table shares bounded count/facet payloads between APCu workers and
--- is keyed by QueryCache's canonical catalog generation.
+-- snapshot table shares bounded count/facet payloads between APCu and
+-- file-backed SAPIs that share QueryCache's canonical installation generation.
 --
 -- Every DDL statement is guarded so interrupted/repeated upgrades are safe.
 
