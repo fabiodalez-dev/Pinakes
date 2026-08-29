@@ -15,7 +15,7 @@ use App\Support\HtmlHelper;
     <div class="p-6 space-y-3 max-sm:!p-0">
       <p class="text-sm text-gray-600"><i class="fas fa-broom text-gray-400 mr-1"></i><?= __("Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.") ?></p>
       <form action="<?= htmlspecialchars(url('/admin/settings/advanced/purge-litespeed'), ENT_QUOTES, 'UTF-8') ?>" method="post">
-        <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <button type="submit"
                 <?= $liteSpeedActiveHere ? '' : 'disabled aria-disabled="true"' ?>
                 class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -31,7 +31,7 @@ use App\Support\HtmlHelper;
   <?php endif; ?>
 
   <form action="<?= htmlspecialchars(url('/admin/settings/advanced'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
-    <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 
     <?php if (!empty($isAdmin)): ?>
     <!-- LiteSpeed full-page cache -->
@@ -743,7 +743,7 @@ use App\Support\HtmlHelper;
           <?= __("Usa questa azione dopo aver importato un grande numero di libri o modifiche ai contenuti CMS.") ?>
         </p>
         <form action="<?= htmlspecialchars(url('/admin/settings/advanced/regenerate-sitemap'), ENT_QUOTES, 'UTF-8') ?>" method="post">
-          <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
           <button type="submit"
                   class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
             <i class="fas fa-cogs"></i>
@@ -800,7 +800,7 @@ use App\Support\HtmlHelper;
     <div id="api-section-content" class="p-6 space-y-6 max-sm:!p-0">
       <!-- Enable/Disable API -->
       <form action="<?= htmlspecialchars(url('/admin/settings/api/toggle'), ENT_QUOTES, 'UTF-8') ?>" method="post" id="api-toggle-form">
-        <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
           <div>
             <h4 class="text-sm font-semibold text-gray-900"><?= __("Stato API") ?></h4>
@@ -888,7 +888,7 @@ use App\Support\HtmlHelper;
                 </div>
                 <div class="flex items-center gap-2 ml-4">
                   <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/' . (int)$key['id'] . '/toggle'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline">
-                    <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg <?php echo $key['is_active'] ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-gray-900 text-white hover:bg-black'; ?> transition-colors"
                             title="<?php echo $key['is_active'] ? __('Disattiva') : __('Attiva API key'); ?>">
@@ -898,7 +898,7 @@ use App\Support\HtmlHelper;
                   <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/' . (int)$key['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline"
                         data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questa API key? Questa azione è irreversibile.'), ENT_QUOTES, 'UTF-8') ?>"
                         data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
-                    <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
                             title="<?= __("Elimina") ?>">
@@ -1028,7 +1028,7 @@ use App\Support\HtmlHelper;
       </button>
     </div>
     <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/create'), ENT_QUOTES, 'UTF-8') ?>" method="post">
-      <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
       <div class="space-y-4">
         <div>
           <label for="api_key_name" class="block text-sm font-medium text-gray-700 mb-1"><?= __("Nome *") ?></label>
