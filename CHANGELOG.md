@@ -2,6 +2,23 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.71-rc.3]
+
+Front-end delivery and admin-UX polish on top of rc.2. No schema change.
+
+### Performance
+
+- The Digital Library plugin loaded the Green Audio Player CSS and JS on every frontend page through the global `assets.head` hook, even where no audiobook exists. They are now emitted only where an audiobook actually renders, so the home, catalog and non-audio book pages drop two render-blocking requests. The digital badges keep their styling because that CSS stays global. Verified end to end: the player still initialises, styles and plays; the PDF viewer still lazy-loads.
+- FontAwesome ships its icon `@font-face` with `font-display: block`, which hides icons (FOIT) for up to 3s and blocks first paint on the font. Its icons use Private-Use-Area codepoints, so a fallback renders nothing (no tofu) — the built `vendor.css` now uses `font-display: swap`, applied as a reproducible post-build step so CI and local builds stay byte-identical.
+
+### Administration
+
+- The "Clear edge cache" control now sits at the top of Settings → Advanced, above the LiteSpeed settings, as its own compact card (kept in a separate form outside the settings form so the advanced form still has a single submit button).
+
+### Internal
+
+- CSRF token fields in the Advanced settings view use `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')` instead of `HtmlHelper::e()`, per the view escaping path rule.
+
 ## [0.7.71-rc.2]
 
 Fixes the LiteSpeed edge cache so the admin toggle actually caches, and adds an on-demand purge control. No schema change.
