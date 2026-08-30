@@ -229,7 +229,7 @@ test.describe.serial('Admin Settings: all tabs', () => {
     const jsCode = `// E2E test ${RUN_ID}`;
     await page.fill('#custom_js_essential', jsCode);
 
-    await page.locator('section[data-settings-panel="advanced"] button[type="submit"]').first().click();
+    await page.locator('form[action$="/admin/settings/advanced"] button[type="submit"]').first().click();
     await page.waitForLoadState('networkidle');
 
     // Verify in DB
@@ -240,7 +240,7 @@ test.describe.serial('Admin Settings: all tabs', () => {
     await page.goto(`${BASE}/admin/settings?tab=advanced`);
     await page.locator('[data-settings-tab="advanced"]').click();
     await page.fill('#custom_js_essential', '');
-    await page.locator('section[data-settings-panel="advanced"] button[type="submit"]').first().click();
+    await page.locator('form[action$="/admin/settings/advanced"] button[type="submit"]').first().click();
     await page.waitForLoadState('networkidle');
   });
 
