@@ -6,26 +6,22 @@
 use App\Support\HtmlHelper;
 ?>
 <section data-settings-panel="advanced" class="settings-panel <?php echo $activeTab === 'advanced' ? 'block' : 'hidden'; ?>">
-  <?php if (!empty($isAdmin)
-           && empty($appSettings['litespeed_container_blocked'])
-           && ($appSettings['litespeed_enabled'] ?? '0') === '1'):
-    $liteSpeedActiveHere = !empty($appSettings['litespeed_server_detected']); ?>
-  <!-- LiteSpeed edge cache maintenance (own form, above the settings form) -->
+  <?php if (!empty($isAdmin)):
+    $queryCacheBackend = ($appSettings['query_cache_backend'] ?? 'file') === 'apcu' ? 'APCu' : 'storage/cache'; ?>
+  <!-- Unified cache maintenance: one button clears the application query cache
+       everywhere, plus the LiteSpeed edge cache where the server has one. -->
   <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mb-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
     <div class="p-6 space-y-3 max-sm:!p-0">
-      <p class="text-sm text-gray-600"><i class="fas fa-broom text-gray-400 mr-1"></i><?= __("Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.") ?></p>
-      <form action="<?= htmlspecialchars(url('/admin/settings/advanced/purge-litespeed'), ENT_QUOTES, 'UTF-8') ?>" method="post">
+      <p class="text-sm text-gray-600"><i class="fas fa-broom text-gray-400 mr-1"></i><?= __("Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito tutta la cache: le query interne (scheda libro, recensioni, elenchi di catalogo e ricerca) e, se il server è LiteSpeed, anche le pagine memorizzate nell'edge cache.") ?></p>
+      <form action="<?= htmlspecialchars(url('/admin/settings/advanced/flush-cache'), ENT_QUOTES, 'UTF-8') ?>" method="post">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <button type="submit"
-                <?= $liteSpeedActiveHere ? '' : 'disabled aria-disabled="true"' ?>
                 class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           <i class="fas fa-broom"></i>
-          <?= __("Svuota cache edge") ?>
+          <?= __("Svuota cache") ?>
         </button>
       </form>
-      <?php if (!$liteSpeedActiveHere): ?>
-      <p class="text-xs text-amber-800"><i class="fas fa-exclamation-triangle mr-1"></i><?= __("LiteSpeed non rilevato in questa richiesta: non c'è nulla da svuotare da qui.") ?></p>
-      <?php endif; ?>
+      <p class="text-xs text-gray-500"><?= __("Backend attivo:") ?> <code class="bg-gray-100 px-1 py-0.5 rounded"><?= htmlspecialchars($queryCacheBackend, ENT_QUOTES, 'UTF-8') ?></code></p>
     </div>
   </div>
   <?php endif; ?>

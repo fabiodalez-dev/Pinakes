@@ -7005,10 +7005,10 @@
   "Protezione pre-cache non installata": "Protezione pre-cache non installata",
   "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.": "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.",
   "Verifica disponibilità": "Verifica disponibilità",
-  "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.": "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.",
-  "Svuota cache edge": "Svuota cache edge",
-  "Cache edge LiteSpeed svuotata.": "Cache edge LiteSpeed svuotata.",
   "Solo un amministratore può svuotare la cache.": "Solo un amministratore può svuotare la cache.",
-  "LiteSpeed non è attivo su questo server: non c'è nulla da svuotare.": "LiteSpeed non è attivo su questo server: non c'è nulla da svuotare.",
-  "LiteSpeed non rilevato in questa richiesta: non c'è nulla da svuotare da qui.": "LiteSpeed non rilevato in questa richiesta: non c'è nulla da svuotare da qui."
+  "Backend attivo:": "Backend attivo:",
+  "Impossibile svuotare completamente la cache dell'applicazione. Controlla i permessi di storage/cache.": "Impossibile svuotare completamente la cache dell'applicazione. Controlla i permessi di storage/cache.",
+  "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito tutta la cache: le query interne (scheda libro, recensioni, elenchi di catalogo e ricerca) e, se il server è LiteSpeed, anche le pagine memorizzate nell'edge cache.": "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito tutta la cache: le query interne (scheda libro, recensioni, elenchi di catalogo e ricerca) e, se il server è LiteSpeed, anche le pagine memorizzate nell'edge cache.",
+  "Svuota cache": "Svuota cache",
+  "Cache svuotata.": "Cache svuotata."
 }

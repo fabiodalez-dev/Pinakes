@@ -1883,6 +1883,17 @@ test.describe.serial('Phase 11: Settings', () => {
     // hide-when-not-applicable fix; the rest of the Advanced tab still renders.
     await expect(page.locator('#litespeed_enabled')).toHaveCount(0);
     await expect(page.locator('#session_lifetime')).toBeVisible();
+
+    // The application query-cache flush is available on EVERY server (LiteSpeed
+    // or not) — it is the non-LiteSpeed counterpart to the edge-cache purge.
+    // Assert the maintenance form renders and that clicking it reports success
+    // (a green flash; a red flash would mean the flush failed). This runs in the
+    // PHP-FPM request so QueryCache::flush() reaches the same backend serving
+    // pages, which is exactly why it lives behind a button and not a CLI command.
+    const flushCacheForm = page.locator('form[action*="/admin/settings/advanced/flush-cache"]');
+    await expect(flushCacheForm).toBeVisible();
+    await flushCacheForm.locator('button[type="submit"]').click();
+    await expect(page.locator('.bg-green-50[role="alert"]')).toBeVisible({ timeout: 15000 });
   });
 
   test('11.10 CMS homepage link exists', async () => {
