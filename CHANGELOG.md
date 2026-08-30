@@ -2,132 +2,30 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [0.7.71-rc.3]
+## [0.7.71]
 
-Front-end delivery and admin-UX polish on top of rc.2. No schema change.
+A performance release: a full caching overhaul for anonymous traffic (issue #387), delivered as one stable jump from 0.7.68. Every install upgrades with identical behaviour on a cold cache; the optional LiteSpeed edge cache is off by default and configured by administrators. Existing installs receive an idempotent catalog-materialization migration.
 
 ### Performance
 
-- The Digital Library plugin loaded the Green Audio Player CSS and JS on every frontend page through the global `assets.head` hook, even where no audiobook exists. They are now emitted only where an audiobook actually renders, so the home, catalog and non-audio book pages drop two render-blocking requests. The digital badges keep their styling because that CSS stays global. Verified end to end: the player still initialises, styles and plays; the PDF viewer still lazy-loads.
-- FontAwesome ships its icon `@font-face` with `font-display: block`, which hides icons (FOIT) for up to 3s and blocks first paint on the font. Its icons use Private-Use-Area codepoints, so a fallback renders nothing (no tofu) — the built `vendor.css` now uses `font-display: swap`, applied as a reproducible post-build step so CI and local builds stay byte-identical.
+- **Single-backend query cache with O(1) invalidation.** `QueryCache` uses one backend per request (APCu when available, else file) and invalidates the content namespaces (catalog, home, genre-tree, book-detail, reviews) through monotonic, file-backed generation counters — a bump makes every prior entry unreachable without scanning or deleting, and an atomic (temp + `rename()`) write can never wipe a counter and re-expose stale data. A non-blocking GC reclaims orphaned files.
+- **Hot public datasets are cached, availability stays live.** The book-detail static DTO (metadata/authors/publishers/series/related), the reviews block and the bounded catalog/search listings are cached per locale, while `copie_disponibili`/`copie_totali`/`stato` are stripped before storage and re-read live on every request — a stale availability number can never be served. Every write path that changes a cached column invalidates the right namespace.
+- **Materialized catalog aggregates and principal-author projection.** Bounded catalog counts and facet payloads are materialized in MySQL under the same generation token and short safety TTL as `QueryCache`; catalog rows read a write-maintained principal-author projection instead of three correlated `libri_autori` subqueries per book. Both fail open to live SQL if the table, counter or named lock is unavailable, and a rolling upgrade keeps the legacy subquery fallback until the projection columns exist.
+- **Optional LiteSpeed full-page edge cache.** Anonymous home, catalog/search and canonical book pages can be served straight from LiteSpeed/LSCache with independent TTLs, locale-aware variation and tag-based purge — no PHP on a hit. Authenticated requests, private mode, mutations, authorization headers, visitor cookies, `Set-Cookie` responses and every unmarked route fail closed to `no-cache`. Book and card availability stays live outside the shared HTML via a capped, batched `no-store` hydration endpoint.
+- **Sessionless anonymous path + lazy CSRF.** Anonymous read-only requests with no auth cookie no longer open a PHP session or embed a per-visitor CSRF token (minted on demand via `GET /csrf-token`), which is what makes the shared edge cache safe. CSRF validation is unchanged — every state-changing request still opens a session and is validated exactly as before.
 
-### Administration
+### Administration and delivery
 
-- The "Clear edge cache" control now sits at the top of Settings → Advanced, above the LiteSpeed settings, as its own compact card (kept in a separate form outside the settings form so the advanced form still has a single submit button).
+- **LiteSpeed is configured from Settings → Advanced**, with separate home/catalog/book TTLs and server/CLI-purge diagnostics. The section is shown only where it applies — a detected LiteSpeed/OpenLiteSpeed server, or when already enabled — and is hidden on plain Apache/nginx and in the Docker image, which never has LiteSpeed. Enabling it writes the required `CacheLookup on` and privacy-bypass rules into `public/.htaccess`; an upgrade heals a pre-existing block in place so the toggle is never inert. A "Clear edge cache" button purges every Pinakes-tagged entry on demand.
+- **Cache coherence and front-end delivery.** Content, availability, review and home writes emit scoped LiteSpeed tags; successful admin/staff mutations also purge shared HTML defensively. Shared cached HTML uses a stable hash-based Content Security Policy instead of per-response nonces. The Digital Library plugin loads the audio-player CSS/JS only on pages that actually render an audiobook, and FontAwesome icon fonts use `font-display: swap` so they no longer block first paint.
+
+### Compatibility
+
+- No breaking change and no new required dependency. Existing installs receive an idempotent catalog-materialization migration; the Apache-based official Docker image permanently disables LiteSpeed at runtime and in Settings while keeping the APCu/file query cache active. Redis remains deliberately deferred.
 
 ### Internal
 
-- CSRF token fields in the Advanced settings view use `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')` instead of `HtmlHelper::e()`, per the view escaping path rule.
-
-## [0.7.71-rc.2]
-
-Fixes the LiteSpeed edge cache so the admin toggle actually caches, and adds an on-demand purge control. No schema change.
-
-### Performance
-
-- The edge-cache privacy block shipped in 0.7.70/0.7.71 without `CacheLookup on`, so LiteSpeed ignored the application's cache headers and never served a page from edge cache — the Settings → Advanced toggle enabled the response headers but stored nothing. The generated, fresh-install and example `.htaccess` now enable LSCache request lookup, and an upgraded install heals its existing block in place (no manual re-save) so an admin who had LiteSpeed enabled starts caching immediately.
-- `LiteSpeedCache::enabled()` now additionally requires the lookup directive to be present, so the admin diagnostics and the front-end pending-availability fallbacks only treat caching as live when the server will actually honour it. The Apache-based official Docker image continues to disable LiteSpeed entirely.
-
-### Administration
-
-- Settings → Advanced gains a "Clear edge cache" button that purges every Pinakes-tagged LiteSpeed entry on demand, for when an admin wants an immediate refresh instead of waiting for content-change invalidation. Translated in every bundled locale.
-
-### Internal
-
-- New behavioral coverage verifies that a fresh install enables lookup, that a legacy privacy block missing `CacheLookup on` self-heals in place exactly once and idempotently, and that the purge control is wired end to end.
-
-## [0.7.71-rc.1]
-
-First release candidate for catalog denormalization. Existing installs receive an idempotent migration; Redis remains deliberately deferred.
-
-### Performance
-
-- Bounded catalog counts and facet payloads are materialized in MySQL with the same generation token and short safety TTL used by `QueryCache`. APCu remains the fastest same-host layer, while CLI/file-cache SAPIs that share the installation generation reuse the aggregate instead of repeating six catalog scans. Cross-server coherence remains deferred to the Redis phase.
-- Public catalog rows read a write-maintained principal-author projection instead of executing three correlated `libri_autori` subqueries per book. Principal/co-author priority, explicit credit order, pseudonym display and author sorting remain deterministic.
-
-### Compatibility and consistency
-
-- Book, author, import and enrichment write paths rebuild the author projection through the existing `SearchIndexBuilder` maintenance funnel. During a rolling upgrade, catalog queries retain the legacy subquery fallback until all projection columns exist.
-- Materialized aggregates fail open to live SQL if the table, generation counter or MySQL named lock is unavailable. Content and availability invalidation still use `ContentCache`; no second availability source is introduced.
-- Projection degradation tracking now coordinates readers and writers through a stable sibling lock and fails closed on partial or corrupt state. Profile review-cache invalidation compares against the locked database before-value instead of a potentially stale session.
-- The Apache-based official Docker image permanently disables LiteSpeed/LSCache at runtime and in Settings, even when an imported database or forged request asks to enable it; file/APCu query caching remains available normally.
-
-## [0.7.70-rc.1]
-
-First release candidate for LiteSpeed full-page caching. No schema change and no required server dependency: the feature is disabled by default and configured by administrators from Settings → Advanced.
-
-### Performance
-
-- Anonymous home, catalog/search and canonical book pages can now be cached by LiteSpeed/LSCache with independent TTLs, locale-aware variation and tag-based purge. Authenticated requests, private mode, mutations, authorization headers, visitor-specific cookies, `Set-Cookie` responses and every unmarked route fail closed to `no-cache`.
-- Book and card availability remains live outside shared HTML. A public `no-store` batch endpoint hydrates availability, copy counts, loan actions and the home aggregate after render; requests are capped and batched in groups of 100, soft-deleted books are excluded and failures leave stale fragments hidden.
-- Canonical anonymous book routes now complete the sessionless path after Slim routing, while lookalike plugin and unknown routes retain the conservative session behavior.
-
-### Administration and cache coherence
-
-- Administrators can enable LiteSpeed and choose separate home, catalog and book TTLs directly in Settings → Advanced, with server and CLI-purge diagnostics. The controls use the existing settings layout and are translated in every bundled locale; staff cannot view or forge them.
-- Content, availability, review and home writes emit scoped LiteSpeed tags. Successful admin/staff mutations also purge shared HTML defensively so theme, language, plugin and future settings changes cannot leave stale pages. CLI/import jobs use a locked durable queue and a secret-authenticated purge endpoint that remains reachable in private mode.
-- Shared cached HTML uses a stable hash-based Content Security Policy instead of reusing per-response nonces. Apache/LiteSpeed lookup-time rules bypass cache before PHP for mutations, authorization and every cookie except the validated locale cookie; fresh-install and example `.htaccess` files carry the same protection.
-
-### Internal
-
-- New behavioral coverage verifies cache admission/bypass, locale variation, CSP stabilization, private-mode purge access, tag invalidation, admin controls, live hydration and large-page batching. Unit-test runs explicitly disable outbound CLI purge dispatch.
-
-## [0.7.69-rc.6]
-
-Sixth release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
-
-### Fixed
-
-- The circular prerelease-check exception now recognizes only an actively pending or failed Verified Release run. A cancelled, skipped or neutral self-check can no longer satisfy the `BLOCKED` safeguard; regression tests cover both terminal buckets.
-
-## [0.7.69-rc.5]
-
-Fifth release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
-
-### Fixed
-
-- Tag pushes no longer start the migration workflow a second time on the already-verified PR commit. Prerelease verification also waits for any concurrently attached non-release check to settle before evaluating GitHub's merge state, while terminal failures and bounded-timeout checks continue to fail closed.
-
-## [0.7.69-rc.4]
-
-Fourth release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
-
-### Fixed
-
-- Prerelease source verification now handles GitHub's observed circular `BLOCKED` state for the tag workflow itself. It accepts that state only when the PR remains mergeable, no review is missing or rejected, every other visible check is green, and the sole blocker is the current Verified Release check; genuine conflicts, policy failures and review blocks still fail closed.
-
-## [0.7.69-rc.3]
-
-Third release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
-
-### Fixed
-
-- Live availability reads now handle failures from the complete MySQLi statement lifecycle, not only `prepare()`. A database outage is distinct from a successful empty result: book detail returns a retryable, non-cacheable 503 instead of a false 404, while a cached catalog page keeps its rows instead of collapsing to an empty grid.
-
-## [0.7.69-rc.2]
-
-Second release candidate for the issue #387 caching overhaul. No schema change and no new required configuration.
-
-### Fixed
-
-- File-cache stampede protection now uses a bounded pool of persistent mutex inodes. Cache flushes, prefix invalidation and garbage collection never unlink a lock that a current or rolling-deploy worker may already have open; late lock acquisition also rechecks the cache before recomputing.
-- Shared public book payloads no longer retain the large FULLTEXT `search_index` column or private LibraryThing patron/loan fields. Catalog queries also remove redundant `DISTINCT` aggregation and unused taxonomy joins.
-- Bulk author deletion invalidates cached public book-detail DTOs immediately after its transaction commits.
-- APCu flush treats a concurrent disappearance as success instead of reporting a false maintenance failure.
-
-## [0.7.69-rc.1]
-
-Release candidate for a performance/caching overhaul (issue #387). No schema change, no new required configuration — every install upgrades with identical behaviour on a cold cache. Bundles three reviewed pieces:
-
-### Performance
-
-- **Single-backend query cache with O(1) invalidation.** `QueryCache` now uses one backend per request (APCu when available, else file) instead of writing to both on every set, and invalidates the content namespaces (catalog, home, genre-tree, book-detail, reviews) through monotonic generation counters — a bump makes every prior entry unreachable without scanning or deleting. The counters are file-backed and written atomically (temp + `rename()`), so a failed write can never wipe one and re-expose invalidated data; a scheduled non-blocking GC reclaims orphaned files. Per-request hit/miss instrumentation (`QueryCache::stats()`) is available for a later diagnostics surface.
-- **Hot public datasets are cached, availability stays live.** The book-detail static DTO (metadata/authors/publishers/series/related), the reviews block and the bounded catalog listing pages are cached per locale, while `copie_disponibili`/`copie_totali`/`stato` are stripped before storage and re-read live on every request — a stale availability number can never be served. Every write-path that changes a cached column (book edit, cover download, series mutation, reviewer name, author enrichment) invalidates the right namespace.
-- **Sessionless anonymous request path + lazy CSRF.** Anonymous read-only requests with no auth cookie no longer open a PHP session or embed a per-visitor CSRF token in the HTML (the token is minted on demand via `GET /csrf-token`), clearing the two blockers to a future shared edge cache. CSRF validation is unchanged — every state-changing request still opens a session and is validated exactly as before; private-mode gating and the login/remember-me flows are untouched. Only the genuinely public `/uploads` subtrees (covers, author photos, branding) are treated as sessionless; the private ones stay behind the session.
-
-### Internal
-
-- OPcache guidance in `php.ini.recommended` corrected (JIT explicitly disabled, `fast_shutdown` removed, sizing driven by `opcache_get_status()`). Extensive new behavioural coverage for the cache backend, generation invalidation, atomicity, the availability split and the sessionless/CSRF predicate.
+- Extensive new behavioural coverage across the cache backend, generation invalidation and atomicity, the availability split, the sessionless/CSRF predicate, LiteSpeed cache admission/bypass and CSP stabilization, the `.htaccess` self-heal, catalog materialization and the settings UI. The Verified Release pipeline was hardened for reproducible, attested prereleases.
 
 ## [0.7.68]
 

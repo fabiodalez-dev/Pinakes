@@ -41,7 +41,25 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.68 — latest
+### v0.7.71 — latest
+
+A performance release: a full caching overhaul for anonymous traffic (issue #387). The pages the public sees — home, catalog/search and book pages — are served from cache instead of rebuilt on every request, while copy availability stays live. Upgrades cleanly with no behaviour change on a cold cache; the optional LiteSpeed edge cache is off by default.
+
+### New
+
+- **Anonymous pages are cached, availability stays live.** A single-backend query cache (APCu, else file) with O(1) generation invalidation serves the book-detail data, the reviews block and the bounded catalog/search listings; catalog counts, facets and each book's principal author are materialized in the database. Copy availability is stripped from every cached payload and re-read live, so a stale "available" count can never be shown.
+- **Optional LiteSpeed full-page edge cache.** On LiteSpeed/OpenLiteSpeed you can enable a true full-page cache from *Settings → Advanced*: anonymous home, catalog and book pages are served by the server with no PHP on a hit, with per-page TTLs and a one-click purge. Logged-in users, private mode, mutations and anything with a visitor cookie always bypass it. The section is hidden on servers that are not LiteSpeed (and in the Docker image), so you never see a control that can't work.
+
+### Fixes and delivery
+
+- **The LiteSpeed edge cache toggle now actually caches.** Earlier prereleases wrote the privacy rules but not the `CacheLookup on` directive, so the server ignored them; enabling it now writes the directive, and an upgrade repairs an existing install in place.
+- **Fewer render-blocking requests.** The audiobook player's CSS/JS load only on pages that actually have an audiobook, and the icon fonts no longer block the first paint.
+
+### Upgrade Notes
+
+- **A catalog-materialization migration runs automatically** and is idempotent; existing installs upgrade with no manual step. Back up your database before updating anyway (the in-app updater does this automatically). Redis support is deliberately deferred. See **[CHANGELOG.md](CHANGELOG.md)**.
+
+### v0.7.68
 
 Circulation fixes. A request for a book that is currently out no longer fails on approval — it becomes a real waitlist reservation — and the copy chosen for a loan is now picked consistently everywhere, so a scheduled future loan never comes to depend on someone else returning early.
 
