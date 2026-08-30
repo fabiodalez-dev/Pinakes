@@ -497,6 +497,7 @@ class DigitalLibraryPlugin
     public function renderAudioPlayer(array $book): void
     {
         if (!empty($book['audio_url'])) {
+            $this->enqueueAudioPlayerAssets();
             include __DIR__ . '/views/frontend-player.php';
         }
     }
@@ -529,19 +530,37 @@ class DigitalLibraryPlugin
      */
     public function enqueueAssets(): void
     {
-        // Green Audio Player CSS (hosted locally to satisfy CSP)
-        $cssPath = url('/assets/vendor/green-audio-player/css/green-audio-player.min.css');
-        echo '<link rel="stylesheet" href="' . htmlspecialchars($cssPath, ENT_QUOTES, 'UTF-8') . '">' . "\n";
-
-        // Digital Library CSS - only load if file exists in plugin directory
+        // Digital Library CSS carries the digital badges rendered on catalog and
+        // home cards, so it must stay on every frontend page. The Green Audio
+        // Player CSS/JS, by contrast, are needed ONLY where an audiobook actually
+        // renders — those are emitted on demand by renderAudioPlayer() so the
+        // home, catalog and non-audio book pages drop two render-blocking
+        // requests (Lighthouse: render-blocking resources).
         $pluginCssPath = __DIR__ . '/assets/css/digital-library.css';
         if (file_exists($pluginCssPath)) {
             echo '<link rel="stylesheet" href="' . htmlspecialchars(url('/plugins/digital-library/assets/css/digital-library.css'), ENT_QUOTES, 'UTF-8') . '">' . "\n";
         }
+    }
 
-        // Green Audio Player JS (hosted locally to satisfy CSP)
-        $jsPath = url('/assets/vendor/green-audio-player/js/green-audio-player.min.js');
-        echo '<script src="' . htmlspecialchars($jsPath, ENT_QUOTES, 'UTF-8') . '" defer></script>' . "\n";
+    /**
+     * Emit the Green Audio Player CSS/JS once, only where an audiobook renders.
+     * Kept out of the global assets.head hook so pages without an audio player
+     * do not pay two render-blocking requests. `defer` is honoured on a body
+     * script too, so the player-init handler (which runs on DOMContentLoaded and
+     * falls back to native controls) always sees GreenAudioPlayer defined.
+     */
+    private function enqueueAudioPlayerAssets(): void
+    {
+        static $emitted = false;
+        if ($emitted) {
+            return;
+        }
+        $emitted = true;
+
+        $css = htmlspecialchars(url('/assets/vendor/green-audio-player/css/green-audio-player.min.css'), ENT_QUOTES, 'UTF-8');
+        $js = htmlspecialchars(url('/assets/vendor/green-audio-player/js/green-audio-player.min.js'), ENT_QUOTES, 'UTF-8');
+        echo '<link rel="stylesheet" href="' . $css . '">' . "\n";
+        echo '<script src="' . $js . '" defer></script>' . "\n";
     }
 
     // ========================================================================

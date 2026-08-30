@@ -2,6 +2,31 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.71]
+
+A performance release: a full caching overhaul for anonymous traffic (issue #387), delivered as one stable jump from 0.7.68. Every install upgrades with identical behaviour on a cold cache; the optional LiteSpeed edge cache is off by default and configured by administrators. Existing installs receive an idempotent catalog-materialization migration.
+
+### Performance
+
+- **Single-backend query cache with O(1) invalidation.** `QueryCache` uses one backend per request (APCu when available, else file) and invalidates the content namespaces (catalog, home, genre-tree, book-detail, reviews) through monotonic, file-backed generation counters — a bump makes every prior entry unreachable without scanning or deleting, and an atomic (temp + `rename()`) write can never wipe a counter and re-expose stale data. A non-blocking GC reclaims orphaned files.
+- **Hot public datasets are cached, availability stays live.** The book-detail static DTO (metadata/authors/publishers/series/related), the reviews block and the bounded catalog/search listings are cached per locale, while `copie_disponibili`/`copie_totali`/`stato` are stripped before storage and re-read live on every request — a stale availability number can never be served. Every write path that changes a cached column invalidates the right namespace.
+- **Materialized catalog aggregates and principal-author projection.** Bounded catalog counts and facet payloads are materialized in MySQL under the same generation token and short safety TTL as `QueryCache`; catalog rows read a write-maintained principal-author projection instead of three correlated `libri_autori` subqueries per book. Both fail open to live SQL if the table, counter or named lock is unavailable, and a rolling upgrade keeps the legacy subquery fallback until the projection columns exist.
+- **Optional LiteSpeed full-page edge cache.** Anonymous home, catalog/search and canonical book pages can be served straight from LiteSpeed/LSCache with independent TTLs, locale-aware variation and tag-based purge — no PHP on a hit. Authenticated requests, private mode, mutations, authorization headers, visitor cookies, `Set-Cookie` responses and every unmarked route fail closed to `no-cache`. Book and card availability stays live outside the shared HTML via a capped, batched `no-store` hydration endpoint.
+- **Sessionless anonymous path + lazy CSRF.** Anonymous read-only requests with no auth cookie no longer open a PHP session or embed a per-visitor CSRF token (minted on demand via `GET /csrf-token`), which is what makes the shared edge cache safe. CSRF validation is unchanged — every state-changing request still opens a session and is validated exactly as before.
+
+### Administration and delivery
+
+- **LiteSpeed is configured from Settings → Advanced**, with separate home/catalog/book TTLs and server/CLI-purge diagnostics. The section is shown only where it applies — a detected LiteSpeed/OpenLiteSpeed server, or when already enabled — and is hidden on plain Apache/nginx and in the Docker image, which never has LiteSpeed. Enabling it writes the required `CacheLookup on` and privacy-bypass rules into `public/.htaccess`; an upgrade heals a pre-existing block in place so the toggle is never inert. A "Clear edge cache" button purges every Pinakes-tagged entry on demand.
+- **Cache coherence and front-end delivery.** Content, availability, review and home writes emit scoped LiteSpeed tags; successful admin/staff mutations also purge shared HTML defensively. Shared cached HTML uses a stable hash-based Content Security Policy instead of per-response nonces. The Digital Library plugin loads the audio-player CSS/JS only on pages that actually render an audiobook, and FontAwesome icon fonts use `font-display: swap` so they no longer block first paint.
+
+### Compatibility
+
+- No breaking change and no new required dependency. Existing installs receive an idempotent catalog-materialization migration; the Apache-based official Docker image permanently disables LiteSpeed at runtime and in Settings while keeping the APCu/file query cache active. Redis remains deliberately deferred.
+
+### Internal
+
+- Extensive new behavioural coverage across the cache backend, generation invalidation and atomicity, the availability split, the sessionless/CSRF predicate, LiteSpeed cache admission/bypass and CSP stabilization, the `.htaccess` self-heal, catalog materialization and the settings UI. The Verified Release pipeline was hardened for reproducible, attested prereleases.
+
 ## [0.7.68]
 
 Circulation fixes. A request for a book that is currently out no longer fails on approval — it becomes a real waitlist reservation — and copy allocation is made consistent everywhere a copy is chosen. Also restores the "waiting for pickup" cancel action (#381), the terminal pickup email for archived books, and author photos supplied as a URL (#382).

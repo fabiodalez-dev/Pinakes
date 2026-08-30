@@ -9,7 +9,7 @@ $homeEvents = $homeEvents ?? [];
 $homeEventsEnabled = $homeEventsEnabled ?? false;
 
 if ($homeEventsEnabled && !empty($homeEvents)):
-    $homeEventsLocale = $_SESSION['locale'] ?? 'it_IT';
+    $homeEventsLocale = $_SESSION['locale'] ?? (\App\Support\I18n::getLocale() ?: 'it_IT');
     $homeEventsDateFormatter = class_exists('IntlDateFormatter')
         ? new \IntlDateFormatter($homeEventsLocale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE)
         : null;

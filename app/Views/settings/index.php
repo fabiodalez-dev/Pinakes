@@ -238,7 +238,7 @@ $activeTab = $activeTab ?? 'general';
           <div class="flex justify-end">
             <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-save"></i>
-              <?= __("Salva identità") ?>
+              <?= __("Salva impostazioni generali") ?>
             </button>
           </div>
         </form>

@@ -2,6 +2,7 @@ name: Test Database Migrations
 
 on:
   push:
+    branches: [main]
     paths:
       - 'installer/database/migrations/**'
       - 'installer/database/schema.sql'

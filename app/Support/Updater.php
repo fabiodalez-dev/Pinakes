@@ -2932,18 +2932,7 @@ class Updater
      */
     private function isRunningInContainer(): bool
     {
-        if (is_file('/.dockerenv') || is_file('/run/.containerenv')) {
-            return true;
-        }
-        $flag = $_ENV['PINAKES_DOCKER'] ?? (getenv('PINAKES_DOCKER') ?: '');
-        if (is_string($flag) && $flag !== '' && $flag !== '0') {
-            return true;
-        }
-        $cgroup = @file_get_contents('/proc/1/cgroup');
-        if (is_string($cgroup) && preg_match('/\b(docker|containerd|kubepods|libpod)\b/', $cgroup) === 1) {
-            return true;
-        }
-        return false;
+        return ContainerRuntime::detected();
     }
 
     /**
@@ -3354,6 +3343,22 @@ class Updater
                 && !PickupDeadlineBackfill::run($this->db)
             ) {
                 $this->debugLog('WARNING', 'Pickup deadline backfill failed; it will retry on the next upgrade run');
+            }
+
+            // 0.7.72: the edge-cache privacy block shipped in 0.7.70/0.7.71
+            // WITHOUT `CacheLookup on`, so LSWS ignored the app's cache headers
+            // and no page was ever served from edge cache — the admin toggle
+            // was inert. Heal public/.htaccess in place on upgrade so an install
+            // that had LiteSpeed enabled starts caching without a manual re-save.
+            // Only touch the file when the operator actually opted in, never in
+            // the Apache Docker image, and treat a non-writable file as a
+            // deferrable warning (a re-save from the admin UI still heals it).
+            // Idempotent: a no-op once CacheLookup is already present.
+            if (!LiteSpeedCache::blockedByContainer()
+                && filter_var(ConfigStore::get('cache.litespeed_enabled', false), FILTER_VALIDATE_BOOLEAN)
+                && !LiteSpeedCache::ensureLookupBypass()
+            ) {
+                $this->debugLog('WARNING', 'LiteSpeed CacheLookup heal deferred; public/.htaccess not writable');
             }
 
             return [

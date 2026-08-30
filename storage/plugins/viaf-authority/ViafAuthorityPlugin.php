@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\ViafAuthority;
 
+use App\Support\ContentCache;
 use App\Support\HookManager;
 use App\Support\RateLimiter;
 use App\Support\SecureLogger;
@@ -576,6 +577,9 @@ class ViafAuthorityPlugin
         if ($affected === 0 && !$this->authorExists($id)) {
             return $this->json($response, ['error' => true, 'message' => __('Autore non trovato.')], 404);
         }
+        if ($affected > 0) {
+            ContentCache::booksChanged();
+        }
 
         return $this->json($response, [
             'success'  => true,
@@ -666,6 +670,9 @@ class ViafAuthorityPlugin
         }
         if ($affected === 0 && !$this->authorExists($id)) {
             return $this->json($response, ['error' => true, 'message' => __('Autore non trovato.')], 404);
+        }
+        if ($affected > 0) {
+            ContentCache::booksChanged();
         }
 
         return $this->json($response, [

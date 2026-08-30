@@ -238,8 +238,18 @@ $htmlLang = substr($currentLocale, 0, 2);
                 </script>
     <?php endif; ?>
 
+    <?php
+    // Lazy CSRF (issue #387 step 6): a sessionless anonymous render must not
+    // mint a CSRF token — it would not be backed by any session, could never
+    // validate, and would make the HTML per-visitor (uncacheable). The meta
+    // stays empty on the no-session path; JS that needs a token for a
+    // state-changing call fetches one from GET /csrf-token, which lazily
+    // opens the session (see public/assets/js/csrf-helper.js). With an
+    // active session the token is emitted exactly as before.
+    $csrfMetaToken = session_status() === PHP_SESSION_ACTIVE ? App\Support\Csrf::ensureToken() : '';
+    ?>
     <meta name="csrf-token"
-        content="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>" />
+        content="<?php echo htmlspecialchars($csrfMetaToken, ENT_QUOTES, 'UTF-8'); ?>" />
     <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
@@ -1927,6 +1937,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <script src="<?= htmlspecialchars(assetUrl('/flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script src="<?= htmlspecialchars(assetUrl('/js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('/js/live-availability.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script>
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {

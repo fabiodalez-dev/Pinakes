@@ -12,6 +12,7 @@ use App\Support\SecureLogger;
 use App\Support\SettingsEncryption;
 use App\Support\SharingProviders;
 use App\Support\SitemapGenerator;
+use App\Support\LiteSpeedCache;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -154,6 +155,9 @@ class SettingsController
             $repository->set('app', $key, $value);
             ConfigStore::set("app.{$key}", $value);
         }
+
+        // Identity/footer values appear on every public page.
+        LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_ALL]);
 
         $_SESSION['success_message'] = __('Impostazioni generali aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=general');
@@ -486,6 +490,13 @@ class SettingsController
             $logo = '';
         }
 
+        $liteSpeedBlockedByContainer = LiteSpeedCache::blockedByContainer();
+        $liteSpeedEnabled = $repository->get(
+            'cache',
+            'litespeed_enabled',
+            (bool) ConfigStore::get('cache.litespeed_enabled', false) ? '1' : '0'
+        );
+
         return [
             'name' => $name,
             'logo' => $logo,
@@ -496,7 +507,24 @@ class SettingsController
             'social_linkedin' => $repository->get('app', 'social_linkedin', $config['social_linkedin'] ?? ''),
             'social_bluesky' => $repository->get('app', 'social_bluesky', $config['social_bluesky'] ?? ''),
             'social_telegram' => $repository->get('app', 'social_telegram', $config['social_telegram'] ?? ''),
+            // Never render a stale database opt-in as active in Docker. The
+            // runtime and POST handler enforce the same restriction.
+            'litespeed_enabled' => $liteSpeedBlockedByContainer ? '0' : $liteSpeedEnabled,
+            'litespeed_container_blocked' => $liteSpeedBlockedByContainer,
+            'litespeed_home_ttl' => (int) $repository->get('cache', 'litespeed_home_ttl', (string) ConfigStore::get('cache.litespeed_home_ttl', 300)),
+            'litespeed_catalog_ttl' => (int) $repository->get('cache', 'litespeed_catalog_ttl', (string) ConfigStore::get('cache.litespeed_catalog_ttl', 120)),
+            'litespeed_book_ttl' => (int) $repository->get('cache', 'litespeed_book_ttl', (string) ConfigStore::get('cache.litespeed_book_ttl', 300)),
+            'litespeed_server_detected' => LiteSpeedCache::serverDetected(),
+            'litespeed_cli_purge_configured' => LiteSpeedCache::cliPurgeConfigured(),
+            'litespeed_lookup_bypass_installed' => LiteSpeedCache::lookupBypassInstalled(),
         ];
+    }
+
+    /** @param int[] $allowed */
+    private function validatedCacheTtl(mixed $value, int $default, array $allowed): int
+    {
+        $ttl = (int) $value;
+        return in_array($ttl, $allowed, true) ? $ttl : $default;
     }
 
     private function resolveEmailSettings(SettingsRepository $repository): array
@@ -884,6 +912,18 @@ class SettingsController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
+        $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
+        $liteSpeedBlockedByContainer = LiteSpeedCache::blockedByContainer();
+        $requestedLiteSpeed = isset($data['litespeed_enabled']) && $data['litespeed_enabled'] === '1';
+        // A forged POST and a stale DB value must not enable LiteSpeed in the
+        // Apache Docker image. Persist 0 so exported/restored settings agree
+        // with the runtime restriction as well.
+        $wantsLiteSpeed = !$liteSpeedBlockedByContainer && $requestedLiteSpeed;
+        if ($isAdmin && $wantsLiteSpeed && !LiteSpeedCache::ensureLookupBypass()) {
+            $_SESSION['error_message'] = __('Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.');
+            return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
+        }
+
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
@@ -923,6 +963,41 @@ class SettingsController
             }
         }
 
+        // Full-page caching changes public delivery semantics and is therefore
+        // admin-only even though staff may access the wider Advanced tab.
+        if ($isAdmin) {
+            $allowedTtls = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
+            // The LiteSpeed controls are omitted from the POST whenever they are
+            // not rendered as active inputs — the Docker image disables them, and
+            // on a non-LiteSpeed server the whole section is hidden. In both cases
+            // preserve the stored TTLs instead of silently resetting them to the
+            // defaults while another Advanced option is being saved.
+            $homeTtl = array_key_exists('litespeed_home_ttl', $data)
+                ? $data['litespeed_home_ttl']
+                : $repository->get('cache', 'litespeed_home_ttl', '300');
+            $catalogTtl = array_key_exists('litespeed_catalog_ttl', $data)
+                ? $data['litespeed_catalog_ttl']
+                : $repository->get('cache', 'litespeed_catalog_ttl', '120');
+            $bookTtl = array_key_exists('litespeed_book_ttl', $data)
+                ? $data['litespeed_book_ttl']
+                : $repository->get('cache', 'litespeed_book_ttl', '300');
+            $cacheSettings = [
+                'litespeed_enabled' => $wantsLiteSpeed ? '1' : '0',
+                'litespeed_home_ttl' => (string) $this->validatedCacheTtl($homeTtl, 300, $allowedTtls),
+                'litespeed_catalog_ttl' => (string) $this->validatedCacheTtl($catalogTtl, 120, $allowedTtls),
+                'litespeed_book_ttl' => (string) $this->validatedCacheTtl($bookTtl, 300, $allowedTtls),
+            ];
+            foreach ($cacheSettings as $key => $value) {
+                $repository->set('cache', $key, $value);
+                ConfigStore::set('cache.' . $key, $key === 'litespeed_enabled' ? $value === '1' : (int) $value);
+            }
+        }
+
+        // In particular, enabling private mode must evict every public page
+        // before subsequent anonymous lookups can be answered at the edge.
+        // force=true also covers disabling LiteSpeed or changing its TTLs.
+        LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_ALL], true);
+
         // Auto-attivazione toggle Privacy: se c'è codice analytics/marketing, attiva i rispettivi toggle
         $hasAnalytics = !empty(trim($settings['custom_js_analytics']));
         $hasMarketing = !empty(trim($settings['custom_js_marketing']));
@@ -948,8 +1023,10 @@ class SettingsController
         ConfigStore::set('system.catalogue_mode', $catalogueMode === '1');
         ConfigStore::clearCache();
 
-        $_SESSION['success_message'] = __('Impostazioni avanzate aggiornate correttamente.');
-        return $this->redirect($response, '/admin/settings?tab=advanced');
+        $_SESSION['success_message'] = $liteSpeedBlockedByContainer && $requestedLiteSpeed
+            ? __('Impostazioni avanzate aggiornate. LiteSpeed resta disabilitato perché non è disponibile nella versione Docker.')
+            : __('Impostazioni avanzate aggiornate correttamente.');
+        return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
     }
 
     public function regenerateSitemap(Request $request, Response $response, mysqli $db): Response
@@ -981,6 +1058,42 @@ class SettingsController
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');
+    }
+
+    /**
+     * Drop every Pinakes-tagged entry from the LiteSpeed edge cache on demand.
+     *
+     * Emitting X-LiteSpeed-Purge on THIS response is the interactive equivalent
+     * of the CLI loopback purge: LSWS discards the tagged edge entries when it
+     * processes the header, regardless of this (admin, cookie-bearing) request
+     * being itself uncacheable. A non-LiteSpeed server simply ignores the
+     * unknown header, so the signal is safe to send unconditionally.
+     */
+    public function purgeLiteSpeedCache(Request $request, Response $response, mysqli $db): Response
+    {
+        // CSRF validated by CsrfMiddleware
+        $redirect = $this->redirect($response, '/admin/settings?tab=advanced');
+
+        // AdminAuthMiddleware also admits staff; a shared-cache flush is an
+        // admin-only action, so re-check the role inline before purging.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Solo un amministratore può svuotare la cache.');
+            return $redirect;
+        }
+
+        // Only claim a purge when LiteSpeed caching is actually active on this
+        // server; otherwise the X-LiteSpeed-Purge header is a no-op and a
+        // success message would be misleading (e.g. on plain Apache).
+        if (!LiteSpeedCache::enabled() || !LiteSpeedCache::serverDetected()) {
+            $_SESSION['error_message'] = __('LiteSpeed non è attivo su questo server: non c\'è nulla da svuotare.');
+            return $redirect;
+        }
+
+        $_SESSION['success_message'] = __('Cache edge LiteSpeed svuotata.');
+        return $redirect->withHeader(
+            'X-LiteSpeed-Purge',
+            LiteSpeedCache::purgeHeader([LiteSpeedCache::TAG_ALL])
+        );
     }
 
     private function loadContactMessages(mysqli $db): array

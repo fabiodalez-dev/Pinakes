@@ -313,10 +313,6 @@ class AutoriApiController
 
             // Commit transaction
             $db->commit();
-
-            // Rebuild the search_index of the (now author-less) books so the
-            // deleted authors' names no longer surface in catalog search.
-            \App\Support\SearchIndexBuilder::rebuildMany($db, array_values($affectedBookIds));
         } catch (\Throwable $e) {
             $db->rollback();
             AppLog::error('autori.bulk_delete.transaction_failed', ['error' => $e->getMessage()]);
@@ -327,6 +323,10 @@ class AutoriApiController
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
+        // Post-commit maintenance runs outside the rollback try: the deletion is
+        // already permanent, so a reindex/invalidation error must not undo it.
+        $this->postCommitMaintenance($db, $affectedBookIds);
+
         AppLog::info('autori.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);
 
         $response->getBody()->write(json_encode([
@@ -335,6 +335,33 @@ class AutoriApiController
             'message' => sprintf(__('%d autori eliminati'), $affected)
         ], JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Reindex the affected books and publish the cache generation bump AFTER the
+     * bulk-delete transaction has committed. Each step is isolated so an error
+     * cannot roll back the committed deletion or turn a successful operation
+     * into a 500, and booksChanged() still runs if the reindex fails.
+     *
+     * @param int[] $affectedBookIds
+     */
+    private function postCommitMaintenance(mysqli $db, array $affectedBookIds): void
+    {
+        try {
+            // Rebuild every derived author field before publishing the cache
+            // generation bump, so a concurrent catalog miss cannot fill the new
+            // generation from the old projection during this window.
+            \App\Support\SearchIndexBuilder::rebuildMany($db, array_values($affectedBookIds));
+        } catch (\Throwable $e) {
+            AppLog::error('autori.bulk_delete.reindex_failed', ['error' => $e->getMessage()]);
+        }
+        try {
+            // Public book-detail DTOs embed the linked author rows. This API
+            // bypasses AuthorRepository, so invalidate after the commit.
+            \App\Support\ContentCache::booksChanged();
+        } catch (\Throwable $e) {
+            AppLog::error('autori.bulk_delete.cache_invalidation_failed', ['error' => $e->getMessage()]);
+        }
     }
 
     /**

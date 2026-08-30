@@ -34,6 +34,21 @@ for (const assetPath of assetPaths) {
   fs.writeFileSync(assetPath, `${normalized}\n`);
 }
 
+// FontAwesome ships its icon @font-face rules with `font-display: block`, which
+// keeps icon glyphs invisible (FOIT) for up to 3s and blocks FCP on the font
+// (Lighthouse: "Ensure text remains visible during webfont load"). Its icons
+// use Private-Use-Area codepoints, so a fallback font renders nothing there —
+// there is no tofu to flash — and `swap` lets the page paint immediately while
+// the icons appear as soon as the font arrives. FontAwesome is the ONLY bundle
+// that uses `font-display: block`, so this substitution is FA-scoped in effect.
+const vendorCssPath = path.resolve(__dirname, '../public/assets/vendor.css');
+const vendorCss = fs.readFileSync(vendorCssPath, 'utf8');
+const vendorSwapped = vendorCss.replace(/font-display:block/g, 'font-display:swap');
+if (vendorSwapped !== vendorCss) {
+  fs.writeFileSync(vendorCssPath, vendorSwapped);
+  process.stdout.write('Set font-display:swap on FontAwesome icon fonts in vendor.css\n');
+}
+
 // Webpack content-hashes emitted fonts and WASM, but output.clean cannot be
 // enabled because public/assets also contains application-managed files. Drop
 // only unreferenced hash-named resources so dependency upgrades cannot leave

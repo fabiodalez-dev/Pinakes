@@ -136,6 +136,14 @@ final class ConfigStore
             'sharing' => [
                 'enabled_providers' => 'facebook,x,whatsapp,email',
             ],
+            'cache' => [
+                // LiteSpeed full-page caching is explicitly opt-in. These DB
+                // values are editable by administrators in Settings > Advanced.
+                'litespeed_enabled' => false,
+                'litespeed_home_ttl' => 300,
+                'litespeed_catalog_ttl' => 120,
+                'litespeed_book_ttl' => 300,
+            ],
         ];
 
         $localizedDefaults = self::getLocaleDefaultTexts();
@@ -572,6 +580,23 @@ final class ConfigStore
                         self::$dbSettingsCache['advanced'][$key] = $boolValue;
                     } else {
                         self::$dbSettingsCache['advanced'][$key] = (string) $value;
+                    }
+                }
+            }
+
+            if (!empty($raw['cache'])) {
+                self::$dbSettingsCache['cache'] = [];
+                $allowedTtls = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
+                foreach ($raw['cache'] as $key => $value) {
+                    if ($key === 'litespeed_enabled') {
+                        $boolValue = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                        self::$dbSettingsCache['cache'][$key] = $boolValue
+                            ?? in_array(strtolower((string) $value), ['1', 'true', 'yes'], true);
+                    } elseif (in_array($key, ['litespeed_home_ttl', 'litespeed_catalog_ttl', 'litespeed_book_ttl'], true)) {
+                        $ttl = (int) $value;
+                        if (in_array($ttl, $allowedTtls, true)) {
+                            self::$dbSettingsCache['cache'][$key] = $ttl;
+                        }
                     }
                 }
             }

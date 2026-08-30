@@ -128,6 +128,88 @@ return function (App $app): void {
         return $response->withHeader('Content-Type', 'application/json');
     });
 
+    // TEST-ONLY page-cache flush (E2E infrastructure, NOT a production route).
+    // E2E specs that mutate the DB directly (bypassing the app code and its
+    // ContentCache generation bumps) call this endpoint before asserting on a
+    // cached frontend page, replicating the invalidation a real edit performs.
+    // Gated STRICTLY on a server-side env var that only the CI virtual host
+    // sets (`SetEnv PINAKES_E2E_CACHE_FLUSH 1`, next to the existing
+    // PINAKES_E2E_* flags): nothing client-controllable — no header, cookie or
+    // query parameter — is consulted, so a remote caller cannot enable it.
+    // When the flag is absent/empty the route throws the same
+    // HttpNotFoundException an unregistered path produces, making it inert in
+    // production. GET is deliberate: it keeps the call outside CsrfMiddleware
+    // and the only side effect is dropping cache entries (idempotent).
+    $app->get('/_e2e/flush-cache', function ($request, $response) {
+        $flag = $_ENV['PINAKES_E2E_CACHE_FLUSH']
+            ?? getenv('PINAKES_E2E_CACHE_FLUSH')
+            ?: '';
+        if ($flag !== '1' && strtolower((string) $flag) !== 'true') {
+            throw new \Slim\Exception\HttpNotFoundException($request);
+        }
+        // Honour the flush result: a false return means a real apcu_delete /
+        // unlink failure. Surface it as HTTP 500 so the E2E helper can fail the
+        // run loudly instead of proceeding to read a stale cached page.
+        $flushed = \App\Support\QueryCache::flush();
+        $response->getBody()->write((string) json_encode(['flushed' => $flushed]));
+        return $response
+            ->withStatus($flushed ? 200 : 500)
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private');
+    });
+
+    // Authenticated loopback target used by CLI/import jobs to turn their
+    // durable purge queue into a LiteSpeed response header. The secret is
+    // operator-managed via environment, never stored or rendered in admin UI.
+    $app->post('/_pinakes/litespeed-purge', function ($request, $response) {
+        $provided = trim($request->getHeaderLine('X-Pinakes-Purge-Secret'));
+        if (!\App\Support\LiteSpeedCache::authorizesPurgeSecret($provided)) {
+            throw new \Slim\Exception\HttpNotFoundException($request);
+        }
+
+        $tags = \App\Support\LiteSpeedCache::consumeQueuedPurge();
+        $response->getBody()->write((string) json_encode(['purged' => $tags !== [], 'tags' => count($tags)]));
+        $response = $response
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
+        if ($tags !== []) {
+            $response = $response->withHeader('X-LiteSpeed-Purge', \App\Support\LiteSpeedCache::purgeHeader($tags));
+        }
+        return $response;
+    });
+
+    // Lazy CSRF endpoint (issue #387 step 6). Sessionless anonymous pages
+    // carry no CSRF token in their cacheable HTML; JS fetches one from here
+    // right before a state-changing request (see public/assets/js/
+    // csrf-helper.js). Starting the session on demand mints the same
+    // session-backed token CsrfMiddleware validates — protection is
+    // unchanged, only WHEN the token is minted moves. The hardened session
+    // ini parameters were already applied unconditionally in public/index.php,
+    // so this lazy session_start() uses the exact same secure cookie settings.
+    // The same-origin policy keeps the JSON unreadable cross-site (no CORS
+    // headers are emitted) and no-store keeps any cache from persisting a
+    // per-visitor token. Technical endpoint → literal path, like /health.
+    $app->get('/csrf-token', function ($request, $response) {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        $payload = json_encode(['token' => \App\Support\Csrf::ensureToken()], JSON_HEX_TAG);
+        $response->getBody()->write((string) $payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('Pragma', 'no-cache')
+            ->withHeader('Vary', 'Cookie')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
+    });
+
+    $app->get(RouteTranslator::getRouteForLocale('api_edge_availability', 'en_US'), function ($request, $response) use ($app) {
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        return $controller->edgeAvailability($request, $response, $container->get('db'));
+    })->add(new \App\Middleware\RateLimitMiddleware(300, 60, 'edge-availability'));
+
     // Private uploaded files (digital-library content, archive documents,
     // generic storage). public/.htaccess routes ONLY these private prefixes
     // here instead of serving them directly, so the global middleware stack
@@ -638,6 +720,12 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->regenerateSitemap($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/advanced/purge-litespeed', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new SettingsController();
+        return $controller->purgeLiteSpeedCache($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/loans', function ($request, $response) use ($app) {

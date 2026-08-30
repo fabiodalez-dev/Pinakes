@@ -1,11 +1,122 @@
 <?php
 /** @var string $activeTab */
 /** @var string $csrfToken */
+/** @var bool $isAdmin */
+/** @var array<string, mixed> $appSettings */
 use App\Support\HtmlHelper;
 ?>
 <section data-settings-panel="advanced" class="settings-panel <?php echo $activeTab === 'advanced' ? 'block' : 'hidden'; ?>">
+  <?php if (!empty($isAdmin)
+           && empty($appSettings['litespeed_container_blocked'])
+           && ($appSettings['litespeed_enabled'] ?? '0') === '1'):
+    $liteSpeedActiveHere = !empty($appSettings['litespeed_server_detected']); ?>
+  <!-- LiteSpeed edge cache maintenance (own form, above the settings form) -->
+  <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mb-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
+    <div class="p-6 space-y-3 max-sm:!p-0">
+      <p class="text-sm text-gray-600"><i class="fas fa-broom text-gray-400 mr-1"></i><?= __("Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.") ?></p>
+      <form action="<?= htmlspecialchars(url('/admin/settings/advanced/purge-litespeed'), ENT_QUOTES, 'UTF-8') ?>" method="post">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+        <button type="submit"
+                <?= $liteSpeedActiveHere ? '' : 'disabled aria-disabled="true"' ?>
+                class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          <i class="fas fa-broom"></i>
+          <?= __("Svuota cache edge") ?>
+        </button>
+      </form>
+      <?php if (!$liteSpeedActiveHere): ?>
+      <p class="text-xs text-amber-800"><i class="fas fa-exclamation-triangle mr-1"></i><?= __("LiteSpeed non rilevato in questa richiesta: non c'è nulla da svuotare da qui.") ?></p>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <form action="<?= htmlspecialchars(url('/admin/settings/advanced'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
-    <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+
+    <?php
+    // Only surface the LiteSpeed cache controls where they make sense: on a
+    // detected LiteSpeed/OpenLiteSpeed server, or when the option is already
+    // enabled (so an admin can still turn it off). On plain Apache/nginx the
+    // whole section is hidden instead of showing a "not detected" badge next to
+    // an active enable checkbox. The Docker image is Apache-only and NEVER has
+    // LiteSpeed, so the section is unconditionally hidden there. The controller
+    // preserves the stored TTLs when these fields are omitted from the POST.
+    $liteSpeedApplicable = empty($appSettings['litespeed_container_blocked'])
+        && (!empty($appSettings['litespeed_server_detected'])
+            || ($appSettings['litespeed_enabled'] ?? '0') === '1');
+    ?>
+    <?php if (!empty($isAdmin) && $liteSpeedApplicable): ?>
+    <!-- LiteSpeed full-page cache -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-bolt text-gray-500"></i>
+          <?= __("Cache pagine LiteSpeed") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Accelera home, catalogo e schede libro per i visitatori anonimi. Utenti autenticati, sessioni e richieste private vengono sempre escluse.") ?></p>
+        <div class="flex flex-wrap gap-2 text-xs">
+          <?php if (!empty($appSettings['litespeed_container_blocked'])): ?>
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 bg-gray-200 text-gray-800">
+            <i class="fab fa-docker"></i>
+            <?= __("LiteSpeed non disponibile nella versione Docker") ?>
+          </span>
+          <?php else: ?>
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 <?= !empty($appSettings['litespeed_server_detected']) ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' ?>">
+            <i class="fas <?= !empty($appSettings['litespeed_server_detected']) ? 'fa-check-circle' : 'fa-exclamation-triangle' ?>"></i>
+            <?= !empty($appSettings['litespeed_server_detected']) ? __("Server LiteSpeed rilevato") : __("LiteSpeed non rilevato in questa richiesta") ?>
+          </span>
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 <?= !empty($appSettings['litespeed_cli_purge_configured']) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' ?>">
+            <i class="fas fa-terminal"></i>
+            <?= !empty($appSettings['litespeed_cli_purge_configured']) ? __("Purge CLI configurato") : __("Purge CLI non configurato") ?>
+          </span>
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 <?= !empty($appSettings['litespeed_lookup_bypass_installed']) ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' ?>">
+            <i class="fas <?= !empty($appSettings['litespeed_lookup_bypass_installed']) ? 'fa-shield-alt' : 'fa-exclamation-triangle' ?>"></i>
+            <?= !empty($appSettings['litespeed_lookup_bypass_installed']) ? __("Protezione pre-cache installata") : __("Protezione pre-cache non installata") ?>
+          </span>
+          <?php endif; ?>
+        </div>
+      </div>
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" id="litespeed_enabled" name="litespeed_enabled" value="1"
+                 <?= (($appSettings['litespeed_enabled'] ?? '0') === '1') ? 'checked' : '' ?>
+                 <?= !empty($appSettings['litespeed_container_blocked']) ? 'disabled aria-disabled="true"' : '' ?>
+                 class="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
+          <span>
+            <span class="block text-sm font-medium text-gray-900"><?= __("Abilita cache full-page LiteSpeed") ?></span>
+            <span class="block text-xs text-gray-500 mt-1">
+              <?= !empty($appSettings['litespeed_container_blocked'])
+                ? __("La versione Docker usa Apache e mantiene LiteSpeed permanentemente disabilitato.")
+                : __("Attivala solo su LiteSpeed/OpenLiteSpeed con LSCache abilitata. Se il modulo non è presente, gli header vengono ignorati senza interrompere il sito.") ?>
+            </span>
+          </span>
+        </label>
+
+        <?php
+        $ttlOptions = [60 => __('1 minuto'), 120 => __('2 minuti'), 300 => __('5 minuti'), 600 => __('10 minuti'), 900 => __('15 minuti'), 1800 => __('30 minuti'), 3600 => __('1 ora'), 7200 => __('2 ore'), 14400 => __('4 ore'), 28800 => __('8 ore'), 43200 => __('12 ore'), 86400 => __('24 ore')];
+        $ttlFields = [
+            'litespeed_home_ttl' => __('Home'),
+            'litespeed_catalog_ttl' => __('Catalogo e ricerca'),
+            'litespeed_book_ttl' => __('Scheda libro'),
+        ];
+        ?>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <?php foreach ($ttlFields as $field => $label): ?>
+          <div>
+            <label for="<?= $field ?>" class="block text-xs font-medium text-gray-700 mb-1"><?= $label ?></label>
+            <select id="<?= $field ?>" name="<?= $field ?>" <?= !empty($appSettings['litespeed_container_blocked']) ? 'disabled aria-disabled="true"' : '' ?> class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3">
+              <?php $selectedTtl = (int) ($appSettings[$field] ?? ($field === 'litespeed_catalog_ttl' ? 120 : 300)); ?>
+              <?php foreach ($ttlOptions as $seconds => $ttlLabel): ?>
+              <option value="<?= $seconds ?>" <?= $selectedTtl === $seconds ? 'selected' : '' ?>><?= htmlspecialchars($ttlLabel, ENT_QUOTES, 'UTF-8') ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <p class="text-xs text-gray-500"><i class="fas fa-shield-alt mr-1"></i><?= __("Disponibilità copie e azioni di prestito restano live e non vengono affidate all'HTML in cache.") ?></p>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- JavaScript Personalizzato - Informazioni Generali -->
     <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
@@ -644,7 +755,7 @@ use App\Support\HtmlHelper;
           <?= __("Usa questa azione dopo aver importato un grande numero di libri o modifiche ai contenuti CMS.") ?>
         </p>
         <form action="<?= htmlspecialchars(url('/admin/settings/advanced/regenerate-sitemap'), ENT_QUOTES, 'UTF-8') ?>" method="post">
-          <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
           <button type="submit"
                   class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
             <i class="fas fa-cogs"></i>
@@ -682,7 +793,6 @@ use App\Support\HtmlHelper;
     $apiEndpoint = \App\Controllers\SeoController::resolveBaseUrl() . '/api/public/books/search';
     // Security scan F11 (CWE-522): only real admins may see the API key VALUES.
     // 'staff' can reach this page but must never receive the secrets in the HTML.
-    $isAdmin = $isAdmin ?? (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
   ?>
 
   <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
@@ -702,7 +812,7 @@ use App\Support\HtmlHelper;
     <div id="api-section-content" class="p-6 space-y-6 max-sm:!p-0">
       <!-- Enable/Disable API -->
       <form action="<?= htmlspecialchars(url('/admin/settings/api/toggle'), ENT_QUOTES, 'UTF-8') ?>" method="post" id="api-toggle-form">
-        <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
           <div>
             <h4 class="text-sm font-semibold text-gray-900"><?= __("Stato API") ?></h4>
@@ -790,7 +900,7 @@ use App\Support\HtmlHelper;
                 </div>
                 <div class="flex items-center gap-2 ml-4">
                   <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/' . (int)$key['id'] . '/toggle'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline">
-                    <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg <?php echo $key['is_active'] ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-gray-900 text-white hover:bg-black'; ?> transition-colors"
                             title="<?php echo $key['is_active'] ? __('Disattiva') : __('Attiva API key'); ?>">
@@ -800,7 +910,7 @@ use App\Support\HtmlHelper;
                   <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/' . (int)$key['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline"
                         data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questa API key? Questa azione è irreversibile.'), ENT_QUOTES, 'UTF-8') ?>"
                         data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
-                    <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
                             title="<?= __("Elimina") ?>">
@@ -930,7 +1040,7 @@ use App\Support\HtmlHelper;
       </button>
     </div>
     <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/create'), ENT_QUOTES, 'UTF-8') ?>" method="post">
-      <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
       <div class="space-y-4">
         <div>
           <label for="api_key_name" class="block text-sm font-medium text-gray-700 mb-1"><?= __("Nome *") ?></label>

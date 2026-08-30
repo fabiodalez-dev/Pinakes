@@ -60,17 +60,27 @@ jobs:
           # apt refresh so a mid-sync Google mirror cannot break the job.
           sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -q
-          sudo apt-get install -y apache2 libapache2-mod-php jq rsync unzip zip
+          # php-apcu: the app's page cache must run on its production backend
+          # (APCu shared memory) under Apache/mod_php, not the file fallback.
+          sudo apt-get install -y apache2 libapache2-mod-php php-apcu jq rsync unzip zip
           sudo a2enmod rewrite headers env
           php_module=$(find /etc/apache2/mods-available -maxdepth 1 -name 'php*.load' -printf '%f\n' | sed 's/\.load$//' | sort -V | tail -n1)
           if [ -n "$php_module" ]; then sudo a2enmod "$php_module"; fi
           sudo a2dissite 000-default || true
+          # Enable APCu for every distro-PHP SAPI (Apache mod_php + distro CLI).
+          while IFS= read -r conf_dir; do
+            sudo tee "${conf_dir}/99-pinakes-apcu.ini" >/dev/null <<'EOF'
+          apc.enable=1
+          apc.enable_cli=1
+          EOF
+          done < <(find /etc/php -type d -path '*/conf.d' | sort -u)
 
       - name: Setup PHP 8.2 tooling
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
-          extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml, zip, gd
+          extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml, zip, gd, apcu
+          ini-values: apc.enable=1, apc.enable_cli=1
           coverage: none
 
       - name: Setup Node 22
@@ -115,6 +125,9 @@ jobs:
               DocumentRoot ${PACKAGE_ROOT}/public
               SetEnv PINAKES_E2E_BYPASS_RATE_LIMIT 1
               SetEnv PINAKES_E2E_SCRAPER_STUB 1
+              # E2E only — arms GET /_e2e/flush-cache so specs that write to the
+              # DB directly can invalidate the page cache; 404s when unset.
+              SetEnv PINAKES_E2E_CACHE_FLUSH 1
               <Directory "${PACKAGE_ROOT}/public">
                   Options -Indexes +FollowSymLinks
                   AllowOverride All

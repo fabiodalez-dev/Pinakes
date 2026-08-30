@@ -6,6 +6,10 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 
 PHP_BIN="${PHP_BIN:-php}"
 STRICT="${CI_STRICT_TESTS:-0}"
+# Purge dispatch is an intentional production side effect. Never let a unit
+# test contact APP_CANONICAL_URL, even when a developer's local DB has enabled
+# LiteSpeed caching.
+export PINAKES_DISABLE_CLI_PURGE=1
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
