@@ -33,7 +33,19 @@ use App\Support\HtmlHelper;
   <form action="<?= htmlspecialchars(url('/admin/settings/advanced'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 
-    <?php if (!empty($isAdmin)): ?>
+    <?php
+    // Only surface the LiteSpeed cache controls where they make sense: on a
+    // detected LiteSpeed/OpenLiteSpeed server, or when the option is already
+    // enabled (so an admin can still turn it off). On plain Apache/nginx the
+    // whole section is hidden instead of showing a "not detected" badge next to
+    // an active enable checkbox. The Docker image is Apache-only and NEVER has
+    // LiteSpeed, so the section is unconditionally hidden there. The controller
+    // preserves the stored TTLs when these fields are omitted from the POST.
+    $liteSpeedApplicable = empty($appSettings['litespeed_container_blocked'])
+        && (!empty($appSettings['litespeed_server_detected'])
+            || ($appSettings['litespeed_enabled'] ?? '0') === '1');
+    ?>
+    <?php if (!empty($isAdmin) && $liteSpeedApplicable): ?>
     <!-- LiteSpeed full-page cache -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">

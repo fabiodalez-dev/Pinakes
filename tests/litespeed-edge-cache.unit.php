@@ -393,7 +393,14 @@ if ($previousDockerFlag === false) {
     $_ENV['PINAKES_DOCKER'] = $previousDockerFlag;
 }
 $check(str_contains($settingsController, '$liteSpeedBlockedByContainer'), 'Advanced POST enforces the Docker LiteSpeed block server-side');
-$check(str_contains($settingsController, '? $repository->get(\'cache\', \'litespeed_home_ttl\''), 'Docker Advanced saves preserve disabled LiteSpeed TTL values');
+$check(str_contains($settingsController, "array_key_exists('litespeed_home_ttl', \$data)") && str_contains($settingsController, ": \$repository->get('cache', 'litespeed_home_ttl'"), 'omitted LiteSpeed TTLs are preserved (Docker disabled controls AND hidden non-LiteSpeed section)');
+$check(
+    str_contains($advancedSettingsView, "\$liteSpeedApplicable = empty(\$appSettings['litespeed_container_blocked'])")
+        && str_contains($advancedSettingsView, "!empty(\$appSettings['litespeed_server_detected'])")
+        && str_contains($advancedSettingsView, "(\$appSettings['litespeed_enabled'] ?? '0') === '1'")
+        && str_contains($advancedSettingsView, 'if (!empty($isAdmin) && $liteSpeedApplicable)'),
+    'LiteSpeed section is hidden in Docker and unless the server is detected or the feature is already enabled'
+);
 $check(str_contains($advancedSettingsView, "'litespeed_container_blocked'"), 'Advanced UI renders the Docker-specific disabled state');
 
 echo "-- database-backed cache settings --\n";

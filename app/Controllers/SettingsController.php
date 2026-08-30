@@ -967,18 +967,20 @@ class SettingsController
         // admin-only even though staff may access the wider Advanced tab.
         if ($isAdmin) {
             $allowedTtls = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
-            // Docker renders the LiteSpeed controls disabled, so browsers omit
-            // their values from the POST. Preserve the stored TTLs instead of
-            // silently resetting them while another Advanced option is saved.
-            $homeTtl = $liteSpeedBlockedByContainer
-                ? $repository->get('cache', 'litespeed_home_ttl', '300')
-                : ($data['litespeed_home_ttl'] ?? 300);
-            $catalogTtl = $liteSpeedBlockedByContainer
-                ? $repository->get('cache', 'litespeed_catalog_ttl', '120')
-                : ($data['litespeed_catalog_ttl'] ?? 120);
-            $bookTtl = $liteSpeedBlockedByContainer
-                ? $repository->get('cache', 'litespeed_book_ttl', '300')
-                : ($data['litespeed_book_ttl'] ?? 300);
+            // The LiteSpeed controls are omitted from the POST whenever they are
+            // not rendered as active inputs — the Docker image disables them, and
+            // on a non-LiteSpeed server the whole section is hidden. In both cases
+            // preserve the stored TTLs instead of silently resetting them to the
+            // defaults while another Advanced option is being saved.
+            $homeTtl = array_key_exists('litespeed_home_ttl', $data)
+                ? $data['litespeed_home_ttl']
+                : $repository->get('cache', 'litespeed_home_ttl', '300');
+            $catalogTtl = array_key_exists('litespeed_catalog_ttl', $data)
+                ? $data['litespeed_catalog_ttl']
+                : $repository->get('cache', 'litespeed_catalog_ttl', '120');
+            $bookTtl = array_key_exists('litespeed_book_ttl', $data)
+                ? $data['litespeed_book_ttl']
+                : $repository->get('cache', 'litespeed_book_ttl', '300');
             $cacheSettings = [
                 'litespeed_enabled' => $wantsLiteSpeed ? '1' : '0',
                 'litespeed_home_ttl' => (string) $this->validatedCacheTtl($homeTtl, 300, $allowedTtls),
