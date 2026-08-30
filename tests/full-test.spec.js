@@ -1877,6 +1877,12 @@ test.describe.serial('Phase 11: Settings', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.locator('[data-settings-tab="advanced"]').click();
     await expect(page.locator('section[data-settings-panel="advanced"]')).toBeVisible();
+    // The E2E server is Apache (not LiteSpeed) and the feature ships disabled, so
+    // the LiteSpeed full-page cache section is hidden — you cannot enable a
+    // LiteSpeed cache on a server that has none. Regression guard for the
+    // hide-when-not-applicable fix; the rest of the Advanced tab still renders.
+    await expect(page.locator('#litespeed_enabled')).toHaveCount(0);
+    await expect(page.locator('#session_lifetime')).toBeVisible();
   });
 
   test('11.10 CMS homepage link exists', async () => {
