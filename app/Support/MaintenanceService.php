@@ -1249,6 +1249,7 @@ class MaintenanceService
                     UPDATE prestiti
                     SET stato = 'scaduto',
                         attivo = 0,
+                        pickup_deadline = NULL,
                         updated_at = NOW(),
                         note = CONCAT(COALESCE(note, ''), ?)
                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1
@@ -1318,10 +1319,15 @@ class MaintenanceService
                     \App\Support\SecureLogger::warning('Flush notifiche differite fallito', ['error' => $flushErr->getMessage()]);
                 }
 
-                // Send pickup expired notification to user
+                // Send pickup expired notification to user. The terminal UPDATE
+                // above NULLed pickup_deadline, so pass the elapsed deadline
+                // captured under lock for the email body.
                 try {
                     $notificationService = new NotificationService($this->db);
-                    $notificationService->sendPickupExpiredNotification($id);
+                    $notificationService->sendPickupExpiredNotification(
+                        $id,
+                        isset($lockedPickup['pickup_deadline']) ? (string) $lockedPickup['pickup_deadline'] : null
+                    );
                 } catch (\Throwable $notifError) {
                     SecureLogger::warning(__('Errore invio notifica ritiro scaduto'), [
                         'prestito_id' => $id,

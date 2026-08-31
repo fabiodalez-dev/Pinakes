@@ -327,10 +327,15 @@ class ReservationsAdminController
             }
 
             if ($oldStato === 'attiva' && $stato === 'annullata') {
+                // CI-SOFT-DELETE-EXEMPT: the cancellation notice must reach the
+                // user even when the reserved title was archived meanwhile — the
+                // sibling cancel paths (cancelReservation, rejectLoan) are
+                // deliberately exempt for the same reason; filtering here made
+                // this one path silently skip the email.
                 $notificationStmt = $db->prepare(
                     "SELECT CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email, l.titolo
                      FROM utenti u
-                     JOIN libri l ON l.id = ? AND l.deleted_at IS NULL
+                     JOIN libri l ON l.id = ?
                      WHERE u.id = ?"
                 );
                 $notificationStmt->bind_param('ii', $libroId, $utenteId);

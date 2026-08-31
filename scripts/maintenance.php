@@ -105,6 +105,11 @@ $db->set_charset($cfg['charset']);
 \App\Support\DateHelper::synchronizeDatabaseSession($db);
 
 $reservationManager = new ReservationManager($db);
+// TXN-003: this script wraps each book in its own transaction below, so the
+// manager must NOT begin a nested one — mysqli begin_transaction() inside an
+// open transaction implicitly COMMITS the outer one, silently breaking the
+// FOR UPDATE serialization this loop relies on.
+$reservationManager->setExternalTransaction(true);
 
 echo "=== RESERVATION MAINTENANCE STARTED ===\n";
 echo "Time: " . date('Y-m-d H:i:s') . "\n\n";
@@ -141,6 +146,9 @@ while ($row = $result->fetch_assoc()) {
         }
         $db->commit();
         $inTransaction = false;
+        // External-transaction mode defers promotion emails: flush them only
+        // after this book's transaction has committed.
+        $reservationManager->flushDeferredNotifications();
     } catch (\Throwable $e) {
         if ($inTransaction) {
             try {
