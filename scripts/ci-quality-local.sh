@@ -34,6 +34,11 @@ if [ -f .env ]; then
 fi
 # Only non-secret fallbacks (socket path/host/port) — no password default.
 export E2E_DB_SOCKET="${E2E_DB_SOCKET:-${DB_SOCKET:-/opt/homebrew/var/mysql/mysql.sock}}"
+# A few DB-writing suites (loan-review-0764, loan-reservation-real-world-25,
+# multiple-copy-loans-238) read E2E_DB_NAME specifically and abort without it,
+# while the rest read DB_NAME. Mirror DB_NAME into E2E_DB_NAME so the local
+# gate runs them exactly like CI instead of counting them as failures.
+export E2E_DB_NAME="${E2E_DB_NAME:-${DB_NAME:-}}"
 export DB_HOST="${DB_HOST:-127.0.0.1}"
 export DB_PORT="${DB_PORT:-3306}"
 export DB_PASS="${DB_PASS:-${DB_PASSWORD:-}}"

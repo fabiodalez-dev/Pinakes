@@ -722,10 +722,10 @@ return function (App $app): void {
         return $controller->regenerateSitemap($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/settings/advanced/purge-litespeed', function ($request, $response) use ($app) {
+    $app->post('/admin/settings/advanced/flush-cache', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
-        return $controller->purgeLiteSpeedCache($request, $response, $db);
+        return $controller->flushAllCaches($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/loans', function ($request, $response) use ($app) {

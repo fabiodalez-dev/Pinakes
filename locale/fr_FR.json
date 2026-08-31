@@ -7005,10 +7005,10 @@
   "Protezione pre-cache non installata": "Protection pré-cache non installée",
   "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.": "Impossible d'activer LiteSpeed : public/.htaccess n'est pas accessible en écriture ou ne peut pas être mis à jour en toute sécurité.",
   "Verifica disponibilità": "Vérifier la disponibilité",
-  "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.": "Les modifications de contenu invalident déjà le cache automatiquement. Utilise ce bouton pour vider immédiatement les pages anonymes mémorisées par LiteSpeed et forcer une actualisation instantanée.",
-  "Svuota cache edge": "Vider le cache edge",
-  "Cache edge LiteSpeed svuotata.": "Cache edge LiteSpeed vidé.",
   "Solo un amministratore può svuotare la cache.": "Seul un administrateur peut vider le cache.",
-  "LiteSpeed non è attivo su questo server: non c'è nulla da svuotare.": "LiteSpeed n'est pas actif sur ce serveur : il n'y a rien à vider.",
-  "LiteSpeed non rilevato in questa richiesta: non c'è nulla da svuotare da qui.": "LiteSpeed non détecté sur cette requête : il n'y a rien à vider ici."
+  "Backend attivo:": "Backend actif :",
+  "Impossibile svuotare completamente la cache dell'applicazione. Controlla i permessi di storage/cache.": "Impossible de vider entièrement le cache de l'application. Vérifiez les permissions de storage/cache.",
+  "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito tutta la cache: le query interne (scheda libro, recensioni, elenchi di catalogo e ricerca) e, se il server è LiteSpeed, anche le pagine memorizzate nell'edge cache.": "Les modifications de contenu invalident déjà le cache automatiquement. Utilisez ce bouton pour vider immédiatement tout le cache : les requêtes internes (fiche du livre, avis, listes du catalogue et de recherche) et, si le serveur utilise LiteSpeed, aussi les pages stockées dans le cache edge.",
+  "Svuota cache": "Vider le cache",
+  "Cache svuotata.": "Cache vidé."
 }

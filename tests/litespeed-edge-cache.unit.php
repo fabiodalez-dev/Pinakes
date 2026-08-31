@@ -191,15 +191,16 @@ $check(str_contains($htaccess, 'E=Cache-Vary:pinakes_locale'), 'locale participa
 $check(str_contains($htaccessDist, 'E=Cache-Control:no-cache'), 'fresh-install htaccess ships the lookup-time bypass');
 $check(str_contains($htaccess, "\n        CacheLookup on\n"), 'shipped htaccess enables LSCache request lookup');
 $check(str_contains($htaccessDist, 'CacheLookup on'), 'fresh-install htaccess enables LSCache request lookup');
-$check(str_contains($advancedSettingsView, 'advanced/purge-litespeed'), 'Advanced settings exposes the edge-cache purge button');
-$check(str_contains($routesSource, "/admin/settings/advanced/purge-litespeed"), 'edge-cache purge route is registered');
-$check(str_contains($settingsController, 'function purgeLiteSpeedCache'), 'purge controller action exists');
-$check(str_contains($settingsController, "'X-LiteSpeed-Purge'"), 'purge action emits the LiteSpeed purge header on its response');
-$purgeMethod = strstr($settingsController, 'function purgeLiteSpeedCache');
-$purgeBody = is_string($purgeMethod) ? substr($purgeMethod, 0, 1200) : '';
-$check(str_contains($purgeBody, "!== 'admin'"), 'edge purge re-checks the admin role (AdminAuthMiddleware also admits staff)');
-$check(str_contains($purgeBody, 'serverDetected') && str_contains($purgeBody, 'LiteSpeedCache::enabled'), 'edge purge only claims a flush when LiteSpeed is actually active here (no false success on Apache)');
-$check(str_contains($advancedSettingsView, 'disabled:cursor-not-allowed'), 'purge button is rendered disabled when this request is not served by LiteSpeed');
+$check(str_contains($advancedSettingsView, 'advanced/flush-cache'), 'Advanced settings exposes the unified cache-flush button');
+$check(str_contains($routesSource, "/admin/settings/advanced/flush-cache"), 'cache-flush route is registered');
+$check(str_contains($settingsController, 'function flushAllCaches'), 'unified flush controller action exists');
+$check(str_contains($settingsController, "'X-LiteSpeed-Purge'"), 'unified flush emits the LiteSpeed purge header on its response');
+$flushMethod = strstr($settingsController, 'function flushAllCaches');
+$flushBody = is_string($flushMethod) ? substr($flushMethod, 0, 2000) : '';
+$check(str_contains($flushBody, "!== 'admin'"), 'unified flush re-checks the admin role (AdminAuthMiddleware also admits staff)');
+$check(str_contains($flushBody, 'QueryCache::flush'), 'unified flush clears the application query cache on every server');
+$check(str_contains($flushBody, 'serverDetected') && str_contains($flushBody, 'LiteSpeedCache::enabled'), 'unified flush purges the edge cache only when LiteSpeed is actually active here');
+$check(!str_contains($advancedSettingsView, 'advanced/purge-litespeed') && !str_contains($routesSource, 'advanced/purge-litespeed'), 'the separate LiteSpeed purge button/route is gone — a single unified button clears everything');
 $check(str_contains($liveJs, "cache: 'no-store'"), 'availability hydration always bypasses HTTP cache');
 $check(str_contains($liveJs, 'hydrationGeneration'), 'obsolete hydration responses cannot overwrite a newer catalog render');
 $check(str_contains($liveJs, 'neutral, actionable fallback'), 'availability failures retain a usable neutral fallback');
@@ -222,7 +223,7 @@ foreach (glob(dirname(__DIR__) . '/locale/??_??.json') ?: [] as $localeFile) {
         $check(substr_count($localeJson, '"' . $durationKey . '":') === 1, basename($localeFile) . " has one {$durationKey} translation key");
     }
     $check(substr_count($localeJson, '"Verifica disponibilità":') === 1, basename($localeFile) . ' translates the neutral availability label');
-    $check(substr_count($localeJson, '"Svuota cache edge":') === 1, basename($localeFile) . ' translates the edge-cache purge button');
+    $check(substr_count($localeJson, '"Svuota cache":') === 1, basename($localeFile) . ' translates the unified cache-flush button');
     $check(substr_count($localeJson, '"Impossibile elaborare l\'immagine.":') === 1, basename($localeFile) . ' has one image-processing error key');
 }
 

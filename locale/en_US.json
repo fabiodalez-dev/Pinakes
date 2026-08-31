@@ -7005,10 +7005,10 @@
   "Protezione pre-cache non installata": "Pre-cache protection not installed",
   "Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.": "LiteSpeed cannot be enabled: public/.htaccess is not writable or cannot be updated safely.",
   "Verifica disponibilità": "Check availability",
-  "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito le pagine anonime memorizzate da LiteSpeed e forzare un aggiornamento immediato.": "Content changes already invalidate the cache automatically. Use this button to immediately clear the anonymous pages stored by LiteSpeed and force an instant refresh.",
-  "Svuota cache edge": "Clear edge cache",
-  "Cache edge LiteSpeed svuotata.": "LiteSpeed edge cache cleared.",
   "Solo un amministratore può svuotare la cache.": "Only an administrator can clear the cache.",
-  "LiteSpeed non è attivo su questo server: non c'è nulla da svuotare.": "LiteSpeed is not active on this server: there is nothing to clear.",
-  "LiteSpeed non rilevato in questa richiesta: non c'è nulla da svuotare da qui.": "LiteSpeed not detected on this request: there is nothing to clear from here."
+  "Backend attivo:": "Active backend:",
+  "Impossibile svuotare completamente la cache dell'applicazione. Controlla i permessi di storage/cache.": "Could not fully clear the application cache. Check the storage/cache permissions.",
+  "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito tutta la cache: le query interne (scheda libro, recensioni, elenchi di catalogo e ricerca) e, se il server è LiteSpeed, anche le pagine memorizzate nell'edge cache.": "Content changes already invalidate the cache automatically. Use this button to immediately clear all caches: the internal queries (book detail, reviews, catalog and search listings) and, if the server runs LiteSpeed, the pages stored in the edge cache too.",
+  "Svuota cache": "Clear cache",
+  "Cache svuotata.": "Cache cleared."
 }

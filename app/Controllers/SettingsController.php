@@ -13,6 +13,7 @@ use App\Support\SettingsEncryption;
 use App\Support\SharingProviders;
 use App\Support\SitemapGenerator;
 use App\Support\LiteSpeedCache;
+use App\Support\QueryCache;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -517,6 +518,10 @@ class SettingsController
             'litespeed_server_detected' => LiteSpeedCache::serverDetected(),
             'litespeed_cli_purge_configured' => LiteSpeedCache::cliPurgeConfigured(),
             'litespeed_lookup_bypass_installed' => LiteSpeedCache::lookupBypassInstalled(),
+            // Application-level query cache (runs on every server, LiteSpeed or
+            // not): expose its active backend so the maintenance panel can label
+            // where the cached datasets actually live (APCu vs storage/cache).
+            'query_cache_backend' => QueryCache::stats()['backend'],
         ];
     }
 
@@ -1061,39 +1066,57 @@ class SettingsController
     }
 
     /**
-     * Drop every Pinakes-tagged entry from the LiteSpeed edge cache on demand.
+     * Flush every cache Pinakes owns, in one action, from a single admin button.
      *
-     * Emitting X-LiteSpeed-Purge on THIS response is the interactive equivalent
-     * of the CLI loopback purge: LSWS discards the tagged edge entries when it
-     * processes the header, regardless of this (admin, cookie-bearing) request
-     * being itself uncacheable. A non-LiteSpeed server simply ignores the
-     * unknown header, so the signal is safe to send unconditionally.
+     * Two layers exist and this clears both: the application-level query cache
+     * (the O(1)-invalidated dataset cache behind book detail, reviews and
+     * catalog/search listings) — flushed on EVERY server — and, only where the
+     * server is LiteSpeed, its full-page edge cache — dropped by emitting
+     * X-LiteSpeed-Purge on this response (the interactive equivalent of the CLI
+     * loopback purge; LSWS discards the tagged edge entries when it processes
+     * the header, even though this admin request is itself uncacheable). A
+     * non-LiteSpeed server simply has no edge layer, so only the query cache is
+     * cleared and no header is sent.
+     *
+     * The query-cache flush runs in the PHP-FPM/web request, so QueryCache::flush()
+     * reaches the SAME APCu segment that serves pages — a CLI invocation cannot
+     * (CLI APCu is a separate segment), which is why this lives behind an admin
+     * button rather than a console command. The caches self-invalidate on every
+     * content change; this is the manual escape hatch when data was altered
+     * out-of-band (a direct DB edit, an import replay).
      */
-    public function purgeLiteSpeedCache(Request $request, Response $response, mysqli $db): Response
+    public function flushAllCaches(Request $request, Response $response, mysqli $db): Response
     {
         // CSRF validated by CsrfMiddleware
         $redirect = $this->redirect($response, '/admin/settings?tab=advanced');
 
-        // AdminAuthMiddleware also admits staff; a shared-cache flush is an
-        // admin-only action, so re-check the role inline before purging.
+        // AdminAuthMiddleware also admits staff; flushing a shared cache is an
+        // admin-only action, so re-check the role inline before flushing.
         if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
             $_SESSION['error_message'] = __('Solo un amministratore può svuotare la cache.');
             return $redirect;
         }
 
-        // Only claim a purge when LiteSpeed caching is actually active on this
-        // server; otherwise the X-LiteSpeed-Purge header is a no-op and a
-        // success message would be misleading (e.g. on plain Apache).
-        if (!LiteSpeedCache::enabled() || !LiteSpeedCache::serverDetected()) {
-            $_SESSION['error_message'] = __('LiteSpeed non è attivo su questo server: non c\'è nulla da svuotare.');
+        // flush() returns false only on a real apcu_delete/unlink failure; a
+        // clean run over an empty cache still returns true. Surface a failure as
+        // an error so the admin does not read a misleading success.
+        if (!QueryCache::flush()) {
+            $_SESSION['error_message'] = __('Impossibile svuotare completamente la cache dell\'applicazione. Controlla i permessi di storage/cache.');
             return $redirect;
         }
 
-        $_SESSION['success_message'] = __('Cache edge LiteSpeed svuotata.');
-        return $redirect->withHeader(
-            'X-LiteSpeed-Purge',
-            LiteSpeedCache::purgeHeader([LiteSpeedCache::TAG_ALL])
-        );
+        $_SESSION['success_message'] = __('Cache svuotata.');
+
+        // Also drop the LiteSpeed edge cache when this server actually has one;
+        // on plain Apache/nginx the header is simply never sent.
+        if (LiteSpeedCache::enabled() && LiteSpeedCache::serverDetected()) {
+            return $redirect->withHeader(
+                'X-LiteSpeed-Purge',
+                LiteSpeedCache::purgeHeader([LiteSpeedCache::TAG_ALL])
+            );
+        }
+
+        return $redirect;
     }
 
     private function loadContactMessages(mysqli $db): array
