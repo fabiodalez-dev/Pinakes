@@ -255,7 +255,11 @@ class HtmlHelper
             // address families match.
             if (strpos($entry, '/') !== false) {
                 [$network, $prefixLen] = explode('/', $entry, 2);
-                if (!is_numeric($prefixLen)) {
+                // Accept ONLY decimal digits before casting. is_numeric() also
+                // passes '0.5', '1e2', '+5' etc., and (int) '0.5' === 0 would
+                // silently widen 10.0.0.0/0.5 to /0 — trusting every peer and
+                // collapsing the whole X-Forwarded-For security boundary.
+                if (preg_match('/^\d+$/D', $prefixLen) !== 1) {
                     continue;
                 }
                 $prefixLen = (int) $prefixLen;

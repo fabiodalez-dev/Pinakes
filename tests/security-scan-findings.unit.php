@@ -96,6 +96,26 @@ $check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => '[2001:db8:
     'a bracketed IPv6 XFF hop with a port is normalised to the bare address');
 $check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => '198.51.100.27:51000']) === '198.51.100.27',
     'an IPv4 XFF hop with a port is normalised to the bare address');
+
+// A non-integer CIDR prefix must be rejected, not silently truncated by (int):
+// 10.0.0.0/0.5 → (int)0 → /0 would trust EVERY peer and collapse the boundary.
+putenv('TRUSTED_PROXIES=10.0.0.0/0.5');
+$_ENV['TRUSTED_PROXIES'] = '10.0.0.0/0.5';
+$check(\App\Support\HtmlHelper::isTrustedProxyIp('8.8.8.8') === false,
+    'a fractional CIDR prefix (/0.5) is rejected, not widened to /0 (trust-all)');
+// /1e0 is the DISCRIMINATING scientific-notation case: (int) '1e0' === 1, so the
+// old is_numeric() gate widened 0.0.0.0/1e0 to /1 and trusted 8.8.8.8; the
+// digit-only regex rejects it. (/1e2 casts to 100 > 32 and was already dropped
+// by the bounds check, so it would pass with or without the fix — not a proof.)
+putenv('TRUSTED_PROXIES=0.0.0.0/1e0');
+$_ENV['TRUSTED_PROXIES'] = '0.0.0.0/1e0';
+$check(\App\Support\HtmlHelper::isTrustedProxyIp('8.8.8.8') === false,
+    'a scientific-notation CIDR prefix (/1e0) is rejected, not widened to /1 (trust-half)');
+// A well-formed CIDR still matches, so the guard did not over-tighten.
+putenv('TRUSTED_PROXIES=10.0.0.0/8');
+$_ENV['TRUSTED_PROXIES'] = '10.0.0.0/8';
+$check(\App\Support\HtmlHelper::isTrustedProxyIp('10.1.2.3') === true,
+    'a valid integer CIDR prefix (/8) still matches a peer inside the range');
 putenv('TRUSTED_PROXIES');
 unset($_ENV['TRUSTED_PROXIES']);
 
