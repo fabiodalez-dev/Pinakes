@@ -103,10 +103,14 @@ putenv('TRUSTED_PROXIES=10.0.0.0/0.5');
 $_ENV['TRUSTED_PROXIES'] = '10.0.0.0/0.5';
 $check(\App\Support\HtmlHelper::isTrustedProxyIp('8.8.8.8') === false,
     'a fractional CIDR prefix (/0.5) is rejected, not widened to /0 (trust-all)');
-putenv('TRUSTED_PROXIES=10.0.0.0/1e2');
-$_ENV['TRUSTED_PROXIES'] = '10.0.0.0/1e2';
+// /1e0 is the DISCRIMINATING scientific-notation case: (int) '1e0' === 1, so the
+// old is_numeric() gate widened 0.0.0.0/1e0 to /1 and trusted 8.8.8.8; the
+// digit-only regex rejects it. (/1e2 casts to 100 > 32 and was already dropped
+// by the bounds check, so it would pass with or without the fix — not a proof.)
+putenv('TRUSTED_PROXIES=0.0.0.0/1e0');
+$_ENV['TRUSTED_PROXIES'] = '0.0.0.0/1e0';
 $check(\App\Support\HtmlHelper::isTrustedProxyIp('8.8.8.8') === false,
-    'a scientific-notation CIDR prefix (/1e2) is rejected');
+    'a scientific-notation CIDR prefix (/1e0) is rejected, not widened to /1 (trust-half)');
 // A well-formed CIDR still matches, so the guard did not over-tighten.
 putenv('TRUSTED_PROXIES=10.0.0.0/8');
 $_ENV['TRUSTED_PROXIES'] = '10.0.0.0/8';
