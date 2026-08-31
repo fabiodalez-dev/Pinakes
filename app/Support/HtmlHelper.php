@@ -217,13 +217,23 @@ class HtmlHelper
      */
     public static function isRemoteAddrTrustedProxy(): bool
     {
+        return self::isTrustedProxyIp((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+    }
+
+    /**
+     * Check an arbitrary IP against the configured trusted-proxy list.
+     *
+     * This is also used while walking an X-Forwarded-For chain: every hop from
+     * the direct peer towards the client must be classified independently.
+     */
+    public static function isTrustedProxyIp(string $remoteAddr): bool
+    {
         $trustedRaw = $_ENV['TRUSTED_PROXIES'] ?? getenv('TRUSTED_PROXIES');
         $trustedEnv = is_string($trustedRaw) ? $trustedRaw : '';
         if ($trustedEnv === '') {
             return false;
         }
 
-        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
         if ($remoteAddr === '') {
             return false;
         }

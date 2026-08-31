@@ -435,39 +435,18 @@ class RememberMeService
      */
     private function getClientIP(): ?string
     {
-        // Security scan F6 (CWE-807): this IP is written to the security audit
-        // log and the session-management UI. Only trust client-supplied
-        // forwarding headers when the direct peer is a configured trusted proxy;
-        // otherwise a client can forge the audit IP by setting X-Forwarded-For.
-        if (!HtmlHelper::isRemoteAddrTrustedProxy()) {
-            return $_SERVER['REMOTE_ADDR'] ?? null;
+        $remoteAddr = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        if ($remoteAddr === '') {
+            return null;
         }
 
-        // Check various headers that might contain the real IP (behind proxy/load balancer)
-        $headers = [
-            'HTTP_X_FORWARDED_FOR',
-            'HTTP_X_REAL_IP',
-            'HTTP_X_CLIENT_IP',
-            'HTTP_CF_CONNECTING_IP',  // Cloudflare
-            'HTTP_TRUE_CLIENT_IP'
-        ];
-
-        foreach ($headers as $header) {
-            if (!empty($_SERVER[$header])) {
-                // X-Forwarded-For can contain multiple IPs, take the first one
-                $ips = explode(',', $_SERVER[$header]);
-                $ip = trim($ips[0]);
-
-                // Validate IP format and exclude private/reserved ranges to prevent spoofing
-                // Note: This assumes the app is behind a trusted proxy that sets these headers
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                    return $ip;
-                }
-            }
-        }
-
-        // Fallback to REMOTE_ADDR
-        return $_SERVER['REMOTE_ADDR'] ?? null;
+        return ClientIpResolver::resolve($remoteAddr, [
+            'X-Forwarded-For' => (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''),
+            'X-Real-IP' => (string) ($_SERVER['HTTP_X_REAL_IP'] ?? ''),
+            'CF-Connecting-IP' => (string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? ''),
+            'True-Client-IP' => (string) ($_SERVER['HTTP_TRUE_CLIENT_IP'] ?? ''),
+            'X-Client-IP' => (string) ($_SERVER['HTTP_X_CLIENT_IP'] ?? ''),
+        ]);
     }
 
     /**

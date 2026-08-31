@@ -6,6 +6,10 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 
 A small usability release: the two cache-maintenance controls on Settings → Advanced are unified into one.
 
+### Fixed
+
+- **Rate limits remain per-client behind trusted Docker/reverse proxies.** Forwarded client addresses are still ignored unless the immediate peer matches `TRUSTED_PROXIES`, but a validated proxy chain is now walked from right to left instead of trusting its caller-controlled first value. Private LAN client addresses are accepted after that trust boundary, preventing every patron behind the same proxy from sharing the registration/login bucket.
+
 ### Changed
 
 - **A single "Svuota cache" button clears every cache.** The Advanced settings tab previously showed two separate controls — a LiteSpeed edge-cache purge and an application query-cache flush. They are now one admin button that, in a single action, always flushes the application query cache (APCu or file backend, shown as a hint under the button) and additionally purges the LiteSpeed edge cache where the server actually runs LiteSpeed. On plain Apache/nginx and in the Docker image only the query cache is cleared and no purge header is sent, so a non-LiteSpeed install no longer shows a control it cannot use and a LiteSpeed install no longer shows two buttons. The flush runs inside the web request, so it reaches the same APCu segment that serves pages — which a CLI command cannot.

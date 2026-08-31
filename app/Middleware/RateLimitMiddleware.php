@@ -7,6 +7,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
+use App\Support\ClientIpResolver;
 use App\Support\RateLimiter;
 
 class RateLimitMiddleware implements MiddlewareInterface
@@ -84,52 +85,11 @@ class RateLimitMiddleware implements MiddlewareInterface
     private function getClientIP(Request $request): string
     {
         $serverParams = $request->getServerParams();
-        $remoteAddr = $serverParams['REMOTE_ADDR'] ?? 'unknown';
-
-        // Security scan F1 (CWE-807): client-controlled forwarding headers are
-        // the rate-limiter's identity, and the limiter is the ONLY brute-force
-        // control on login/forgot-password/reset (no per-account lockout). Only
-        // honor those headers when the direct peer (REMOTE_ADDR) is a configured
-        // trusted reverse proxy — otherwise an unauthenticated client rotates
-        // X-Forwarded-For to mint an unlimited number of fresh buckets and
-        // defeats the throttle entirely. Default (Apache-direct, TRUSTED_PROXIES
-        // unset) → always key on the real peer address.
-        if (!\App\Support\HtmlHelper::isRemoteAddrTrustedProxy()) {
-            return $remoteAddr;
+        $headers = [];
+        foreach (['X-Forwarded-For', 'X-Real-IP', 'CF-Connecting-IP', 'True-Client-IP', 'X-Client-IP'] as $name) {
+            $headers[$name] = $request->getHeaderLine($name);
         }
 
-        // Check various headers that might contain the real IP
-        $headers = [
-            'X-Forwarded-For',
-            'X-Real-IP',
-            'X-Client-IP',
-            'CF-Connecting-IP',
-            'True-Client-IP'
-        ];
-
-        foreach ($headers as $header) {
-            $headerValue = $request->getHeaderLine($header);
-            if (!empty($headerValue)) {
-                // X-Forwarded-For can contain multiple IPs, take the first one
-                $ips = explode(',', $headerValue);
-                $ip = trim($ips[0]);
-                
-                if ($this->isValidIP($ip)) {
-                    return $ip;
-                }
-            }
-        }
-
-        // Fallback to REMOTE_ADDR
-        return $remoteAddr;
-    }
-
-    /**
-     * Validate IP address format
-     */
-    private function isValidIP(string $ip): bool
-    {
-        $filtered = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-        return $filtered !== false;
+        return ClientIpResolver::resolve((string) ($serverParams['REMOTE_ADDR'] ?? 'unknown'), $headers);
     }
 }
