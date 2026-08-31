@@ -440,13 +440,17 @@ class RememberMeService
             return null;
         }
 
-        return ClientIpResolver::resolve($remoteAddr, [
+        $resolved = ClientIpResolver::resolve($remoteAddr, [
             'X-Forwarded-For' => (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''),
             'X-Real-IP' => (string) ($_SERVER['HTTP_X_REAL_IP'] ?? ''),
             'CF-Connecting-IP' => (string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? ''),
             'True-Client-IP' => (string) ($_SERVER['HTTP_TRUE_CLIENT_IP'] ?? ''),
             'X-Client-IP' => (string) ($_SERVER['HTTP_X_CLIENT_IP'] ?? ''),
         ]);
+
+        // An unparseable REMOTE_ADDR resolves to the 'unknown' sentinel; keep
+        // the audit column null rather than writing a literal "unknown".
+        return $resolved === 'unknown' ? null : $resolved;
     }
 
     /**

@@ -75,6 +75,27 @@ $check($invoke($mw, 'getClientIP', $spoofedPrefixReq) === '198.51.100.27',
 
 $check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => 'invalid, 10.0.0.8']) === '172.21.0.4',
     'malformed XFF chain fails safely to the direct peer');
+
+// A present-but-poisoned XFF must NOT fall through to a spoofable single-value
+// header — otherwise a caller behind a trusted proxy prepends one junk hop and
+// rotates X-Real-IP to mint unlimited rate-limit buckets.
+$check(ClientIpResolver::resolve('172.21.0.4', [
+        'X-Forwarded-For' => 'junk, 198.51.100.27',
+        'X-Real-IP' => '8.8.8.8',
+    ]) === '172.21.0.4',
+    'poisoned XFF fails closed to the trusted peer, never onto a spoofable X-Real-IP');
+
+// Single-value headers are still honored when XFF is entirely absent (proxies
+// like Cloudflare that emit CF-Connecting-IP but no XFF).
+$check(ClientIpResolver::resolve('172.21.0.4', ['X-Real-IP' => '198.51.100.9']) === '198.51.100.9',
+    'X-Real-IP is honored when X-Forwarded-For is absent');
+
+// Proxy-supplied hops carrying a port / IPv6 brackets are normalised, not
+// rejected as malformed.
+$check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => '[2001:db8::1]:443']) === '2001:db8::1',
+    'a bracketed IPv6 XFF hop with a port is normalised to the bare address');
+$check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => '198.51.100.27:51000']) === '198.51.100.27',
+    'an IPv4 XFF hop with a port is normalised to the bare address');
 putenv('TRUSTED_PROXIES');
 unset($_ENV['TRUSTED_PROXIES']);
 
@@ -96,6 +117,9 @@ putenv('TRUSTED_PROXIES=172.21.0.0/16');
 $_ENV['TRUSTED_PROXIES'] = '172.21.0.0/16';
 $check($invoke($svc, 'getClientIP') === '192.168.1.43',
     'trusted proxy: private LAN address is preserved in session audit data');
+$_SERVER['REMOTE_ADDR'] = 'not-an-ip';
+$check($invoke($svc, 'getClientIP') === null,
+    'an unparseable REMOTE_ADDR yields a null audit IP, not the literal "unknown"');
 putenv('TRUSTED_PROXIES');
 unset($_ENV['TRUSTED_PROXIES'], $_SERVER['HTTP_X_FORWARDED_FOR']);
 
