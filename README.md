@@ -41,7 +41,15 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.71 — latest
+### v0.7.72 — latest
+
+A small usability release: the two cache-maintenance controls on *Settings → Advanced* are unified into one.
+
+### Changed
+
+- **A single "Svuota cache" button clears every cache.** It always flushes the application query cache (APCu or file backend, shown as a hint) and additionally purges the LiteSpeed edge cache where the server actually runs LiteSpeed — so a non-LiteSpeed install no longer shows a control it can't use, and a LiteSpeed install no longer shows two buttons. The flush runs inside the web request, so it reaches the same APCu segment that serves pages, which a CLI command cannot.
+
+### v0.7.71
 
 A performance release: a full caching overhaul for anonymous traffic (issue #387). The pages the public sees — home, catalog/search and book pages — are served from cache instead of rebuilt on every request, while copy availability stays live. Upgrades cleanly with no behaviour change on a cold cache; the optional LiteSpeed edge cache is off by default.
 

@@ -2,6 +2,14 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.72]
+
+A small usability release: the two cache-maintenance controls on Settings → Advanced are unified into one.
+
+### Changed
+
+- **A single "Svuota cache" button clears every cache.** The Advanced settings tab previously showed two separate controls — a LiteSpeed edge-cache purge and an application query-cache flush. They are now one admin button that, in a single action, always flushes the application query cache (APCu or file backend, shown as a hint under the button) and additionally purges the LiteSpeed edge cache where the server actually runs LiteSpeed. On plain Apache/nginx and in the Docker image only the query cache is cleared and no purge header is sent, so a non-LiteSpeed install no longer shows a control it cannot use and a LiteSpeed install no longer shows two buttons. The flush runs inside the web request, so it reaches the same APCu segment that serves pages — which a CLI command cannot.
+
 ## [0.7.71]
 
 A performance release: a full caching overhaul for anonymous traffic (issue #387), delivered as one stable jump from 0.7.68. Every install upgrades with identical behaviour on a cold cache; the optional LiteSpeed edge cache is off by default and configured by administrators. Existing installs receive an idempotent catalog-materialization migration.
