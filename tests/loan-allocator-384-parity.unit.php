@@ -270,15 +270,29 @@ $check($gateAllocPos !== false
     '19 the gate keeps the HARD rule: any commitment starting before the window end rejects');
 
 // NCIP desk operations share the same policy and preference (no drifting clones).
+// Method-scoped slices (anchor at the definition, bound at the next method, fail
+// if the anchor disappears) so a comment elsewhere in the file can never satisfy
+// these — same non-vacuousness pattern as check 19.
 $ncipSrc = (string) file_get_contents($root . '/storage/plugins/ncip-server/NcipServerPlugin.php');
-$check(str_contains($ncipSrc, "'9999-12-31'"),
+$methodSlice = static function (string $src, string $method): string {
+    $at = strpos($src, "private function {$method}");
+    if ($at === false) {
+        return '';
+    }
+    $end = strpos($src, 'private function ', $at + 1);
+    return substr($src, $at, $end === false ? strlen($src) - $at : $end - $at);
+};
+$checkoutSrc = $methodSlice($ncipSrc, 'createLoanAtomic');
+$requestSrc = $methodSlice($ncipSrc, 'createRequestItemNcip');
+$check($checkoutSrc !== '' && str_contains($checkoutSrc, "'9999-12-31'"),
     '20 the NCIP checkout allocator carries the #384 preference sentinel');
-$check(substr_count($ncipSrc, 'LoanMultiplicityPolicy') >= 2,
-    '21 both NCIP CheckOutItem and RequestItem consult LoanMultiplicityPolicy');
+$check($checkoutSrc !== '' && str_contains($checkoutSrc, 'hasBlockingLoan($bookId, $userId, true)')
+    && $requestSrc !== '' && str_contains($requestSrc, 'hasBlockingLoan($bookId, $userId, false)'),
+    '21 CheckOutItem consults the policy copy-binding, RequestItem strict (each in its own body)');
 $check(!str_contains($ncipSrc, "AND ((attivo = 0 AND stato = 'pendente')"),
     '22 the inline duplicate-predicate clones are gone from the NCIP plugin');
-$check(str_contains($ncipSrc, 'committedCopyIds'),
-    '23 NCIP excludes the borrower\'s own committed copies from allocation (relaxed-mode parity)');
+$check($checkoutSrc !== '' && str_contains($checkoutSrc, 'committedCopyIds'),
+    '23 the checkout body excludes the borrower\'s own committed copies (relaxed-mode parity)');
 
 $cleanup();
 $db->close();
