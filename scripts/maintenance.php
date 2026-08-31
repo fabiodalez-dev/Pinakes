@@ -118,12 +118,6 @@ $reservationManager->cancelExpiredReservations();
 $reservationManager->flushDeferredNotifications();
 echo "✓ Expired reservations processed\n\n";
 
-// TXN-003: from here on each book is wrapped in this script's own transaction,
-// so the manager must NOT begin a nested one — mysqli begin_transaction()
-// inside an open transaction implicitly COMMITS the outer one, silently
-// breaking the FOR UPDATE serialization the loop relies on.
-$reservationManager->setExternalTransaction(true);
-
 // Process available books for pending reservations
 echo "Processing available books for reservations...\n";
 
@@ -140,12 +134,22 @@ $processedBooks = 0;
 while ($row = $result->fetch_assoc()) {
     $bookId = (int)$row['libro_id'];
     $inTransaction = false;
+    // Fresh manager per book (same pattern as MaintenanceService::checkExpiredPickups):
+    // a rollback below must not leave this book's queued promotion notification in a
+    // shared manager, where the next book's post-commit flush would email a user
+    // about a promotion that never persisted.
+    // TXN-003: each book is wrapped in this script's own transaction, so the
+    // manager must NOT begin a nested one — mysqli begin_transaction() inside an
+    // open transaction implicitly COMMITS the outer one, silently breaking the
+    // FOR UPDATE serialization the loop relies on.
+    $bookManager = new ReservationManager($db);
+    $bookManager->setExternalTransaction(true);
     try {
         // Wrap in transaction to ensure FOR UPDATE locks are effective
         $db->begin_transaction();
         $inTransaction = true;
 
-        if ($reservationManager->processBookAvailability($bookId)) {
+        if ($bookManager->processBookAvailability($bookId)) {
             echo "✓ Processed reservations for book ID: $bookId\n";
             $processedBooks++;
         }
@@ -153,7 +157,7 @@ while ($row = $result->fetch_assoc()) {
         $inTransaction = false;
         // External-transaction mode defers promotion emails: flush them only
         // after this book's transaction has committed.
-        $reservationManager->flushDeferredNotifications();
+        $bookManager->flushDeferredNotifications();
     } catch (\Throwable $e) {
         if ($inTransaction) {
             try {

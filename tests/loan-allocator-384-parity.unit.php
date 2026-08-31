@@ -41,11 +41,18 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     [$key, $value] = explode('=', $line, 2);
     $env[trim($key)] = trim(trim($value), "\"'");
 }
-$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
+// Orchestrators with no credentials export the literal string "undefined"
+// (a JS-undefined artifact) — treat it like an unset variable so the .env
+// fallback still applies.
+$e2e = static function (string $key): string {
+    $value = getenv($key);
+    return $value === false || $value === 'undefined' ? '' : $value;
+};
+$socket = $e2e('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
 try {
     $db = $socket !== '' && file_exists($socket)
-        ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
-        : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
+        ? new mysqli(null, $e2e('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), $e2e('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), $e2e('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
+        : new mysqli($e2e('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), $e2e('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), $e2e('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), $e2e('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) ($e2e('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
     $db->set_charset('utf8mb4');
     DateHelper::synchronizeDatabaseSession($db);
 } catch (Throwable $e) {
@@ -251,8 +258,15 @@ $check(substr_count($reasSrc, 'MIN(future.data_prestito)') >= 1
 $check(str_contains($reasSrc, "p.data_prestito <= ?")
     && str_contains($reasSrc, "p.data_scadenza >= ?"),
     '18 the lenient date-overlap predicate (loan-edge-cases contract) is intact');
-$check(str_contains($gateSrc, 'p.data_prestito <= ?')
-    && !str_contains(substr($gateSrc, (int) strpos($gateSrc, 'findAssignableInLibraryCopyThrough'), 1600), 'data_scadenza >= ?'),
+// Slice the METHOD DEFINITION (not the route() call site) so the negative
+// assertion actually inspects the allocator SQL; bound at the next method so
+// the window tracks the body regardless of its length.
+$gateAllocPos = strpos($gateSrc, 'private function findAssignableInLibraryCopyThrough');
+$gateAllocEnd = $gateAllocPos === false ? false : strpos($gateSrc, 'private function', $gateAllocPos + 1);
+$gateAllocSrc = $gateAllocPos === false ? '' : substr($gateSrc, $gateAllocPos, $gateAllocEnd === false ? null : $gateAllocEnd - $gateAllocPos);
+$check($gateAllocPos !== false
+    && str_contains($gateAllocSrc, 'p.data_prestito <= ?')
+    && !str_contains($gateAllocSrc, 'data_scadenza >= ?'),
     '19 the gate keeps the HARD rule: any commitment starting before the window end rejects');
 
 // NCIP desk operations share the same policy and preference (no drifting clones).
