@@ -96,6 +96,22 @@ $check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => '[2001:db8:
     'a bracketed IPv6 XFF hop with a port is normalised to the bare address');
 $check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => '198.51.100.27:51000']) === '198.51.100.27',
     'an IPv4 XFF hop with a port is normalised to the bare address');
+
+// A non-integer CIDR prefix must be rejected, not silently truncated by (int):
+// 10.0.0.0/0.5 → (int)0 → /0 would trust EVERY peer and collapse the boundary.
+putenv('TRUSTED_PROXIES=10.0.0.0/0.5');
+$_ENV['TRUSTED_PROXIES'] = '10.0.0.0/0.5';
+$check(\App\Support\HtmlHelper::isTrustedProxyIp('8.8.8.8') === false,
+    'a fractional CIDR prefix (/0.5) is rejected, not widened to /0 (trust-all)');
+putenv('TRUSTED_PROXIES=10.0.0.0/1e2');
+$_ENV['TRUSTED_PROXIES'] = '10.0.0.0/1e2';
+$check(\App\Support\HtmlHelper::isTrustedProxyIp('8.8.8.8') === false,
+    'a scientific-notation CIDR prefix (/1e2) is rejected');
+// A well-formed CIDR still matches, so the guard did not over-tighten.
+putenv('TRUSTED_PROXIES=10.0.0.0/8');
+$_ENV['TRUSTED_PROXIES'] = '10.0.0.0/8';
+$check(\App\Support\HtmlHelper::isTrustedProxyIp('10.1.2.3') === true,
+    'a valid integer CIDR prefix (/8) still matches a peer inside the range');
 putenv('TRUSTED_PROXIES');
 unset($_ENV['TRUSTED_PROXIES']);
 
