@@ -327,15 +327,15 @@ class ReservationsAdminController
             }
 
             if ($oldStato === 'attiva' && $stato === 'annullata') {
-                // CI-SOFT-DELETE-EXEMPT: the cancellation notice must reach the
-                // user even when the reserved title was archived meanwhile — the
-                // sibling cancel paths (cancelReservation, rejectLoan) are
-                // deliberately exempt for the same reason; filtering here made
-                // this one path silently skip the email.
+                // The update path already rejects archived titles up front (the
+                // book row is locked WITH deleted_at IS NULL and the request
+                // fails with book_not_found before reaching this point), so this
+                // fetch keeps the standard filter: it can only ever see a live
+                // book, and the controller-wide soft-delete rule stays intact.
                 $notificationStmt = $db->prepare(
                     "SELECT CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email, l.titolo
                      FROM utenti u
-                     JOIN libri l ON l.id = ?
+                     JOIN libri l ON l.id = ? AND l.deleted_at IS NULL
                      WHERE u.id = ?"
                 );
                 $notificationStmt->bind_param('ii', $libroId, $utenteId);

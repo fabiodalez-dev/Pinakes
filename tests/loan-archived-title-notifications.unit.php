@@ -90,9 +90,11 @@ final class DeadlineProbeNotificationService extends NotificationService
 $run = bin2hex(random_bytes(6));
 $title = "ZZ_ARCHNOTIF_{$run}";
 $email = "zz-archnotif-{$run}@test.local";
+$adminEmail = "zz-archnotif-admin-{$run}@test.local";
 $inventory = "ZZAN-{$run}";
 $bookId = 0;
 $userId = 0;
+$adminId = 0;
 $passed = 0;
 $failed = 0;
 $check = static function (bool $ok, string $label) use (&$passed, &$failed): void {
@@ -100,7 +102,7 @@ $check = static function (bool $ok, string $label) use (&$passed, &$failed): voi
     $ok ? $passed++ : $failed++;
 };
 
-$cleanup = static function () use ($db, &$bookId, &$userId): void {
+$cleanup = static function () use ($db, &$bookId, &$userId, &$adminId): void {
     if ($bookId > 0) {
         $db->query("DELETE FROM prestiti WHERE libro_id = {$bookId}");
         $db->query("DELETE FROM copie WHERE libro_id = {$bookId}");
@@ -108,6 +110,9 @@ $cleanup = static function () use ($db, &$bookId, &$userId): void {
     }
     if ($userId > 0) {
         $db->query("DELETE FROM utenti WHERE id = {$userId}");
+    }
+    if ($adminId > 0) {
+        $db->query("DELETE FROM utenti WHERE id = {$adminId}");
     }
 };
 set_exception_handler(static function (Throwable $e) use ($cleanup, $db): void {
@@ -139,6 +144,20 @@ $stmt = $db->prepare(
 $stmt->bind_param('sss', $card, $email, $password);
 $stmt->execute();
 $userId = (int) $db->insert_id;
+$stmt->close();
+
+// A sandbox ADMIN too: notifyAdminsOverdue resolves locales only inside
+// sendToAdmins' recipient loop, so on a fresh CI database with no active
+// admin/staff users the probe would never fire. One sandbox admin makes the
+// probe deterministic in every environment.
+$adminCard = 'ZZANA' . strtoupper(substr($run, 0, 7));
+$stmt = $db->prepare(
+    "INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato, email_verificata)
+     VALUES (?, 'Archived', 'Admin', ?, ?, 'admin', 'attivo', 1)"
+);
+$stmt->bind_param('sss', $adminCard, $adminEmail, $password);
+$stmt->execute();
+$adminId = (int) $db->insert_id;
 $stmt->close();
 
 $start = DateHelper::today();
@@ -248,12 +267,18 @@ foreach ([
         "{$n} {$fn} carries the CI-SOFT-DELETE-EXEMPT annotation");
 }
 
+// The admin cancel-via-edit path is DIFFERENT from the sweeps by design: it
+// rejects archived titles up front (the book row is locked WITH deleted_at
+// IS NULL → book_not_found), so its notification fetch keeps the standard
+// filter and can only ever see a live book. Guard both halves of that shape.
 $adminCtrl = (string) file_get_contents($root . '/app/Controllers/ReservationsAdminController.php');
+$check(str_contains($adminCtrl, "SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE")
+    && str_contains($adminCtrl, 'book_not_found'),
+    '24a admin cancel-via-edit rejects archived titles up front (book_not_found gate)');
 $cancelBlockAt = strpos($adminCtrl, "utente_nome, u.email, l.titolo");
 $cancelBlock = $cancelBlockAt === false ? '' : substr($adminCtrl, max(0, $cancelBlockAt - 700), 1400);
-$check($cancelBlock !== '' && !str_contains($cancelBlock, 'deleted_at IS NULL')
-    && str_contains($cancelBlock, 'CI-SOFT-DELETE-EXEMPT'),
-    '24 admin cancel-via-edit notification fetch is exempt and unfiltered');
+$check($cancelBlock !== '' && str_contains($cancelBlock, 'deleted_at IS NULL'),
+    '24b its notification fetch keeps the standard soft-delete filter (consistent with the gate)');
 
 // ── 25-26. Recipient-locale reason fallback (rejected-loan emails) ───────────
 $check(substr_count($notifSrc, "translateInLocale('Nessun motivo specificato'") >= 2

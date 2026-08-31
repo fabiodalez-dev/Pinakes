@@ -255,6 +255,17 @@ $check(str_contains($gateSrc, 'p.data_prestito <= ?')
     && !str_contains(substr($gateSrc, (int) strpos($gateSrc, 'findAssignableInLibraryCopyThrough'), 1600), 'data_scadenza >= ?'),
     '19 the gate keeps the HARD rule: any commitment starting before the window end rejects');
 
+// NCIP desk operations share the same policy and preference (no drifting clones).
+$ncipSrc = (string) file_get_contents($root . '/storage/plugins/ncip-server/NcipServerPlugin.php');
+$check(str_contains($ncipSrc, "'9999-12-31'"),
+    '20 the NCIP checkout allocator carries the #384 preference sentinel');
+$check(substr_count($ncipSrc, 'LoanMultiplicityPolicy') >= 2,
+    '21 both NCIP CheckOutItem and RequestItem consult LoanMultiplicityPolicy');
+$check(!str_contains($ncipSrc, "AND ((attivo = 0 AND stato = 'pendente')"),
+    '22 the inline duplicate-predicate clones are gone from the NCIP plugin');
+$check(str_contains($ncipSrc, 'committedCopyIds'),
+    '23 NCIP excludes the borrower\'s own committed copies from allocation (relaxed-mode parity)');
+
 $cleanup();
 $db->close();
 

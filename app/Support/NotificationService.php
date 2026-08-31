@@ -1494,7 +1494,9 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'motivo_rifiuto' => $reason ?: $this->translateInLocale('Nessun motivo specificato', $recipientLocale)
+                // !== '' (not ?:) so a literal "0" reason is preserved — same
+                // criterion as sendPickupCancelledNotification's reason handling.
+                'motivo_rifiuto' => $reason !== '' ? $reason : $this->translateInLocale('Nessun motivo specificato', $recipientLocale)
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_rejected', $variables);
@@ -1526,7 +1528,9 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $userName,
                 'libro_titolo' => $bookTitle,
-                'motivo_rifiuto' => $reason ?: $this->translateInLocale('Nessun motivo specificato', $recipientLocale)
+                // !== '' (not ?:) so a literal "0" reason is preserved — same
+                // criterion as sendPickupCancelledNotification's reason handling.
+                'motivo_rifiuto' => $reason !== '' ? $reason : $this->translateInLocale('Nessun motivo specificato', $recipientLocale)
             ];
 
             return $this->sendWithRetry($userEmail, 'loan_rejected', $variables);

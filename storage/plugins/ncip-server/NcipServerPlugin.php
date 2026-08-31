@@ -1671,17 +1671,20 @@ class NcipServerPlugin
                 return null;
             }
 
-            $duplicate = $this->db->prepare(
-                "SELECT id FROM prestiti
-                 WHERE libro_id = ? AND utente_id = ?
-                   AND ((attivo = 0 AND stato = 'pendente')
-                        OR (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')))
-                 LIMIT 1 FOR UPDATE"
-            );
-            $duplicate->bind_param('ii', $bookId, $userId);
-            $duplicate->execute();
-            $hasDuplicate = (bool) $duplicate->get_result()->fetch_row();
-            $duplicate->close();
+            // Borrower/title uniqueness goes through the SAME policy as the
+            // staff flow (LoanMultiplicityPolicy): strict by default, and when
+            // allow_multiple_loans_same_book is enabled a second COPY-BINDING
+            // checkout is allowed exactly like the admin UI — an NCIP desk
+            // checkout must not be stricter than the desk itself. The previous
+            // inline predicate was a verbatim clone of the policy's strict
+            // branch and would have drifted silently. committedCopyIds keeps
+            // the borrower's own already-committed copies out of the allocator
+            // below, mirroring PrestitiController::store.
+            $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($this->db);
+            $hasDuplicate = $multiplicityPolicy->hasBlockingLoan($bookId, $userId, true);
+            $borrowerCommittedCopyIds = $hasDuplicate
+                ? []
+                : $multiplicityPolicy->committedCopyIds($bookId, $userId);
 
             $reservation = $this->db->prepare(
                 "SELECT id FROM prenotazioni
@@ -1733,7 +1736,15 @@ class NcipServerPlugin
                 return null;
             }
 
-            $copy = $this->db->prepare(
+            // #384 preference, identical to the canonical allocators (request
+            // gate, FIFO promotion, approval Step 2d): prefer a copy with no
+            // later commitment (or whose next one is furthest away) so a desk
+            // checkout never takes the copy a scheduled loan already needs
+            // while a free sibling sits idle. numero_inventario stays as the
+            // librarian-friendly tie-break. The borrower's own committed
+            // copies are excluded up front (relaxed-mode parity with
+            // PrestitiController::store).
+            $copySql =
                 "SELECT c.id FROM copie c
                  WHERE c.libro_id = ?
                    AND c.stato IN ('disponibile','prenotato')
@@ -1746,11 +1757,33 @@ class NcipServerPlugin
                               OR p.data_scadenza >= ?)
                          AND ((p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                               OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL))
-                   )
-                 ORDER BY c.numero_inventario ASC
-                 LIMIT 1 FOR UPDATE"
-            );
-            $copy->bind_param('isss', $bookId, $dueDate, $today, $today);
+                   )";
+            $copyParams = [$bookId, $dueDate, $today, $today];
+            $copyTypes = 'isss';
+            if ($borrowerCommittedCopyIds !== []) {
+                $placeholders = implode(',', array_fill(0, count($borrowerCommittedCopyIds), '?'));
+                $copySql .= " AND c.id NOT IN ({$placeholders})";
+                foreach ($borrowerCommittedCopyIds as $committedId) {
+                    $copyParams[] = $committedId;
+                    $copyTypes .= 'i';
+                }
+            }
+            $copySql .=
+                " ORDER BY COALESCE((
+                       SELECT MIN(future.data_prestito)
+                       FROM prestiti future
+                       WHERE future.copia_id = c.id
+                         AND future.data_prestito > ?
+                         AND ((future.attivo = 1 AND future.stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                              OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL))
+                   ), '9999-12-31') DESC,
+                   c.numero_inventario ASC
+                 LIMIT 1 FOR UPDATE";
+            $copyParams[] = $dueDate;
+            $copyTypes .= 's';
+
+            $copy = $this->db->prepare($copySql);
+            $copy->bind_param($copyTypes, ...$copyParams);
             $copy->execute();
             $copyRow = $copy->get_result()->fetch_assoc();
             $copy->close();
@@ -1838,17 +1871,13 @@ class NcipServerPlugin
                 return null;
             }
 
-            $duplicate = $this->db->prepare(
-                "SELECT id FROM prestiti
-                 WHERE libro_id = ? AND utente_id = ?
-                   AND ((attivo = 0 AND stato = 'pendente')
-                        OR (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')))
-                 LIMIT 1 FOR UPDATE"
-            );
-            $duplicate->bind_param('ii', $bookId, $userId);
-            $duplicate->execute();
-            $hasDuplicate = (bool) $duplicate->get_result()->fetch_row();
-            $duplicate->close();
+            // A RequestItem is a BARE request (no copy is bound), so the
+            // multiplicity policy stays strict regardless of the opt-in —
+            // operationWillBindCopy=false reproduces exactly the historical
+            // predicate, but from the single shared source instead of an
+            // inline clone that drifts.
+            $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($this->db);
+            $hasDuplicate = $multiplicityPolicy->hasBlockingLoan($bookId, $userId, false);
 
             $reservation = $this->db->prepare(
                 "SELECT id FROM prenotazioni

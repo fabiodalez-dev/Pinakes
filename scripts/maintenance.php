@@ -105,19 +105,24 @@ $db->set_charset($cfg['charset']);
 \App\Support\DateHelper::synchronizeDatabaseSession($db);
 
 $reservationManager = new ReservationManager($db);
-// TXN-003: this script wraps each book in its own transaction below, so the
-// manager must NOT begin a nested one — mysqli begin_transaction() inside an
-// open transaction implicitly COMMITS the outer one, silently breaking the
-// FOR UPDATE serialization this loop relies on.
-$reservationManager->setExternalTransaction(true);
 
 echo "=== RESERVATION MAINTENANCE STARTED ===\n";
 echo "Time: " . date('Y-m-d H:i:s') . "\n\n";
 
-// Cancel expired reservations
+// Cancel expired reservations. This runs OUTSIDE the per-book transaction
+// loop below, so the manager must still own its transactions here — external
+// mode is switched on only afterwards. Flush its queued expiry notifications
+// right away: the loop may process zero books and never flush otherwise.
 echo "Cancelling expired reservations...\n";
 $reservationManager->cancelExpiredReservations();
+$reservationManager->flushDeferredNotifications();
 echo "✓ Expired reservations processed\n\n";
+
+// TXN-003: from here on each book is wrapped in this script's own transaction,
+// so the manager must NOT begin a nested one — mysqli begin_transaction()
+// inside an open transaction implicitly COMMITS the outer one, silently
+// breaking the FOR UPDATE serialization the loop relies on.
+$reservationManager->setExternalTransaction(true);
 
 // Process available books for pending reservations
 echo "Processing available books for reservations...\n";
