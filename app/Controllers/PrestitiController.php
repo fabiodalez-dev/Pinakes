@@ -1273,11 +1273,15 @@ class PrestitiController
         }
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\LoanRepository($db);
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
         // false = prestito inesistente o non chiudibile (guardia di stato H1):
         // segnala invece di fingere il successo.
         if (!$repo->close($id)) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_closable')->withStatus(302);
         }
+        // Same audit contract as processReturn(): the legacy endpoint closes
+        // the same loans and must leave the same trail.
+        \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.returned', $activityBefore, source: 'manual');
 
         // Legacy close endpoint shares the same post-commit notification
         // contract as processReturn/quick return.
@@ -1866,6 +1870,9 @@ class PrestitiController
                 // null == a capacity/copy conflict: roll the WHOLE batch back so
                 // no partial extension is committed (same all-or-nothing contract
                 // the tests pin). A thrown error is handled by the outer catch.
+                // Before-snapshot inside the lock, so the audit diff shows the
+                // pre-extension due date (same event renew() records).
+                $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, (int) $loan['id']);
                 $applied = $this->applyBulkLoanExtension(
                     $loan,
                     $days,
@@ -1880,6 +1887,9 @@ class PrestitiController
                     $update->close();
                     $db->rollback();
                     return $response->withHeader('Location', $backUrl . '?error=bulk_extend_conflict')->withStatus(302);
+                }
+                if ($applied > 0) {
+                    \App\Support\ActivityLog::recordLoanEvent($db, (int) $loan['id'], 'loan.renewed', $activityBefore, source: 'manual');
                 }
                 $extended += $applied;
             }

@@ -912,6 +912,8 @@ class UserActionsController
             $stmt->bind_param('iiissss', $libroId, $utenteId, $pos, $startDt, $endDt, $start, $end);
 
             if ($stmt->execute()) {
+                // insert_id right after the INSERT: any later query resets it.
+                $reservationId = (int) $db->insert_id;
                 $stmt->close();
 
                 // Recalculate book availability after reservation
@@ -919,6 +921,18 @@ class UserActionsController
                 if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
                     throw new \RuntimeException('Failed to recalculate availability after reservation creation.');
                 }
+
+                // Same audit trail as cancelReservation()/changeReservationDate();
+                // recorded inside the transaction, and the helper swallows its
+                // own failures so it cannot abort the reservation.
+                \App\Support\ActivityLog::recordReservationEvent(
+                    $db,
+                    $reservationId,
+                    'reservation.created',
+                    action: 'inserimento',
+                    source: 'user',
+                    operatorId: $utenteId
+                );
 
                 $db->commit();
                 $params = ['reserve_success' => 1];
