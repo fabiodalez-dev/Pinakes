@@ -255,6 +255,7 @@ class ThemeColorizer
             // Variants
             'primary_hover' => $this->darken($primary, 10),
             'primary_focus' => $this->darken($primary, 15),
+            'primary_dark' => $this->darken($primary, 15),
             'secondary_hover' => $this->darken($secondary, 10),
             'button_hover' => $this->darken($button, 10),
         ];

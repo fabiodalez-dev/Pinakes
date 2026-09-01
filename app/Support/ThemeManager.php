@@ -143,10 +143,17 @@ class ThemeManager
 
             $stmt->bind_param('i', $themeId);
             $success = $stmt->execute();
+            $affectedRows = $stmt->affected_rows;
             $stmt->close();
 
             if (!$success) {
                 throw new \Exception("Failed to activate theme");
+            }
+
+            // No row matched: the theme id does not exist. Roll back so the
+            // previously active theme survives instead of leaving none active.
+            if ($affectedRows < 1) {
+                throw new \Exception("Theme not found: id {$themeId}");
             }
 
             $this->db->commit();

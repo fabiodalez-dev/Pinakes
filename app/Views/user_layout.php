@@ -58,7 +58,7 @@ $eventsEnabled = false;
 if (isset($db)) {
     try {
         $settingsRepository = new \App\Models\SettingsRepository($db);
-        $eventsEnabled = $settingsRepository->get('cms', 'events_page_enabled', '0') === '1';
+        $eventsEnabled = $settingsRepository->get('cms', 'events_page_enabled', '1') === '1';
     } catch (\Throwable $e) {
         $eventsEnabled = false;
     }

@@ -209,6 +209,13 @@ class SettingsController
 
     public function updateEmailSettings(Request $request, Response $response, mysqli $db): Response
     {
+        // AdminAuthMiddleware also admits staff; the mail configuration
+        // (SMTP host/credentials) is admin-only, so re-check the role inline.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $this->redirect($response, '/admin/settings?tab=email');
+        }
+
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
@@ -224,7 +231,7 @@ class SettingsController
         $fromEmail = trim((string) ($data['from_email'] ?? ''));
         $fromName = trim((string) ($data['from_name'] ?? ''));
         $smtpHost = trim((string) ($data['smtp_host'] ?? ''));
-        $smtpPort = (string) max(1, (int) ($data['smtp_port'] ?? 587));
+        $smtpPort = (string) max(1, min(65535, (int) ($data['smtp_port'] ?? 587)));
         $smtpUser = trim((string) ($data['smtp_username'] ?? ''));
         $smtpPass = (string) ($data['smtp_password'] ?? '');
         $encryption = (string) ($data['smtp_encryption'] ?? 'tls');
@@ -371,6 +378,13 @@ class SettingsController
                             }
                         }
                         if (!empty($row['delete'])) {
+                            // Deleting a definition cascades every stored
+                            // per-user value (FK) — destructive, so admin-only
+                            // even though staff may save the rest of the tab
+                            // (AdminAuthMiddleware also admits staff).
+                            if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+                                throw new \DomainException(__('Operazione riservata agli amministratori'));
+                            }
                             $delete->bind_param('i', $id);
                             if (!$delete->execute()) {
                                 throw new \RuntimeException('Custom field delete failed: ' . $delete->error);
@@ -450,6 +464,13 @@ class SettingsController
 
     public function updateEmailTemplate(Request $request, Response $response, mysqli $db, string $template): Response
     {
+        // AdminAuthMiddleware also admits staff; email templates land verbatim
+        // in outgoing mail, so editing them is admin-only — re-check inline.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $this->redirect($response, '/admin/settings?tab=templates');
+        }
+
         $definition = SettingsMailTemplates::get($template);
         if ($definition === null) {
             return $response->withStatus(404);
@@ -746,7 +767,7 @@ class SettingsController
 
             // Parse the URL
             $parsedUrl = parse_url($mapUrl);
-            if ($parsedUrl === false || $parsedUrl['scheme'] !== 'https') {
+            if ($parsedUrl === false || ($parsedUrl['scheme'] ?? '') !== 'https') {
                 $_SESSION['error_message'] = __('URL non valido. Deve essere un URL HTTPS valido.');
                 return $this->redirect($response, '/admin/settings?tab=contacts');
             }
@@ -914,17 +935,24 @@ class SettingsController
 
     public function updateAdvancedSettings(Request $request, Response $response, mysqli $db): Response
     {
+        // AdminAuthMiddleware also admits staff; this tab persists custom
+        // JS/CSS injected on every public page plus security toggles, so the
+        // whole save is admin-only — re-check the role inline.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
+        }
+
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
-        $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
         $liteSpeedBlockedByContainer = LiteSpeedCache::blockedByContainer();
         $requestedLiteSpeed = isset($data['litespeed_enabled']) && $data['litespeed_enabled'] === '1';
         // A forged POST and a stale DB value must not enable LiteSpeed in the
         // Apache Docker image. Persist 0 so exported/restored settings agree
         // with the runtime restriction as well.
         $wantsLiteSpeed = !$liteSpeedBlockedByContainer && $requestedLiteSpeed;
-        if ($isAdmin && $wantsLiteSpeed && !LiteSpeedCache::ensureLookupBypass()) {
+        if ($wantsLiteSpeed && !LiteSpeedCache::ensureLookupBypass()) {
             $_SESSION['error_message'] = __('Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.');
             return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
         }
@@ -968,34 +996,32 @@ class SettingsController
             }
         }
 
-        // Full-page caching changes public delivery semantics and is therefore
-        // admin-only even though staff may access the wider Advanced tab.
-        if ($isAdmin) {
-            $allowedTtls = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
-            // The LiteSpeed controls are omitted from the POST whenever they are
-            // not rendered as active inputs — the Docker image disables them, and
-            // on a non-LiteSpeed server the whole section is hidden. In both cases
-            // preserve the stored TTLs instead of silently resetting them to the
-            // defaults while another Advanced option is being saved.
-            $homeTtl = array_key_exists('litespeed_home_ttl', $data)
-                ? $data['litespeed_home_ttl']
-                : $repository->get('cache', 'litespeed_home_ttl', '300');
-            $catalogTtl = array_key_exists('litespeed_catalog_ttl', $data)
-                ? $data['litespeed_catalog_ttl']
-                : $repository->get('cache', 'litespeed_catalog_ttl', '120');
-            $bookTtl = array_key_exists('litespeed_book_ttl', $data)
-                ? $data['litespeed_book_ttl']
-                : $repository->get('cache', 'litespeed_book_ttl', '300');
-            $cacheSettings = [
-                'litespeed_enabled' => $wantsLiteSpeed ? '1' : '0',
-                'litespeed_home_ttl' => (string) $this->validatedCacheTtl($homeTtl, 300, $allowedTtls),
-                'litespeed_catalog_ttl' => (string) $this->validatedCacheTtl($catalogTtl, 120, $allowedTtls),
-                'litespeed_book_ttl' => (string) $this->validatedCacheTtl($bookTtl, 300, $allowedTtls),
-            ];
-            foreach ($cacheSettings as $key => $value) {
-                $repository->set('cache', $key, $value);
-                ConfigStore::set('cache.' . $key, $key === 'litespeed_enabled' ? $value === '1' : (int) $value);
-            }
+        // Full-page caching changes public delivery semantics; like the rest of
+        // this handler it is admin-only (role re-checked at the top).
+        $allowedTtls = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
+        // The LiteSpeed controls are omitted from the POST whenever they are
+        // not rendered as active inputs — the Docker image disables them, and
+        // on a non-LiteSpeed server the whole section is hidden. In both cases
+        // preserve the stored TTLs instead of silently resetting them to the
+        // defaults while another Advanced option is being saved.
+        $homeTtl = array_key_exists('litespeed_home_ttl', $data)
+            ? $data['litespeed_home_ttl']
+            : $repository->get('cache', 'litespeed_home_ttl', '300');
+        $catalogTtl = array_key_exists('litespeed_catalog_ttl', $data)
+            ? $data['litespeed_catalog_ttl']
+            : $repository->get('cache', 'litespeed_catalog_ttl', '120');
+        $bookTtl = array_key_exists('litespeed_book_ttl', $data)
+            ? $data['litespeed_book_ttl']
+            : $repository->get('cache', 'litespeed_book_ttl', '300');
+        $cacheSettings = [
+            'litespeed_enabled' => $wantsLiteSpeed ? '1' : '0',
+            'litespeed_home_ttl' => (string) $this->validatedCacheTtl($homeTtl, 300, $allowedTtls),
+            'litespeed_catalog_ttl' => (string) $this->validatedCacheTtl($catalogTtl, 120, $allowedTtls),
+            'litespeed_book_ttl' => (string) $this->validatedCacheTtl($bookTtl, 300, $allowedTtls),
+        ];
+        foreach ($cacheSettings as $key => $value) {
+            $repository->set('cache', $key, $value);
+            ConfigStore::set('cache.' . $key, $key === 'litespeed_enabled' ? $value === '1' : (int) $value);
         }
 
         // In particular, enabling private mode must evict every public page
@@ -1249,6 +1275,13 @@ class SettingsController
 
     public function createApiKey(Request $request, Response $response, mysqli $db): Response
     {
+        // AdminAuthMiddleware also admits staff; minting an API credential is
+        // an admin-only action, so re-check the role inline.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $this->redirect($response, '/admin/settings?tab=advanced');
+        }
+
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
@@ -1279,6 +1312,13 @@ class SettingsController
     {
         // CSRF validated by CsrfMiddleware
 
+        // AdminAuthMiddleware also admits staff; enabling/disabling an API
+        // credential is an admin-only action, so re-check the role inline.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $this->redirect($response, '/admin/settings?tab=advanced');
+        }
+
         try {
             $apiKeyRepo = new \App\Models\ApiKeyRepository($db);
             $apiKeyRepo->ensureTable();
@@ -1297,6 +1337,13 @@ class SettingsController
     {
         // CSRF validated by CsrfMiddleware
 
+        // AdminAuthMiddleware also admits staff; revoking an API credential is
+        // an admin-only action, so re-check the role inline.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $this->redirect($response, '/admin/settings?tab=advanced');
+        }
+
         try {
             $apiKeyRepo = new \App\Models\ApiKeyRepository($db);
             $apiKeyRepo->ensureTable();
@@ -1313,6 +1360,13 @@ class SettingsController
 
     public function updateCookieBannerTexts(Request $request, Response $response, mysqli $db): Response
     {
+        // AdminAuthMiddleware also admits staff; these texts are rendered on
+        // every public page, so editing them is admin-only — re-check inline.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
+        }
+
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
@@ -1326,8 +1380,26 @@ class SettingsController
             $cookieBannerTexts[$key] = trim((string) ($data[$inputName] ?? ''));
         }
 
+        // The description fields are injected as HTML by the consent manager
+        // (innerHTML / template literals in silktide-consent-manager.js), so
+        // they must be sanitized like any other stored rich text. The other
+        // fields are plain button/label texts and keep trim only.
+        $htmlFields = [
+            'banner_description',
+            'preferences_description',
+            'cookie_essential_description',
+            'cookie_analytics_description',
+            'cookie_marketing_description',
+        ];
+
         foreach ($cookieBannerTexts as $key => $value) {
+            if (in_array($key, $htmlFields, true)) {
+                $value = HtmlHelper::sanitizeHtml($value);
+            }
             if ($value === '') {
+                // An empty submission reverts the text to its shipped default:
+                // drop the stored override so ConfigStore falls back to it.
+                $repository->delete('cookie_banner', $key);
                 continue;
             }
 
