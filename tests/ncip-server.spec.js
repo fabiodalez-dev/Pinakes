@@ -34,6 +34,7 @@
  * 29. CancelRequestItem cannot overwrite a request concurrently approved
  * 30. CheckInItem cannot close a loan concurrently reassigned to another user
  * 31. RenewItem with UserId cannot renew a concurrently reassigned loan
+ * 32. A replayed CheckOutItem cannot consume a second copy
  *
  * Run: /tmp/run-e2e.sh tests/ncip-server.spec.js --config=tests/playwright.config.js --workers=1
  */
@@ -420,7 +421,7 @@ test.skip(
     'Missing E2E env (DB_* and admin credentials)'
 );
 
-test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
+test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
     /** @type {number} */
     let testBookId = 0;
     /** @type {number} */
@@ -443,6 +444,23 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
     let hardeningUserEmails = [];
     let hardeningPartnerId = 0;
     let hardeningAgencyId = '';
+    let originalMultipleLoansSetting = '__MISSING__';
+
+    function restoreMultipleLoansSetting() {
+        if (originalMultipleLoansSetting === '__MISSING__') {
+            dbQuery(
+                "DELETE FROM system_settings WHERE category='loans' " +
+                "AND setting_key='allow_multiple_loans_same_book'"
+            );
+            return;
+        }
+        const value = originalMultipleLoansSetting.replace(/'/g, "''");
+        dbQuery(
+            "INSERT INTO system_settings (category, setting_key, setting_value) " +
+            `VALUES ('loans', 'allow_multiple_loans_same_book', '${value}') ` +
+            'ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)'
+        );
+    }
 
     /** Remove only loans/transactions belonging to the isolated hardening title. */
     function resetHardeningLoans() {
@@ -499,6 +517,11 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
 
     test.beforeAll(async ({ browser }) => {
         await ensureNcipPlugin(browser);
+
+        originalMultipleLoansSetting = dbQuery(
+            "SELECT COALESCE((SELECT setting_value FROM system_settings " +
+            "WHERE category='loans' AND setting_key='allow_multiple_loans_same_book' LIMIT 1), '__MISSING__')"
+        );
 
         // Create a DEDICATED book with a real available copy row. A book with
         // copie_disponibili > 0 at the aggregate level may have no individual
@@ -1239,7 +1262,39 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
         )).toBe(`${hardeningUserIds[1]}:0:${originalDue}`);
     });
 
+    test('32. replayed checkout stays strict when same-title staff loans are enabled', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        dbQuery(
+            "INSERT INTO system_settings (category, setting_key, setting_value) " +
+            "VALUES ('loans', 'allow_multiple_loans_same_book', '1') " +
+            'ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)'
+        );
+
+        try {
+            const payload = checkOutItemXml(hardeningBookId, hardeningUserIds[0]);
+            const first = await ncipPost(request, payload, auth);
+            expect(first.status()).toBe(200);
+            expect(await first.text()).toContain('CheckOutItemResponse');
+
+            const replay = await ncipPost(request, payload, auth);
+            expect(replay.status()).toBe(200);
+            const replayBody = await replay.text();
+            expect(replayBody).toContain('Problem');
+            expect(replayBody).toContain('duplicate-request');
+            expect(dbQuery(
+                `SELECT COUNT(*) FROM prestiti
+                 WHERE libro_id=${hardeningBookId} AND utente_id=${hardeningUserIds[0]}
+                   AND origine='ncip' AND attivo=1 AND stato='in_corso'`
+            )).toBe('1');
+        } finally {
+            restoreMultipleLoansSetting();
+            resetHardeningLoans();
+        }
+    });
+
     test.afterAll(async () => {
+        try { restoreMultipleLoansSetting(); } catch { /* best-effort */ }
         // Isolated hardening fixtures (FK-safe and independent from tests 1-20).
         try { resetHardeningLoans(); } catch { /* best-effort */ }
         if (hardeningPartnerId > 0) {

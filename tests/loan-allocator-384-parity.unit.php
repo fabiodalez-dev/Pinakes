@@ -286,13 +286,15 @@ $checkoutSrc = $methodSlice($ncipSrc, 'createLoanAtomic');
 $requestSrc = $methodSlice($ncipSrc, 'createRequestItemNcip');
 $check($checkoutSrc !== '' && str_contains($checkoutSrc, "'9999-12-31'"),
     '20 the NCIP checkout allocator carries the #384 preference sentinel');
-$check($checkoutSrc !== '' && str_contains($checkoutSrc, 'hasBlockingLoan($bookId, $userId, true)')
+$check($checkoutSrc !== '' && str_contains($checkoutSrc, 'hasBlockingLoan($bookId, $userId, false)')
     && $requestSrc !== '' && str_contains($requestSrc, 'hasBlockingLoan($bookId, $userId, false)'),
-    '21 CheckOutItem consults the policy copy-binding, RequestItem strict (each in its own body)');
+    '21 both NCIP title-level operations stay strict and replay-safe (each in its own body)');
 $check(!str_contains($ncipSrc, "AND ((attivo = 0 AND stato = 'pendente')"),
     '22 the inline duplicate-predicate clones are gone from the NCIP plugin');
-$check($checkoutSrc !== '' && str_contains($checkoutSrc, 'committedCopyIds'),
-    '23 the checkout body excludes the borrower\'s own committed copies (relaxed-mode parity)');
+$check($checkoutSrc !== ''
+    && str_contains($checkoutSrc, 'no request idempotency')
+    && !str_contains($checkoutSrc, 'committedCopyIds'),
+    '23 CheckOutItem documents and enforces title-level replay safety');
 
 $cleanup();
 $db->close();

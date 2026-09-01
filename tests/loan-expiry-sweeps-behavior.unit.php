@@ -8,8 +8,8 @@ declare(strict_types=1);
  *
  * Covers, against the REAL database and the REAL MaintenanceService:
  *  - checkExpiredPickups: da_ritirare past its pickup_deadline → scaduto,
- *    attivo=0, pickup_deadline cleared, copy freed, availability recalculated,
- *    idempotent on re-run;
+ *    attivo=0, pickup_deadline cleared, only a held copy freed (never a copy
+ *    already in prestato), availability recalculated, idempotent on re-run;
  *  - checkExpiredReservations: prenotato whose window fully passed → scaduto,
  *    copy freed, idempotent;
  *  - waitlist promotion on expiry: the freed capacity promotes the head of the
@@ -173,6 +173,31 @@ $stmt->execute();
 $loanB = (int) $db->insert_id;
 $stmt->close();
 
+// ═════════ Fixture D: stale pickup points at a copy already physically lent ═════════
+[$bookD, [$copyD]] = $makeBook('D', 1);
+[$userD] = $makeUser('d');
+[$userD2] = $makeUser('d2');
+$db->query("UPDATE copie SET stato = 'prestato' WHERE id = {$copyD}");
+$db->query("UPDATE libri SET copie_disponibili = 0, stato = 'prestato' WHERE id = {$bookD}");
+$stmt = $db->prepare(
+    "INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo, pickup_deadline)
+     VALUES (?, ?, ?, ?, ?, 'da_ritirare', 'diretto', 1, ?)"
+);
+$sD = $d(-30); $eD = $d(-20); $dlD = $d(-2);
+$stmt->bind_param('iiisss', $bookD, $copyD, $userD, $sD, $eD, $dlD);
+$stmt->execute();
+$loanD = (int) $db->insert_id;
+$stmt->close();
+$stmt = $db->prepare(
+    "INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+     VALUES (?, ?, ?, ?, ?, 'in_corso', 'diretto', 1)"
+);
+$sD2 = $d(0); $eD2 = $d(14);
+$stmt->bind_param('iiiss', $bookD, $copyD, $userD2, $sD2, $eD2);
+$stmt->execute();
+$activeLoanD = (int) $db->insert_id;
+$stmt->close();
+
 // ═════════ Fixture W: expired pickup WITH a waiting queue behind it ═════════
 [$bookW, [$copyW]] = $makeBook('W', 1);
 [$userW1] = $makeUser('w1');
@@ -201,7 +226,7 @@ $stmt->close();
 // ═════════ 01-08: checkExpiredPickups behavior ═════════
 $maint = new MaintenanceService($db);
 $processedPickups = $maint->checkExpiredPickups();
-$check($processedPickups >= 2, '01 checkExpiredPickups processes both expired pickups (A and W)');
+$check($processedPickups >= 3, '01 checkExpiredPickups processes all expired pickups (A, D and W)');
 $check($loanCol($loanA, 'stato') === 'scaduto', '02 loan A transitions da_ritirare → scaduto');
 $check($loanCol($loanA, 'attivo') === '0', '03 loan A is deactivated (attivo=0)');
 $check($loanCol($loanA, 'pickup_deadline') === null, '04 loan A pickup_deadline is cleared on the terminal row');
@@ -229,6 +254,10 @@ $check($promoted !== null && $promoted['pickup_deadline'] === null,
     '11 the promoted pendente has no pickup_deadline yet (set at approval, by design)');
 $check($loanCol($loanW1, 'stato') === 'scaduto' && $loanCol($loanW1, 'pickup_deadline') === null,
     '12 the expired pickup behind the queue is terminal with a cleared deadline');
+$check($loanCol($loanD, 'stato') === 'scaduto'
+    && $loanCol($activeLoanD, 'stato') === 'in_corso'
+    && $copyState($copyD) === 'prestato',
+    '12b expiry never releases a copy whose lifecycle has already advanced to prestato');
 
 // ═════════ 13-17: checkExpiredReservations behavior ═════════
 $processedRes = $maint->checkExpiredReservations();
