@@ -17,14 +17,19 @@ const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 
 function dbQuery(sql) {
-  const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
+  // Password via MYSQL_PWD env, never as a -p argv (visible in ps//proc).
+  const args = ['-u', DB_USER, DB_NAME, '-N', '-B', '-e', sql];
   if (DB_HOST) {
-    args.splice(3, 0, '-h', DB_HOST);
-    if (DB_PORT) args.splice(5, 0, '-P', DB_PORT);
+    args.splice(2, 0, '-h', DB_HOST);
+    if (DB_PORT) args.splice(4, 0, '-P', DB_PORT);
   } else if (DB_SOCKET) {
-    args.splice(3, 0, '-S', DB_SOCKET);
+    args.splice(2, 0, '-S', DB_SOCKET);
   }
-  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
+  return execFileSync('mysql', args, {
+    encoding: 'utf-8',
+    timeout: 10000,
+    env: { ...process.env, MYSQL_PWD: DB_PASS },
+  }).trim();
 }
 
 async function loginAsAdmin(page) {
@@ -81,7 +86,7 @@ test.describe.serial('Standard CSV import (20 books)', () => {
 // upload flow + DB readback.
 // ---------------------------------------------------------------------------
 
-const FIELDS_SKIP = !process.env.E2E_ADMIN_EMAIL || !DB_USER || !DB_PASS || !DB_NAME;
+const FIELDS_SKIP = !process.env.E2E_ADMIN_EMAIL || !process.env.E2E_ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME;
 
 const sqlEscape = (s) => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
