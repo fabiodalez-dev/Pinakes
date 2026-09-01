@@ -15,6 +15,8 @@ use mysqli;
  */
 final class ActivityLog
 {
+    // @include-soft-deleted: audit snapshots and historical feeds intentionally
+    // retain archived books so their activity remains attributable to staff.
     public const TYPES = ['edit', 'copy', 'import', 'enrich', 'loan'];
 
     private const HIDDEN_FIELDS = [
