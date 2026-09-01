@@ -2033,7 +2033,6 @@
   "I dati attuali verranno sostituiti.": "I dati attuali verranno sostituiti.",
   "I dati devono essere un array non vuoto.": "I dati devono essere un array non vuoto.",
   "I dati provengono dal file JSON, nessun seeding necessario.": "I dati provengono dal file JSON, nessun seeding necessario.",
-  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati senza modificare le copie fisiche": "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati senza modificare le copie fisiche",
   "I filtri correnti sono stati salvati nell'URL": "I filtri correnti sono stati salvati nell'URL",
   "I filtri vengono applicati automaticamente mentre digiti": "I filtri vengono applicati automaticamente mentre digiti",
   "I libri degli altri autori verranno assegnati a questo": "I libri degli altri autori verranno assegnati a questo",
@@ -7015,5 +7014,6 @@
   "Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.": "Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.",
   "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)",
   "Dati bibliografici": "Dati bibliografici",
-  "Collana e numero di serie": "Collana e numero di serie"
+  "Collana e numero di serie": "Collana e numero di serie",
+  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate"
 }

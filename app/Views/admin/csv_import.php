@@ -388,7 +388,7 @@ ob_start();
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-sync-alt text-gray-400 mr-2 mt-0.5"></i>
-                            <span><?= __("I doppioni (per ID, ISBN13 o EAN) vengono aggiornati senza modificare le copie fisiche") ?></span>
+                            <span><?= __("I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate") ?></span>
                         </li>
                     </ul>
                 </div>
