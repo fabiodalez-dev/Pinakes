@@ -73,6 +73,9 @@ storage/*
 !storage/logs/
 storage/logs/*
 !storage/logs/.gitkeep
+!storage/sessions/
+storage/sessions/*
+!storage/sessions/.gitkeep
 storage/*.log
 !storage/tmp/
 storage/tmp/*
@@ -420,6 +423,7 @@ tests/*
 !tests/*.spec.js
 !tests/*.config.js
 !tests/*.unit.php
+!tests/*.integration.php
 !tests/*.test.sh
 !tests/ci-playwright-policy.json
 !tests/seeds/
@@ -629,3 +633,7 @@ docs/prototypes/
 .adams-reviews/
 .installed
 .installed.backup
+
+# Local-only release blog hook — reads credentials from ~/.pinakes-release-hook.env
+# and is operational tooling kept out of the repo by request.
+scripts/publish-release-article.sh

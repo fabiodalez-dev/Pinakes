@@ -279,12 +279,28 @@ jobs:
       - name: PHP unit tests (standalone .unit.php)
         env:
           CI_STRICT_TESTS: '1'
+          # Global-sweep suites (loan-reservation-real-world-25) refuse to run
+          # without an explicitly named dedicated test database.
+          E2E_DB_NAME: pinakes_test
         run: bash scripts/ci-run-unit-tests.sh
 
       - name: Schema and migration behavioral gate (strict no-skip mode)
         env:
           CI_STRICT_TESTS: '1'
         run: bash scripts/verify-schema.sh
+
+      # Exercise the plugin ZIP-update path against a real DB. The synthetic
+      # test covers install→update on a disposable plugin; the all-bundled test
+      # updates EVERY registered bundled plugin in place and restores it, so a
+      # broken update path surfaces here before it reaches an operator's admin
+      # UI. Runs after the schema gate so that gate sees pristine plugin data;
+      # the all-bundled test restores every directory and plugins-row version.
+      - name: PHP plugin ZIP-update integration tests
+        env:
+          CI_STRICT_TESTS: '1'
+        run: |
+          php tests/plugin-zip-update.integration.php
+          php tests/plugin-zip-update-all-bundled.integration.php
 
       - name: Shell test — bin/setup-permissions.sh
         run: bash tests/setup-permissions.test.sh

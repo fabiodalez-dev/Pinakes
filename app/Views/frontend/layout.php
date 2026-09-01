@@ -151,8 +151,11 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php if (isset($seoKeywords) && !empty($seoKeywords)): ?>
         <meta name="keywords" content="<?= htmlspecialchars($seoKeywords) ?>">
     <?php endif; ?>
+    <?php if (!empty($seoRobots)): ?>
+        <meta name="robots" content="<?= htmlspecialchars($seoRobots, ENT_QUOTES, 'UTF-8') ?>">
+    <?php endif; ?>
     <link rel="canonical"
-        href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrl()) ?>">
+        href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrlWithoutQuery(), ENT_QUOTES, 'UTF-8') ?>">
     <?php foreach (\App\Support\HreflangHelper::getAlternates() as $hreflangAlt): ?>
     <link rel="alternate" hreflang="<?= htmlspecialchars($hreflangAlt['hreflang'], ENT_QUOTES, 'UTF-8') ?>"
           href="<?= htmlspecialchars($hreflangAlt['href'], ENT_QUOTES, 'UTF-8') ?>">
@@ -168,7 +171,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     $ogTitle = $ogTitle ?? ($seoTitle ?? $title ?? $appName);
     $ogDescription = $ogDescription ?? ($seoDescription ?? ($footerDescription ?: __('Esplora il nostro catalogo digitale')));
     $ogType = $ogType ?? 'website';
-    $ogUrl = $ogUrl ?? HtmlHelper::getCurrentUrl();
+    $ogUrl = $ogUrl ?? ($seoCanonical ?? HtmlHelper::getCurrentUrlWithoutQuery());
     $ogImage = $ogImage ?? $resolvedDefaultOgImage;
     $ogImage = $ogImage !== '' ? absoluteUrl($ogImage) : '';
 
@@ -183,7 +186,9 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php if ($ogTitle !== ''): ?>
         <meta property="og:title" content="<?= htmlspecialchars($ogTitle) ?>">
         <meta property="og:description" content="<?= htmlspecialchars($ogDescription) ?>">
+        <?php if ($ogImage !== ''): ?>
         <meta property="og:image" content="<?= htmlspecialchars($ogImage) ?>">
+        <?php endif; ?>
         <meta property="og:url" content="<?= htmlspecialchars($ogUrl) ?>">
         <meta property="og:type" content="<?= htmlspecialchars($ogType) ?>">
         <meta property="og:site_name" content="<?= HtmlHelper::e($appName) ?>">
@@ -205,7 +210,9 @@ $htmlLang = substr($currentLocale, 0, 2);
         <meta name="twitter:card" content="<?= htmlspecialchars($twitterCard) ?>">
         <meta name="twitter:title" content="<?= htmlspecialchars($twitterTitle) ?>">
         <meta name="twitter:description" content="<?= htmlspecialchars($twitterDescription) ?>">
+        <?php if ($twitterImage !== ''): ?>
         <meta name="twitter:image" content="<?= htmlspecialchars($twitterImage) ?>">
+        <?php endif; ?>
         <?php
         // Add Twitter handle if available (extract from social_twitter URL)
         if (!empty($socialTwitter)) {
@@ -231,8 +238,18 @@ $htmlLang = substr($currentLocale, 0, 2);
                 </script>
     <?php endif; ?>
 
+    <?php
+    // Lazy CSRF (issue #387 step 6): a sessionless anonymous render must not
+    // mint a CSRF token — it would not be backed by any session, could never
+    // validate, and would make the HTML per-visitor (uncacheable). The meta
+    // stays empty on the no-session path; JS that needs a token for a
+    // state-changing call fetches one from GET /csrf-token, which lazily
+    // opens the session (see public/assets/js/csrf-helper.js). With an
+    // active session the token is emitted exactly as before.
+    $csrfMetaToken = session_status() === PHP_SESSION_ACTIVE ? App\Support\Csrf::ensureToken() : '';
+    ?>
     <meta name="csrf-token"
-        content="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>" />
+        content="<?php echo htmlspecialchars($csrfMetaToken, ENT_QUOTES, 'UTF-8'); ?>" />
     <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
@@ -867,6 +884,13 @@ $htmlLang = substr($currentLocale, 0, 2);
             align-items: center;
             justify-content: center;
             box-shadow: none;
+        }
+
+        /* The badge styling sets display:flex, so the generic Tailwind
+           .hidden utility alone loses on source order. Keep zero counts out
+           of the layout until JavaScript has a positive count to show. */
+        .badge-notification.hidden {
+            display: none;
         }
 
         /* Responsive Header */
@@ -1899,8 +1923,8 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
             <hr class="my-4">
             <div class="flex justify-center items-center gap-2">
-                <p class="mb-0"><?= date('Y') ?> • <?= HtmlHelper::e($appName) ?> • Powered by Pinakes
-                    v<?= HtmlHelper::e($appVersion) ?></p>
+                <p class="mb-0"><?= date('Y') ?> • <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?> • <a href="<?= htmlspecialchars('https://github.com/fabiodalez-dev/Pinakes', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="Pinakes GitHub" class="hover:underline" style="color: inherit;"><i class="fa-brands fa-github"></i> Powered by Pinakes
+                    v<?= htmlspecialchars((string) $appVersion, ENT_QUOTES, 'UTF-8') ?></a></p>
                 <a href="<?= htmlspecialchars(url('/feed.xml'), ENT_QUOTES, 'UTF-8') ?>" title="<?= HtmlHelper::e(__('Feed RSS')) ?>" class="text-gray-500" aria-label="<?= HtmlHelper::e(__('Feed RSS')) ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg>
                 </a>
@@ -1913,6 +1937,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <script src="<?= htmlspecialchars(assetUrl('/flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script src="<?= htmlspecialchars(assetUrl('/js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('/js/live-availability.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script>
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -1960,6 +1985,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                 if (c > 0) {
                     badge.textContent = String(c);
                     badge.classList.remove('hidden');
+                } else {
+                    badge.textContent = '';
+                    badge.classList.add('hidden');
                 }
             } catch (_) { }
         })();

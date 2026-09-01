@@ -64,111 +64,35 @@ async function setLlmsTxt(page, enabled) {
 // ────────────────────────────────────────────────────────────────────────
 test.describe('Hreflang tags', () => {
 
-  test('homepage has IT, EN, and x-default hreflang links', async ({ request }) => {
+  // Since 0.7.65 hreflang is intentionally NOT emitted: translated routes live
+  // at the root and the response language follows the session locale, not the
+  // URL, so path-prefixed alternates ("/en/...") pointed at 404s. These tests
+  // lock the "no hreflang" contract; restore the per-locale assertions from git
+  // history if locale path-prefix routing is ever implemented.
+  test('homepage emits no hreflang alternates', async ({ request }) => {
     const resp = await request.get(`${BASE}/`);
     expect(resp.status()).toBe(200);
-    const html = await resp.text();
-
-    // Must have at least IT + EN + x-default
-    expect(html).toContain('hreflang="it"');
-    expect(html).toContain('hreflang="en"');
-    expect(html).toContain('hreflang="x-default"');
+    expect(await resp.text()).not.toContain('hreflang=');
   });
 
-  test('catalog page hreflang translates route correctly', async ({ request }) => {
+  test('catalog emits no hreflang alternates', async ({ request }) => {
     const resp = await request.get(`${BASE}/catalogo`);
     expect(resp.status()).toBe(200);
-    const html = await resp.text();
-
-    // IT version should point to /catalogo
-    const itMatch = html.match(/hreflang="it"[^>]*href="([^"]+)"/);
-    expect(itMatch).not.toBeNull();
-    expect(itMatch[1]).toContain('/catalogo');
-
-    // EN version should point to /en/catalog (translated, not IT route)
-    const enMatch = html.match(/hreflang="en"[^>]*href="([^"]+)"/);
-    expect(enMatch).not.toBeNull();
-    expect(enMatch[1]).toContain('/en/catalog');
-    expect(enMatch[1]).not.toContain('/catalogo');
+    expect(await resp.text()).not.toContain('hreflang=');
   });
 
-  test('book page hreflang keeps slug path identical across locales', async ({ request }) => {
-    // Get first book URL from sitemap
+  test('book page emits no hreflang alternates', async ({ request }) => {
     const sitemapResp = await request.get(`${BASE}/sitemap.xml`);
     expect(sitemapResp.status()).toBe(200);
     const sitemapXml = await sitemapResp.text();
-
-    // Extract a book URL (pattern: /author-slug/book-slug/id)
     const bookMatch = sitemapXml.match(new RegExp(`${BASE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^<]+/[^<]+/\\d+`));
     if (!bookMatch) {
       test.skip(true, 'No books in sitemap to test');
       return;
     }
-
-    const bookUrl = bookMatch[0];
-    const resp = await request.get(bookUrl);
+    const resp = await request.get(bookMatch[0]);
     expect(resp.status()).toBe(200);
-    const html = await resp.text();
-
-    expect(html).toContain('hreflang="it"');
-    expect(html).toContain('hreflang="en"');
-
-    // Both locales should have the same slug path (just different prefix)
-    const itHref = html.match(/hreflang="it"[^>]*href="([^"]+)"/);
-    const enHref = html.match(/hreflang="en"[^>]*href="([^"]+)"/);
-    expect(itHref).not.toBeNull();
-    expect(enHref).not.toBeNull();
-
-    // EN version should have /en/ prefix
-    expect(enHref[1]).toContain('/en/');
-
-    // Both locales should share the same slug+id suffix (the route segment
-    // like /autore vs /author is translated, so we compare only the entity
-    // path after the first translated segment)
-    const extractSlugAndId = (href) => {
-      const pathname = new URL(href).pathname;
-      // Match the last two segments: slug/id (e.g. /seo-feed-test-book/55)
-      const match = pathname.match(/\/([^/]+\/\d+)$/);
-      return match ? match[1] : pathname;
-    };
-    expect(extractSlugAndId(enHref[1])).toBe(extractSlugAndId(itHref[1]));
-  });
-
-  test('x-default points to one of the active locale versions', async ({ request }) => {
-    const resp = await request.get(`${BASE}/catalogo`);
-    expect(resp.status()).toBe(200);
-    const html = await resp.text();
-
-    const xDefaultMatch = html.match(/hreflang="x-default"[^>]*href="([^"]+)"/);
-    expect(xDefaultMatch).not.toBeNull();
-
-    // x-default should match one of the active locale URLs
-    const localeMatches = [...html.matchAll(/hreflang="(?!x-default)[^"]+"[^>]*href="([^"]+)"/g)];
-    expect(localeMatches.length).toBeGreaterThan(0);
-    const localeHrefs = localeMatches.map((m) => m[1]);
-    expect(localeHrefs).toContain(xDefaultMatch[1]);
-  });
-
-  test('hreflang links are absolute URLs', async ({ request }) => {
-    const resp = await request.get(`${BASE}/catalogo`);
-    expect(resp.status()).toBe(200);
-    const html = await resp.text();
-
-    const hrefMatches = [...html.matchAll(/hreflang="[^"]*"[^>]*href="([^"]+)"/g)];
-    expect(hrefMatches.length).toBeGreaterThan(0);
-    for (const match of hrefMatches) {
-      expect(match[1]).toMatch(/^https?:\/\//);
-    }
-  });
-
-  test('multi-locale site emits hreflang for all active locales plus x-default', async ({ request }) => {
-    const resp = await request.get(`${BASE}/catalogo`);
-    expect(resp.status()).toBe(200);
-    const html = await resp.text();
-
-    const hreflangCount = (html.match(/hreflang="/g) || []).length;
-    // At minimum: it + en + x-default = 3
-    expect(hreflangCount).toBeGreaterThanOrEqual(3);
+    expect(await resp.text()).not.toContain('hreflang=');
   });
 });
 

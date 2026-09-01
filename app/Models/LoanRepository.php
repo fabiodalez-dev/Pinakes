@@ -144,29 +144,38 @@ class LoanRepository
      * registrerebbe come consegnato — quei casi passano dai percorsi dedicati
      * (annullamento/scadenza ritiro), che gestiscono anche la riassegnazione.
      *
-     * @return bool false se il prestito non esiste o non è chiudibile.
+     * I parametri expected* sono un optimistic identity guard per protocolli
+     * esterni: se forniti, libro e utente risolti prima della transazione devono
+     * ancora coincidere con la riga bloccata. In questo modo un CheckIn NCIP non
+     * può chiudere un prestito riassegnato durante la finestra TOCTOU.
+     *
+     * @return bool false se il prestito non esiste, non è chiudibile o non
+     *              corrisponde più all'identità attesa.
      */
-    public function close(int $id): bool
+    public function close(int $id, ?int $expectedBookId = null, ?int $expectedUserId = null): bool
     {
+        // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
+        // lettura NON bloccante PRIMA di begin_transaction() (lock-first, MVCC),
+        // poi blocca la riga `libri` PRIMA e infine quella del prestito — stesso
+        // ordine di store/approveLoan/renew per evitare deadlock. La lettura sta
+        // FUORI dalla transazione: sotto REPEATABLE READ la read view nasce alla
+        // prima consistent read in transazione, e farla nascere prima del lock
+        // renderebbe le SELECT non bloccanti successive (promozione coda,
+        // capacity gate) cieche ai commit concorrenti avvenuti durante l'attesa
+        // del lock — es. una prenotazione appena annullata verrebbe promossa.
+        $lookup = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=?');
+        $lookup->bind_param('i', $id);
+        $lookup->execute();
+        $lrow = $lookup->get_result()->fetch_assoc();
+        $lookup->close();
+        if (!$lrow) {
+            return false;
+        }
+        $bookId = (int) $lrow['libro_id'];
+
         $this->db->begin_transaction();
 
-        $bookId = null;
-
         try {
-            // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
-            // lettura NON bloccante, poi blocca la riga `libri` PRIMA e infine quella del
-            // prestito — stesso ordine di store/approveLoan/renew per evitare deadlock.
-            $lookup = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=?');
-            $lookup->bind_param('i', $id);
-            $lookup->execute();
-            $lrow = $lookup->get_result()->fetch_assoc();
-            $lookup->close();
-            if (!$lrow) {
-                $this->db->rollback();
-                return false;
-            }
-            $bookId = (int) $lrow['libro_id'];
-
             // Lock della riga `libri` per serializzare il ricalcolo della
             // disponibilità. NB: NIENTE filtro deleted_at qui (e nessun bail) —
             // la RESTITUZIONE di un prestito deve sempre poter procedere anche se
@@ -187,7 +196,7 @@ class LoanRepository
             // e ricalcolato il libro sbagliato. In quel caso (rarissimo: il
             // libro di un prestito non viene riassegnato) abortiamo invece di
             // operare su dati incoerenti.
-            $stmt = $this->db->prepare('SELECT libro_id, copia_id, data_scadenza, attivo, stato FROM prestiti WHERE id=? FOR UPDATE');
+            $stmt = $this->db->prepare('SELECT libro_id, utente_id, copia_id, data_scadenza, attivo, stato FROM prestiti WHERE id=? FOR UPDATE');
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $lockedRow = $stmt->get_result()->fetch_assoc();
@@ -197,6 +206,11 @@ class LoanRepository
                 return false;
             }
             if ((int) $lockedRow['libro_id'] !== $bookId) {
+                $this->db->rollback();
+                return false;
+            }
+            if (($expectedBookId !== null && (int) $lockedRow['libro_id'] !== $expectedBookId)
+                || ($expectedUserId !== null && (int) $lockedRow['utente_id'] !== $expectedUserId)) {
                 $this->db->rollback();
                 return false;
             }
@@ -229,20 +243,6 @@ class LoanRepository
                 $this->db->rollback();
                 return false;
             }
-
-            // Determina se il libro ha altri prestiti attivi (include 'prenotato' for scheduled future loans)
-            $activeCount = 0;
-            $countStmt = $this->db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE libro_id=? AND attivo=1 AND stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')");
-            $countStmt->bind_param('i', $bookId);
-            $countStmt->execute();
-            $activeCount = (int)($countStmt->get_result()->fetch_assoc()['c'] ?? 0);
-            $countStmt->close();
-
-            $newStatus = $activeCount > 0 ? 'prestato' : 'disponibile';
-            $updateBookStmt = $this->db->prepare('UPDATE libri SET stato = ? WHERE id = ?');
-            $updateBookStmt->bind_param('si', $newStatus, $bookId);
-            $updateBookStmt->execute();
-            $updateBookStmt->close();
 
             // Recalculate availability and process reservations INSIDE the transaction
             // This ensures FOR UPDATE locks in processBookAvailability are effective
@@ -277,7 +277,9 @@ class LoanRepository
             // recalculated successfully above in this same transaction, so it cannot
             // have vanished (recalculateBookAvailability only returns false when the
             // book row is missing).
-            $integrity->recalculateBookAvailability($bookId, true);
+            if (!$integrity->recalculateBookAvailability($bookId, true)) {
+                throw new \RuntimeException('Unable to recalculate final book availability.');
+            }
 
             $this->db->commit();
 

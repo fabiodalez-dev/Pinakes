@@ -283,77 +283,34 @@ class SruClient
     }
 
     /**
-     * Fetch URL with cURL for better error handling and TLS validation
+     * Fetch a URL through the project HttpClient, which centralises the
+     * SSRF / DNS-rebinding / redirect-scheme hardening and TLS handling.
+     * Replaces the previous raw curl + file_get_contents fallback (the latter
+     * also relied on $http_response_header, deprecated in PHP 8.5). The SRU
+     * endpoint URLs are admin-configured, so they must go through the guarded
+     * client rather than hitting arbitrary hosts directly.
      */
     private function fetchUrl(string $url): ?string
     {
-        // Try cURL first (better SSL/TLS handling)
-        if (function_exists('curl_init')) {
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $url,
-                CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-                CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => $this->timeout,
-                CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_MAXREDIRS => 3,
-                CURLOPT_USERAGENT => 'Pinakes/1.0 (Z39.50/SRU Client)',
-                CURLOPT_SSL_VERIFYPEER => $this->verifySsl,
-                CURLOPT_SSL_VERIFYHOST => $this->verifySsl ? 2 : 0,
-            ]);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error = curl_error($ch);
-            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
-
-            if ($response === false || !empty($error)) {
-                \App\Support\SecureLogger::error('[SruClient] cURL error', [
-                    'url'   => $url,
-                    'error' => $error,
-                ]);
-                throw new \Exception("Connection failed: $error");
-            }
-
-            if ($httpCode >= 400) {
-                throw new \Exception("HTTP $httpCode error from server");
-            }
-
-            return $response ?: null;
-        }
-
-        // Fallback to file_get_contents
-        $context = stream_context_create([
-            'http' => [
-                'timeout' => $this->timeout,
-                'user_agent' => 'Pinakes/1.0 (Z39.50/SRU Client)',
-                'ignore_errors' => true,
-            ],
-            'ssl' => [
-                'verify_peer' => $this->verifySsl,
-                'verify_peer_name' => $this->verifySsl,
-            ],
+        $res = \App\Support\HttpClient::get($url, [], [
+            'timeout'         => $this->timeout,
+            'connect_timeout' => 5,
+            'max_redirects'   => 3,
+            'user_agent'      => 'Pinakes/1.0 (Z39.50/SRU Client)',
+            'verify'          => $this->verifySsl,
+            'ssrf_guard'      => true,
         ]);
 
-        $response = @file_get_contents($url, false, $context);
-
-        if ($response === false) {
-            throw new \Exception("Failed to connect to server");
+        if (!$res['ok']) {
+            \App\Support\SecureLogger::error('[SruClient] HTTP request failed', ['url' => $url]);
+            throw new \Exception('Connection failed');
         }
 
-        // Check HTTP status from headers
-        if (isset($http_response_header[0])) {
-            if (preg_match('/HTTP\/\d+\.\d+\s+(\d+)/', $http_response_header[0], $matches)) {
-                $statusCode = (int)$matches[1];
-                if ($statusCode >= 400) {
-                    throw new \Exception("HTTP $statusCode error from server");
-                }
-            }
+        if ($res['status'] >= 400) {
+            throw new \Exception("HTTP {$res['status']} error from server");
         }
 
-        return $response;
+        return $res['body'] !== '' ? $res['body'] : null;
     }
 
     /**

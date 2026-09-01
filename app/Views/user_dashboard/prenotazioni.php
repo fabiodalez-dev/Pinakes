@@ -686,8 +686,9 @@ function accountLineIcon(string $name): string {
                 <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
               <?php // Annullabile dall'utente solo finché il prestito non è partito:
-                    // 'prenotato' (attivo=1) qui, 'pendente' nella sezione richieste (M13). ?>
-              <?php if ($stato === 'prenotato'): ?>
+                    // 'prenotato' (attivo=1) e 'da_ritirare' (approvato, in attesa di
+                    // ritiro — #381) qui, 'pendente' nella sezione richieste (M13). ?>
+              <?php if (in_array($stato, ['prenotato', 'da_ritirare'], true)): ?>
               <form method="post" action="<?= htmlspecialchars(url('/loan/cancel'), ENT_QUOTES, 'UTF-8') ?>"
                     data-swal-confirm="<?= htmlspecialchars(__('Annullare questo prestito programmato?'), ENT_QUOTES, 'UTF-8') ?>"
                     data-swal-confirm-button="<?= htmlspecialchars(__('Annulla prestito'), ENT_QUOTES, 'UTF-8') ?>">

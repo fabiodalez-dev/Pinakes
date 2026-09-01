@@ -46,18 +46,77 @@ class IcsGenerator
     {
         $events = $this->fetchEvents();
 
+        $body = '';
+        foreach ($events as $event) {
+            $body .= $this->formatEvent($event);
+        }
+
+        return $this->wrapCalendar($body);
+    }
+
+    /**
+     * Generate a single-event ICS for one loan (the "add to calendar" link in
+     * the loan confirmation emails). The event spans the loan period
+     * (data_prestito → data_scadenza) regardless of the pickup window.
+     *
+     * @return string|null Complete ICS content, or null if the loan doesn't
+     *                     exist, is still pending, or has no dates.
+     */
+    public function generateForLoan(int $loanId): ?string
+    {
+        $stmt = $this->db->prepare("SELECT p.id, p.stato, p.data_prestito, p.data_scadenza, p.updated_at,
+                       l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ? AND p.stato <> 'pendente'");
+        if ($stmt === false) {
+            return null;
+        }
+        if (!$stmt->bind_param('i', $loanId) || !$stmt->execute()) {
+            $stmt->close();
+            return null;
+        }
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row || empty($row['data_prestito']) || empty($row['data_scadenza'])) {
+            return null;
+        }
+
+        // Mirror fetchEvents(): an overdue copy is still physically occupied
+        // through today, so ending the event on the missed due date would
+        // falsely render it as already available.
+        $endDate = (string) $row['data_scadenza'];
+        if ($row['stato'] === 'in_ritardo') {
+            $endDate = max($endDate, DateHelper::today());
+        }
+
+        $event = [
+            'uid' => 'loan-' . $row['id'] . '@pinakes',
+            'title' => $this->getLoanTitle($row['stato'], $row['titolo']),
+            'description' => $this->getLoanDescription($row),
+            'start' => $row['data_prestito'],
+            'end' => $endDate,
+            'type' => 'prestito',
+            'status' => $row['stato'],
+            'updated' => $row['updated_at'] ?? (new \DateTimeImmutable('now', $this->appTimezone()))->format('Y-m-d H:i:s')
+        ];
+
+        return $this->wrapCalendar($this->formatEvent($event));
+    }
+
+    /** Wrap already-formatted VEVENT blocks in the shared VCALENDAR envelope. */
+    private function wrapCalendar(string $eventsIcs): string
+    {
         $ics = $this->icsLine('BEGIN:VCALENDAR');
         $ics .= $this->icsLine('VERSION:2.0');
         $ics .= $this->icsLine('PRODID:-//Pinakes Library//Calendar//IT');
         $ics .= $this->icsLine('CALSCALE:GREGORIAN');
         $ics .= $this->icsLine('METHOD:PUBLISH');
         $ics .= $this->icsLine('X-WR-CALNAME:' . $this->escapeIcs($this->calendarName));
-        $ics .= $this->icsLine('X-WR-TIMEZONE:' . $this->timezone);
-
-        foreach ($events as $event) {
-            $ics .= $this->formatEvent($event);
-        }
-
+        $ics .= $this->icsLine('X-WR-TIMEZONE:' . $this->appTimezone()->getName());
+        $ics .= $eventsIcs;
         $ics .= $this->icsLine('END:VCALENDAR');
 
         return $ics;

@@ -76,119 +76,45 @@ async function mailpitJson(urlPath, timeoutMs = 5000) {
   }
 }
 
-/** Delete all messages in Mailpit */
+/** Delete existing Mailpit messages without starting an asynchronous global purge. */
 async function clearMailpit() {
   if (!mailpitAvailable) return;
-  let lastError;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    try {
-      const res = await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: controller.signal });
-      if (!res.ok) throw new Error(`Mailpit clear failed: HTTP ${res.status}`);
-      lastError = undefined;
-      break;
-    } catch (err) {
-      lastError = err;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  if (lastError) {
-    mailpitAvailable = false;
-    throw lastError;
-  }
-
-  // Mailpit can acknowledge DELETE before its recipient/full-text indexes have
-  // settled. Submitting the next form immediately can race the outstanding
-  // purge and delete the newly accepted message. Require two consecutive empty
-  // snapshots before the next test is allowed to send mail.
+  // DELETE without IDs starts a global purge that Mailpit may acknowledge
+  // before it has finished. A newly accepted SMTP message can then be removed
+  // by that outstanding purge. Delete only the IDs observed in each snapshot;
+  // targeted deletes do not remain active and cannot consume the next test's
+  // message. Loop because the listing is paginated and may change while the
+  // suite's notification workers finish.
   let consecutiveEmpty = 0;
-  const deadline = Date.now() + 5000;
-  let stablyEmpty = false;
+  const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
     const data = await mailpitJson('/messages');
-    const count = Number(data.total ?? data.messages_count ?? data.messages?.length ?? 0);
-    if (count === 0) {
+    const messages = Array.isArray(data.messages) ? data.messages : [];
+    const ids = messages.map(message => message.ID).filter(Boolean);
+
+    if (ids.length === 0) {
       consecutiveEmpty++;
-      if (consecutiveEmpty === 2) { stablyEmpty = true; break; }
+      if (consecutiveEmpty === 2) return;
     } else {
       consecutiveEmpty = 0;
-    }
-    await new Promise(resolve => setTimeout(resolve, 150));
-  }
-  if (!stablyEmpty) {
-    throw new Error('Mailpit inbox did not become stably empty within 5000ms');
-  }
-
-  // A stably-empty LISTING still does not prove the purge fully settled: in CI
-  // (deep-regression shard 4/4, runs 31657224674 and 31689284087 attempt 1)
-  // B.13's contact email was SMTP-accepted ~1s after the DELETE was
-  // acknowledged, yet never became visible — swallowed by the still-settling
-  // purge — so waitForMail timed out and only the serial-block retry passed.
-  // Prove Mailpit is accepting AND RETAINING new mail again before returning:
-  // store a sentinel via the HTTP send API, require it to stay retrievable in
-  // two consecutive reads, then delete just that sentinel by ID (a targeted
-  // delete — no second full purge to re-open the race).
-  const sentinelDeadline = Date.now() + 10000;
-  let sentinelId = null;
-  while (sentinelId === null && Date.now() < sentinelDeadline) {
-    let id = null;
-    try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 5000);
       try {
-        const res = await fetch(`${MAILPIT_API}/send`, {
-          method: 'POST',
+        const res = await fetch(`${MAILPIT_API}/messages`, {
+          method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
-          body: JSON.stringify({
-            From: { Email: 'purge-sentinel@pinakes.invalid' },
-            To: [{ Email: 'purge-sentinel@pinakes.invalid' }],
-            Subject: `clearMailpit retention sentinel ${Date.now()}`,
-            Text: 'Proves the delete-all purge has settled. Deleted by clearMailpit().',
-          }),
+          body: JSON.stringify({ IDs: ids }),
         });
-        if (!res.ok) throw new Error(`Mailpit send failed: HTTP ${res.status}`);
-        id = (await res.json()).ID;
+        if (!res.ok) throw new Error(`Mailpit targeted clear failed: HTTP ${res.status}`);
       } finally {
         clearTimeout(timer);
       }
-    } catch { /* Mailpit busy — try a fresh sentinel below */ }
-
-    if (id) {
-      let retainedReads = 0;
-      while (retainedReads < 2 && Date.now() < sentinelDeadline) {
-        const retained = await mailpitJson(`/message/${id}`).then(() => true).catch(() => false);
-        if (!retained) { retainedReads = -1; break; } // swallowed → purge still active
-        retainedReads++;
-        if (retainedReads < 2) await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      if (retainedReads === 2) { sentinelId = id; break; }
     }
-    await new Promise(resolve => setTimeout(resolve, 250));
-  }
-  if (sentinelId === null) {
-    throw new Error('Mailpit purge did not settle: sentinel messages kept disappearing within 10000ms');
+    await new Promise(resolve => setTimeout(resolve, 150));
   }
 
-  const delController = new AbortController();
-  const delTimer = setTimeout(() => delController.abort(), 5000);
-  let delRes;
-  try {
-    delRes = await fetch(`${MAILPIT_API}/messages`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ IDs: [sentinelId] }),
-      signal: delController.signal,
-    });
-  } finally {
-    clearTimeout(delTimer);
-  }
-  if (!delRes.ok) {
-    throw new Error(`Mailpit sentinel cleanup failed: HTTP ${delRes.status}`);
-  }
+  throw new Error('Mailpit inbox did not become stably empty within 10000ms');
 }
 
 function clearConfigCache() {
@@ -207,7 +133,7 @@ function clearConfigCache() {
  * @param {number} timeoutMs - Max wait time
  * @returns {Promise<object>} - The matching message summary
  */
-async function waitForMail(query, timeoutMs = 15000) {
+async function waitForMail(query, timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -355,14 +281,43 @@ test.describe.serial('Email Notifications E2E', () => {
       originalSettings.from_name = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='from_name' LIMIT 1");
     } catch { originalSettings.from_name = ''; }
     try {
+      originalSettings.contact_notification_exists = dbQuery("SELECT COUNT(*) FROM system_settings WHERE category='contacts' AND setting_key='notification_email'") === '1';
       originalSettings.contact_notification = dbQuery("SELECT setting_value FROM system_settings WHERE category='contacts' AND setting_key='notification_email' LIMIT 1");
-    } catch { originalSettings.contact_notification = ''; }
+    } catch {
+      originalSettings.contact_notification_exists = false;
+      originalSettings.contact_notification = '';
+    }
   });
 
   test.afterAll(async () => {
     // Always clean up regardless of test outcome
     await cleanupAndRestore();
   });
+
+  /**
+   * Persisting one settings group through the application invalidates the
+   * web server's APCu-backed ConfigStore cache. File deletion alone cannot do
+   * that because Playwright's Node process and Apache do not share memory.
+   */
+  async function persistContactNotificationThroughApp(notificationEmail) {
+    await withAdminPage(browserRef, async (page) => {
+      await page.goto(`${BASE}/admin/settings?tab=contacts`, { waitUntil: 'domcontentloaded' });
+      const form = page.locator('form[action$="/admin/settings/contacts"]');
+      await expect(form).toHaveCount(1);
+      const formData = await form.evaluate((element) =>
+        Object.fromEntries(new FormData(/** @type {HTMLFormElement} */ (element)).entries()),
+      );
+      formData.notification_email = notificationEmail;
+
+      const result = await page.request.post(`${BASE}/admin/settings/contacts`, {
+        form: formData,
+        maxRedirects: 0,
+      });
+      expect(result.status()).toBeGreaterThanOrEqual(300);
+      expect(result.status()).toBeLessThan(400);
+      expect(result.headers().location || '').not.toContain('error=');
+    });
+  }
 
   // ── A.1: Configure SMTP driver → Mailpit ────────────────────────
   test('A.1 — Configure SMTP driver to Mailpit', async () => {
@@ -383,12 +338,10 @@ test.describe.serial('Email Notifications E2E', () => {
     `);
     clearConfigCache();
 
-    // Set contact notification email so contact form tests work
-    dbQuery(`
-      INSERT INTO system_settings (category, setting_key, setting_value)
-      VALUES ('contacts', 'notification_email', '${sqlEscape(ADMIN_EMAIL)}')
-      ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
-    `);
+    // Use the real settings endpoint for the final write. Besides storing the
+    // contact recipient, ConfigStore::set() invalidates APCu in Apache so the
+    // directly seeded SMTP values are visible on the very next request.
+    await persistContactNotificationThroughApp(ADMIN_EMAIL);
 
     // Verify settings are stored
     const type = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='type'");
@@ -840,6 +793,77 @@ test.describe.serial('Email Notifications E2E', () => {
     dbQuery(`DELETE FROM libri WHERE id = ${bookId}`);
   });
 
+  test('B.12a — Manual recall succeeds for an active loan whose book is archived', async () => {
+    await clearMailpit();
+
+    const userId = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER_EMAIL}' LIMIT 1`);
+    const bookTitle = `Recall Archived Book ${RUN_ID}`;
+    const bookId = dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato)
+      VALUES ('${sqlEscape(bookTitle)}', 1, 0, 'prestato'); SELECT LAST_INSERT_ID()`);
+    const loanId = dbQuery(`INSERT INTO prestiti
+      (libro_id, utente_id, stato, data_prestito, data_scadenza, attivo,
+       warning_sent, overdue_notification_sent, recall_count, last_recall_at, created_at)
+      VALUES (${bookId}, ${userId}, 'in_ritardo', '${dateOffset(-30)}', '${dateOffset(-8)}', 1,
+              1, 1, 0, NULL, NOW()); SELECT LAST_INSERT_ID()`);
+    dbQuery(`UPDATE libri SET deleted_at = NOW() WHERE id = ${bookId}`);
+
+    await withAdminPage(browserRef, async (page) => {
+      await page.goto(`${BASE}/admin/loans`, { waitUntil: 'domcontentloaded' });
+      const csrfToken = await getCsrfToken(page);
+      expect(csrfToken).toBeTruthy();
+      const response = await page.request.post(`${BASE}/admin/loans/${loanId}/recall`, {
+        form: { csrf_token: csrfToken },
+      });
+      expect(response.status()).toBe(200);
+      expect((await response.json()).success).toBe(true);
+    });
+
+    const recallMail = await waitForMail(`to:${TEST_USER_EMAIL}`);
+    const message = await getMessage(recallMail.ID);
+    expect(message.Subject.toLowerCase()).toMatch(/sollecito|reminder|mahnung|rappel|rykker/);
+    expect(dbQuery(`SELECT CONCAT(recall_count, '|', last_recall_at IS NOT NULL) FROM prestiti WHERE id = ${loanId}`)).toBe('1|1');
+
+    dbQuery(`DELETE FROM prestiti WHERE id = ${loanId}`);
+    dbQuery(`DELETE FROM libri WHERE id = ${bookId}`);
+  });
+
+  test('B.12b — Loan receipt email contains a real PDF MIME attachment', async () => {
+    await clearMailpit();
+
+    const userId = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER_EMAIL}' LIMIT 1`);
+    const bookTitle = `Receipt Attachment Book ${RUN_ID}`;
+    const bookId = dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato)
+      VALUES ('${sqlEscape(bookTitle)}', 1, 0, 'prestato'); SELECT LAST_INSERT_ID()`);
+    const loanId = dbQuery(`INSERT INTO prestiti
+      (libro_id, utente_id, stato, data_prestito, data_scadenza, attivo, created_at)
+      VALUES (${bookId}, ${userId}, 'in_corso', '${dateOffset(-2)}', '${dateOffset(12)}', 1, NOW()); SELECT LAST_INSERT_ID()`);
+
+    await withAdminPage(browserRef, async (page) => {
+      await page.goto(`${BASE}/admin/loans`, { waitUntil: 'domcontentloaded' });
+      const csrfToken = await getCsrfToken(page);
+      expect(csrfToken).toBeTruthy();
+      const response = await page.request.post(`${BASE}/admin/loans/${loanId}/email-pdf`, {
+        form: { csrf_token: csrfToken },
+      });
+      expect(response.status()).toBe(200);
+      expect((await response.json()).success).toBe(true);
+    });
+
+    // TEST_USER_EMAIL is shared across the serial B.* tests, so filter on the
+    // attachment: only the receipt carries a PDF, so this can't match an earlier
+    // recall/overdue message to the same recipient.
+    const receiptMail = await waitForMail(`to:${TEST_USER_EMAIL} has:attachment`);
+    const message = await getMessage(receiptMail.ID);
+    const attachments = Array.isArray(message.Attachments) ? message.Attachments : [];
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0].FileName || '').toMatch(new RegExp(`^prestito_${loanId}_\\d{8}\\.pdf$`));
+    expect((attachments[0].ContentType || '').toLowerCase()).toBe('application/pdf');
+    expect(Number(attachments[0].Size || 0)).toBeGreaterThan(100);
+
+    dbQuery(`DELETE FROM prestiti WHERE id = ${loanId}`);
+    dbQuery(`DELETE FROM libri WHERE id = ${bookId}`);
+  });
+
   // ── B.13: Contact form email ───────────────────────────────────
   test('B.13 — Contact form email to admin', async () => {
     await clearMailpit();
@@ -1092,10 +1116,23 @@ test.describe.serial('Email Notifications E2E', () => {
       restore('email', 'from_email', originalSettings.from_email);
       restore('email', 'from_name', originalSettings.from_name);
 
-      if (originalSettings.contact_notification !== undefined) {
+      if (originalSettings.contact_notification_exists) {
         restore('contacts', 'notification_email', originalSettings.contact_notification);
       }
       clearConfigCache();
+
+      // Invalidate the web process' APCu copy after the direct SQL restore.
+      // This also prevents the following E2E shard from inheriting Mailpit SMTP.
+      try {
+        await persistContactNotificationThroughApp(originalSettings.contact_notification);
+      } catch (err) {
+        console.error('[Cleanup] Could not invalidate web settings cache:', err.message);
+      } finally {
+        if (!originalSettings.contact_notification_exists) {
+          dbQuery("DELETE FROM system_settings WHERE category='contacts' AND setting_key='notification_email'");
+          clearConfigCache();
+        }
+      }
 
       // Clear Mailpit
       await clearMailpit();

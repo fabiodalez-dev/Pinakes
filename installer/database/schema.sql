@@ -396,6 +396,9 @@ CREATE TABLE `libri` (
   `private_comment` text COLLATE utf8mb4_unicode_ci COMMENT 'Private comment (LibraryThing)',
   `parole_chiave` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `search_index` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `catalog_author_display` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Derived principal-author display used by public catalog listings',
+  `catalog_author_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Derived canonical name of the principal catalog author',
+  `catalog_author_sort` varchar(160) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Derived surname/sort key for catalog author ordering',
   `formato` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'cartaceo',
   `tipo_media` enum('libro','disco','audiolibro','dvd','altro') NOT NULL DEFAULT 'libro',
   `peso` float DEFAULT NULL,
@@ -463,6 +466,7 @@ CREATE TABLE `libri` (
   KEY `idx_libri_updated_at` (`updated_at`),
   KEY `idx_libri_deleted_created` (`deleted_at`,`created_at`),
   KEY `idx_libri_genere_deleted_created` (`genere_id`,`deleted_at`,`created_at`),
+  KEY `idx_libri_catalog_author_sort` (`catalog_author_sort`,`id`),
   FULLTEXT KEY `ft_libri_search` (`titolo`,`sottotitolo`,`descrizione`,`parole_chiave`),
   FULLTEXT KEY `ft_libri_search_index` (`search_index`),
   CONSTRAINT `fk_libri_mensola` FOREIGN KEY (`mensola_id`) REFERENCES `mensole` (`id`) ON DELETE SET NULL,
@@ -506,6 +510,14 @@ CREATE TABLE `libri_autori` (
   CONSTRAINT `libri_autori_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
   CONSTRAINT `libri_autori_ibfk_2` FOREIGN KEY (`autore_id`) REFERENCES `autori` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE `catalog_materialized_snapshots` (
+  `cache_key` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `generation` bigint NOT NULL,
+  `payload` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`cache_key`),
+  KEY `idx_catalog_snapshots_updated` (`updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Generation-bound shared materialization of bounded catalog counts and facets';
 -- Tracks only role links created by authoritative importers. Keeping this
 -- provenance outside libri_autori lets a re-import replace its own stale
 -- contributors without deleting an identical association added manually.
@@ -760,6 +772,7 @@ CREATE TABLE `ncip_transactions` (
   `partner_id` int DEFAULT NULL,
   `message_type` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   `prestito_id` int DEFAULT NULL,
+  `prenotazione_id` int DEFAULT NULL,
   `request_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` enum('pending','success','error') NOT NULL DEFAULT 'pending',
   `error_msg` varchar(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -768,8 +781,10 @@ CREATE TABLE `ncip_transactions` (
   KEY `idx_partner` (`partner_id`),
   KEY `idx_status` (`status`),
   KEY `idx_prestito` (`prestito_id`),
+  KEY `idx_prenotazione` (`prenotazione_id`),
   CONSTRAINT `ncip_transactions_ibfk_1` FOREIGN KEY (`partner_id`) REFERENCES `ncip_partners` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `ncip_transactions_ibfk_2` FOREIGN KEY (`prestito_id`) REFERENCES `prestiti` (`id`) ON DELETE SET NULL
+  CONSTRAINT `ncip_transactions_ibfk_2` FOREIGN KEY (`prestito_id`) REFERENCES `prestiti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `ncip_transactions_ibfk_3` FOREIGN KEY (`prenotazione_id`) REFERENCES `prenotazioni` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -850,6 +865,11 @@ CREATE TABLE `prestiti` (
   `attivo` tinyint(1) NOT NULL DEFAULT '1',
   `warning_sent` tinyint(1) DEFAULT '0',
   `overdue_notification_sent` tinyint(1) DEFAULT '0',
+  `pickup_notification_sent` tinyint(1) DEFAULT '0',
+  `pickup_notification_claim_token` char(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  `pickup_notification_last_attempt_at` datetime DEFAULT NULL,
+  `recall_count` int NOT NULL DEFAULT '0',
+  `last_recall_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `libro_id` (`libro_id`),
   KEY `utente_id` (`utente_id`),

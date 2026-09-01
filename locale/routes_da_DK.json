@@ -31,5 +31,6 @@
   "language_switch": "/sprog",
   "archives": "/arkiv",
   "archive_item": "/arkiv",
-  "bibframe.book": "/api/bibframe/book/{id}"
+  "bibframe.book": "/api/bibframe/book/{id}",
+  "api_edge_availability": "/api/edge/availability"
 }

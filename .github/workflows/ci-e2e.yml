@@ -55,21 +55,34 @@ jobs:
       # supports PHP >= 8.1, so the Ubuntu mod_php package is sufficient here.
       - name: Install Apache2 + mod_php
         run: |
+          # This job never installs Google Chrome. Remove its hosted-runner
+          # apt source before the first refresh so mirror syncs cannot break CI.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -q
-          sudo apt-get install -y apache2 libapache2-mod-php
+          # php-apcu: the app's page cache must run on its production backend
+          # (APCu shared memory) under Apache/mod_php, not the file fallback.
+          sudo apt-get install -y apache2 libapache2-mod-php php-apcu
           sudo a2enmod rewrite headers env
           php_module="$(find /etc/apache2/mods-available -maxdepth 1 -name 'php*.load' -printf '%f\n' | sed 's/\.load$//' | sort -V | tail -n1)"
           if [ -n "${php_module}" ]; then
             sudo a2enmod "${php_module}"
           fi
           sudo a2dissite 000-default || true
+          # Enable APCu for every distro-PHP SAPI (Apache mod_php + distro CLI).
+          while IFS= read -r conf_dir; do
+            sudo tee "${conf_dir}/99-pinakes-apcu.ini" >/dev/null <<'EOF'
+          apc.enable=1
+          apc.enable_cli=1
+          EOF
+          done < <(find /etc/php -type d -path '*/conf.d' | sort -u)
 
       # ── PHP 8.2 CLI for Composer and tooling ────────────────────────────────
       - name: Setup PHP 8.2
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
-          extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml
+          extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml, apcu
+          ini-values: apc.enable=1, apc.enable_cli=1
           coverage: none
 
       - name: Configure virtual host on port 8081
@@ -85,6 +98,9 @@ jobs:
               # E2E only — deterministic, network-free bulk-enrich scraper stub.
               # Removes external-API latency/flakiness; never set in production.
               SetEnv PINAKES_E2E_SCRAPER_STUB 1
+              # E2E only — arms GET /_e2e/flush-cache so specs that write to the
+              # DB directly can invalidate the page cache; 404s when unset.
+              SetEnv PINAKES_E2E_CACHE_FLUSH 1
               <Directory "${WORKSPACE}/public">
                   Options -Indexes +FollowSymLinks
                   AllowOverride All

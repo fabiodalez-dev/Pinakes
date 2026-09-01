@@ -25,6 +25,12 @@ use App\Support\AuthorName;
 
 // Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
 $isCatalogueMode = ConfigStore::isCatalogueMode();
+$edgeCacheEnabled = \App\Support\LiteSpeedCache::enabled();
+if ($edgeCacheEnabled) {
+    // Nothing rendering into shared HTML, including a plugin hook, may receive
+    // a point-in-time availability snapshot. The browser hydrates it live.
+    unset($book['copie_disponibili'], $book['copie_totali'], $book['stato']);
+}
 
 // Resolve tipo_media once for badge, labels, and Schema.org
 $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($book['formato'] ?? null, $book['tipo_media'] ?? null);
@@ -63,7 +69,7 @@ $bookGenre = !empty($genreHierarchy) ? implode(' > ', $genreHierarchy) : '';
 $bookGenre = html_entity_decode($bookGenre, ENT_QUOTES, 'UTF-8');
 $bookCover = ($book['copertina_url'] ?? '') ?: ($book['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg';
 $bookCover = url($bookCover);
-$isAvailable = ($book['copie_disponibili'] ?? 0) > 0;
+$isAvailable = !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0;
 $authorNames = [];
 foreach ($authors as $authorData) {
     $name = trim(html_entity_decode(AuthorName::display($authorData), ENT_QUOTES, 'UTF-8'));
@@ -95,19 +101,24 @@ if ($coverAlt === '') {
     $coverAlt = __('Copertina del libro');
 }
 
-// Meta title ottimizzato (max 60 caratteri)
+// Meta title ottimizzato (max 60 caratteri). Il suffisso è il nome reale
+// della biblioteca (app.name): è il brand riconoscibile nelle SERP, non il
+// generico "Biblioteca".
+$siteBrandName = (string) ConfigStore::get('app.name', 'Pinakes');
 $title = $bookTitle;
 if ($bookAuthor) {
     $title .= " " . __("di") . " " . $bookAuthor;
 }
-$title .= " - " . __("Biblioteca");
+$title .= " - " . $siteBrandName;
 $metaTitle = $title;
 
-// Meta description ottimizzata (max 160 caratteri)
+// Meta description ottimizzata (max 160 caratteri). Taglio multibyte: substr()
+// byte-based può spezzare un carattere UTF-8 (accenti) a metà nel <head>.
 $metaDescription = '';
 if ($bookDescription) {
-    $metaDescription = substr(strip_tags($bookDescription), 0, 140);
-    if (strlen($bookDescription) > 140) {
+    $plainDescription = trim(strip_tags($bookDescription));
+    $metaDescription = mb_substr($plainDescription, 0, 140);
+    if (mb_strlen($plainDescription) > 140) {
         $metaDescription .= '...';
     }
 } else {
@@ -124,8 +135,12 @@ if ($bookDescription) {
     }
 }
 
-// Canonical URL - Safe from Host header injection
-$canonicalUrl = HtmlHelper::getCurrentUrl();
+// Canonical URL - Safe from Host header injection. Use the canonical book
+// path computed by the controller: the current URL can carry tracking
+// parameters (?utm_*) that must never appear in rel=canonical.
+$canonicalUrl = isset($canonicalPath)
+    ? absoluteUrl($canonicalPath)
+    : HtmlHelper::getCurrentUrlWithoutQuery();
 
 // Open Graph Image - Ensure absolute URLs
 $baseUrl = HtmlHelper::getBaseUrl();
@@ -398,7 +413,6 @@ if ($bookPrice) {
     $appName = (string) ConfigStore::get('app.name', __('Biblioteca'));
     $bookSchema["offers"] = [
         "@type" => "Offer",
-        "availability" => $isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
         "price" => $bookPrice,
         "priceCurrency" => (string) ConfigStore::get('app.currency', 'EUR'),
         "seller" => [
@@ -406,6 +420,12 @@ if ($bookPrice) {
             "name" => $appName
         ]
     ];
+    // Shared HTML must not publish a stale structured-data availability claim.
+    if (!$edgeCacheEnabled) {
+        $bookSchema["offers"]["availability"] = $isAvailable
+            ? "https://schema.org/InStock"
+            : "https://schema.org/OutOfStock";
+    }
 }
 
 // Aggrega i rating se disponibili
@@ -419,11 +439,11 @@ if (!empty($reviewStats) && $reviewStats['total_reviews'] > 0) {
     ];
 }
 
-// Organization Schema
+// Organization Schema — the entity is the configured library, by its real name
 $organizationSchema = [
     "@context" => "https://schema.org",
     "@type" => "Library",
-    "name" => __("Biblioteca"),
+    "name" => $siteBrandName,
     "url" => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/',
     "description" => __("Biblioteca digitale con catalogo completo di libri disponibili per il prestito")
 ];
@@ -726,6 +746,12 @@ $additional_css = "
         transition: all 0.3s ease;
         text-transform: uppercase;
         letter-spacing: 0.12em;
+    }
+
+    .availability-badge.availability-pending {
+        background: #6b7280;
+        color: white;
+        border-color: #6b7280;
     }
 
     .available {
@@ -1716,6 +1742,11 @@ $additional_css = "
         box-shadow: none;
     }
 
+    .related-availability-badge.availability-pending {
+        background: #6b7280;
+        color: white;
+    }
+
     /* When a digital icon (eBook/audio) is injected next to the availability
        check, the pill grows to fit both — drop the icon's own left margin so
        the spacing is the flex gap alone (no overlap). */
@@ -1830,6 +1861,7 @@ ob_start();
                 <img src="<?= htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') ?>"
                      alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"
                      class="book-cover-large img-fluid"
+                     fetchpriority="high" decoding="async"
                      id="book-cover-image">
             </div>
             <div class="book-info-column">
@@ -1904,13 +1936,13 @@ ob_start();
                     <?php endif; ?>
 
                     <div class="mt-4">
-                        <span class="availability-badge <?= ($book['copie_disponibili'] > 0) ? 'available' : 'unavailable' ?>">
-                            <i class="fas fa-<?= ($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle' ?> mr-2" aria-hidden="true"></i>
-                            <?= ($book['copie_disponibili'] > 0)
+                        <span class="availability-badge <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'available' : 'unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="detail-badge" data-live-pending="1"' : '' ?>>
+                            <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : (($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle') ?> mr-2" aria-hidden="true"></i>
+                            <span data-live-label><?= $edgeCacheEnabled ? htmlspecialchars(__("Verifica disponibilità"), ENT_QUOTES, 'UTF-8') : (($book['copie_disponibili'] > 0)
                                 ? ($book['copie_totali'] > 1
                                     ? "{$book['copie_disponibili']}/{$book['copie_totali']} " . __("Disponibili")
                                     : __("Disponibile"))
-                                : __("Non disponibile oggi") /* lo snapshot è di OGGI: il calendario può mostrare giorni futuri liberi */ ?>
+                                : __("Non disponibile oggi")) /* lo snapshot è di OGGI: il calendario può mostrare giorni futuri liberi */ ?></span>
                         </span>
                     </div>
 
@@ -1930,9 +1962,9 @@ ob_start();
                 <?php if (!$isCatalogueMode): ?>
                 <div class="action-buttons text-center mb-4" id="book-action-buttons">
                     <!-- Always show the calendar to choose dates -->
-                    <button id="btn-request-loan" type="button" class="ui-button <?= ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>">
-                        <i class="fas fa-<?= ($book['copie_disponibili'] ?? 0) > 0 ? 'book-reader' : 'calendar-alt' ?> mr-2"></i>
-                        <?= ($book['copie_disponibili'] ?? 0) > 0 ? __('Richiedi Prestito') : __('Prenota Quando Disponibile') ?>
+                    <button id="btn-request-loan" type="button" class="ui-button <?= !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="action" data-live-pending="1"' : '' ?>>
+                        <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : ((($book['copie_disponibili'] ?? 0) > 0) ? 'book-reader' : 'calendar-alt') ?> mr-2"></i>
+                        <span data-live-label><?= $edgeCacheEnabled ? __('Verifica disponibilità') : ((($book['copie_disponibili'] ?? 0) > 0) ? __('Richiedi Prestito') : __('Prenota Quando Disponibile')) ?></span>
                     </button>
                     <?php $isLogged = !empty($_SESSION['user'] ?? null); ?>
                     <?php if ($isLogged): ?>
@@ -2461,15 +2493,15 @@ ob_start();
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
-                                <span class="book-status-inline <?= ($book['copie_disponibili'] > 0) ? 'is-available' : 'is-unavailable' ?>">
-                                    <?= ($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non disponibile oggi") ?>
+                                <span class="book-status-inline <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'is-available' : 'is-unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="status" data-live-pending="1"' : '' ?>>
+                                    <?= $edgeCacheEnabled ? __("Verifica disponibilità") : (($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non disponibile oggi")) ?>
                                 </span>
                             </div>
                         </div>
 
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Copie Disponibili") ?></div>
-                            <div class="meta-value"><?= $book['copie_disponibili'] ?> / <?= $book['copie_totali'] ?></div>
+                            <div class="meta-value <?= $edgeCacheEnabled ? 'availability-pending' : '' ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="count" data-live-pending="1"' : '' ?>><?= $edgeCacheEnabled ? __("Verifica disponibilità") : ((int) $book['copie_disponibili'] . ' / ' . (int) $book['copie_totali']) ?></div>
                         </div>
 
                         <?php if (!empty($book['collocazione'])): ?>
@@ -2577,12 +2609,17 @@ ob_start();
                                  class="related-book-image"
                                  loading="lazy">
                         </a>
-                        <?php if (($related['copie_disponibili'] ?? 0) > 0): ?>
-                        <span class="related-availability-badge available-badge">
-                            <i class="fas fa-check-circle" aria-hidden="true"></i>
+                        <?php if (($related['copie_disponibili'] ?? 0) > 0 || $edgeCacheEnabled): ?>
+                        <span class="related-availability-badge <?= $edgeCacheEnabled ? 'availability-pending' : 'available-badge' ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $related['id'] . '" data-live-role="related" data-live-pending="1"' : '' ?>>
+                            <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : 'check-circle' ?>" aria-hidden="true"></i>
+                            <?php if ($edgeCacheEnabled): ?><span data-live-label><?= __("Verifica disponibilità") ?></span><?php endif; ?>
                             <?php
                             // Hook: Allow plugins to add icons to related book badge (e.g., eBook/audio icons)
-                            do_action('book.badge.digital_icons', $related);
+                            $pluginRelated = $related;
+                            if ($edgeCacheEnabled) {
+                                unset($pluginRelated['copie_disponibili'], $pluginRelated['copie_totali'], $pluginRelated['stato']);
+                            }
+                            do_action('book.badge.digital_icons', $pluginRelated);
                             ?>
                         </span>
                         <?php endif; ?>
@@ -2831,6 +2868,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrf = meta ? meta.getAttribute('content') : '';
     const successRangeTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     const successFootnote = <?php echo json_encode(__('Riceverai una conferma via email appena la richiesta sarà approvata.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    // #384: the unified calendar creates a real waitlist reservation when no
+    // physical copy is assignable now. Keep that outcome explicit instead of
+    // describing it as a loan request or an already-scheduled loan.
+    const reservationRangeTpl = <?php echo json_encode(__('Prenotazione dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const reservationTitle = <?php echo json_encode(__('Prenotazione effettuata con successo'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const reservationFootnote = <?php echo json_encode(__('La prenotazione resterà in coda finché una copia non sarà effettivamente disponibile.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     // #301: con l'auto-approvazione attiva il server risponde auto_approved=true
     // e il prestito è GIÀ in attesa di ritiro — il copy "appena sarà approvata"
     // sarebbe falso e l'utente aspetterebbe un'approvazione già avvenuta.
@@ -3128,7 +3171,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (res.ok && result.success) {
               await updateReservationsBadge();
               const effectiveEndDate = formValues.endDate || addDaysToIso(formValues.startDate, defaultRequestLoanDays);
-              const successHtml = successRangeTpl
+              const isWaitlistReservation = result.status === 'reserved';
+              const rangeTemplate = isWaitlistReservation ? reservationRangeTpl : successRangeTpl;
+              const successHtml = rangeTemplate
                 .replace('%1$s', formatDateIT(formValues.startDate))
                 .replace('%2$s', formatDateIT(effectiveEndDate));
 
@@ -3139,8 +3184,10 @@ document.addEventListener('DOMContentLoaded', function() {
               const approvedFootnoteText = isScheduled ? scheduledFootnote : approvedFootnote;
               Swal.fire({
                 icon: 'success',
-                title: isAutoApproved ? (isScheduled ? scheduledTitle : approvedTitle) : __('Richiesta Inviata!'),
-                html: `${successHtml}<br><small>${isAutoApproved ? approvedFootnoteText : successFootnote}</small>`
+                title: isWaitlistReservation
+                  ? reservationTitle
+                  : (isAutoApproved ? (isScheduled ? scheduledTitle : approvedTitle) : __('Richiesta Inviata!')),
+                html: `${successHtml}<br><small>${isWaitlistReservation ? reservationFootnote : (isAutoApproved ? approvedFootnoteText : successFootnote)}</small>`
               });
               return;
             } else {

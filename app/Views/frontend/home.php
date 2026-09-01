@@ -579,7 +579,9 @@ form.hero-search-form {
     }
 
     .genre-carousel-viewall {
-        display: inline-flex;
+        display: flex;
+        width: fit-content;
+        margin-inline: auto;
         align-items: center;
         gap: 0.4rem;
         font-size: 0.95rem;
@@ -1006,6 +1008,9 @@ function loadStats() {
 
     // Values already rendered server-side: skip the aggregate API call.
     if (totalBooksEl.dataset.serverRendered === '1' && availableBooksEl.dataset.serverRendered === '1') return;
+    // Edge-cached pages hydrate the availability counter through the dedicated
+    // no-store endpoint. Avoid racing that request with the broader catalog API.
+    if (availableBooksEl.dataset.liveStat) return;
 
     // Ask the catalog API for the available-books aggregate. The endpoint only
     // computes that extra COUNT when with_stats=1 is present, so the live
@@ -1045,6 +1050,9 @@ function loadLatestBooks(page = 1) {
             } else {
                 grid.innerHTML += data.html;
             }
+            // When edge caching is enabled, card availability is deliberately
+            // absent from the HTML returned by this endpoint as well.
+            grid.dispatchEvent(new Event('pinakes:catalog-grid-updated', { bubbles: true }));
 
             currentLatestPage = data.pagination.current_page;
             hasMoreLatestBooks = data.pagination.current_page < data.pagination.total_pages;

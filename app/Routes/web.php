@@ -128,6 +128,88 @@ return function (App $app): void {
         return $response->withHeader('Content-Type', 'application/json');
     });
 
+    // TEST-ONLY page-cache flush (E2E infrastructure, NOT a production route).
+    // E2E specs that mutate the DB directly (bypassing the app code and its
+    // ContentCache generation bumps) call this endpoint before asserting on a
+    // cached frontend page, replicating the invalidation a real edit performs.
+    // Gated STRICTLY on a server-side env var that only the CI virtual host
+    // sets (`SetEnv PINAKES_E2E_CACHE_FLUSH 1`, next to the existing
+    // PINAKES_E2E_* flags): nothing client-controllable — no header, cookie or
+    // query parameter — is consulted, so a remote caller cannot enable it.
+    // When the flag is absent/empty the route throws the same
+    // HttpNotFoundException an unregistered path produces, making it inert in
+    // production. GET is deliberate: it keeps the call outside CsrfMiddleware
+    // and the only side effect is dropping cache entries (idempotent).
+    $app->get('/_e2e/flush-cache', function ($request, $response) {
+        $flag = $_ENV['PINAKES_E2E_CACHE_FLUSH']
+            ?? getenv('PINAKES_E2E_CACHE_FLUSH')
+            ?: '';
+        if ($flag !== '1' && strtolower((string) $flag) !== 'true') {
+            throw new \Slim\Exception\HttpNotFoundException($request);
+        }
+        // Honour the flush result: a false return means a real apcu_delete /
+        // unlink failure. Surface it as HTTP 500 so the E2E helper can fail the
+        // run loudly instead of proceeding to read a stale cached page.
+        $flushed = \App\Support\QueryCache::flush();
+        $response->getBody()->write((string) json_encode(['flushed' => $flushed]));
+        return $response
+            ->withStatus($flushed ? 200 : 500)
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private');
+    });
+
+    // Authenticated loopback target used by CLI/import jobs to turn their
+    // durable purge queue into a LiteSpeed response header. The secret is
+    // operator-managed via environment, never stored or rendered in admin UI.
+    $app->post('/_pinakes/litespeed-purge', function ($request, $response) {
+        $provided = trim($request->getHeaderLine('X-Pinakes-Purge-Secret'));
+        if (!\App\Support\LiteSpeedCache::authorizesPurgeSecret($provided)) {
+            throw new \Slim\Exception\HttpNotFoundException($request);
+        }
+
+        $tags = \App\Support\LiteSpeedCache::consumeQueuedPurge();
+        $response->getBody()->write((string) json_encode(['purged' => $tags !== [], 'tags' => count($tags)]));
+        $response = $response
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
+        if ($tags !== []) {
+            $response = $response->withHeader('X-LiteSpeed-Purge', \App\Support\LiteSpeedCache::purgeHeader($tags));
+        }
+        return $response;
+    });
+
+    // Lazy CSRF endpoint (issue #387 step 6). Sessionless anonymous pages
+    // carry no CSRF token in their cacheable HTML; JS fetches one from here
+    // right before a state-changing request (see public/assets/js/
+    // csrf-helper.js). Starting the session on demand mints the same
+    // session-backed token CsrfMiddleware validates — protection is
+    // unchanged, only WHEN the token is minted moves. The hardened session
+    // ini parameters were already applied unconditionally in public/index.php,
+    // so this lazy session_start() uses the exact same secure cookie settings.
+    // The same-origin policy keeps the JSON unreadable cross-site (no CORS
+    // headers are emitted) and no-store keeps any cache from persisting a
+    // per-visitor token. Technical endpoint → literal path, like /health.
+    $app->get('/csrf-token', function ($request, $response) {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        $payload = json_encode(['token' => \App\Support\Csrf::ensureToken()], JSON_HEX_TAG);
+        $response->getBody()->write((string) $payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('Pragma', 'no-cache')
+            ->withHeader('Vary', 'Cookie')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
+    });
+
+    $app->get(RouteTranslator::getRouteForLocale('api_edge_availability', 'en_US'), function ($request, $response) use ($app) {
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        return $controller->edgeAvailability($request, $response, $container->get('db'));
+    })->add(new \App\Middleware\RateLimitMiddleware(300, 60, 'edge-availability'));
+
     // Private uploaded files (digital-library content, archive documents,
     // generic storage). public/.htaccess routes ONLY these private prefixes
     // here instead of serving them directly, so the global middleware stack
@@ -638,6 +720,12 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->regenerateSitemap($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/advanced/flush-cache', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new SettingsController();
+        return $controller->flushAllCaches($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/loans', function ($request, $response) use ($app) {
@@ -1494,6 +1582,12 @@ return function (App $app): void {
         return $controller->deleteCopy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/books/{id:\d+}/copies/create', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\CopyController();
+        $db = $app->getContainer()->get('db');
+        return $controller->createCopy($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Series (Series) management
     $app->get('/admin/series', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
@@ -1891,6 +1985,36 @@ return function (App $app): void {
         return $controller->downloadPdf($request, $response, $db, (int) $args['id']);
     })->add(new AdminAuthMiddleware())->add(new CsrfMiddleware());
 
+    // #360: invia la ricevuta PDF del prestito via email all'utente.
+    // RateLimit aggiunto per primo (LIFO: eseguito per ultimo, dopo Auth e
+    // CSRF) come /admin/settings/email/test — ogni chiamata è un vero
+    // handshake SMTP. L'actionKey rende il bucket per-client e non per-path:
+    // senza, ogni {id} avrebbe il proprio contatore e il limite sarebbe
+    // aggirabile iterando i prestiti.
+    $app->post('/admin/loans/{id:\d+}/email-pdf', function ($request, $response, $args) use ($app) {
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->emailPdf($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60, 'loan-email-pdf'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // #360: sollecito manuale per un singolo prestito scaduto
+    $app->post('/admin/loans/{id:\d+}/recall', function ($request, $response, $args) use ($app) {
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->sendRecall($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60, 'loan-recall'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // #360: sollecito in blocco per i prestiti selezionati nella lista
+    // (fino a 50 invii SMTP per richiesta: limite più stretto)
+    $app->post('/admin/loans/bulk-recall', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkRecall($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(5, 60, 'loan-bulk-recall'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // API loans per DataTables
     $app->get('/api/prestiti', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\PrestitiApiController();
@@ -2196,9 +2320,15 @@ return function (App $app): void {
         // payload si contraddiceva: occupied_ranges diceva "libero" mentre
         // first_available/is_available_now (calcolati per-giorno qui sotto)
         // contavano anche pendenti-con-copia e coda prenotazioni.
+        $today = \App\Support\DateHelper::today();
         $stmt = $db->prepare("
             SELECT data_prestito,
-                   CASE WHEN stato = 'in_ritardo' THEN '9999-12-31' ELSE data_scadenza END AS occupied_until,
+                   CASE
+                       WHEN stato = 'in_ritardo'
+                            OR (stato = 'in_corso' AND data_scadenza < ?)
+                       THEN '9999-12-31'
+                       ELSE data_scadenza
+                   END AS occupied_until,
                    stato
             FROM prestiti
             WHERE libro_id = ? AND (
@@ -2207,7 +2337,7 @@ return function (App $app): void {
             )
             ORDER BY data_prestito
         ");
-        $stmt->bind_param('i', $libroId);
+        $stmt->bind_param('si', $today, $libroId);
         $stmt->execute();
         $result = $stmt->get_result();
         $occupiedRanges = [];
@@ -2249,7 +2379,6 @@ return function (App $app): void {
         // first_available / is_available_now: delega al calcolo per-giorno e per-copia
         // (AVAIL-001). Il vecchio "giorno dopo la scadenza più lontana" ignorava le
         // copie multiple, restituendo una data troppo conservativa.
-        $today = \App\Support\DateHelper::today();
         $reservations = new \App\Controllers\ReservationsController($db);
         $availability = $reservations->getBookAvailabilityData($libroId, $today, 180);
         if ($availability === null) {
@@ -2266,7 +2395,7 @@ return function (App $app): void {
             'copie_disponibili' => (int)($book['copie_disponibili'] ?? 0),
             'copie_totali' => (int)($availability['total_copies'] ?? ($book['copie_totali'] ?? 0)),
             'occupied_ranges' => $occupiedRanges,
-            'first_available' => $availability['earliest_available'] ?? $today,
+            'first_available' => $availability['earliest_available'] ?? null,
             'is_available_now' => $isAvailableNow
         ];
 
@@ -2386,13 +2515,20 @@ return function (App $app): void {
 
         // Get request body
         $body = $request->getParsedBody();
-        if (!$body) {
-            $body = json_decode((string) $request->getBody(), true);
+        if (!is_array($body) || $body === []) {
+            $decodedBody = json_decode((string) $request->getBody(), true);
+            $body = is_array($decodedBody) ? $decodedBody : [];
         }
 
-        $copiesToAdd = (int) ($body['copies'] ?? 0);
+        // Keep the server-side contract aligned with the admin prompt. Avoid
+        // PHP's surprising casts ((int) ['anything'] === 1) and cap the batch so
+        // one request cannot build an unbounded multi-row INSERT.
+        $rawCopies = $body['copies'] ?? null;
+        $copiesToAdd = is_int($rawCopies)
+            ? $rawCopies
+            : (is_string($rawCopies) && preg_match('/^[1-9]\d*$/D', $rawCopies) === 1 ? (int) $rawCopies : 0);
 
-        if ($copiesToAdd < 1) {
+        if ($copiesToAdd < 1 || $copiesToAdd > 100) {
             $response->getBody()->write(json_encode([
                 'error' => true,
                 'message' => __('Numero di copie non valido.')
@@ -2416,39 +2552,100 @@ return function (App $app): void {
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
 
-        // Calculate new total
-        $currentCopieTotali = (int) $book['copie_totali'];
-        $newCopieTotali = $currentCopieTotali + $copiesToAdd;
-
-        // Update copie_totali counter in libri table
-        $stmt = $db->prepare('UPDATE libri SET copie_totali = ? WHERE id = ?');
-        $stmt->bind_param('ii', $newCopieTotali, $bookId);
-        $stmt->execute();
-        $stmt->close();
-
-        // Create physical copies in copie table
+        // Create the copies atomically and let DataIntegrity derive the counters,
+        // mirroring CopyController::createCopy(). The allocator produces
+        // collision-free "{base}-C{N}" codes: the previous "-C{copie_totali+i}"
+        // scheme collided with an existing code as soon as a copy was out of
+        // circulation (copie_totali excludes those), raising a 1062 that left the
+        // manually-inflated copie_totali and a partial copy set behind. No manual
+        // UPDATE, one transaction, rolled back on any failure.
         $copyRepo = new \App\Models\CopyRepository($db);
         $baseInventario = !empty($book['numero_inventario'])
             ? $book['numero_inventario']
             : "LIB-{$bookId}";
 
-        // Start from current total + 1 for new copies
-        for ($i = 1; $i <= $copiesToAdd; $i++) {
-            $copyNumber = $currentCopieTotali + $i;
-            $numeroInventario = $newCopieTotali > 1
-                ? "{$baseInventario}-C{$copyNumber}"
-                : $baseInventario;
+        $reassignmentService = null;
+        $reservationManager = null;
+        $transactionStarted = false;
+        try {
+            if (!$db->begin_transaction()) {
+                throw new \RuntimeException('Unable to begin the increase-copies transaction.');
+            }
+            $transactionStarted = true;
 
-            $note = "Copia {$copyNumber} di {$newCopieTotali}";
-            $copyRepo->create($bookId, $numeroInventario, 'disponibile', $note);
+            // Canonical lock order: book row first, then copies.
+            $lock = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
+            $lock->bind_param('i', $bookId);
+            $lock->execute();
+            $stillExists = (bool) $lock->get_result()->fetch_assoc();
+            $lock->close();
+            if (!$stillExists) {
+                throw new \RuntimeException('Book not found.');
+            }
+
+            $createdCopyIds = $copyRepo->createManyForBookWithIds($bookId, $baseInventario, $copiesToAdd, 'disponibile', __('Copia %d di %d'));
+            if (count($createdCopyIds) !== $copiesToAdd) {
+                throw new \RuntimeException('Unable to create the requested physical copies.');
+            }
+
+            // First repair copy-less/blocked HOLDING assignments, exactly like
+            // CopyController::createCopy(). Only the capacity left after those
+            // repairs may promote wait-list rows from prenotazioni.
+            $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+            $reassignmentService->setExternalTransaction(true);
+            foreach ($createdCopyIds as $createdCopyId) {
+                $reassignmentService->reassignOnNewCopy($bookId, $createdCopyId);
+            }
+
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($guard = 0; $guard < 1000 && $reservationManager->processBookAvailability($bookId); $guard++) {
+                // promote the next eligible reservation into a pending loan
+            }
+
+            $integrity = new \App\Support\DataIntegrity($db);
+            if (!$integrity->recalculateBookAvailability($bookId, true)) {
+                throw new \RuntimeException('Unable to recalculate book availability.');
+            }
+
+            if (!$db->commit()) {
+                throw new \RuntimeException('Unable to commit the increase-copies transaction.');
+            }
+            $transactionStarted = false;
+        } catch (\Throwable $e) {
+            if ($transactionStarted) {
+                try {
+                    $db->rollback();
+                } catch (\Throwable $rollbackError) {
+                    // best-effort — preserve the original failure
+                }
+            }
+            \App\Support\SecureLogger::error('[increase-copies] failed to add copies', [
+                'book' => $bookId,
+                'error' => $e->getMessage(),
+            ]);
+            $response->getBody()->write(json_encode([
+                'error' => true,
+                'message' => __('Impossibile aggiungere le copie.')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
-        // Recalculate availability using DataIntegrity
-        $integrity = new \App\Support\DataIntegrity($db);
-        $integrity->recalculateBookAvailability($bookId);
+        // Both services defer I/O while the transaction is open. Flush only
+        // after the assignment/promotion has become durable; notification errors
+        // must not turn a committed copy batch into an apparent API failure.
+        try {
+            $reassignmentService->flushDeferredNotifications();
+            $reservationManager->flushDeferredNotifications();
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[increase-copies] deferred notification failed', [
+                'book' => $bookId,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
-        // Get updated availability
-        $stmt = $db->prepare('SELECT copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL');
+        // Read the derived counters (post-commit) for the response.
+        $stmt = $db->prepare('SELECT copie_totali, copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL');
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -2457,8 +2654,8 @@ return function (App $app): void {
 
         $response->getBody()->write(json_encode([
             'success' => true,
-            'copie_totali' => $newCopieTotali,
-            'copie_disponibili' => (int) $updatedBook['copie_disponibili'],
+            'copie_totali' => (int) ($updatedBook['copie_totali'] ?? 0),
+            'copie_disponibili' => (int) ($updatedBook['copie_disponibili'] ?? 0),
             'added' => $copiesToAdd
         ], JSON_UNESCAPED_UNICODE));
 
@@ -2557,7 +2754,7 @@ return function (App $app): void {
                 'success' => true,
                 'availability' => [
                     'unavailable_dates' => $availability['unavailable_dates'] ?? [],
-                    'earliest_available' => $availability['earliest_available'] ?? \App\Support\DateHelper::today(),
+                    'earliest_available' => $availability['earliest_available'] ?? null,
                     'days' => $availability['days'] ?? [],
                     // F040: true when the excluded user already holds an active
                     // reservation on this book — the picker would otherwise show
@@ -3085,6 +3282,38 @@ return function (App $app): void {
 
     // Legacy URL for backward compatibility
     $app->get('/storage/calendar/library-calendar.ics', $calendarHandler);
+
+    // Per-loan ICS download linked from the loan confirmation emails.
+    // Opened by mail/calendar clients without a session, so access is gated by
+    // the HMAC token generated by LoanCalendarLinks (404 on mismatch: don't
+    // reveal whether a loan id exists).
+    $app->get('/calendar/loan/{id:[0-9]+}.ics', function ($request, $response, array $args) use ($app) {
+        try {
+            $db = $app->getContainer()->get('db');
+            $loanId = (int) $args['id'];
+            $token = (string) ($request->getQueryParams()['token'] ?? '');
+
+            $links = new \App\Support\LoanCalendarLinks($db);
+            if (!$links->isValidToken($loanId, $token)) {
+                return $response->withStatus(404);
+            }
+
+            $content = (new \App\Support\IcsGenerator($db))->generateForLoan($loanId);
+            if ($content === null) {
+                return $response->withStatus(404);
+            }
+
+            $response->getBody()->write($content);
+            return $response
+                ->withHeader('Content-Type', 'text/calendar; charset=utf-8')
+                ->withHeader('Content-Disposition', 'attachment; filename="prestito-' . $loanId . '.ics"')
+                ->withHeader('Cache-Control', 'private, max-age=300');
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('Loan ICS generation error', ['error' => $e->getMessage()]);
+            $response->getBody()->write(__('Errore generazione calendario'));
+            return $response->withStatus(500);
+        }
+    });
 
     // Public API endpoint for book search (protected by API key)
     $app->get('/api/public/books/search', function ($request, $response) use ($app) {

@@ -20,6 +20,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use App\Middleware\RateLimitMiddleware;
 use App\Middleware\PrivateModeMiddleware;
+use App\Support\ClientIpResolver;
 use App\Support\RememberMeService;
 use App\Support\SettingsEncryption;
 
@@ -41,9 +42,6 @@ putenv('TRUSTED_PROXIES');
 unset($_ENV['TRUSTED_PROXIES']);
 
 echo "F1 — RateLimitMiddleware trusted-proxy gate\n";
-// In production Slim populates getServerParams() from $_SERVER, so the PSR-7
-// REMOTE_ADDR and $_SERVER['REMOTE_ADDR'] (which HtmlHelper's trusted-proxy
-// check reads) are the same value — mirror that here.
 $_SERVER['REMOTE_ADDR'] = '203.0.113.9';
 $factory = new \Slim\Psr7\Factory\ServerRequestFactory();
 $req = $factory->createServerRequest('POST', '/accedi', ['REMOTE_ADDR' => '203.0.113.9'])
@@ -57,6 +55,67 @@ putenv('TRUSTED_PROXIES=203.0.113.9');
 $_ENV['TRUSTED_PROXIES'] = '203.0.113.9';
 $check($invoke($mw, 'getClientIP', $req) === '8.8.8.8',
     'peer is a trusted proxy: forwarded header is honored');
+
+putenv('TRUSTED_PROXIES=172.21.0.0/16,10.0.0.0/8');
+$_ENV['TRUSTED_PROXIES'] = '172.21.0.0/16,10.0.0.0/8';
+$privateReq = $factory->createServerRequest('POST', '/registrati', ['REMOTE_ADDR' => '172.21.0.4'])
+    ->withHeader('X-Forwarded-For', '192.168.1.42');
+$check($invoke($mw, 'getClientIP', $privateReq) === '192.168.1.42',
+    'trusted Docker proxy: a private LAN client gets its own rate-limit bucket');
+
+$chainReq = $factory->createServerRequest('POST', '/registrati', ['REMOTE_ADDR' => '172.21.0.4'])
+    ->withHeader('X-Forwarded-For', '198.51.100.27, 10.0.0.8');
+$check($invoke($mw, 'getClientIP', $chainReq) === '198.51.100.27',
+    'forwarded chain is walked right-to-left and trusted intermediate proxies are stripped');
+
+$spoofedPrefixReq = $factory->createServerRequest('POST', '/registrati', ['REMOTE_ADDR' => '172.21.0.4'])
+    ->withHeader('X-Forwarded-For', '8.8.8.8, 198.51.100.27');
+$check($invoke($mw, 'getClientIP', $spoofedPrefixReq) === '198.51.100.27',
+    'untrusted boundary prevents a caller-prepended XFF value becoming the bucket key');
+
+$check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => 'invalid, 10.0.0.8']) === '172.21.0.4',
+    'malformed XFF chain fails safely to the direct peer');
+
+// A present-but-poisoned XFF must NOT fall through to a spoofable single-value
+// header — otherwise a caller behind a trusted proxy prepends one junk hop and
+// rotates X-Real-IP to mint unlimited rate-limit buckets.
+$check(ClientIpResolver::resolve('172.21.0.4', [
+        'X-Forwarded-For' => 'junk, 198.51.100.27',
+        'X-Real-IP' => '8.8.8.8',
+    ]) === '172.21.0.4',
+    'poisoned XFF fails closed to the trusted peer, never onto a spoofable X-Real-IP');
+
+// Single-value headers are still honored when XFF is entirely absent (proxies
+// like Cloudflare that emit CF-Connecting-IP but no XFF).
+$check(ClientIpResolver::resolve('172.21.0.4', ['X-Real-IP' => '198.51.100.9']) === '198.51.100.9',
+    'X-Real-IP is honored when X-Forwarded-For is absent');
+
+// Proxy-supplied hops carrying a port / IPv6 brackets are normalised, not
+// rejected as malformed.
+$check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => '[2001:db8::1]:443']) === '2001:db8::1',
+    'a bracketed IPv6 XFF hop with a port is normalised to the bare address');
+$check(ClientIpResolver::resolve('172.21.0.4', ['X-Forwarded-For' => '198.51.100.27:51000']) === '198.51.100.27',
+    'an IPv4 XFF hop with a port is normalised to the bare address');
+
+// A non-integer CIDR prefix must be rejected, not silently truncated by (int):
+// 10.0.0.0/0.5 → (int)0 → /0 would trust EVERY peer and collapse the boundary.
+putenv('TRUSTED_PROXIES=10.0.0.0/0.5');
+$_ENV['TRUSTED_PROXIES'] = '10.0.0.0/0.5';
+$check(\App\Support\HtmlHelper::isTrustedProxyIp('8.8.8.8') === false,
+    'a fractional CIDR prefix (/0.5) is rejected, not widened to /0 (trust-all)');
+// /1e0 is the DISCRIMINATING scientific-notation case: (int) '1e0' === 1, so the
+// old is_numeric() gate widened 0.0.0.0/1e0 to /1 and trusted 8.8.8.8; the
+// digit-only regex rejects it. (/1e2 casts to 100 > 32 and was already dropped
+// by the bounds check, so it would pass with or without the fix — not a proof.)
+putenv('TRUSTED_PROXIES=0.0.0.0/1e0');
+$_ENV['TRUSTED_PROXIES'] = '0.0.0.0/1e0';
+$check(\App\Support\HtmlHelper::isTrustedProxyIp('8.8.8.8') === false,
+    'a scientific-notation CIDR prefix (/1e0) is rejected, not widened to /1 (trust-half)');
+// A well-formed CIDR still matches, so the guard did not over-tighten.
+putenv('TRUSTED_PROXIES=10.0.0.0/8');
+$_ENV['TRUSTED_PROXIES'] = '10.0.0.0/8';
+$check(\App\Support\HtmlHelper::isTrustedProxyIp('10.1.2.3') === true,
+    'a valid integer CIDR prefix (/8) still matches a peer inside the range');
 putenv('TRUSTED_PROXIES');
 unset($_ENV['TRUSTED_PROXIES']);
 
@@ -72,6 +131,15 @@ putenv('TRUSTED_PROXIES=203.0.113.50');
 $_ENV['TRUSTED_PROXIES'] = '203.0.113.50';
 $check($invoke($svc, 'getClientIP') === '8.8.4.4',
     'peer is a trusted proxy: forwarded audit IP honored');
+$_SERVER['REMOTE_ADDR'] = '172.21.0.4';
+$_SERVER['HTTP_X_FORWARDED_FOR'] = '192.168.1.43';
+putenv('TRUSTED_PROXIES=172.21.0.0/16');
+$_ENV['TRUSTED_PROXIES'] = '172.21.0.0/16';
+$check($invoke($svc, 'getClientIP') === '192.168.1.43',
+    'trusted proxy: private LAN address is preserved in session audit data');
+$_SERVER['REMOTE_ADDR'] = 'not-an-ip';
+$check($invoke($svc, 'getClientIP') === null,
+    'an unparseable REMOTE_ADDR yields a null audit IP, not the literal "unknown"');
 putenv('TRUSTED_PROXIES');
 unset($_ENV['TRUSTED_PROXIES'], $_SERVER['HTTP_X_FORWARDED_FOR']);
 

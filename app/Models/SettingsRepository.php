@@ -98,6 +98,16 @@ class SettingsRepository
     }
 
     /**
+     * Whether staff workflows may register more than one open loan for the same
+     * borrower and title when every loan is tied to a distinct physical copy.
+     * Missing or malformed values deliberately preserve the strict default.
+     */
+    public function allowsMultipleLoansSameBook(): bool
+    {
+        return ($this->get('loans', 'allow_multiple_loans_same_book', '0') ?? '0') === '1';
+    }
+
+    /**
      * Configured default loan duration. Invalid or missing values retain the
      * historical 30-day fallback in every loan creation/update path.
      */
@@ -293,10 +303,8 @@ class SettingsRepository
     }
 
     /**
-     * Locale predefinito per letture/scritture dell'editor template (M8):
-     * deve coincidere con quello usato dall'invio (EmailService legge
-     * (name, locale_installazione)), altrimenti su installazioni non italiane
-     * le modifiche admin finiscono su righe it_IT mai lette dall'invio.
+     * Normalize the optional template locale. The multilingual editor passes an
+     * explicit value; legacy callers still target the installation language.
      */
     private function resolveTemplateLocale(?string $locale): string
     {

@@ -59,8 +59,9 @@ require_once __DIR__ . '/src/Controllers/ReviewsController.php';
  *     notifications, push (UnifiedPush + VAPID) and prefs;
  *   - the OpenAPI 3.1 document + Swagger UI + the admin settings page.
  *
- * See STATUS.md for what is complete vs. partial (notably Web Push payload
- * encryption and the FCM provider).
+ * Web Push payload encryption and the FCM provider remain intentionally
+ * best-effort/optional; the REST API always falls back to polling and in-app
+ * notifications when push delivery is unavailable.
  */
 class MobileApiPlugin
 {
@@ -579,6 +580,17 @@ class MobileApiPlugin
                 array $args
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->cancelReservation($request, $response, (int) $args['id']);
+            })->add($quotaMw())->add($authMw());
+
+            // Explicit loan route avoids the id-space ambiguity of the legacy
+            // /reservations/{id} compatibility endpoint and exposes the #381
+            // waiting-for-pickup cancellation contract to native clients.
+            $group->delete('/loans/{id:[0-9]+}', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response,
+                array $args
+            ) use ($db): ResponseInterface {
+                return (new ActionsController($db))->cancelLoan($request, $response, (int) $args['id']);
             })->add($quotaMw())->add($authMw());
 
             $group->get('/me/wishlist', function (

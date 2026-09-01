@@ -1,5 +1,7 @@
 <?php
 /** @var array $templates */
+/** @var string $templateLocale */
+/** @var array<string, string> $templateLocales */
 use App\Support\Csrf;
 use App\Support\HtmlHelper;
 
@@ -236,7 +238,7 @@ $activeTab = $activeTab ?? 'general';
           <div class="flex justify-end">
             <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-save"></i>
-              <?= __("Salva identità") ?>
+              <?= __("Salva impostazioni generali") ?>
             </button>
           </div>
         </form>
@@ -499,9 +501,22 @@ $activeTab = $activeTab ?? 'general';
               </h2>
               <p class="text-sm text-gray-600"><?= __("Personalizza il contenuto delle mail automatiche con l'editor TinyMCE. Usa i segnaposto <code class=\"text-xs bg-gray-100 px-1 py-0.5 rounded\">{{variabile}}</code> per inserire dati dinamici.") ?></p>
             </div>
-            <div class="text-xs text-gray-500 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-              <?= __("Segnaposto disponibili mostrati in ciascun template.") ?>
-            </div>
+            <form method="get" action="<?php echo htmlspecialchars(url('/admin/settings'), ENT_QUOTES, 'UTF-8'); ?>" class="flex items-end gap-2">
+              <input type="hidden" name="tab" value="templates">
+              <div>
+                <label for="template-locale" class="block text-xs font-medium text-gray-600 mb-1"><?= __("Lingua dei template") ?></label>
+                <select id="template-locale" name="template_locale" class="rounded-lg border-gray-300 text-sm py-2 px-3" onchange="this.form.submit()">
+                  <?php foreach ($templateLocales as $localeCode => $localeName): ?>
+                    <option value="<?php echo htmlspecialchars((string) $localeCode, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $localeCode === $templateLocale ? ' selected' : ''; ?>>
+                      <?php echo htmlspecialchars((string) $localeName, ENT_QUOTES, 'UTF-8'); ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <noscript>
+                <button type="submit" class="rounded-lg bg-gray-900 text-white text-sm px-3 py-2"><?= __("Carica") ?></button>
+              </noscript>
+            </form>
           </div>
 
           <div class="space-y-6">
@@ -530,6 +545,7 @@ $activeTab = $activeTab ?? 'general';
 
                 <form action="<?php echo HtmlHelper::e(url('/admin/settings/templates/' . rawurlencode($template['name']))); ?>" method="post" class="p-3 md:p-5 space-y-4">
                   <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
+                  <input type="hidden" name="template_locale" value="<?php echo htmlspecialchars($templateLocale, ENT_QUOTES, 'UTF-8'); ?>">
                   <div>
                     <label class="block text-sm font-medium text-gray-700"><?= __("Oggetto") ?></label>
                     <input type="text" name="subject" value="<?php echo HtmlHelper::e($template['subject']); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">

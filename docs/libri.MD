@@ -244,7 +244,7 @@ Endpoint JSON di sola lettura / supporto al form:
 | `GET` | `/api/libri/author/{id}` | Libri di un autore |
 | `GET` | `/api/libri/publisher/{id}` | Libri di un editore |
 | `GET` | `/api/libri/genre/{id}` | Libri per genere (pubblico, caroselli home) |
-| `POST` | `/api/libri/bulk-status` | Cambio stato in blocco (admin) |
+| `POST` | `/api/libri/bulk-status` | Compatibilità client legacy: rifiuta con `409 derived_book_state`; lo stato è derivato dalle copie |
 | `POST` | `/api/libri/bulk-delete` | Soft-delete in blocco (admin) |
 | `POST` | `/api/libri/{id}/increase-copies` | Aggiunge copie (admin) |
 | `GET` | `/api/autori`, `/api/editori`, `/api/generi`, `/api/generi/sottogeneri` | Liste per autocomplete e cascade generi |

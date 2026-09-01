@@ -313,6 +313,12 @@ class SeriesRepository
             $stmt->close();
         }
 
+        // Series data (collana / numero_serie / sibling volumes) is part of the
+        // cached book-detail DTO (#387). Invalidate right after the libri write
+        // and BEFORE the early returns below, so a missing collane table or an
+        // install without memberships still refreshes the caches.
+        \App\Support\ContentCache::deferBooksChanged();
+
         $collanaId = $this->ensureCollana($collana, [], false);
         if ($collanaId === null || !$this->supportsMemberships()) {
             return;
@@ -668,6 +674,10 @@ class SeriesRepository
             }
         }
 
+        if ($ok) {
+            \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
+        }
+
         return $ok;
     }
 
@@ -700,6 +710,10 @@ class SeriesRepository
                 $this->promoteLegacySeries($bookId);
                 $affected++;
             }
+        }
+
+        if ($affected > 0) {
+            \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
         }
 
         return $affected;
@@ -801,6 +815,8 @@ class SeriesRepository
             }
         }
 
+        \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
+
         return count($bookIds);
     }
 
@@ -867,6 +883,8 @@ class SeriesRepository
                 $stmtBackfill->close();
             }
         }
+
+        \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
 
         return $affected;
     }
@@ -945,6 +963,8 @@ class SeriesRepository
                 $stmtDelete->close();
             }
         }
+
+        \App\Support\ContentCache::deferBooksChanged(); // #387 book-detail DTO
 
         return $affected;
     }

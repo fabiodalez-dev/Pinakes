@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\ViafAuthority;
 
+use App\Support\ContentCache;
 use App\Support\HookManager;
 use App\Support\RateLimiter;
 use App\Support\SecureLogger;
@@ -107,6 +108,10 @@ class ViafAuthorityPlugin
         $this->db->begin_transaction();
         try {
             $this->registerHookInDb('app.routes.register', 'registerRoutes', 20);
+            // Finding #32: surface the VIAF/ISNI endpoints in the author edit UI.
+            // Renders the authority widget into the core author form's
+            // `author.form.fields` action hook (same hook z39-server uses).
+            $this->registerHookInDb('author.form.fields', 'renderAuthorFields', 20);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -303,6 +308,27 @@ class ViafAuthorityPlugin
         $stmt->bind_param('i', $this->pluginId);
         $stmt->execute();
         $stmt->close();
+    }
+
+    // ── View hooks ────────────────────────────────────────────────────────────
+
+    /**
+     * Hook: author.form.fields — render the VIAF/ISNI authority widget in the
+     * author edit form (finding #32). Reuses the existing plugin endpoints
+     * (`/api/viaf/suggest` and `/api/viaf/author/{id}/set`); no new endpoints.
+     */
+    public function renderAuthorFields(?array $autore): void
+    {
+        $authorId   = is_array($autore) ? (int) ($autore['id'] ?? 0) : 0;
+        $authorName = is_array($autore) ? (string) ($autore['nome'] ?? '') : '';
+        $viafId     = is_array($autore) ? (string) ($autore['viaf_id'] ?? '') : '';
+        $viafUri    = is_array($autore) ? (string) ($autore['viaf_uri'] ?? '') : '';
+        $isniId     = is_array($autore) ? (string) ($autore['isni_id'] ?? '') : '';
+        if ($viafUri === '' && $viafId !== '') {
+            $viafUri = 'https://viaf.org/viaf/' . $viafId;
+        }
+        $csrf = \App\Support\Csrf::ensureToken();
+        include __DIR__ . '/views/author-fields.php';
     }
 
     // ── Route registration ────────────────────────────────────────────────────
@@ -551,6 +577,9 @@ class ViafAuthorityPlugin
         if ($affected === 0 && !$this->authorExists($id)) {
             return $this->json($response, ['error' => true, 'message' => __('Autore non trovato.')], 404);
         }
+        if ($affected > 0) {
+            ContentCache::booksChanged();
+        }
 
         return $this->json($response, [
             'success'  => true,
@@ -641,6 +670,9 @@ class ViafAuthorityPlugin
         }
         if ($affected === 0 && !$this->authorExists($id)) {
             return $this->json($response, ['error' => true, 'message' => __('Autore non trovato.')], 404);
+        }
+        if ($affected > 0) {
+            ContentCache::booksChanged();
         }
 
         return $this->json($response, [

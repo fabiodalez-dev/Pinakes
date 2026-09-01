@@ -24,14 +24,22 @@ test.describe('book field-type consistency', () => {
     expect(form).toContain('$statoCorrente === \'non_disponibile\'');
   });
 
-  test('2) BookRepository sanitizes malformed field inputs and keeps status optional on update', () => {
+  test('2) BookRepository derives availability on create and never writes it on update', () => {
     const repository = read('app/Models/BookRepository.php');
+    const updateBasicStart = repository.indexOf('public function updateBasic');
+    const updateOptionalsStart = repository.indexOf('public function updateOptionals');
+    expect(updateBasicStart).toBeGreaterThanOrEqual(0);
+    expect(updateOptionalsStart).toBeGreaterThan(updateBasicStart);
+    const updateBasic = repository.slice(updateBasicStart, updateOptionalsStart);
 
     expect(repository).toContain('private function sanitizeAcquisitionType(mixed $value): string');
     expect(repository).toContain('private function normalizeEnumValue(mixed $value, string $column, string $default): string');
     expect(repository).toContain('private function stringInput(mixed $value): string');
-    expect(repository).toContain("$stato = array_key_exists('stato', $data)");
-    expect(repository).toContain("if ($this->hasColumn('stato') && array_key_exists('stato', $data))");
+    expect(repository).toContain('$copie_disponibili = $copie_totali;');
+    expect(repository).toContain("$initialState = $copie_totali > 0 ? 'disponibile' : 'non_disponibile';");
+    expect(updateBasic).not.toContain("$addSet('stato'");
+    expect(updateBasic).not.toContain("$addSet('copie_totali'");
+    expect(updateBasic).not.toContain("$addSet('copie_disponibili'");
   });
 
   test('3) LibriController does not save user-posted derived availability on edit', () => {
@@ -54,11 +62,19 @@ test.describe('book field-type consistency', () => {
     expect(loanController).toContain("'in_restauro'  => 'in_restauro'");
   });
 
-  test('5) DataIntegrity repair is soft-delete safe and reversible from non_disponibile', () => {
+  test('5) DataIntegrity repair recalculates the derived read model inside its transaction', () => {
     const dataIntegrity = read('app/Support/DataIntegrity.php');
+    const repair = dataIntegrity.slice(
+      dataIntegrity.indexOf('public function fixDataInconsistencies'),
+      dataIntegrity.indexOf('private function createMissingIndexes')
+    );
 
-    expect(dataIntegrity).toContain("WHEN EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = libri.id) THEN 'non_disponibile'");
-    expect(dataIntegrity).toContain("WHERE stato IN ('disponibile', 'prestato', 'non_disponibile')");
+    expect(repair).toContain('$this->db->begin_transaction();');
+    expect(repair).toContain('$this->recalculateAllBookAvailability(insideTransaction: true);');
+    expect(repair.indexOf('$this->recalculateAllBookAvailability(insideTransaction: true);')).toBeLessThan(
+      repair.indexOf('$this->db->commit();')
+    );
+    expect(repair).not.toContain('UPDATE libri SET stato');
     expect(dataIntegrity).toContain('AND deleted_at IS NULL');
   });
 
@@ -127,13 +143,13 @@ test.describe('book field-type consistency', () => {
     expect(messages['Restituito — copia in restauro']).toBe('Restituito — copia in restauro');
   });
 
-  test('15) loan edge-case suite labels match the expanded 60-test coverage', () => {
+  test('15) loan edge-case suite labels match the expanded 66-test coverage', () => {
     const loanEdges = read('tests/loan-edge-cases.unit.php');
 
-    expect(loanEdges).toContain('Exit:  0 only if all 60 pass');
+    expect(loanEdges).toContain('Exit:  0 only if all 66 pass');
     expect(loanEdges).toContain('* 41-48  Mixed / availability math');
     expect(loanEdges).toContain('* 49-52  Misc invariants');
-    expect(loanEdges).toContain('* 53-60  Canonical capacity, schedules, integrity and calendars');
-    expect(loanEdges).toContain('printf("[%02d/60] PASS: %s\\n", $TESTNO, $desc);');
+    expect(loanEdges).toContain('* 53-66  Canonical capacity, schedules, integrity, calendars and reservation queues');
+    expect(loanEdges).toContain('printf("[%02d/66] PASS: %s\\n", $TESTNO, $desc);');
   });
 });

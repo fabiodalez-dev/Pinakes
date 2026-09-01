@@ -189,6 +189,7 @@ try {
     $check(is_int($res3) && $res3 > 0 && !in_array($res3, [$catLibro13, $catLibro10, $catLibroAuto, $catLibroBackfill, $delLibro], true), 'A15 no-ISBN proposal creates a NEW libro');
     if (is_int($res3)) { $createdLibri[] = $res3; }
     $check((int) $scalar("SELECT COUNT(*) FROM copie WHERE libro_id={$res3}") === 1, 'A16 created libro gets one physical copy');
+    $check((string) $scalar("SELECT CONCAT(copie_totali, ':', copie_disponibili, ':', stato) FROM libri WHERE id={$res3}") === '1:1:disponibile', 'A17 created libro exposes the projection derived from that copy');
 
     // A4 (edge): the reconcile query's `deleted_at IS NULL` guard. This
     // intentionally inconsistent fixture keeps its ISBN after soft deletion;
@@ -197,20 +198,20 @@ try {
     // row. The external proposal must remain untouched for a manager to repair.
     [$cb4] = $seedExternal("{$TOKEN} Prop A4 Deleted", $delIsbn13);
     $res4 = $repo->acquireExternalBook($cb4);
-    $check($res4 === null, 'A17 refuses an ISBN still owned by a soft-deleted book');
-    $check((int) $scalar("SELECT external_book_id IS NOT NULL FROM bookclub_books WHERE id={$cb4}") === 1, 'A18 failed acquisition leaves the external proposal intact');
+    $check($res4 === null, 'A18 refuses an ISBN still owned by a soft-deleted book');
+    $check((int) $scalar("SELECT external_book_id IS NOT NULL FROM bookclub_books WHERE id={$cb4}") === 1, 'A19 failed acquisition leaves the external proposal intact');
 
     // A5 (edge): ISBN matches nothing → creates new.
     [$cb5] = $seedExternal("{$TOKEN} Prop A5", '9782222' . random_int(100000, 999999));
     $res5 = $repo->acquireExternalBook($cb5);
-    $check(is_int($res5) && !in_array($res5, [$catLibro13, $catLibro10, $catLibroAuto, $catLibroBackfill, $delLibro], true), 'A19 non-matching ISBN creates a new libro');
+    $check(is_int($res5) && !in_array($res5, [$catLibro13, $catLibro10, $catLibroAuto, $catLibroBackfill, $delLibro], true), 'A20 non-matching ISBN creates a new libro');
     if (is_int($res5)) { $createdLibri[] = $res5; }
 
     // If the same catalogue book is already a distinct row in this club, do
     // not merge ids: either may own polls, votes or reading history.
     [$cbDuplicate, $extDuplicate] = $seedExternal("{$TOKEN} Prop Duplicate", $isbn10);
-    $check($repo->reconcileExternalBooksWithCatalogue($clubId) === 0, 'A20 automatic pass refuses an ambiguous same-club duplicate');
-    $check((int) $scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cbDuplicate}") === $extDuplicate, 'A21 ambiguous proposal remains external with its history intact');
+    $check($repo->reconcileExternalBooksWithCatalogue($clubId) === 0, 'A21 automatic pass refuses an ambiguous same-club duplicate');
+    $check((int) $scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cbDuplicate}") === $extDuplicate, 'A22 ambiguous proposal remains external with its history intact');
 
     echo "B. neverChosenProposals — proposed-but-not-chosen archive (#138 feature)\n";
 

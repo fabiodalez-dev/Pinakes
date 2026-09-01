@@ -72,6 +72,9 @@ $applicationToday = \App\Support\DateHelper::today();
                     // La parità (prestito a giornata singola) è lecita: solo il range invertito è rifiutato.
                     echo __('Errore: la data di scadenza non può essere precedente alla data di prestito.');
                     break;
+                case 'expired_window':
+                    echo __('Errore: la nuova data di scadenza non può essere nel passato.');
+                    break;
                 case 'invalid_date_format':
                     echo __('Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.');
                     break;
@@ -88,6 +91,9 @@ $applicationToday = \App\Support\DateHelper::today();
                     break;
                 case 'loan_not_closable':
                     echo __('Prestito non trovato o non chiudibile.');
+                    break;
+                case 'concurrent_retry':
+                    echo __('Un\'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.');
                     break;
                 case 'no_copies_available':
                     // #336: dire solo "nessuna copia" era fuorviante — il vero motivo
@@ -353,6 +359,11 @@ $applicationToday = \App\Support\DateHelper::today();
                     <?php else: ?>
                         <?php foreach ($prestiti as $prestito): ?>
                             <?php $ssrExtendable = (int)($prestito['attivo'] ?? 0) === 1 && in_array((string)($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true); ?>
+                            <?php // #360: quick recall only for a loan already past its due date
+                                  // (strict <, matching sendManualRecall's giorni_ritardo >= 1).
+                                  $ssrRecallable = $ssrExtendable
+                                      && (string)($prestito['data_scadenza'] ?? '') !== ''
+                                      && (string)$prestito['data_scadenza'] < $applicationToday; ?>
                             <tr class="hover:bg-slate-50 transition-colors">
                                 <td class="px-4 py-4 text-center align-middle">
                                     <?php if ($ssrExtendable): ?><input type="checkbox" class="loan-select w-4 h-4 rounded border-gray-300 cursor-pointer" data-id="<?= (int)$prestito['id'] ?>"><?php endif; ?>
@@ -400,6 +411,11 @@ $applicationToday = \App\Support\DateHelper::today();
                                                 <i class="fas fa-undo-alt w-4 h-4"></i>
                                             </a>
                                         <?php endif; ?>
+                                        <?php if ($ssrRecallable): ?>
+                                            <button type="button" class="loan-recall-btn p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" data-loan-id="<?= (int)$prestito['id'] ?>" title="<?= __("Invia Sollecito") ?>">
+                                                <i class="fas fa-bullhorn w-4 h-4"></i>
+                                            </button>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -425,6 +441,10 @@ $applicationToday = \App\Support\DateHelper::today();
               class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors text-sm">
         <i class="fas fa-calendar-plus mr-1"></i><?= __('Estendi prestiti selezionati') ?>
       </button>
+      <button id="loans-bulk-recall" type="button"
+              class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors text-sm">
+        <i class="fas fa-bullhorn mr-1"></i><?= __('Invia sollecito ai selezionati') ?>
+      </button>
       <button id="loans-bulk-clear" type="button"
               class="px-3 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 border border-gray-300 rounded-lg transition-colors text-sm">
         <?= __('Annulla') ?>
@@ -435,6 +455,11 @@ $applicationToday = \App\Support\DateHelper::today();
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
     <input type="hidden" name="days" id="loans-bulk-form-days" value="">
     <div id="loans-bulk-form-ids"></div>
+  </form>
+  <!-- #360: bulk recall posts the same selection to its own endpoint -->
+  <form id="loans-bulk-recall-form" method="post" action="<?= htmlspecialchars(url('/admin/loans/bulk-recall'), ENT_QUOTES, 'UTF-8') ?>" class="hidden">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+    <div id="loans-bulk-recall-form-ids"></div>
   </form>
 </div>
 
@@ -583,6 +608,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         actions += `<a href="${window.BASE_PATH}/admin/loans/returned/${safeId}" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="${window.__('Registra Restituzione')}">
                             <i class="fas fa-undo-alt w-4 h-4"></i>
                         </a>`;
+                        // #360: quick recall only for a loan already past its due date
+                        // (strict <, matching sendManualRecall's giorni_ritardo >= 1) —
+                        // same condition as the SSR row above.
+                        if (row.data_scadenza && row.data_scadenza < applicationToday) {
+                            actions += `<button type="button" class="loan-recall-btn p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" data-loan-id="${safeId}" title="${window.__('Invia Sollecito')}">
+                                <i class="fas fa-bullhorn w-4 h-4"></i>
+                            </button>`;
+                        }
                     }
                     actions += `</div>`;
                     return actions;
@@ -719,12 +752,77 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
+        // #360: bulk recall — same selection, its own confirm + form. Only the
+        // genuinely overdue loans among the selection get the email; the server
+        // reports how many were skipped.
+        const recallBtn = document.getElementById('loans-bulk-recall');
+        if (recallBtn) recallBtn.addEventListener('click', function() {
+            if (selected.size === 0) return; // bar is hidden without a selection
+            if (selected.size > 50) {
+                const message = t('È possibile inviare al massimo 50 solleciti alla volta.');
+                if (window.Swal) {
+                    Swal.fire({ icon: 'error', title: t('Errore'), text: message });
+                } else {
+                    window.alert(message);
+                }
+                return;
+            }
+            const submit = function() {
+                const wrap = document.getElementById('loans-bulk-recall-form-ids');
+                wrap.innerHTML = '';
+                selected.forEach(id => {
+                    const inp = document.createElement('input');
+                    inp.type = 'hidden'; inp.name = 'ids[]'; inp.value = String(id);
+                    wrap.appendChild(inp);
+                });
+                // Loading state: each selected loan is a synchronous SMTP send on
+                // the server before the redirect returns, so disable the bulk
+                // buttons and show progress to prevent a duplicate submit.
+                recallBtn.disabled = true;
+                if (extendBtn) extendBtn.disabled = true;
+                recallBtn.textContent = t('Invio in corso...');
+                document.getElementById('loans-bulk-recall-form').submit();
+            };
+            if (window.Swal) {
+                Swal.fire({
+                    title: t('Inviare i solleciti ai prestiti selezionati?'),
+                    text: t(selected.size === 1
+                        ? '%s prestito selezionato riceverà il sollecito (solo se scaduto).'
+                        : '%s prestiti selezionati riceveranno il sollecito (solo quelli scaduti).').replace('%s', selected.size),
+                    icon: 'question', showCancelButton: true,
+                    confirmButtonText: t('Sì, invia'), cancelButtonText: t('Annulla')
+                }).then(r => { if (r.isConfirmed) submit(); });
+            } else {
+                submit();
+            }
+        });
+
         // Surface the bulk-extend outcome after the redirect back to the list.
         (function() {
             const params = new URLSearchParams(window.location.search);
             const extended = params.get('bulk_extended');
+            const recalled = params.get('bulk_recalled');
             const err = params.get('error');
-            if (window.Swal && extended !== null) {
+            if (window.Swal && recalled !== null) {
+                // #360: bulk recall outcome.
+                const n = parseInt(recalled) || 0;
+                const skipped = parseInt(params.get('bulk_recall_skipped')) || 0;
+                let text = t(n === 1 ? '%s sollecito inviato.' : '%s solleciti inviati.').replace('%s', n);
+                if (skipped > 0) {
+                    text += ' ' + t('%s prestiti saltati (non scaduti, senza email o invio non riuscito).').replace('%s', skipped);
+                }
+                Swal.fire({
+                    icon: n > 0 ? 'success' : 'info',
+                    title: n > 0 ? t('Solleciti inviati') : t('Nessun sollecito inviato'),
+                    text: text,
+                    timer: 5000, showConfirmButton: false
+                });
+            } else if (window.Swal && err === 'bulk_recall_invalid') {
+                Swal.fire({
+                    icon: 'error', title: t('Errore'),
+                    text: t('Selezione non valida per il sollecito.')
+                });
+            } else if (window.Swal && extended !== null) {
                 const n = parseInt(extended) || 0;
                 const d = parseInt(params.get('days')) || 0;
                 Swal.fire({
@@ -749,6 +847,86 @@ document.addEventListener('DOMContentLoaded', function() {
 
         applyChecked();
     })();
+
+    // #360: per-row quick recall — same confirm/POST/report flow as the
+    // "Invia Sollecito" button on the loan detail page (dettagli_prestito.php).
+    // Delegated: DataTables redraws replace the buttons on every draw.
+    document.addEventListener('click', async function(e) {
+        const btn = e.target.closest ? e.target.closest('.loan-recall-btn') : null;
+        if (!btn || btn.disabled) return;
+        const loanId = parseInt(btn.dataset.loanId, 10);
+        if (!loanId) return;
+        const result = await Swal.fire({
+            title: __('Inviare un sollecito per questo prestito?'),
+            text: __('L\'utente riceverà un\'email di sollecito per la restituzione.'),
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: __('Sì, invia'),
+            cancelButtonText: __('Annulla'),
+            confirmButtonColor: '#111827',
+            cancelButtonColor: '#6b7280'
+        });
+        if (!result.isConfirmed) {
+            return;
+        }
+        btn.disabled = true;
+        try {
+            const response = await fetch(window.BASE_PATH + '/admin/loans/' + loanId + '/recall', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({})
+            });
+            const data = await response.json();
+            // The CSRF middleware rejects an expired session / bad token with
+            // { error, code } (not { message }); tell the user to reload
+            // instead of showing a generic "send failed", per the app-wide
+            // data.code===SESSION_EXPIRED|CSRF_INVALID convention.
+            if (data.error || data.code) {
+                Swal.fire({
+                    title: __('Errore'),
+                    text: data.error || __('Invio del sollecito non riuscito.'),
+                    icon: 'error',
+                    confirmButtonText: __('OK'),
+                    confirmButtonColor: '#111827'
+                });
+                if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+                return;
+            }
+            if (data.success) {
+                Swal.fire({
+                    title: __('Sollecito inviato'),
+                    text: data.message || '',
+                    icon: 'success',
+                    confirmButtonText: __('OK'),
+                    confirmButtonColor: '#111827'
+                });
+            } else {
+                Swal.fire({
+                    title: __('Errore'),
+                    text: data.message || __('Invio del sollecito non riuscito.'),
+                    icon: 'error',
+                    confirmButtonText: __('OK'),
+                    confirmButtonColor: '#111827'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+                title: __('Errore'),
+                text: __('Errore nella comunicazione con il server'),
+                icon: 'error',
+                confirmButtonText: __('OK'),
+                confirmButtonColor: '#111827'
+            });
+        } finally {
+            btn.disabled = false;
+        }
+    });
 
     // Pending loan requests widget - Approve/Reject buttons
     document.querySelectorAll('.approve-btn').forEach(button => {

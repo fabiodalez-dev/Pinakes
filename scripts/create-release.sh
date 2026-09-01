@@ -1,585 +1,290 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+# Create a Pinakes release by delegating all artifact production and publishing
+# to .github/workflows/release.yml. This script only performs local/source
+# preflight checks, pushes the release tag, waits for the workflow, and verifies
+# the published release contract.
 
-# ============================================================================
-# Pinakes Release Creation Script
-# ============================================================================
-# This script automates the ENTIRE release process to prevent errors.
-# NEVER create releases manually - ALWAYS use this script!
-#
-# Usage: ./scripts/create-release.sh 0.4.8
-# ============================================================================
+set -euo pipefail
 
-VERSION=$1
+readonly REPOSITORY="fabiodalez-dev/Pinakes"
+readonly RELEASE_WORKFLOW="release.yml"
+readonly GITHUB_API_VERSION="2026-03-10"
+readonly WORKFLOW_DISCOVERY_ATTEMPTS=24
+readonly WORKFLOW_DISCOVERY_INTERVAL=5
 
-if [ -z "$VERSION" ]; then
-    echo "❌ ERROR: Version number required"
-    echo "Usage: ./scripts/create-release.sh 0.4.8           (stable release)"
-    echo "       ./scripts/create-release.sh 0.7.15-rc.1     (release candidate / prerelease)"
+usage() {
+    cat <<'USAGE'
+Usage: ./scripts/create-release.sh X.Y.Z [--yes]
+       ./scripts/create-release.sh X.Y.Z-rc.N [--yes]
+
+The script does not build or upload release assets locally. It validates the
+source, creates and pushes an annotated tag, waits for the Verified Release
+workflow, and verifies the assets published by that workflow.
+USAGE
+}
+
+fail() {
+    printf 'ERROR: %s\n' "$*" >&2
+    exit 1
+}
+
+info() {
+    printf '==> %s\n' "$*"
+}
+
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+    usage
     exit 1
 fi
 
-# SECURITY: VERSION is interpolated into gh/jq/tag commands below. Whitelist the
-# shape (X.Y.Z, optional 4th segment, optional -prerelease tail) so a value with
-# shell metacharacters can never reach those commands. Matches the project's
-# 3- and 4-segment scheme (e.g. 0.7.20, 0.4.9.9) plus SemVer pre-release ids.
-if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9A-Za-z.]+)?$'; then
-    echo "❌ ERROR: invalid version '$VERSION'."
-    echo "   Expected X.Y.Z, X.Y.Z.W, or X.Y.Z-rc.N (digits, dots, and a -prerelease tail only)."
-    exit 1
+VERSION="$1"
+ASSUME_YES=false
+if [[ $# -eq 2 ]]; then
+    [[ "$2" == "--yes" ]] || fail "unknown option '$2'"
+    ASSUME_YES=true
 fi
 
-# Detect a release candidate / prerelease: any SemVer pre-release identifier,
-# i.e. a hyphen in the version (0.7.15-rc.1, 0.8.0-beta.2, …). RC packages are
-# published as GitHub *prereleases* so the /releases/latest endpoint skips them
-# and the in-app updater keeps them hidden unless a developer opts into the RC
-# channel via env (UPDATER_ALLOW_PRERELEASE=1 or UPDATER_CHANNEL=rc). See updater.md.
+# Keep this grammar identical to scripts/ci-verify-release-source.sh. A tag
+# accepted here but rejected in CI would leave an unusable remote release tag.
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+    fail "invalid version '$VERSION'; expected X.Y.Z or X.Y.Z-(alpha|beta|rc).N"
+fi
+
+declare -rx TAG_NAME="v${VERSION}"
 IS_PRERELEASE=false
 if [[ "$VERSION" == *-* ]]; then
     IS_PRERELEASE=true
 fi
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
 
-echo -e "${GREEN}============================================${NC}"
-echo -e "${GREEN}Creating Pinakes Release v${VERSION}${NC}"
-echo -e "${GREEN}============================================${NC}"
-echo ""
+info "Checking release prerequisites"
+for command_name in git gh jq composer npm; do
+    command -v "$command_name" >/dev/null 2>&1 \
+        || fail "required command not found: $command_name"
+done
+gh auth status >/dev/null 2>&1 || fail "GitHub CLI is not authenticated; run 'gh auth login'"
 
-# ============================================================================
-# STEP 1: Verify we're on main branch and up to date
-# ============================================================================
-echo -e "${YELLOW}[1/9] Verifying git status...${NC}"
+resolved_repository="$(gh repo view --json nameWithOwner --jq '.nameWithOwner')"
+resolved_repository_lc="$(printf '%s' "$resolved_repository" | tr '[:upper:]' '[:lower:]')"
+expected_repository_lc="$(printf '%s' "$REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+[[ "$resolved_repository_lc" == "$expected_repository_lc" ]] \
+    || fail "current repository is '$resolved_repository', expected '$REPOSITORY'"
 
-BRANCH=$(git branch --show-current)
-if [ "$IS_PRERELEASE" = true ]; then
-    # RC/prerelease packages are routinely cut from a feature/release branch,
-    # never from main. The tag is created against this branch (see STEP 7), so
-    # the branch MUST already be pushed to origin.
-    echo -e "${YELLOW}⚠ Prerelease ${VERSION}: branch-must-be-main check relaxed (currently on: $BRANCH).${NC}"
-    if [ -z "$(git ls-remote --heads origin "$BRANCH" 2>/dev/null)" ]; then
-        echo -e "${RED}❌ ERROR: branch '$BRANCH' is not on origin. Push it first: git push -u origin $BRANCH${NC}"
-        exit 1
-    fi
-elif [ "$BRANCH" != "main" ]; then
-    echo -e "${RED}❌ ERROR: Must be on main branch (currently on: $BRANCH)${NC}"
-    exit 1
+# GitHub's API digest changes whenever a mutable asset is replaced, so digest
+# verification alone cannot pin what users download later. Refuse to create the
+# tag unless future releases in this repository are locked at publication time.
+if ! immutable_policy="$(gh api \
+    -H "X-GitHub-Api-Version: ${GITHUB_API_VERSION}" \
+    "repos/${REPOSITORY}/immutable-releases" 2>/dev/null)"; then
+    fail "cannot verify release immutability; authenticate with repository administration read access"
+fi
+if ! jq -e '.enabled == true' >/dev/null <<<"$immutable_policy"; then
+    fail "immutable releases are disabled for ${REPOSITORY}; enable release immutability before creating ${TAG_NAME}"
+fi
+info "Release immutability is enabled"
+
+# Draft releases do not lock their tags yet. Keep version tags non-movable from
+# creation onward so the verified commit cannot be swapped between build and
+# publication. The workflow still rechecks the resolved SHA at every boundary.
+# --slurp + first: con `set -o pipefail`, chiudere la pipe con `head -n 1`
+# mentre gh sta ancora paginando termina gh con SIGPIPE (exit 141) e lo script
+# muore senza il messaggio di errore previsto. `gh api` rende inoltre `--slurp`
+# e `--jq` mutuamente esclusivi, quindi il filtro deve essere un jq esterno che
+# consuma per intero il documento paginato.
+release_tag_ruleset_id="$(gh api "repos/${REPOSITORY}/rulesets?targets=tag&per_page=100" --paginate --slurp \
+    | jq -r '[.[][] | select(.name == "Protect immutable release tags") | .id] | first // empty')"
+[[ -n "$release_tag_ruleset_id" ]] \
+    || fail "active release-tag protection ruleset is missing"
+release_tag_ruleset="$(gh api "repos/${REPOSITORY}/rulesets/${release_tag_ruleset_id}")"
+if ! jq -e '
+    .target == "tag"
+    and .enforcement == "active"
+    and (.conditions.ref_name.include | index("refs/tags/v*") != null)
+    and (.conditions.ref_name.exclude | length == 0)
+    and ([.rules[].type] | index("deletion") != null and index("non_fast_forward") != null)
+    and ((.bypass_actors // []) | length == 0)
+' >/dev/null <<<"$release_tag_ruleset"; then
+    fail "release-tag ruleset must block deletion/non-fast-forward updates for refs/tags/v* without bypasses"
+fi
+info "Release tags are protected from deletion and movement"
+
+[[ -z "$(git status --porcelain)" ]] \
+    || fail "working tree is not clean; commit or stash every tracked and untracked change"
+
+head_sha="$(git rev-parse --verify HEAD)"
+branch="$(git branch --show-current)"
+[[ -n "$branch" ]] || fail "detached HEAD is not a valid release source"
+
+current_version="$(jq -er '.version | select(type == "string" and length > 0)' version.json)"
+[[ "$current_version" == "$VERSION" ]] \
+    || fail "version.json contains '$current_version', expected '$VERSION'"
+grep -Fqx "## [${VERSION}]" CHANGELOG.md \
+    || fail "CHANGELOG.md has no exact '## [${VERSION}]' release section"
+
+if git show-ref --verify --quiet "refs/tags/${TAG_NAME}"; then
+    fail "local tag ${TAG_NAME} already exists"
+fi
+if [[ -n "$(git ls-remote --tags origin "refs/tags/${TAG_NAME}")" ]]; then
+    fail "remote tag ${TAG_NAME} already exists"
+fi
+existing_release_id="$(gh api "repos/${REPOSITORY}/releases?per_page=100" --paginate --slurp \
+    | jq -r "[.[][] | select(.tag_name == \"${TAG_NAME}\") | .id] | first // empty")"
+[[ -z "$existing_release_id" ]] || fail "GitHub release ${TAG_NAME} already exists"
+
+# The workflow repeats this source gate after the tag push. Running the exact
+# same policy before the irreversible operation prevents avoidable orphan tags.
+if [[ "$IS_PRERELEASE" == false ]]; then
+    [[ "$branch" == "main" ]] || fail "stable releases must be created from main (current: $branch)"
+    git fetch --no-tags origin main
+    origin_main_sha="$(git rev-parse --verify refs/remotes/origin/main)"
+    [[ "$head_sha" == "$origin_main_sha" ]] \
+        || fail "local main ($head_sha) is not exactly origin/main ($origin_main_sha)"
 fi
 
-if [ -n "$(git status --porcelain)" ]; then
-    echo -e "${RED}❌ ERROR: Working directory not clean. Commit or stash changes first.${NC}"
-    git status --short
-    exit 1
-fi
+release_token="$(gh auth token)"
+GITHUB_SHA="$head_sha" \
+GITHUB_REPOSITORY="$REPOSITORY" \
+GH_TOKEN="$release_token" \
+    bash scripts/ci-verify-release-source.sh
+unset release_token
 
-echo -e "${GREEN}✓ On main branch, working directory clean${NC}"
-echo ""
-
-# ============================================================================
-# STEP 2: Verify version.json has been updated
-# ============================================================================
-echo -e "${YELLOW}[2/9] Checking version.json...${NC}"
-
-CURRENT_VERSION=$(jq -r '.version' version.json)
-if [ "$CURRENT_VERSION" != "$VERSION" ]; then
-    echo -e "${RED}❌ ERROR: version.json has version $CURRENT_VERSION but you specified $VERSION${NC}"
-    echo "Update version.json first and commit it."
-    exit 1
-fi
-
-echo -e "${GREEN}✓ version.json is correct: $VERSION${NC}"
-echo ""
-
-# ============================================================================
-# STEP 3: Verify schema behavior and autoloader integrity
-# ============================================================================
-echo -e "${YELLOW}[3/9] Verifying schema behavior and clean autoloader...${NC}"
-
+info "Running local release-policy and schema preflight"
+composer validate --strict
+npm run test:ci-policy
 CI_STRICT_TESTS=1 bash scripts/verify-schema.sh
 
-# PHPStan was removed from composer.json — autoloader should never reference it
-if grep -q "phpstan" vendor/composer/autoload_files.php 2>/dev/null; then
-    echo -e "${RED}❌ ERROR: vendor/composer still references phpstan!${NC}"
-    echo -e "${RED}   Run: composer install --no-dev --optimize-autoloader${NC}"
-    exit 1
+[[ "$(git rev-parse --verify HEAD)" == "$head_sha" ]] \
+    || fail "HEAD changed during preflight"
+[[ -z "$(git status --porcelain)" ]] \
+    || fail "preflight modified the working tree"
+
+if [[ "$ASSUME_YES" == false ]]; then
+    printf 'Push annotated tag %s at %s and start the release workflow? [y/N] ' \
+        "$TAG_NAME" "$head_sha"
+    read -r answer
+    [[ "$answer" == "y" || "$answer" == "Y" ]] || fail "release cancelled"
 fi
 
-if grep -q "phpstan" vendor/composer/autoload_static.php 2>/dev/null; then
-    echo -e "${RED}❌ ERROR: vendor/composer/autoload_static.php references phpstan!${NC}"
-    exit 1
+# A failed release may leave an Actions run behind after its tag/draft is
+# deliberately cleaned up. Snapshot the current workflow high-water mark so a
+# retry can never attach to that stale run while the new push is still being
+# indexed by GitHub.
+workflow_run_floor="$(gh run list \
+    --repo "$REPOSITORY" \
+    --workflow "$RELEASE_WORKFLOW" \
+    --event push \
+    --limit 100 \
+    --json databaseId \
+    --jq '[.[].databaseId] | max // 0')"
+[[ "$workflow_run_floor" =~ ^[0-9]+$ ]] \
+    || fail "could not snapshot the existing release workflow run ids"
+
+info "Creating and pushing ${TAG_NAME}"
+git tag -a "$TAG_NAME" "$head_sha" -m "Pinakes ${TAG_NAME}"
+if ! git push origin "refs/tags/${TAG_NAME}:refs/tags/${TAG_NAME}"; then
+    fail "tag push failed; inspect refs/tags/${TAG_NAME} locally and remotely before retrying"
 fi
 
-echo -e "${GREEN}✓ Schema gate and autoloader checks passed${NC}"
-echo ""
-
-# ============================================================================
-# STEP 5: Create release ZIP with git archive
-# ============================================================================
-echo -e "${YELLOW}[5/9] Creating release ZIP...${NC}"
-
-ZIPFILE="pinakes-v${VERSION}.zip"
-rm -f "$ZIPFILE" "${ZIPFILE}.sha256"
-
-git archive --format=zip --prefix="pinakes-v${VERSION}/" -o "$ZIPFILE" HEAD
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ ERROR: git archive failed${NC}"
-    exit 1
-fi
-
-SIZE=$(ls -lh "$ZIPFILE" | awk '{print $5}')
-SIZE_BYTES=$(stat -f%z "$ZIPFILE" 2>/dev/null || stat -c%s "$ZIPFILE" 2>/dev/null || echo 0)
-MAX_SIZE=$((50 * 1024 * 1024)) # 50MB — normal release is ~25-35MB
-
-if [ "$SIZE_BYTES" -gt "$MAX_SIZE" ]; then
-    echo -e "${RED}❌ ERROR: ZIP is suspiciously large ($SIZE). Expected <50MB.${NC}"
-    echo -e "${RED}   Likely contains dev files (frontend/, docs/, releases/, etc.)${NC}"
-    echo -e "${RED}   Check .gitattributes export-ignore rules.${NC}"
-    rm -f "$ZIPFILE"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Release ZIP created: $ZIPFILE ($SIZE)${NC}"
-echo ""
-
-# ============================================================================
-# STEP 5.5: Verify ZIP contents (critical files check)
-# ============================================================================
-echo -e "${YELLOW}[5.5/9] Verifying ZIP contents...${NC}"
-
-VERIFY_DIR=$(mktemp -d)
-unzip -q "$ZIPFILE" -d "$VERIFY_DIR"
-
-# List of critical files that MUST be in the ZIP
-CRITICAL_FILES=(
-    "public/assets/tinymce/tinymce.min.js"
-    "public/assets/tinymce/models/dom/model.min.js"
-    "public/assets/tinymce/themes/silver/theme.min.js"
-    "public/assets/tinymce/skins/ui/oxide/skin.min.css"
-    "public/assets/tinymce/icons/default/icons.min.js"
-    "public/assets/swagger-ui/swagger-ui-bundle.js"
-    "public/assets/swagger-ui/swagger-ui.css"
-    "public/index.php"
-    "app/Support/Updater.php"
-    "version.json"
-    "vendor/composer/autoload_real.php"
-)
-
-# Bundled plugins that MUST be in the ZIP, derived from the runtime source.
-BUNDLED_OUTPUT=$(php scripts/list-source-expectations.php plugins)
-BUNDLED_PLUGINS=()
-while IFS= read -r plugin; do
-    [ -n "$plugin" ] && BUNDLED_PLUGINS+=("$plugin")
-done <<< "$BUNDLED_OUTPUT"
-if [ "${#BUNDLED_PLUGINS[@]}" -eq 0 ]; then
-    echo -e "${RED}  ✗ BundledPlugins::LIST produced an empty plugin list${NC}"
-    exit 1
-fi
-EXPECTED_PLUGIN_COUNT=${#BUNDLED_PLUGINS[@]}
-
-MISSING=0
-for file in "${CRITICAL_FILES[@]}"; do
-    FULL_PATH="$VERIFY_DIR/pinakes-v${VERSION}/$file"
-    if [ ! -f "$FULL_PATH" ]; then
-        echo -e "${RED}  ✗ MISSING: $file${NC}"
-        MISSING=$((MISSING + 1))
-    fi
-done
-
-# Verify bundled plugins are present
-for plugin in "${BUNDLED_PLUGINS[@]}"; do
-    PLUGIN_JSON="$VERIFY_DIR/pinakes-v${VERSION}/storage/plugins/$plugin/plugin.json"
-    if [ ! -f "$PLUGIN_JSON" ]; then
-        echo -e "${RED}  ✗ MISSING PLUGIN: storage/plugins/$plugin/plugin.json${NC}"
-        MISSING=$((MISSING + 1))
-    fi
-done
-
-PACKAGED_PLUGIN_COUNT=$(find "$VERIFY_DIR/pinakes-v${VERSION}/storage/plugins" \
-    -mindepth 2 -maxdepth 2 -name plugin.json -print 2>/dev/null | wc -l | tr -d ' ')
-if [ "$PACKAGED_PLUGIN_COUNT" -ne "$EXPECTED_PLUGIN_COUNT" ]; then
-    echo -e "${RED}  ✗ PLUGIN SET MISMATCH: package has $PACKAGED_PLUGIN_COUNT manifests, BundledPlugins::LIST declares $EXPECTED_PLUGIN_COUNT${NC}"
-    MISSING=$((MISSING + 1))
-fi
-
-# Verify scraping-pro is NOT in ZIP (premium plugin, not bundled)
-if [ -d "$VERIFY_DIR/pinakes-v${VERSION}/storage/plugins/scraping-pro" ]; then
-    echo -e "${RED}  ✗ scraping-pro found in ZIP (should NOT be bundled — it's premium)${NC}"
-    MISSING=$((MISSING + 1))
-fi
-
-# Verify dev-only directories are NOT in ZIP (export-ignore in .gitattributes)
-for devdir in frontend docs tests test .github internal; do
-    if [ -d "$VERIFY_DIR/pinakes-v${VERSION}/$devdir" ]; then
-        echo -e "${RED}  ✗ $devdir/ found in ZIP (should be excluded via .gitattributes export-ignore)${NC}"
-        MISSING=$((MISSING + 1))
-    fi
-done
-
-# Verify no PHPStan in autoloader
-PHPSTAN_COUNT=$(grep -c "phpstan" "$VERIFY_DIR/pinakes-v${VERSION}/vendor/composer/autoload_real.php" || true)
-if [ "$PHPSTAN_COUNT" -gt 0 ]; then
-    echo -e "${RED}  ✗ PHPStan found in autoload_real.php ($PHPSTAN_COUNT references)${NC}"
-    MISSING=$((MISSING + 1))
-fi
-
-# Detect symlinks in the ZIP via zipinfo metadata (macOS `unzip` would recreate
-# them, but PHP ZipArchive on Linux extracts as 22-byte regular files → Updater
-# then fails copy(file, existing_dir). Broke v0.5.4 manual upgrade in prod.)
-# zipinfo long-format symlink lines look like:
-#   lrwxrwxrwx  2.0 unx   22 b- stor ... <path> -> <target>
-# We want <path> (the offending repo path the maintainer must fix), which is
-# the field immediately before "->" — NOT $NF, which would be the target.
-SYMLINKS_IN_ZIP=$(zipinfo "$ZIPFILE" 2>/dev/null \
-    | awk '/^l/ { for (i=1; i<=NF; i++) if ($i == "->") { print $(i-1); break } }')
-if [ -n "$SYMLINKS_IN_ZIP" ]; then
-    echo -e "${RED}  ✗ Symlinks in ZIP — will break Updater.copyDirectory() in production:${NC}"
-    echo "$SYMLINKS_IN_ZIP" | sed 's/^/    /'
-    echo -e "${RED}    Fix: replace the symlink in the repo with a real directory containing the files.${NC}"
-    MISSING=$((MISSING + 1))
-fi
-
-# Verify version matches
-ZIP_VERSION=$(jq -r '.version' "$VERIFY_DIR/pinakes-v${VERSION}/version.json")
-if [ "$ZIP_VERSION" != "$VERSION" ]; then
-    echo -e "${RED}  ✗ version.json in ZIP has $ZIP_VERSION (expected $VERSION)${NC}"
-    MISSING=$((MISSING + 1))
-fi
-
-rm -rf "$VERIFY_DIR"
-
-if [ "$MISSING" -gt 0 ]; then
-    echo -e "${RED}❌ ERROR: ZIP verification failed ($MISSING problems). Aborting release.${NC}"
-    rm -f "$ZIPFILE"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ ZIP verified: all critical files present, ${#BUNDLED_PLUGINS[@]} bundled plugins, no PHPStan, version correct${NC}"
-echo ""
-
-# ============================================================================
-# STEP 6: Generate SHA256 checksum
-# ============================================================================
-echo -e "${YELLOW}[6/9] Generating SHA256 checksum...${NC}"
-
-shasum -a 256 "$ZIPFILE" > "${ZIPFILE}.sha256"
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ ERROR: checksum generation failed${NC}"
-    exit 1
-fi
-
-CHECKSUM=$(cat "${ZIPFILE}.sha256" | awk '{print $1}')
-echo -e "${GREEN}✓ Checksum: $CHECKSUM${NC}"
-echo ""
-
-# ============================================================================
-# STEP 7: Create GitHub release
-# ============================================================================
-echo -e "${YELLOW}[7/9] Creating GitHub release v${VERSION}...${NC}"
-
-# Check if release already exists
-if gh release view "v${VERSION}" >/dev/null 2>&1; then
-    echo -e "${YELLOW}⚠ Release v${VERSION} already exists. Deleting and recreating...${NC}"
-    gh release delete "v${VERSION}" --yes
-fi
-
-# SECURITY (draft → upload → verify → publish): create the release as a DRAFT so
-# it is never visible/installable while we upload and verify its assets. It is
-# published only AFTER the remote ZIP is proven to match the local one (STEP 9.6).
-# --target pins the commit the tag will point at when the draft is published.
-if [ "$IS_PRERELEASE" = true ]; then
-    # --prerelease (NOT --latest): GitHub excludes prereleases from
-    # /releases/latest, so the default updater never offers this package.
-    gh release create "v${VERSION}" \
-        --title "Pinakes v${VERSION} (Release Candidate)" \
-        --generate-notes \
-        --prerelease \
-        --draft \
-        --target "$BRANCH"
-else
-    gh release create "v${VERSION}" \
-        --title "Pinakes v${VERSION}" \
-        --generate-notes \
-        --draft \
-        --target "$BRANCH"
-fi
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ ERROR: GitHub release creation failed${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ GitHub DRAFT release created (published only after verification)${NC}"
-echo ""
-
-# ============================================================================
-# STEP 8: Upload ZIP and checksum to release
-# ============================================================================
-echo -e "${YELLOW}[8/9] Uploading files to GitHub release...${NC}"
-
-# Build the asset list — always ZIP + its checksum, plus optional patch files
-# (post-install-patch.php / pre-update-patch.php) when present in repo root.
-# Those patch files are release-specific hotfixes dropped next to the script
-# by the maintainer; they're gitignored so they don't bleed into main.
-UPLOAD_ASSETS=("$ZIPFILE" "${ZIPFILE}.sha256")
-for PATCH in post-install-patch.php pre-update-patch.php; do
-    if [ -f "$PATCH" ]; then
-        # Publish a fresh checksum next to the patch. NOTE: the hardened Updater
-        # verifies the patch from the GitHub asset *digest* (computed server-side
-        # over TLS), NOT this sidecar — the .sha256 fallback was removed. The
-        # sidecar is kept only as a convenience for manual verification.
-        shasum -a 256 "$PATCH" > "${PATCH}.sha256"
-        UPLOAD_ASSETS+=("$PATCH" "${PATCH}.sha256")
-        echo -e "${YELLOW}  + Attaching $PATCH (+ checksum)${NC}"
-    fi
-done
-
-gh release upload "v${VERSION}" "${UPLOAD_ASSETS[@]}" --clobber
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ ERROR: File upload failed${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Files uploaded to release${NC}"
-echo ""
-
-# ============================================================================
-# STEP 9: Verify release is complete
-# ============================================================================
-echo -e "${YELLOW}[9/9] Verifying release...${NC}"
-
-ASSETS=$(gh release view "v${VERSION}" --json assets --jq '.assets | length')
-
-if [ "$ASSETS" -lt 2 ]; then
-    echo -e "${RED}❌ ERROR: Release has only $ASSETS assets (expected at least 2)${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Release has $ASSETS assets${NC}"
-echo ""
-
-# ============================================================================
-# STEP 9.4: INTEGRITY-SOURCE GUARD (supports the hardened in-app updater)
-# The updater REFUSES to install a package it cannot verify. Since the sidecar
-# fallback was removed (see Updater.php — "The '.sha256' sidecar fallback was
-# removed"), integrity comes EXCLUSIVELY from the GitHub asset "digest"
-# (sha256:...), which GitHub computes server-side over TLS. A release without a
-# digest would wedge the upgrade chain for every install, so fail the publish
-# here rather than discover it at users' update time.
-# ============================================================================
-ZIP_ASSET_NAME="pinakes-v${VERSION}.zip"
-# Resolve the DRAFT release's numeric id by tag_name. Drafts have no git tag yet,
-# so `gh release view <tag>` / releases/tags/<tag> are unreliable for them — list
-# releases (which includes drafts) and match tag_name, then read assets via the
-# release id. Same draft-safe pattern as STEP 9.5.
-GUARD_RELEASE_ID=$(gh api "repos/fabiodalez-dev/Pinakes/releases" --paginate \
-    --jq ".[] | select(.tag_name == \"v${VERSION}\") | .id" 2>/dev/null | head -1)
-if [ -z "$GUARD_RELEASE_ID" ]; then
-    echo -e "${RED}❌ ERROR: could not resolve the draft release id for v${VERSION} (integrity guard).${NC}"
-    exit 1
-fi
-
-# GitHub computes the asset "digest" ASYNCHRONOUSLY after upload (like size), so
-# poll briefly rather than fail on the first miss.
-HAS_DIGEST="no"
-for attempt in 1 2 3 4 5 6; do
-    GUARD_ASSET_META=$(gh api "repos/fabiodalez-dev/Pinakes/releases/${GUARD_RELEASE_ID}/assets" \
-        --jq ".[] | select(.name == \"${ZIP_ASSET_NAME}\")" 2>/dev/null || echo "")
-    # Match the Updater's runtime contract (isValidSha256): require the FULL
-    # "sha256:" + 64 hex chars, not just the prefix — a malformed digest like
-    # "sha256:NOTHEX" would pass a prefix check here but be rejected as 'invalid'
-    # by the updater at install time.
-    HAS_DIGEST=$(printf '%s' "$GUARD_ASSET_META" | jq -r 'if (.digest // "") | test("^sha256:[A-Fa-f0-9]{64}$") then "yes" else "no" end' 2>/dev/null || echo "no")
-    [ "$HAS_DIGEST" = "yes" ] && break
-    echo -e "${YELLOW}  digest not computed yet (attempt $attempt/6), waiting 10s...${NC}"
-    sleep 10
-done
-
-if [ "$HAS_DIGEST" != "yes" ]; then
-    echo -e "${RED}❌ ERROR: release asset ${ZIP_ASSET_NAME} exposes no API sha256 digest after polling.${NC}"
-    echo -e "${RED}   The hardened updater verifies integrity from the digest ONLY (sidecar fallback removed).${NC}"
-    echo -e "${RED}   GitHub usually computes the digest within seconds — re-check the asset or re-upload.${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Integrity source present (digest=${HAS_DIGEST}) — hardened updater can verify this package${NC}"
-echo ""
-
-# ============================================================================
-# STEP 9.5: VERIFY THE ACTUAL REMOTE ZIP MATCHES THE LOCAL ZIP
-# ============================================================================
-# HARD RULE (see updater.md §ABSOLUTE RULE): "upload succeeded" is NOT enough.
-# On 2026-04-22 two separate failure modes corrupted the shipped ZIP:
-#   1) gh release upload produced a truncated remote artifact (v0.5.9.2).
-#   2) A hidden GitHub Actions workflow (release.yml) rebuilt the ZIP via
-#      bin/build-release.sh and overwrote the asset AFTER the upload —
-#      verification hitting the CDN saw the cached correct file briefly,
-#      then the CDN invalidated and users downloaded the workflow's broken
-#      ZIP (v0.5.9.3, reported by HansUwe52).
-# Mitigations:
-#   - release.yml is now renamed .disabled so it does not race our upload.
-#   - This step fetches via the GitHub API (asset ID + octet-stream Accept),
-#     bypassing the CDN entirely.
-#   - It also polls for up to 90 seconds to catch any asynchronous overwrite
-#     from a rogue workflow that might slip in.
-#   - Sanity-check: uploader MUST be the current gh user, NOT github-actions[bot].
-echo -e "${YELLOW}[9.5/9] Verifying REMOTE ZIP matches local ZIP (via API, not CDN)...${NC}"
-
-REMOTE_VERIFY_DIR=$(mktemp -d)
-REMOTE_ZIP="$REMOTE_VERIFY_DIR/remote.zip"
-
-LOCAL_SHA=$(shasum -a 256 "$ZIPFILE" | awk '{print $1}')
-LOCAL_PLUGIN_COUNT=$(unzip -l "$ZIPFILE" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
-if [ "$LOCAL_PLUGIN_COUNT" -ne "$EXPECTED_PLUGIN_COUNT" ]; then
-    echo -e "${RED}❌ ERROR: local ZIP has $LOCAL_PLUGIN_COUNT plugin manifests; BundledPlugins::LIST declares $EXPECTED_PLUGIN_COUNT${NC}"
-    rm -rf "$REMOTE_VERIFY_DIR"
-    exit 1
-fi
-GH_USER=$(gh api user --jq .login 2>/dev/null || echo "unknown")
-
-# Resolve the DRAFT release's numeric id by tag_name: drafts have no git tag yet,
-# so the tag-based API (releases/tags/v…) does not work — list releases (which
-# includes drafts) and match on tag_name. Assets are then read via the release id.
-RELEASE_ID=$(gh api "repos/fabiodalez-dev/Pinakes/releases" --paginate \
-    --jq ".[] | select(.tag_name == \"v${VERSION}\") | .id" 2>/dev/null | head -1)
-if [ -z "$RELEASE_ID" ]; then
-    echo -e "${RED}❌ ERROR: could not resolve the draft release id for v${VERSION}${NC}"
-    rm -rf "$REMOTE_VERIFY_DIR"
-    exit 1
-fi
-
-# Poll for up to 90s so a slow/async workflow override would also be caught.
-ATTEMPTS=0
-MAX_ATTEMPTS=9
-MATCH=0
-while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-    ATTEMPTS=$((ATTEMPTS + 1))
-
-    # 1. Look up the asset's numeric ID + metadata via the release id (draft-safe).
-    ASSET_META=$(gh api "repos/fabiodalez-dev/Pinakes/releases/${RELEASE_ID}/assets" \
-        --jq ".[] | select(.name == \"pinakes-v${VERSION}.zip\") | {id, size, uploader: .uploader.login}" 2>/dev/null || echo "")
-    if [ -z "$ASSET_META" ]; then
-        echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: asset not listed yet, retrying in 10s${NC}"
-        sleep 10
-        continue
-    fi
-
-    ASSET_ID=$(echo "$ASSET_META" | jq -r '.id')
-    REMOTE_UPLOADER=$(echo "$ASSET_META" | jq -r '.uploader')
-
-    # 2. Fail loudly if the uploader is a bot — means a workflow hijacked the release
-    if [ "$REMOTE_UPLOADER" = "github-actions[bot]" ]; then
-        echo -e "${RED}❌ CRITICAL: release asset uploader is github-actions[bot]${NC}"
-        echo -e "${RED}   A GitHub Actions workflow overwrote our upload.${NC}"
-        echo -e "${RED}   Expected uploader: $GH_USER${NC}"
-        echo -e "${RED}   Check for rogue workflows in .github/workflows/${NC}"
-        rm -rf "$REMOTE_VERIFY_DIR"
-        exit 1
-    fi
-
-    # 3. Download via the API (bypasses CDN, always returns current content)
-    if ! gh api "repos/fabiodalez-dev/Pinakes/releases/assets/${ASSET_ID}" \
-        -H "Accept: application/octet-stream" > "$REMOTE_ZIP" 2>/dev/null; then
-        echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: API download failed, retrying${NC}"
-        sleep 10
-        continue
-    fi
-
-    REMOTE_SHA=$(shasum -a 256 "$REMOTE_ZIP" | awk '{print $1}')
-    REMOTE_PLUGIN_COUNT=$(unzip -l "$REMOTE_ZIP" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
-
-    if [ "$LOCAL_SHA" = "$REMOTE_SHA" ] && [ "$REMOTE_PLUGIN_COUNT" = "$EXPECTED_PLUGIN_COUNT" ]; then
-        MATCH=1
+info "Waiting for the Verified Release workflow to start"
+run_id=""
+run_url=""
+for ((attempt = 1; attempt <= WORKFLOW_DISCOVERY_ATTEMPTS; attempt++)); do
+    runs_json="$(gh run list \
+        --repo "$REPOSITORY" \
+        --workflow "$RELEASE_WORKFLOW" \
+        --event push \
+        --commit "$head_sha" \
+        --limit 20 \
+        --json databaseId,headBranch,headSha,url)"
+    run_id="$(jq -r --arg tag "$TAG_NAME" --arg sha "$head_sha" --argjson floor "$workflow_run_floor" \
+        '[.[] | select(.headBranch == $tag and .headSha == $sha and .databaseId > $floor)]
+         | sort_by(.databaseId) | last | .databaseId // empty' \
+        <<<"$runs_json")"
+    run_url="$(jq -r --arg tag "$TAG_NAME" --arg sha "$head_sha" --argjson floor "$workflow_run_floor" \
+        '[.[] | select(.headBranch == $tag and .headSha == $sha and .databaseId > $floor)]
+         | sort_by(.databaseId) | last | .url // empty' \
+        <<<"$runs_json")"
+    if [[ -n "$run_id" ]]; then
         break
     fi
+    printf '  workflow not visible yet (%d/%d)\n' "$attempt" "$WORKFLOW_DISCOVERY_ATTEMPTS"
+    sleep "$WORKFLOW_DISCOVERY_INTERVAL"
+done
 
-    echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: mismatch (sha local=$LOCAL_SHA remote=$REMOTE_SHA, plugins local=$LOCAL_PLUGIN_COUNT remote=$REMOTE_PLUGIN_COUNT), retrying${NC}"
+[[ -n "$run_id" ]] || fail "no ${RELEASE_WORKFLOW} run appeared for ${TAG_NAME}; remote tag was not removed"
+
+info "Following workflow run ${run_id}: ${run_url}"
+if ! gh run watch "$run_id" --repo "$REPOSITORY" --exit-status --interval 15; then
+    gh run view "$run_id" --repo "$REPOSITORY" --log-failed || true
+    fail "release workflow failed; ${TAG_NAME} remains tagged but no release was accepted"
+fi
+
+remote_tag_commit="$(gh api "repos/${REPOSITORY}/commits/${TAG_NAME}" --jq '.sha')"
+[[ "$remote_tag_commit" == "$head_sha" ]] \
+    || fail "remote ${TAG_NAME} moved from ${head_sha} to ${remote_tag_commit} during release"
+
+info "Verifying the published release and its workflow-owned assets"
+release_json=""
+for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    release_json="$(gh api "repos/${REPOSITORY}/releases/tags/${TAG_NAME}")"
+    zip_digest="$(jq -r --arg name "pinakes-v${VERSION}.zip" \
+        '.assets[] | select(.name == $name) | .digest // empty' <<<"$release_json")"
+    [[ "$zip_digest" =~ ^sha256:[0-9a-fA-F]{64}$ ]] && break
+    printf '  ZIP digest not ready yet (%d/12)\n' "$attempt"
     sleep 10
 done
 
-if [ "$MATCH" != "1" ]; then
-    echo -e "${RED}❌ CRITICAL: REMOTE ZIP DOES NOT MATCH LOCAL ZIP after ${MAX_ATTEMPTS} attempts${NC}"
-    echo -e "${RED}   local:  $LOCAL_SHA ($LOCAL_PLUGIN_COUNT plugins, $(wc -c < "$ZIPFILE") bytes)${NC}"
-    echo -e "${RED}   remote: $REMOTE_SHA ($REMOTE_PLUGIN_COUNT plugins, $(wc -c < "$REMOTE_ZIP") bytes, uploader=$REMOTE_UPLOADER)${NC}"
-    echo -e "${RED}DO NOT ANNOUNCE THIS RELEASE. Delete it and retry:${NC}"
-    echo -e "${RED}  gh release delete v${VERSION} --yes${NC}"
-    echo -e "${RED}  ./scripts/create-release.sh ${VERSION}${NC}"
-    rm -rf "$REMOTE_VERIFY_DIR"
-    exit 1
+[[ "$(jq -r '.draft' <<<"$release_json")" == "false" ]] \
+    || fail "${TAG_NAME} is still a draft"
+[[ "$(jq -r '.immutable' <<<"$release_json")" == "true" ]] \
+    || fail "${TAG_NAME} was published without immutable-release protection"
+expected_prerelease="$IS_PRERELEASE"
+[[ "$(jq -r '.prerelease' <<<"$release_json")" == "$expected_prerelease" ]] \
+    || fail "${TAG_NAME} prerelease flag does not match version policy"
+
+expected_assets="$(printf '%s\n' \
+    "RELEASE_NOTES-v${VERSION}.md" \
+    "pinakes-v${VERSION}.zip" \
+    "pinakes-v${VERSION}.zip.sha256" \
+    "pinakes.spdx.json")"
+actual_assets="$(jq -r '.assets[].name' <<<"$release_json" | LC_ALL=C sort)"
+[[ "$actual_assets" == "$expected_assets" ]] || {
+    printf 'Expected assets:\n%s\nActual assets:\n%s\n' "$expected_assets" "$actual_assets" >&2
+    fail "published asset set is incomplete or unexpected"
+}
+
+if ! jq -e '
+    (.assets | length == 4)
+    and all(.assets[];
+        .state == "uploaded"
+        and .size > 0
+        and (.digest | test("^sha256:[0-9a-fA-F]{64}$"))
+        and .uploader.login == "github-actions[bot]")
+' >/dev/null <<<"$release_json"; then
+    fail "every asset must be non-empty, uploaded by github-actions[bot], and expose a SHA-256 digest"
 fi
 
-rm -rf "$REMOTE_VERIFY_DIR"
-echo -e "${GREEN}✓ Remote ZIP matches local via API (SHA256 $LOCAL_SHA, $REMOTE_PLUGIN_COUNT plugins, uploader=$REMOTE_UPLOADER)${NC}"
-echo ""
+zip_asset_id="$(jq -r --arg name "pinakes-v${VERSION}.zip" \
+    '.assets[] | select(.name == $name) | .id' <<<"$release_json")"
+checksum_asset_id="$(jq -r --arg name "pinakes-v${VERSION}.zip.sha256" \
+    '.assets[] | select(.name == $name) | .id' <<<"$release_json")"
+zip_digest="$(jq -r --arg name "pinakes-v${VERSION}.zip" \
+    '.assets[] | select(.name == $name) | .digest' <<<"$release_json")"
+checksum_body="$(gh api -H 'Accept: application/octet-stream' \
+    "repos/${REPOSITORY}/releases/assets/${checksum_asset_id}")"
+checksum_sha="$(awk 'NR == 1 { print $1 }' <<<"$checksum_body")"
+[[ "$checksum_sha" =~ ^[0-9a-fA-F]{64}$ ]] \
+    || fail "checksum asset does not contain a valid SHA-256"
+[[ "${zip_digest#sha256:}" == "$checksum_sha" ]] \
+    || fail "ZIP API digest and published checksum disagree"
+[[ -n "$zip_asset_id" ]] || fail "ZIP asset id is missing"
 
-# ============================================================================
-# STEP 9.6: PUBLISH the verified draft (draft → upload → verify → PUBLISH)
-# The release was a hidden draft until now; only an artifact proven to match the
-# local ZIP gets published, closing the "published-before-verified" window.
-# ============================================================================
-echo -e "${YELLOW}[9.6/9] Publishing the verified draft release...${NC}"
-if [ "$IS_PRERELEASE" = true ]; then
-    gh release edit "v${VERSION}" --draft=false --prerelease
-else
-    gh release edit "v${VERSION}" --draft=false --latest
-fi
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ ERROR: failed to publish the verified draft release${NC}"
-    echo -e "${RED}   The release remains a DRAFT (not visible/installable). Publish manually after review:${NC}"
-    echo -e "${RED}     gh release edit v${VERSION} --draft=false${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Release published (verified as a draft first)${NC}"
-echo ""
+tagged_commit="$(git rev-list -n 1 "$TAG_NAME")"
+[[ "$tagged_commit" == "$head_sha" ]] || fail "local release tag no longer resolves to the preflighted commit"
+[[ -z "$(git status --porcelain)" ]] || fail "release orchestration modified the working tree"
 
-# ----------------------------------------------------------------------------
-# Trigger the Docker image rebuild (stable releases only, non-fatal).
-# Notifies fabiodalez-dev/pinakes-docker so it rebuilds + republishes the
-# multi-arch image for this version. The Docker repo also has a daily poller
-# as a safety net, so a failure here is never fatal to the release.
-# ----------------------------------------------------------------------------
-if [ "$IS_PRERELEASE" = false ] && command -v gh >/dev/null 2>&1; then
-    echo -e "${YELLOW}Notifying pinakes-docker to rebuild the image…${NC}"
-    if gh api -X POST "repos/fabiodalez-dev/pinakes-docker/dispatches" \
-        -f "event_type=pinakes_release" \
-        -F "client_payload[pinakes_version]=${VERSION}" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ Docker image rebuild triggered for v${VERSION}${NC}"
-    else
-        echo -e "${YELLOW}⚠ Could not trigger pinakes-docker (non-fatal). Trigger manually:${NC}"
-        echo "    gh workflow run build-publish-docker.yml -R fabiodalez-dev/pinakes-docker -f version=${VERSION}"
-    fi
-    echo ""
-fi
-
-# NOTE: GitHub "immutable releases" (assets frozen post-publish) is a repository
-# setting (Settings → General → Releases → Require immutable releases). Enable it
-# there so a published asset can never be silently overwritten by a later workflow.
-
-# ============================================================================
-# STEP 10: Done (no dev restore needed — PHPStan is global, not in vendor)
-# ============================================================================
-echo ""
-echo -e "${GREEN}============================================${NC}"
-echo -e "${GREEN}✅ RELEASE v${VERSION} CREATED SUCCESSFULLY!${NC}"
-echo -e "${GREEN}============================================${NC}"
-echo ""
-echo "Release URL: https://github.com/fabiodalez-dev/Pinakes/releases/tag/v${VERSION}"
-echo ""
-if [ "$IS_PRERELEASE" = true ]; then
-    echo -e "${YELLOW}This is a PRERELEASE (Release Candidate).${NC}"
-    echo "- It is hidden from the in-app updater by default (GitHub /releases/latest skips it)."
-    echo "- To install/test it, enable the RC channel on the target install:"
-    echo "      UPDATER_ALLOW_PRERELEASE=1     (or UPDATER_CHANNEL=rc) in .env"
-    echo "  then the updater will offer v${VERSION}. Do NOT announce it to end users."
-else
-    echo "Next steps:"
-    echo "1. Edit release notes on GitHub if needed"
-    echo "2. Test the update from admin panel"
-    echo "3. Announce the release"
-fi
-echo ""
+release_url="$(jq -r '.html_url' <<<"$release_json")"
+printf '\nRelease %s is published and verified: %s\n' "$TAG_NAME" "$release_url"
+printf 'Workflow: %s\n' "$run_url"

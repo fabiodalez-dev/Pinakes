@@ -156,10 +156,17 @@ class ProfileController
             $sesso = null; // Invalid value, set to null
         }
 
-        // Validate locale - only allow known locales
+        // Validate locale. An empty value explicitly means "site default";
+        // an unknown non-empty value is ignored instead of resetting the user.
         if ($localeProvided) {
             $availableLocales = \App\Support\I18n::getAvailableLocales();
-            $locale = ($locale !== '' && isset($availableLocales[$locale])) ? $locale : null;
+            $locale = \App\Support\I18n::normalizeLocaleCode((string) $locale);
+            if ($locale === '') {
+                $locale = null;
+            } elseif (!isset($availableLocales[$locale])) {
+                $localeProvided = false;
+                $locale = null;
+            }
         }
 
         // Validate required fields. Surname/phone/address follow the admin
@@ -219,8 +226,34 @@ class ProfileController
         // value write rolls back the profile update too, so the user never
         // sees "saved" with half the form persisted.
         $updated = false;
+        $previousDisplayName = null;
         try {
             $db->begin_transaction();
+
+            // The session can be stale after an administrator or another
+            // request edits this account. Capture and lock the real DB value in
+            // the same transaction as the UPDATE so review-cache invalidation
+            // compares against an authoritative before-value.
+            $beforeStmt = $db->prepare('SELECT nome, cognome FROM utenti WHERE id = ? FOR UPDATE');
+            if ($beforeStmt === false) {
+                throw new \RuntimeException('unable to prepare profile before-value query: ' . $db->error);
+            }
+            try {
+                $beforeStmt->bind_param('i', $uid);
+                if (!$beforeStmt->execute()) {
+                    throw new \RuntimeException('unable to read profile before-value: ' . $beforeStmt->error);
+                }
+                $beforeNome = null;
+                $beforeCognome = null;
+                $beforeStmt->bind_result($beforeNome, $beforeCognome);
+                if (!$beforeStmt->fetch()) {
+                    throw new \RuntimeException('profile row disappeared before update');
+                }
+                $previousDisplayName = trim((string) $beforeNome . ' ' . (string) $beforeCognome);
+            } finally {
+                $beforeStmt->close();
+            }
+
             $updated = $stmt->execute();
             if ($updated) {
                 if ($customValues !== null) {
@@ -241,18 +274,23 @@ class ProfileController
         }
 
         if ($updated) {
+            // The cached reviews block (#387) stores the reviewer display name as
+            // CONCAT(nome,' ',cognome). Only invalidate it when that name really
+            // changed — a phone/locale/address-only edit must not churn the
+            // public review caches. The before-value was read from the locked DB
+            // row, not the potentially stale session.
+            $newDisplayName = trim($nome . ' ' . $cognome);
+            if ($newDisplayName !== $previousDisplayName) {
+                \App\Support\ContentCache::deferReviewsChanged();
+            }
             // Update session data
-            $_SESSION['user']['name'] = trim($nome . ' ' . $cognome);
+            $_SESSION['user']['name'] = $newDisplayName;
             // Apply locale change immediately (only when locale was in the form)
             if ($localeProvided) {
-                if ($locale !== null) {
-                    \App\Support\I18n::setLocale($locale);
-                    $_SESSION['locale'] = $locale;
-                } else {
-                    // Reset runtime locale to site default so flash renders correctly
-                    \App\Support\I18n::setLocale(\App\Support\I18n::getInstallationLocale());
-                    unset($_SESSION['locale']);
-                }
+                $runtimeLocale = \App\Support\I18n::resolveUserLocale($locale);
+                \App\Support\I18n::setLocale($runtimeLocale);
+                $_SESSION['locale'] = $runtimeLocale;
+                $_SESSION['user']['locale'] = $locale;
             }
             // Flash message AFTER locale switch so it renders in the new language
             $_SESSION['success_message'] = __('Profilo aggiornato con successo.');

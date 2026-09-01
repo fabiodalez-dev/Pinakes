@@ -12,6 +12,8 @@ use App\Support\SecureLogger;
 use App\Support\SettingsEncryption;
 use App\Support\SharingProviders;
 use App\Support\SitemapGenerator;
+use App\Support\LiteSpeedCache;
+use App\Support\QueryCache;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -22,10 +24,13 @@ class SettingsController
     {
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
-        // Semina i template mancanti con il locale di installazione (M8):
-        // l'invio li risolve per (name, locale_installazione), quindi seminare
-        // sempre it_IT li renderebbe invisibili su installazioni non italiane.
-        $repository->ensureEmailTemplates($this->templateDefaults(), \App\Support\I18n::getInstallationLocale());
+        $queryParams = $request->getQueryParams();
+        $templateLocales = \App\Support\I18n::getAvailableLocales();
+        $templateLocale = $this->resolveTemplateEditorLocale($queryParams['template_locale'] ?? null);
+        // Seed the locale currently edited. Other recipient locales continue to
+        // use their shipped translation until an administrator opens/customizes
+        // them, at which point they get an independent stored row.
+        $repository->ensureEmailTemplates($this->templateDefaults($templateLocale), $templateLocale);
         // #299: repair any stored template whose links were double-prefixed with
         // the admin base by the old WYSIWYG behaviour. Idempotent, cheap (LIKE
         // filter), runs before the templates are read for display below.
@@ -33,7 +38,7 @@ class SettingsController
 
         $appSettings = $this->resolveAppSettings($repository);
         $emailSettings = $this->resolveEmailSettings($repository);
-        $templates = $this->resolveEmailTemplates($repository);
+        $templates = $this->resolveEmailTemplates($repository, $templateLocale);
         $contactSettings = $this->resolveContactSettings($repository);
         $privacySettings = $this->resolvePrivacySettings($repository);
         $labelSettings = $this->resolveLabelSettings($repository);
@@ -47,7 +52,6 @@ class SettingsController
         // re-enable them.
         $registrationCustomFields = \App\Support\RegistrationFields::definitions($db, false);
 
-        $queryParams = $request->getQueryParams();
         $activeTab = $queryParams['tab'] ?? 'general';
 
         // Security scan F11 (CWE-522): the settings page is reachable by 'staff'
@@ -61,6 +65,8 @@ class SettingsController
             'appSettings',
             'emailSettings',
             'templates',
+            'templateLocale',
+            'templateLocales',
             'contactSettings',
             'privacySettings',
             'labelSettings',
@@ -150,6 +156,9 @@ class SettingsController
             $repository->set('app', $key, $value);
             ConfigStore::set("app.{$key}", $value);
         }
+
+        // Identity/footer values appear on every public page.
+        LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_ALL]);
 
         $_SESSION['success_message'] = __('Impostazioni generali aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=general');
@@ -448,20 +457,26 @@ class SettingsController
 
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
+        $templateLocale = $this->resolveTemplateEditorLocale($data['template_locale'] ?? null);
+        $localizedDefinition = SettingsMailTemplates::get($template, $templateLocale) ?? $definition;
 
-        $subject = trim((string) ($data['subject'] ?? $definition['subject']));
+        $subject = trim((string) ($data['subject'] ?? $localizedDefinition['subject']));
         if ($subject === '') {
-            $subject = $definition['subject'];
+            $subject = $localizedDefinition['subject'];
         }
-        $body = \App\Support\EmailLayout::normalizeContent((string) ($data['body'] ?? $definition['body']));
+        $body = \App\Support\EmailLayout::normalizeContent((string) ($data['body'] ?? $localizedDefinition['body']));
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
-        // Salva sulla riga del locale di installazione: è quella letta dall'invio (M8).
-        $repository->saveEmailTemplate($template, $subject, $body, $definition['description'] ?? null, true, \App\Support\I18n::getInstallationLocale());
+        // Each recipient locale owns an independently editable row. This keeps
+        // localized sends from bypassing the administrator's customization.
+        $repository->saveEmailTemplate($template, $subject, $body, $localizedDefinition['description'] ?? null, true, $templateLocale);
 
         $_SESSION['success_message'] = 'Template email "' . $definition['label'] . '" aggiornato correttamente.';
-        return $this->redirect($response, '/admin/settings?tab=templates&template=' . urlencode($template));
+        return $this->redirect(
+            $response,
+            '/admin/settings?tab=templates&template_locale=' . rawurlencode($templateLocale) . '&template=' . rawurlencode($template)
+        );
     }
 
     private function resolveAppSettings(SettingsRepository $repository): array
@@ -476,6 +491,13 @@ class SettingsController
             $logo = '';
         }
 
+        $liteSpeedBlockedByContainer = LiteSpeedCache::blockedByContainer();
+        $liteSpeedEnabled = $repository->get(
+            'cache',
+            'litespeed_enabled',
+            (bool) ConfigStore::get('cache.litespeed_enabled', false) ? '1' : '0'
+        );
+
         return [
             'name' => $name,
             'logo' => $logo,
@@ -486,7 +508,28 @@ class SettingsController
             'social_linkedin' => $repository->get('app', 'social_linkedin', $config['social_linkedin'] ?? ''),
             'social_bluesky' => $repository->get('app', 'social_bluesky', $config['social_bluesky'] ?? ''),
             'social_telegram' => $repository->get('app', 'social_telegram', $config['social_telegram'] ?? ''),
+            // Never render a stale database opt-in as active in Docker. The
+            // runtime and POST handler enforce the same restriction.
+            'litespeed_enabled' => $liteSpeedBlockedByContainer ? '0' : $liteSpeedEnabled,
+            'litespeed_container_blocked' => $liteSpeedBlockedByContainer,
+            'litespeed_home_ttl' => (int) $repository->get('cache', 'litespeed_home_ttl', (string) ConfigStore::get('cache.litespeed_home_ttl', 300)),
+            'litespeed_catalog_ttl' => (int) $repository->get('cache', 'litespeed_catalog_ttl', (string) ConfigStore::get('cache.litespeed_catalog_ttl', 120)),
+            'litespeed_book_ttl' => (int) $repository->get('cache', 'litespeed_book_ttl', (string) ConfigStore::get('cache.litespeed_book_ttl', 300)),
+            'litespeed_server_detected' => LiteSpeedCache::serverDetected(),
+            'litespeed_cli_purge_configured' => LiteSpeedCache::cliPurgeConfigured(),
+            'litespeed_lookup_bypass_installed' => LiteSpeedCache::lookupBypassInstalled(),
+            // Application-level query cache (runs on every server, LiteSpeed or
+            // not): expose its active backend so the maintenance panel can label
+            // where the cached datasets actually live (APCu vs storage/cache).
+            'query_cache_backend' => QueryCache::stats()['backend'],
         ];
+    }
+
+    /** @param int[] $allowed */
+    private function validatedCacheTtl(mixed $value, int $default, array $allowed): int
+    {
+        $ttl = (int) $value;
+        return in_array($ttl, $allowed, true) ? $ttl : $default;
     }
 
     private function resolveEmailSettings(SettingsRepository $repository): array
@@ -530,11 +573,10 @@ class SettingsController
         return $settings;
     }
 
-    private function resolveEmailTemplates(SettingsRepository $repository): array
+    private function resolveEmailTemplates(SettingsRepository $repository, string $locale): array
     {
-        $definitions = SettingsMailTemplates::all();
-        // L'editor mostra le righe del locale di installazione, le stesse usate dall'invio (M8).
-        $records = $repository->getEmailTemplates(array_keys($definitions), \App\Support\I18n::getInstallationLocale());
+        $definitions = SettingsMailTemplates::all($locale);
+        $records = $repository->getEmailTemplates(array_keys($definitions), $locale);
 
         $templates = [];
         foreach ($definitions as $name => $meta) {
@@ -557,10 +599,10 @@ class SettingsController
     /**
      * @return array<string, array{subject:string, body:string, description?:string}>
      */
-    private function templateDefaults(): array
+    private function templateDefaults(?string $locale = null): array
     {
         $defaults = [];
-        foreach (SettingsMailTemplates::all() as $name => $meta) {
+        foreach (SettingsMailTemplates::all($locale) as $name => $meta) {
             $defaults[$name] = [
                 'subject' => $meta['subject'],
                 'body' => \App\Support\EmailLayout::normalizeContent((string) $meta['body']),
@@ -568,6 +610,24 @@ class SettingsController
             ];
         }
         return $defaults;
+    }
+
+    private function resolveTemplateEditorLocale(mixed $requested): string
+    {
+        $available = \App\Support\I18n::getAvailableLocales();
+        $candidate = is_string($requested)
+            ? \App\Support\I18n::normalizeLocaleCode($requested)
+            : '';
+
+        if ($candidate !== '' && isset($available[$candidate])) {
+            return $candidate;
+        }
+
+        // Fall back to the admin's own session locale (validated against the
+        // shipped locales, installation locale as last resort) rather than
+        // forcing the installation locale — otherwise an en_US admin on an
+        // it_IT install would open the editor on the Italian templates.
+        return \App\Support\I18n::resolveUserLocale(\App\Support\I18n::getLocale());
     }
 
     /**
@@ -857,6 +917,18 @@ class SettingsController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
+        $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
+        $liteSpeedBlockedByContainer = LiteSpeedCache::blockedByContainer();
+        $requestedLiteSpeed = isset($data['litespeed_enabled']) && $data['litespeed_enabled'] === '1';
+        // A forged POST and a stale DB value must not enable LiteSpeed in the
+        // Apache Docker image. Persist 0 so exported/restored settings agree
+        // with the runtime restriction as well.
+        $wantsLiteSpeed = !$liteSpeedBlockedByContainer && $requestedLiteSpeed;
+        if ($isAdmin && $wantsLiteSpeed && !LiteSpeedCache::ensureLookupBypass()) {
+            $_SESSION['error_message'] = __('Impossibile abilitare LiteSpeed: public/.htaccess non è scrivibile o non può essere aggiornato in sicurezza.');
+            return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
+        }
+
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
@@ -896,6 +968,41 @@ class SettingsController
             }
         }
 
+        // Full-page caching changes public delivery semantics and is therefore
+        // admin-only even though staff may access the wider Advanced tab.
+        if ($isAdmin) {
+            $allowedTtls = [60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
+            // The LiteSpeed controls are omitted from the POST whenever they are
+            // not rendered as active inputs — the Docker image disables them, and
+            // on a non-LiteSpeed server the whole section is hidden. In both cases
+            // preserve the stored TTLs instead of silently resetting them to the
+            // defaults while another Advanced option is being saved.
+            $homeTtl = array_key_exists('litespeed_home_ttl', $data)
+                ? $data['litespeed_home_ttl']
+                : $repository->get('cache', 'litespeed_home_ttl', '300');
+            $catalogTtl = array_key_exists('litespeed_catalog_ttl', $data)
+                ? $data['litespeed_catalog_ttl']
+                : $repository->get('cache', 'litespeed_catalog_ttl', '120');
+            $bookTtl = array_key_exists('litespeed_book_ttl', $data)
+                ? $data['litespeed_book_ttl']
+                : $repository->get('cache', 'litespeed_book_ttl', '300');
+            $cacheSettings = [
+                'litespeed_enabled' => $wantsLiteSpeed ? '1' : '0',
+                'litespeed_home_ttl' => (string) $this->validatedCacheTtl($homeTtl, 300, $allowedTtls),
+                'litespeed_catalog_ttl' => (string) $this->validatedCacheTtl($catalogTtl, 120, $allowedTtls),
+                'litespeed_book_ttl' => (string) $this->validatedCacheTtl($bookTtl, 300, $allowedTtls),
+            ];
+            foreach ($cacheSettings as $key => $value) {
+                $repository->set('cache', $key, $value);
+                ConfigStore::set('cache.' . $key, $key === 'litespeed_enabled' ? $value === '1' : (int) $value);
+            }
+        }
+
+        // In particular, enabling private mode must evict every public page
+        // before subsequent anonymous lookups can be answered at the edge.
+        // force=true also covers disabling LiteSpeed or changing its TTLs.
+        LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_ALL], true);
+
         // Auto-attivazione toggle Privacy: se c'è codice analytics/marketing, attiva i rispettivi toggle
         $hasAnalytics = !empty(trim($settings['custom_js_analytics']));
         $hasMarketing = !empty(trim($settings['custom_js_marketing']));
@@ -921,8 +1028,10 @@ class SettingsController
         ConfigStore::set('system.catalogue_mode', $catalogueMode === '1');
         ConfigStore::clearCache();
 
-        $_SESSION['success_message'] = __('Impostazioni avanzate aggiornate correttamente.');
-        return $this->redirect($response, '/admin/settings?tab=advanced');
+        $_SESSION['success_message'] = $liteSpeedBlockedByContainer && $requestedLiteSpeed
+            ? __('Impostazioni avanzate aggiornate. LiteSpeed resta disabilitato perché non è disponibile nella versione Docker.')
+            : __('Impostazioni avanzate aggiornate correttamente.');
+        return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
     }
 
     public function regenerateSitemap(Request $request, Response $response, mysqli $db): Response
@@ -954,6 +1063,60 @@ class SettingsController
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');
+    }
+
+    /**
+     * Flush every cache Pinakes owns, in one action, from a single admin button.
+     *
+     * Two layers exist and this clears both: the application-level query cache
+     * (the O(1)-invalidated dataset cache behind book detail, reviews and
+     * catalog/search listings) — flushed on EVERY server — and, only where the
+     * server is LiteSpeed, its full-page edge cache — dropped by emitting
+     * X-LiteSpeed-Purge on this response (the interactive equivalent of the CLI
+     * loopback purge; LSWS discards the tagged edge entries when it processes
+     * the header, even though this admin request is itself uncacheable). A
+     * non-LiteSpeed server simply has no edge layer, so only the query cache is
+     * cleared and no header is sent.
+     *
+     * The query-cache flush runs in the PHP-FPM/web request, so QueryCache::flush()
+     * reaches the SAME APCu segment that serves pages — a CLI invocation cannot
+     * (CLI APCu is a separate segment), which is why this lives behind an admin
+     * button rather than a console command. The caches self-invalidate on every
+     * content change; this is the manual escape hatch when data was altered
+     * out-of-band (a direct DB edit, an import replay).
+     */
+    public function flushAllCaches(Request $request, Response $response, mysqli $db): Response
+    {
+        // CSRF validated by CsrfMiddleware
+        $redirect = $this->redirect($response, '/admin/settings?tab=advanced');
+
+        // AdminAuthMiddleware also admits staff; flushing a shared cache is an
+        // admin-only action, so re-check the role inline before flushing.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Solo un amministratore può svuotare la cache.');
+            return $redirect;
+        }
+
+        // flush() returns false only on a real apcu_delete/unlink failure; a
+        // clean run over an empty cache still returns true. Surface a failure as
+        // an error so the admin does not read a misleading success.
+        if (!QueryCache::flush()) {
+            $_SESSION['error_message'] = __('Impossibile svuotare completamente la cache dell\'applicazione. Controlla i permessi di storage/cache.');
+            return $redirect;
+        }
+
+        $_SESSION['success_message'] = __('Cache svuotata.');
+
+        // Also drop the LiteSpeed edge cache when this server actually has one;
+        // on plain Apache/nginx the header is simply never sent.
+        if (LiteSpeedCache::enabled() && LiteSpeedCache::serverDetected()) {
+            return $redirect->withHeader(
+                'X-LiteSpeed-Purge',
+                LiteSpeedCache::purgeHeader([LiteSpeedCache::TAG_ALL])
+            );
+        }
+
+        return $redirect;
     }
 
     private function loadContactMessages(mysqli $db): array
@@ -1283,7 +1446,7 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, app_timezone: string}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string}
      */
     private function resolveLoansSettings(SettingsRepository $repository): array
     {
@@ -1294,6 +1457,11 @@ class SettingsController
             'max_active_loans_per_user' => (int) ($repository->get('loans', 'max_active_loans_per_user', '0') ?? 0),
             'max_loan_duration_days'   => (int) ($repository->get('loans', 'max_loan_duration_days', '90') ?? 90),
             'auto_approve_requests'    => $repository->autoApproveLoanRequests(),
+            'allow_multiple_loans_same_book' => $repository->allowsMultipleLoansSameBook(),
+            // #360: automatic recall (sollecito) schedule for overdue loans.
+            'recall_auto_enabled'      => (string) ($repository->get('loans', 'recall_auto_enabled', '0') ?? '0') === '1',
+            'recall_interval_days'     => (int) ($repository->get('loans', 'recall_interval_days', '7') ?? 7),
+            'recall_max_count'         => (int) ($repository->get('loans', 'recall_max_count', '3') ?? 3),
             // App-wide clock for due dates and automatisms (DateHelper reads it).
             'app_timezone'             => (string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome'),
         ];
@@ -1322,6 +1490,16 @@ class SettingsController
         $autoApprove      = isset($data['auto_approve_requests'])
             && is_scalar($data['auto_approve_requests'])
             && (string) $data['auto_approve_requests'] === '1';
+        $allowMultipleLoansSameBook = isset($data['allow_multiple_loans_same_book'])
+            && is_scalar($data['allow_multiple_loans_same_book'])
+            && (string) $data['allow_multiple_loans_same_book'] === '1';
+        // #360: automatic recall schedule. The same clamps are re-applied at
+        // read time by NotificationService::sendLoanRecalls().
+        $recallEnabled    = isset($data['recall_auto_enabled'])
+            && is_scalar($data['recall_auto_enabled'])
+            && (string) $data['recall_auto_enabled'] === '1';
+        $recallInterval   = min(365, max(1, (int) ($data['recall_interval_days'] ?? 7)));   // 1 … 365 days
+        $recallMaxCount   = min(50,  max(1, (int) ($data['recall_max_count'] ?? 3)));       // 1 … 50 recalls
 
         $repository->set('loans', 'loan_duration_days', (string) $loanDurationDays);
         $repository->set('loans', 'pickup_expiry_days', (string) $pickupExpiryDays);
@@ -1329,6 +1507,10 @@ class SettingsController
         $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
         $repository->set('loans', 'max_loan_duration_days', (string) $maxLoanDuration);
         $repository->set('loans', 'auto_approve_requests', $autoApprove ? '1' : '0');
+        $repository->set('loans', 'allow_multiple_loans_same_book', $allowMultipleLoansSameBook ? '1' : '0');
+        $repository->set('loans', 'recall_auto_enabled', $recallEnabled ? '1' : '0');
+        $repository->set('loans', 'recall_interval_days', (string) $recallInterval);
+        $repository->set('loans', 'recall_max_count', (string) $recallMaxCount);
 
         // App timezone: DateHelper computes the loan clock ("today"/"now") from
         // this. Validate against the canonical identifier list — an invalid or

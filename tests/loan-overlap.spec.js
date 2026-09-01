@@ -262,7 +262,11 @@ test.describe.serial('Loan overlap model (#157) — 39 scenarios', () => {
   async function adminStoreLoan(page, { bookId, userId, start, end, copyCode = '' }) {
     const csrf = await page.evaluate(() => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
     return page.evaluate(async ({ base, bookId, userId, start, end, copyCode, csrf }) => {
-      const body = new URLSearchParams({ csrf_token: csrf, libro_id: String(bookId), utente_id: String(userId), data_prestito: start, data_scadenza: end });
+      // The loan INSERT is replay-guarded by a one-time submission token that
+      // only the rendered form carries — fetch the form first, like a browser.
+      const formHtml = await (await fetch(base + '/admin/loans/create', { credentials: 'same-origin' })).text();
+      const submissionToken = (formHtml.match(/name="loan_submission_token"\s+value="([a-f0-9]{64})"/) || [])[1] || '';
+      const body = new URLSearchParams({ csrf_token: csrf, loan_submission_token: submissionToken, libro_id: String(bookId), utente_id: String(userId), data_prestito: start, data_scadenza: end });
       if (copyCode) body.set('copy_code', copyCode);
       // follow the redirect so r.url carries the ?error= / ?success= query
       const r = await fetch(base + '/admin/prestiti/crea', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
@@ -412,14 +416,24 @@ test.describe.serial('Loan overlap model (#157) — 39 scenarios', () => {
     const st = dbQuery(`SELECT stato FROM prestiti WHERE id=${id}`); expect(['da_ritirare','prenotato']).toContain(st);
   });
 
-  test('D.28 approval SUCCEEDS in a disjoint window even though the copy is held earlier', async ({ page }) => {
+  test('D.28 approval is REFUSED in a disjoint window when the only copy is held earlier (#384)', async ({ page }) => {
     await adminLogin(page);
     const b = mkBook('D28'); const c = mkCopy(b, 1);
     tryInsertLoan({ bookId: b, copyId: c, userId: u2, start: dISO(1), end: dISO(10), stato: 'in_corso', attivo: 1 });
     const id = mkPending(b, u1, dISO(11), dISO(20));
     await page.goto(`${BASE}/admin/prestiti`);
-    await adminApprove(page, id);
-    const st = dbQuery(`SELECT stato FROM prestiti WHERE id=${id}`); expect(['da_ritirare','prenotato']).toContain(st);
+    const res = await adminApprove(page, id);
+    // #384 supersedes the old disjoint-stacking allowance. The only copy is held
+    // by an active loan that PRECEDES this window (ends day 10, this starts day
+    // 11): binding it here would make this loan depend on that borrower returning
+    // on time. A legacy bare pending row cannot be converted here into a real
+    // reservation: approval must fail cleanly and leave it untouched. New public
+    // requests are routed directly to prenotazioni.attiva before reaching this
+    // endpoint; this is the defensive fallback for old/manual pending rows.
+    expect(res.status).toBe(400);
+    expect(res.body && res.body.success).toBe(false);
+    expect(dbQuery(`SELECT stato FROM prestiti WHERE id=${id}`)).toBe('pendente');
+    expect(qInt(`SELECT copia_id IS NULL FROM prestiti WHERE id=${id}`)).toBe(1);
   });
 
   // ════════════════════════════════════════════════════════════════════════

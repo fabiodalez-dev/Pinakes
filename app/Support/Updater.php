@@ -2932,18 +2932,7 @@ class Updater
      */
     private function isRunningInContainer(): bool
     {
-        if (is_file('/.dockerenv') || is_file('/run/.containerenv')) {
-            return true;
-        }
-        $flag = $_ENV['PINAKES_DOCKER'] ?? (getenv('PINAKES_DOCKER') ?: '');
-        if (is_string($flag) && $flag !== '' && $flag !== '0') {
-            return true;
-        }
-        $cgroup = @file_get_contents('/proc/1/cgroup');
-        if (is_string($cgroup) && preg_match('/\b(docker|containerd|kubepods|libpod)\b/', $cgroup) === 1) {
-            return true;
-        }
-        return false;
+        return ContainerRuntime::detected();
     }
 
     /**
@@ -3342,6 +3331,36 @@ class Updater
                 $this->debugLog('WARNING', 'Contributor backfill deferred; maintenance will retry');
             }
 
+            // #366 follow-up (0.7.65): legacy da_ritirare rows with a NULL
+            // pickup_deadline never expire (the sweep skips NULLs) and survive
+            // the 0.7.63 repair when their copy is genuinely free. The
+            // backfill MUST run after reapplyTriggers(): a migration SQL file
+            // would execute under the starting version's BEFORE UPDATE
+            // trigger, whose overlap gate aborts on any update of a copy-bound
+            // row; the corrected trigger exempts commitment-neutral edits.
+            // Docker upgrades drive this same method, so both paths repair.
+            if (version_compare($toVersion, '0.7.65-rc.1', '>=')
+                && !PickupDeadlineBackfill::run($this->db)
+            ) {
+                $this->debugLog('WARNING', 'Pickup deadline backfill failed; it will retry on the next upgrade run');
+            }
+
+            // 0.7.72: the edge-cache privacy block shipped in 0.7.70/0.7.71
+            // WITHOUT `CacheLookup on`, so LSWS ignored the app's cache headers
+            // and no page was ever served from edge cache — the admin toggle
+            // was inert. Heal public/.htaccess in place on upgrade so an install
+            // that had LiteSpeed enabled starts caching without a manual re-save.
+            // Only touch the file when the operator actually opted in, never in
+            // the Apache Docker image, and treat a non-writable file as a
+            // deferrable warning (a re-save from the admin UI still heals it).
+            // Idempotent: a no-op once CacheLookup is already present.
+            if (!LiteSpeedCache::blockedByContainer()
+                && filter_var(ConfigStore::get('cache.litespeed_enabled', false), FILTER_VALIDATE_BOOLEAN)
+                && !LiteSpeedCache::ensureLookupBypass()
+            ) {
+                $this->debugLog('WARNING', 'LiteSpeed CacheLookup heal deferred; public/.htaccess not writable');
+            }
+
             return [
                 'success' => true,
                 'executed' => $executed,
@@ -3349,6 +3368,15 @@ class Updater
             ];
 
         } catch (\Throwable $e) {
+            // A data-only migration may explicitly START TRANSACTION so all of
+            // its statements remain atomic. If any statement fails before its
+            // COMMIT, close that transaction here instead of returning the
+            // connection to the updater with partial uncommitted state.
+            try {
+                $this->db->rollback();
+            } catch (\Throwable $rollbackError) {
+                // Best effort: preserve the migration error that caused the abort.
+            }
             $this->debugLog('ERROR', 'Errore durante migrazioni', [
                 'error' => $e->getMessage(),
                 'executed_so_far' => $executed

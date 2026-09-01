@@ -23,12 +23,23 @@
  * 18. POST /ncip RequestItem (staff auth) → 200 RequestItemResponse
  * 19. RequestItem creates prestito with origine='ncip' in DB
  * 20. POST /ncip CancelRequestItem (staff auth) → 200 CancelRequestItemResponse
+ * 21. Existing partners remain optional metadata (no implicit enforcement)
+ * 22. CheckIn/Renew reject present-but-invalid UserId values
+ * 23. CheckIn/Renew reject an ambiguous title when UserId is absent
+ * 24. A valid FromAgencyId is recorded while UserId selects the right loan
+ * 25. Checkout skips a stale overdue loan even if its copy status is wrong
+ * 26. All message handlers accept legacy payloads without the NCIP namespace
+ * 27. CancelRequestItem rejects a missing UserId when requests are ambiguous
+ * 28. CancelRequestItem with UserId cancels only that patron's pending request
+ * 29. CancelRequestItem cannot overwrite a request concurrently approved
+ * 30. CheckInItem cannot close a loan concurrently reassigned to another user
+ * 31. RenewItem with UserId cannot renew a concurrently reassigned loan
  *
  * Run: /tmp/run-e2e.sh tests/ncip-server.spec.js --config=tests/playwright.config.js --workers=1
  */
 
 const { test, expect } = require('@playwright/test');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 
 const BASE         = process.env.E2E_BASE_URL    || 'http://localhost:8081';
 const DB_USER      = process.env.E2E_DB_USER     || '';
@@ -60,6 +71,127 @@ function dbQuery(sql) {
     return execFileSync('mysql', mysqlArgs(sql, true), {
         encoding: 'utf-8', timeout: 10000, env: MYSQL_ENV(),
     }).trim();
+}
+
+/**
+ * Open a real second DB session, apply a change inside a transaction and keep
+ * its book/loan locks until the test explicitly commits. The READY marker is
+ * emitted only after every setup statement has executed.
+ *
+ * @param {string} setupSql
+ * @returns {Promise<{child: import('child_process').ChildProcessWithoutNullStreams}>}
+ */
+function beginHeldTransaction(setupSql) {
+    return new Promise((resolve, reject) => {
+        const child = spawn('mysql', [...mysqlArgs('', true), '--unbuffered'], {
+            env: MYSQL_ENV(),
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+        let ready = false;
+        const timer = setTimeout(() => {
+            if (!ready) {
+                child.kill();
+                reject(new Error(`Timed out opening held MySQL transaction: ${stderr}`));
+            }
+        }, 10_000);
+
+        child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+        child.stdout.on('data', (chunk) => {
+            stdout += chunk.toString();
+            if (!ready && stdout.split(/\r?\n/).includes('NCIP_RACE_READY')) {
+                ready = true;
+                clearTimeout(timer);
+                resolve({ child });
+            }
+        });
+        child.once('error', (error) => {
+            if (!ready) {
+                clearTimeout(timer);
+                reject(error);
+            }
+        });
+        child.once('exit', (code) => {
+            if (!ready) {
+                clearTimeout(timer);
+                reject(new Error(`Held MySQL transaction exited early (${code}): ${stderr}`));
+            }
+        });
+        child.stdin.write(
+            `SET SESSION innodb_lock_wait_timeout=15;\nSTART TRANSACTION;\n${setupSql}\nSELECT 'NCIP_RACE_READY';\n`
+        );
+    });
+}
+
+/**
+ * Commit and close a held MySQL transaction.
+ * @param {{child: import('child_process').ChildProcessWithoutNullStreams}} session
+ * @returns {Promise<void>}
+ */
+function commitHeldTransaction(session) {
+    return new Promise((resolve, reject) => {
+        let stderr = '';
+        // 'exit' fires once: a child that already died (late SQL error, kill)
+        // emitted it before this listener registers and the promise would hang
+        // until the Playwright timeout with no diagnosis. Fail fast instead.
+        if (session.child.exitCode !== null || session.child.signalCode !== null) {
+            reject(new Error(
+                `Held MySQL transaction already exited (${session.child.exitCode ?? session.child.signalCode})`
+            ));
+            return;
+        }
+        session.child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+        session.child.once('exit', (code) => {
+            if (code === 0) resolve(undefined);
+            else reject(new Error(`Held MySQL transaction commit failed (${code}): ${stderr}`));
+        });
+        session.child.once('error', reject);
+        session.child.stdin.end('COMMIT;\n');
+    });
+}
+
+/**
+ * Wait until the NCIP HTTP connection is blocked behind the fixture lock. This
+ * proves the request observed the old committed identity before the competing
+ * transaction commits, so the test exercises the actual TOCTOU window.
+ */
+async function waitForNcipLockWait() {
+    for (let attempt = 0; attempt < 100; attempt++) {
+        const waiting = parseInt(dbQuery(
+            `SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST
+              WHERE ID <> CONNECTION_ID() AND DB = DATABASE() AND COMMAND <> 'Sleep'
+                AND (
+                    INFO LIKE '%FROM libri WHERE id%FOR UPDATE%'
+                    OR INFO LIKE '%UPDATE prestiti%annullato%'
+                )`
+        ), 10) || 0;
+        if (waiting > 0) return;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('NCIP request never reached the expected row-lock wait');
+}
+
+/**
+ * Release the competing transaction only after the HTTP request is observably
+ * waiting on it, then return the completed NCIP response.
+ *
+ * @param {{child: import('child_process').ChildProcessWithoutNullStreams}} session
+ * @param {Promise<import('@playwright/test').APIResponse>} responsePromise
+ */
+async function finishLockedRace(session, responsePromise) {
+    /** @type {Error|null} */
+    let waitError = null;
+    try {
+        await waitForNcipLockWait();
+    } catch (error) {
+        waitError = error instanceof Error ? error : new Error(String(error));
+    } finally {
+        await commitHeldTransaction(session);
+    }
+    const response = await responsePromise;
+    if (waitError !== null) throw waitError;
+    return response;
 }
 
 function tableExists(tableName) {
@@ -196,31 +328,71 @@ function checkOutItemXml(itemId, userId) {
 </NCIPMessage>`;
 }
 
+/**
+ * @param {number|string|null} agencyId
+ * @returns {string}
+ */
+function initiationHeaderXml(agencyId) {
+    if (agencyId === null) return '';
+    return `<InitiationHeader>
+      <FromAgencyId><AgencyId>${agencyId}</AgencyId></FromAgencyId>
+    </InitiationHeader>`;
+}
+
+/**
+ * @param {number|string|null} userId
+ * @returns {string}
+ */
+function optionalUserIdXml(userId) {
+    if (userId === null) return '';
+    return `<UserId><UserIdentifierValue>${userId}</UserIdentifierValue></UserId>`;
+}
+
 /** Build NCIP CheckInItem XML body. */
-function checkInItemXml(loanId) {
+function checkInItemXml(itemId, userId = null, agencyId = null) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <NCIPMessage xmlns="${NCIP_NS}"
              ncip:version="http://www.niso.org/schemas/ncip/v2_02/ncip_v2_02.xsd"
              xmlns:ncip="${NCIP_NS}">
   <CheckInItem>
+    ${initiationHeaderXml(agencyId)}
+    ${optionalUserIdXml(userId)}
     <ItemId>
-      <ItemIdentifierValue>${loanId}</ItemIdentifierValue>
+      <ItemIdentifierValue>${itemId}</ItemIdentifierValue>
     </ItemId>
   </CheckInItem>
 </NCIPMessage>`;
 }
 
 /** Build NCIP RenewItem XML body. */
-function renewItemXml(loanId) {
+function renewItemXml(itemId, userId = null, agencyId = null) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <NCIPMessage xmlns="${NCIP_NS}"
              ncip:version="http://www.niso.org/schemas/ncip/v2_02/ncip_v2_02.xsd"
              xmlns:ncip="${NCIP_NS}">
   <RenewItem>
+    ${initiationHeaderXml(agencyId)}
+    ${optionalUserIdXml(userId)}
     <ItemId>
-      <ItemIdentifierValue>${loanId}</ItemIdentifierValue>
+      <ItemIdentifierValue>${itemId}</ItemIdentifierValue>
     </ItemId>
   </RenewItem>
+</NCIPMessage>`;
+}
+
+/** Build NCIP CancelRequestItem XML body. */
+function cancelRequestItemXml(itemId, userId = null, agencyId = null) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<NCIPMessage xmlns="${NCIP_NS}"
+             ncip:version="http://www.niso.org/schemas/ncip/v2_02/ncip_v2_02.xsd"
+             xmlns:ncip="${NCIP_NS}">
+  <CancelRequestItem>
+    ${initiationHeaderXml(agencyId)}
+    ${optionalUserIdXml(userId)}
+    <ItemId>
+      <ItemIdentifierValue>${itemId}</ItemIdentifierValue>
+    </ItemId>
+  </CancelRequestItem>
 </NCIPMessage>`;
 }
 
@@ -235,12 +407,20 @@ function ncipPost(request, body, auth = null) {
     return request.post(`${BASE}/ncip`, { data: body, headers });
 }
 
+/** Remove NCIP namespace declarations while leaving the request structure intact. */
+function withoutNcipNamespace(xml) {
+    return xml
+        .replace(` xmlns="${NCIP_NS}"`, '')
+        .replace(`\n             ncip:version="http://www.niso.org/schemas/ncip/v2_02/ncip_v2_02.xsd"`, '')
+        .replace(`\n             xmlns:ncip="${NCIP_NS}"`, '');
+}
+
 test.skip(
     !DB_USER || !DB_NAME || !ADMIN_EMAIL || !ADMIN_PASS,
     'Missing E2E env (DB_* and admin credentials)'
 );
 
-test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
+test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (31 tests)', () => {
     /** @type {number} */
     let testBookId = 0;
     /** @type {number} */
@@ -253,6 +433,69 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
     let dedicatedRunId = '';
     /** Track specific prestiti IDs created during these tests for targeted cleanup */
     let createdPrestitiIds = /** @type {number[]} */ ([]);
+    /** Isolated two-copy title used by the hardening regressions. */
+    let hardeningBookId = 0;
+    /** @type {number[]} */
+    let hardeningCopyIds = [];
+    /** @type {number[]} */
+    let hardeningUserIds = [];
+    /** @type {string[]} */
+    let hardeningUserEmails = [];
+    let hardeningPartnerId = 0;
+    let hardeningAgencyId = '';
+
+    /** Remove only loans/transactions belonging to the isolated hardening title. */
+    function resetHardeningLoans() {
+        if (hardeningBookId <= 0) return;
+        dbQuery(
+            `DELETE FROM ncip_transactions
+             WHERE prestito_id IN (SELECT id FROM prestiti WHERE libro_id=${hardeningBookId})`
+        );
+        dbQuery(`DELETE FROM prestiti WHERE libro_id=${hardeningBookId}`);
+        dbQuery(`UPDATE copie SET stato='disponibile' WHERE libro_id=${hardeningBookId}`);
+        dbQuery(`UPDATE libri SET copie_disponibili=copie_totali WHERE id=${hardeningBookId}`);
+    }
+
+    /** Create one real open NCIP loan bound to a dedicated physical copy. */
+    function createHardeningLoan(userId, copyId) {
+        dbQuery(
+            `INSERT INTO prestiti
+                (libro_id, copia_id, utente_id, data_prestito, data_scadenza,
+                 stato, origine, attivo, renewals, created_at, updated_at)
+             VALUES
+                (${hardeningBookId}, ${copyId}, ${userId}, CURDATE(),
+                 DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'in_corso', 'ncip', 1, 0, NOW(), NOW())`
+        );
+        dbQuery(`UPDATE copie SET stato='prestato' WHERE id=${copyId}`);
+        dbQuery(
+            `UPDATE libri
+             SET copie_disponibili=(SELECT COUNT(*) FROM copie WHERE libro_id=${hardeningBookId} AND stato='disponibile')
+             WHERE id=${hardeningBookId}`
+        );
+        return parseInt(dbQuery(
+            `SELECT id FROM prestiti
+             WHERE libro_id=${hardeningBookId} AND copia_id=${copyId} AND origine='ncip'
+             ORDER BY id DESC LIMIT 1`
+        )) || 0;
+    }
+
+    /** Create one pending, copy-less NCIP request for cancellation tests. */
+    function createHardeningRequest(userId) {
+        dbQuery(
+            `INSERT INTO prestiti
+                (libro_id, copia_id, utente_id, data_prestito, data_scadenza,
+                 stato, origine, attivo, renewals, created_at, updated_at)
+             VALUES
+                (${hardeningBookId}, NULL, ${userId}, CURDATE(),
+                 DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'pendente', 'ncip', 0, 0, NOW(), NOW())`
+        );
+        return parseInt(dbQuery(
+            `SELECT id FROM prestiti
+             WHERE libro_id=${hardeningBookId} AND utente_id=${userId}
+               AND origine='ncip' AND attivo=0 AND stato='pendente'
+             ORDER BY id DESC LIMIT 1`
+        )) || 0;
+    }
 
     test.beforeAll(async ({ browser }) => {
         await ensureNcipPlugin(browser);
@@ -301,6 +544,62 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
             "SELECT id FROM utenti ORDER BY id LIMIT 1"
         );
         testUserId = parseInt(userRow) || 0;
+
+        // Dedicated fixtures for the partner/UserId hardening checks. Keeping
+        // them separate from tests 9-20 makes every mutation and cleanup local.
+        const hardeningTag = dedicatedRunId;
+        hardeningAgencyId = `E2E-NCIP-AGENCY-${hardeningTag}`;
+        hardeningUserEmails = [
+            `ncip-hardening-a-${hardeningTag}@example.test`,
+            `ncip-hardening-b-${hardeningTag}@example.test`,
+        ];
+        dbQuery(
+            `INSERT INTO utenti
+                (codice_tessera, nome, cognome, email, password, stato,
+                 tipo_utente, email_verificata, privacy_accettata)
+             VALUES
+                ('NHA${hardeningTag}', 'NCIP', 'Hardening A', '${hardeningUserEmails[0]}', 'not-used', 'attivo', 'standard', 1, 1),
+                ('NHB${hardeningTag}', 'NCIP', 'Hardening B', '${hardeningUserEmails[1]}', 'not-used', 'attivo', 'standard', 1, 1)`
+        );
+        hardeningUserIds = hardeningUserEmails.map((email) => parseInt(dbQuery(
+            `SELECT id FROM utenti WHERE email='${email}' LIMIT 1`
+        )) || 0);
+
+        dbQuery(
+            `INSERT INTO libri (titolo, copie_totali, copie_disponibili, created_at, updated_at)
+             VALUES ('NCIP Hardening Book ${hardeningTag}', 2, 2, NOW(), NOW())`
+        );
+        hardeningBookId = parseInt(dbQuery(
+            `SELECT id FROM libri WHERE titolo='NCIP Hardening Book ${hardeningTag}' ORDER BY id DESC LIMIT 1`
+        )) || 0;
+        dbQuery(
+            `INSERT INTO copie (libro_id, numero_inventario, stato, created_at)
+             VALUES
+                (${hardeningBookId}, 'NCIP-HARD-${hardeningTag}-A', 'disponibile', NOW()),
+                (${hardeningBookId}, 'NCIP-HARD-${hardeningTag}-B', 'disponibile', NOW())`
+        );
+        hardeningCopyIds = ['A', 'B'].map((suffix) => parseInt(dbQuery(
+            `SELECT id FROM copie WHERE numero_inventario='NCIP-HARD-${hardeningTag}-${suffix}' LIMIT 1`
+        )) || 0);
+
+        dbQuery(
+            `INSERT INTO ncip_partners
+                (code, name, agency_id, endpoint_url, isil, active, created_at, updated_at)
+             VALUES
+                ('NCH-${hardeningTag}', 'NCIP Hardening Partner ${hardeningTag}',
+                 '${hardeningAgencyId}', 'https://ncip-hardening.example.test/ncip',
+                 'IT-NCH-${hardeningTag}', 1, NOW(), NOW())`
+        );
+        hardeningPartnerId = parseInt(dbQuery(
+            `SELECT id FROM ncip_partners WHERE code='NCH-${hardeningTag}' LIMIT 1`
+        )) || 0;
+
+        if (hardeningBookId <= 0
+            || hardeningCopyIds.some((id) => id <= 0)
+            || hardeningUserIds.some((id) => id <= 0)
+            || hardeningPartnerId <= 0) {
+            throw new Error('NCIP hardening fixture setup failed');
+        }
     });
 
     // ── Test 1: Plugin registration ──────────────────────────────────────────
@@ -444,11 +743,19 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
         expect(parseInt(result)).toBe(1);
     });
 
-    test('15. ncip_transactions table exists', async () => {
+    test('15. ncip_transactions table and reservation audit relation exist', async () => {
         const result = dbQuery(
             "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ncip_transactions'"
         );
         expect(parseInt(result)).toBe(1);
+        const reservationColumn = dbQuery(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ncip_transactions' AND COLUMN_NAME = 'prenotazione_id'"
+        );
+        expect(parseInt(reservationColumn)).toBe(1);
+        const reservationFk = dbQuery(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ncip_transactions' AND COLUMN_NAME = 'prenotazione_id' AND REFERENCED_TABLE_NAME = 'prenotazioni'"
+        );
+        expect(parseInt(reservationFk)).toBe(1);
     });
 
     test('16. prestiti.ncip_request_id column exists', async () => {
@@ -531,7 +838,427 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
         expect(text).toContain(`<ItemIdentifierValue>${ncipLoanBookId}</ItemIdentifierValue>`);
     });
 
+    // ── Tests 21-26: partner attribution + safe loan resolution ─────────────
+
+    test('21. active partner metadata does not enforce FromAgencyId; one unqualified loan remains resolvable', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+
+        const renewLoanId = createHardeningLoan(hardeningUserIds[0], hardeningCopyIds[0]);
+        const renewRes = await ncipPost(request, renewItemXml(hardeningBookId), auth);
+        expect(renewRes.status()).toBe(200);
+        expect(await renewRes.text()).toContain('RenewItemResponse');
+        expect(dbQuery(
+            `SELECT COALESCE(CAST(partner_id AS CHAR), 'NULL')
+             FROM ncip_transactions
+             WHERE prestito_id=${renewLoanId} AND message_type='RenewItem'
+             ORDER BY id DESC LIMIT 1`
+        )).toBe('NULL');
+
+        resetHardeningLoans();
+        const checkInLoanId = createHardeningLoan(hardeningUserIds[0], hardeningCopyIds[0]);
+        const checkInRes = await ncipPost(request, checkInItemXml(hardeningBookId), auth);
+        expect(checkInRes.status()).toBe(200);
+        expect(await checkInRes.text()).toContain('CheckInItemResponse');
+        expect(dbQuery(`SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${checkInLoanId}`))
+            .toBe('0:restituito');
+    });
+
+    test('22. present malformed/non-positive UserId is invalid-data and never mutates a loan', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const loanId = createHardeningLoan(hardeningUserIds[0], hardeningCopyIds[0]);
+
+        const malformedCheckIn = await ncipPost(
+            request,
+            checkInItemXml(hardeningBookId, 'not-a-user'),
+            auth
+        );
+        expect(malformedCheckIn.status()).toBe(200);
+        const malformedBody = await malformedCheckIn.text();
+        expect(malformedBody).toContain('Problem');
+        expect(malformedBody).toContain('invalid-data');
+
+        const nonPositiveRenew = await ncipPost(
+            request,
+            renewItemXml(hardeningBookId, 0),
+            auth
+        );
+        expect(nonPositiveRenew.status()).toBe(200);
+        const nonPositiveBody = await nonPositiveRenew.text();
+        expect(nonPositiveBody).toContain('Problem');
+        expect(nonPositiveBody).toContain('invalid-data');
+
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato, ':', renewals) FROM prestiti WHERE id=${loanId}`
+        )).toBe('1:in_corso:0');
+    });
+
+    test('23. missing UserId rejects ambiguous CheckIn and Renew without touching either loan', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const firstLoanId = createHardeningLoan(hardeningUserIds[0], hardeningCopyIds[0]);
+        const secondLoanId = createHardeningLoan(hardeningUserIds[1], hardeningCopyIds[1]);
+
+        const ambiguousCheckIn = await ncipPost(request, checkInItemXml(hardeningBookId), auth);
+        expect(ambiguousCheckIn.status()).toBe(200);
+        const checkInBody = await ambiguousCheckIn.text();
+        expect(checkInBody).toContain('invalid-data');
+        expect(checkInBody).toContain('Multiple active loans');
+
+        const ambiguousRenew = await ncipPost(request, renewItemXml(hardeningBookId), auth);
+        expect(ambiguousRenew.status()).toBe(200);
+        const renewBody = await ambiguousRenew.text();
+        expect(renewBody).toContain('invalid-data');
+        expect(renewBody).toContain('Multiple active loans');
+
+        expect(dbQuery(
+            `SELECT COUNT(*) FROM prestiti
+             WHERE id IN (${firstLoanId},${secondLoanId})
+               AND attivo=1 AND stato='in_corso' AND renewals=0`
+        )).toBe('2');
+    });
+
+    test('24. valid UserId selects the right loan and a known FromAgencyId is logged', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const selectedLoanId = createHardeningLoan(hardeningUserIds[0], hardeningCopyIds[0]);
+        const siblingLoanId = createHardeningLoan(hardeningUserIds[1], hardeningCopyIds[1]);
+
+        const res = await ncipPost(
+            request,
+            checkInItemXml(hardeningBookId, hardeningUserIds[0], hardeningAgencyId),
+            auth
+        );
+        expect(res.status()).toBe(200);
+        expect(await res.text()).toContain('CheckInItemResponse');
+        expect(dbQuery(`SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${selectedLoanId}`))
+            .toBe('0:restituito');
+        expect(dbQuery(`SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${siblingLoanId}`))
+            .toBe('1:in_corso');
+        expect(dbQuery(
+            `SELECT partner_id FROM ncip_transactions
+             WHERE prestito_id=${selectedLoanId} AND message_type='CheckInItem'
+             ORDER BY id DESC LIMIT 1`
+        )).toBe(String(hardeningPartnerId));
+    });
+
+    test('25. checkout skips an unreturned date-overdue copy with stale copy status', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+
+        dbQuery(
+            `INSERT INTO prestiti
+                (libro_id, copia_id, utente_id, data_prestito, data_scadenza,
+                 stato, origine, attivo, renewals, created_at, updated_at)
+             VALUES
+                (${hardeningBookId}, ${hardeningCopyIds[0]}, ${hardeningUserIds[0]},
+                 DATE_SUB(CURDATE(), INTERVAL 30 DAY), DATE_SUB(CURDATE(), INTERVAL 2 DAY),
+                 'in_corso', 'ncip', 1, 0, NOW(), NOW())`
+        );
+        // Reproduce legacy drift: the copy cache says available although the
+        // physical loan was never returned. The loan row remains authoritative.
+        dbQuery(`UPDATE copie SET stato='disponibile' WHERE libro_id=${hardeningBookId}`);
+
+        const res = await ncipPost(
+            request,
+            checkOutItemXml(hardeningBookId, hardeningUserIds[1]),
+            auth
+        );
+        expect(res.status()).toBe(200);
+        expect(await res.text()).toContain('CheckOutItemResponse');
+
+        const issued = dbQuery(
+            `SELECT CONCAT(copia_id, ':', stato, ':', attivo)
+             FROM prestiti
+             WHERE libro_id=${hardeningBookId} AND utente_id=${hardeningUserIds[1]}
+             ORDER BY id DESC LIMIT 1`
+        );
+        expect(issued).toBe(`${hardeningCopyIds[1]}:in_corso:1`);
+        expect(dbQuery(
+            `SELECT CONCAT(stato, ':', attivo) FROM prestiti
+             WHERE libro_id=${hardeningBookId} AND utente_id=${hardeningUserIds[0]}
+             ORDER BY id DESC LIMIT 1`
+        )).toBe('in_corso:1');
+    });
+
+    test('26. namespace-free payloads work across every NCIP message handler', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+
+        const lookupItem = await ncipPost(request, withoutNcipNamespace(lookupItemXml(hardeningBookId)));
+        expect(lookupItem.status()).toBe(200);
+        expect(await lookupItem.text()).toContain('LookupItemResponse');
+
+        const lookupUser = await ncipPost(
+            request,
+            withoutNcipNamespace(lookupUserXml(hardeningUserIds[0])),
+            auth
+        );
+        expect(lookupUser.status()).toBe(200);
+        expect(await lookupUser.text()).toContain('LookupUserResponse');
+
+        const checkout = await ncipPost(
+            request,
+            withoutNcipNamespace(checkOutItemXml(hardeningBookId, hardeningUserIds[0])),
+            auth
+        );
+        expect(checkout.status()).toBe(200);
+        expect(await checkout.text()).toContain('CheckOutItemResponse');
+
+        const renew = await ncipPost(
+            request,
+            withoutNcipNamespace(renewItemXml(hardeningBookId, hardeningUserIds[0], hardeningAgencyId)),
+            auth
+        );
+        expect(renew.status()).toBe(200);
+        expect(await renew.text()).toContain('RenewItemResponse');
+
+        const checkin = await ncipPost(
+            request,
+            withoutNcipNamespace(checkInItemXml(hardeningBookId, hardeningUserIds[0], hardeningAgencyId)),
+            auth
+        );
+        expect(checkin.status()).toBe(200);
+        expect(await checkin.text()).toContain('CheckInItemResponse');
+
+        const requestBody = withoutNcipNamespace(`<?xml version="1.0" encoding="UTF-8"?>
+<NCIPMessage xmlns="${NCIP_NS}">
+  <RequestItem>
+    <UserId><UserIdentifierValue>${hardeningUserIds[0]}</UserIdentifierValue></UserId>
+    <ItemId><ItemIdentifierValue>${hardeningBookId}</ItemIdentifierValue></ItemId>
+    <RequestId><RequestIdentifierValue>NSFREE-${dedicatedRunId}</RequestIdentifierValue></RequestId>
+  </RequestItem>
+</NCIPMessage>`);
+        const requestItem = await ncipPost(request, requestBody, auth);
+        expect(requestItem.status()).toBe(200);
+        expect(await requestItem.text()).toContain('RequestItemResponse');
+
+        const cancelBody = withoutNcipNamespace(`<?xml version="1.0" encoding="UTF-8"?>
+<NCIPMessage xmlns="${NCIP_NS}">
+  <CancelRequestItem>
+    <UserId><UserIdentifierValue>${hardeningUserIds[0]}</UserIdentifierValue></UserId>
+    <ItemId><ItemIdentifierValue>${hardeningBookId}</ItemIdentifierValue></ItemId>
+  </CancelRequestItem>
+</NCIPMessage>`);
+        const cancel = await ncipPost(request, cancelBody, auth);
+        expect(cancel.status()).toBe(200);
+        expect(await cancel.text()).toContain('CancelRequestItemResponse');
+    });
+
+    test('27. missing or malformed UserId never cancels an ambiguous pending request', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const firstRequestId = createHardeningRequest(hardeningUserIds[0]);
+        const secondRequestId = createHardeningRequest(hardeningUserIds[1]);
+
+        const ambiguous = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId),
+            auth
+        );
+        expect(ambiguous.status()).toBe(200);
+        const ambiguousBody = await ambiguous.text();
+        expect(ambiguousBody).toContain('Problem');
+        expect(ambiguousBody).toContain('invalid-data');
+        expect(ambiguousBody).toContain('Multiple pending ILL requests');
+
+        const malformed = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId, 'not-a-user'),
+            auth
+        );
+        expect(malformed.status()).toBe(200);
+        const malformedBody = await malformed.text();
+        expect(malformedBody).toContain('Problem');
+        expect(malformedBody).toContain('invalid-data');
+
+        expect(dbQuery(
+            `SELECT COUNT(*) FROM prestiti
+             WHERE id IN (${firstRequestId},${secondRequestId})
+               AND origine='ncip' AND attivo=0 AND stato='pendente'`
+        )).toBe('2');
+    });
+
+    test('28. cancellation targets and reports the resolved pending borrower', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const selectedRequestId = createHardeningRequest(hardeningUserIds[0]);
+        const siblingRequestId = createHardeningRequest(hardeningUserIds[1]);
+
+        const cancel = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId, hardeningUserIds[0]),
+            auth
+        );
+        expect(cancel.status()).toBe(200);
+        expect(await cancel.text()).toContain('CancelRequestItemResponse');
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${selectedRequestId}`
+        )).toBe('0:annullato');
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${siblingRequestId}`
+        )).toBe('0:pendente');
+        expect(dbQuery(
+            `SELECT COUNT(*) FROM ncip_transactions
+             WHERE prestito_id=${selectedRequestId} AND message_type='CancelRequestItem'
+               AND status='success'`
+        )).toBe('1');
+
+        const implicitCancel = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId),
+            auth
+        );
+        expect(implicitCancel.status()).toBe(200);
+        const implicitBody = await implicitCancel.text();
+        expect(implicitBody).toContain('CancelRequestItemResponse');
+        expect(implicitBody).toContain(
+            `<UserIdentifierValue>${hardeningUserIds[1]}</UserIdentifierValue>`
+        );
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${siblingRequestId}`
+        )).toBe('0:annullato');
+
+        // Fail closed on legacy/anomalous pending rows that already own a copy:
+        // cancelling those requires the full copy-release lifecycle, not the
+        // copy-less RequestItem transition implemented by this NCIP message.
+        const unsafeRequestId = createHardeningRequest(hardeningUserIds[1]);
+        const boundCopyId = hardeningCopyIds[1];
+        dbQuery(`UPDATE copie SET stato='prenotato' WHERE id=${boundCopyId}`);
+        dbQuery(`UPDATE prestiti SET copia_id=${boundCopyId} WHERE id=${unsafeRequestId}`);
+        const unsafeCancel = await ncipPost(
+            request,
+            cancelRequestItemXml(hardeningBookId, hardeningUserIds[1]),
+            auth
+        );
+        expect(unsafeCancel.status()).toBe(200);
+        const unsafeBody = await unsafeCancel.text();
+        expect(unsafeBody).toContain('Problem');
+        expect(unsafeBody).toContain('item-not-checked-out');
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato, ':', copia_id)
+             FROM prestiti WHERE id=${unsafeRequestId}`
+        )).toBe(`0:pendente:${boundCopyId}`);
+        expect(dbQuery(`SELECT stato FROM copie WHERE id=${boundCopyId}`)).toBe('prenotato');
+    });
+
+    test('29. cancellation never overwrites a request concurrently approved', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const requestId = createHardeningRequest(hardeningUserIds[0]);
+        const copyId = hardeningCopyIds[0];
+
+        // Keep the approval uncommitted. CancelRequestItem starts against the
+        // previously committed pending version and must wait behind this book
+        // lock; after COMMIT it must see da_ritirare and leave it untouched.
+        const approval = await beginHeldTransaction(
+            `SELECT id FROM libri WHERE id=${hardeningBookId} FOR UPDATE;
+             SELECT id FROM prestiti WHERE id=${requestId} FOR UPDATE;
+             UPDATE copie SET stato='prenotato' WHERE id=${copyId};
+             UPDATE prestiti
+                SET attivo=1, stato='da_ritirare', copia_id=${copyId},
+                    pickup_deadline=DATE_ADD(CURDATE(), INTERVAL 3 DAY), updated_at=NOW()
+              WHERE id=${requestId};`
+        );
+        const response = await finishLockedRace(
+            approval,
+            ncipPost(
+                request,
+                cancelRequestItemXml(hardeningBookId, hardeningUserIds[0]),
+                auth
+            )
+        );
+
+        expect(response.status()).toBe(200);
+        const body = await response.text();
+        expect(body).toContain('Problem');
+        expect(body).toContain('item-not-checked-out');
+        expect(dbQuery(
+            `SELECT CONCAT(attivo, ':', stato, ':', copia_id)
+             FROM prestiti WHERE id=${requestId}`
+        )).toBe(`1:da_ritirare:${copyId}`);
+        expect(dbQuery(`SELECT stato FROM copie WHERE id=${copyId}`)).toBe('prenotato');
+    });
+
+    test('30. CheckIn revalidates the resolved user after acquiring the loan lock', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const loanId = createHardeningLoan(hardeningUserIds[0], hardeningCopyIds[0]);
+
+        const reassignment = await beginHeldTransaction(
+            `SELECT id FROM libri WHERE id=${hardeningBookId} FOR UPDATE;
+             UPDATE prestiti SET utente_id=${hardeningUserIds[1]}, updated_at=NOW()
+              WHERE id=${loanId};`
+        );
+        const response = await finishLockedRace(
+            reassignment,
+            ncipPost(
+                request,
+                checkInItemXml(hardeningBookId),
+                auth
+            )
+        );
+
+        expect(response.status()).toBe(200);
+        expect(await response.text()).toContain('Problem');
+        expect(dbQuery(
+            `SELECT CONCAT(utente_id, ':', attivo, ':', stato)
+             FROM prestiti WHERE id=${loanId}`
+        )).toBe(`${hardeningUserIds[1]}:1:in_corso`);
+        expect(dbQuery(`SELECT stato FROM copie WHERE id=${hardeningCopyIds[0]}`)).toBe('prestato');
+    });
+
+    test('31. Renew revalidates the explicit user after acquiring the loan lock', async ({ request }) => {
+        resetHardeningLoans();
+        const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
+        const loanId = createHardeningLoan(hardeningUserIds[0], hardeningCopyIds[0]);
+        const originalDue = dbQuery(`SELECT data_scadenza FROM prestiti WHERE id=${loanId}`);
+
+        const reassignment = await beginHeldTransaction(
+            `SELECT id FROM libri WHERE id=${hardeningBookId} FOR UPDATE;
+             UPDATE prestiti SET utente_id=${hardeningUserIds[1]}, updated_at=NOW()
+              WHERE id=${loanId};`
+        );
+        const response = await finishLockedRace(
+            reassignment,
+            ncipPost(
+                request,
+                renewItemXml(hardeningBookId, hardeningUserIds[0]),
+                auth
+            )
+        );
+
+        expect(response.status()).toBe(200);
+        const body = await response.text();
+        expect(body).toContain('Problem');
+        expect(body).toContain('item-not-checked-out');
+        expect(dbQuery(
+            `SELECT CONCAT(utente_id, ':', renewals, ':', data_scadenza)
+             FROM prestiti WHERE id=${loanId}`
+        )).toBe(`${hardeningUserIds[1]}:0:${originalDue}`);
+    });
+
     test.afterAll(async () => {
+        // Isolated hardening fixtures (FK-safe and independent from tests 1-20).
+        try { resetHardeningLoans(); } catch { /* best-effort */ }
+        if (hardeningPartnerId > 0) {
+            try { dbQuery(`DELETE FROM ncip_transactions WHERE partner_id=${hardeningPartnerId}`); } catch { /* best-effort */ }
+            try { dbQuery(`DELETE FROM ncip_partners WHERE id=${hardeningPartnerId}`); } catch { /* best-effort */ }
+        }
+        if (hardeningBookId > 0) {
+            try { dbQuery(`DELETE FROM copie WHERE libro_id=${hardeningBookId}`); } catch { /* best-effort */ }
+            try { dbQuery(`DELETE FROM libri WHERE id=${hardeningBookId}`); } catch { /* best-effort */ }
+        }
+        if (hardeningUserIds.length > 0) {
+            const hardeningUserList = hardeningUserIds.join(',');
+            try { dbQuery(`DELETE FROM user_sessions WHERE utente_id IN (${hardeningUserList})`); } catch { /* best-effort */ }
+            try { dbQuery(`DELETE FROM utenti WHERE id IN (${hardeningUserList})`); } catch { /* best-effort */ }
+        } else if (hardeningUserEmails.length > 0) {
+            const quotedEmails = hardeningUserEmails.map((email) => `'${email}'`).join(',');
+            try { dbQuery(`DELETE FROM utenti WHERE email IN (${quotedEmails})`); } catch { /* best-effort */ }
+        }
+
         // Clean up only the specific prestiti IDs created by these tests.
         // This avoids accidentally deleting pre-existing NCIP loans for the same book
         // (e.g. from other test runs that were not fully cleaned up).

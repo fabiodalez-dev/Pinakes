@@ -17,9 +17,9 @@ $check = static function (bool $ok, string $label) use (&$pass, &$fail): void {
 };
 
 $check(
-    str_contains($source, 'createLoanNcip(')
+    str_contains($source, 'createRequestItemNcip(')
         && str_contains($source, '$failureReason'),
-    '01 RequestItem receives a stable failure reason from createLoanNcip'
+    '01 RequestItem receives a stable failure reason from createRequestItemNcip'
 );
 
 foreach ([
@@ -42,7 +42,7 @@ $check(
 foreach (['duplicate', 'ineligible', 'max_loans'] as $reason) {
     $check(
         str_contains($source, "\$failureReason = '{$reason}';"),
-        "createLoanNcip reports {$reason}"
+        "createRequestItemNcip reports {$reason}"
     );
 }
 

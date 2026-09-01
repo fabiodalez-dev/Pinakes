@@ -69,8 +69,15 @@ test.describe.serial('Plugin integrity regression (#101)', () => {
         context = await browser.newContext();
         page = await context.newPage();
         await page.goto(`${BASE}/login`);
-        await page.fill('input[name="email"]', ADMIN_EMAIL);
-        await page.fill('input[name="password"]', ADMIN_PASS);
+        // Wait for the form to be laid out before filling: filling immediately
+        // after goto occasionally races the render and Playwright's fill
+        // auto-verify (toHaveValue) fails on the freshly-loaded field. locator
+        // fills carry a stronger actionability wait than page.fill(selector).
+        await page.waitForLoadState('domcontentloaded');
+        const passwordField = page.locator('input[name="password"]');
+        await page.locator('input[name="email"]').fill(ADMIN_EMAIL);
+        await passwordField.fill(ADMIN_PASS);
+        await expect(passwordField).toHaveValue(ADMIN_PASS);
         await Promise.all([
             page.waitForURL(/\/admin\//, { timeout: 15000 }),
             page.click('button[type="submit"]'),

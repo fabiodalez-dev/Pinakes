@@ -4,7 +4,7 @@
  */
 
 // Recupera il plugin
-$plugin = $GLOBALS['plugins']['api-book-scraper'] ?? null;
+$plugin = $pluginInstance ?? ($GLOBALS['plugins']['api-book-scraper'] ?? null);
 if (!$plugin) {
     echo '<div class="alert alert-error">Errore: Plugin non caricato correttamente.</div>';
     return;
@@ -14,35 +14,48 @@ if (!$plugin) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_api_scraper_settings'])) {
     if (\App\Support\Csrf::validate($_POST['csrf_token'] ?? null)) {
         $settings = [
-            'api_endpoint' => $_POST['api_endpoint'] ?? '',
-            'api_key' => $_POST['api_key'] ?? '',
-            'timeout' => $_POST['timeout'] ?? 10,
-            'enabled' => isset($_POST['enabled']) ? true : false
+            'api_endpoint' => trim((string) ($_POST['api_endpoint'] ?? '')),
+            'timeout' => max(5, min(60, (int) ($_POST['timeout'] ?? 10))),
+            'enabled' => isset($_POST['enabled']),
         ];
 
-        if ($plugin->saveSettings($settings)) {
-            $successMessage = 'Impostazioni salvate correttamente!';
-        } else {
-            $errorMessage = 'Errore nel salvataggio delle impostazioni.';
+        // Only overwrite the stored API key when a new value is submitted;
+        // an empty field means "keep the existing key" (the input renders empty
+        // so the encrypted key is never round-tripped through the form).
+        $submittedKey = trim((string) ($_POST['api_key'] ?? ''));
+        if ($submittedKey !== '') {
+            $settings['api_key'] = $submittedKey;
+        }
+
+        try {
+            if ($plugin->saveSettings($settings)) {
+                $successMessage = __('Impostazioni salvate correttamente!');
+            } else {
+                $errorMessage = __('Errore nel salvataggio delle impostazioni.');
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[ApiBookScraper] settings save failed: ' . $e->getMessage());
+            $errorMessage = __('Errore nel salvataggio delle impostazioni.');
         }
     } else {
-        $errorMessage = 'Token CSRF non valido.';
+        $errorMessage = __('Token CSRF non valido.');
     }
 }
 
 // Test connessione
 $testResult = null;
 if (isset($_POST['test_connection']) && \App\Support\Csrf::validate($_POST['csrf_token'] ?? null)) {
-    $testIsbn = '9788804668619'; // ISBN di test
     // In produzione, qui chiameremmo l'API per testare la connessione
     $testResult = [
         'success' => false,
-        'message' => 'Funzione di test non ancora implementata. Salva le impostazioni e prova a importare un libro.'
+        'message' => __('Test non ancora implementato. Salva le impostazioni e prova a importare un libro.'),
     ];
 }
 
 $currentSettings = $plugin->getSettings();
+$hasApiKey = !empty($currentSettings['api_key']);
 $csrfToken = \App\Support\Csrf::ensureToken();
+$pluginsRoute = htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8');
 ?>
 
 <div class="max-w-4xl mx-auto py-6 px-4 max-sm:!py-3">
@@ -50,10 +63,10 @@ $csrfToken = \App\Support\Csrf::ensureToken();
     <div class="mb-6">
         <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <i class="fas fa-cloud-download-alt text-blue-600"></i>
-            API Book Scraper - Configurazione
+            API Book Scraper - <?= __('Configurazione') ?>
         </h1>
         <p class="text-gray-600 mt-2">
-            Configura il client per il servizio web di scraping dati libri tramite API personalizzata.
+            <?= __('Configura il client per il servizio web di scraping dati libri tramite API personalizzata.') ?>
         </p>
     </div>
 
@@ -61,14 +74,14 @@ $csrfToken = \App\Support\Csrf::ensureToken();
     <?php if (isset($successMessage)): ?>
         <div class="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2">
             <i class="fas fa-check-circle"></i>
-            <span><?php echo htmlspecialchars($successMessage); ?></span>
+            <span><?php echo htmlspecialchars($successMessage, ENT_QUOTES, 'UTF-8'); ?></span>
         </div>
     <?php endif; ?>
 
     <?php if (isset($errorMessage)): ?>
         <div class="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center gap-2">
             <i class="fas fa-exclamation-triangle"></i>
-            <span><?php echo htmlspecialchars($errorMessage); ?></span>
+            <span><?php echo htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8'); ?></span>
         </div>
     <?php endif; ?>
 
@@ -80,7 +93,7 @@ $csrfToken = \App\Support\Csrf::ensureToken();
             : 'bg-yellow-50 border border-yellow-200 text-yellow-800';
         ?>
         <div class="mb-6 <?= $testCssClass ?> px-4 py-3 rounded-lg">
-            <strong>Test Connessione:</strong> <?php echo htmlspecialchars($testResult['message']); ?>
+            <strong><?= __('Test Connessione') ?>:</strong> <?php echo htmlspecialchars($testResult['message'], ENT_QUOTES, 'UTF-8'); ?>
         </div>
     <?php endif; ?>
 
@@ -89,11 +102,11 @@ $csrfToken = \App\Support\Csrf::ensureToken();
         <div class="flex items-start gap-3">
             <i class="fas fa-info-circle text-blue-600 text-xl mt-0.5"></i>
             <div class="flex-1">
-                <h3 class="text-sm font-semibold text-blue-900 mb-2">Informazioni Plugin</h3>
+                <h3 class="text-sm font-semibold text-blue-900 mb-2"><?= __('Informazioni Plugin') ?></h3>
                 <div class="text-xs text-blue-800 space-y-2">
-                    <p><strong>Funzionamento:</strong> Questo plugin si collega a un servizio web esterno per recuperare automaticamente i dati dei libri durante la creazione o modifica.</p>
-                    <p><strong>Priorità:</strong> Ha priorità 3 (più alta di Open Library che ha priorità 5), quindi verrà interrogato per primo.</p>
-                    <p><strong>Sicurezza:</strong> L'API key viene criptata nel database e trasmessa tramite header HTTP sicuro.</p>
+                    <p><strong><?= __('Funzionamento:') ?></strong> <?= __('Questo plugin si collega a un servizio web esterno per recuperare automaticamente i dati dei libri durante la creazione o modifica.') ?></p>
+                    <p><strong><?= __('Priorità:') ?></strong> <?= __('Ha priorità 3 (più alta di Open Library che ha priorità 5), quindi verrà interrogato per primo.') ?></p>
+                    <p><strong><?= __('Sicurezza:') ?></strong> <?= __("L'API key viene criptata nel database e trasmessa tramite header HTTP sicuro.") ?></p>
                 </div>
             </div>
         </div>
@@ -101,14 +114,14 @@ $csrfToken = \App\Support\Csrf::ensureToken();
 
     <!-- Form Impostazioni -->
     <form method="post" class="space-y-6">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 
         <!-- Card Configurazione API -->
         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none">
             <div class="border-b border-gray-200 px-6 py-4">
                 <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <i class="fas fa-cog text-gray-500"></i>
-                    Configurazione API
+                    <?= __('Configurazione API') ?>
                 </h2>
             </div>
             <div class="p-6 space-y-5 max-sm:!p-0">
@@ -116,20 +129,22 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                 <div>
                     <label for="api_endpoint" class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-link mr-1"></i>
-                        URL Endpoint API *
+                        <?= __('URL Endpoint API') ?> *
                     </label>
                     <input type="url"
                            id="api_endpoint"
                            name="api_endpoint"
-                           value="<?php echo htmlspecialchars($currentSettings['api_endpoint']); ?>"
+                           value="<?php echo htmlspecialchars($currentSettings['api_endpoint'], ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 font-mono"
                            placeholder="https://api.example.com/books/{isbn}"
                            required>
                     <p class="mt-2 text-xs text-gray-600">
                         <i class="fas fa-lightbulb mr-1"></i>
-                        <strong>Suggerimento:</strong> Usa <code class="bg-gray-100 px-2 py-0.5 rounded">{isbn}</code> come placeholder per l'ISBN.
-                        Esempio: <code class="bg-gray-100 px-2 py-0.5 rounded">https://api.example.com/books/{isbn}</code>
-                        oppure <code class="bg-gray-100 px-2 py-0.5 rounded">https://api.example.com/books/search</code> (ISBN verrà aggiunto come parametro ?isbn=...)
+                        <strong><?= __('Suggerimento:') ?></strong>
+                        <?= __("Usa il segnaposto {isbn} nell'URL; in alternativa l'ISBN sarà aggiunto come parametro ?isbn=...") ?>
+                    </p>
+                    <p class="mt-1 text-xs text-gray-500 font-mono break-all">
+                        https://api.example.com/books/{isbn}
                     </p>
                 </div>
 
@@ -137,25 +152,29 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                 <div>
                     <label for="api_key" class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-key mr-1"></i>
-                        API Key *
+                        <?= __('API Key') ?> *
                     </label>
                     <div class="relative">
                         <input type="password"
                                id="api_key"
                                name="api_key"
-                               value="<?php echo htmlspecialchars($currentSettings['api_key']); ?>"
+                               value=""
                                class="block w-full rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 font-mono pr-24"
-                               placeholder="your-api-key-here"
-                               required>
+                               placeholder="<?= $hasApiKey ? htmlspecialchars(__('Chiave configurata — lascia vuoto per mantenere'), ENT_QUOTES, 'UTF-8') : 'your-api-key-here' ?>"
+                               <?= $hasApiKey ? '' : 'required' ?>>
                         <button type="button"
                                 onclick="togglePasswordVisibility('api_key')"
+                                aria-label="<?= htmlspecialchars(__('Mostra/nascondi chiave'), ENT_QUOTES, 'UTF-8') ?>"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                             <i class="fas fa-eye" id="api_key_icon"></i>
                         </button>
                     </div>
+                    <?php if ($hasApiKey): ?>
+                        <span class="text-xs text-green-600 mt-1"><i class="fas fa-check-circle"></i> <?= htmlspecialchars(__('Chiave configurata'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php endif; ?>
                     <p class="mt-2 text-xs text-gray-600">
                         <i class="fas fa-shield-alt mr-1"></i>
-                        L'API key viene criptata con AES-256-GCM prima di essere salvata nel database.
+                        <?= __("L'API key viene criptata con AES-256-GCM prima di essere salvata nel database.") ?>
                     </p>
                 </div>
 
@@ -163,7 +182,7 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                 <div>
                     <label for="timeout" class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-clock mr-1"></i>
-                        Timeout Richiesta (secondi)
+                        <?= __('Timeout Richiesta (secondi)') ?>
                     </label>
                     <div class="flex items-center gap-4">
                         <input type="number"
@@ -171,12 +190,12 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                                name="timeout"
                                min="5"
                                max="60"
-                               value="<?php echo htmlspecialchars($currentSettings['timeout']); ?>"
+                               value="<?php echo htmlspecialchars((string) $currentSettings['timeout'], ENT_QUOTES, 'UTF-8'); ?>"
                                class="block w-32 rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 text-center">
-                        <span class="text-sm text-gray-600">secondi (min: 5, max: 60)</span>
+                        <span class="text-sm text-gray-600"><?= __('secondi (min: 5, max: 60)') ?></span>
                     </div>
                     <p class="mt-2 text-xs text-gray-600">
-                        Tempo massimo di attesa per la risposta dell'API. Consigliato: 10 secondi.
+                        <?= __("Tempo massimo di attesa per la risposta dell'API. Consigliato: 10 secondi.") ?>
                     </p>
                 </div>
 
@@ -192,10 +211,10 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                         <div>
                             <span class="text-sm font-semibold text-gray-900">
                                 <i class="fas fa-power-off mr-1"></i>
-                                Abilita Plugin
+                                <?= __('Abilita Plugin') ?>
                             </span>
                             <p class="text-xs text-gray-600 mt-1">
-                                Quando abilitato, il plugin interrogherà l'API durante l'importazione dati libri.
+                                <?= __("Quando abilitato, il plugin interrogherà l'API durante l'importazione dati libri.") ?>
                             </p>
                         </div>
                     </label>
@@ -210,7 +229,7 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                     value="1"
                     class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
                 <i class="fas fa-save"></i>
-                Salva Impostazioni
+                <?= __('Salva Impostazioni') ?>
             </button>
 
             <button type="submit"
@@ -218,13 +237,13 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                     value="1"
                     class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-300 transition-colors">
                 <i class="fas fa-vial"></i>
-                Test Connessione
+                <?= __('Test Connessione') ?>
             </button>
 
-            <a href="<?= htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8') ?>"
+            <a href="<?= $pluginsRoute ?>"
                class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 transition-colors">
                 <i class="fas fa-arrow-left"></i>
-                Torna ai Plugin
+                <?= __('Torna ai Plugin') ?>
             </a>
         </div>
     </form>
@@ -235,14 +254,14 @@ $csrfToken = \App\Support\Csrf::ensureToken();
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <i class="fas fa-book text-gray-500"></i>
-                    Guida Rapida
+                    <?= __('Guida Rapida') ?>
                 </h2>
                 <i class="fas fa-chevron-down text-gray-400 transition-transform" id="quick-docs-icon"></i>
             </div>
         </div>
         <div id="quick-docs-content" class="p-6 space-y-4 max-sm:!p-0">
             <div>
-                <h3 class="text-sm font-semibold text-gray-900 mb-2">1. Formato Richiesta</h3>
+                <h3 class="text-sm font-semibold text-gray-900 mb-2">1. <?= __('Formato Richiesta') ?></h3>
                 <div class="bg-gray-900 rounded-lg p-4 text-sm font-mono text-green-400">
                     GET {api_endpoint}?isbn={ISBN}<br>
                     Header: X-API-Key: {api_key}
@@ -250,7 +269,7 @@ $csrfToken = \App\Support\Csrf::ensureToken();
             </div>
 
             <div>
-                <h3 class="text-sm font-semibold text-gray-900 mb-2">2. Formato Risposta JSON (Campi Supportati)</h3>
+                <h3 class="text-sm font-semibold text-gray-900 mb-2">2. <?= __('Formato Risposta JSON (Campi Supportati)') ?></h3>
                 <div class="bg-gray-900 rounded-lg p-4 text-sm font-mono text-green-400 overflow-x-auto">
 {<br>
   &nbsp;&nbsp;"success": true,<br>
@@ -273,17 +292,17 @@ $csrfToken = \App\Support\Csrf::ensureToken();
 }
                 </div>
                 <p class="mt-2 text-xs text-gray-600">
-                    <strong>Nota:</strong> Tutti i campi sono opzionali. Il plugin userà solo i campi presenti nella risposta.
+                    <strong><?= __('Nota:') ?></strong> <?= __('Tutti i campi sono opzionali. Il plugin userà solo i campi presenti nella risposta.') ?>
                 </p>
             </div>
 
             <div>
-                <h3 class="text-sm font-semibold text-gray-900 mb-2">3. Codici Risposta HTTP</h3>
+                <h3 class="text-sm font-semibold text-gray-900 mb-2">3. <?= __('Codici Risposta HTTP') ?></h3>
                 <ul class="text-sm text-gray-700 space-y-1 list-disc pl-5">
-                    <li><code class="bg-gray-100 px-2 py-0.5 rounded">200 OK</code> - Libro trovato, dati restituiti</li>
-                    <li><code class="bg-gray-100 px-2 py-0.5 rounded">404 Not Found</code> - ISBN non trovato nel database</li>
-                    <li><code class="bg-gray-100 px-2 py-0.5 rounded">401 Unauthorized</code> - API key non valida</li>
-                    <li><code class="bg-gray-100 px-2 py-0.5 rounded">500 Server Error</code> - Errore server</li>
+                    <li><code class="bg-gray-100 px-2 py-0.5 rounded">200 OK</code> - <?= __('Libro trovato, dati restituiti') ?></li>
+                    <li><code class="bg-gray-100 px-2 py-0.5 rounded">404 Not Found</code> - <?= __('ISBN non trovato nel database') ?></li>
+                    <li><code class="bg-gray-100 px-2 py-0.5 rounded">401 Unauthorized</code> - <?= __('API key non valida') ?></li>
+                    <li><code class="bg-gray-100 px-2 py-0.5 rounded">500 Server Error</code> - <?= __('Errore server') ?></li>
                 </ul>
             </div>
 
@@ -291,8 +310,8 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                 <div class="flex items-start gap-2">
                     <i class="fas fa-book-open text-yellow-600 mt-0.5"></i>
                     <div class="text-xs text-yellow-800">
-                        <strong>Documentazione Completa:</strong>
-                        Per la guida completa su come implementare il server API, consulta il file
+                        <strong><?= __('Documentazione Completa:') ?></strong>
+                        <?= __('Per la guida completa su come implementare il server API, consulta il file') ?>
                         <code class="bg-yellow-100 px-2 py-0.5 rounded">storage/plugins/api-book-scraper/SERVER_IMPLEMENTATION_GUIDE.md</code>
                     </div>
                 </div>

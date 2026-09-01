@@ -54,6 +54,16 @@ test.describe.serial('GoodLib custom domains', () => {
     await page.goto(`${BASE_URL}/admin/plugins`);
     await page.getByRole('button', { name: 'Configura Fonti' }).click();
 
+    // Make the test self-contained: the sources + visibility checkboxes reflect
+    // the plugin's stored (encrypted) settings, which are shared state a prior
+    // run may have left disabled. Enable them explicitly so the badges render —
+    // this is also the real operator flow (tick the sources, then set domains).
+    await page.locator('#goodlib_anna').check();
+    await page.locator('#goodlib_zlib').check();
+    await page.locator('#goodlib_gutenberg').check();
+    await page.locator('#goodlib_frontend').check();
+    await page.locator('#goodlib_admin').check();
+
     await expect(page.locator('#goodlib_anna_domain_select option')).toHaveCount(4);
     await expect(page.locator('#goodlib_zlib_domain_select option')).toHaveCount(7);
 

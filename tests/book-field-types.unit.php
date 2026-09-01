@@ -194,16 +194,29 @@ foreach (['disponibile', 'prestato', 'prenotato', 'in_ritardo', 'danneggiato', '
 eq('In Trasferimento', translate_book_status('in_trasferimento'), 'B7 unknown status is humanized without underscores');
 
 /* =========================================================================
- * C. updateBasic() leaves the DERIVED libri.stato alone when not submitted
+ * C. DERIVED availability fields are not caller-writable
  * ======================================================================= */
-$id = $mk(['stato' => 'prestato']); // seed a concrete state
-eq('prestato', $col($id, 'stato'), 'C1 seed: book created with stato=prestato');
+$id = $mk(['stato' => 'prestato', 'copie_disponibili' => 0]);
+eq('disponibile', $col($id, 'stato'), 'C1 createBasic ignores a submitted derived stato');
+eq(1, $col($id, 'copie_disponibili'), 'C2 createBasic derives initial availability from requested physical copies');
 
 $repo->updateBasic($id, ['titolo' => 'ZZ_BFT_renamed_' . bin2hex(random_bytes(3))]);
-eq('prestato', $col($id, 'stato'), 'C2 updateBasic without a stato key leaves the derived stato untouched');
+eq('disponibile', $col($id, 'stato'), 'C3 updateBasic without a stato key leaves the derived stato untouched');
 
-// Sanity: the update actually happened (title changed) — proves C2 isn't a no-op update.
-check(str_starts_with((string) $col($id, 'titolo'), 'ZZ_BFT_renamed_'), 'C3 updateBasic did persist the other fields');
+// Sanity: the update actually happened (title changed) — proves C3 isn't a no-op update.
+check(str_starts_with((string) $col($id, 'titolo'), 'ZZ_BFT_renamed_'), 'C4 updateBasic did persist the other fields');
+
+$totalBefore = $col($id, 'copie_totali');
+$availableBefore = $col($id, 'copie_disponibili');
+$repo->updateBasic($id, [
+    'titolo' => 'ZZ_BFT_derived_guard_' . bin2hex(random_bytes(3)),
+    'stato' => 'prestato',
+    'copie_totali' => 9999,
+    'copie_disponibili' => 9999,
+]);
+eq('disponibile', $col($id, 'stato'), 'C5 updateBasic ignores a submitted derived stato');
+eq($totalBefore, $col($id, 'copie_totali'), 'C6 updateBasic ignores submitted copie_totali');
+eq($availableBefore, $col($id, 'copie_disponibili'), 'C7 updateBasic ignores submitted copie_disponibili');
 
 /* -------- done -------- */
 bftCleanup($db);

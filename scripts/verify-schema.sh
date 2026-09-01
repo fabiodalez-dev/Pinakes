@@ -33,6 +33,7 @@ TESTS=(
   tests/plugin-schema-expectations-static.unit.php
   tests/plugin-schema-guard.unit.php
   tests/plugin-schema-selfheal.unit.php
+  tests/plugin-schema-selfheal-fkcol.unit.php
 )
 
 # The current release's behavioural migration test, derived from version.json

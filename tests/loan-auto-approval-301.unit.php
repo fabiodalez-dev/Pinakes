@@ -37,6 +37,11 @@ try {
         ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
         : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
     $db->set_charset('utf8mb4');
+    // Production writers bind the application-local date on every
+    // connection (container/cron/scripts bootstrap); the circulation
+    // triggers otherwise fall back to the database's UTC CURRENT_DATE(),
+    // which disagrees with app.timezone between 22:00 and 24:00 UTC.
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: database unreachable — mandatory for this test: {$e->getMessage()}\n");
     exit(1);
@@ -45,6 +50,14 @@ try {
 // Keep email out of the way — approveLoan sends the patron notification; the
 // 'mail' driver never blocks, but we also don't want a stray SMTP config to hang.
 $db->query("UPDATE system_settings SET setting_value='mail' WHERE category='email' AND setting_key IN ('driver_mode','type')");
+
+// Make the email outcome DETERMINISTIC: sendWithRetry() short-circuits on
+// Mailer::isSmtpReachable(), so seeding the cached probe with `false` makes the
+// approval email fail identically everywhere (CI runners have no sendmail; dev
+// machines may have one). The pickup-claim assertion below (09b) then tests the
+// release contract instead of depending on the host's mail transport.
+$smtpProbe = new ReflectionProperty(\App\Support\Mailer::class, 'smtpReachable');
+$smtpProbe->setValue(null, false);
 
 $run = substr(hash('sha256', uniqid((string) getmypid(), true)), 0, 10);
 $titlePrefix = 'ZZAUTO301_' . $run;
@@ -209,6 +222,27 @@ $check($loanField($loanOn, 'pickup_deadline') !== null, '08 auto-approved immedi
 // 09 — reuses the pipeline: a copy is locked/assigned and the loan is activated.
 $check((int) $loanField($loanOn, 'attivo') === 1 && $loanField($loanOn, 'copia_id') !== null,
     '09 auto-approval assigns a physical copy and activates the loan (canonical pipeline)');
+// 09b — the pre-commit pickup claim must be SETTLED after the approval email
+// attempt. The mailer is forced unreachable above, so the approval email
+// deterministically fails: the claim taken before commit must then be
+// RELEASED (sent=0, no dangling token) so the retry sweep can still deliver
+// the missing announcement — a dangling claim would silently lose it forever.
+// (When the email succeeds in production the claim stays sent=1 with the
+// token cleared; that branch needs a deliverable transport and cannot be
+// asserted portably here.)
+// Le colonne di claim arrivano con la migrazione 0.7.64: garantiscile prima
+// di leggerle, altrimenti su un DB non aggiornato $loanField() solleva
+// "Unknown column" (MYSQLI_REPORT_STRICT) invece di un FAIL descrittivo.
+if (!\App\Support\PickupNotificationSchema::ensure($db)) {
+    fwrite(STDERR, "FAIL: 09b requires the pickup_notification_* columns on prestiti (migration 0.7.64)\n");
+    $cleanup();
+    exit(1);
+}
+$check(
+    (int) $loanField($loanOn, 'pickup_notification_sent') === 0
+        && $loanField($loanOn, 'pickup_notification_claim_token') === null,
+    '09b immediate auto-approval claims the pickup announcement before a retry sweep can duplicate it'
+);
 
 // 10 — ON but no available copy: must not force-approve; request stays pending.
 $setAuto('1');

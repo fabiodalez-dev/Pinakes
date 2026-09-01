@@ -164,6 +164,7 @@ class LoanApprovalController
             }
         }
         $loanId = (int) ($data['loan_id'] ?? 0);
+        $automaticApproval = (bool) $request->getAttribute('automatic_loan_approval', false);
 
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
@@ -171,19 +172,19 @@ class LoanApprovalController
         }
 
         try {
-            $db->begin_transaction();
-
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
-            // Determiniamo il libro del prestito con una lettura NON bloccante, poi
-            // acquisiamo i lock nell'ordine libri -> prestiti come tutti gli altri
-            // entry point, evitando deadlock da lock-order inversion.
+            // Determiniamo il libro del prestito con una lettura NON bloccante PRIMA
+            // di aprire la transazione (lock-first, come update()/renew()): sotto
+            // REPEATABLE READ la read view nasce alla prima consistent read della
+            // transazione, e farla nascere prima del lock renderebbe ogni SELECT
+            // non bloccante successiva cieca ai commit concorrenti avvenuti mentre
+            // aspettavamo il lock del libro.
             $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
             $bookLookup->bind_param('i', $loanId);
             $bookLookup->execute();
             $bookRow = $bookLookup->get_result()->fetch_assoc();
             $bookLookup->close();
             if (!$bookRow) {
-                $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'message' => __('Prestito non trovato o già processato')
@@ -192,8 +193,26 @@ class LoanApprovalController
             }
             $libroId = (int) $bookRow['libro_id'];
 
+            // Runtime compatibility for installations that have not applied
+            // 0.7.64 yet. Run any self-healing DDL before begin_transaction():
+            // ALTER TABLE would otherwise implicitly commit the circulation
+            // transaction. If the DB user cannot ALTER, approval still works;
+            // only the pre-commit email claim is temporarily unavailable.
+            $notificationService = new \App\Support\NotificationService($db);
+            $pickupNotificationSchemaAvailable = \App\Support\PickupNotificationSchema::ensure($db);
+            $pickupNotificationClaimAvailable = $automaticApproval && $pickupNotificationSchemaAvailable;
+            $pickupNotificationClaimToken = null;
+            $pickupNotificationResetSql = $pickupNotificationSchemaAvailable
+                ? ", pickup_notification_sent = 0,
+                     pickup_notification_claim_token = NULL,
+                     pickup_notification_last_attempt_at = NULL"
+                : '';
+
+            $db->begin_transaction();
+
             // Lock della riga `libri` PRIMA — serializza anche le approvazioni dello
-            // stesso libro (CONC-03).
+            // stesso libro (CONC-03) — ed è la PRIMA statement della transazione,
+            // così la read view viene creata solo a lock acquisito (post-competitor).
             $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
@@ -241,6 +260,20 @@ class LoanApprovalController
             // DateHelper::today() incapsula già i fallback sul timezone (M9).
             $today = DateHelper::today();
 
+            // BUG8/D13 parity con activateScheduledLoans: una richiesta la cui
+            // finestra è interamente trascorsa non è approvabile. Senza questa
+            // guardia nascerebbe un 'da_ritirare' con deadline già passata (mai
+            // ritirabile) e, con :fine nel passato, i predicati di overlap sotto
+            // diventerebbero ciechi ai prestiti correnti.
+            if ($dataScadenza !== null && $dataScadenza !== '' && $dataScadenza < $today) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('La finestra richiesta è già trascorsa: aggiorna le date del prestito prima di approvarlo')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             $utenteId = (int) $loan['utente_id'];
 
             // M7 — gate di idoneità anche in APPROVAZIONE: l'utente può essere
@@ -264,20 +297,11 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
             }
 
-            $dupStmt = $db->prepare("
-                SELECT id FROM prestiti
-                WHERE libro_id = ? AND utente_id = ? AND id != ?
-                AND (
-                    (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-                    OR (attivo = 0 AND stato = 'pendente')
-                )
-                LIMIT 1
-            ");
-            $dupStmt->bind_param('iii', $libroId, $utenteId, $loanId);
-            $dupStmt->execute();
-            $hasActiveDuplicate = $dupStmt->get_result()->num_rows > 0;
-            $dupStmt->close();
-            if ($hasActiveDuplicate) {
+            // Approval atomically assigns a locked physical copy below, so the
+            // opt-in multiplicity policy may coexist with other copy-bound loans.
+            // Sibling pending/copyless rows remain blocking in every mode.
+            $multiplicityPolicy = new \App\Support\LoanMultiplicityPolicy($db);
+            if ($multiplicityPolicy->hasBlockingLoan($libroId, $utenteId, true, $loanId)) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -285,6 +309,7 @@ class LoanApprovalController
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
             }
+            $borrowerCommittedCopyIds = $multiplicityPolicy->committedCopyIds($libroId, $utenteId, $loanId);
 
             $dupReservationStmt = $db->prepare("
                 SELECT id
@@ -361,24 +386,31 @@ class LoanApprovalController
             // If loan already has a valid assigned copy, we can skip global slot counting
             $selectedCopy = null;
 
-            if ($existingCopiaId !== null) {
+            if ($existingCopiaId !== null && !in_array($existingCopiaId, $borrowerCommittedCopyIds, true)) {
+                // Solo copie in sede ('disponibile'/'prenotato') e appartenenti al
+                // libro del prestito: una copia_id corrotta o una copia 'prestato'
+                // (fuori con un altro prestito) non è assegnabile in approvazione.
+                // #366 residual: un 'in_corso' scaduto per data ma non ancora
+                // flippato dal cron è la stessa copia non rientrata — bloccante
+                // come 'in_ritardo' (stesso ramo di CapacityService).
                 $existingCopyStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.id = ?
+                    AND c.libro_id = ?
                     AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.id != ?
                         AND p.data_prestito <= ?
-                        AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                        AND (p.stato = 'in_ritardo' OR (p.stato = 'in_corso' AND p.data_scadenza < ?) OR p.data_scadenza >= ?)
                         AND (
                             (p.attivo = 1 AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                         )
                     )
                 ");
-                $existingCopyStmt->bind_param('iiss', $existingCopiaId, $loanId, $dataScadenza, $dataPrestito);
+                $existingCopyStmt->bind_param('iiisss', $existingCopiaId, $libroId, $loanId, $dataScadenza, $today, $dataPrestito);
                 $existingCopyStmt->execute();
                 $existingCopyResult = $existingCopyStmt->get_result();
                 $selectedCopy = $existingCopyResult ? $existingCopyResult->fetch_assoc() : null;
@@ -388,10 +420,12 @@ class LoanApprovalController
             // Step 2: If no valid pre-assigned copy, check global availability and find a new copy
             if (!$selectedCopy) {
                 // The pending row does not occupy capacity unless it already has a
-                // copy (handled above). Use the canonical per-day peak gate instead
-                // of summing all intervals that merely touch the requested range.
+                // copy (handled above). Check the whole horizon through the requested
+                // end, not only the requested window: a fully occupied earlier day
+                // means this loan would depend on a preceding loan/reservation being
+                // collected and returned on time, which is the bypass fixed by #384.
                 $capacity = new \App\Services\CapacityService($db);
-                if (!$capacity->hasFreeCapacity($libroId, $dataPrestito, $dataScadenza, excludePrestitoId: $loanId)) {
+                if (!$capacity->hasFreeCapacity($libroId, $today, $dataScadenza, excludePrestitoId: $loanId)) {
                     $db->rollback();
                     $response->getBody()->write(json_encode([
                         'success' => false,
@@ -407,39 +441,77 @@ class LoanApprovalController
                     WHERE c.libro_id = ?
                     AND c.stato IN ('disponibile', 'prenotato')
                     AND NOT EXISTS (
+                        SELECT 1 FROM prestiti own
+                        WHERE own.copia_id = c.id
+                        AND own.libro_id = ?
+                        AND own.utente_id = ?
+                        AND own.id != ?
+                        AND (
+                            (own.attivo = 0 AND own.stato = 'pendente')
+                            OR (own.attivo = 1 AND own.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                        )
+                    )
+                    AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.data_prestito <= ?
-                        AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
+                        AND (p.stato = 'in_ritardo' OR (p.stato = 'in_corso' AND p.data_scadenza < ?) OR p.data_scadenza >= ?)
                         AND (
                             (p.attivo = 1 AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                         )
                     )
+                    -- A preference is insufficient: if every candidate has a
+                    -- preceding commitment, ORDER BY would still return the least
+                    -- bad one and recreate #384. Require a copy whose use does not
+                    -- depend on any earlier borrower returning on time.
+                    AND NOT EXISTS (
+                        SELECT 1 FROM prestiti prior
+                        WHERE prior.copia_id = c.id
+                          AND prior.id != ?
+                          AND prior.data_prestito <= ?
+                          AND (
+                              (prior.attivo = 1 AND prior.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                              OR (prior.attivo = 0 AND prior.stato = 'pendente' AND prior.copia_id IS NOT NULL)
+                          )
+                    )
+                    -- #384 (I3): among copies with no PRECEDING dependency, prefer
+                    -- one with no LATER commitment (or whose next one is furthest),
+                    -- so approval never binds the copy a future scheduled loan needs
+                    -- while a free sibling sits idle. Identical ordering to the
+                    -- request gate (findAssignableInLibraryCopyThrough) and the FIFO
+                    -- promotion allocator (ReservationManager) so all three agree.
+                    ORDER BY COALESCE((
+                        SELECT MIN(future.data_prestito)
+                        FROM prestiti future
+                        WHERE future.copia_id = c.id
+                          AND future.data_prestito > ?
+                          AND (
+                              (future.attivo = 1 AND future.stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                              OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL)
+                          )
+                    ), '9999-12-31') DESC,
+                    c.id ASC
                     LIMIT 1
                 ");
-                $overlapStmt->bind_param('iss', $libroId, $dataScadenza, $dataPrestito);
+                $overlapStmt->bind_param('iiiisssiss', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito, $loanId, $dataScadenza, $dataScadenza);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
                 $overlapStmt->close();
             }
 
-            // Step 3: Final fallback using CopyRepository
+            // Step 3: Step 2 is the authoritative allocator. The historical
+            // CopyRepository fallback only repeated a looser date-overlap query;
+            // after #384 it could reintroduce the exact preceding-return candidate
+            // deliberately rejected above.
             if (!$selectedCopy) {
-                // Fallback: try date-aware method to find available copy for the requested period
-                $copyRepo = new \App\Models\CopyRepository($db);
-                $availableCopies = $copyRepo->getAvailableByBookIdForDateRange($libroId, $dataPrestito, $dataScadenza);
-
-                if (empty($availableCopies)) {
-                    $db->rollback();
-                    $response->getBody()->write(json_encode([
-                        'success' => false,
-                        'message' => __('Nessuna copia disponibile per il periodo richiesto')
-                    ]));
-                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-                }
-                $selectedCopy = $availableCopies[0];
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Nessuna copia disponibile per il periodo richiesto')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
             // Lock selected copy and re-check overlap to prevent race
@@ -457,7 +529,8 @@ class LoanApprovalController
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND id != ?
-                AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                AND data_prestito <= ?
+                AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
                 AND (
                     (attivo = 1 AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo'))
                     OR (stato = 'pendente' AND copia_id IS NOT NULL)
@@ -465,7 +538,7 @@ class LoanApprovalController
                 LIMIT 1
                 FOR UPDATE
             ");
-            $overlapCopyStmt->bind_param('iiss', $selectedCopy['id'], $loanId, $dataScadenza, $dataPrestito);
+            $overlapCopyStmt->bind_param('iisss', $selectedCopy['id'], $loanId, $dataScadenza, $today, $dataPrestito);
             $overlapCopyStmt->execute();
             $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
             $overlapCopyStmt->close();
@@ -486,9 +559,25 @@ class LoanApprovalController
             $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
             $copyCheckStmt->close();
 
-            $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
+            // 'prestato' incluso: una copia ancora fuori con un altro prestito
+            // non è assegnabile in approvazione (double-issue, vedi confirmPickup).
+            $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento', 'prestato'];
             if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
-                throw new \RuntimeException(__('Copia non disponibile per il prestito'));
+                // #384: the copy-selection query legitimately hands back a copy
+                // that is physically out ('prestato') when it is assignable for a
+                // date-DISJOINT future window (future scheduling on a currently-out
+                // copy). Flipping such a copy to 'prenotato' now would corrupt the
+                // active loan still holding it, so this terminal check rejects it —
+                // but it must do so with a graceful 400 (the same canonical outcome
+                // as the capacity/overlap gates above), NOT an uncaught throw that
+                // surfaces as HTTP 500 "Internal error during approval". The request
+                // then degrades to pending_approval instead of erroring.
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Nessuna copia disponibile per il periodo richiesto')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
             $copyRepo = new \App\Models\CopyRepository($db);
@@ -500,20 +589,44 @@ class LoanApprovalController
             if ($pickupDeadline !== null) {
                 $stmt = $db->prepare("
                     UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?{$pickupNotificationResetSql}
                     WHERE id = ? AND stato = 'pendente'
                 ");
                 $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $pickupDeadline, $loanId);
             } else {
                 $stmt = $db->prepare("
                     UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL{$pickupNotificationResetSql}
                     WHERE id = ? AND stato = 'pendente'
                 ");
                 $stmt->bind_param('sii', $newState, $selectedCopy['id'], $loanId);
             }
             $stmt->execute();
             $stmt->close();
+
+            // In the immediate auto-approval flow the generic approval email is
+            // also the pickup announcement (#301). Claim it before commit so a
+            // concurrent retry sweep can never send loan_pickup_ready in the
+            // interval between commit and the approval email. A failed send
+            // releases the claim below for the normal retry pipeline.
+            if (!$isFutureLoan && $automaticApproval && $pickupNotificationClaimAvailable) {
+                $pickupNotificationClaimToken = bin2hex(random_bytes(16));
+                $pickupNotificationAttemptedAt = \App\Support\PickupNotificationSchema::claimLeaseWindow()['attemptedAt'];
+                $claimStmt = $db->prepare("
+                    UPDATE prestiti
+                       SET pickup_notification_sent = 1,
+                           pickup_notification_claim_token = ?,
+                           pickup_notification_last_attempt_at = ?
+                    WHERE id = ? AND attivo = 1 AND stato = 'da_ritirare'
+                      AND (pickup_notification_sent IS NULL OR pickup_notification_sent = 0)
+                ");
+                $claimStmt->bind_param('ssi', $pickupNotificationClaimToken, $pickupNotificationAttemptedAt, $loanId);
+                $claimStmt->execute();
+                if ($claimStmt->affected_rows !== 1) {
+                    $pickupNotificationClaimToken = null;
+                }
+                $claimStmt->close();
+            }
 
             // Per 'da_ritirare' e 'prenotato', la copia resta 'prenotato' fino al ritiro
             // La copia diventa 'prestato' SOLO quando si conferma il ritiro
@@ -530,16 +643,57 @@ class LoanApprovalController
             // the approval email in the auto-approval flow; manual immediate
             // approvals retain the more specific pickup-ready notification.
             try {
-                $notificationService = new \App\Support\NotificationService($db);
-                $automaticApproval = (bool) $request->getAttribute('automatic_loan_approval', false);
                 if ($isFutureLoan || $automaticApproval) {
                     // Future loan: send general approval notification
-                    $notificationService->sendLoanApprovedNotification($loanId);
+                    $approvalEmailSent = $notificationService->sendLoanApprovedNotification($loanId);
+                    if (!$isFutureLoan && $pickupNotificationClaimToken !== null && $approvalEmailSent) {
+                        $ownedToken = $pickupNotificationClaimToken;
+                        // Delivery won: a cleanup failure must leave sent=1,
+                        // never re-arm an already delivered announcement.
+                        $pickupNotificationClaimToken = null;
+                        try {
+                            $finalizeClaimStmt = $db->prepare("
+                                UPDATE prestiti SET pickup_notification_claim_token = NULL
+                                WHERE id = ? AND pickup_notification_claim_token = ?
+                            ");
+                            $finalizeClaimStmt->bind_param('is', $loanId, $ownedToken);
+                            $finalizeClaimStmt->execute();
+                            $finalizeClaimStmt->close();
+                        } catch (\Throwable $finalizeError) {
+                            \App\Support\SecureLogger::warning("Failed to finalize auto-approval pickup claim for loan {$loanId}: " . $finalizeError->getMessage());
+                        }
+                    } elseif (!$isFutureLoan && $pickupNotificationClaimToken !== null) {
+                        $releaseClaimStmt = $db->prepare("
+                            UPDATE prestiti
+                               SET pickup_notification_sent = 0,
+                                   pickup_notification_claim_token = NULL
+                             WHERE id = ? AND pickup_notification_claim_token = ?
+                        ");
+                        $releaseClaimStmt->bind_param('is', $loanId, $pickupNotificationClaimToken);
+                        $releaseClaimStmt->execute();
+                        $releaseClaimStmt->close();
+                        $pickupNotificationClaimToken = null;
+                    }
                 } else {
                     // Immediate loan (da_ritirare): send pickup ready notification with deadline
                     $notificationService->sendPickupReadyNotification($loanId);
                 }
             } catch (\Throwable $notifError) {
+                if (!$isFutureLoan && $pickupNotificationClaimToken !== null) {
+                    try {
+                        $releaseClaimStmt = $db->prepare("
+                            UPDATE prestiti
+                               SET pickup_notification_sent = 0,
+                                   pickup_notification_claim_token = NULL
+                             WHERE id = ? AND pickup_notification_claim_token = ?
+                        ");
+                        $releaseClaimStmt->bind_param('is', $loanId, $pickupNotificationClaimToken);
+                        $releaseClaimStmt->execute();
+                        $releaseClaimStmt->close();
+                    } catch (\Throwable $releaseError) {
+                        \App\Support\SecureLogger::error("Failed to release auto-approval pickup claim for loan {$loanId}: " . $releaseError->getMessage());
+                    }
+                }
                 \App\Support\SecureLogger::warning("Approval notification failed for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail the approval if notification fails
             }
@@ -595,29 +749,32 @@ class LoanApprovalController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
+        // Canonical lock order: resolve the book without locking, lock `libri`
+        // first, then lock the pending loan. DataIntegrity locks the same book
+        // during the availability recalculation; taking the loan first here
+        // inverted the order used by approval/return and could deadlock.
+        // Lock-first (MVCC): the lookup runs BEFORE begin_transaction() so the
+        // REPEATABLE READ view is created only after the book lock is acquired —
+        // a plain in-txn read here would freeze a pre-lock snapshot and blind
+        // every later non-locking SELECT to concurrent committed changes.
+        $lookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
+        $lookup->bind_param('i', $loanId);
+        $lookup->execute();
+        $lookupRow = $lookup->get_result()->fetch_assoc();
+        $lookup->close();
+        if (!$lookupRow) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __('Prestito non trovato o già processato')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+        $bookId = (int) $lookupRow['libro_id'];
+
         // Start transaction for the atomic terminal transition + availability update.
         $db->begin_transaction();
 
         try {
-            // Canonical lock order: resolve the book without locking, lock `libri`
-            // first, then lock the pending loan. DataIntegrity locks the same book
-            // during the availability recalculation; taking the loan first here
-            // inverted the order used by approval/return and could deadlock.
-            $lookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
-            $lookup->bind_param('i', $loanId);
-            $lookup->execute();
-            $lookupRow = $lookup->get_result()->fetch_assoc();
-            $lookup->close();
-            if (!$lookupRow) {
-                $db->rollback();
-                $response->getBody()->write(json_encode([
-                    'success' => false,
-                    'message' => __('Prestito non trovato o già processato')
-                ]));
-                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-            }
-            $bookId = (int) $lookupRow['libro_id'];
-
             // NIENTE filtro deleted_at qui né nella JOIN sottostante (eccezione
             // deliberata al soft-delete invariant): rifiutare una richiesta pendente
             // deve funzionare ANCHE se il libro è stato soft-eliminato nel frattempo —
@@ -909,7 +1066,11 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
+                // 'prestato' incluso (P2): una copia ancora 'prestato' è fuori con un
+                // ALTRO prestito aperto (es. predecessore in ritardo non ancora
+                // rientrato) — confermare il ritiro creerebbe due prestiti attivi
+                // sulla stessa copia fisica (double-issue).
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento', 'prestato'];
                 if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
                     // Fail closed: roll back the just-applied 'in_corso' update instead
                     // of committing a loan over a missing/non-lendable copy (BUG7c/D12).
@@ -922,6 +1083,35 @@ class LoanApprovalController
                     ]));
                     return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
                 }
+                // Non fidarsi del solo copie.stato (pre-0.7.62 / dati legacy): la
+                // copia può risultare 'prenotato' mentre un'ALTRA riga aperta la
+                // tiene ancora impegnata. Stesso ricontrollo per-riga usato da
+                // MaintenanceService::activateScheduledLoans.
+                $copyConflictStmt = $db->prepare("
+                    SELECT 1
+                    FROM prestiti
+                    WHERE copia_id = ? AND id <> ?
+                      AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare'))
+                            OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL)
+                            OR (attivo = 1 AND stato = 'prenotato'
+                                AND data_prestito <= ? AND data_scadenza >= ?) )
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $copyConflictStmt->bind_param('iiss', $copiaId, $loanId, $loan['data_scadenza'], $loan['data_prestito']);
+                $copyConflictStmt->execute();
+                $copyHeld = (bool) $copyConflictStmt->get_result()->fetch_row();
+                $copyConflictStmt->close();
+                if ($copyHeld) {
+                    $db->rollback();
+                    \App\Support\SecureLogger::error("[confirmPickup] Loan {$loanId} aborted: copy {$copiaId} held by another open loan row");
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'message' => __('La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.')
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+                }
+
                 $copyRepo = new \App\Models\CopyRepository($db);
                 $copyRepo->updateStatus($copiaId, 'prestato');
             }
@@ -970,7 +1160,12 @@ class LoanApprovalController
             }
         }
         $loanId = (int) ($data['loan_id'] ?? 0);
-        $reason = $data['reason'] ?? __('Ritiro non effettuato');
+        // Stessa normalizzazione di rejectLoan/cancelReservation: un array farebbe
+        // TypeError nel template email, una stringa illimitata finirebbe
+        // integralmente nell'email e nella nota di audit.
+        $reason = $data['reason'] ?? '';
+        $reason = is_scalar($reason) ? trim((string) $reason) : '';
+        $reason = mb_substr($reason, 0, 500);
 
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
@@ -978,19 +1173,21 @@ class LoanApprovalController
         }
 
         try {
-            $db->begin_transaction();
             $today = DateHelper::today();
 
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
-            // Lettura NON bloccante del libro, poi lock nell'ordine libri -> prestiti
-            // come approveLoan/store/renew (M2, niente lock-order inversion).
+            // Lettura NON bloccante del libro PRIMA di begin_transaction() (lock-first,
+            // MVCC): la read view REPEATABLE READ nasce alla prima consistent read in
+            // transazione — se nascesse qui, prima del lock, le SELECT non bloccanti
+            // successive non vedrebbero i commit concorrenti avvenuti durante l'attesa
+            // del lock. Poi lock nell'ordine libri -> prestiti come approveLoan/store/
+            // renew (M2, niente lock-order inversion).
             $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ?");
             $bookLookup->bind_param('i', $loanId);
             $bookLookup->execute();
             $bookRow = $bookLookup->get_result()->fetch_assoc();
             $bookLookup->close();
             if (!$bookRow) {
-                $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'message' => __('Prestito non trovato o non cancellabile')
@@ -998,6 +1195,8 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
             $libroId = (int) $bookRow['libro_id'];
+
+            $db->begin_transaction();
 
             // Lock della riga `libri` SENZA filtro deleted_at: l'annullamento di un
             // ritiro deve sempre poter procedere anche su libro soft-deleted (vedi
@@ -1012,7 +1211,7 @@ class LoanApprovalController
             // Poi lock + ri-verifica del prestito con le guardie di stato.
             // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today
             $stmt = $db->prepare("
-                SELECT id, libro_id, copia_id, utente_id, stato
+                SELECT id, libro_id, copia_id, utente_id, stato, pickup_deadline
                 FROM prestiti
                 WHERE id = ? AND attivo = 1
                 AND (stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= ?))
@@ -1046,13 +1245,41 @@ class LoanApprovalController
 
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
 
-            // Mark loan as expired (not picked up)
+            // #381: a voluntary cancellation before (or on) the pickup deadline
+            // is `annullato`; only an actually elapsed deadline is `scaduto`.
+            // Keeping the two terminal outcomes distinct preserves history and
+            // reporting semantics (annullato = cancelled, scaduto = expired).
+            // Legacy rows without a deadline are necessarily treated as a manual
+            // cancellation because there is no expiry fact to assert.
+            $pickupDeadline = !empty($loan['pickup_deadline']) ? (string) $loan['pickup_deadline'] : null;
+            $terminalState = $pickupDeadline !== null && $pickupDeadline < $today
+                ? 'scaduto'
+                : 'annullato';
+            // The audit note is rendered in the current staff locale. Keep the raw
+            // reason untouched for NotificationService: when it is empty, that
+            // service must translate its fallback in the recipient's locale.
+            $auditReason = $reason !== ''
+                ? $reason
+                : ($terminalState === 'scaduto'
+                    ? __('Ritiro scaduto')
+                    : __('Ritiro annullato'));
+
+            // Audit note + processed_by distinguish the staff action from the
+            // automatic expiry sweep even when the terminal state is scaduto. The
+            // note wording must match the terminal outcome (scaduto vs annullato)
+            // so history reads truthfully.
+            $cancelledBy = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
+            $noteLabel = $terminalState === 'scaduto' ? __('Ritiro scaduto il') : __('Ritiro annullato il');
+            $noteSuffix = "\n[Staff] " . $noteLabel . ' '
+                . implode('/', array_reverse(explode('-', $today))) . ' — ' . $auditReason;
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'scaduto', attivo = 0, pickup_deadline = NULL
+                SET stato = ?, attivo = 0, pickup_deadline = NULL,
+                    processed_by = COALESCE(?, processed_by),
+                    note = CONCAT(COALESCE(note, ''), ?)
                 WHERE id = ?
             ");
-            $updateStmt->bind_param('i', $loanId);
+            $updateStmt->bind_param('sisi', $terminalState, $cancelledBy, $noteSuffix, $loanId);
             $updateStmt->execute();
             $updateStmt->close();
 
@@ -1102,10 +1329,16 @@ class LoanApprovalController
             $reassignmentService->flushDeferredNotifications();
             $reservationManager->flushDeferredNotifications();
 
-            // Send notification to user about cancelled pickup (outside transaction)
+            // Send the notification matching the persisted terminal state. Preserve
+            // the original deadline because the closed row clears pickup_deadline.
             try {
                 $notificationService = new \App\Support\NotificationService($db);
-                $notificationService->sendPickupCancelledNotification($loanId, $reason);
+                $notificationService->sendPickupCancelledNotification(
+                    $loanId,
+                    $reason,
+                    $terminalState,
+                    $pickupDeadline
+                );
             } catch (\Throwable $notifError) {
                 \App\Support\SecureLogger::warning("[cancelPickup] Notification error for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail - cancellation already committed
@@ -1113,7 +1346,9 @@ class LoanApprovalController
 
             $response->getBody()->write(json_encode([
                 'success' => true,
-                'message' => __('Ritiro annullato con successo')
+                'message' => $terminalState === 'scaduto'
+                    ? __('Ritiro scaduto')
+                    : __('Ritiro annullato con successo')
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
@@ -1152,18 +1387,19 @@ class LoanApprovalController
         }
 
         try {
-            $db->begin_transaction();
-
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
-            // Lettura NON bloccante del libro, poi lock nell'ordine libri -> prestiti
-            // come approveLoan/store/renew (M2, niente lock-order inversion).
+            // Lettura NON bloccante del libro PRIMA di begin_transaction() (lock-first,
+            // MVCC): la read view REPEATABLE READ nasce alla prima consistent read in
+            // transazione — anticiparla al pre-lock renderebbe le SELECT non bloccanti
+            // successive (promozione coda, capacity gate) cieche ai commit concorrenti
+            // avvenuti durante l'attesa del lock. Poi lock nell'ordine libri ->
+            // prestiti come approveLoan/store/renew (M2, niente lock-order inversion).
             $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ?");
             $bookLookup->bind_param('i', $loanId);
             $bookLookup->execute();
             $bookRow = $bookLookup->get_result()->fetch_assoc();
             $bookLookup->close();
             if (!$bookRow) {
-                $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'message' => __('Prestito non trovato o non restituibile')
@@ -1171,6 +1407,8 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
             $libroId = (int) $bookRow['libro_id'];
+
+            $db->begin_transaction();
 
             // Lock della riga `libri` SENZA filtro deleted_at: la RESTITUZIONE deve
             // sempre poter procedere anche su libro soft-deleted (vedi il commento in
@@ -1460,7 +1698,26 @@ class LoanApprovalController
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            // Promote the waitlist: an admin-cancelled reservation frees capacity,
+            // and every sibling release path (user cancel, admin edit, reject,
+            // cancelPickup, return) immediately converts the next queued
+            // reservation — cancelReservation was the only one that left the
+            // freed capacity idle until the next maintenance run.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
             $db->commit();
+
+            // Notifiche accodate durante la transazione esterna (P2): inviale ora
+            // che il commit è avvenuto, come fa MaintenanceService.
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $flushError) {
+                \App\Support\SecureLogger::warning("[cancelReservation] Deferred notification flush failed: " . $flushError->getMessage());
+            }
 
             // Notifica all'utente DOPO il commit (M11): try/catch isolato, un errore
             // di invio non deve far fallire l'annullamento già committato.

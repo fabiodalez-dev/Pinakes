@@ -46,8 +46,12 @@ $checkCacheNamespace = static function (
         $keys !== [] && count(array_filter($keys, static fn(string $key): bool => str_starts_with($key, $namespace))) === count($keys),
         "{$label} keys use the {$namespace} namespace"
     );
+    // Either invalidation form targets the namespace: the legacy prefix scan
+    // or the O(1) generation bump (issue #387) — both make every prior entry
+    // in the namespace unservable.
     $check(
-        str_contains($invalidator, "QueryCache::clearByPrefix('{$namespace}')"),
+        str_contains($invalidator, "QueryCache::clearByPrefix('{$namespace}')")
+            || str_contains($invalidator, "QueryCache::bumpGeneration('{$namespace}')"),
         "{$label} invalidator clears the {$namespace} namespace"
     );
 };
@@ -56,6 +60,18 @@ echo "Catalogue cache cardinality:\n";
 $controller = new \App\Controllers\FrontendController();
 $reflection = new ReflectionClass($controller);
 $bounded = $reflection->getMethod('hasBoundedCatalogCacheKey');
+$stripShared = $reflection->getMethod('stripSharedCacheFields');
+$stripped = $stripShared->invoke($controller, [
+    'titolo' => 'Visible',
+    'copie_disponibili' => 1,
+    'search_index' => str_repeat('large-index ', 100),
+    'private_comment' => 'secret',
+    'lending_patron' => 'Patron Name',
+]);
+$check(
+    $stripped === ['titolo' => 'Visible'],
+    'shared public cache excludes live, search-only and privacy-sensitive book columns'
+);
 $base = [
     'search' => '',
     'genere_id' => 0,
@@ -85,6 +101,19 @@ foreach ([
 }
 $frontend = $read('app/Controllers/FrontendController.php');
 $check(!str_contains($frontend, 'QueryCache::remember($cacheKeyGeneri'), 'genre query has no second unbounded per-filter cache');
+$catalogStart = strpos($frontend, 'public function catalog(');
+$catalogApiStart = strpos($frontend, 'public function catalogAPI(');
+$catalogApiEnd = strpos($frontend, 'public function bookDetail(', $catalogApiStart ?: 0);
+$catalogQueries = $catalogStart !== false && $catalogApiStart !== false && $catalogApiEnd !== false
+    ? substr($frontend, $catalogStart, $catalogApiEnd - $catalogStart)
+    : '';
+$check(
+    substr_count($catalogQueries, '$count_query = "SELECT COUNT(*) as total " . $base_query;') === 2
+        && !str_contains($catalogQueries, 'SELECT DISTINCT l.*,')
+        && !str_contains($catalogQueries, 'LEFT JOIN generi gpp')
+        && !str_contains($catalogQueries, 'LEFT JOIN generi sg'),
+    'catalog queries avoid redundant DISTINCT and unused taxonomy joins'
+);
 $availabilityStart = strpos($frontend, '$availabilityLoader = function');
 $availabilityEnd = strpos($frontend, '$available_books = $this->rememberCatalogValue', $availabilityStart ?: 0);
 $availabilityBody = $availabilityStart !== false && $availabilityEnd !== false
@@ -93,6 +122,28 @@ $availabilityBody = $availabilityStart !== false && $availabilityEnd !== false
 $check(
     str_contains($availabilityBody, 'return 0;') && str_contains($availabilityBody, '$available_books = 0;'),
     'available-book DB failures return a cacheable zero instead of repeated null misses'
+);
+$check(
+    str_contains($frontend, 'private function fetchLiveAvailability(mysqli $db, array $ids): ?array')
+        && str_contains($frontend, 'catch (\\Throwable $e)')
+        && str_contains($frontend, 'if ($live === null)')
+        && str_contains($frontend, '_availability_unknown'),
+    'live-availability failures are distinguished from empty results and flag rows for neutral rendering'
+);
+
+$fetchLiveAvailability = $reflection->getMethod('fetchLiveAvailability');
+$mergeLiveAvailability = $reflection->getMethod('mergeLiveAvailability');
+$unavailableDb = new mysqli();
+$failedLiveRead = $fetchLiveAvailability->invoke($controller, $unavailableDb, [42]);
+$cachedCatalogRows = [['id' => 42, 'titolo' => 'Cached title']];
+$preservedRows = $mergeLiveAvailability->invoke($controller, $unavailableDb, $cachedCatalogRows);
+$check($failedLiveRead === null, 'live-availability query exceptions return an explicit failure result');
+$check(
+    count($preservedRows) === 1
+        && (int) ($preservedRows[0]['id'] ?? 0) === 42
+        && ($preservedRows[0]['titolo'] ?? null) === 'Cached title'
+        && !empty($preservedRows[0]['_availability_unknown']),
+    'catalog rows survive a live-availability database outage, flagged for neutral rendering'
 );
 
 echo "\nBehavioural cache contracts:\n";
@@ -125,8 +176,8 @@ $boundedLoader = static function () use (&$boundedCalls): string {
     $boundedCalls++;
     return 'bounded-' . $boundedCalls;
 };
-$firstBounded = $rememberCatalogValue->invoke($controller, $boundedKey, $base, $boundedLoader);
-$secondBounded = $rememberCatalogValue->invoke($controller, $boundedKey, $base, $boundedLoader);
+$firstBounded = $rememberCatalogValue->invoke($controller, $unavailableDb, $boundedKey, $base, $boundedLoader);
+$secondBounded = $rememberCatalogValue->invoke($controller, $unavailableDb, $boundedKey, $base, $boundedLoader);
 $check($firstBounded === 'bounded-1' && $secondBounded === 'bounded-1' && $boundedCalls === 1, 'bounded catalogue state executes its loader once');
 
 $unboundedCalls = 0;
@@ -135,8 +186,8 @@ $unboundedLoader = static function () use (&$unboundedCalls): string {
     return 'unbounded-' . $unboundedCalls;
 };
 $unboundedFilters = array_replace($base, ['search' => $runKey]);
-$firstUnbounded = $rememberCatalogValue->invoke($controller, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
-$secondUnbounded = $rememberCatalogValue->invoke($controller, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
+$firstUnbounded = $rememberCatalogValue->invoke($controller, $unavailableDb, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
+$secondUnbounded = $rememberCatalogValue->invoke($controller, $unavailableDb, 'catalog_' . $runKey . '_unbounded', $unboundedFilters, $unboundedLoader);
 $check($firstUnbounded === 'unbounded-1' && $secondUnbounded === 'unbounded-2' && $unboundedCalls === 2, 'unbounded catalogue state bypasses persistent cache on every call');
 
 // Cross-request caches can be exercised without a live query: pre-seed the
@@ -174,6 +225,23 @@ foreach (array_keys($cacheKeys) as $key) {
 \App\Support\QueryCache::delete($boundedKey);
 \App\Support\QueryCache::delete('catalog_' . $runKey . '_unbounded');
 \App\Support\QueryCache::delete('i18n_languages');
+
+// Generation bumps make old entries unreachable, so delete() can only remove
+// the current generation. Reclaim every fixture from this run explicitly in
+// both possible stores without flushing unrelated application/test entries.
+if (\App\Support\QueryCache::stats()['backend'] === 'apcu' && class_exists('APCUIterator')) {
+    $runPattern = '/^pinakes_.*' . preg_quote($runKey, '/') . '/';
+    foreach (new APCUIterator($runPattern) as $entry) {
+        apcu_delete($entry['key']);
+    }
+}
+$leftovers = glob(__DIR__ . '/../storage/cache/pinakes_*' . $runKey . '*');
+if ($leftovers !== false) {
+    foreach ($leftovers as $leftover) {
+        @unlink($leftover);
+    }
+}
+
 $i18nReflection->getProperty('languagesCache')->setValue(null, null);
 $i18nReflection->getProperty('languagesLoadedFromDb')->setValue(null, false);
 
@@ -193,10 +261,10 @@ $contentCache = $read('app/Support/ContentCache.php');
 $checkCacheNamespace($frontend, 'home_api_count_', 'home_', $contentCache, 'home API counts');
 $check(str_contains($contentCache, 'function deferBooksChanged'), 'transaction-owned writers can defer invalidation');
 $integrity = $read('app/Support/DataIntegrity.php');
-$check(str_contains($integrity, 'ContentCache::deferBooksChanged()'), 'DataIntegrity defers invalidation for outer transactions');
+$check(str_contains($integrity, 'ContentCache::deferAvailabilityChanged()'), 'DataIntegrity defers availability invalidation for outer transactions');
 $check(
-    substr_count($integrity, 'ContentCache::booksChanged()') >= 2,
-    'single and global standalone recalculations invalidate after their commits'
+    substr_count($integrity, 'ContentCache::availabilityChanged()') >= 2,
+    'single and global standalone recalculations invalidate availability after their commits'
 );
 $settingsRepository = $read('app/Models/SettingsRepository.php');
 $check(
@@ -214,6 +282,7 @@ foreach ([
     'app/Models/PublisherRepository.php',
     'app/Models/GenereRepository.php',
     'app/Services/BulkEnrichmentService.php',
+    'app/Controllers/AutoriApiController.php',
     'app/Controllers/LibriApiController.php',
     'app/Controllers/CsvImportController.php',
     'app/Controllers/LibraryThingImportController.php',

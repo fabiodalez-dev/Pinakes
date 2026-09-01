@@ -45,6 +45,7 @@ $csrfToken = Csrf::ensureToken();
             echo match ($_GET['error']) {
                 'invalid_status'   => __('Stato prestito non valido.'),
                 'update_failed'    => __('Si è verificato un errore durante l\'aggiornamento del prestito.'),
+                'concurrent_retry' => __('Un\'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.'),
                 default            => __('Impossibile completare l\'operazione. Riprova più tardi.')
             };
             ?>

@@ -675,6 +675,27 @@ final class OpenApiController
                 ],
             ],
 
+            '/loans/{id}' => [
+                'delete' => [
+                    'tags'        => ['loans'],
+                    'summary'     => 'Cancel own cancellable loan request',
+                    'description' => 'Cancels an owned pending, scheduled, or ready-for-pickup loan (#381). Use this route for ids returned by /me/loans; it is unambiguous even when prestiti and prenotazioni contain the same numeric id.',
+                    'operationId' => 'deleteLoan',
+                    'security'    => [['bearerAuth' => []]],
+                    'parameters'  => [[
+                        'name' => 'id', 'in' => 'path', 'required' => true,
+                        'schema' => ['type' => 'integer'],
+                    ]],
+                    'responses' => [
+                        '200' => ['description' => 'Loan cancelled.', 'content' => $json],
+                        '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '404' => ['$ref' => '#/components/responses/NotFound'],
+                        '409' => ['description' => 'Loan can no longer be cancelled.', 'content' => $json],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+            ],
+
             '/me/wishlist' => [
                 'get' => [
                     'tags'        => ['wishlist'],
@@ -1271,6 +1292,7 @@ final class OpenApiController
                 ],
                 'returned_at' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'renewals'    => ['type' => 'integer', 'nullable' => true],
+                'cancellable' => ['type' => 'boolean', 'description' => 'Presentation hint: true for owned pending, scheduled, or ready-for-pickup rows accepted by DELETE /loans/{id} (since 1.4.4).'],
             ],
         ];
     }

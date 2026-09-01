@@ -15,7 +15,7 @@ declare(strict_types=1);
  * - Optional and fully disableable
  *
  * @package Pinakes\Plugins\DigitalLibrary
- * @version 1.1.0
+ * @version 1.3.2
  */
 class DigitalLibraryPlugin
 {
@@ -129,8 +129,91 @@ class DigitalLibraryPlugin
             ]));
         }
 
+        // Ensure the schema columns exist. Upgrades re-call onActivate() (not
+        // onInstall()) for an already-active plugin, so the schema logic must
+        // run here too — per the project's Plugin Schema Rule.
+        $this->ensureSchema();
+
         // Register hooks in database
         $this->registerHooks();
+    }
+
+    /**
+     * Ensure the digital-content columns exist on `libri`.
+     *
+     * Idempotent (SHOW COLUMNS guards make it safe to call repeatedly) and
+     * called from BOTH onActivate() and onInstall() so the schema is never
+     * skipped on an upgrade of an already-active plugin. Widths match the
+     * canonical installer/database/schema.sql definition (VARCHAR(255)).
+     */
+    private function ensureSchema(): void
+    {
+        if (!$this->db) {
+            return;
+        }
+
+        foreach (self::columnDefs() as $column => $alterSql) {
+            $this->ensureColumn($column, $alterSql);
+        }
+    }
+
+    /**
+     * Single source of truth for the columns digital-library adds to `libri`,
+     * shared by ensureSchema() (which adds them) and expectedColumns() (which
+     * lets PluginManager's boot-time self-heal detect them missing after a
+     * stale-class upgrade). Keep the two in sync via this list.
+     *
+     * @return array<string,string> column => ADD COLUMN DDL
+     */
+    private static function columnDefs(): array
+    {
+        return [
+            'file_url'  => "ALTER TABLE libri ADD COLUMN file_url VARCHAR(255) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie",
+            'audio_url' => "ALTER TABLE libri ADD COLUMN audio_url VARCHAR(255) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url",
+        ];
+    }
+
+    /**
+     * Declared to PluginManager::bundledSchemaIncomplete() so an already-active
+     * digital-library at the same version whose columns are missing (stale-class
+     * admin-UI upgrade) self-heals on the next boot by re-running onActivate.
+     *
+     * @return list<array{table:string, column:string}>
+     */
+    public function expectedColumns(): array
+    {
+        $out = [];
+        foreach (array_keys(self::columnDefs()) as $column) {
+            $out[] = ['table' => 'libri', 'column' => $column];
+        }
+        return $out;
+    }
+
+    /**
+     * Add a column to `libri` if it is missing, failing loudly on any DDL
+     * error. Returning silently would let onActivate() complete with a partial
+     * schema (missing file_url/audio_url), so a later book save then fails.
+     */
+    private function ensureColumn(string $column, string $alterSql): void
+    {
+        if (!$this->db) {
+            return;
+        }
+
+        $result = $this->db->query("SHOW COLUMNS FROM libri LIKE '" . $this->db->real_escape_string($column) . "'");
+        if ($result === false) {
+            $err = "[Digital Library] SHOW COLUMNS for {$column} failed: " . $this->db->error;
+            \App\Support\SecureLogger::error($err);
+            throw new \RuntimeException($err);
+        }
+
+        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
+            if ($this->db->query($alterSql) === false) {
+                $err = "[Digital Library] ALTER TABLE adding {$column} failed: " . $this->db->error;
+                \App\Support\SecureLogger::error($err);
+                throw new \RuntimeException($err);
+            }
+        }
     }
 
     /**
@@ -157,22 +240,8 @@ class DigitalLibraryPlugin
      */
     public function onInstall(): void
     {
-        // Verify database columns exist
-        if (!$this->db) {
-            return;
-        }
-
-        $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'file_url'");
-        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
-            // Add file_url column if missing
-            $this->db->query("ALTER TABLE libri ADD COLUMN file_url VARCHAR(500) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie");
-        }
-
-        $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'audio_url'");
-        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
-            // Add audio_url column if missing
-            $this->db->query("ALTER TABLE libri ADD COLUMN audio_url VARCHAR(500) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url");
-        }
+        // Verify database columns exist (shared idempotent schema logic).
+        $this->ensureSchema();
     }
 
     /**
@@ -428,6 +497,7 @@ class DigitalLibraryPlugin
     public function renderAudioPlayer(array $book): void
     {
         if (!empty($book['audio_url'])) {
+            $this->enqueueAudioPlayerAssets();
             include __DIR__ . '/views/frontend-player.php';
         }
     }
@@ -460,19 +530,37 @@ class DigitalLibraryPlugin
      */
     public function enqueueAssets(): void
     {
-        // Green Audio Player CSS (hosted locally to satisfy CSP)
-        $cssPath = url('/assets/vendor/green-audio-player/css/green-audio-player.min.css');
-        echo '<link rel="stylesheet" href="' . htmlspecialchars($cssPath, ENT_QUOTES, 'UTF-8') . '">' . "\n";
-
-        // Digital Library CSS - only load if file exists in plugin directory
+        // Digital Library CSS carries the digital badges rendered on catalog and
+        // home cards, so it must stay on every frontend page. The Green Audio
+        // Player CSS/JS, by contrast, are needed ONLY where an audiobook actually
+        // renders — those are emitted on demand by renderAudioPlayer() so the
+        // home, catalog and non-audio book pages drop two render-blocking
+        // requests (Lighthouse: render-blocking resources).
         $pluginCssPath = __DIR__ . '/assets/css/digital-library.css';
         if (file_exists($pluginCssPath)) {
             echo '<link rel="stylesheet" href="' . htmlspecialchars(url('/plugins/digital-library/assets/css/digital-library.css'), ENT_QUOTES, 'UTF-8') . '">' . "\n";
         }
+    }
 
-        // Green Audio Player JS (hosted locally to satisfy CSP)
-        $jsPath = url('/assets/vendor/green-audio-player/js/green-audio-player.min.js');
-        echo '<script src="' . htmlspecialchars($jsPath, ENT_QUOTES, 'UTF-8') . '" defer></script>' . "\n";
+    /**
+     * Emit the Green Audio Player CSS/JS once, only where an audiobook renders.
+     * Kept out of the global assets.head hook so pages without an audio player
+     * do not pay two render-blocking requests. `defer` is honoured on a body
+     * script too, so the player-init handler (which runs on DOMContentLoaded and
+     * falls back to native controls) always sees GreenAudioPlayer defined.
+     */
+    private function enqueueAudioPlayerAssets(): void
+    {
+        static $emitted = false;
+        if ($emitted) {
+            return;
+        }
+        $emitted = true;
+
+        $css = htmlspecialchars(url('/assets/vendor/green-audio-player/css/green-audio-player.min.css'), ENT_QUOTES, 'UTF-8');
+        $js = htmlspecialchars(url('/assets/vendor/green-audio-player/js/green-audio-player.min.js'), ENT_QUOTES, 'UTF-8');
+        echo '<link rel="stylesheet" href="' . $css . '">' . "\n";
+        echo '<script src="' . $js . '" defer></script>' . "\n";
     }
 
     // ========================================================================

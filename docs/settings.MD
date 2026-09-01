@@ -231,11 +231,14 @@ Imposti le regole globali dei prestiti (categoria setting `loans`):
 | Campo (`name`) | Significato | Default | Clamp lato server |
 |---|---|---|---|
 | `loan_duration_days` | Durata standard del prestito (giorni) | 30 | 1 … 3650 (10 anni) |
-| `pickup_expiry_days` | Giorni entro cui ritirare un prestito approvato prima della scadenza ritiro | 3 | 1 … 365 |
+| `pickup_expiry_days` | Giorni entro cui ritirare un prestito approvato prima della scadenza ritiro | 3 | 1 … 30 |
 | `max_renewals` | Numero massimo di rinnovi (0 = illimitato) | 3 | 0 … 100 |
 | `max_active_loans_per_user` | Massimo prestiti attivi per utente (0 = illimitato) | 0 | 0 … 1000 |
+| `allow_multiple_loans_same_book` | Consente allo stesso utente più prestiti attivi dello stesso libro su copie fisiche distinte | 0 (disattivato) | Toggle 0 / 1 |
 
 > **Importante**: il server **ricalcola e blocca (clamp)** ogni valore entro i limiti indicati a prescindere dagli attributi `min`/`max` del form (che sono solo indicativi). Un POST manipolato non può quindi impostare durate o rinnovi assurdi.
+
+Il toggle **Consenti più prestiti dello stesso titolo solo su copie fisiche distinte** è disattivato per impostazione predefinita: il normale flusso di biblioteca continua quindi a permettere un solo prestito o una sola richiesta attiva per utente e libro. Attivalo solo quando serve affidare contemporaneamente allo stesso utente più copie fisiche dello stesso titolo, per esempio in una scuola o in un centro didattico. Ogni prestito deve riferirsi a una copia distinta e conta separatamente nel limite `max_active_loans_per_user`; richieste in attesa e prenotazioni restano invece uniche per utente e libro.
 
 ---
 
@@ -487,6 +490,7 @@ Categorie effettivamente usate dal `SettingsController` (chiave `category`):
 ('loans', 'pickup_expiry_days', '3'),
 ('loans', 'max_renewals', '3'),
 ('loans', 'max_active_loans_per_user', '0'), -- 0 = illimitato
+('loans', 'allow_multiple_loans_same_book', '0'), -- 0 = comportamento standard, 1 = copie distinte
 ('advanced', 'days_before_expiry_warning', '3'),
 ('advanced', 'session_lifetime', '180'),     -- minuti
 ('advanced', 'force_https', '0'),

@@ -30,6 +30,10 @@ declare(strict_types=1);
  *     and the active reservation queue (it contradicted first_available).
  * 10. User dashboard overdue displays must use the app clock, matching the
  *     cron's `data_scadenza < today` semantics.
+ * 11. Every peripheral physical-copy writer must derive the book projection
+ *     inside the same transaction instead of forcing or repairing it later.
+ * 12. Every first-party circulation connection must publish DateHelper::today()
+ *     to the overlap triggers, which retain CURRENT_DATE() for direct SQL only.
  */
 
 $root = dirname(__DIR__);
@@ -84,6 +88,18 @@ $pendingView  = $readSource('/app/Views/admin/pending_loans.php');
 $loanCreateView = $readSource('/app/Views/prestiti/crea_prestito.php');
 $loanEditView = $readSource('/app/Views/prestiti/modifica_prestito.php');
 $mobileActions = $readSource('/storage/plugins/mobile-api/src/Controllers/ActionsController.php');
+$expiredCron = $readSource('/scripts/check-expired-reservations.php');
+$demoSeed = $readSource('/scripts/seed-demo-catalog.php');
+$bookClubRepo = $readSource('/storage/plugins/book-club/src/Repo.php');
+$manualUpgrade = $readSource('/scripts/manual-upgrade.php');
+$dateHelper = $readSource('/app/Support/DateHelper.php');
+$containerConfig = $readSource('/config/container.php');
+$triggerSql = $readSource('/installer/database/triggers.sql');
+$maintenanceService = $readSource('/app/Support/MaintenanceService.php');
+$automaticNotificationsCron = $readSource('/cron/automatic-notifications.php');
+$fullMaintenanceCron = $readSource('/cron/full-maintenance.php');
+$legacyMaintenanceScript = $readSource('/scripts/maintenance.php');
+$cliDbBootstrap = $readSource('/scripts/_db_bootstrap.php');
 
 $checks = [];
 
@@ -150,7 +166,10 @@ $rangesBody = $extractSection($web, 'Intervalli occupati', '// first_available /
 $checks['occupied_ranges includes pendente-with-copy and prenotazioni'] =
     $rangesBody !== ''
     && str_contains($rangesBody, "stato = 'pendente' AND copia_id IS NOT NULL")
-    && str_contains($rangesBody, "WHEN stato = 'in_ritardo' THEN '9999-12-31'")
+    && str_contains($rangesBody, "stato = 'in_ritardo'")
+    && str_contains($rangesBody, "stato = 'in_corso' AND data_scadenza < ?")
+    && str_contains($rangesBody, "THEN '9999-12-31'")
+    && str_contains($rangesBody, "bind_param('si', \$today, \$libroId)")
     && str_contains($rangesBody, "'to' => \$row['occupied_until']")
     && str_contains($rangesBody, "FROM prenotazioni");
 
@@ -166,7 +185,7 @@ $checks['user dashboard views use the app clock for overdue'] =
 // 11. #301: the book-detail modal path (createReservation) must honour the
 //     automatic-approval setting like UserActionsController::loan does.
 $checks['createReservation honours auto_approve_requests (#301)'] =
-    str_contains($reservations, 'autoApproveLoanRequest($request, $loanRequestId)')
+    str_contains($reservations, 'autoApproveLoanRequest($request, $loanRequestId, true)')
     && str_contains($reservations, "'automatic_loan_approval'");
 
 // 12. rejectLoan must keep an audit row (annullato), never DELETE it.
@@ -302,6 +321,60 @@ $checks['disponibilita endpoint 404s a concurrent soft-delete'] =
     $disponibilitaSection !== ''
     && str_contains($disponibilitaSection, 'if ($availability === null)')
     && !str_contains($disponibilitaSection, 'getBookAvailabilityData($libroId, $today, 180) ?? []');
+
+// 24. The global repair must calculate the read model only after it finishes
+//     repairing loans/reservations; a preliminary/direct book-state UPDATE can
+//     neither represent prenotato correctly nor be committed independently.
+$fixIntegrity = $extractMethod($integrity, 'public function fixDataInconsistencies(');
+$lastReservationRepair = strrpos($fixIntegrity, 'UPDATE prenotazioni');
+$finalAvailability = strrpos($fixIntegrity, 'recalculateAllBookAvailability(insideTransaction: true)');
+$checks['integrity repair has one final canonical availability write'] =
+    $fixIntegrity !== ''
+    && !str_contains($fixIntegrity, 'UPDATE libri SET stato')
+    && $lastReservationRepair !== false
+    && $finalAvailability !== false
+    && $lastReservationRepair < $finalAvailability;
+
+// 25. Peripheral writers that bypass the main controllers still keep
+//     copies/commitments and the derived libri projection in one transaction.
+$checks['expired-reservation cron recalculates before commit'] =
+    str_contains($expiredCron, 'recalculateBookAvailability($libroId, insideTransaction: true)')
+    && strpos($expiredCron, 'recalculateBookAvailability($libroId, insideTransaction: true)')
+        < strrpos($expiredCron, '$db->commit()');
+$checks['demo seed never authors book state and recalculates before commit'] =
+    !str_contains($demoSeed, "genere_id=?, stato='disponibile'")
+    && str_contains($demoSeed, 'recalculateBookAvailability($bookId, insideTransaction: true)')
+    && strpos($demoSeed, 'recalculateBookAvailability($bookId, insideTransaction: true)')
+        < strpos($demoSeed, '$db->commit()');
+$createCatalogueBook = $extractMethod($bookClubRepo, 'private function createCatalogueBookFromExternal(');
+$checks['Book Club acquisition derives availability inside its transaction'] =
+    str_contains($createCatalogueBook, 'recalculateBookAvailability($libroId, insideTransaction: true)')
+    && strpos($bookClubRepo, '$this->createCatalogueBookFromExternal(')
+        < strpos($bookClubRepo, '$this->db->commit()', strpos($bookClubRepo, 'public function acquireExternalBook('));
+$migrationLoopPos = strpos($manualUpgrade, 'foreach ($migrationFiles as $migFile)');
+$checks['manual upgrader performs the post-migration availability pass'] =
+    str_contains($manualUpgrade, 'recalculateAllBookAvailability()')
+    && $migrationLoopPos !== false
+    && strpos($manualUpgrade, 'recalculateAllBookAvailability()') > $migrationLoopPos;
+
+// 26. The trigger clock follows app.timezone on every first-party circulation
+//     connection. CURRENT_DATE() appears only in the two trigger-local fallback
+//     assignments used by uninitialized/direct SQL clients.
+$checks['circulation triggers share the configured application day on every first-party connection'] =
+    str_contains($dateHelper, 'function synchronizeDatabaseSession(')
+    && str_contains($containerConfig, 'DateHelper::synchronizeDatabaseSession($mysqli)')
+    && str_contains($reservations, 'DateHelper::synchronizeDatabaseSession($this->db)')
+    && str_contains($maintenanceService, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($automaticNotificationsCron, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($fullMaintenanceCron, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($legacyMaintenanceScript, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($cliDbBootstrap, 'DateHelper::synchronizeDatabaseSession($db)')
+    && str_contains($expiredCron, 'pinakes_db_from_env()')
+    && substr_count(
+        $triggerSql,
+        'SET application_today = COALESCE(@pinakes_application_date, CURRENT_DATE())'
+    ) === 2
+    && !str_contains($triggerSql, 'data_scadenza < CURRENT_DATE()');
 
 $failed = 0;
 foreach ($checks as $label => $ok) {

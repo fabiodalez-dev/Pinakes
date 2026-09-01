@@ -69,5 +69,27 @@ $check(
     "03 isLoanReturned requires stato='restituito', not attivo=0 alone"
 );
 
+// 4. A database fault while resolving CheckIn/Renew is retryable. It must not
+//    collapse into the terminal item-not-checked-out branch used for a genuine
+//    no-row result.
+$checkIn = strstr($src, 'private function handleCheckInItem(', true);
+$checkIn = $checkIn === false ? '' : substr($src, strlen($checkIn));
+$renewPos = strpos($checkIn, 'private function handleRenewItem(');
+$checkIn = $renewPos === false ? $checkIn : substr($checkIn, 0, $renewPos);
+$renew = strstr($src, 'private function handleRenewItem(', true);
+$renew = $renew === false ? '' : substr($src, strlen($renew));
+$lookupPos = strpos($renew, 'private function findActiveLoan(');
+$renew = $lookupPos === false ? $renew : substr($renew, 0, $lookupPos);
+$check(
+    str_contains($src, 'bool &$databaseError')
+        && str_contains($src, '$databaseError = true;')
+        && str_contains($src, "SecureLogger::error('[NcipServer] findActiveLoan failed: '")
+        && str_contains($checkIn, 'if ($loanLookupFailed)')
+        && str_contains($checkIn, "'temporary-processing-failure'")
+        && str_contains($renew, 'if ($loanLookupFailed)')
+        && str_contains($renew, "'temporary-processing-failure'"),
+    '04 CheckIn/Renew classify active-loan lookup faults as retryable DB errors'
+);
+
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

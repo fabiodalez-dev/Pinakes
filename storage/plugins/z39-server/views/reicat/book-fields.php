@@ -61,6 +61,29 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
     </div>
     <div id="reicat-import-status" class="text-sm mb-4 hidden"></div>
 
+    <!-- Import UNIMARC (round-trip with the export below) -->
+    <div class="mb-6 pt-4 border-t border-emerald-200">
+        <label for="reicat_import_unimarc" class="form-label flex items-center gap-2">
+            <i class="fas fa-file-import text-emerald-600"></i>
+            <?= __("Importa UNIMARC (MARCXchange)") ?>
+        </label>
+        <p class="text-xs text-emerald-700 mb-2">
+            <?= __("Incolla un record UNIMARC/MARCXchange, oppure carica un file .xml, per precompilare il form dal record esportato.") ?>
+        </p>
+        <textarea id="reicat_import_unimarc" rows="4" class="form-input w-full font-mono text-xs"
+                  placeholder="&lt;record&gt;…&lt;/record&gt;"></textarea>
+        <div class="mt-2 flex flex-col md:flex-row gap-2 md:items-center">
+            <input type="file" id="reicat_import_unimarc_file" accept=".xml,application/xml,text/xml"
+                   class="form-input flex-1" />
+            <button type="button" id="reicat-import-unimarc-btn"
+                    class="btn btn-primary flex items-center justify-center gap-2">
+                <i class="fas fa-file-import"></i>
+                <?= __("Importa UNIMARC (MARCXchange)") ?>
+            </button>
+        </div>
+    </div>
+    <div id="reicat-unimarc-status" class="text-sm mb-4 hidden"></div>
+
     <!-- SBN identifiers -->
     <div class="form-grid-2 mb-4">
         <div>
@@ -170,6 +193,8 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
         imported: <?= json_encode(__('Dati importati da SBN.'), JSON_HEX_TAG) ?>,
         error: <?= json_encode(__('Errore durante la richiesta.'), JSON_HEX_TAG) ?>,
         removeSubject: <?= json_encode(__('Rimuovi soggetto'), JSON_HEX_TAG) ?>,
+        noUnimarc: <?= json_encode(__('Incolla o carica un record UNIMARC.'), JSON_HEX_TAG) ?>,
+        unimarcImported: <?= json_encode(__('Dati importati da UNIMARC.'), JSON_HEX_TAG) ?>,
     };
 
     function clearEl(el) { while (el.firstChild) { el.removeChild(el.firstChild); } }
@@ -327,6 +352,62 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
             status(T.imported + (b.author ? ' — ' + b.author : ''), 'ok');
         })
         .catch(function () { status(T.error, 'err'); })
+        .finally(function () { btn.disabled = false; });
+    });
+
+    // ── Import from UNIMARC/MARCXchange (round-trip with the export) ──────────
+    function unimarcStatus(msg, kind) {
+        const box = document.getElementById('reicat-unimarc-status');
+        box.textContent = msg;
+        box.className = 'text-sm mb-4 ' + (kind === 'err' ? 'text-red-600' : (kind === 'ok' ? 'text-emerald-700' : 'text-gray-600'));
+        box.classList.remove('hidden');
+    }
+
+    document.getElementById('reicat-import-unimarc-btn').addEventListener('click', function () {
+        const btn = this;
+        const ta = document.getElementById('reicat_import_unimarc');
+        const fileInput = document.getElementById('reicat_import_unimarc_file');
+        const xml = (ta && ta.value ? ta.value : '').trim();
+        const file = (fileInput && fileInput.files && fileInput.files.length) ? fileInput.files[0] : null;
+        if (!xml && !file) { unimarcStatus(T.noUnimarc, 'err'); return; }
+
+        btn.disabled = true;
+        unimarcStatus(T.importing, 'info');
+
+        const fd = new FormData();
+        fd.set('csrf_token', csrf);
+        if (xml) { fd.set('xml', xml); }
+        if (file) { fd.set('xml_file', file); }
+
+        fetch(base + '/admin/books/import-unimarc', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-CSRF-Token': csrf },
+            body: fd
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (!d || !d.success || !d.book) { unimarcStatus((d && d.error) ? d.error : T.error, 'err'); return; }
+            const b = d.book;
+            setField('titolo', b.titolo);
+            setField('sottotitolo', b.sottotitolo);
+            setField('anno_pubblicazione', b.anno_pubblicazione);
+            setField('numero_pagine', b.numero_pagine);
+            setField('isbn13', b.isbn13);
+            setField('isbn10', b.isbn10);
+            setField('collana', b.collana);
+            setField('numero_serie', b.numero_serie);
+            setField('edizione', b.edizione);
+            setField('lingua', b.lingua);
+            if (Array.isArray(b.soggetti)) {
+                b.soggetti.forEach(function (s) {
+                    if (s && s.termine) { addSubject({ termine: s.termine, bncf_id: s.bncf_id || null, uri: s.uri || null }); }
+                });
+            }
+            openReicat();
+            unimarcStatus(T.unimarcImported, 'ok');
+        })
+        .catch(function () { unimarcStatus(T.error, 'err'); })
         .finally(function () { btn.disabled = false; });
     });
 })();

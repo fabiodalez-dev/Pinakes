@@ -146,13 +146,13 @@ class AuthController
                     'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
                 ];
 
-                // Load and apply user's preferred locale (only persist if setLocale succeeds)
-                if (!empty($row['locale'])) {
-                    $requestedLocale = (string) $row['locale'];
-                    if (\App\Support\I18n::setLocale($requestedLocale)) {
-                        $_SESSION['locale'] = $requestedLocale;
-                    }
-                }
+                // Apply the per-user preference on every login. NULL, empty or
+                // obsolete values inherit the current installation default,
+                // preventing a previous anonymous/user session locale leaking in.
+                $requestedLocale = \App\Support\I18n::resolveUserLocale($row['locale'] ?? null);
+                \App\Support\I18n::setLocale($requestedLocale);
+                $_SESSION['locale'] = $requestedLocale;
+                $_SESSION['user']['locale'] = $requestedLocale;
 
                 // Handle "Remember Me" functionality with database-backed tokens
                 if ($remember) {

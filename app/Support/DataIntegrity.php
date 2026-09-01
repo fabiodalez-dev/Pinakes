@@ -151,9 +151,9 @@ class DataIntegrity {
 
             if (!$insideTransaction) {
                 $this->db->commit();
-                ContentCache::booksChanged();
+                ContentCache::availabilityChanged();
             } else {
-                ContentCache::deferBooksChanged();
+                ContentCache::deferAvailabilityChanged();
             }
 
         } catch (\Throwable $e) {
@@ -246,7 +246,7 @@ class DataIntegrity {
                 $processed++;
             }
             if ($chunkDirty) {
-                ContentCache::booksChanged();
+                ContentCache::availabilityChanged();
             }
 
             // Report progress
@@ -262,6 +262,8 @@ class DataIntegrity {
     /**
      * Ricalcola le copie disponibili per un singolo libro
      * Supports being called inside or outside a transaction
+     *
+     * @phpstan-impure Mutates and re-reads circulation state in the database.
      */
     public function recalculateBookAvailability(int $bookId, bool $insideTransaction = false, bool $skipCacheInvalidation = false): bool {
         // App-timezone "today" (see recalculateAllBookAvailability) — interpolated in place of
@@ -415,9 +417,9 @@ class DataIntegrity {
             // once per book.
             if ($result && !$skipCacheInvalidation) {
                 if ($insideTransaction) {
-                    ContentCache::deferBooksChanged();
+                    ContentCache::deferAvailabilityChanged();
                 } else {
-                    ContentCache::booksChanged();
+                    ContentCache::availabilityChanged();
                 }
             }
 
@@ -822,6 +824,7 @@ class DataIntegrity {
         // the auditor MUST count it — otherwise it would bless an over-capacity
         // waitlist that the creation/promotion gates already reject.
         $eventsByBook = [];
+        $applicationToday = DateHelper::today();
         $stmt = $this->db->prepare("
             SELECT libro_id, 'prestito' AS source_type, id AS source_id,
                    DATE(data_prestito) AS start_date,
@@ -831,7 +834,12 @@ class DataIntegrity {
                        -- stays a 4-digit 'YYYY-MM-DD' string: '10000-01-01' would sort
                        -- BEFORE every real date under ksort's lexicographic order
                        -- ('1' < '2'), zeroing the overdue occupancy in the peak scan.
-                       WHEN attivo = 1 AND stato = 'in_ritardo' THEN '9999-12-30'
+                       -- A date-overdue `in_corso` row is the same unreturned
+                       -- physical copy before maintenance flips its state (#366).
+                       WHEN attivo = 1 AND (
+                           stato = 'in_ritardo'
+                           OR (stato = 'in_corso' AND data_scadenza < ?)
+                       ) THEN '9999-12-30'
                        ELSE data_scadenza
                    END) AS end_date
             FROM prestiti
@@ -842,6 +850,7 @@ class DataIntegrity {
               AND data_prestito IS NOT NULL
               AND data_scadenza IS NOT NULL
         ");
+        $stmt->bind_param('s', $applicationToday);
         $stmt->execute();
         $intervalsResult = $stmt->get_result();
 
@@ -1004,25 +1013,15 @@ class DataIntegrity {
         try {
             $this->db->begin_transaction();
 
-            // 1. Ricalcola tutte le copie disponibili
-            $availabilityResult = $this->recalculateAllBookAvailability(insideTransaction: true);
-            $results['fixed'] += $availabilityResult['updated'];
-            $results['errors'] = array_merge($results['errors'], $availabilityResult['errors']);
-
-            // 2. Correggi stati libri attivi basandosi sulle copie correnti
-            $stmt = $this->db->prepare("
-                UPDATE libri SET stato = CASE
-                    WHEN copie_disponibili > 0 THEN 'disponibile'
-                    WHEN EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = libri.id AND c.stato = 'prestato') THEN 'prestato'
-                    WHEN EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = libri.id) THEN 'non_disponibile'
-                    ELSE 'non_disponibile'
-                END
-                WHERE stato IN ('disponibile', 'prestato', 'non_disponibile')
-                AND deleted_at IS NULL
-            ");
-            $stmt->execute();
-            $results['fixed'] += $this->db->affected_rows;
-            $stmt->close();
+            // Circulation writes use the canonical libri -> prestiti/copie lock
+            // order. Maintenance changes loans and reservations below, so lock
+            // every book first and keep those locks until the final canonical
+            // recalculation. This avoids crossing concurrent web requests.
+            // CI-SOFT-DELETE-EXEMPT: global maintenance locks restorable rows too.
+            $lockBooks = $this->db->prepare('SELECT id FROM libri ORDER BY id FOR UPDATE');
+            $lockBooks->execute();
+            $lockBooks->get_result()->fetch_all(MYSQLI_NUM);
+            $lockBooks->close();
 
             // 3. Aggiorna prestiti in ritardo
             $stmt = $this->db->prepare("
@@ -1122,6 +1121,14 @@ class DataIntegrity {
                 }
                 $upd->close();
             }
+
+            // Recalculate only after every loan/reservation repair. This is the
+            // sole writer of libri.stato/copie_* and guarantees the committed
+            // read model describes this transaction's final circulation rows,
+            // including active reservation occupancy.
+            $availabilityResult = $this->recalculateAllBookAvailability(insideTransaction: true);
+            $results['fixed'] += $availabilityResult['updated'];
+            $results['errors'] = array_merge($results['errors'], $availabilityResult['errors']);
 
             $this->db->commit();
 

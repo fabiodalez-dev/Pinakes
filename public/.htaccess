@@ -28,19 +28,47 @@
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-    # Allow direct access to PUBLIC static files in /uploads/ (covers, events,
-    # CMS images, branding).
-    RewriteCond %{REQUEST_URI} ^/uploads/ [NC]
-    RewriteCond %{REQUEST_URI} !^/uploads/(digital|archives/documents|storage)/ [NC]
-    RewriteRule ^ - [L]
+    # === Pinakes LiteSpeed privacy bypass ===
+    # Application response headers are too late
+    # when LSCache can answer before PHP, so any mutation, Authorization header
+    # or visitor-specific cookie prevents a cache hit at the web-server layer.
+    # A sole validated locale cookie is safe and is varied independently at
+    # lookup time and by the application's X-LiteSpeed-Vary response header.
+    <IfModule LiteSpeed>
+        # Enable LSCache request lookup/store for this vhost. Without it LSWS
+        # ignores the X-LiteSpeed-Cache-Control response headers and no page is
+        # ever served from edge cache.
+        CacheLookup on
+
+        RewriteRule .* - [E=Cache-Vary:pinakes_locale]
+
+        RewriteCond %{REQUEST_METHOD} !^(GET|HEAD)$ [NC]
+        RewriteRule .* - [E=Cache-Control:no-cache]
+
+        RewriteCond %{HTTP:Authorization} .
+        RewriteRule .* - [E=Cache-Control:no-cache]
+
+        RewriteCond %{HTTP:Cookie} !^$
+        RewriteCond %{HTTP:Cookie} !^\s*pinakes_locale=[A-Za-z]{2}_[A-Za-z]{2}\s*;?\s*$ [NC]
+        RewriteRule .* - [E=Cache-Control:no-cache]
+    </IfModule>
+    # === end Pinakes LiteSpeed privacy bypass ===
 
     # PRIVATE uploaded content — digital-library files, archive documents and
     # generic storage — must NOT be served directly. Force them through
     # index.php (even when the file exists on disk, so the !-f rule below would
     # otherwise skip them) so PrivateModeMiddleware (and any future per-file
     # auth) governs access (issue #160). See ProtectedUploadController.
-    RewriteCond %{REQUEST_URI} ^/uploads/(digital|archives/documents|storage)/ [NC]
-    RewriteRule ^ index.php [QSA,L]
+    # A relative RewriteRule pattern is matched against the per-directory
+    # stripped path, so it stays correct under a subdirectory install where
+    # %{REQUEST_URI} carries the extra prefix (an anchored ^/uploads/ would not
+    # match there and would leak the private files). Private rule first so its
+    # [L] wins before the public catch-all below.
+    RewriteRule ^uploads/(digital|archives/documents|storage)/ index.php [QSA,L]
+
+    # Allow direct access to the remaining PUBLIC static files in /uploads/
+    # (covers, events, CMS images, branding).
+    RewriteRule ^uploads/ - [L]
 
     # Redirect all requests to index.php
     RewriteCond %{REQUEST_FILENAME} !-f

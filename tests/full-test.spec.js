@@ -1,6 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const { flushCache } = require('./helpers/flush-cache');
 const fs = require('fs');
 const path = require('path');
 
@@ -434,11 +435,11 @@ test.describe.serial('Phase 1: Installation (Italian)', () => {
     await page.locator('a.btn-primary').click();
     await page.waitForURL(url => !url.toString().includes('installer'), { timeout: 30000 });
 
-    // Installer rewrites .env from scratch — that wipes our rate-limit
-    // bypass. Subsequent phases open many new browser contexts and each
-    // hits /accedi, so without the bypass the 5-req/5min limiter kicks in
-    // around Phase 7 and the describe.serial cascade collapses. Restore
-    // the bypass into the install root's .env if we can find it.
+    // Installer rewrites .env from scratch — that wipes our E2E controls.
+    // Restore the login-rate bypass, deterministic scraper fixture and
+    // test-only cache flush route into the isolated install. Otherwise local
+    // Apache runs can silently hit live providers or retain stale DTOs after
+    // direct-DB fixtures even though CI's vhost supplies the same flags.
     // E2E_INSTALL_ROOT is set by reinstall-test.sh; fall back to CWD.
     const fs = require('fs');
     const path = require('path');
@@ -446,8 +447,17 @@ test.describe.serial('Phase 1: Installation (Italian)', () => {
     try {
       if (fs.existsSync(envPath)) {
         const current = fs.readFileSync(envPath, 'utf8');
-        if (!/^PINAKES_E2E_BYPASS_RATE_LIMIT=/m.test(current)) {
-          fs.appendFileSync(envPath, '\nPINAKES_E2E_BYPASS_RATE_LIMIT=1\n');
+        const requiredFlags = [
+          'PINAKES_E2E_BYPASS_RATE_LIMIT=1',
+          'PINAKES_E2E_SCRAPER_STUB=1',
+          'PINAKES_E2E_CACHE_FLUSH=1',
+        ];
+        const missingFlags = requiredFlags.filter((entry) => {
+          const key = entry.split('=', 1)[0];
+          return !new RegExp(`^${key}=`, 'm').test(current);
+        });
+        if (missingFlags.length) {
+          fs.appendFileSync(envPath, `\n${missingFlags.join('\n')}\n`);
         }
       }
     } catch { /* best-effort — if we can't write, subsequent logins fall back to real limiter */ }
@@ -1867,6 +1877,23 @@ test.describe.serial('Phase 11: Settings', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.locator('[data-settings-tab="advanced"]').click();
     await expect(page.locator('section[data-settings-panel="advanced"]')).toBeVisible();
+    // The E2E server is Apache (not LiteSpeed) and the feature ships disabled, so
+    // the LiteSpeed full-page cache section is hidden — you cannot enable a
+    // LiteSpeed cache on a server that has none. Regression guard for the
+    // hide-when-not-applicable fix; the rest of the Advanced tab still renders.
+    await expect(page.locator('#litespeed_enabled')).toHaveCount(0);
+    await expect(page.locator('#session_lifetime')).toBeVisible();
+
+    // The application query-cache flush is available on EVERY server (LiteSpeed
+    // or not) — it is the non-LiteSpeed counterpart to the edge-cache purge.
+    // Assert the maintenance form renders and that clicking it reports success
+    // (a green flash; a red flash would mean the flush failed). This runs in the
+    // PHP-FPM request so QueryCache::flush() reaches the same backend serving
+    // pages, which is exactly why it lives behind a button and not a CLI command.
+    const flushCacheForm = page.locator('form[action*="/admin/settings/advanced/flush-cache"]');
+    await expect(flushCacheForm).toBeVisible();
+    await flushCacheForm.locator('button[type="submit"]').click();
+    await expect(page.locator('.bg-green-50[role="alert"]')).toBeVisible({ timeout: 15000 });
   });
 
   test('11.10 CMS homepage link exists', async () => {
@@ -2994,6 +3021,9 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     // Directly set genere_id = root, sottogenere_id = child via DB
     // This mirrors what the controller normalization does
     dbQuery(`UPDATE libri SET genere_id=${rootId}, sottogenere_id=${childId} WHERE id=${bookId}`);
+    // Direct DB write bypasses ContentCache invalidation — flush the page
+    // cache or the (already visited) public detail page is served stale.
+    await flushCache();
 
     // 1) Admin book detail page
     await page.goto(`${BASE}/admin/books/${bookId}`);
@@ -3075,12 +3105,27 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const csrfToken = await page.evaluate(() => {
       return document.querySelector('meta[name="csrf-token"]')?.content || '';
     });
-    const resp = await page.request.post(`${BASE}/admin/genres/${genreId}/delete`, {
-      headers: { 'X-CSRF-Token': csrfToken },
-      form: { csrf_token: csrfToken },
+    // Drive the request through the authenticated browser connection. The
+    // separate Playwright APIRequestContext has intermittently reset its own
+    // socket on GitHub runners even though Apache logged no request failure.
+    const status = await page.evaluate(async ({ url, csrf }) => {
+      const body = new URLSearchParams({ csrf_token: csrf });
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'X-CSRF-Token': csrf,
+        },
+        body: body.toString(),
+      });
+      return response.status;
+    }, {
+      url: `${BASE}/admin/genres/${genreId}/delete`,
+      csrf: csrfToken,
     });
-    // 302 redirect = success
-    expect([200, 302].includes(resp.status())).toBeTruthy();
+    // Browser fetch follows the successful redirect to the genre list.
+    expect(status).toBe(200);
 
     // Verify genre was deleted
     const countAfter = dbQuery(`SELECT COUNT(*) FROM generi WHERE id=${genreId}`);
@@ -3389,6 +3434,13 @@ test.describe.serial('Phase 21: Language Switch', () => {
   });
 
   test('21.2 Book form LibraryThing section renders in French', async () => {
+    // The installation default is a GLOBAL setting and no longer changes the
+    // admin's own UI language (#238, Option B). To render French the admin
+    // switches THEIR OWN language via the switcher (persists utenti.locale +
+    // session) — set-default must NOT do it for them.
+    await page.goto(`${BASE}/language/fr_FR`);
+    await page.waitForLoadState('domcontentloaded');
+
     // Navigate to the book create form — has the same LibraryThing section as edit,
     // and does not require an existing book ID.
     await page.goto(`${BASE}/admin/books/create`);
@@ -3422,7 +3474,12 @@ test.describe.serial('Phase 21: Language Switch', () => {
 
     let dbCode = dbQuery("SELECT code FROM languages WHERE is_default = 1 LIMIT 1");
     expect(dbCode).toBe('en_US');
-    // The admin languages list should now render in English
+    // set-default no longer touches the admin's own UI language — switch it via
+    // the switcher, then the admin list renders in English.
+    await page.goto(`${BASE}/language/en_US`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.goto(`${BASE}/admin/languages`);
+    await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('body')).toContainText('Languages');
 
     // ── German ───────────────────────────────────────────────────────────
@@ -3430,7 +3487,9 @@ test.describe.serial('Phase 21: Language Switch', () => {
 
     dbCode = dbQuery("SELECT code FROM languages WHERE is_default = 1 LIMIT 1");
     expect(dbCode).toBe('de_DE');
-    // Page should load without errors regardless of locale
+    // Switch the admin's own UI to German too; the page should render without errors.
+    await page.goto(`${BASE}/language/de_DE`);
+    await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('body')).not.toBeEmpty();
   });
 
@@ -3442,6 +3501,12 @@ test.describe.serial('Phase 21: Language Switch', () => {
 
     const dbCode = dbQuery("SELECT code FROM languages WHERE is_default = 1 LIMIT 1");
     expect(dbCode).toBe('it_IT');
+
+    // 21.2/21.3 switched the admin's OWN language via the switcher (persisting
+    // utenti.locale); restore it to Italian so later phases render in the
+    // install locale.
+    await page.goto(`${BASE}/language/it_IT`);
+    await page.waitForLoadState('domcontentloaded');
   });
 });
 

@@ -55,18 +55,32 @@ jobs:
 
       - name: Install Apache and packaging tools
         run: |
+          # The hosted runner image ships Google's chrome-stable apt source,
+          # which these jobs never install from. Remove it before the first
+          # apt refresh so a mid-sync Google mirror cannot break the job.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update -q
-          sudo apt-get install -y apache2 libapache2-mod-php jq rsync unzip zip
+          # php-apcu: the app's page cache must run on its production backend
+          # (APCu shared memory) under Apache/mod_php, not the file fallback.
+          sudo apt-get install -y apache2 libapache2-mod-php php-apcu jq rsync unzip zip
           sudo a2enmod rewrite headers env
           php_module=$(find /etc/apache2/mods-available -maxdepth 1 -name 'php*.load' -printf '%f\n' | sed 's/\.load$//' | sort -V | tail -n1)
           if [ -n "$php_module" ]; then sudo a2enmod "$php_module"; fi
           sudo a2dissite 000-default || true
+          # Enable APCu for every distro-PHP SAPI (Apache mod_php + distro CLI).
+          while IFS= read -r conf_dir; do
+            sudo tee "${conf_dir}/99-pinakes-apcu.ini" >/dev/null <<'EOF'
+          apc.enable=1
+          apc.enable_cli=1
+          EOF
+          done < <(find /etc/php -type d -path '*/conf.d' | sort -u)
 
       - name: Setup PHP 8.2 tooling
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.2'
-          extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml, zip, gd
+          extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml, zip, gd, apcu
+          ini-values: apc.enable=1, apc.enable_cli=1
           coverage: none
 
       - name: Setup Node 22
@@ -111,6 +125,9 @@ jobs:
               DocumentRoot ${PACKAGE_ROOT}/public
               SetEnv PINAKES_E2E_BYPASS_RATE_LIMIT 1
               SetEnv PINAKES_E2E_SCRAPER_STUB 1
+              # E2E only — arms GET /_e2e/flush-cache so specs that write to the
+              # DB directly can invalidate the page cache; 404s when unset.
+              SetEnv PINAKES_E2E_CACHE_FLUSH 1
               <Directory "${PACKAGE_ROOT}/public">
                   Options -Indexes +FollowSymLinks
                   AllowOverride All
@@ -160,15 +177,66 @@ jobs:
           allow_issue_writing: false
           artifact_name: zap-baseline-${{ github.run_id }}
 
+      - name: Test narrow ZAP bibliographic PII allowlist
+        run: bash tests/zap-pii-filter.test.sh
+
       - name: Fail on medium or high ZAP alerts
         run: |
-          test -s report_json.json || { echo "ZAP JSON report is missing"; exit 1; }
-          blocking=$(jq '[.site[]?.alerts[]? | select((.riskcode | tonumber) >= 2)] | length' report_json.json)
-          if [ "$blocking" -gt 0 ]; then
-            jq -r '.site[]?.alerts[]? | select((.riskcode | tonumber) >= 2) | "[\(.riskdesc)] \(.alert): \(.desc)"' report_json.json
-            exit 1
-          fi
-          echo "ZAP found no medium/high passive-scan alerts"
+          set -euo pipefail
+          identifiers_file="$RUNNER_TEMP/zap-catalogue-identifiers.json"
+          public_urls_file="$RUNNER_TEMP/zap-public-catalogue-urls.json"
+          public_examples_file="$RUNNER_TEMP/zap-public-example-identifiers.json"
+
+          MYSQL_PWD="$E2E_DB_PASS" mysql \
+            -h "$E2E_DB_HOST" -P "$E2E_DB_PORT" -u "$E2E_DB_USER" \
+            -N -B "$E2E_DB_NAME" -e '
+              SELECT identifier
+              FROM (
+                SELECT isbn13 AS identifier FROM libri WHERE deleted_at IS NULL
+                UNION
+                SELECT ean AS identifier FROM libri WHERE deleted_at IS NULL
+              ) AS catalogue_identifiers
+              WHERE identifier REGEXP "^[0-9]{13}$"
+              ORDER BY identifier
+            ' | jq -Rsc 'split("\n") | map(select(length > 0)) | unique' > "$identifiers_file"
+
+          # The single-quoted PHP program is intentional; its $variables must
+          # reach PHP literally rather than expand in the runner shell.
+          # shellcheck disable=SC2016
+          curl -fsS http://localhost:8081/sitemap.xml \
+            | php -r '
+                $xml = simplexml_load_string(stream_get_contents(STDIN), SimpleXMLElement::class, LIBXML_NONET);
+                if ($xml === false) { fwrite(STDERR, "Invalid sitemap XML\n"); exit(2); }
+                $urls = [];
+                foreach ($xml->url as $entry) { $urls[] = (string) $entry->loc; }
+                echo json_encode(array_values(array_unique($urls)), JSON_UNESCAPED_SLASHES), PHP_EOL;
+              ' > "$public_urls_file"
+
+          # Translation dictionaries are intentionally inlined client-side.
+          # Extract only canonical, explicitly named ISBN example keys. The
+          # checked-in jq program requires a full 978/979 match and a valid
+          # ISBN-13 checksum, so unrelated numbers and longer substrings cannot
+          # become origin-wide exceptions.
+          jq -f scripts/ci-zap-public-isbn-examples.jq \
+            locale/it_IT.json > "$public_examples_file"
+
+          # OWASP ZAP rule 10062 (PII Disclosure) is allowlisted NARROWLY, never
+          # globally. A book catalogue renders ISBN/EAN-13 identifiers on its
+          # bibliographic pages, and a 13-digit code inherently collides with the
+          # credit-card Luhn pattern the rule matches (observed: EAN 4131672754818
+          # on /de/verlag/Puffin+Books, mis-classified as "Visa" because BIN
+          # 413167 is a Visa range). An alert is ignored ONLY when EVERY instance
+          # is a 13-digit number on a bibliographic route — a real card leak
+          # (15/16 digits) or a 13-digit value on any other page still fails the
+          # build. The checked-in filter also requires GET with empty param/attack,
+          # an exact registered route (canonical URLs come from the live sitemap)
+          # when evidence is a live catalogue identifier. The only route-wide
+          # exception is the exact public example strings shipped in the inlined
+          # translation dictionaries. Real secret/PII exposure is also covered
+          # by secret scanning, Semgrep and CodeQL; every other medium/high alert
+          # stays blocking.
+          bash scripts/ci-check-zap-report.sh \
+            report_json.json "$identifiers_file" "$public_urls_file" "$public_examples_file"
 
       - name: Upload browser and server diagnostics
         if: always()

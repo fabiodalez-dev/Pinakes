@@ -131,35 +131,41 @@ class UserActionsController
         }
         $uid = (int) $user['id'];
 
+        // ORDINE DI LOCK CANONICO (P3, M2): risolvi libro_id con una lettura
+        // NON bloccante PRIMA di begin_transaction() (lock-first, MVCC: la read
+        // view REPEATABLE READ nasce alla prima consistent read in transazione —
+        // anticiparla al pre-lock renderebbe le SELECT non bloccanti successive,
+        // promozione coda inclusa, cieche ai commit concorrenti avvenuti durante
+        // l'attesa del lock), blocca la riga `libri` PRIMA e solo dopo il prestito
+        // — stesso pattern di cancelReservation qui sotto. Lockare prima la
+        // riga prestiti incrocerebbe i lock con i percorsi di creazione/
+        // approvazione (che vanno libri -> prestiti) causando deadlock.
+        // Note: 'pendente' has attivo=0, 'prenotato'/'da_ritirare' have attivo=1.
+        // 'da_ritirare' (approved, waiting for pickup) must be user-cancellable too
+        // (#381): its copy is held in copie.stato='prenotato' exactly like a
+        // 'prenotato' loan, so the same release path below applies.
+        $lookupStmt = $db->prepare("
+            SELECT libro_id
+            FROM prestiti
+            WHERE id = ? AND utente_id = ? AND (
+                (attivo = 0 AND stato = 'pendente')
+                OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
+            )
+        ");
+        $lookupStmt->bind_param('ii', $loanId, $uid);
+        $lookupStmt->execute();
+        $lookupRow = $lookupStmt->get_result()->fetch_assoc();
+        $lookupStmt->close();
+
+        if (!$lookupRow) {
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+        }
+
+        $libroId = (int) $lookupRow['libro_id'];
+
         $db->begin_transaction();
 
         try {
-            // ORDINE DI LOCK CANONICO (P3, M2): risolvi libro_id con una lettura
-            // NON bloccante, blocca la riga `libri` PRIMA e solo dopo il prestito
-            // — stesso pattern di cancelReservation qui sotto. Lockare prima la
-            // riga prestiti incrocerebbe i lock con i percorsi di creazione/
-            // approvazione (che vanno libri -> prestiti) causando deadlock.
-            // Note: 'pendente' has attivo=0, 'prenotato' has attivo=1
-            $lookupStmt = $db->prepare("
-                SELECT libro_id
-                FROM prestiti
-                WHERE id = ? AND utente_id = ? AND (
-                    (attivo = 0 AND stato = 'pendente')
-                    OR (attivo = 1 AND stato = 'prenotato')
-                )
-            ");
-            $lookupStmt->bind_param('ii', $loanId, $uid);
-            $lookupStmt->execute();
-            $lookupRow = $lookupStmt->get_result()->fetch_assoc();
-            $lookupStmt->close();
-
-            if (!$lookupRow) {
-                $db->rollback();
-                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
-            }
-
-            $libroId = (int) $lookupRow['libro_id'];
-
             // Lock della riga libri per serializzare rilascio copia, promozione
             // coda e ricalcolo disponibilità con gli altri percorsi sullo stesso libro.
             // CI-SOFT-DELETE-EXEMPT: user cancellation must release existing circulation state for a deleted book.
@@ -176,7 +182,7 @@ class UserActionsController
                 FROM prestiti
                 WHERE id = ? AND utente_id = ? AND (
                     (attivo = 0 AND stato = 'pendente')
-                    OR (attivo = 1 AND stato = 'prenotato')
+                    OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
                 )
                 FOR UPDATE
             ");
@@ -193,20 +199,29 @@ class UserActionsController
 
             // Mark as cancelled
             $cancelNote = "\n[User] Annullato dall'utente";
+            // pickup_deadline = NULL: a 'da_ritirare' loan carries a deadline;
+            // clear it on cancel so the expiry cron / PickupDeadlineBackfill (#366)
+            // cannot act on a dead deadline.
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'annullato', attivo = 0, updated_at = NOW(), note = CONCAT(COALESCE(note, ''), ?)
+                SET stato = 'annullato', attivo = 0, pickup_deadline = NULL, updated_at = NOW(), note = CONCAT(COALESCE(note, ''), ?)
                 WHERE id = ?
             ");
             $updateStmt->bind_param('si', $cancelNote, $loanId);
             $updateStmt->execute();
             $updateStmt->close();
 
-            // If it had a reserved copy, free it and reassign
-            if ($loan['stato'] === 'prenotato' && $loan['copia_id']) {
+            // If it had a reserved copy, free it and reassign. Vale anche per un
+            // 'pendente' promosso dalla coda (attivo=0 con copia_id): prima solo
+            // il ramo 'prenotato' riassegnava subito e la copia del pendente
+            // annullato restava in attesa dello sweep di manutenzione.
+            if ($loan['copia_id'] && in_array((string) $loan['stato'], ['prenotato', 'pendente', 'da_ritirare'], true)) {
                 $copiaId = (int) $loan['copia_id'];
 
-                // Update copy status to available (if it was 'prenotato')
+                // Update copy status to available. Both 'prenotato' and 'da_ritirare'
+                // hold the copy in copie.stato='prenotato', so this guarded UPDATE
+                // frees it; a promoted 'pendente' keeps its copy 'disponibile' and
+                // the UPDATE is a no-op.
                 $copyStmt = $db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ? AND stato = 'prenotato'");
                 $copyStmt->bind_param('i', $copiaId);
                 $copyStmt->execute();
@@ -232,7 +247,9 @@ class UserActionsController
             // siamo dentro la transazione aperta in questo metodo, evita il
             // commit implicito di una begin_transaction() annidata)
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability((int) $loan['libro_id'], insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability((int) $loan['libro_id'], insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after loan cancellation.');
+            }
 
             $db->commit();
 
@@ -273,28 +290,31 @@ class UserActionsController
         }
         $uid = (int) $user['id'];
 
+        // CANONICAL LOCK ORDER (P3, L7): resolve libro_id with a NON-blocking
+        // read BEFORE begin_transaction() (lock-first, MVCC: the REPEATABLE READ
+        // view is created at the transaction's first consistent read — creating
+        // it pre-lock would blind every later non-locking SELECT, queue
+        // promotion included, to commits that landed while waiting for the book
+        // lock), then lock the `libri` row FIRST and only then the reservation —
+        // same order as LoanRepository::close, so this path never crosses
+        // locks with the create/approve paths (which go libri -> rows).
+        $lookupStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND utente_id = ? AND stato = 'attiva'");
+        $lookupStmt->bind_param('ii', $rid, $uid);
+        $lookupStmt->execute();
+        $lookupRow = $lookupStmt->get_result()->fetch_assoc();
+        $lookupStmt->close();
+
+        if (!$lookupRow) {
+            // Check if it's actually a loan/active reservation (prestiti table) request instead?
+            // Sometimes frontend might send reservation_id for prestiti items if confusingly named
+            return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+        }
+
+        $libroId = (int) $lookupRow['libro_id'];
+
         $db->begin_transaction();
 
         try {
-            // CANONICAL LOCK ORDER (P3, L7): resolve libro_id with a NON-blocking
-            // read, lock the `libri` row FIRST and only then the reservation —
-            // same order as LoanRepository::close, so this path never crosses
-            // locks with the create/approve paths (which go libri -> rows).
-            $lookupStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND utente_id = ? AND stato = 'attiva'");
-            $lookupStmt->bind_param('ii', $rid, $uid);
-            $lookupStmt->execute();
-            $lookupRow = $lookupStmt->get_result()->fetch_assoc();
-            $lookupStmt->close();
-
-            if (!$lookupRow) {
-                // Check if it's actually a loan/active reservation (prestiti table) request instead?
-                // Sometimes frontend might send reservation_id for prestiti items if confusingly named
-                $db->rollback();
-                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
-            }
-
-            $libroId = (int) $lookupRow['libro_id'];
-
             // Lock the book row to serialize the queue reorder + availability
             // recalculation with other paths working on the same book's queue.
             // CI-SOFT-DELETE-EXEMPT: reservation cancellation must unblock a deleted book's existing queue.
@@ -347,11 +367,27 @@ class UserActionsController
             $updatePos->close();
             $reorderStmt->close();
 
-            // Recalculate book availability
+            // Cancelling a queue reservation frees a promised capacity unit.
+            // Promote every now-eligible row in the same transaction, matching
+            // the admin cancellation and physical-copy release paths.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // promote until the newly-freed capacity is exhausted
+            }
+
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after reservation cancellation.');
+            }
 
             $db->commit();
+
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $e) {
+                SecureLogger::warning('Failed to flush reservation notifications after user cancellation', ['error' => $e->getMessage()]);
+            }
 
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);
 
@@ -452,7 +488,9 @@ class UserActionsController
 
             // Recalculate book availability
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after reservation date change.');
+            }
 
             $db->commit();
 
@@ -568,19 +606,49 @@ class UserActionsController
             }
             $dupReservationStmt->close();
 
+            // Revalidate eligibility while holding the user row. The fast check
+            // before the transaction improves feedback, but an administrator can
+            // suspend the patron between that check and this INSERT.
+            $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+            $userLockStmt->bind_param('i', $utenteId);
+            $userLockStmt->execute();
+            $userLockStmt->get_result();
+            $userLockStmt->close();
+            if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+                $db->rollback();
+                return $this->back($response, ['loan_error' => 'not_eligible']);
+            }
+
+            // #384 coherence: the reservation-vs-loan decision is the SAME
+            // shared gate used by the book-detail modal endpoint
+            // (ReservationsController::createReservation). When the title has
+            // physical copies but no in-library copy can serve the requested
+            // window without depending on a preceding borrower returning on
+            // time (or an earlier FIFO reservation consumes the only capacity
+            // slot), the gate creates a REAL prenotazioni.attiva waitlist row
+            // instead of letting this route commit a bare prestiti.pendente
+            // that admin approval would then reject (HTTP 400). Legacy books
+            // with no `copie` rows keep the bare-pending fallback (I6). The
+            // gate runs inside THIS transaction (inCallerTransaction: true)
+            // under the canonical book lock taken above and never commits it.
+            // Checked BEFORE the max-active-loans cap, mirroring
+            // createReservation: a waitlist reservation does not consume an
+            // active-loan slot until promotion.
+            $routing = (new \App\Services\LoanRequestGate($db))
+                ->route($libroId, $utenteId, $data_prestito, $data_scadenza, inCallerTransaction: true);
+            if ($routing->isReservation()) {
+                $db->commit();
+                // Reuse the reserve() success contract: the frontend already
+                // renders reserve_success as "queued in the waitlist".
+                return $this->back($response, [
+                    'reserve_success' => 1,
+                    'reserve_date' => $data_prestito,
+                ]);
+            }
+
             // Enforce max active loans per user (admin setting; 0 = no limit)
             $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
-                // Serialize concurrent loan requests by the SAME user: the per-book
-                // libri lock taken earlier does not mutually exclude two requests
-                // for *different* books, so without this both could read the same
-                // activeCount below the limit and both insert, exceeding it.
-                // Locking the user row forces them to run one at a time.
-                $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
-                $userLockStmt->bind_param('i', $utenteId);
-                $userLockStmt->execute();
-                $userLockStmt->close();
-
                 $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
                 $cntStmt->bind_param('i', $utenteId);
                 $cntStmt->execute();
@@ -593,11 +661,39 @@ class UserActionsController
                 }
             }
 
-            // Always create the canonical pending request first. When automatic
-            // approval is enabled, the same race-safe approval controller used by
-            // admins promotes it immediately after request creation.
-            $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'pendente', 0)");
-            $stmt->bind_param('iiss', $libroId, $utenteId, $data_prestito, $data_scadenza);
+            // Capture the setting while the canonical book/copy locks are still
+            // held. With automatic approval enabled, persist the exact copy
+            // selected by LoanRequestGate in the pending row BEFORE commit: the
+            // copy-bound pending is canonical capacity, so a concurrent request
+            // cannot pass the gate in the post-commit approval window. This is
+            // the same claim protocol used by ReservationsController.
+            $autoApproveEnabled = false;
+            try {
+                $autoApproveEnabled = (new \App\Models\SettingsRepository($db))->autoApproveLoanRequests();
+            } catch (\Throwable $settingError) {
+                SecureLogger::warning('Automatic-loan setting unavailable; request left for manual approval', [
+                    'book_id' => $libroId,
+                    'user_id' => $utenteId,
+                    'error' => $settingError->getMessage(),
+                ]);
+            }
+
+            $preassignedCopyId = $autoApproveEnabled ? $routing->assignableCopyId : null;
+            if ($preassignedCopyId !== null) {
+                $stmt = $db->prepare("
+                    INSERT INTO prestiti
+                        (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo)
+                    VALUES (?, ?, ?, ?, ?, 'pendente', 0)
+                ");
+                $stmt->bind_param('iiiss', $libroId, $preassignedCopyId, $utenteId, $data_prestito, $data_scadenza);
+            } else {
+                $stmt = $db->prepare("
+                    INSERT INTO prestiti
+                        (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo)
+                    VALUES (?, ?, ?, ?, 'pendente', 0)
+                ");
+                $stmt->bind_param('iiss', $libroId, $utenteId, $data_prestito, $data_scadenza);
+            }
 
             if (!$stmt->execute()) {
                 $stmt->close();
@@ -607,6 +703,13 @@ class UserActionsController
 
             $newLoanId = (int) $db->insert_id;
             $stmt->close();
+
+            if ($preassignedCopyId !== null) {
+                $integrity = new \App\Support\DataIntegrity($db);
+                if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after automatic copy claim.');
+                }
+            }
             $db->commit();
 
             // Promote immediately before performing slower email I/O, minimizing
@@ -614,14 +717,14 @@ class UserActionsController
             // same copy. The canonical approval path re-checks every constraint.
             // ?string: the persisted state ('prenotato'/'da_ritirare') on
             // success, null when the request stays pending.
-            $autoApproved = $this->autoApproveLoanRequest($request, $db, $newLoanId);
+            $autoApproved = $this->autoApproveLoanRequest($request, $db, $newLoanId, $autoApproveEnabled);
 
             // A successfully auto-approved request no longer needs admin action.
             // Emitting the old "new request" notification here left a stale
             // approval link pointing at a loan that was already da_ritirare.
             if (!$autoApproved) {
                 try {
-                    $notificationService = new \App\Support\NotificationService($db);
+                    $notificationService = $this->createNotificationService($db);
                     $notificationService->notifyLoanRequest($newLoanId);
                 } catch (\Throwable $e) {
                     SecureLogger::warning(__('Notifica richiesta prestito fallita'), ['error' => $e->getMessage()]);
@@ -729,9 +832,28 @@ class UserActionsController
             }
             $dupLoanStmt->close();
 
+            // Revalidate under the user lock so a concurrent suspension/card
+            // expiry cannot race the pre-transaction eligibility check.
+            $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+            $userLockStmt->bind_param('i', $utenteId);
+            $userLockStmt->execute();
+            $userLockStmt->get_result();
+            $userLockStmt->close();
+            if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => 'not_eligible']);
+            }
+
             // Canonical peak-capacity decision (same service as admin create,
             // approval, renew and audit), excluding this user defensively.
             $capacity = new \App\Services\CapacityService($db);
+            // Senza righe in `copie` la coda non può mai convertire (la
+            // promozione seleziona solo copie fisiche): rifiuta a monte invece
+            // di accettare una prenotazione che fallirebbe in silenzio per sempre.
+            if (!$capacity->hasPhysicalCopies($libroId)) {
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => 'not_available']);
+            }
             if (!$capacity->hasFreeCapacity($libroId, $start, $end, excludeUserId: $utenteId)) {
                 $db->rollback();
                 return $this->back($response, ['reserve_error' => 'not_available']);
@@ -759,7 +881,9 @@ class UserActionsController
 
                 // Recalculate book availability after reservation
                 $integrity = new \App\Support\DataIntegrity($db);
-                $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+                if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after reservation creation.');
+                }
 
                 $db->commit();
                 $params = ['reserve_success' => 1];
@@ -797,16 +921,22 @@ class UserActionsController
      * A failure deliberately leaves the request pending, so an administrator can
      * still process it instead of losing an otherwise valid request.
      */
-    private function autoApproveLoanRequest(Request $request, mysqli $db, int $loanId): ?string
+    private function autoApproveLoanRequest(
+        Request $request,
+        mysqli $db,
+        int $loanId,
+        ?bool $knownEnabled = null
+    ): ?string
     {
-        // The settings read runs INSIDE the try: this helper is called AFTER the
-        // request is committed, so a DB hiccup in the SettingsRepository lookup
-        // must degrade to "left pending" (return null) rather than escape to the
-        // outer transaction catch, which would roll back and report a failure for
-        // an already durable request.
+        // The normal request path captures the setting under the book lock and
+        // passes it in $knownEnabled, keeping its pre-commit copy claim and its
+        // post-commit approval decision identical. Legacy/reflection callers may
+        // omit it; their settings read remains inside this try so a DB hiccup
+        // degrades to "left pending" instead of escaping after the durable INSERT.
         try {
-            $settings = new \App\Models\SettingsRepository($db);
-            if (!$settings->autoApproveLoanRequests()) {
+            $enabled = $knownEnabled
+                ?? (new \App\Models\SettingsRepository($db))->autoApproveLoanRequests();
+            if (!$enabled) {
                 // A disabled setting is not a failure: leave the request pending
                 // for an admin without logging any warning noise.
                 return null;
@@ -843,6 +973,16 @@ class UserActionsController
         }
 
         return null;
+    }
+
+    /**
+     * Factory seam for request notifications. Production receives the normal
+     * service; DB-backed controller tests override it with a no-op so exercising
+     * the manual queue never contacts an external mail transport.
+     */
+    protected function createNotificationService(mysqli $db): \App\Support\NotificationService
+    {
+        return new \App\Support\NotificationService($db);
     }
 
     /**

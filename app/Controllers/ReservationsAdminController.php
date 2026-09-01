@@ -152,8 +152,11 @@ class ReservationsAdminController
         $startDt = $start . ' 00:00:00';
         $endDt = $end . ' 23:59:59';
 
+        // Rifiuta (non coercire) uno stato fuori whitelist: la vecchia
+        // coercizione ad 'attiva' faceva sì che un POST malformato su una
+        // prenotazione annullata/completata la riattivasse silenziosamente.
         if (!in_array($stato, ['attiva', 'completata', 'annullata'], true)) {
-            $stato = 'attiva';
+            return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=invalid_status')->withStatus(302);
         }
 
         $lookupStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ?");
@@ -192,6 +195,32 @@ class ReservationsAdminController
 
             $utenteId = (int) $libroResult['utente_id'];
             $oldStato = (string) $libroResult['stato'];
+
+            // Una prenotazione 'completata' è stata promossa: il prestito
+            // collegato vive solo tramite origine='prenotazione' (nessuna FK) e
+            // questo edit non lo toccherebbe. Finché quel prestito è aperto,
+            // cambiare qui lo stato produrrebbe solo coppie incoerenti
+            // (prenotazione annullata + prestito promosso vivo): va gestito il
+            // prestito, non la prenotazione.
+            if ($oldStato === 'completata' && $stato !== 'completata') {
+                $promotedStmt = $db->prepare("
+                    SELECT id FROM prestiti
+                    WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione' AND (
+                        (attivo = 0 AND stato = 'pendente')
+                        OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                    )
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $promotedStmt->bind_param('ii', $libroId, $utenteId);
+                $promotedStmt->execute();
+                $hasPromotedLoan = $promotedStmt->get_result()->num_rows > 0;
+                $promotedStmt->close();
+                if ($hasPromotedLoan) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=promoted_loan_active')->withStatus(302);
+                }
+            }
 
             if ($stato === 'attiva') {
                 $dupReservationStmt = $db->prepare("
@@ -280,7 +309,9 @@ class ReservationsAdminController
             }
 
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after reservation update.');
+            }
 
             // Cancelling/completing an active reservation frees a slot: promote the next
             // queued reservation(s) right away, exactly like every other release path
@@ -515,6 +546,12 @@ class ReservationsAdminController
             // already at capacity for that window (counting other commitments).
             // Same CapacityService predicate as the promotion gate and the auditor.
             $capacity = new \App\Services\CapacityService($db);
+            // Senza righe in `copie` la promozione non può mai convertire la
+            // coda (seleziona solo copie fisiche): rifiuta a monte.
+            if (!$capacity->hasPhysicalCopies($libroId)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/reservations/create') . '?error=capacity_full')->withStatus(302);
+            }
             if (!$capacity->hasFreeCapacity($libroId, $dataInizioRichiesta, $dataFineRichiesta, excludeUserId: $utenteId)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/reservations/create') . '?error=capacity_full')->withStatus(302);
@@ -535,7 +572,9 @@ class ReservationsAdminController
             $stmt->close();
 
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Failed to recalculate availability after reservation creation.');
+            }
 
             $db->commit();
             return $response->withHeader('Location', url('/admin/reservations') . '?created=1')->withStatus(302);

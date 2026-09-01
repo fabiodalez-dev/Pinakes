@@ -15,12 +15,22 @@ use ZipArchive;
 class PluginManager
 {
     private const MAX_UPLOAD_BYTES = 104857600; // 100 MB
+    /** Filename prefix for deferred plugin-update markers; public so tests reference it instead of duplicating the literal. */
+    public const PENDING_UPDATE_PREFIX = '.pinakes-plugin-update-';
     private mysqli $db;
     private string $pluginsDir;
     private string $uploadsDir;
     private HookManager $hookManager;
     private ?string $cachedEncryptionKey = null;
     private bool $encryptionKeyResolved = false;
+
+    /**
+     * @var array<int,true> Plugins rolled back after their replacement class was
+     * loaded. Static so the skip covers the whole PHP request even when a
+     * controller builds a second PluginManager instance: the broken replacement
+     * class stays defined process-wide, so every instance must skip it.
+     */
+    private static array $skipPluginIdsThisRequest = [];
 
     /**
      * Per-process cache for {@see isActive()} lookups.
@@ -92,13 +102,30 @@ class PluginManager
      */
     /**
      * Cheap boot-time schema-presence probe used by the self-heal in
-     * autoRegisterBundledPlugins(). A schema-owning plugin may declare
-     * `expectedTables(): list<string>`; if any of those tables is missing the
-     * plugin's schema is behind and ensureSchema must be re-run. Plugins that
-     * do not declare the method never trigger a rebuild. One read-only
-     * information_schema query, no locks — safe to call on every boot.
+     * autoRegisterBundledPlugins(). A schema-owning plugin may declare its
+     * expected surface via any of:
+     *   - `expectedTables(): list<string>`
+     *   - `expectedColumns(): list<array{table:string, column:string}>`
+     *   - `expectedForeignKeys(): list<array{table:string, column:string, ref_table:string}>`
+     * If ANY declared table / column / FK is missing, the plugin's schema is
+     * behind and ensureSchema/onActivate must be re-run. This is the ONLY path
+     * that applies a schema change added in a release on an admin-UI upgrade:
+     * that upgrade runs the plugin's OLD class (already in memory from
+     * loadActivePlugins) even though the version is bumped, so the new
+     * ensureSchema never runs at upgrade time (stale-class trap, ncip FK,
+     * bibliodoc 2026-08-24). Plugins that declare nothing never trigger a
+     * rebuild. Each probe is one read-only information_schema query, no locks —
+     * safe on every boot.
      */
     private function bundledSchemaIncomplete(object $instance): bool
+    {
+        return $this->expectedTablesMissing($instance)
+            || $this->expectedColumnsMissing($instance)
+            || $this->expectedForeignKeysMissing($instance);
+    }
+
+    /** True when a declared expectedTables() entry is absent from the schema. */
+    private function expectedTablesMissing(object $instance): bool
     {
         if (!method_exists($instance, 'expectedTables')) {
             return false;
@@ -128,6 +155,114 @@ class PluginManager
         }
         $present = (int) $res->fetch_row()[0];
         return $present < count($escaped);
+    }
+
+    /**
+     * True when a declared expectedColumns() entry is absent. A plugin that adds
+     * a column to an existing table (its own or a core table, e.g.
+     * digital-library's file_url/audio_url on `libri`) declares it as
+     * {table, column}. If the prepare fails we return false — "cannot prove
+     * missing" must not churn onActivate on every boot.
+     */
+    private function expectedColumnsMissing(object $instance): bool
+    {
+        if (!method_exists($instance, 'expectedColumns')) {
+            return false;
+        }
+        try {
+            $columns = $instance->expectedColumns();
+        } catch (\Throwable $e) {
+            return false;
+        }
+        if (!is_array($columns) || $columns === []) {
+            return false;
+        }
+        foreach ($columns as $col) {
+            if (!is_array($col)) {
+                continue;
+            }
+            $table  = (string) ($col['table'] ?? '');
+            $column = (string) ($col['column'] ?? '');
+            if ($table === '' || $column === '') {
+                continue;
+            }
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?"
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('ss', $table, $column);
+            if (!$stmt->execute()) {
+                // A probe failure is not proof the column is missing — returning
+                // "missing" here would churn onActivate DDL on every boot.
+                $stmt->close();
+                return false;
+            }
+            $present = 0;
+            $stmt->bind_result($present);
+            $stmt->fetch();
+            $stmt->close();
+            if ((int) $present === 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when a declared expectedForeignKeys() entry is absent. Mirrors the
+     * probe a plugin's own ensureForeignKeys() uses (REFERENCED_TABLE_NAME is
+     * non-NULL only for real FKs, so a same-named plain index is not matched).
+     */
+    private function expectedForeignKeysMissing(object $instance): bool
+    {
+        if (!method_exists($instance, 'expectedForeignKeys')) {
+            return false;
+        }
+        try {
+            $fks = $instance->expectedForeignKeys();
+        } catch (\Throwable $e) {
+            return false;
+        }
+        if (!is_array($fks) || $fks === []) {
+            return false;
+        }
+        foreach ($fks as $fk) {
+            if (!is_array($fk)) {
+                continue;
+            }
+            $table    = (string) ($fk['table'] ?? '');
+            $column   = (string) ($fk['column'] ?? '');
+            $refTable = (string) ($fk['ref_table'] ?? '');
+            if ($table === '' || $column === '' || $refTable === '') {
+                continue;
+            }
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                   AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME = ?"
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('sss', $table, $column, $refTable);
+            if (!$stmt->execute()) {
+                // A probe failure is not proof the FK is missing — returning
+                // "missing" here would churn onActivate DDL on every boot.
+                $stmt->close();
+                return false;
+            }
+            $present = 0;
+            $stmt->bind_result($present);
+            $stmt->fetch();
+            $stmt->close();
+            if ((int) $present === 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public function autoRegisterBundledPlugins(): int
@@ -177,6 +312,9 @@ class PluginManager
             $stmt->close();
 
             if ($row) {
+                if (isset(self::$skipPluginIdsThisRequest[(int) $row['id']])) {
+                    continue;
+                }
                 // Manifest compatibility metadata is operational, not merely
                 // descriptive. Keep it in sync even when a bundled plugin's
                 // own version did not change in this core release.
@@ -738,7 +876,7 @@ class PluginManager
         $pluginJsonContent = $zip->getFromName($pluginJsonPath);
         $pluginMeta = json_decode($pluginJsonContent, true);
 
-        if (!$pluginMeta) {
+        if (!is_array($pluginMeta)) {
             $zip->close();
             return ['success' => false, 'message' => __('File plugin.json non valido.'), 'plugin_id' => null];
         }
@@ -746,7 +884,7 @@ class PluginManager
         // Validate required fields
         $requiredFields = ['name', 'display_name', 'version', 'main_file'];
         foreach ($requiredFields as $field) {
-            if (empty($pluginMeta[$field])) {
+            if (!isset($pluginMeta[$field]) || !is_string($pluginMeta[$field]) || trim($pluginMeta[$field]) === '') {
                 $zip->close();
                 return ['success' => false, 'message' => __('Campo obbligatorio mancante: %s', $field), 'plugin_id' => null];
             }
@@ -757,12 +895,10 @@ class PluginManager
             return ['success' => false, 'message' => __('Nome plugin non valido. Usa solo lettere, numeri, trattini o underscore.'), 'plugin_id' => null];
         }
 
-        // Check if plugin already exists
+        // An uploaded package with an existing name is an in-place update. Its
+        // database ID deliberately remains stable, so plugin settings, data and
+        // hook rows continue to point to the same plugin after the update.
         $existingPlugin = $this->getPluginByName($pluginMeta['name']);
-        if ($existingPlugin) {
-            $zip->close();
-            return ['success' => false, 'message' => __('Plugin già installato.'), 'plugin_id' => null];
-        }
 
         // Check PHP version compatibility
         if (!empty($pluginMeta['requires_php'])) {
@@ -782,27 +918,37 @@ class PluginManager
             return ['success' => false, 'message' => $appCompatibilityError, 'plugin_id' => null];
         }
 
-        // Extract plugin to storage/plugins directory
+        // Extract into a sibling staging directory first. Never touch the
+        // installed copy until the whole archive has been validated, so a bad
+        // update cannot leave an otherwise working plugin half-extracted.
         $pluginsBaseDir = realpath($this->pluginsDir) ?: $this->pluginsDir;
-        $pluginPath = $pluginsBaseDir . '/' . $pluginMeta['name'];
+        $targetDirectory = $existingPlugin !== null
+            ? (string) ($existingPlugin['path'] ?? '')
+            : (string) $pluginMeta['name'];
 
-        if (is_dir($pluginPath)) {
+        if (!$this->isSafePluginDirectoryName($targetDirectory)) {
+            $zip->close();
+            return ['success' => false, 'message' => __('Percorso di installazione del plugin non valido.'), 'plugin_id' => null];
+        }
+
+        $pluginPath = $pluginsBaseDir . '/' . $targetDirectory;
+        if ($existingPlugin === null && is_dir($pluginPath)) {
             $zip->close();
             return ['success' => false, 'message' => __('Directory plugin già esistente.'), 'plugin_id' => null];
         }
 
-        if (!mkdir($pluginPath, 0755, true)) {
+        $stagingPath = $this->createPluginStagingDirectory($pluginsBaseDir, $targetDirectory);
+        if ($stagingPath === null) {
             $zip->close();
-            return ['success' => false, 'message' => __('Impossibile creare la directory del plugin.'), 'plugin_id' => null];
+            return ['success' => false, 'message' => __('Impossibile creare la directory temporanea del plugin.'), 'plugin_id' => null];
         }
 
-        $pluginRealPath = realpath($pluginPath);
+        $pluginRealPath = realpath($stagingPath);
         if ($pluginRealPath === false || strpos($pluginRealPath, rtrim($pluginsBaseDir, DIRECTORY_SEPARATOR)) !== 0) {
             $zip->close();
-            $this->deleteDirectory($pluginPath);
+            $this->deleteDirectory($stagingPath);
             return ['success' => false, 'message' => __('Percorso di installazione del plugin non valido.'), 'plugin_id' => null];
         }
-        $pluginPath = $pluginRealPath;
 
         $extractedFiles = false;
         $pluginRootPrefix = $pluginRootDir ? rtrim($pluginRootDir, '/') . '/' : null;
@@ -832,14 +978,14 @@ class PluginManager
 
             if ($targetPath === null) {
                 $zip->close();
-                $this->deleteDirectory($pluginPath);
+                $this->deleteDirectory($stagingPath);
                 return ['success' => false, 'message' => __('Il pacchetto contiene percorsi non validi.'), 'plugin_id' => null];
             }
 
             if (str_ends_with($filename, '/')) {
                 if (!is_dir($targetPath) && !mkdir($targetPath, 0755, true)) {
                     $zip->close();
-                    $this->deleteDirectory($pluginPath);
+                    $this->deleteDirectory($stagingPath);
                     return ['success' => false, 'message' => __('Impossibile creare la struttura del plugin.'), 'plugin_id' => null];
                 }
                 continue;
@@ -848,14 +994,14 @@ class PluginManager
             $dir = dirname($targetPath);
             if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
                 $zip->close();
-                $this->deleteDirectory($pluginPath);
+                $this->deleteDirectory($stagingPath);
                 return ['success' => false, 'message' => __('Impossibile creare la struttura del plugin.'), 'plugin_id' => null];
             }
 
             $content = $zip->getFromIndex($i);
             if ($content === false || file_put_contents($targetPath, $content) === false) {
                 $zip->close();
-                $this->deleteDirectory($pluginPath);
+                $this->deleteDirectory($stagingPath);
                 return ['success' => false, 'message' => __('Errore durante l\'estrazione del plugin.'), 'plugin_id' => null];
             }
 
@@ -865,16 +1011,35 @@ class PluginManager
         $zip->close();
 
         if (!$extractedFiles) {
-            $this->deleteDirectory($pluginPath);
+            $this->deleteDirectory($stagingPath);
             return ['success' => false, 'message' => __('Il pacchetto non contiene file validi.'), 'plugin_id' => null];
         }
 
         // Verify main file exists
-        $mainFilePath = $pluginPath . '/' . $pluginMeta['main_file'];
+        if (!$this->isSafePluginFilePath((string) $pluginMeta['main_file'])) {
+            $this->deleteDirectory($stagingPath);
+            return ['success' => false, 'message' => __('File principale del plugin non valido.'), 'plugin_id' => null];
+        }
+        $mainFilePath = $pluginRealPath . '/' . $pluginMeta['main_file'];
         if (!file_exists($mainFilePath)) {
-            $this->deleteDirectory($pluginPath);
+            $this->deleteDirectory($stagingPath);
             return ['success' => false, 'message' => __('File principale del plugin non trovato.'), 'plugin_id' => null];
         }
+
+        if ($existingPlugin !== null) {
+            return $this->updatePluginFromStaging(
+                $existingPlugin,
+                $pluginMeta,
+                $stagingPath,
+                $pluginsBaseDir
+            );
+        }
+
+        if (!rename($pluginRealPath, $pluginPath)) {
+            $this->deleteDirectory($stagingPath);
+            return ['success' => false, 'message' => __('Impossibile finalizzare l\'installazione del plugin.'), 'plugin_id' => null];
+        }
+        $pluginPath = realpath($pluginPath) ?: $pluginPath;
 
         // Insert plugin into database
         $stmt = $this->db->prepare("
@@ -890,7 +1055,7 @@ class PluginManager
             // row exists. Clean up before returning.
             $this->deleteDirectory($pluginPath);
             SecureLogger::error('[PluginManager] Failed to prepare plugin INSERT', [
-                'plugin'   => $pluginMeta['name'] ?? 'unknown',
+                'plugin'   => $pluginMeta['name'],
                 'db_error' => $this->db->error,
             ]);
             return [
@@ -1226,6 +1391,357 @@ class PluginManager
             $className .= ucfirst($part);
         }
         return $className . 'Plugin';
+    }
+
+    /**
+     * Replace the on-disk package and its metadata without changing the plugin
+     * identity. Settings, plugin_data, logs and hooks all refer to the existing
+     * ID through foreign keys and are therefore intentionally left untouched.
+     *
+     * Active plugins have already been required by the time the admin upload
+     * endpoint runs, so PHP cannot safely instantiate the replacement class in
+     * this request. Keep the old package as a sibling backup and persist a
+     * pending-update marker. The next bootstrap runs the new onActivate() before
+     * hooks are loaded, then removes the backup; a lifecycle failure restores
+     * the old package, metadata and hook rows.
+     *
+     * @param array<string,mixed> $existingPlugin
+     * @param array<string,mixed> $pluginMeta
+     * @return array{success:bool,message:string,plugin_id:int|null,updated?:bool}
+     */
+    private function updatePluginFromStaging(
+        array $existingPlugin,
+        array $pluginMeta,
+        string $stagingPath,
+        string $pluginsBaseDir
+    ): array {
+        $pluginId = (int) ($existingPlugin['id'] ?? 0);
+        $directory = (string) ($existingPlugin['path'] ?? '');
+        if ($pluginId <= 0 || !$this->isSafePluginDirectoryName($directory)) {
+            $this->deleteDirectory($stagingPath);
+            return ['success' => false, 'message' => __('Plugin installato non valido.'), 'plugin_id' => null];
+        }
+
+        $pluginPath = rtrim($pluginsBaseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $directory;
+        try {
+            $backupPath = rtrim($pluginsBaseDir, DIRECTORY_SEPARATOR)
+                . DIRECTORY_SEPARATOR . '.' . $directory . '.backup-' . bin2hex(random_bytes(8));
+        } catch (\Throwable $e) {
+            $this->deleteDirectory($stagingPath);
+            return ['success' => false, 'message' => __('Impossibile preparare l\'aggiornamento del plugin.'), 'plugin_id' => null];
+        }
+        $hasBackup = false;
+        $newPackageInstalled = false;
+        $metadataUpdated = false;
+        $pendingMarkerPath = null;
+        $pendingMarkerHandle = null;
+
+        try {
+            $oldPluginSnapshot = $this->pluginMetadataSnapshot($existingPlugin);
+            $newPluginSnapshot = $this->pluginMetadataSnapshot($pluginMeta);
+            $oldHooks = $this->snapshotPluginHooks($pluginId);
+        } catch (\Throwable $e) {
+            $this->deleteDirectory($stagingPath);
+            return [
+                'success' => false,
+                'message' => __('Impossibile preparare lo stato dell\'aggiornamento del plugin.'),
+                'plugin_id' => null,
+            ];
+        }
+
+        try {
+            if (file_exists($pluginPath) && !is_dir($pluginPath)) {
+                throw new \RuntimeException('Il percorso del plugin esistente non è una directory.');
+            }
+
+            if (is_dir($pluginPath)) {
+                if (!rename($pluginPath, $backupPath)) {
+                    throw new \RuntimeException('Impossibile preparare il backup del plugin esistente.');
+                }
+                $hasBackup = true;
+            }
+
+            // Create the deferred-update marker BEFORE the new package becomes
+            // visible, not after. It holds an exclusive lock for the rest of this
+            // request (released in the finally), so a concurrent bootstrap's
+            // finalizePendingPluginUpdates() blocks on it instead of loading the
+            // new files against the still-old metadata, hooks and schema — the
+            // window between promotion and marker creation is thereby closed.
+            // If this request dies before the promotion below, the marker's
+            // finalize cannot instantiate the not-yet-moved package
+            // (instantiatePlugin throws on the missing main file) and rolls back
+            // to the backup — it never activates a half-updated state.
+            if ((int) ($existingPlugin['is_active'] ?? 0) === 1) {
+                $pendingMarkerPath = $this->pendingPluginUpdatePath($pluginId);
+                $pendingState = [
+                    'plugin_id' => $pluginId,
+                    'plugin_name' => (string) ($existingPlugin['name'] ?? $pluginMeta['name']),
+                    'directory' => $directory,
+                    'backup_directory' => $hasBackup ? basename($backupPath) : null,
+                    'old_plugin' => $oldPluginSnapshot,
+                    'new_plugin' => $newPluginSnapshot,
+                    'old_hooks' => $oldHooks,
+                ];
+                $pendingMarkerHandle = $this->createPendingPluginUpdateMarker(
+                    $pendingMarkerPath,
+                    $pendingState
+                );
+            }
+
+            if (!rename($stagingPath, $pluginPath)) {
+                throw new \RuntimeException('Impossibile sostituire i file del plugin.');
+            }
+            $newPackageInstalled = true;
+
+            $this->applyPluginMetadataSnapshot($pluginId, $newPluginSnapshot);
+            $metadataUpdated = true;
+
+            // Inactive plugins run onActivate() when the administrator enables
+            // them, so there is no lifecycle to defer and no backup to retain.
+            if ((int) ($existingPlugin['is_active'] ?? 0) !== 1
+                && $hasBackup
+                && !$this->deleteDirectory($backupPath)
+            ) {
+                SecureLogger::warning('[PluginManager] Updated plugin backup could not be removed', [
+                    'plugin' => $pluginMeta['name'],
+                    'path' => $backupPath,
+                ]);
+            }
+
+            self::clearPluginCache();
+            SecureLogger::info("[PluginManager] Plugin updated successfully: {$pluginMeta['name']} (ID: $pluginId)");
+            return [
+                'success' => true,
+                'message' => __('Plugin aggiornato con successo.'),
+                'plugin_id' => $pluginId,
+                'updated' => true,
+            ];
+        } catch (\Throwable $e) {
+            if (is_resource($pendingMarkerHandle)) {
+                if (is_string($pendingMarkerPath)) {
+                    @unlink($pendingMarkerPath);
+                }
+                flock($pendingMarkerHandle, LOCK_UN);
+                fclose($pendingMarkerHandle);
+                $pendingMarkerHandle = null;
+            }
+            if ($metadataUpdated) {
+                try {
+                    $this->applyPluginMetadataSnapshot($pluginId, $oldPluginSnapshot);
+                } catch (\Throwable $rollbackError) {
+                    SecureLogger::error('[PluginManager] Failed to restore plugin metadata after update rollback', [
+                        'plugin' => $pluginMeta['name'],
+                        'error' => $rollbackError->getMessage(),
+                    ]);
+                }
+            }
+            if ($newPackageInstalled && is_dir($pluginPath)) {
+                $this->deleteDirectory($pluginPath);
+            }
+            if ($hasBackup && is_dir($backupPath) && !rename($backupPath, $pluginPath)) {
+                SecureLogger::error('[PluginManager] Failed to restore plugin after update rollback', [
+                    'plugin' => $pluginMeta['name'],
+                    'path' => $backupPath,
+                ]);
+            }
+            if (is_dir($stagingPath)) {
+                $this->deleteDirectory($stagingPath);
+            }
+            SecureLogger::error('[PluginManager] Plugin update failed', [
+                'plugin' => $pluginMeta['name'],
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => __('Errore durante l\'aggiornamento del plugin: %s', $e->getMessage()),
+                'plugin_id' => null,
+            ];
+        } finally {
+            if (is_resource($pendingMarkerHandle)) {
+                flock($pendingMarkerHandle, LOCK_UN);
+                fclose($pendingMarkerHandle);
+            }
+        }
+    }
+
+    /** @return array<string,string> */
+    private function pluginMetadataSnapshot(array $plugin): array
+    {
+        $metadata = $plugin['metadata'] ?? [];
+        if (!is_array($metadata)) {
+            $decoded = json_decode((string) $metadata, true);
+            $metadata = is_array($decoded) ? $decoded : [];
+        }
+
+        return [
+            'display_name' => (string) ($plugin['display_name'] ?? $plugin['name'] ?? ''),
+            'description' => (string) ($plugin['description'] ?? ''),
+            'version' => (string) ($plugin['version'] ?? ''),
+            'author' => (string) ($plugin['author'] ?? ''),
+            'author_url' => (string) ($plugin['author_url'] ?? ''),
+            'plugin_url' => (string) ($plugin['plugin_url'] ?? ''),
+            'main_file' => (string) ($plugin['main_file'] ?? ''),
+            'requires_php' => (string) ($plugin['requires_php'] ?? ''),
+            'requires_app' => (string) ($plugin['requires_app'] ?? ''),
+            'metadata' => json_encode($metadata, JSON_THROW_ON_ERROR),
+        ];
+    }
+
+    /** @param array<string,string> $snapshot */
+    private function applyPluginMetadataSnapshot(int $pluginId, array $snapshot): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE plugins SET display_name = ?, description = ?, version = ?, author = ?, author_url = ?, '
+            . 'plugin_url = ?, main_file = ?, requires_php = ?, requires_app = ?, metadata = ? WHERE id = ?'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException('Impossibile aggiornare i metadati del plugin.');
+        }
+
+        $displayName = $snapshot['display_name'];
+        $description = $snapshot['description'];
+        $version = $snapshot['version'];
+        $author = $snapshot['author'];
+        $authorUrl = $snapshot['author_url'];
+        $pluginUrl = $snapshot['plugin_url'];
+        $mainFile = $snapshot['main_file'];
+        $requiresPhp = $snapshot['requires_php'];
+        $requiresApp = $snapshot['requires_app'];
+        $metadata = $snapshot['metadata'];
+        $stmt->bind_param(
+            'ssssssssssi',
+            $displayName,
+            $description,
+            $version,
+            $author,
+            $authorUrl,
+            $pluginUrl,
+            $mainFile,
+            $requiresPhp,
+            $requiresApp,
+            $metadata,
+            $pluginId
+        );
+        $updated = $stmt->execute();
+        $stmt->close();
+        if (!$updated) {
+            throw new \RuntimeException('Impossibile salvare i metadati aggiornati del plugin.');
+        }
+    }
+
+    /**
+     * @return list<array{hook_name:string,callback_class:string,callback_method:string,priority:int,is_active:int,created_at:string}>
+     */
+    private function snapshotPluginHooks(int $pluginId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT hook_name, callback_class, callback_method, priority, is_active, created_at '
+            . 'FROM plugin_hooks WHERE plugin_id = ? ORDER BY id ASC'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException('Impossibile leggere gli hook del plugin.');
+        }
+        $stmt->bind_param('i', $pluginId);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new \RuntimeException('Impossibile leggere gli hook del plugin.');
+        }
+        $result = $stmt->get_result();
+        if ($result === false) {
+            $stmt->close();
+            throw new \RuntimeException('Impossibile leggere gli hook del plugin.');
+        }
+
+        $hooks = [];
+        while ($row = $result->fetch_assoc()) {
+            $hooks[] = [
+                'hook_name' => (string) $row['hook_name'],
+                'callback_class' => (string) $row['callback_class'],
+                'callback_method' => (string) $row['callback_method'],
+                'priority' => (int) $row['priority'],
+                'is_active' => (int) $row['is_active'],
+                'created_at' => (string) $row['created_at'],
+            ];
+        }
+        $stmt->close();
+        return $hooks;
+    }
+
+    private function pendingPluginUpdatePath(int $pluginId): string
+    {
+        return $this->pluginsDir . DIRECTORY_SEPARATOR . self::PENDING_UPDATE_PREFIX . $pluginId . '.json';
+    }
+
+    /**
+     * Write and exclusively lock the marker before changing DB metadata. A
+     * concurrent bootstrap waits for the upload request to finish, then sees a
+     * complete package plus a complete rollback snapshot.
+     *
+     * @param array<string,mixed> $state
+     * @return resource
+     */
+    private function createPendingPluginUpdateMarker(string $path, array $state)
+    {
+        $handle = @fopen($path, 'x+b');
+        if ($handle === false) {
+            // The exclusive create failed: a marker already exists (another
+            // pending update) or the directory is unwritable. Nothing to clean.
+            throw new \RuntimeException('Esiste già un aggiornamento pendente per questo plugin.');
+        }
+        if (!flock($handle, LOCK_EX)) {
+            // fopen('x+b') just created this file. If it cannot be locked, remove
+            // the empty marker before throwing: leaving it would block every
+            // future update of this plugin (fopen('x+b') keeps failing with
+            // "already pending") and the caller's catch cannot clean it up
+            // because this method threw before returning the handle.
+            fclose($handle);
+            @unlink($path);
+            throw new \RuntimeException('Impossibile bloccare il marker di aggiornamento del plugin.');
+        }
+
+        try {
+            $json = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            if (fwrite($handle, $json) !== strlen($json) || !fflush($handle)) {
+                throw new \RuntimeException('Impossibile salvare lo stato dell\'aggiornamento del plugin.');
+            }
+            return $handle;
+        } catch (\Throwable $e) {
+            @unlink($path);
+            flock($handle, LOCK_UN);
+            fclose($handle);
+            throw $e;
+        }
+    }
+
+    private function createPluginStagingDirectory(string $pluginsBaseDir, string $directory): ?string
+    {
+        try {
+            $path = rtrim($pluginsBaseDir, DIRECTORY_SEPARATOR)
+                . DIRECTORY_SEPARATOR . '.' . $directory . '.staging-' . bin2hex(random_bytes(8));
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return mkdir($path, 0755, true) ? $path : null;
+    }
+
+    private function isSafePluginDirectoryName(string $directory): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9_-]+$/D', $directory);
+    }
+
+    private function isSafePluginFilePath(string $path): bool
+    {
+        $path = str_replace('\\', '/', $path);
+        if ($path === '' || str_contains($path, "\0") || preg_match('#^(?:[A-Za-z]:)?/#', $path)) {
+            return false;
+        }
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -1595,6 +2111,11 @@ class PluginManager
      */
     public function loadActivePlugins(): void
     {
+        // A ZIP upload replaces files after active plugin classes have already
+        // been loaded for that request. Complete those upgrades now, in a fresh
+        // PHP request, before any active plugin or hook is instantiated.
+        $this->finalizePendingPluginUpdates();
+
         // Bundled-plugin registration and orphan cleanup are maintenance
         // operations: they scan the filesystem and issue several queries, yet
         // their outcome only changes after an update or an admin plugin action.
@@ -1645,8 +2166,15 @@ class PluginManager
         // current request or the following five minutes.
         $instances = [];
         foreach ($activePlugins as $plugin) {
+            $pluginId = (int) $plugin['id'];
+            if (isset(self::$skipPluginIdsThisRequest[$pluginId])) {
+                // The failed replacement class remains defined until this PHP
+                // request ends. The old files are already restored and will be
+                // loaded normally by the next request.
+                continue;
+            }
             try {
-                $instances[(int) $plugin['id']] = $this->instantiatePlugin($plugin);
+                $instances[$pluginId] = $this->instantiatePlugin($plugin);
             } catch (\Throwable $e) {
                 SecureLogger::error("[PluginManager] Failed to load plugin '{$plugin['name']}'", ['error' => $e->getMessage()]);
             }
@@ -1688,6 +2216,327 @@ class PluginManager
 
         // Prevent HookManager from loading hooks from database
         $this->hookManager->setPluginsLoadedRuntime();
+    }
+
+    private function finalizePendingPluginUpdates(): void
+    {
+        $pattern = $this->pluginsDir . DIRECTORY_SEPARATOR . self::PENDING_UPDATE_PREFIX . '*.json';
+        $markers = glob($pattern) ?: [];
+        sort($markers);
+
+        foreach ($markers as $markerPath) {
+            $state = null;
+            $handle = @fopen($markerPath, 'r+b');
+            if ($handle === false) {
+                // Retry next request rather than retiring the marker: retiring on
+                // a transient open failure would silently drop the deferred
+                // onActivate (schema migration) this whole mechanism exists to
+                // run. Log so a genuinely permanent failure is diagnosable, not
+                // silent.
+                SecureLogger::warning('[PluginManager] Could not open pending plugin update marker; will retry next request', [
+                    'path' => $markerPath,
+                ]);
+                continue;
+            }
+            if (!flock($handle, LOCK_EX)) {
+                // LOCK_EX blocks on contention, so a false return is a real lock
+                // error, not another request finalizing. Same rationale as above:
+                // retry (don't drop the deferred lifecycle), but make it loud.
+                SecureLogger::warning('[PluginManager] Could not lock pending plugin update marker; will retry next request', [
+                    'path' => $markerPath,
+                ]);
+                fclose($handle);
+                continue;
+            }
+
+            try {
+                // Another request may have completed and unlinked this marker
+                // while this request was waiting for its lock.
+                if (!is_file($markerPath)) {
+                    continue;
+                }
+                rewind($handle);
+                $raw = stream_get_contents($handle);
+                $state = is_string($raw) ? json_decode($raw, true, 512, JSON_THROW_ON_ERROR) : null;
+                if (!is_array($state)) {
+                    throw new \RuntimeException('Stato di aggiornamento non valido.');
+                }
+
+                $this->finalizePendingPluginUpdate($state);
+                @unlink($markerPath);
+            } catch (\Throwable $e) {
+                if (is_array($state)) {
+                    $this->rollbackPendingPluginUpdate($state, $e);
+                    @unlink($markerPath);
+                } else {
+                    SecureLogger::error('[PluginManager] Invalid pending plugin update marker', [
+                        'path' => $markerPath,
+                        'error' => $e->getMessage(),
+                    ]);
+                    // An unreadable marker holds no state to roll back, but it
+                    // must not brick future updates: createPendingPluginUpdateMarker()
+                    // opens with fopen('x+b'), so a leftover marker makes every
+                    // later update of this plugin fail with "already pending".
+                    // Keep the corrupted file for diagnosis under a name that no
+                    // longer matches the *.json marker glob; unlink if that fails.
+                    if (!@rename($markerPath, $markerPath . '.invalid-' . time())) {
+                        @unlink($markerPath);
+                    }
+                }
+            } finally {
+                flock($handle, LOCK_UN);
+                fclose($handle);
+            }
+        }
+    }
+
+    /** @param array<string,mixed> $state */
+    private function finalizePendingPluginUpdate(array $state): void
+    {
+        $pluginId = (int) ($state['plugin_id'] ?? 0);
+        $directory = (string) ($state['directory'] ?? '');
+        $newPlugin = $state['new_plugin'] ?? null;
+        if ($pluginId <= 0 || !$this->isSafePluginDirectoryName($directory) || !is_array($newPlugin)) {
+            throw new \RuntimeException('Stato di aggiornamento incompleto.');
+        }
+
+        $plugin = $this->getPlugin($pluginId);
+        if ($plugin === null || (string) ($plugin['path'] ?? '') !== $directory) {
+            throw new \RuntimeException('Il plugin aggiornato non è più registrato.');
+        }
+
+        // A crash between promoting the package and updating its DB row is
+        // recoverable because the marker contains the complete new metadata.
+        $this->applyPluginMetadataSnapshot($pluginId, $newPlugin);
+        $plugin = $this->getPlugin($pluginId);
+        if ($plugin === null) {
+            throw new \RuntimeException('Il plugin aggiornato non è più disponibile.');
+        }
+
+        if ((int) ($plugin['is_active'] ?? 0) !== 1) {
+            self::clearPluginCache();
+            $this->deletePendingPluginBackup($state);
+            return;
+        }
+
+        $instance = $this->instantiatePlugin($plugin);
+        if (method_exists($instance, 'onActivate')) {
+            $instance->onActivate();
+        }
+
+        self::clearPluginCache();
+        SecureLogger::info('[PluginManager] Pending plugin update lifecycle completed', [
+            'plugin' => (string) ($state['plugin_name'] ?? ''),
+            'plugin_id' => $pluginId,
+            'version' => (string) ($newPlugin['version'] ?? ''),
+        ]);
+        // Destructive cleanup is last: any earlier exception can still restore
+        // the package from this backup.
+        $this->deletePendingPluginBackup($state);
+    }
+
+    /** @param array<string,mixed> $state */
+    private function deletePendingPluginBackup(array $state): void
+    {
+        $directory = (string) ($state['directory'] ?? '');
+        $backupDirectory = $state['backup_directory'] ?? null;
+        if (!is_string($backupDirectory) || $backupDirectory === '') {
+            return;
+        }
+        if (!$this->isSafePluginDirectoryName($directory)
+            || !preg_match('/^\.' . preg_quote($directory, '/') . '\.backup-[a-f0-9]{16}$/D', $backupDirectory)
+        ) {
+            // Best-effort cleanup only: this runs AFTER the update is already
+            // applied and (re)activated. Throwing here would propagate into
+            // finalizePendingPluginUpdates()'s catch and roll back a committed
+            // update — a far worse outcome than an orphaned backup directory.
+            SecureLogger::warning('[PluginManager] Unsafe backup path on completed update; leaving backup in place', [
+                'directory' => $directory,
+                'backup_directory' => $backupDirectory,
+            ]);
+            return;
+        }
+
+        $backupPath = $this->pluginsDir . DIRECTORY_SEPARATOR . $backupDirectory;
+        if (is_dir($backupPath) && !$this->deleteDirectory($backupPath)) {
+            SecureLogger::warning('[PluginManager] Completed plugin update backup could not be removed', [
+                'path' => $backupPath,
+            ]);
+        }
+    }
+
+    /** @param array<string,mixed> $state */
+    private function rollbackPendingPluginUpdate(array $state, \Throwable $cause): void
+    {
+        $pluginId = (int) ($state['plugin_id'] ?? 0);
+        $directory = (string) ($state['directory'] ?? '');
+        $backupDirectory = $state['backup_directory'] ?? null;
+        $oldPlugin = $state['old_plugin'] ?? null;
+        $oldHooks = $state['old_hooks'] ?? null;
+        $restored = false;
+
+        if ($pluginId > 0
+            && $this->isSafePluginDirectoryName($directory)
+            && is_string($backupDirectory)
+            && preg_match('/^\.' . preg_quote($directory, '/') . '\.backup-[a-f0-9]{16}$/D', $backupDirectory)
+            && is_array($oldPlugin)
+            && is_array($oldHooks)
+        ) {
+            $pluginPath = $this->pluginsDir . DIRECTORY_SEPARATOR . $directory;
+            $backupPath = $this->pluginsDir . DIRECTORY_SEPARATOR . $backupDirectory;
+            if (is_dir($backupPath)) {
+                if (is_dir($pluginPath)) {
+                    $this->deleteDirectory($pluginPath);
+                }
+                if (rename($backupPath, $pluginPath)) {
+                    try {
+                        $this->applyPluginMetadataSnapshot($pluginId, $oldPlugin);
+                        $this->restorePluginHooks($pluginId, $oldHooks);
+                        self::$skipPluginIdsThisRequest[$pluginId] = true;
+                        $restored = true;
+                    } catch (\Throwable $rollbackError) {
+                        SecureLogger::error('[PluginManager] Pending plugin DB rollback failed', [
+                            'plugin_id' => $pluginId,
+                            'error' => $rollbackError->getMessage(),
+                        ]);
+                    }
+                }
+            }
+        }
+
+        if (!$restored && $pluginId > 0) {
+            // With no trustworthy old package, fail closed: a broken active
+            // plugin must not be required on every request.
+            $stmt = $this->db->prepare('UPDATE plugins SET is_active = 0, activated_at = NULL WHERE id = ?');
+            if ($stmt !== false) {
+                $stmt->bind_param('i', $pluginId);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
+
+        self::clearPluginCache();
+        SecureLogger::error('[PluginManager] Plugin lifecycle failed after ZIP update; rollback applied', [
+            'plugin' => (string) ($state['plugin_name'] ?? ''),
+            'plugin_id' => $pluginId,
+            'restored' => $restored,
+            'error' => $cause->getMessage(),
+        ]);
+    }
+
+    /** @param list<array<string,mixed>> $hooks */
+    private function restorePluginHooks(int $pluginId, array $hooks): void
+    {
+        // DELETE + N INSERTs must be atomic: a mid-loop INSERT failure must not
+        // leave plugin_hooks with an arbitrary subset of the original rows.
+        // Detect an already-open transaction with a savepoint probe — NOT
+        // @@autocommit, which stays 1 after begin_transaction() and would let us
+        // nest begin_transaction() and implicitly commit the caller's outer
+        // transaction. Inside one, scope our work to a savepoint; otherwise own
+        // a fresh transaction.
+        $inTransaction = $this->hasActiveTransaction();
+        // SAVEPOINT reuses (deletes) an existing savepoint of the same name,
+        // so a fixed identifier could silently clobber a caller's savepoint
+        // boundary. Generate a unique identifier per invocation — savepoint
+        // names are identifiers, not bindable params, and hex is injection-safe.
+        $savepoint = 'pinakes_sp_' . bin2hex(random_bytes(6));
+        if ($inTransaction) {
+            $this->db->query('SAVEPOINT ' . $savepoint);
+        } else {
+            $this->db->begin_transaction();
+        }
+
+        try {
+            $delete = $this->db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ?');
+            if ($delete === false) {
+                throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
+            }
+            $delete->bind_param('i', $pluginId);
+            if (!$delete->execute()) {
+                $delete->close();
+                throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
+            }
+            $delete->close();
+
+            if ($hooks !== []) {
+                $insert = $this->db->prepare(
+                    'INSERT INTO plugin_hooks '
+                    . '(plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at) '
+                    . 'VALUES (?, ?, ?, ?, ?, ?, ?)'
+                );
+                if ($insert === false) {
+                    throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
+                }
+
+                foreach ($hooks as $hook) {
+                    $hookName = (string) ($hook['hook_name'] ?? '');
+                    $callbackClass = (string) ($hook['callback_class'] ?? '');
+                    $callbackMethod = (string) ($hook['callback_method'] ?? '');
+                    $priority = (int) ($hook['priority'] ?? 10);
+                    $isActive = (int) ($hook['is_active'] ?? 1);
+                    $createdAt = (string) ($hook['created_at'] ?? date('Y-m-d H:i:s'));
+                    $insert->bind_param(
+                        'isssiis',
+                        $pluginId,
+                        $hookName,
+                        $callbackClass,
+                        $callbackMethod,
+                        $priority,
+                        $isActive,
+                        $createdAt
+                    );
+                    if (!$insert->execute()) {
+                        $insert->close();
+                        throw new \RuntimeException('Impossibile ripristinare gli hook del plugin.');
+                    }
+                }
+                $insert->close();
+            }
+
+            if ($inTransaction) {
+                $this->db->query('RELEASE SAVEPOINT ' . $savepoint);
+            } else {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($inTransaction) {
+                $this->db->query('ROLLBACK TO SAVEPOINT ' . $savepoint);
+            } else {
+                $this->db->rollback();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Whether a transaction is already open on the connection. @@autocommit is
+     * unreliable here — it stays 1 after begin_transaction() — so probe with a
+     * savepoint instead: outside a transaction the SAVEPOINT is a no-op that
+     * autocommit discards, so the following RELEASE cannot find it. Works under
+     * both mysqli exception and silent error modes.
+     */
+    private function hasActiveTransaction(): bool
+    {
+        // Unique per call: SAVEPOINT reuses (deletes) an existing savepoint of
+        // the same name, so a fixed probe name could clobber a caller's own
+        // savepoint boundary. Hex from random_bytes() is injection-safe.
+        $probe = 'pinakes_sp_' . bin2hex(random_bytes(6));
+        try {
+            if ($this->db->query('SAVEPOINT ' . $probe) === false) {
+                return false;
+            }
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
+        try {
+            // Always release the probe after a successful SAVEPOINT so it never
+            // lingers inside a caller's transaction. Outside one, autocommit
+            // already discarded it and the RELEASE fails — that failure IS the
+            // "no transaction" signal.
+            return $this->db->query('RELEASE SAVEPOINT ' . $probe) !== false;
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
     }
 
     /**

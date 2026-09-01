@@ -49,6 +49,11 @@ class PrivateModeMiddleware implements MiddlewareInterface
         '/uploads/settings/',
         '/installer', '/language/', '/health', '/favicon', '/robots.txt',
         '/.well-known/',
+        // Test-only cache-flush endpoint (web.php): the route 404s unless the
+        // server env sets PINAKES_E2E_CACHE_FLUSH=1, so allowing the prefix
+        // exposes nothing in production. E2E specs must be able to flush the
+        // page cache even while a test has private mode enabled.
+        '/_e2e/',
         // Security scan F3 (CWE-862): /feed.xml, /sitemap(.xml) and /llms.txt
         // are content-bearing — they leak book titles, authors, descriptions and
         // enumerate every catalog URL to unauthenticated visitors. In private
@@ -68,6 +73,11 @@ class PrivateModeMiddleware implements MiddlewareInterface
     private const SELF_AUTHENTICATING_API_PREFIXES = [
         '/api/public',
         '/api/v1',
+    ];
+
+    /** Exact infrastructure endpoints authenticated without a web session. */
+    private const SELF_AUTHENTICATING_PATHS = [
+        '/_pinakes/litespeed-purge',
     ];
 
     public function process(Request $request, RequestHandler $handler): Response
@@ -114,6 +124,10 @@ class PrivateModeMiddleware implements MiddlewareInterface
 
     private function isAllowed(string $path): bool
     {
+        if (in_array($path, self::SELF_AUTHENTICATING_PATHS, true)) {
+            return true;
+        }
+
         // API surfaces with their own public/authenticated route policy: defer
         // to that policy instead of pre-empting with a web-session-based 401.
         foreach (self::SELF_AUTHENTICATING_API_PREFIXES as $prefix) {

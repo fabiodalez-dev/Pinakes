@@ -6,7 +6,7 @@
  * Allows adding, modifying, and deleting decimal codes with validation.
  *
  * @package DeweyEditorPlugin
- * @version 1.0.0
+ * @version 1.0.1
  */
 
 declare(strict_types=1);
@@ -25,7 +25,6 @@ class DeweyEditorPlugin
     /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private ?int $pluginId = null;
-    private string $dataDir;
     private string $backupDir;
 
     private const MAX_BACKUPS = 5;
@@ -53,7 +52,6 @@ class DeweyEditorPlugin
     {
         $this->db = $db;
         $this->hookManager = $hookManager;
-        $this->dataDir = dirname(__DIR__, 3) . '/data/dewey';
         $this->backupDir = dirname(__DIR__, 3) . '/storage/backups/dewey';
 
         $result = $db->query("SELECT id FROM plugins WHERE name = 'dewey-editor' LIMIT 1");
@@ -206,7 +204,7 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Locale non supportato.'), 400);
         }
 
-        $filePath = $this->getJsonPath($locale);
+        $filePath = $this->resolveDataPath($locale);
         if (!file_exists($filePath)) {
             return $this->jsonError($response, __('File Dewey non trovato.'), 404);
         }
@@ -222,6 +220,7 @@ class DeweyEditorPlugin
 
     public function saveData(Request $request, Response $response, array $args): Response
     {
+        if (($denied = $this->requireAdmin($response)) !== null) { return $denied; }
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
             return $this->jsonError($response, __('Locale non supportato.'), 400);
@@ -305,7 +304,7 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Locale non supportato.'), 400);
         }
 
-        $filePath = $this->getJsonPath($locale);
+        $filePath = $this->resolveDataPath($locale);
         if (!file_exists($filePath)) {
             return $this->jsonError($response, __('File non trovato.'), 404);
         }
@@ -325,6 +324,7 @@ class DeweyEditorPlugin
 
     public function importData(Request $request, Response $response, array $args): Response
     {
+        if (($denied = $this->requireAdmin($response)) !== null) { return $denied; }
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
             return $this->jsonError($response, __('Locale non supportato.'), 400);
@@ -380,6 +380,7 @@ class DeweyEditorPlugin
 
     public function mergeImportData(Request $request, Response $response, array $args): Response
     {
+        if (($denied = $this->requireAdmin($response)) !== null) { return $denied; }
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
             return $this->jsonError($response, __('Locale non supportato.'), 400);
@@ -405,11 +406,13 @@ class DeweyEditorPlugin
             return $this->jsonError($response, __('Formato dati non valido.'), 400);
         }
 
-        // Load existing data
+        // Load existing data (read may fall back to the legacy file) but always
+        // write the merged result to the canonical full-locale path.
+        $readPath = $this->resolveDataPath($locale);
         $filePath = $this->getJsonPath($locale);
         $existingData = [];
-        if (file_exists($filePath)) {
-            $existingContent = file_get_contents($filePath);
+        if (file_exists($readPath)) {
+            $existingContent = file_get_contents($readPath);
             if ($existingContent === false) {
                 return $this->jsonError($response, __('Errore nella lettura del file Dewey esistente.'), 500);
             }
@@ -553,6 +556,7 @@ class DeweyEditorPlugin
 
     public function restoreBackup(Request $request, Response $response, array $args): Response
     {
+        if (($denied = $this->requireAdmin($response)) !== null) { return $denied; }
         $locale = $args['locale'] ?? 'it_IT';
         if (!$this->isLocaleSupported($locale)) {
             return $this->jsonError($response, __('Locale non supportato.'), 400);
@@ -588,12 +592,32 @@ class DeweyEditorPlugin
         return $this->jsonSuccess($response, ['message' => __('Backup ripristinato con successo.')]);
     }
 
+    /**
+     * Canonical (write) path for a locale's Dewey data file.
+     *
+     * Uses the FULL locale code so distinct locales sharing a language prefix
+     * (e.g. en_US vs en_GB, pt_PT vs pt_BR) map to separate files and never
+     * clobber each other. Previously the locale was collapsed to its first two
+     * characters, silently aliasing such pairs onto one shared file.
+     */
     private function getJsonPath(string $locale): string
     {
-        // Extract language code from locale (e.g., 'it_IT' -> 'it', 'en_US' -> 'en')
-        $langCode = strtolower(substr($locale, 0, 2));
-        $filename = "dewey_completo_{$langCode}.json";
-        return $this->dataDir . '/' . $filename;
+        return \App\Support\DeweyDataFiles::canonicalPath($locale);
+    }
+
+    /**
+     * Resolve the path to READ a locale's Dewey data.
+     *
+     * Prefers the canonical full-locale file; falls back to the legacy
+     * language-prefix file (e.g. dewey_completo_en.json) shipped/created before
+     * the full-locale scheme, so existing installs keep reading their data.
+     * Writes always target getJsonPath() (full locale), so the first save of a
+     * locale migrates it to the canonical file and separates prefix-sharing
+     * locales going forward.
+     */
+    private function resolveDataPath(string $locale): string
+    {
+        return \App\Support\DeweyDataFiles::resolveReadPath($locale);
     }
 
     private function createBackup(string $locale): void
@@ -605,7 +629,7 @@ class DeweyEditorPlugin
             }
         }
 
-        $sourcePath = $this->getJsonPath($locale);
+        $sourcePath = $this->resolveDataPath($locale);
         if (!file_exists($sourcePath)) {
             return;
         }
@@ -690,5 +714,22 @@ class DeweyEditorPlugin
         }
         $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+    }
+
+    /**
+     * Inline admin-only re-check for destructive endpoints.
+     *
+     * AdminAuthMiddleware admits both 'admin' and 'staff', but the save/import/
+     * merge/restore endpoints overwrite the sitewide Dewey classification, so
+     * they must be limited to full administrators — mirroring the project-wide
+     * pattern for destructive admin actions. Returns a 403 response when the
+     * current session is not an admin, or null when access is allowed.
+     */
+    private function requireAdmin(Response $response): ?Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? null) !== 'admin') {
+            return $this->jsonError($response, __('Non autorizzato.'), 403);
+        }
+        return null;
     }
 }

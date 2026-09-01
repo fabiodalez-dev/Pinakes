@@ -24,6 +24,10 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'allow_multiple_loans_same_book', '0', 'Consente allo stesso utente di avere più prestiti attivi dello stesso libro su copie fisiche distinte')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'max_renewals', '3', 'Numero massimo di rinnovi consentiti per prestito')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
@@ -33,6 +37,18 @@ ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'auto_approve_requests', '0', 'Approva automaticamente le richieste di prestito')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'recall_auto_enabled', '0', 'Abilita i solleciti automatici per i prestiti scaduti')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'recall_interval_days', '7', 'Giorni tra un sollecito automatico e il successivo')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'recall_max_count', '3', 'Numero massimo di solleciti automatici per prestito')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `generi` VALUES (1,'Prosa',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
@@ -270,6 +286,8 @@ INSERT INTO `email_templates` VALUES (19,'loan_returned','it_IT','✅ Restituzio
 INSERT INTO `email_templates` VALUES (20,'reservation_expired','it_IT','⌛ Prenotazione scaduta','<h2>Prenotazione scaduta</h2>\n<p>Ciao {{utente_nome}},</p>\n<p>La tua prenotazione per il seguente libro è scaduta ed è stata chiusa automaticamente:</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Libro:</strong> {{libro_titolo}}</p>\n    <p><strong>Scaduta il:</strong> {{data_scadenza}}</p>\n</div>\n<p>Se sei ancora interessato, puoi effettuare una nuova prenotazione in qualsiasi momento.</p>\n<p>Cordiali saluti,<br>Il team della biblioteca</p>','Inviata all\'utente quando una prenotazione scade automaticamente senza essere stata convertita in prestito.',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (21,'copy_unavailable_user','it_IT','ℹ️ Aggiornamento sulla tua prenotazione','<h2>Aggiornamento sulla tua prenotazione</h2>\n<p>Ciao {{utente_nome}},</p>\n<p>Ti informiamo che la copia riservata per la tua prenotazione del seguente libro non è più disponibile:</p>\n<div style=\"background-color: #fffbeb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;\">\n    <p><strong>Libro:</strong> {{libro_titolo}}</p>\n    <p><strong>Motivo:</strong> {{motivo}}</p>\n</div>\n<p>Stiamo cercando di assegnarti un\'altra copia appena possibile. Se non saranno disponibili altre copie, la tua prenotazione resterà in coda e ti avviseremo non appena il libro tornerà disponibile.</p>\n<p>Ci scusiamo per il disagio.</p>\n<p>Cordiali saluti,<br>Il team della biblioteca</p>','Inviata all\'utente quando la copia riservata per la sua prenotazione diventa indisponibile (persa o danneggiata).',1,NULL,NULL);
 INSERT INTO `email_templates` VALUES (22,'reservation_cancelled','it_IT','❌ Prenotazione annullata','<h2>Prenotazione annullata</h2>\n<p>Ciao {{utente_nome}},</p>\n<p>Ti informiamo che la tua prenotazione per il seguente libro è stata annullata:</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Libro:</strong> {{libro_titolo}}</p>\n    <p><strong>Motivo:</strong> {{motivo}}</p>\n</div>\n<p>Se desideri ancora questo libro, puoi effettuare una nuova prenotazione in qualsiasi momento.</p>\n<p>Cordiali saluti,<br>Il team della biblioteca</p>','Inviata all\'utente quando una prenotazione viene annullata dall\'amministrazione.',1,NULL,NULL);
+INSERT INTO `email_templates` VALUES (23,'loan_recall_notification','it_IT','📢 Sollecito n. {{numero_sollecito}} - Restituzione richiesta','<h2>Sollecito di restituzione</h2>\n<p>Ciao {{utente_nome}},</p>\n<p>Nonostante i precedenti avvisi, il seguente prestito risulta ancora scaduto e il libro non è stato restituito:</p>\n<ul>\n    <li>Libro: {{libro_titolo}}</li>\n    <li>Data scadenza: {{data_scadenza}}</li>\n    <li>Giorni di ritardo: {{giorni_ritardo}}</li>\n    <li>Numero sollecito: {{numero_sollecito}}</li>\n</ul>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>❗️ Azione richiesta</strong></p>\n    <p>Ti chiediamo di restituire il libro al più presto o di contattare la biblioteca. Il mancato rientro potrebbe comportare la sospensione del tuo account e penali.</p>\n</div>\n<p>Se hai già restituito il libro, ignora questo messaggio.</p>','Sollecito inviato all\'utente per la restituzione di un prestito scaduto (automatico o manuale).',1,NULL,NULL);
+INSERT INTO `email_templates` VALUES (24,'loan_receipt_email','it_IT','📄 Ricevuta del prestito #{{prestito_id}}','<h2>Ricevuta del prestito</h2>\n<p>Ciao {{utente_nome}},</p>\n<p>In allegato trovi la ricevuta in PDF del tuo prestito:</p>\n<ul>\n    <li>Libro: {{libro_titolo}}</li>\n    <li>Data prestito: {{data_prestito}}</li>\n    <li>Data scadenza: {{data_scadenza}}</li>\n</ul>\n<p>Conserva questa ricevuta come promemoria della scadenza.</p>\n<p>Buona lettura!</p>','Email inviata all\'utente con la ricevuta PDF del prestito in allegato.',1,NULL,NULL);
 
 -- ============================================================================
 -- System Settings - Complete default configuration

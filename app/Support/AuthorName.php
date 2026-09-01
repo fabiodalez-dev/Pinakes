@@ -24,7 +24,7 @@ final class AuthorName
      */
     public const DISPLAY_SQL_A = "CASE WHEN TRIM(COALESCE(`a`.`pseudonimo`, '')) <> ''"
         . " AND TRIM(COALESCE(`a`.`nome`, '')) <> ''"
-        . " AND BINARY TRIM(COALESCE(`a`.`pseudonimo`, '')) <> BINARY TRIM(COALESCE(`a`.`nome`, ''))"
+        . " AND CAST(TRIM(COALESCE(`a`.`pseudonimo`, '')) AS BINARY) <> CAST(TRIM(COALESCE(`a`.`nome`, '')) AS BINARY)"
         . " THEN CONCAT(TRIM(COALESCE(`a`.`pseudonimo`, '')), ' (', TRIM(COALESCE(`a`.`nome`, '')), ')')"
         . " WHEN TRIM(COALESCE(`a`.`nome`, '')) <> '' THEN TRIM(COALESCE(`a`.`nome`, ''))"
         . " ELSE TRIM(COALESCE(`a`.`pseudonimo`, '')) END";

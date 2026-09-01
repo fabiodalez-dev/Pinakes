@@ -703,20 +703,17 @@ class LanguagesController
 
         $this->updateEnvLocale($normalized);
 
-        I18n::setLocale($normalized);
-        $_SESSION['locale'] = $normalized;
-
-        // Propagate the new default to every user account so that
-        // AuthController and RememberMeMiddleware pick it up on the
-        // next login/token refresh.
-        try {
-            $stmt = $db->prepare("UPDATE utenti SET locale = ?");
-            $stmt->bind_param('s', $normalized);
-            $stmt->execute();
-            $stmt->close();
-        } catch (\Throwable $e) {
-            SecureLogger::error('LanguagesController: Unable to propagate locale to users: ' . $e->getMessage());
-        }
+        // The installation default governs NEW accounts (created with the
+        // current default) and anonymous rendering only. Deliberately it does
+        // NOT:
+        //   - touch existing `utenti.locale`: there is no inherited-vs-explicit
+        //     flag, so any propagation (even scoped by the previous default)
+        //     would silently overwrite a user who deliberately chose that
+        //     language. Existing accounts keep their own preference and change
+        //     it via the switcher/profile (#238, Option B);
+        //   - change the current admin's session locale: the admin keeps the
+        //     language stored on their own account (forcing it here would
+        //     diverge from `utenti.locale` and silently revert on next login).
     }
 
     private function updateEnvLocale(string $locale): void

@@ -43,7 +43,7 @@ class MaintenanceService
      * non basta, due admin in sessioni diverse eseguirebbero entrambi runAll().
      *
      * @param int $cooldownMinutes Minimum minutes between runs (default: 60)
-     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
+     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, invalid_ready_pickups_repaired?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, pickup_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
      */
     public function runIfNeeded(int $cooldownMinutes = 60): array
     {
@@ -101,12 +101,13 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{scheduled_loans_activated: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, ics_generated: bool, errors: array} Results for each maintenance task
+     * @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, ics_generated: bool, errors: array} Results for each maintenance task
      */
     public function runAll(): array
     {
         $results = [
             'scheduled_loans_activated' => 0,
+            'invalid_ready_pickups_repaired' => 0,
             'expired_waitlist_reservations' => 0,
             'reservations_converted' => 0,
             'expired_reservations' => 0,
@@ -116,6 +117,7 @@ class MaintenanceService
             'overdue_notifications' => 0,
             'wishlist_notifications' => 0,
             'reservation_notifications_retried' => 0,
+            'pickup_notifications_retried' => 0,
             'ics_generated' => false,
             'errors' => []
         ];
@@ -131,7 +133,32 @@ class MaintenanceService
             $results['errors'][] = 'contributorBackfill: ' . $e->getMessage();
         }
 
-        // Expire FIRST (BUG8/D13 ordering): cull dead-period reservations and
+        // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
+        // to 'in_ritardo' BEFORE expiries/activations/promotions, so every gate
+        // in this same pass that special-cases 'in_ritardo' (capacity clamps,
+        // overlap predicates, renew()'s state check) sees the truthful state.
+        // With the old order the flip ran LAST: on the day a reservation's start
+        // arrived its unreturned predecessor still sat in 'in_corso' with a past
+        // due date, defeating those gates for one whole pass.
+        try {
+            $results['overdue_loans_updated'] = $this->updateOverdueLoans();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'updateOverdueLoans: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore prestiti in ritardo'), ['error' => $e->getMessage()]);
+        }
+
+        // Repair legacy #366 rows before pickup expiry can cancel them. Releases
+        // prior to 0.7.62 could announce a scheduled loan as ready even though
+        // its copy was still out; upgrading fixed future promotions but left the
+        // already-corrupt da_ritirare row (and its stale deadline) untouched.
+        try {
+            $results['invalid_ready_pickups_repaired'] = $this->repairInvalidReadyPickups();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'repairInvalidReadyPickups: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore ripristino ritiri non disponibili'), ['error' => $e->getMessage()]);
+        }
+
+        // Expire next (BUG8/D13 ordering): cull dead-period reservations and
         // unclaimed pickups before activating scheduled loans, so a reservation
         // whose window has already passed is never promoted to 'da_ritirare'.
         try {
@@ -170,13 +197,6 @@ class MaintenanceService
             SecureLogger::error(__('MaintenanceService errore conversione prenotazioni'), ['error' => $e->getMessage()]);
         }
 
-        try {
-            $results['overdue_loans_updated'] = $this->updateOverdueLoans();
-        } catch (\Throwable $e) {
-            $results['errors'][] = 'updateOverdueLoans: ' . $e->getMessage();
-            SecureLogger::error(__('MaintenanceService errore prestiti in ritardo'), ['error' => $e->getMessage()]);
-        }
-
         // Run automatic notifications
         try {
             $notificationResults = $this->runNotifications();
@@ -197,6 +217,16 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'retryUnsentReservationNotifications: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore recupero notifiche prenotazione'), ['error' => $e->getMessage()]);
+        }
+
+        // Recupero delle email "pronto al ritiro" fallite (stesso razionale M4):
+        // il claim su pickup_notification_sent vive in NotificationService,
+        // quindi lo sweep non può mai duplicare un invio riuscito.
+        try {
+            $results['pickup_notifications_retried'] = (new NotificationService($this->db))->retryUnsentPickupNotifications();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'retryUnsentPickupNotifications: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore recupero notifiche ritiro'), ['error' => $e->getMessage()]);
         }
 
         // Best-effort plugin push dispatch (Mobile API): fire AFTER the email
@@ -245,7 +275,44 @@ class MaintenanceService
             SecureLogger::error(__('MaintenanceService errore hook post-run'), ['error' => $e->getMessage()]);
         }
 
+        // Aggiorna il marker di cooldown cross-sessione anche quando runAll() è
+        // chiamato direttamente (i cron entrypoint non passano da runIfNeeded):
+        // senza, l'admin che logga un minuto dopo il cron vince il claim e
+        // riesegue l'intera manutenzione sincrona nella request di login.
+        try {
+            $completedAt = (string) time();
+            $stmt = $this->db->prepare("
+                INSERT INTO system_settings (category, setting_key, setting_value)
+                VALUES ('maintenance', 'last_run', ?)
+                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+            ");
+            if ($stmt) {
+                $stmt->bind_param('s', $completedAt);
+                $stmt->execute();
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            // Tabella assente (installazione in corso): fail-open, solo cooldown perso.
+            SecureLogger::warning(__('MaintenanceService aggiornamento marker cooldown fallito'), ['error' => $e->getMessage()]);
+        }
+
         return $results;
+    }
+
+    /**
+     * Garantisce la colonna prestiti.pickup_notification_sent sugli upgrade
+     * (stesso pattern runtime-add di NotificationService::addNotificationColumns):
+     * gli UPDATE di attivazione/riparazione la referenziano e girerebbero prima
+     * che NotificationService abbia mai eseguito l'ALTER.
+     */
+    private ?bool $pickupNotificationColumnAvailable = null;
+
+    private function ensurePickupNotificationColumn(): bool
+    {
+        if ($this->pickupNotificationColumnAvailable !== null) {
+            return $this->pickupNotificationColumnAvailable;
+        }
+        return $this->pickupNotificationColumnAvailable = PickupNotificationSchema::ensure($this->db);
     }
 
     /**
@@ -300,6 +367,194 @@ class MaintenanceService
     }
 
     /**
+     * Repair ready-pickup rows created by the pre-0.7.62 #366 bug.
+     *
+     * A `da_ritirare` row is not truthful when there is no physical copy that
+     * can be handed to its patron now. Demote it to `prenotato` and clear the
+     * pickup deadline instead of cancelling it: the scheduled loan remains the
+     * user's place in circulation and a later activation pass can promote it
+     * again after the outstanding copy returns.
+     *
+     * @return int Number of stale ready-pickup rows repaired.
+     */
+    public function repairInvalidReadyPickups(): int
+    {
+        $pickupColumnReset = $this->ensurePickupNotificationColumn()
+            ? ",\n                        pickup_notification_sent = 0,
+                        pickup_notification_claim_token = NULL,
+                        pickup_notification_last_attempt_at = NULL"
+            : '';
+        $stmt = $this->db->prepare("
+            SELECT id, libro_id
+            FROM prestiti
+            WHERE stato = 'da_ritirare' AND attivo = 1
+            ORDER BY libro_id, id
+        ");
+        if (!$stmt) {
+            throw new \RuntimeException('Failed to prepare invalid ready-pickup query');
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $candidates = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+
+        $integrity = new DataIntegrity($this->db);
+        $repaired = 0;
+
+        foreach ($candidates as $candidate) {
+            $bookId = (int) $candidate['libro_id'];
+            $loanId = (int) $candidate['id'];
+            $this->db->begin_transaction();
+
+            try {
+                // Canonical circulation lock order: book, loan, then copy.
+                // CI-SOFT-DELETE-EXEMPT: an archived title's open circulation
+                // state must still be repairable, just like return/cancel.
+                $bookLock = $this->db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+                $bookLock->bind_param('i', $bookId);
+                $bookLock->execute();
+                $bookExists = (bool) $bookLock->get_result()->fetch_assoc();
+                $bookLock->close();
+                if (!$bookExists) {
+                    $this->db->rollback();
+                    continue;
+                }
+
+                $loanLock = $this->db->prepare("
+                    SELECT id, libro_id, copia_id
+                    FROM prestiti
+                    WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1
+                    FOR UPDATE
+                ");
+                $loanLock->bind_param('i', $loanId);
+                $loanLock->execute();
+                $loan = $loanLock->get_result()->fetch_assoc();
+                $loanLock->close();
+                if (!$loan || (int) $loan['libro_id'] !== $bookId) {
+                    $this->db->rollback();
+                    continue;
+                }
+
+                // Judge each row ONLY on its own pinned copy — mirroring the
+                // migrate_0.7.63-rc.1.sql selection. A book-level occupancy
+                // count would demote a truthful pickup whose own copy is free
+                // just because a sibling corrupt row inflates the count, and
+                // activateScheduledLoans() would then re-promote it in the same
+                // runAll() with an extended deadline and a duplicate email.
+                $invalid = false;
+
+                $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : 0;
+                $copyStateNow = null;
+                if ($copyId <= 0) {
+                    // confirmPickup() cannot hand out a loan with no copy. It
+                    // must return to prenotato and be assigned atomically by
+                    // activateScheduledLoans() below.
+                    $invalid = true;
+                } else {
+                    $copyLock = $this->db->prepare('SELECT stato FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
+                    $copyLock->bind_param('ii', $copyId, $bookId);
+                    $copyLock->execute();
+                    $copy = $copyLock->get_result()->fetch_assoc();
+                    $copyLock->close();
+                    $copyStateNow = $copy !== null ? (string) $copy['stato'] : null;
+                    if (!$copy || !in_array($copyStateNow, ['disponibile', 'prenotato'], true)) {
+                        $invalid = true;
+                    }
+
+                    // Do not trust only copie.stato: old releases could change
+                    // it to prenotato while another loan still physically held
+                    // the same copy. The loan rows are the source of truth.
+                    $copyHolder = $this->db->prepare("
+                        SELECT 1
+                        FROM prestiti
+                        WHERE copia_id = ? AND id <> ?
+                          AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare'))
+                                OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                        LIMIT 1
+                    ");
+                    $copyHolder->bind_param('ii', $copyId, $loanId);
+                    $copyHolder->execute();
+                    $copyAlreadyHeld = (bool) $copyHolder->get_result()->fetch_row();
+                    $copyHolder->close();
+                    if ($copyAlreadyHeld) {
+                        $invalid = true;
+                    }
+                }
+
+                if (!$invalid) {
+                    $this->db->rollback();
+                    continue;
+                }
+
+                $repair = $this->db->prepare("
+                    UPDATE prestiti
+                    SET stato = 'prenotato', pickup_deadline = NULL, copia_id = NULL{$pickupColumnReset}
+                    WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1
+                ");
+                $repair->bind_param('i', $loanId);
+                $repair->execute();
+                $changed = $repair->affected_rows;
+                $repair->close();
+                if ($changed !== 1) {
+                    $this->db->rollback();
+                    continue;
+                }
+
+                // The demotion just unpinned the copy: without a committing loan
+                // a circulation state (prenotato/prestato) on the copie row is
+                // stale and would keep the copy off the shelf forever. Release
+                // it in the SAME transaction, before the availability recompute.
+                // Non-circulation states (manutenzione, perso, ...) are curated
+                // by staff and are never touched here.
+                if ($copyId > 0 && in_array($copyStateNow, ['prenotato', 'prestato'], true)) {
+                    $committer = $this->db->prepare("
+                        SELECT 1
+                        FROM prestiti
+                        WHERE copia_id = ? AND id <> ?
+                          AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare','prenotato'))
+                                OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                        LIMIT 1
+                    ");
+                    $committer->bind_param('ii', $copyId, $loanId);
+                    $committer->execute();
+                    $stillCommitted = (bool) $committer->get_result()->fetch_row();
+                    $committer->close();
+                    if (!$stillCommitted) {
+                        $release = $this->db->prepare("
+                            UPDATE copie
+                            SET stato = 'disponibile'
+                            WHERE id = ? AND libro_id = ? AND stato IN ('prenotato', 'prestato')
+                        ");
+                        $release->bind_param('ii', $copyId, $bookId);
+                        $release->execute();
+                        $release->close();
+                    }
+                }
+
+                if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
+                    throw new \RuntimeException('Failed to recalculate availability while repairing a ready pickup.');
+                }
+                $this->db->commit();
+                $repaired++;
+                SecureLogger::info(__('Ritiro non disponibile ripristinato come prenotato'), [
+                    'prestito_id' => $loanId,
+                    'libro_id' => $bookId,
+                    'copia_id' => $copyId > 0 ? $copyId : null,
+                ]);
+            } catch (\Throwable $e) {
+                $this->db->rollback();
+                SecureLogger::error(__('Errore ripristino ritiro non disponibile'), [
+                    'prestito_id' => $loanId,
+                    'libro_id' => $bookId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $repaired;
+    }
+
+    /**
      * Activate scheduled loans (prenotato -> da_ritirare) when their start date arrives
      *
      * Finds all active loans with status 'prenotato' where data_prestito <= today,
@@ -314,6 +569,12 @@ class MaintenanceService
      */
     public function activateScheduledLoans(): int
     {
+        $pickupColumnReset = $this->ensurePickupNotificationColumn()
+            ? ",\n                        pickup_notification_sent = 0,
+                        pickup_notification_claim_token = NULL,
+                        pickup_notification_last_attempt_at = NULL"
+            : '';
+
         // "Oggi" nel timezone applicativo come parametro bound (M9): CURDATE()
         // dipende dalla session timezone del client DB, che differiva tra cron
         // (UTC forzato) e web (nessuna impostazione).
@@ -323,7 +584,7 @@ class MaintenanceService
         // guard (BUG8/D13): never promote a reservation whose whole window is already
         // past into 'da_ritirare' — its expiry cron culls it instead.
         $stmt = $this->db->prepare("
-            SELECT id, copia_id, libro_id, data_scadenza FROM prestiti
+            SELECT id, copia_id, libro_id, utente_id, data_scadenza FROM prestiti
             WHERE stato = 'prenotato'
             AND data_prestito <= ?
             AND data_scadenza >= ?
@@ -343,6 +604,8 @@ class MaintenanceService
         $activatedCount = 0;
         // Instantiate DataIntegrity once outside the loop to reduce overhead
         $integrity = new DataIntegrity($this->db);
+        // Capacity ceiling authority for the #366 copy-free guard below
+        $capacity = new \App\Services\CapacityService($this->db);
 
         // Get pickup expiry days from settings
         $settingsRepo = new SettingsRepository($this->db);
@@ -369,7 +632,7 @@ class MaintenanceService
                 }
 
                 $lockLoan = $this->db->prepare("
-                    SELECT id, copia_id, libro_id, data_scadenza
+                    SELECT id, copia_id, libro_id, utente_id, data_prestito, data_scadenza
                     FROM prestiti
                     WHERE id = ? AND stato = 'prenotato' AND attivo = 1
                       AND data_prestito <= ? AND data_scadenza >= ?
@@ -384,6 +647,156 @@ class MaintenanceService
                     continue;
                 }
                 $loan = $lockedLoan;
+                $committedCopyIds = (new LoanMultiplicityPolicy($this->db))->committedCopyIds(
+                    $bookId,
+                    (int) $loan['utente_id'],
+                    $loanId
+                );
+
+                // #366 guard: a reservation may only become 'da_ritirare' (and get
+                // the pickup-ready email) when a physical copy is genuinely free
+                // RIGHT NOW. The date window alone is not enough: the preceding
+                // loan may still be out — overdue included. 'in_corso'/'in_ritardo'
+                // rows are counted with NO date predicate because an unreturned
+                // copy is out regardless of its contractual dates (runAll() now
+                // flips overdue loans BEFORE this sweep, but a standalone call or
+                // a mid-pass write can still leave one in 'in_corso' here — keep
+                // the state-agnostic count). Sibling 'da_ritirare' pickups and
+                // copy-holding 'pendente' rows each pin a copy on the shelf too.
+                // Future 'prenotato' rows are NOT counted: they hold capacity for
+                // a later window, not a copy today. If nothing is free the
+                // reservation simply stays 'prenotato' — no state change, no email
+                // — and a later run promotes it once the copy actually comes back.
+                $occStmt = $this->db->prepare("
+                    SELECT COUNT(*) AS occupied
+                    FROM prestiti
+                    WHERE libro_id = ?
+                      AND id <> ?
+                      AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare'))
+                            OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                ");
+                $occStmt->bind_param('ii', $bookId, $loanId);
+                $occStmt->execute();
+                $occRow = $occStmt->get_result()->fetch_assoc();
+                $occStmt->close();
+                $occupied = (int) ($occRow['occupied'] ?? 0);
+
+                if ($occupied >= $capacity->totalCopies($bookId)) {
+                    $this->db->rollback();
+                    SecureLogger::info(__('Attivazione prestito rinviata: nessuna copia libera'), [
+                        'prestito_id' => $loanId,
+                        'libro_id' => $bookId,
+                        'occupied' => $occupied
+                    ]);
+                    continue;
+                }
+
+                // Resolve and lock the physical copy that can actually be handed
+                // out. Legacy/unpinned scheduled loans must be assigned here;
+                // promoting them with copia_id=NULL only moves the failure to
+                // confirmPickup(), which correctly refuses a copy-less loan.
+                $copiaId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : 0;
+                if ($copiaId > 0 && in_array($copiaId, $committedCopyIds, true)) {
+                    // Repair legacy/reassigned rows that share a copy with another
+                    // open loan for this borrower/title: activation must choose a
+                    // distinct physical item, regardless of date overlap.
+                    $copiaId = 0;
+                }
+                if ($copiaId > 0) {
+                    $copyStmt = $this->db->prepare('SELECT stato FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
+                    $copyStmt->bind_param('ii', $copiaId, $bookId);
+                    $copyStmt->execute();
+                    $copyRow = $copyStmt->get_result()->fetch_assoc();
+                    $copyStmt->close();
+                    $copyState = $copyRow['stato'] ?? null;
+
+                    // Check the loan rows too: pre-0.7.62 data may say the copy
+                    // is `prenotato` even though another loan still has it out.
+                    $copyConflict = $this->db->prepare("
+                        SELECT 1
+                        FROM prestiti
+                        WHERE copia_id = ? AND id <> ?
+                          AND ( (attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare'))
+                                OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL)
+                                OR (attivo = 1 AND stato = 'prenotato'
+                                    AND data_prestito <= ? AND data_scadenza >= ?) )
+                        LIMIT 1
+                    ");
+                    $copyConflict->bind_param('iiss', $copiaId, $loanId, $loan['data_scadenza'], $loan['data_prestito']);
+                    $copyConflict->execute();
+                    $copyHeld = (bool) $copyConflict->get_result()->fetch_row();
+                    $copyConflict->close();
+
+                    if (!in_array($copyState, ['disponibile', 'prenotato'], true) || $copyHeld) {
+                        // The originally pinned copy may still be out while a
+                        // sibling copy is already back on the shelf (#366).
+                        // Fall through to the same allocator used by legacy
+                        // copyless rows instead of leaving the reservation
+                        // stuck on the unavailable physical item forever.
+                        SecureLogger::info(__('Attivazione prestito: copia assegnata non in sede, ricerca alternativa'), [
+                            'prestito_id' => $loanId,
+                            'libro_id' => $bookId,
+                            'copia_id' => $copiaId,
+                            'copia_stato' => $copyState,
+                            'copia_impegnata' => $copyHeld,
+                        ]);
+                        $copiaId = 0;
+                    }
+                }
+                if ($copiaId <= 0) {
+                    $freeCopy = $this->db->prepare("
+                        SELECT c.id
+                        FROM copie c
+                        WHERE c.libro_id = ?
+                          AND c.stato IN ('disponibile', 'prenotato')
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM prestiti own
+                              WHERE own.copia_id = c.id
+                                AND own.libro_id = ?
+                                AND own.utente_id = ?
+                                AND own.id <> ?
+                                AND (
+                                    (own.attivo = 0 AND own.stato = 'pendente')
+                                    OR (own.attivo = 1 AND own.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                                )
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM prestiti p
+                              WHERE p.copia_id = c.id AND p.id <> ?
+                                AND ( (p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo','da_ritirare'))
+                                      OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL)
+                                      OR (p.attivo = 1 AND p.stato = 'prenotato'
+                                          AND p.data_prestito <= ? AND p.data_scadenza >= ?) )
+                          )
+                        ORDER BY c.id
+                        LIMIT 1
+                        FOR UPDATE
+                    ");
+                    $freeCopy->bind_param(
+                        'iiiiiss',
+                        $bookId,
+                        $bookId,
+                        $loan['utente_id'],
+                        $loanId,
+                        $loanId,
+                        $loan['data_scadenza'],
+                        $loan['data_prestito']
+                    );
+                    $freeCopy->execute();
+                    $freeCopyRow = $freeCopy->get_result()->fetch_assoc();
+                    $freeCopy->close();
+                    $copiaId = (int) ($freeCopyRow['id'] ?? 0);
+                    if ($copiaId <= 0) {
+                        $this->db->rollback();
+                        SecureLogger::info(__('Attivazione prestito rinviata: nessuna copia fisica assegnabile'), [
+                            'prestito_id' => $loanId,
+                            'libro_id' => $bookId,
+                        ]);
+                        continue;
+                    }
+                }
 
                 // Calculate pickup deadline dal "oggi" applicativo, cappata a
                 // data_scadenza (L1): senza il cap un prestito con finestra corta
@@ -398,10 +811,10 @@ class MaintenanceService
                 // State guard: only update if still in 'prenotato' state (prevents race with confirmPickup)
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
-                    SET stato = 'da_ritirare', pickup_deadline = ?
+                    SET stato = 'da_ritirare', pickup_deadline = ?, copia_id = ?{$pickupColumnReset}
                     WHERE id = ? AND stato = 'prenotato' AND attivo = 1 AND data_scadenza >= ?
                 ");
-                $updateStmt->bind_param('sis', $pickupDeadline, $loan['id'], $today);
+                $updateStmt->bind_param('siis', $pickupDeadline, $copiaId, $loan['id'], $today);
                 $updateStmt->execute();
                 $affectedRows = $updateStmt->affected_rows;
                 $updateStmt->close();
@@ -415,11 +828,17 @@ class MaintenanceService
                     continue;
                 }
 
-                // Note: Copy remains 'prenotato' until pickup is confirmed
+                // Copy remains 'prenotato' until pickup is confirmed.
+                $holdCopy = $this->db->prepare("UPDATE copie SET stato = 'prenotato' WHERE id = ? AND stato = 'disponibile'");
+                $holdCopy->bind_param('i', $copiaId);
+                $holdCopy->execute();
+                $holdCopy->close();
 
                 // Recalculate book availability using DataIntegrity for consistency
                 // (da_ritirare counts as "slot occupied" even if copy is available)
-                $integrity->recalculateBookAvailability((int)$loan['libro_id'], true);
+                if (!$integrity->recalculateBookAvailability((int) $loan['libro_id'], true)) {
+                    throw new \RuntimeException('Failed to recalculate availability while activating a scheduled loan.');
+                }
 
                 $this->db->commit();
                 $activatedCount++;
@@ -471,7 +890,8 @@ class MaintenanceService
             FROM prenotazioni p
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'attiva'
-            AND p.data_inizio_richiesta <= ?
+            AND " . \App\Support\LoanEligibility::promotableReservationWhere('p') . "
+            AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
             ORDER BY p.libro_id, p.queue_position ASC
         ");
 
@@ -479,7 +899,7 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare scheduled reservations query');
         }
 
-        $stmt->bind_param('s', $today);
+        $stmt->bind_param('sss', $today, $today, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $reservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -637,8 +1057,12 @@ class MaintenanceService
                 }
                 $copiaId = $lockedReservation['copia_id'] ? (int) $lockedReservation['copia_id'] : null;
 
-                // Build note suffix safely with bound parameter
-                $noteSuffix = "\n[System] " . __('Scaduta il') . ' ' . date('d/m/Y');
+                // Build note suffix safely with bound parameter. Data nel fuso
+                // applicativo (P4): la decisione di scadenza usa $today
+                // (DateHelper::today()), mentre date('d/m/Y') userebbe la TZ del
+                // processo — a cavallo della mezzanotte la nota citava un giorno
+                // diverso da quello effettivamente deciso.
+                $noteSuffix = "\n[System] " . __('Scaduta il') . ' ' . implode('/', array_reverse(explode('-', $today)));
 
                 // Mark as expired. Re-assert stato='prenotato' + check affected_rows
                 // (D14): a concurrent confirmPickup/activateScheduledLoans may have
@@ -690,7 +1114,9 @@ class MaintenanceService
                 }
 
                 // Recalculate book availability (inside transaction)
-                $integrity->recalculateBookAvailability($libroId, true);
+                if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after reservation expiry.');
+                }
 
                 $this->db->commit();
                 $expiredCount++;
@@ -813,8 +1239,10 @@ class MaintenanceService
                 }
                 $copiaId = $lockedPickup['copia_id'] ? (int) $lockedPickup['copia_id'] : null;
 
-                // Build note suffix safely with bound parameter
-                $noteSuffix = "\n[System] " . __('Ritiro scaduto il') . ' ' . date('d/m/Y');
+                // Build note suffix safely with bound parameter. Data nel fuso
+                // applicativo (P4), come sopra: stessa data della decisione
+                // basata su $today, non la TZ del processo.
+                $noteSuffix = "\n[System] " . __('Ritiro scaduto il') . ' ' . implode('/', array_reverse(explode('-', $today)));
 
                 // Mark as expired with state guard (prevents TOCTOU with concurrent confirmPickup)
                 $updateStmt = $this->db->prepare("
@@ -872,7 +1300,9 @@ class MaintenanceService
                 }
 
                 // Recalculate book availability (inside transaction)
-                $integrity->recalculateBookAvailability($libroId, true);
+                if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                    throw new \RuntimeException('Failed to recalculate availability after pickup expiry.');
+                }
 
                 $this->db->commit();
                 $expiredCount++;
@@ -1007,6 +1437,7 @@ class MaintenanceService
                 }
 
                 $db->set_charset($cfg['charset']);
+                DateHelper::synchronizeDatabaseSession($db);
             }
 
             $service = new self($db);
@@ -1020,6 +1451,7 @@ class MaintenanceService
             if (!($result['skipped'] ?? false)) {
                 SecureLogger::info(__('MaintenanceService eseguito al login admin'), [
                     'scheduled_loans_activated' => $result['scheduled_loans_activated'],
+                    'invalid_ready_pickups_repaired' => $result['invalid_ready_pickups_repaired'],
                     'overdue_loans_updated' => $result['overdue_loans_updated'],
                     'reservations_converted' => $result['reservations_converted'] ?? 0,
                     'expired_reservations' => $result['expired_reservations'] ?? 0,

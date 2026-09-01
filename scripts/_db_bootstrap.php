@@ -8,8 +8,9 @@ declare(strict_types=1);
  * future ones) bypass the Slim/config/settings.php bootstrap and need a
  * minimal mysqli wired from .env. The logic for that — read DB_*, normalise
  * host when DB_SOCKET is set so mysqli actually honours the socket, then
- * connect — was duplicated verbatim across scripts. CodeRabbit round 8
- * flagged the drift risk; this helper centralises it.
+ * connect, select the canonical charset, and publish the application day to
+ * circulation triggers — was duplicated across scripts. This helper
+ * centralises the complete first-party CLI session contract.
  *
  * Caller is responsible for loading .env into $_ENV (typically via
  * `Dotenv::createImmutable($projectRoot)->load()`) BEFORE invoking this.
@@ -54,6 +55,10 @@ if (!function_exists('pinakes_db_from_env')) {
             $host = 'localhost';
         }
 
-        return new mysqli($host, $user, $pass, $name, $port, $sock ?: null);
+        $db = new mysqli($host, $user, $pass, $name, $port, $sock ?: null);
+        $db->set_charset('utf8mb4');
+        \App\Support\DateHelper::synchronizeDatabaseSession($db);
+
+        return $db;
     }
 }

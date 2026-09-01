@@ -95,6 +95,7 @@ return [
     <p><strong>📦 Abholung des Buches</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p><strong>Wichtig:</strong> Bitte denke daran, das Buch bis zum Rückgabedatum zurückzugeben. Du erhältst einige Tage vor Ablauf eine Erinnerung.</p>
 <p>Viel Freude beim Lesen!</p>',
     ],
@@ -142,6 +143,36 @@ return [
 </div>
 <p>Bitte gib das Buch so schnell wie möglich zurück.</p>',
     ],
+    'loan_recall_notification' => [
+        'subject' => '📢 Mahnung Nr. {{numero_sollecito}} - Rückgabe erforderlich',
+        'body' => '<h2>Rückgabemahnung</h2>
+<p>Guten Tag {{utente_nome}},</p>
+<p>trotz vorheriger Hinweise ist die folgende Ausleihe weiterhin überfällig und das Buch wurde nicht zurückgegeben:</p>
+<ul>
+    <li>Buch: {{libro_titolo}}</li>
+    <li>Fälligkeitsdatum: {{data_scadenza}}</li>
+    <li>Tage überfällig: {{giorni_ritardo}}</li>
+    <li>Mahnung Nr.: {{numero_sollecito}}</li>
+</ul>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>❗️ Handlung erforderlich</strong></p>
+    <p>Bitte geben Sie das Buch so schnell wie möglich zurück oder kontaktieren Sie die Bibliothek. Wird das Buch nicht zurückgegeben, kann dies zur Sperrung Ihres Kontos und zu Gebühren führen.</p>
+</div>
+<p>Falls Sie das Buch bereits zurückgegeben haben, betrachten Sie diese Nachricht bitte als gegenstandslos.</p>',
+    ],
+    'loan_receipt_email' => [
+        'subject' => '📄 Ausleihbeleg #{{prestito_id}}',
+        'body' => '<h2>Ausleihbeleg</h2>
+<p>Guten Tag {{utente_nome}},</p>
+<p>im Anhang finden Sie den PDF-Beleg Ihrer Ausleihe:</p>
+<ul>
+    <li>Buch: {{libro_titolo}}</li>
+    <li>Ausleihdatum: {{data_prestito}}</li>
+    <li>Fälligkeitsdatum: {{data_scadenza}}</li>
+</ul>
+<p>Bewahren Sie diesen Beleg als Erinnerung an das Fälligkeitsdatum auf.</p>
+<p>Viel Spaß beim Lesen!</p>',
+    ],
     'loan_pickup_cancelled' => [
         'subject' => '❌ Abholung storniert',
         'body' => '<h2>Abholung storniert</h2>
@@ -185,6 +216,7 @@ return [
     <p><strong>📦 So funktioniert die Abholung</strong></p>
     <p>{{pickup_instructions}}</p>
 </div>
+{{sezione_calendario}}
 <p>Viel Freude beim Lesen!</p>',
     ],
     'loan_renewed' => [

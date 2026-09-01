@@ -2,6 +2,446 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.72]
+
+A small usability release: the two cache-maintenance controls on Settings → Advanced are unified into one.
+
+### Fixed
+
+- **Rate limits remain per-client behind trusted Docker/reverse proxies.** Forwarded client addresses are still ignored unless the immediate peer matches `TRUSTED_PROXIES`, but a validated proxy chain is now walked from right to left instead of trusting its caller-controlled first value. Private LAN client addresses are accepted after that trust boundary, preventing every patron behind the same proxy from sharing the registration/login bucket.
+
+### Changed
+
+- **A single "Svuota cache" button clears every cache.** The Advanced settings tab previously showed two separate controls — a LiteSpeed edge-cache purge and an application query-cache flush. They are now one admin button that, in a single action, always flushes the application query cache (APCu or file backend, shown as a hint under the button) and additionally purges the LiteSpeed edge cache where the server actually runs LiteSpeed. On plain Apache/nginx and in the Docker image only the query cache is cleared and no purge header is sent, so a non-LiteSpeed install no longer shows a control it cannot use and a LiteSpeed install no longer shows two buttons. The flush runs inside the web request, so it reaches the same APCu segment that serves pages — which a CLI command cannot.
+
+## [0.7.71]
+
+A performance release: a full caching overhaul for anonymous traffic (issue #387), delivered as one stable jump from 0.7.68. Every install upgrades with identical behaviour on a cold cache; the optional LiteSpeed edge cache is off by default and configured by administrators. Existing installs receive an idempotent catalog-materialization migration.
+
+### Performance
+
+- **Single-backend query cache with O(1) invalidation.** `QueryCache` uses one backend per request (APCu when available, else file) and invalidates the content namespaces (catalog, home, genre-tree, book-detail, reviews) through monotonic, file-backed generation counters — a bump makes every prior entry unreachable without scanning or deleting, and an atomic (temp + `rename()`) write can never wipe a counter and re-expose stale data. A non-blocking GC reclaims orphaned files.
+- **Hot public datasets are cached, availability stays live.** The book-detail static DTO (metadata/authors/publishers/series/related), the reviews block and the bounded catalog/search listings are cached per locale, while `copie_disponibili`/`copie_totali`/`stato` are stripped before storage and re-read live on every request — a stale availability number can never be served. Every write path that changes a cached column invalidates the right namespace.
+- **Materialized catalog aggregates and principal-author projection.** Bounded catalog counts and facet payloads are materialized in MySQL under the same generation token and short safety TTL as `QueryCache`; catalog rows read a write-maintained principal-author projection instead of three correlated `libri_autori` subqueries per book. Both fail open to live SQL if the table, counter or named lock is unavailable, and a rolling upgrade keeps the legacy subquery fallback until the projection columns exist.
+- **Optional LiteSpeed full-page edge cache.** Anonymous home, catalog/search and canonical book pages can be served straight from LiteSpeed/LSCache with independent TTLs, locale-aware variation and tag-based purge — no PHP on a hit. Authenticated requests, private mode, mutations, authorization headers, visitor cookies, `Set-Cookie` responses and every unmarked route fail closed to `no-cache`. Book and card availability stays live outside the shared HTML via a capped, batched `no-store` hydration endpoint.
+- **Sessionless anonymous path + lazy CSRF.** Anonymous read-only requests with no auth cookie no longer open a PHP session or embed a per-visitor CSRF token (minted on demand via `GET /csrf-token`), which is what makes the shared edge cache safe. CSRF validation is unchanged — every state-changing request still opens a session and is validated exactly as before.
+
+### Administration and delivery
+
+- **LiteSpeed is configured from Settings → Advanced**, with separate home/catalog/book TTLs and server/CLI-purge diagnostics. The section is shown only where it applies — a detected LiteSpeed/OpenLiteSpeed server, or when already enabled — and is hidden on plain Apache/nginx and in the Docker image, which never has LiteSpeed. Enabling it writes the required `CacheLookup on` and privacy-bypass rules into `public/.htaccess`; an upgrade heals a pre-existing block in place so the toggle is never inert. A "Clear edge cache" button purges every Pinakes-tagged entry on demand.
+- **Cache coherence and front-end delivery.** Content, availability, review and home writes emit scoped LiteSpeed tags; successful admin/staff mutations also purge shared HTML defensively. Shared cached HTML uses a stable hash-based Content Security Policy instead of per-response nonces. The Digital Library plugin loads the audio-player CSS/JS only on pages that actually render an audiobook, and FontAwesome icon fonts use `font-display: swap` so they no longer block first paint.
+
+### Compatibility
+
+- No breaking change and no new required dependency. Existing installs receive an idempotent catalog-materialization migration; the Apache-based official Docker image permanently disables LiteSpeed at runtime and in Settings while keeping the APCu/file query cache active. Redis remains deliberately deferred.
+
+### Internal
+
+- Extensive new behavioural coverage across the cache backend, generation invalidation and atomicity, the availability split, the sessionless/CSRF predicate, LiteSpeed cache admission/bypass and CSP stabilization, the `.htaccess` self-heal, catalog materialization and the settings UI. The Verified Release pipeline was hardened for reproducible, attested prereleases.
+
+## [0.7.68]
+
+Circulation fixes. A request for a book that is currently out no longer fails on approval — it becomes a real waitlist reservation — and copy allocation is made consistent everywhere a copy is chosen. Also restores the "waiting for pickup" cancel action (#381), the terminal pickup email for archived books, and author photos supplied as a URL (#382).
+
+### Fixed
+
+- **A request for an already-loaned single-copy book now routes to the waitlist instead of failing on approval (#384).** The request used to be recorded as a pending loan, and approving it returned HTTP 500 because no copy could be allocated for the overlapping window. The reservation-vs-loan decision is now unified in one gate: when no copy is assignable through the requested window but physical copies exist, a real `prenotazioni` waitlist reservation is created; when a copy is free the loan proceeds (auto-approving where enabled). Legacy copy-less titles keep the pending-approval fallback.
+- **Copy allocation is consistent across every site that picks a copy (#384).** The request gate, the approval step and the FIFO waitlist promotion now share one rule: a copy carrying a *preceding* commitment — one whose availability would depend on an earlier borrower returning on time — is never bound, and among otherwise-free copies the one with no *later* scheduled loan is preferred. A future scheduled loan therefore never comes to depend on a new borrower returning early, and an idle sibling is used instead of the copy a later loan already needs.
+- **A "waiting for pickup" loan can be cancelled again (#381).** The cancel action resolves to `annullato` — or `scaduto` when the pickup deadline has already passed — restores the copy to availability, and never interferes with other loans or later reservations on the same or another copy.
+- **The terminal pickup email reaches the borrower even for a soft-deleted book.** The cancel/expire notification query filtered out soft-deleted books, so a borrower whose book had since been archived silently lost the expired/cancelled email even though the loan was closed; the notice now fires regardless.
+- **Author photos supplied as a URL now display (#382).** A photo entered as a remote URL is downloaded into `uploads/autori` on save instead of being stored as a bare link the page could not render.
+
+### Internal
+
+- The reservation-vs-loan decision now lives in a single shared `LoanRequestGate` that **every** public request entry point routes through (the book-detail modal, `POST /user/loan`, and the NCIP `RequestItem` service), so the #384 contract can never diverge between paths. NCIP `RequestItem` creates a real FIFO reservation when no copy is assignable instead of a bare pending request; `ncip_transactions` gains a `prenotazione_id` audit link (added to existing installs by the plugin schema self-heal), and `CancelRequestItem` cancels the linked reservation, reorders the queue and runs any promotions. Bundled ncip-server plugin bumped to 1.0.4.
+- The companion Mobile API now preserves that same outcome at the JSON boundary: when the canonical loan path routes an apparently-immediate request to the FIFO waitlist it returns HTTP 201 with `data.type=reservation`, never a false 500 after committing the reservation. Mobile API 1.4.4 also exposes `DELETE /loans/{id}` and a `cancellable` loan hint so native clients can safely cancel pending, scheduled and `da_ritirare` loans (#381) without relying on the overlapping numeric id spaces of loans and reservations.
+- New behavioural coverage for the reservation-routing gate, the three copy-selection sites (I1 preceding-dependency and I3 future-commitment ordering), the soft-deleted-book pickup notification and the NCIP request/cancel lifecycle, each driving the real controllers against a seeded database and failing on the pre-fix code by design.
+
+## [0.7.67]
+
+Fixes a silent upgrade gap discovered on a live install: a foreign key or column that a bundled plugin adds in a release was not applied when an already-active plugin was upgraded through the admin UI, even though the plugin version was bumped.
+
+### Fixed
+
+- **Plugin schema self-heal now covers foreign keys and columns, not just tables.** An admin-UI upgrade loads a plugin's old class into memory before the new files are swapped in, so PHP keeps running the old `onActivate`/`ensureSchema` during the upgrade even as the version is stamped forward — any foreign key or column added in that release never runs at upgrade time. The boot-time self-heal is the only path that applies it, and it previously probed missing *tables* only. It now also probes declared columns (`expectedColumns()`) and foreign keys (`expectedForeignKeys()`) and re-runs `onActivate` when any declared element is missing. Concrete effect: `ncip_transactions`' two foreign keys and `libri.file_url`/`libri.audio_url` are now restored automatically on the next page load after upgrading. No action is required; already-upgraded installs heal themselves.
+
+### Internal
+
+- ncip-server and digital-library declare their foreign keys / columns from a single source shared with the code that creates them, so the self-heal probe and the DDL cannot drift apart. New behavioural coverage (`tests/plugin-schema-selfheal-fkcol.unit.php`) reproduces the missing-FK / missing-column state against the real `PluginManager` and asserts it self-heals; it fails on the pre-fix code by design and is wired into the mandatory schema gate.
+
+## [0.7.66]
+
+A full audit of all 20 bundled plugins — security, correctness and schema fixes — plus four previously-orphaned plugin features wired into the UI.
+
+### Security
+
+- **Centralised SSRF guard for caller-configurable endpoints**: `HttpClient` gains
+  an `ssrf_guard` option that resolves the target host, rejects hosts resolving to
+  private/reserved address space, pins the connection to the vetted public IP, and
+  rejects cross-host/port/scheme redirects. Enabled for the book-club AI endpoint
+  and the z39 SRU client, both of which also moved off raw `curl` onto the guarded
+  client.
+- **book-club AI settings are admin-only**: the global API key and outbound
+  endpoint were reachable by `staff` (AdminAuthMiddleware admits both roles); an
+  inline admin re-check now gates both read and save.
+- **resource-sync** Basic Auth is rate-limited; **dewey-editor** destructive
+  endpoints require admin inline; **digital-library** file-preview links get
+  `rel="noopener"`.
+
+### Features
+
+- **api-book-scraper settings page** is wired (`hasSettingsPage`/
+  `getSettingsViewPath`) — previously a 404.
+- **z39-server UNIMARC import** completes the advertised round-trip: a pasted or
+  uploaded UNIMARC record pre-fills the book form (like the SBN import), never a
+  direct insert, so validation and soft-delete rules are preserved.
+- **viaf-authority** surfaces a VIAF/ISNI panel on the author edit page via the
+  existing `author.form.fields` hook.
+- **frbr-lrm** wires Book↔Work linking and full Expression CRUD into the admin UI
+  via `book.form.fields`; the manifest drops the unbuilt dedup/relator claims.
+
+### Fixed
+
+- **api-book-scraper no longer wipes its stored API key** on a settings save that
+  leaves the key field blank (blank means "keep the existing key").
+- **archives soft-delete** frees the UNIQUE `reference_code`/`ark_identifier` for
+  reuse by appending a per-id token (truncated to fit `VARCHAR(64)`), keeping the
+  original code as a readable prefix.
+- **dewey-editor** keys its data file off the full locale (`en_US` ≠ `en_GB`) with
+  a legacy fallback; readers and writers share one resolver.
+- Plugin hook registration (api-book-scraper) is now transactional and rethrows on
+  failure; removed dead `activate()` code in discogs/open-library; aligned
+  plugin.json versions and dropped stale `max_app_version` fields.
+
+### Upgrade
+
+- The five plugins with schema or hook changes (ncip-server, digital-library,
+  frbr-lrm, viaf-authority, z39-server) get a plugin.json version bump so the
+  Updater re-runs their `ensureSchema()`/hook registration on existing installs —
+  the ncip `ncip_transactions` FOREIGN KEYs, digital-library's `file_url`/
+  `audio_url` columns and the new frbr/viaf hooks are applied on upgrade, not only
+  on fresh install. No core SQL migration.
+
+## [0.7.65] - 2026-08-22
+
+Add-to-calendar links in loan emails, the #366 legacy ready-pickup backfill, and a public-facing SEO pass.
+
+### Features
+
+- **Add-to-calendar links in loan emails**: the loan-approved and pickup-ready
+  emails carry a calendar block with a Google Calendar link and a tokenized
+  per-loan `.ics` download, so borrowers can save the due date in any calendar
+  app (multi-calendar, no account linking). Rendered by `NotificationService`
+  via `LoanCalendarLinks`; upgraded installs get the `{{sezione_calendario}}`
+  placeholder appended to already-seeded templates by an idempotent migration,
+  fresh installs from the template defaults. Strings translated in all five locales.
+
+### Fixed
+
+- **#366 residual repair**: legacy `da_ritirare` rows with a NULL
+  `pickup_deadline` could stay "ready for pickup" forever — the expiry sweep
+  skips NULL deadlines and the 0.7.63 repair intentionally preserves a pickup
+  whose copy is free. `PickupDeadlineBackfill` now runs on every upgrade
+  (admin updater and Docker both drive `Updater::runMigrations()`), after the
+  canonical triggers are re-applied, assigning `today + pickup_expiry_days`
+  capped at the loan's `data_scadenza`; rows whose window already closed get a
+  past deadline and are culled by the next sweep through the normal expiry
+  path. Covered by `tests/migration-0.7.65-rc.1.unit.php`.
+
+### SEO
+
+- Canonical URLs no longer inherit tracking query strings (layout fallback and
+  book detail), so `?utm_*` variants stop becoming indexable duplicates.
+- hreflang alternates and locale-prefixed sitemap URLs (`/en/…`) pointed to
+  non-routable 404s: hreflang is no longer emitted while the language is
+  session-based, and the sitemap lists only default-locale URLs.
+- The sitemap drops the auth pages (blocked by robots.txt anyway), skips
+  authors/publishers with no visible books, and logs when the explicit
+  book/author caps truncate; robots.txt now disallows every active locale's
+  login/register variant.
+- Author, publisher and genre archives share one localized SEO block:
+  canonical on the name-based URL (the id route collapses into it),
+  translated titles/descriptions, CollectionPage (+Person) and BreadcrumbList
+  JSON-LD. Book pages brand their title and Library schema with the
+  configured `app.name`.
+- Internal search results and the standalone auth pages carry
+  `noindex,follow`; empty `og:image`/`twitter:image` tags are omitted.
+- Catalog pagination is server-rendered with real `?page=N` links (crawlable
+  without JavaScript); grid covers load lazily and the book cover — the LCP —
+  gets `fetchpriority="high"`. Book meta descriptions are cut multibyte-safe.
+- Public events emit `Event` + `BreadcrumbList` JSON-LD.
+
+## [0.7.64] - 2026-08-21
+
+Optional multiple physical copies of the same title per borrower (#238).
+
+### Features
+
+- **Multiple copies per borrower** (opt-in, Settings → Loans → "Più copie dello
+  stesso titolo", off by default): staff can lend more than one distinct
+  physical copy of the same title to the same borrower. Every loan stays bound
+  to its own copy, so no two open loans for a borrower can share a copy.
+  Pending requests, reservations and legacy copyless rows keep the historical
+  borrower/title uniqueness, and per-copy overlap guards, eligibility, capacity
+  and the max-active-loans limit are all unchanged (each copy counts as one
+  active loan). The desk "Salva e registra un'altra copia" flow keeps the
+  selected title and focuses the next copy scan for fast batch check-outs.
+  Existing installations are unaffected without a migration — the setting
+  resolves to off until it is enabled, and fresh installs seed it off in all
+  five shipped locales.
+
+### Fixed
+
+- **Circulation can no longer hand out a copy that is physically out** (#366
+  residual): creation, approval, rescheduling, renewal, reassignment and the DB
+  triggers all treat an `in_corso` loan whose due date has passed but that the
+  maintenance sweep has not yet flipped to `in_ritardo` as an open-ended
+  commitment (same rule as `CapacityService`). The pre-assigned copy is
+  validated against the loan's book, and a request whose whole window is already
+  past is rejected instead of becoming an unpickable `da_ritirare`.
+  `confirmPickup` re-checks the loan rows holding the copy (not just
+  `copie.stato`) before issuing. Approval and the date-aware allocator still
+  accept a copy that is physically out as long as the requested window does not
+  overlap its open loan — the per-copy overlap check is the authority — so a
+  future-dated request is not needlessly blocked when the only copy is on loan.
+- **Backdating a loan's due date reports a clear error**: actively moving an
+  active loan's due date into the past used to reach the per-copy overlap
+  trigger and surface an opaque `loan_update_failed`; the edit flow now rejects
+  it up front with the same `expired_window` message the create/approve flows
+  use, while still allowing edits to an already-overdue loan whose due date is
+  left unchanged.
+- **Queue promotion re-checks borrower eligibility**: a user suspended (or
+  with an expired card) while waiting is skipped — their reservation stays
+  active in the queue — instead of being promoted to a pending loan that
+  approval then refuses, burning their position and pinning the copy. The scan
+  is not capped at the first 25 rows, so an eligible reader farther down the
+  FIFO can still receive a free copy.
+- **Reservations on books without copy rows are refused up front**: the queue
+  can only convert physical `copie` rows, so a legacy book with none produced
+  reservations that silently never converted until they expired.
+- **Reassigning a promoted loan keeps queue semantics** (multiplicity ON): a
+  row with `origine='prenotazione'` still in `prenotato`/`da_ritirare` is
+  treated as a queue commitment when reassigned to another borrower, so a user
+  can never end up with a physical loan plus a promoted queue position for the
+  same title.
+- **The desk create form is double-submit safe**: submit buttons disable on
+  first submit and every rendered form carries a one-time server token. A
+  replayed POST therefore cannot register a second real loan on another copy,
+  including retries caused by latency or double-clicks.
+- **A freed copy now serves every compatible hold**: `reassignOnReturn` keeps
+  assigning the returned copy until no blocked FIFO candidate can take it
+  (holds with disjoint windows previously waited for the next maintenance
+  sweep), and holds whose window is entirely past are no longer eligible.
+- **Pickup-ready emails are claim-and-retry**: a new
+  `prestiti.pickup_notification_sent` flag (seeded in the schema and added by
+  an idempotent upgrade migration) makes the "ready for pickup" email
+  idempotent. Token-owned claims recover after a worker crash, failures are
+  retried fairly by the hourly notification cron, and existing rows are
+  initialized as already handled without firing legacy circulation triggers.
+  Every future transition to ready resets the flag; reassigning a ready loan
+  resets the recipient-specific claim as well.
+- **Borrowers without an email no longer wedge the notification crons**:
+  expiry warnings and overdue notices for them keep their claim (no more
+  endless SMTP retry churn) and still produce the in-app/admin notifications,
+  which previously never fired for email-less borrowers.
+- **Cron process locks no longer unlink after unlock** (the race
+  `scripts/maintenance.php` already documented), both cron entrypoints refuse
+  non-CLI execution, and `runAll()` refreshes the cross-session cooldown
+  marker so an admin login right after the cron no longer re-runs the whole
+  maintenance synchronously.
+- **NCIP**: a recognized active `FromAgencyId` is attributed to transaction
+  logs without silently turning the historically informational partner table
+  into a new authorization gate. `CheckInItem` and `RenewItem` reject a
+  malformed `UserId`, use a valid optional `UserId` to select the correct loan,
+  and refuse an ambiguous title-only mutation when several NCIP loans are open;
+  check-out/check-in/renew are logged to `ncip_transactions`; renewals claim
+  the window from the day after the current due date (#336 parity with web).
+- **Return flow**: a deadlock/lock-timeout now reports a dedicated
+  "another operation was updating this book, retry" error instead of the
+  generic failure; reservation availability emails format dates in the
+  recipient's language like the rest of the #360 pipeline; cancelling a
+  promoted pending loan releases and reassigns its copy immediately.
+- **Admin reservation edits**: an out-of-whitelist status is rejected instead
+  of silently coerced to `attiva`, and a completed (promoted) reservation
+  cannot be flipped while its converted loan is still open.
+- **Localized gender on the admin user-details page** (#371): the stored
+  `sesso` enum (`M`/`F`/`Altro`) now renders through the same translated labels
+  as the edit form instead of the raw code, with a safe fallback for unexpected
+  values.
+- **Notifications dropdown no longer clips on phones**: the panel was anchored
+  to the right-hand bell button, so a near-full-width dropdown overflowed the
+  right screen edge and cut off "Segna tutte come lette" and the notification
+  bodies. Below the `md` breakpoint it is now pinned to the viewport and
+  centred; the desktop panel is unchanged.
+
+### Changed
+
+- Release artifacts now have one canonical producer: the tag-triggered
+  `Verified Release` workflow builds twice, verifies the package, uploads a
+  draft, checks every server-side digest and only then publishes it. The local
+  release script performs preflight, pushes the annotated tag and monitors that
+  workflow instead of racing it with a second upload path.
+- `reassignOnNewCopy` now walks the whole blocked-hold FIFO and assigns the
+  first compatible candidate (skipping an incompatible head) instead of
+  stopping at the first blocked hold; a same-borrower conflict on the target
+  copy blocks regardless of dates. Observable also with the multiplicity
+  setting off: a younger reservation can receive a returned copy while the
+  head stays blocked, without losing its priority for future copies.
+
+## [0.7.63] - 2026-08-20
+
+### Fixed
+
+- **#366 upgrade recovery**: `migrate_0.7.63-rc.1.sql` immediately demotes
+  impossible legacy `da_ritirare` rows back to `prenotato` without cancelling
+  the scheduled loan, clears their stale pickup deadline and releases the bad
+  copy assignment; maintenance repeats the same repair as a runtime safety net.
+  The loan-integrity trigger permits
+  corrective edits to an already-existing overdue overlap (including moving
+  the start date to tomorrow) while still rejecting newly introduced overlaps.
+  Scheduled loans without a pinned copy are assigned a real free copy before
+  being announced ready, so `confirmPickup()` cannot inherit a copy-less row.
+
+## [0.7.62] - 2026-08-19
+
+Overdue-loan recalls (solleciti) and emailing the loan receipt (#360).
+
+### Features
+
+- **Loan recalls (solleciti)**: overdue loans can now be chased beyond the
+  single overdue notification. Automatic recalls repeat at a configurable
+  interval up to a configurable cap (Settings → Loans → "Solleciti automatici",
+  off by default; sent by the notifications cron or on admin login). Staff can
+  also send a manual recall for one loan — from the loan detail page or a
+  per-row action on the loans list — or for many at once from the loans list
+  via the bulk action bar — manual recalls ignore
+  the automatic schedule but share the same per-loan counter
+  (`prestiti.recall_count` / `last_recall_at`, added by
+  `migrate_0.7.62-rc.1.sql` and self-healed at runtime). New editable email
+  template `loan_recall_notification` in all five locales.
+- **Email the loan receipt PDF**: next to "Scarica Ricevuta PDF", the loan
+  detail page now has "Invia Ricevuta via Email", which sends the same PDF as
+  an attachment to the loan's user (new editable template
+  `loan_receipt_email`; the mailer gained in-memory attachment support).
+- **Emails in the recipient's language**: user-facing notification emails
+  (loan warnings/overdue/recalls, receipt, approvals, pickups, returns,
+  reservations, wishlist, registration and account emails — and per-admin for
+  admin alerts) now render in the recipient's preferred language
+  (`utenti.locale`, the same value that drives their UI language), including
+  date formats and translated labels, falling back to the installation locale
+  when the user has none. Password-reset mail already followed the
+  requester's session language.
+- **Language choice at registration**: on multi-language installs the
+  registration form now offers a "Lingua preferita" select (defaulting to the
+  language the visitor is browsing in), validated server-side against the
+  shipped locales. The profile page and the admin user forms already offered
+  the same choice; together they cover registration, self-service and admin.
+- **Plugin ZIP updates (#358)**: uploading a plugin ZIP whose name matches an
+  already-installed plugin now updates it in place — its id, settings, data and
+  hooks are preserved and its files are swapped atomically — instead of failing
+  on the existing directory. Updating an already-active plugin now runs its new
+  lifecycle (`onActivate()`/`ensureSchema()`) on the next request via a
+  pending-update marker, rolling back package, metadata and hooks if the new
+  version fails to activate — so schema changes shipped in an update are applied
+  instead of being silently skipped. Covered by contract and per-bundled-plugin
+  integration tests.
+
+### Fixed
+
+- **Book announced "ready for pickup" while still on an overdue loan (#366)**:
+  a reservation scheduled right after a loan that then went overdue and was
+  never returned was promoted to `da_ritirare` on its date alone, emailing the
+  next patron a wrong "ready for pickup" notice while the book was still out.
+  Promotion is now gated on a copy being physically free (active loans below the
+  copy count; a pinned copy must be on the shelf). The full reported sequence is
+  covered too: rescheduling an open reservation/pickup no longer leaves a stale
+  `pickup_deadline` for the expiry sweep to cull a valid loan against, the
+  overdue flip now runs first in the maintenance pass so an unreturned overdue
+  loan keeps holding its copy, and `renew()` refuses a date-overdue loan.
+- **Concurrent circulation actions no longer corrupt state**: eight
+  transactions (approve/return/reject/cancel loan and reservation) resolved the
+  loan id with a plain read before taking the book lock, so under REPEATABLE
+  READ their later reads were blind to a competitor that had just committed.
+  A just-cancelled reservation could be promoted and emailed, and one physical
+  copy could be committed to two loans. The lookups now run before the
+  transaction so the first locked read fixes the snapshot, and reservation
+  promotion claims the row with a state-guarded update.
+- **Pickup confirmation** now refuses a copy that is still out on another loan
+  (`prestato`), preventing a double issue of the same physical copy.
+- **Admin reservation cancellation** now promotes the next reservation in the
+  queue immediately, like every other path that frees a copy.
+- **Overdue notices and automatic recalls** now fire for loans whose book has
+  been archived (soft-deleted) — the chase-up mail no longer filters those out.
+- **The "reservation available" email** can no longer be sent twice when the
+  retry sweep races the request that promoted it.
+- Admin direct loans cap the pickup deadline at the due date; bulk loan
+  extension and reschedules re-check borrower eligibility; expiry audit notes
+  use the same day the decision was made near midnight.
+
+### Internal
+
+- CI: the OWASP ZAP baseline no longer fails on the ISBN/EAN-13 PII-disclosure
+  false positive, allowlisted narrowly to 13-digit codes on bibliographic pages
+  (#359).
+- Release verifiers now require `storage/sessions/.gitkeep` and reject every
+  other entry there (files, symlinks, stray directories), and an unreadable
+  plugin-update marker is retired instead of permanently blocking future
+  updates of that plugin.
+
+## [0.7.61]
+
+Physical-copy management from the book summary, with the whole holding and
+circulation lifecycle made atomic and derived from the copies.
+
+### Features
+
+- The book page (`/admin/books/{id}`) now shows a **Copie Fisiche** section for
+  every book — even one with no copies — with an "Aggiungi copia" modal, per-copy
+  status editing, and per-copy delete. Copy status covers the physical states
+  (available, maintenance, under restoration, in transfer, lost, damaged); an
+  out-of-circulation copy lowers the derived total on its own.
+- A book can be created with zero physical copies and have them added later from
+  the summary. On the edit form the copy count is read-only and delegates to the
+  per-copy management, so availability is always derived from the copies.
+
+### Fixes
+
+- Book creation is now atomic: the book row and its initial copies are committed
+  together, so a copy-creation failure can no longer leave an orphan book with no
+  holdings. The bulk `increase-copies` endpoint is likewise transactional,
+  allocates collision-free inventory codes, promotes the wait-list, and validates
+  its input.
+- Adding an available copy repairs blocked reservations and promotes the next
+  wait-list entry into a physical-copy-linked loan, mirroring the loan engine.
+- Copies under restoration or in transfer can now be deleted from the UI; the
+  loan/reservation system keeps exclusive ownership of the `prestato`/`prenotato`
+  states.
+- Legacy reservations with a missing or past start date are no longer promoted
+  into back-dated loans.
+- Admin copy routes stay fixed English literals (not routed through the i18n
+  system), inventory-code allocation escapes LIKE metacharacters, and the copy
+  note is sanitised and length-capped like the inventory number.
+- All new copy-management strings are translated across the five locales.
+
+### Upgrade notes
+
+- **Legacy availability is migrated automatically.** Books that predate copy
+  tracking (only the old counters, no per-copy rows) are backfilled into real
+  copies *before* availability is recalculated, so availability carries over
+  from the old counter model to the new copy-derived one without being zeroed.
+  Active loans and reservations are preserved, and copies already marked
+  lost/damaged/maintenance/under-restoration/in-transfer are left untouched.
+- A book whose only record of unavailability was the legacy counter (marked
+  unavailable with no active loan) becomes available again after the upgrade:
+  the new model derives availability from physical copies, and a physically
+  missing book with no loan leaves no machine-readable trace to preserve.
+  Re-mark those copies from the book page after upgrading.
+- If you upgraded through an intermediate version that had already zeroed a
+  legacy book's counters before this release, the backfill cannot reconstruct
+  the lost count. Restore `libri.copie_totali` from the automatic pre-upgrade
+  backup under `storage/backups/`, then re-run the availability recalculation
+  from Maintenance, or re-add the copies from the book page.
+
 ## [0.7.60]
 
 Maintenance release: UPC barcode support, a read-only availability field, and a

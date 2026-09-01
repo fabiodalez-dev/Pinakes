@@ -146,6 +146,24 @@ class RegistrationController
         // Default stato: sospeso (richiede approvazione admin). Email da verificare
         $stato = 'sospeso';
         $ruolo = 'standard';
+        // #360: the registrant picks their language on the form (the select is
+        // rendered only on multi-language installs). Validate against the
+        // locales this installation actually ships; anything missing or
+        // invalid falls back to the installation locale — the historical
+        // behaviour. The stored value drives the user's UI language and the
+        // language of every email the app sends them.
+        $locale = '';
+        if (isset($data['locale']) && is_scalar($data['locale'])) {
+            $locale = \App\Support\I18n::normalizeLocaleCode(trim((string) $data['locale']));
+        }
+        if ($locale === '' || !isset(\App\Support\I18n::getAvailableLocales()[$locale])) {
+            $locale = \App\Support\I18n::normalizeLocaleCode(
+                \App\Support\I18n::getInstallationLocale()
+            );
+        }
+        if (!\App\Support\I18n::isValidLocaleCode($locale)) {
+            $locale = 'it_IT';
+        }
 
         // Ensure timezone consistency BEFORE generating dates
         $db->query("SET SESSION time_zone = '+00:00'");
@@ -161,9 +179,9 @@ class RegistrationController
         // cognome stays in the base list: the column is NOT NULL by design (70+
         // display paths CONCAT nome+cognome and a NULL would blank the whole
         // name), so an optional surname is stored as an empty string.
-        $columns = 'nome, cognome, email, password, codice_tessera, stato, tipo_utente, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera, privacy_accettata, data_accettazione_privacy, privacy_policy_version';
-        $placeholders = '?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?';
-        $types = 'ssssssssssss';
+        $columns = 'nome, cognome, email, password, codice_tessera, stato, tipo_utente, locale, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera, privacy_accettata, data_accettazione_privacy, privacy_policy_version';
+        $placeholders = '?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?';
+        $types = 'sssssssssssss';
         $values = [
             $nome,
             $cognome,
@@ -172,6 +190,7 @@ class RegistrationController
             $codice_tessera,
             $stato,
             $ruolo,
+            $locale,
             $token,
             $data_scadenza_token,
             $data_scadenza_tessera,

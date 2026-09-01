@@ -24,6 +24,13 @@ declare(strict_types=1);
 use Dotenv\Dotenv;
 use App\Support\MaintenanceService;
 
+// Difesa in profondità: sotto Apache la .htaccess root instrada tutto su
+// public/, ma su nginx (che la ignora) o con una docroot mal configurata
+// questo file sarebbe un trigger web non autenticato del batch di manutenzione.
+if (php_sapi_name() !== 'cli') {
+    die("This script can only be run from the command line.");
+}
+
 // ============================================================
 // PROCESS LOCK - Prevent concurrent cron executions
 // ============================================================
@@ -57,12 +64,13 @@ ftruncate($lockHandle, 0);
 fwrite($lockHandle, (string)getmypid());
 fflush($lockHandle);
 
-// Register shutdown function to release lock and clean up
-register_shutdown_function(function () use ($lockHandle, $lockFile) {
+// Register shutdown function to release lock. MAI unlink dopo l'unlock
+// (stessa scelta di scripts/maintenance.php): B può aver già aperto lo stesso
+// inode e lockarlo dopo il nostro rilascio; se A poi lo cancella, C ricrea il
+// file e locka il NUOVO inode → B e C girerebbero in parallelo.
+register_shutdown_function(function () use ($lockHandle) {
     flock($lockHandle, LOCK_UN);
     fclose($lockHandle);
-    // nosemgrep: php.lang.security.unlink-use.unlink-use -- $lockFile is a fixed internal path (storage/cache/full-maintenance.lock), not user input
-    @unlink($lockFile);
 });
 
 // ============================================================
@@ -109,11 +117,10 @@ try {
     }
 
     $db->set_charset($cfg['charset']);
+    \App\Support\DateHelper::synchronizeDatabaseSession($db);
 
-    // Niente SET SESSION time_zone (M9): la coerenza sul giorno è garantita dai
-    // parametri PHP calcolati con DateHelper nel timezone applicativo; il web non
-    // imposta alcuna session timezone, quindi forzare UTC nel solo cron creava
-    // due regimi diversi per gli stessi confronti di data.
+    // Niente SET SESSION time_zone (M9): DateHelper espone ai trigger il giorno
+    // applicativo senza alterare la timezone MySQL dell'intera connessione.
 
     // Bootstrap I18n con il locale di installazione, come fa public/index.php per
     // il web (H4): in CLI il locale resterebbe il default statico it_IT e le email
@@ -140,6 +147,7 @@ try {
     // every key is guaranteed present — no null-coalescing needed)
     logMessage("Maintenance completed:");
     logMessage("- Scheduled loans activated (prenotato -> da_ritirare): " . $results['scheduled_loans_activated']);
+    logMessage("- Invalid ready pickups repaired (da_ritirare -> prenotato): " . $results['invalid_ready_pickups_repaired']);
     logMessage("- Expired waitlist reservations (prenotazioni -> annullata): " . $results['expired_waitlist_reservations']);
     logMessage("- Scheduled reservations converted: " . $results['reservations_converted']);
     logMessage("- Expired reservations (prenotato -> scaduto): " . $results['expired_reservations']);
@@ -152,6 +160,7 @@ try {
     logMessage("  - Overdue notifications: " . $results['overdue_notifications']);
     logMessage("  - Wishlist notifications: " . $results['wishlist_notifications']);
     logMessage("  - Reservation availability notifications retried: " . $results['reservation_notifications_retried']);
+    logMessage("  - Pickup-ready notifications retried: " . $results['pickup_notifications_retried']);
 
     if (!empty($results['errors'])) {
         logMessage("Errors encountered during maintenance:");
@@ -166,6 +175,7 @@ try {
     // Calculate totals
     $totalActions =
         $results['scheduled_loans_activated'] +
+        $results['invalid_ready_pickups_repaired'] +
         $results['expired_waitlist_reservations'] +
         $results['reservations_converted'] +
         $results['expired_reservations'] +

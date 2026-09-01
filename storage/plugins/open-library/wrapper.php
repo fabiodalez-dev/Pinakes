@@ -2,9 +2,9 @@
 /**
  * OpenLibrary Plugin Wrapper
  *
- * This wrapper allows the plugin to work with both:
- * 1. Direct loading via activate.php (with namespace)
- * 2. PluginManager installation (without namespace)
+ * Exposes a global (non-namespaced) OpenLibraryPlugin class that proxies to the
+ * namespaced implementation, as required by PluginManager. Hooks are persisted
+ * to the DB via the namespaced onActivate()/registerHooks() path.
  */
 
 // Load the main plugin file
@@ -26,19 +26,6 @@ if (!class_exists('OpenLibraryPlugin', false)) {
             $this->instance = new \App\Plugins\OpenLibrary\OpenLibraryPlugin($db, $hookManager);
         }
 
-        /**
-         * Activate the plugin
-         */
-        public function activate(): void
-        {
-            if (method_exists($this->instance, 'activate')) {
-                $this->instance->activate();
-            }
-        }
-
-        /**
-         * Activate the plugin
-         */
         /**
          * Deactivate the plugin (called by PluginManager)
          */
@@ -71,8 +58,6 @@ if (!class_exists('OpenLibraryPlugin', false)) {
         {
             if (method_exists($this->instance, 'onActivate')) {
                 $this->instance->onActivate();
-            } elseif (method_exists($this->instance, 'activate')) {
-                $this->instance->activate();
             }
             \App\Support\SecureLogger::debug('[OpenLibrary] Plugin activated');
         }

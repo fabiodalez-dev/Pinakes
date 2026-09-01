@@ -183,9 +183,16 @@
                                     <i class="fas fa-times mr-1"></i><?= __("Annulla Prestito Scaduto") ?>
                                 </button>
                                 <?php else: ?>
-                                <button type="button" class="inline-flex items-center justify-center w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors confirm-pickup-btn shadow-sm text-sm" data-loan-id="<?= $loan['id'] ?>">
-                                    <i class="fas fa-check-circle mr-1"></i><?= __("Conferma Ritiro") ?>
-                                </button>
+                                <?php // Non ancora scaduto: il ritiro si può confermare O annullare
+                                      // (#381) — prima l'annullamento compariva solo dopo la scadenza. ?>
+                                <div class="flex gap-2">
+                                    <button type="button" class="inline-flex items-center justify-center flex-1 bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors confirm-pickup-btn shadow-sm text-sm" data-loan-id="<?= $loan['id'] ?>">
+                                        <i class="fas fa-check-circle mr-1"></i><?= __("Conferma Ritiro") ?>
+                                    </button>
+                                    <button type="button" class="inline-flex items-center justify-center flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 px-3 rounded-lg transition-colors cancel-pickup-btn shadow-sm text-sm" data-loan-id="<?= $loan['id'] ?>">
+                                        <i class="fas fa-times mr-1"></i><?= __("Annulla Ritiro") ?>
+                                    </button>
+                                </div>
                                 <?php endif; ?>
                             </div>
                         </div>

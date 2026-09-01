@@ -41,7 +41,68 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.60 — latest
+### v0.7.72 — latest
+
+A small usability release: the two cache-maintenance controls on *Settings → Advanced* are unified into one.
+
+### Changed
+
+- **A single "Svuota cache" button clears every cache.** It always flushes the application query cache (APCu or file backend, shown as a hint) and additionally purges the LiteSpeed edge cache where the server actually runs LiteSpeed — so a non-LiteSpeed install no longer shows a control it can't use, and a LiteSpeed install no longer shows two buttons. The flush runs inside the web request, so it reaches the same APCu segment that serves pages, which a CLI command cannot.
+
+### v0.7.71
+
+A performance release: a full caching overhaul for anonymous traffic (issue #387). The pages the public sees — home, catalog/search and book pages — are served from cache instead of rebuilt on every request, while copy availability stays live. Upgrades cleanly with no behaviour change on a cold cache; the optional LiteSpeed edge cache is off by default.
+
+### New
+
+- **Anonymous pages are cached, availability stays live.** A single-backend query cache (APCu, else file) with O(1) generation invalidation serves the book-detail data, the reviews block and the bounded catalog/search listings; catalog counts, facets and each book's principal author are materialized in the database. Copy availability is stripped from every cached payload and re-read live, so a stale "available" count can never be shown.
+- **Optional LiteSpeed full-page edge cache.** On LiteSpeed/OpenLiteSpeed you can enable a true full-page cache from *Settings → Advanced*: anonymous home, catalog and book pages are served by the server with no PHP on a hit, with per-page TTLs and a one-click purge. Logged-in users, private mode, mutations and anything with a visitor cookie always bypass it. The section is hidden on servers that are not LiteSpeed (and in the Docker image), so you never see a control that can't work.
+
+### Fixes and delivery
+
+- **The LiteSpeed edge cache toggle now actually caches.** Earlier prereleases wrote the privacy rules but not the `CacheLookup on` directive, so the server ignored them; enabling it now writes the directive, and an upgrade repairs an existing install in place.
+- **Fewer render-blocking requests.** The audiobook player's CSS/JS load only on pages that actually have an audiobook, and the icon fonts no longer block the first paint.
+
+### Upgrade Notes
+
+- **A catalog-materialization migration runs automatically** and is idempotent; existing installs upgrade with no manual step. Back up your database before updating anyway (the in-app updater does this automatically). Redis support is deliberately deferred. See **[CHANGELOG.md](CHANGELOG.md)**.
+
+### v0.7.68
+
+Circulation fixes. A request for a book that is currently out no longer fails on approval — it becomes a real waitlist reservation — and the copy chosen for a loan is now picked consistently everywhere, so a scheduled future loan never comes to depend on someone else returning early.
+
+### Fixes
+
+- **A request for an already-loaned single-copy book becomes a reservation instead of failing (#384).** Approving such a request used to return an error; it now lands on the waitlist when no copy is free through the requested dates, and proceeds as a normal loan when one is.
+- **Copy allocation is consistent across the request gate, approval and waitlist promotion (#384).** A copy whose availability would depend on an earlier borrower returning on time is never bound, and a free copy without a later scheduled loan is preferred over one a future loan already needs.
+- **A "waiting for pickup" loan can be cancelled again (#381)**, resolving to cancelled — or expired when the pickup deadline has passed — and restoring the copy without touching other loans or reservations. The cancel/expire email now also reaches the borrower even when the book has since been archived.
+- **Author photos entered as a URL now display (#382)** — the image is downloaded on save instead of stored as a bare link. See **[CHANGELOG.md](CHANGELOG.md)**.
+
+### v0.7.67
+
+A reliability fix for plugin upgrades: a foreign key or column added by a bundled plugin is now applied automatically after an in-place upgrade of an already-active plugin, instead of being silently skipped.
+
+- **Plugin schema self-heal now covers foreign keys and columns, not only tables.** An admin-UI upgrade runs a plugin's old code until the next page load, so a foreign key or column introduced in a release never ran at upgrade time even though the version was bumped. The boot-time self-heal now detects a declared foreign key or column missing and re-applies it on the next request — `ncip_transactions`' foreign keys and `libri.file_url`/`libri.audio_url` heal themselves with no manual step. See **[CHANGELOG.md](CHANGELOG.md)**.
+
+### v0.7.61
+
+Physical-copy management from the book page, with availability derived from the copies — plus a per-user interface language and a safe upgrade path for existing catalogues.
+
+### New
+
+- **Manage physical copies from the book page** — every book now has a *Copie Fisiche* section (even one with no copies) to add copies, edit each copy's status (available, maintenance, under restoration, in transfer, lost, damaged), and delete copies. Availability is derived from the copies; an out-of-circulation copy lowers the total on its own.
+- **Per-user interface language** — each account keeps its own language, set from the profile/language switcher or by an admin from the *Edit user* form, instead of everyone being forced to Italian regardless of the install language ([#238](https://github.com/fabiodalez-dev/Pinakes/discussions/238)).
+
+### Fixes
+
+- **Book creation and copy changes are atomic** — a book and its initial copies are committed together, and the bulk *increase copies* endpoint allocates collision-free inventory codes, promotes the wait-list, and validates its input.
+- **New users inherit the installation language** instead of the old hard-coded Italian default; an admin can set any user's language from the *Edit user* form (#238).
+
+### Upgrade Notes
+
+- **Legacy availability is migrated automatically** (`migrate_0.7.61-rc.1.sql`). Books that predate copy tracking are backfilled into real copies *before* availability is recalculated, so availability carries over from the old counters to the new copy-derived model without being zeroed. Active loans and reservations are preserved, and out-of-circulation copies are left untouched. See **[CHANGELOG.md](CHANGELOG.md)** for the full notes, including how to recover a catalogue already zeroed by an intermediate version.
+
+### v0.7.60
 
 A maintenance release: UPC barcode support, a read-only availability field, and a PHP 8.5 scraping fix.
 
@@ -628,11 +689,7 @@ If Pinakes helps your library, please ⭐ the repository!
 
 ## Docker
 
-- **Official image — [`fabiodalez/pinakes`](https://hub.docker.com/r/fabiodalez/pinakes)** on Docker Hub (also on GHCR as `ghcr.io/fabiodalez-dev/pinakes-docker`). Single container (Apache + PHP 8.2), auto-built from each release ZIP so it's byte-for-byte the artifact end users deploy. Source, `docker-compose.yml` and docs: **[fabiodalez-dev/pinakes-docker](https://github.com/fabiodalez-dev/pinakes-docker)**. The code is baked into the image (read-only), so you update by pulling the new image: `docker compose pull && docker compose up -d` — your database and the `storage`/`uploads` volumes are preserved.
-
-## Community Projects
-
-- **[jbenamy/pinakes-docker](https://github.com/jbenamy/pinakes-docker)** — Community-maintained Docker image that keeps the code in a writable volume (so the in-app "Updates" button works there too). This is an independent project not managed by me — please refer to its own documentation for setup and support.
+- **Official image — [`fabiodalez/pinakes`](https://hub.docker.com/r/fabiodalez/pinakes)** on Docker Hub (also on GHCR as `ghcr.io/fabiodalez-dev/pinakes-docker`). Single container (Apache + PHP 8.4), auto-built from each release ZIP so it's byte-for-byte the artifact end users deploy. Source, `docker-compose.yml` and docs: **[fabiodalez-dev/pinakes-docker](https://github.com/fabiodalez-dev/pinakes-docker)**. The code is baked into the image (read-only), so you update by pulling the new image: `docker compose pull && docker compose up -d` — your database and the `storage`/`uploads` volumes are preserved. Because this image runs Apache, its admin UI permanently disables the LiteSpeed/LSCache full-page option; the regular APCu/file query cache remains active.
 
 ---
 

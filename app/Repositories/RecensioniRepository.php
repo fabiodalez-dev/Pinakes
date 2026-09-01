@@ -201,8 +201,7 @@ class RecensioniRepository
         try {
             $stmt = $this->db->prepare("
                 SELECT r.*,
-                       CONCAT(u.nome, ' ', u.cognome) as utente_nome,
-                       u.email as utente_email
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome
                 FROM recensioni r
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.libro_id = ?
@@ -295,6 +294,12 @@ class RecensioniRepository
             $result = $stmt->execute();
             $stmt->close();
 
+            if ($result) {
+                // The review becomes publicly visible: drop the cached
+                // book-detail reviews block (O(1) generation bump).
+                \App\Support\ContentCache::deferReviewsChanged();
+            }
+
             return $result;
 
         } catch (\Throwable $e) {
@@ -321,6 +326,12 @@ class RecensioniRepository
             $result = $stmt->execute();
             $stmt->close();
 
+            if ($result) {
+                // An already-approved review can be rejected: it must leave
+                // the cached public reviews block immediately.
+                \App\Support\ContentCache::deferReviewsChanged();
+            }
+
             return $result;
 
         } catch (\Throwable $e) {
@@ -339,6 +350,12 @@ class RecensioniRepository
             $stmt->bind_param('i', $reviewId);
             $result = $stmt->execute();
             $stmt->close();
+
+            if ($result) {
+                // A deleted approved review must disappear from the cached
+                // public reviews block immediately.
+                \App\Support\ContentCache::deferReviewsChanged();
+            }
 
             return $result;
 

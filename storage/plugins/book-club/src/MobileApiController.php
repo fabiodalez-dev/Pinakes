@@ -572,8 +572,8 @@ class MobileApiController extends BaseController
     }
 
     /**
-     * MySQL DATETIME → ISO-8601 UTC with Z suffix (MOBILE_API_SPEC: "dates
-     * ISO-8601 UTC; the app formats locally"). DATE-only fields (e.g.
+     * MySQL DATETIME → ISO-8601 UTC with Z suffix (mobile API contract: dates
+     * are ISO-8601 UTC; the app formats locally). DATE-only fields (e.g.
      * reading_starts/reading_ends) are passed through untouched by callers.
      */
     private static function isoUtc(mixed $datetime): ?string

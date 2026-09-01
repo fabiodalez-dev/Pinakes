@@ -217,13 +217,23 @@ class HtmlHelper
      */
     public static function isRemoteAddrTrustedProxy(): bool
     {
+        return self::isTrustedProxyIp((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+    }
+
+    /**
+     * Check an arbitrary IP against the configured trusted-proxy list.
+     *
+     * This is also used while walking an X-Forwarded-For chain: every hop from
+     * the direct peer towards the client must be classified independently.
+     */
+    public static function isTrustedProxyIp(string $remoteAddr): bool
+    {
         $trustedRaw = $_ENV['TRUSTED_PROXIES'] ?? getenv('TRUSTED_PROXIES');
         $trustedEnv = is_string($trustedRaw) ? $trustedRaw : '';
         if ($trustedEnv === '') {
             return false;
         }
 
-        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
         if ($remoteAddr === '') {
             return false;
         }
@@ -245,7 +255,11 @@ class HtmlHelper
             // address families match.
             if (strpos($entry, '/') !== false) {
                 [$network, $prefixLen] = explode('/', $entry, 2);
-                if (!is_numeric($prefixLen)) {
+                // Accept ONLY decimal digits before casting. is_numeric() also
+                // passes '0.5', '1e2', '+5' etc., and (int) '0.5' === 0 would
+                // silently widen 10.0.0.0/0.5 to /0 — trusting every peer and
+                // collapsing the whole X-Forwarded-For security boundary.
+                if (preg_match('/^\d+$/D', $prefixLen) !== 1) {
                     continue;
                 }
                 $prefixLen = (int) $prefixLen;
@@ -464,6 +478,21 @@ class HtmlHelper
         }
 
         return $baseUrl . $requestUri;
+    }
+
+    /**
+     * URL corrente senza query string, per l'uso come canonical di fallback.
+     *
+     * I parametri di tracking (utm_*, ref, ...) non devono mai entrare nel
+     * rel=canonical: ogni variante diventerebbe un duplicato indicizzabile.
+     *
+     * @return string URL corrente senza query né fragment
+     */
+    public static function getCurrentUrlWithoutQuery(): string
+    {
+        $url = self::getCurrentUrl();
+        $cut = strcspn($url, '?#');
+        return substr($url, 0, $cut);
     }
 
     /**
