@@ -48,6 +48,10 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
   /* Explicit, id-scoped CSS on purpose: a brand-new Tailwind utility here would
      not exist in the compiled main.css without a frontend rebuild (JIT). */
   #activity-feed .activity-scroll { max-height: 32rem; overflow-y: auto; }
+  /* 4-column filter row ≥640px: sm:grid-cols-4 is not in the compiled CSS. */
+  @media (min-width: 640px) {
+    #activity-feed .activity-filter-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
 </style>
 <div class="<?= $isDashboardActivity ? 'mb-8' : 'mt-6' ?>" id="activity-feed">
   <div class="card bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -67,7 +71,7 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
 
       <?php if ($isDashboardActivity): ?>
       <form method="get" action="<?= htmlspecialchars(url($activityBaseUrl), ENT_QUOTES, 'UTF-8') ?>"
-            class="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full lg:w-auto"
+            class="activity-filter-grid grid grid-cols-1 gap-3 w-full lg:w-auto"
             aria-label="<?= htmlspecialchars(__('Filtra attività'), ENT_QUOTES, 'UTF-8') ?>">
         <div>
           <label for="activity-type" class="sr-only"><?= __('Tipo attività') ?></label>
