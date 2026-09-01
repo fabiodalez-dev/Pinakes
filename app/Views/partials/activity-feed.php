@@ -10,7 +10,6 @@
  * @var list<array{id:int,name:string}> $activityOperators
  */
 use App\Support\ActivityLog;
-use App\Support\HtmlHelper;
 
 $isDashboardActivity = $activityContext === 'dashboard';
 
@@ -81,7 +80,7 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
             <option value=""><?= __('Tutti i tipi') ?></option>
             <?php foreach (ActivityLog::TYPES as $type): ?>
               <option value="<?= htmlspecialchars($type, ENT_QUOTES, 'UTF-8') ?>" <?= $activityFilters['activity_type'] === $type ? 'selected' : '' ?>>
-                <?= HtmlHelper::e(__(ActivityLog::typeLabel($type))) ?>
+                <?= htmlspecialchars((string) (__(ActivityLog::typeLabel($type))), ENT_QUOTES, 'UTF-8') ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -92,7 +91,7 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
             <option value=""><?= __('Tutti gli operatori') ?></option>
             <?php foreach ($activityOperators as $operator): ?>
               <option value="<?= (int) $operator['id'] ?>" <?= $activityFilters['activity_operator'] === (int) $operator['id'] ? 'selected' : '' ?>>
-                <?= HtmlHelper::e($operator['name']) ?>
+                <?= htmlspecialchars((string) ($operator['name']), ENT_QUOTES, 'UTF-8') ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -117,7 +116,7 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
           <option value=""><?= __('Tutti i tipi') ?></option>
           <?php foreach (ActivityLog::TYPES as $type): ?>
             <option value="<?= htmlspecialchars($type, ENT_QUOTES, 'UTF-8') ?>" <?= $activityFilters['activity_type'] === $type ? 'selected' : '' ?>>
-              <?= HtmlHelper::e(__(ActivityLog::typeLabel($type))) ?>
+              <?= htmlspecialchars((string) (__(ActivityLog::typeLabel($type))), ENT_QUOTES, 'UTF-8') ?>
             </option>
           <?php endforeach; ?>
         </select>
@@ -159,26 +158,26 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
                   <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div>
                       <div class="flex flex-wrap items-center gap-2">
-                        <h3 class="font-semibold text-gray-900"><?= HtmlHelper::e(__($eventLabel)) ?></h3>
+                        <h3 class="font-semibold text-gray-900"><?= htmlspecialchars((string) (__($eventLabel)), ENT_QUOTES, 'UTF-8') ?></h3>
                         <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium <?= $typeStyle['badge'] ?>">
-                          <?= HtmlHelper::e(__(ActivityLog::typeLabel($type))) ?>
+                          <?= htmlspecialchars((string) (__(ActivityLog::typeLabel($type))), ENT_QUOTES, 'UTF-8') ?>
                         </span>
                       </div>
                       <?php if ($isDashboardActivity && !empty($activity['record_id'])): ?>
                         <a href="<?= htmlspecialchars(url('/admin/books/' . (int) $activity['record_id'] . '#activity-feed'), ENT_QUOTES, 'UTF-8') ?>"
                            class="mt-1 inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900">
                           <i class="fas fa-book text-xs text-gray-400" aria-hidden="true"></i>
-                          <?= HtmlHelper::e($activity['book_title'] !== '' ? $activity['book_title'] : sprintf(__('Libro #%d'), (int) $activity['record_id'])) ?>
+                          <?= htmlspecialchars((string) ($activity['book_title'] !== '' ? $activity['book_title'] : sprintf(__('Libro #%d'), (int) $activity['record_id'])), ENT_QUOTES, 'UTF-8') ?>
                         </a>
                       <?php endif; ?>
                     </div>
                     <div class="shrink-0 text-sm text-gray-600 sm:text-right">
                       <time datetime="<?= htmlspecialchars((string) ($activity['data_modifica'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                        <?= HtmlHelper::e(format_date((string) ($activity['data_modifica'] ?? ''), true, '/')) ?>
+                        <?= htmlspecialchars((string) (format_date((string) ($activity['data_modifica'] ?? ''), true, '/')), ENT_QUOTES, 'UTF-8') ?>
                       </time>
                       <div class="mt-1 text-xs text-gray-500">
                         <i class="fas fa-user mr-1" aria-hidden="true"></i>
-                        <?= HtmlHelper::e($operatorName !== '' ? $operatorName : __('Sistema')) ?>
+                        <?= htmlspecialchars((string) ($operatorName !== '' ? $operatorName : __('Sistema')), ENT_QUOTES, 'UTF-8') ?>
                       </div>
                     </div>
                   </div>
@@ -187,16 +186,16 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
                     <dl class="mt-4 grid grid-cols-1 gap-2">
                       <?php foreach ($activity['changes'] as $change): ?>
                         <div class="grid grid-cols-1 gap-1 rounded-lg bg-gray-50 px-3 py-2 text-sm md:grid-cols-[minmax(9rem,0.35fr)_1fr] md:gap-4">
-                          <dt class="font-medium text-gray-700"><?= HtmlHelper::e(__(ActivityLog::fieldLabel((string) $change['field']))) ?></dt>
+                          <dt class="font-medium text-gray-700"><?= htmlspecialchars((string) (__(ActivityLog::fieldLabel((string) $change['field']))), ENT_QUOTES, 'UTF-8') ?></dt>
                           <dd class="min-w-0 text-gray-700">
                             <?php if (($activity['azione'] ?? '') === 'inserimento'): ?>
-                              <span class="break-words"><?= HtmlHelper::e($renderActivityValue($change['after'], (string) $change['field'])) ?></span>
+                              <span class="break-words"><?= htmlspecialchars((string) ($renderActivityValue($change['after'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                             <?php elseif (($activity['azione'] ?? '') === 'cancellazione'): ?>
-                              <span class="break-words line-through text-gray-500"><?= HtmlHelper::e($renderActivityValue($change['before'], (string) $change['field'])) ?></span>
+                              <span class="break-words line-through text-gray-500"><?= htmlspecialchars((string) ($renderActivityValue($change['before'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                             <?php else: ?>
-                              <span class="break-words text-gray-500 line-through"><?= HtmlHelper::e($renderActivityValue($change['before'], (string) $change['field'])) ?></span>
+                              <span class="break-words text-gray-500 line-through"><?= htmlspecialchars((string) ($renderActivityValue($change['before'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                               <i class="fas fa-arrow-right mx-2 text-xs text-gray-400" aria-hidden="true"></i>
-                              <span class="break-words font-medium text-gray-900"><?= HtmlHelper::e($renderActivityValue($change['after'], (string) $change['field'])) ?></span>
+                              <span class="break-words font-medium text-gray-900"><?= htmlspecialchars((string) ($renderActivityValue($change['after'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                             <?php endif; ?>
                           </dd>
                         </div>
