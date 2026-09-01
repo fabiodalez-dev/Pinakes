@@ -6,7 +6,7 @@
  * @var 'dashboard'|'book' $activityContext
  * @var string $activityBaseUrl
  * @var string $activityPageParam
- * @var array{activity_type:string,activity_operator:int} $activityFilters
+ * @var array{activity_type:string,activity_operator:int,activity_q:string} $activityFilters
  * @var list<array{id:int,name:string}> $activityOperators
  */
 use App\Support\ActivityLog;
@@ -44,6 +44,11 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
     return url($activityBaseUrl) . '?' . http_build_query($query);
 };
 ?>
+<style>
+  /* Explicit, id-scoped CSS on purpose: a brand-new Tailwind utility here would
+     not exist in the compiled main.css without a frontend rebuild (JIT). */
+  #activity-feed .activity-scroll { max-height: 32rem; overflow-y: auto; }
+</style>
 <div class="<?= $isDashboardActivity ? 'mb-8' : 'mt-6' ?>" id="activity-feed">
   <div class="card bg-white rounded-xl border border-gray-200 shadow-sm">
     <div class="card-header p-6 border-b border-gray-200 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -62,7 +67,7 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
 
       <?php if ($isDashboardActivity): ?>
       <form method="get" action="<?= htmlspecialchars(url($activityBaseUrl), ENT_QUOTES, 'UTF-8') ?>"
-            class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto"
+            class="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full lg:w-auto"
             aria-label="<?= htmlspecialchars(__('Filtra attività'), ENT_QUOTES, 'UTF-8') ?>">
         <div>
           <label for="activity-type" class="sr-only"><?= __('Tipo attività') ?></label>
@@ -86,8 +91,37 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
             <?php endforeach; ?>
           </select>
         </div>
+        <div>
+          <label for="activity-q" class="sr-only"><?= __('Cerca nella cronologia') ?></label>
+          <input type="search" id="activity-q" name="activity_q"
+                 value="<?= htmlspecialchars($activityFilters['activity_q'], ENT_QUOTES, 'UTF-8') ?>"
+                 placeholder="<?= htmlspecialchars(__('Cerca nella cronologia'), ENT_QUOTES, 'UTF-8') ?>"
+                 class="form-input min-w-44">
+        </div>
         <button type="submit" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors">
           <i class="fas fa-filter" aria-hidden="true"></i><?= __('Filtra') ?>
+        </button>
+      </form>
+      <?php else: ?>
+      <form method="get" action="<?= htmlspecialchars(url($activityBaseUrl), ENT_QUOTES, 'UTF-8') ?>"
+            class="flex flex-col gap-3 w-full sm:flex-row lg:w-auto"
+            aria-label="<?= htmlspecialchars(__('Cerca nella cronologia'), ENT_QUOTES, 'UTF-8') ?>">
+        <label for="activity-type" class="sr-only"><?= __('Tipo attività') ?></label>
+        <select id="activity-type" name="activity_type" class="form-input min-w-44">
+          <option value=""><?= __('Tutti i tipi') ?></option>
+          <?php foreach (ActivityLog::TYPES as $type): ?>
+            <option value="<?= htmlspecialchars($type, ENT_QUOTES, 'UTF-8') ?>" <?= $activityFilters['activity_type'] === $type ? 'selected' : '' ?>>
+              <?= HtmlHelper::e(__(ActivityLog::typeLabel($type))) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+        <label for="activity-q" class="sr-only"><?= __('Cerca nella cronologia') ?></label>
+        <input type="search" id="activity-q" name="activity_q"
+               value="<?= htmlspecialchars($activityFilters['activity_q'], ENT_QUOTES, 'UTF-8') ?>"
+               placeholder="<?= htmlspecialchars(__('Cerca nella cronologia'), ENT_QUOTES, 'UTF-8') ?>"
+               class="form-input min-w-44 flex-1">
+        <button type="submit" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors">
+          <i class="fas fa-search" aria-hidden="true"></i><?= __('Cerca') ?>
         </button>
       </form>
       <?php endif; ?>
@@ -101,6 +135,7 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
           <p class="mt-1 text-sm text-gray-500"><?= __('Le prossime modifiche compariranno qui.') ?></p>
         </div>
       <?php else: ?>
+        <div class="activity-scroll">
         <ol class="divide-y divide-gray-200">
           <?php foreach ($activityFeed['items'] as $activity): ?>
             <?php
@@ -167,6 +202,7 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
             </li>
           <?php endforeach; ?>
         </ol>
+        </div>
       <?php endif; ?>
     </div>
 

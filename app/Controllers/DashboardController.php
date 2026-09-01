@@ -15,7 +15,7 @@ class DashboardController
         $lastBooks = $active = $overdue = $pending = $pickupLoans = $scheduledLoans = $reservations = $calendarEvents = [];
         $activityFeed = ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
         $activityOperators = [];
-        $activityFilters = ['activity_type' => '', 'activity_operator' => 0];
+        $activityFilters = ['activity_type' => '', 'activity_operator' => 0, 'activity_q' => ''];
 
         try {
             $repo = new \App\Models\DashboardStats($db);
@@ -57,16 +57,21 @@ class DashboardController
                 ? (int) $rawPage
                 : 1;
 
+            $rawQ = $query['activity_q'] ?? '';
+            $activityQ = is_string($rawQ) ? mb_substr(trim($rawQ), 0, 100) : '';
+
             $activityFilters = [
                 'activity_type' => $activityType,
                 'activity_operator' => $activityOperator,
+                'activity_q' => $activityQ,
             ];
             $activityFeed = \App\Support\ActivityLog::recent(
                 $db,
                 $activityPage,
                 12,
                 $activityType !== '' ? $activityType : null,
-                $activityOperator > 0 ? $activityOperator : null
+                $activityOperator > 0 ? $activityOperator : null,
+                $activityQ !== '' ? $activityQ : null
             );
             $activityOperators = \App\Support\ActivityLog::operators($db);
         }

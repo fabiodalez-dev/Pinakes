@@ -575,7 +575,21 @@ class LibriController
                 && preg_match('/^[1-9]\d*$/D', (string) $rawActivityPage) === 1
                 ? (int) $rawActivityPage
                 : 1;
-            $activityFeed = \App\Support\ActivityLog::forBook($db, $id, $activityPage, 20);
+            $rawActivityQ = $query['activity_q'] ?? '';
+            $activityQ = is_string($rawActivityQ) ? mb_substr(trim($rawActivityQ), 0, 100) : '';
+            $rawActivityType = $query['activity_type'] ?? '';
+            $activityType = is_string($rawActivityType)
+                && in_array($rawActivityType, \App\Support\ActivityLog::TYPES, true)
+                ? $rawActivityType
+                : '';
+            $activityFeed = \App\Support\ActivityLog::forBook(
+                $db,
+                $id,
+                $activityPage,
+                20,
+                $activityQ !== '' ? $activityQ : null,
+                $activityType !== '' ? $activityType : null
+            );
         }
 
         ob_start();

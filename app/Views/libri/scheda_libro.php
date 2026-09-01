@@ -1844,7 +1844,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
     $activityContext = 'book';
     $activityBaseUrl = '/admin/books/' . (int) $libro['id'];
     $activityPageParam = 'book_activity_page';
-    $activityFilters = ['activity_type' => '', 'activity_operator' => 0];
+    $activityFilters = [
+        'activity_type' => (string) ($activityType ?? ''),
+        'activity_operator' => 0,
+        'activity_q' => (string) ($activityQ ?? ''),
+    ];
     $activityOperators = [];
     require __DIR__ . '/../partials/activity-feed.php';
     ?>

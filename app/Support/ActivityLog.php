@@ -173,9 +173,18 @@ final class ActivityLog
     }
 
     /** @return array{items:list<array<string,mixed>>,page:int,pages:int,total:int} */
-    public static function forBook(mysqli $db, int $bookId, int $page = 1, int $perPage = 20): array
-    {
-        return self::fetch($db, $page, $perPage, $bookId, null, null);
+    public static function forBook(
+        mysqli $db,
+        int $bookId,
+        int $page = 1,
+        int $perPage = 20,
+        ?string $q = null,
+        ?string $type = null
+    ): array {
+        if ($type !== null && !in_array($type, self::TYPES, true)) {
+            $type = null;
+        }
+        return self::fetch($db, $page, $perPage, $bookId, $type, null, $q);
     }
 
     /**
@@ -186,12 +195,13 @@ final class ActivityLog
         int $page = 1,
         int $perPage = 12,
         ?string $type = null,
-        ?int $operatorId = null
+        ?int $operatorId = null,
+        ?string $q = null
     ): array {
         if ($type !== null && !in_array($type, self::TYPES, true)) {
             $type = null;
         }
-        return self::fetch($db, $page, $perPage, null, $type, $operatorId);
+        return self::fetch($db, $page, $perPage, null, $type, $operatorId, $q);
     }
 
     /** @return list<array{id:int,name:string}> */
@@ -601,7 +611,8 @@ final class ActivityLog
         int $perPage,
         ?int $bookId,
         ?string $type,
-        ?int $operatorId
+        ?int $operatorId,
+        ?string $q = null
     ): array {
         $page = max(1, $page);
         $perPage = max(1, min(50, $perPage));
@@ -623,6 +634,19 @@ final class ActivityLog
             $where[] = 'lm.utente_id = ?';
             $types .= 'i';
             $params[] = $operatorId;
+        }
+        $q = $q !== null ? trim($q) : '';
+        if ($q !== '') {
+            // Search over the snapshot metadata (book title / operator name).
+            // LIKE wildcards in the user input are escaped so they match
+            // literally instead of widening the pattern.
+            $like = '%' . addcslashes(mb_substr($q, 0, 100), '\\%_') . '%';
+            $snapshot = "CASE WHEN JSON_VALID(lm.dati_nuovi) THEN lm.dati_nuovi ELSE '{}' END";
+            $where[] = "(JSON_UNQUOTE(JSON_EXTRACT({$snapshot}, '$._activity.book_title')) LIKE ?"
+                . " OR JSON_UNQUOTE(JSON_EXTRACT({$snapshot}, '$._activity.operator_name')) LIKE ?)";
+            $types .= 'ss';
+            $params[] = $like;
+            $params[] = $like;
         }
         $whereSql = implode(' AND ', $where);
 
