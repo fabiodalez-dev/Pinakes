@@ -691,6 +691,14 @@ class PrestitiController
 
             $db->commit();
 
+            \App\Support\ActivityLog::recordLoanEvent(
+                $db,
+                $newLoanId,
+                'loan.created',
+                action: 'inserimento',
+                source: 'manual'
+            );
+
             // Create in-app notification for new loan
             try {
                 $notificationService = new \App\Support\NotificationService($db);
@@ -845,6 +853,7 @@ class PrestitiController
         if (!$current) {
             return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
         }
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
         // Rifiuta la modifica di un prestito CHIUSO: editarlo non deve riattivarlo
         // (I1/I2 — BUG1). Un prestito è chiuso se attivo=0 o data_restituzione valorizzata.
         // (Ri-verificato più sotto, sotto lock.)
@@ -1244,6 +1253,7 @@ class PrestitiController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $activityBefore, source: 'manual');
         } catch (\mysqli_sql_exception $e) {
             $db->rollback();
             // A trigger SIGNAL (e.g. I7) surfaces here under STRICT mode — never a 500.
@@ -1337,6 +1347,7 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
@@ -1527,6 +1538,7 @@ class PrestitiController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.returned', $activityBefore, source: 'manual');
 
             // Send deferred notifications after commit. Each action is isolated
             // in its own try/catch: the data is already durably committed, so a
@@ -1984,6 +1996,7 @@ class PrestitiController
 
         $loan = $result->fetch_assoc();
         $stmt->close();
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
 
         // Check if loan is active
         if ((int) $loan['attivo'] !== 1) {
@@ -2197,6 +2210,7 @@ class PrestitiController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.renewed', $activityBefore, source: 'manual');
             $_SESSION['success_message'] = __('Prestito rinnovato correttamente. Nuova scadenza: %s', format_date($newDueDate, false, '/'));
 
             // Conferma al lettore con la NUOVA scadenza, DOPO il commit: prima

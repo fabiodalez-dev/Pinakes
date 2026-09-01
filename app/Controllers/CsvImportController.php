@@ -1534,6 +1534,7 @@ class CsvImportController
      */
     private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId): void
     {
+        $activityBefore = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
         $hasTipoMedia = $this->hasTipoMediaColumn($db);
         $tipoMediaSet = $hasTipoMedia ? ', tipo_media = COALESCE(?, tipo_media)' : '';
         $hasDescPlain = $this->hasDescrizionePlainColumn($db);
@@ -1663,6 +1664,19 @@ class CsvImportController
 
         $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
         $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
+
+        $activityAfter = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
+        \App\Support\ActivityLog::recordBookEvent(
+            $db,
+            $bookId,
+            'aggiornamento',
+            'import',
+            'import.updated',
+            $activityBefore,
+            $activityAfter,
+            bookTitle: (string) ($activityAfter['titolo'] ?? $activityBefore['titolo'] ?? ''),
+            source: 'csv'
+        );
     }
 
     /**
@@ -1881,6 +1895,19 @@ class CsvImportController
             throw new \RuntimeException(__('Impossibile ricalcolare la disponibilità del libro importato'));
         }
 
+        $activityAfter = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
+        \App\Support\ActivityLog::recordBookEvent(
+            $db,
+            $bookId,
+            'inserimento',
+            'import',
+            'import.created',
+            [],
+            $activityAfter,
+            bookTitle: (string) ($activityAfter['titolo'] ?? $titolo),
+            source: 'csv'
+        );
+
         return $bookId;
     }
 
@@ -1900,6 +1927,7 @@ class CsvImportController
      */
     private function enrichBookWithScrapedData(\mysqli $db, int $bookId, array $csvData, array $scrapedData): void
     {
+        $activityBefore = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
         $updates = [];
         $params = [];
         $types = '';
@@ -2039,6 +2067,21 @@ class CsvImportController
             $stmt->execute();
             $stmt->close();
             $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
+        }
+
+        $activityAfter = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
+        if ($activityBefore !== $activityAfter) {
+            \App\Support\ActivityLog::recordBookEvent(
+                $db,
+                $bookId,
+                'aggiornamento',
+                'enrich',
+                'enrich.updated',
+                $activityBefore,
+                $activityAfter,
+                bookTitle: (string) ($activityAfter['titolo'] ?? $activityBefore['titolo'] ?? ''),
+                source: 'csv_scraping'
+            );
         }
     }
 }

@@ -564,6 +564,20 @@ class LibriController
             $maxRenewals = 3;
         }
 
+        // Issue #374: the audit timeline is staff-only. This route is also
+        // reachable by patrons, so do not even query audit/operator data unless
+        // the same role gate used for borrower PII has passed.
+        $activityFeed = ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
+        if ($isAdminOrStaff) {
+            $query = $request->getQueryParams();
+            $rawActivityPage = $query['book_activity_page'] ?? 1;
+            $activityPage = is_scalar($rawActivityPage)
+                && preg_match('/^[1-9]\d*$/D', (string) $rawActivityPage) === 1
+                ? (int) $rawActivityPage
+                : 1;
+            $activityFeed = \App\Support\ActivityLog::forBook($db, $id, $activityPage, 20);
+        }
+
         ob_start();
         // extract([
         //     'libro' => $libro,
@@ -1408,6 +1422,19 @@ class LibriController
             // Invalidate cached public pages (home dataset, catalog counts/facets)
             \App\Support\ContentCache::booksChanged();
 
+            $createdSnapshot = \App\Support\ActivityLog::loadBookSnapshot($db, (int) $id);
+            \App\Support\ActivityLog::recordBookEvent(
+                $db,
+                (int) $id,
+                'inserimento',
+                'edit',
+                'book.created',
+                [],
+                $createdSnapshot,
+                bookTitle: (string) ($createdSnapshot['titolo'] ?? $fields['titolo'] ?? ''),
+                source: 'manual'
+            );
+
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiunto con successo!');
 
@@ -2011,6 +2038,19 @@ class LibriController
             // Set a success message in the session
             \App\Support\ContentCache::booksChanged();
 
+            $updatedSnapshot = \App\Support\ActivityLog::loadBookSnapshot($db, $id);
+            \App\Support\ActivityLog::recordBookEvent(
+                $db,
+                $id,
+                'aggiornamento',
+                'edit',
+                'book.updated',
+                \App\Support\ActivityLog::bookSnapshot($currentBook),
+                $updatedSnapshot,
+                bookTitle: (string) ($updatedSnapshot['titolo'] ?? $currentBook['titolo'] ?? ''),
+                source: 'manual'
+            );
+
             $_SESSION['success_message'] = __('Libro aggiornato con successo!');
 
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
@@ -2473,12 +2513,24 @@ class LibriController
         }
 
         $repo = new \App\Models\BookRepository($db);
+        $deletedSnapshot = \App\Support\ActivityLog::loadBookSnapshot($db, $id);
         $deleted = $repo->delete($id);
         if (!$deleted) {
             $_SESSION['error_message'] = __('Errore durante l\'eliminazione del libro. Riprova.');
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
         }
         \App\Support\ContentCache::booksChanged();
+        \App\Support\ActivityLog::recordBookEvent(
+            $db,
+            $id,
+            'cancellazione',
+            'edit',
+            'book.deleted',
+            $deletedSnapshot,
+            [],
+            bookTitle: (string) ($deletedSnapshot['titolo'] ?? ''),
+            source: 'manual'
+        );
         return $response->withHeader('Location', url('/admin/books'))->withStatus(302);
     }
 

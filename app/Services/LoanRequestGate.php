@@ -242,6 +242,15 @@ final class LoanRequestGate
             throw new \RuntimeException('Failed to create the waitlist reservation.');
         }
 
+        \App\Support\ActivityLog::recordReservationEvent(
+            $this->db,
+            $reservationId,
+            'reservation.created',
+            action: 'inserimento',
+            source: 'request_gate',
+            operatorId: $userId
+        );
+
         $integrity = new \App\Support\DataIntegrity($this->db);
         if (!$integrity->recalculateBookAvailability($bookId, insideTransaction: true)) {
             throw new \RuntimeException('Failed to recalculate availability after reservation creation.');

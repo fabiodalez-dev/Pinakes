@@ -130,6 +130,7 @@ class UserActionsController
             return $response->withStatus(422);
         }
         $uid = (int) $user['id'];
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
 
         // ORDINE DI LOCK CANONICO (P3, M2): risolvi libro_id con una lettura
         // NON bloccante PRIMA di begin_transaction() (lock-first, MVCC: la read
@@ -252,6 +253,14 @@ class UserActionsController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent(
+                $db,
+                $loanId,
+                'loan.cancelled',
+                $activityBefore,
+                source: 'user',
+                operatorId: $uid
+            );
 
             // Send deferred notifications after commit
             if (isset($reassignmentService)) {
@@ -289,6 +298,7 @@ class UserActionsController
             return $response->withStatus(422);
         }
         $uid = (int) $user['id'];
+        $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $rid);
 
         // CANONICAL LOCK ORDER (P3, L7): resolve libro_id with a NON-blocking
         // read BEFORE begin_transaction() (lock-first, MVCC: the REPEATABLE READ
@@ -382,6 +392,14 @@ class UserActionsController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordReservationEvent(
+                $db,
+                $rid,
+                'reservation.cancelled',
+                $activityBefore,
+                source: 'user',
+                operatorId: $uid
+            );
 
             try {
                 $reservationManager->flushDeferredNotifications();
@@ -418,6 +436,7 @@ class UserActionsController
         }
 
         $uid = (int) $user['id'];
+        $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $rid);
         $startDate = $date;
         $loanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
         $loanDays = $loanDays > 0 ? $loanDays : 30;
@@ -493,6 +512,14 @@ class UserActionsController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordReservationEvent(
+                $db,
+                $rid,
+                'reservation.updated',
+                $activityBefore,
+                source: 'user',
+                operatorId: $uid
+            );
 
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?updated=1')->withStatus(302);
 
@@ -711,6 +738,14 @@ class UserActionsController
                 }
             }
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent(
+                $db,
+                $newLoanId,
+                'loan.created',
+                action: 'inserimento',
+                source: 'user',
+                operatorId: $utenteId
+            );
 
             // Promote immediately before performing slower email I/O, minimizing
             // the post-commit window in which another request could claim the

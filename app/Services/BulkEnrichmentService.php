@@ -255,6 +255,7 @@ class BulkEnrichmentService
                 $result['status'] = 'not_found';
                 return $result;
             }
+            $activityBefore = \App\Support\ActivityLog::loadBookSnapshot($this->db, $bookId);
 
             // Determine ISBN to scrape (priority: isbn13 > isbn10 > ean).
             // Empty/whitespace values are treated as missing so a blank
@@ -459,6 +460,19 @@ class BulkEnrichmentService
             // persisted.
             \App\Support\SearchIndexBuilder::rebuild($this->db, (int) $bookId);
             \App\Support\ContentCache::deferBooksChanged();
+
+            $activityAfter = \App\Support\ActivityLog::loadBookSnapshot($this->db, $bookId);
+            \App\Support\ActivityLog::recordBookEvent(
+                $this->db,
+                $bookId,
+                'aggiornamento',
+                'enrich',
+                'enrich.updated',
+                $activityBefore,
+                $activityAfter,
+                bookTitle: (string) ($activityAfter['titolo'] ?? ''),
+                source: 'bulk_enrichment'
+            );
 
             $result['status'] = 'enriched';
             $result['fields_updated'] = $fieldsUpdated;

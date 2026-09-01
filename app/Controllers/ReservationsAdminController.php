@@ -101,6 +101,7 @@ class ReservationsAdminController
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $id);
         $data = (array) ($request->getParsedBody() ?? []);
         // CSRF validated by CsrfMiddleware
         $stato = (string) ($data['stato'] ?? 'attiva');
@@ -340,6 +341,13 @@ class ReservationsAdminController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordReservationEvent(
+                $db,
+                $id,
+                $stato === 'annullata' ? 'reservation.cancelled' : 'reservation.updated',
+                $activityBefore,
+                source: 'admin'
+            );
 
             if ($reservationManager !== null) {
                 $reservationManager->flushDeferredNotifications();
@@ -569,6 +577,7 @@ class ReservationsAdminController
             if (!$stmt->execute()) {
                 throw new \RuntimeException('Reservation insert failed');
             }
+            $reservationId = (int) $db->insert_id;
             $stmt->close();
 
             $integrity = new \App\Support\DataIntegrity($db);
@@ -577,6 +586,13 @@ class ReservationsAdminController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordReservationEvent(
+                $db,
+                $reservationId,
+                'reservation.created',
+                action: 'inserimento',
+                source: 'admin'
+            );
             return $response->withHeader('Location', url('/admin/reservations') . '?created=1')->withStatus(302);
 
         } catch (\Throwable $e) {

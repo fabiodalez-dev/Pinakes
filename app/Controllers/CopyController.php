@@ -144,7 +144,7 @@ class CopyController
         }
 
         // Recupera la copia per ottenere il libro_id
-        $stmt = $db->prepare("SELECT libro_id, stato FROM copie WHERE id = ?");
+        $stmt = $db->prepare("SELECT libro_id, numero_inventario, stato, note FROM copie WHERE id = ?");
         $stmt->bind_param('i', $copyId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -317,6 +317,26 @@ class CopyController
             } catch (\Throwable $e) {
                 SecureLogger::warning(__('Invio notifica cambio stato copia fallito'), ['error' => $e->getMessage()]);
             }
+
+            \App\Support\ActivityLog::recordBookEvent(
+                $db,
+                $libroId,
+                'aggiornamento',
+                'copy',
+                'copy.updated',
+                [
+                    'numero_inventario' => $copy['numero_inventario'] ?? null,
+                    'stato' => $copy['stato'] ?? null,
+                    'note' => $copy['note'] ?? null,
+                ],
+                [
+                    'numero_inventario' => $copy['numero_inventario'] ?? null,
+                    'stato' => $stato,
+                    'note' => $note,
+                ],
+                entityId: $copyId,
+                source: 'manual'
+            );
         }
 
         if (!isset($_SESSION['success_message'])) {
@@ -478,6 +498,23 @@ class CopyController
             SecureLogger::warning(__('Invio notifica nuova copia fallito'), ['error' => $e->getMessage()]);
         }
 
+        \App\Support\ActivityLog::recordBookEvent(
+            $db,
+            $bookId,
+            'inserimento',
+            'copy',
+            'copy.created',
+            [],
+            [
+                'quantita' => $quantita,
+                'stato' => $stato,
+                'note' => $note,
+                'copia_id' => $newCopyIds,
+            ],
+            entityId: count($newCopyIds) === 1 ? (int) $newCopyIds[0] : null,
+            source: 'manual'
+        );
+
         $_SESSION['success_message'] = $quantita === 1
             ? __('Copia aggiunta con successo.')
             : sprintf(__('%d copie aggiunte con successo.'), $quantita);
@@ -508,7 +545,7 @@ class CopyController
 
         // Resolve the parent first; the transaction below then follows the
         // canonical circulation lock order (book -> copy -> loans).
-        $stmt = $db->prepare('SELECT libro_id FROM copie WHERE id = ?');
+        $stmt = $db->prepare('SELECT libro_id, numero_inventario, stato, note FROM copie WHERE id = ?');
         $stmt->bind_param('i', $copyId);
         $stmt->execute();
         $copy = $stmt->get_result()->fetch_assoc();
@@ -609,6 +646,22 @@ class CopyController
                 : __('Impossibile eliminare la copia.');
             return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
         }
+
+        \App\Support\ActivityLog::recordBookEvent(
+            $db,
+            $libroId,
+            'cancellazione',
+            'copy',
+            'copy.deleted',
+            [
+                'numero_inventario' => $copy['numero_inventario'] ?? null,
+                'stato' => $copy['stato'] ?? null,
+                'note' => $copy['note'] ?? null,
+            ],
+            [],
+            entityId: $copyId,
+            source: 'manual'
+        );
 
         $_SESSION['success_message'] = __('Copia eliminata con successo.');
         return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);

@@ -516,6 +516,14 @@ class ReservationsController
                     }
                 }
                 $this->db->commit();
+                \App\Support\ActivityLog::recordLoanEvent(
+                    $this->db,
+                    $loanRequestId,
+                    'loan.created',
+                    action: 'inserimento',
+                    source: 'book_request',
+                    operatorId: $userId
+                );
 
                 // #301: honour the automatic-approval setting on THIS entry point
                 // too. The book-detail modal posts here, but the auto-approve

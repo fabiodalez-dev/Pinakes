@@ -2,6 +2,16 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.73-rc.1]
+
+### Added
+
+- **Activity feed for issue #374.** Admin and staff can inspect a field-level timeline at the bottom of each admin book page and a paginated library-wide feed at the bottom of the dashboard, filtered by event type and operator. Manual edits, physical copies, imports, enrichment, loans and reservations now write to the existing `log_modifiche` audit table; all interface strings are available in every shipped locale.
+
+### Changed
+
+- **Audit history survives operator deletion.** The `log_modifiche.utente_id` foreign key now uses `ON DELETE SET NULL`, while each new event also retains the operator display name in its JSON metadata. Existing installations receive the change through an idempotent migration.
+
 ## [0.7.72]
 
 A small usability release: the two cache-maintenance controls on Settings → Advanced are unified into one.

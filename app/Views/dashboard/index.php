@@ -757,6 +757,15 @@ $applicationToday = \App\Support\DateHelper::today();
         <?php endif; ?>
       </div>
     </div>
+
+    <?php if (!empty($isAdminOrStaff)): ?>
+      <?php
+      $activityContext = 'dashboard';
+      $activityBaseUrl = '/admin/dashboard';
+      $activityPageParam = 'activity_page';
+      require __DIR__ . '/../partials/activity-feed.php';
+      ?>
+    <?php endif; ?>
 </div>
 </div>
 

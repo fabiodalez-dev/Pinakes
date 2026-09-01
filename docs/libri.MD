@@ -144,6 +144,14 @@ Le etichette servono per **trovare i libri sugli scaffali**.
 
 >  **Vuoi i dettagli?** Leggi la [Guida Scheda Libro](/docs/scheda_libro.MD) che spiega le 10 sezioni della scheda, i bottoni disponibili e come navigare tra modifica, stampa e visualizzazione.
 
+#### Cronologia attività (admin e staff)
+
+- In fondo alla scheda `/admin/books/{id}` compare la cronologia del libro, dalla voce più recente.
+- Ogni voce mostra data e ora, operatore, tipo di evento e differenze campo per campo.
+- Sono registrati inserimenti e modifiche manuali, copie fisiche, importazioni, arricchimenti, prestiti e prenotazioni.
+- In fondo alla dashboard admin è disponibile anche il feed dell'intera biblioteca, paginato e filtrabile per tipo di attività e operatore.
+- La cronologia usa la tabella `log_modifiche`, è di sola lettura ed è visibile esclusivamente ai ruoli `admin` e `staff`.
+
 ---
 
 ### Esportare la Lista
