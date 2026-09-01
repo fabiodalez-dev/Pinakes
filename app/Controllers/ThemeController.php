@@ -101,6 +101,12 @@ class ThemeController
 
         // CSRF validated by CsrfMiddleware
         $parsedBody = $request->getParsedBody();
+        if (!is_array($parsedBody)) {
+            $_SESSION['error'] = __('Richiesta non valida');
+            return $response
+                ->withHeader('Location', url('/admin/themes'))
+                ->withStatus(302);
+        }
 
         $themeId = (int)($args['id'] ?? 0);
         $theme = $this->themeManager->getThemeById($themeId);
@@ -151,27 +157,27 @@ class ThemeController
                 ->withStatus(302);
         }
 
-        // Update theme colors only after every submitted presentation option
-        // has passed validation, avoiding partial saves on invalid requests.
-        $success = $this->themeManager->updateThemeColors($themeId, $colors, $layoutVariant);
-
-        // Update advanced settings if provided
+        // Build the optional advanced block before writing anything. Colors,
+        // layout and CSS are then persisted by ThemeManager in one JSON update,
+        // so a failure cannot leave a partially-saved customization.
+        $advanced = null;
         if (isset($parsedBody['advanced']) && is_array($parsedBody['advanced'])) {
             $customCss = $parsedBody['advanced']['custom_css'] ?? '';
             $storedSettings = json_decode($theme['settings'], true) ?? [];
+            $storedCustomJs = $storedSettings['advanced']['custom_js'] ?? '';
             $advanced = [
                 'custom_css' => is_string($customCss) ? $customCss : '',
                 // custom_js has no UI field and is not accepted from POST;
                 // carry the stored value forward untouched.
-                'custom_js' => $storedSettings['advanced']['custom_js'] ?? ''
+                'custom_js' => is_string($storedCustomJs) ? $storedCustomJs : ''
             ];
 
             // Neutralise any </style>/<script> breakout in the CSS so it can
             // never escape its inline <style> wrapper into script execution.
             $advanced['custom_css'] = \App\Support\ContentSanitizer::sanitizeCustomCss($advanced['custom_css']);
-
-            $this->themeManager->updateAdvancedSettings($themeId, $advanced);
         }
+
+        $success = $this->themeManager->updateThemeColors($themeId, $colors, $layoutVariant, $advanced);
 
         if ($success) {
             $_SESSION['success'] = __('Tema salvato con successo');
@@ -197,8 +203,10 @@ class ThemeController
 
         $themeId = (int) ($args['id'] ?? 0);
         $theme = $this->themeManager->getThemeById($themeId);
-        $parsedBody = (array) $request->getParsedBody();
-        $layoutVariant = (string) ($parsedBody['layout_variant'] ?? '');
+        $parsedBody = $request->getParsedBody();
+        $layoutVariant = is_array($parsedBody) && is_string($parsedBody['layout_variant'] ?? null)
+            ? $parsedBody['layout_variant']
+            : '';
 
         if (!$theme || empty($theme['active'])) {
             $_SESSION['error'] = __('Tema non trovato');
@@ -281,6 +289,12 @@ class ThemeController
         }
 
         $parsedBody = $request->getParsedBody();
+        if (!is_array($parsedBody)) {
+            $response->getBody()->write(json_encode([
+                'error' => 'Invalid request body'
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
         $foreground = $parsedBody['fg'] ?? '#000000';
         $background = $parsedBody['bg'] ?? '#ffffff';
 

@@ -171,6 +171,17 @@ class SettingsController
      */
     public function sendTestEmail(Request $request, Response $response, mysqli $db): Response
     {
+        // Uses the stored SMTP credentials and returns the provider's concrete
+        // failure reason. Keep both the outbound side effect and diagnostic
+        // details admin-only (AdminAuthMiddleware also admits staff).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $response->getBody()->write((string) json_encode([
+                'success' => false,
+                'message' => __('Operazione riservata agli amministratori'),
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+        }
+
         $data = (array) $request->getParsedBody();
 
         // Recipient: an explicit address from the form, else the logged-in admin's.
@@ -767,17 +778,23 @@ class SettingsController
 
             // Parse the URL
             $parsedUrl = parse_url($mapUrl);
-            if ($parsedUrl === false || ($parsedUrl['scheme'] ?? '') !== 'https') {
+            if (!is_array($parsedUrl)
+                || strtolower((string) ($parsedUrl['scheme'] ?? '')) !== 'https'
+                || !isset($parsedUrl['host'])
+                || isset($parsedUrl['user'])
+                || isset($parsedUrl['pass'])
+            ) {
                 $_SESSION['error_message'] = __('URL non valido. Deve essere un URL HTTPS valido.');
                 return $this->redirect($response, '/admin/settings?tab=contacts');
             }
+            $mapHost = strtolower((string) $parsedUrl['host']);
 
             $isValidMap = false;
             $mapProvider = '';
 
             // Validate Google Maps
             if (
-                $parsedUrl['host'] === 'www.google.com' &&
+                $mapHost === 'www.google.com' &&
                 isset($parsedUrl['path']) &&
                 strpos($parsedUrl['path'], '/maps/embed') === 0
             ) {
@@ -787,7 +804,7 @@ class SettingsController
 
             // Validate OpenStreetMap
             if (
-                $parsedUrl['host'] === 'www.openstreetmap.org' &&
+                $mapHost === 'www.openstreetmap.org' &&
                 isset($parsedUrl['path']) &&
                 strpos($parsedUrl['path'], '/export/embed.html') === 0
             ) {
@@ -1257,6 +1274,13 @@ class SettingsController
 
     public function toggleApi(Request $request, Response $response, mysqli $db): Response
     {
+        // Exposing or withdrawing the public API changes the application's
+        // external attack surface, so it follows the API-key admin boundary.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $this->redirect($response, '/admin/settings?tab=advanced');
+        }
+
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 

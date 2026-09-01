@@ -124,12 +124,14 @@ $settingsSource = (string) file_get_contents($root . '/app/Controllers/SettingsC
 
 foreach ([
     'updateAdvancedSettings',
+    'sendTestEmail',
     'updateEmailSettings',
     'updateEmailTemplate',
     'updateCookieBannerTexts',
     'createApiKey',
     'toggleApiKey',
     'deleteApiKey',
+    'toggleApi',
 ] as $method) {
     $body = $sliceMethod($settingsSource, $method);
     $check(
@@ -164,6 +166,19 @@ foreach (['save', 'saveLayout', 'activate', 'reset', 'checkContrast'] as $method
         "ThemeController::{$method} re-checks tipo_utente inline"
     );
 }
+
+$body = $sliceMethod($themeSource, 'save');
+$check(
+    $body !== null
+        && str_contains($body, 'if (!is_array($parsedBody))')
+        && str_contains($body, 'updateThemeColors($themeId, $colors, $layoutVariant, $advanced)'),
+    'theme save rejects malformed bodies and persists colors/layout/CSS in one manager write'
+);
+$body = $sliceMethod($themeSource, 'checkContrast');
+$check(
+    $body !== null && str_contains($body, 'if (!is_array($parsedBody))'),
+    'contrast endpoint rejects a non-object request body'
+);
 
 // ---------------------------------------------------------------------------
 // 3. STATIC — SeoController llmsTxt API section accepts the bool ConfigStore

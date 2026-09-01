@@ -173,9 +173,16 @@ class ThemeManager
      * @param array $colors Color configuration ['primary' => '#xxx', 'secondary' => '#xxx', ...]
      * @param string|null $layoutVariant Validated public layout to persist in
      *        the same JSON update, avoiding an additional admin-save query.
+     * @param array<string,string>|null $advanced Optional advanced settings to
+     *        persist atomically with colors and layout.
      * @return bool Success status
      */
-    public function updateThemeColors(int $themeId, array $colors, ?string $layoutVariant = null): bool
+    public function updateThemeColors(
+        int $themeId,
+        array $colors,
+        ?string $layoutVariant = null,
+        ?array $advanced = null
+    ): bool
     {
         if ($layoutVariant !== null && !in_array($layoutVariant, self::LAYOUT_VARIANTS, true)) {
             return false;
@@ -207,9 +214,16 @@ class ThemeManager
         if ($layoutVariant !== null) {
             $settings['layout_variant'] = $layoutVariant;
         }
+        if ($advanced !== null) {
+            $settings['advanced'] = $advanced;
+        }
 
         // Encode back to JSON
         $settingsJson = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($settingsJson === false) {
+            error_log('ThemeManager: Failed to encode theme settings');
+            return false;
+        }
 
         // Update database
         $stmt = $this->db->prepare("UPDATE themes SET settings = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
@@ -264,6 +278,9 @@ class ThemeManager
 
         // Encode back to JSON
         $settingsJson = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($settingsJson === false) {
+            return false;
+        }
 
         // Update database
         $stmt = $this->db->prepare("UPDATE themes SET settings = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
