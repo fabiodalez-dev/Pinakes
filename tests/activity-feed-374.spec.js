@@ -179,6 +179,19 @@ test.describe.serial('Activity feed (#374)', () => {
     await page.goto(`${BASE}/admin/dashboard?activity_q=${encodeURIComponent('%')}`);
     await expect(page.locator('#activity-feed')).toContainText('Nessuna attività registrata');
 
+    // AJAX enhancement: changing the type filter and typing in the search
+    // box swap the feed in place — no full page reload. The __stay flag
+    // would be wiped by any navigation.
+    await page.goto(`${BASE}/admin/dashboard`);
+    await page.evaluate(() => { window.__stay = true; });
+    await page.selectOption('#activity-type', 'edit');
+    await expect(page.locator('#activity-feed')).toContainText(TITLE_V2, { timeout: 10000 });
+    await page.fill('#activity-q', `zz-nessun-match-${RUN}`);
+    await expect(page.locator('#activity-feed')).toContainText('Nessuna attività registrata', { timeout: 10000 });
+    expect(await page.evaluate(() => window.__stay === true)).toBe(true);
+    // replaceState keeps the URL shareable even without a navigation.
+    expect(await page.evaluate(() => window.location.search)).toContain('activity_q=');
+
     // The list scrolls inside its own container instead of growing the page.
     await page.goto(`${BASE}/admin/dashboard`);
     const overflow = await page.locator('#activity-feed .activity-scroll').evaluate(

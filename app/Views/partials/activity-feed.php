@@ -223,3 +223,94 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
     <?php endif; ?>
   </div>
 </div>
+<script>
+(function () {
+  'use strict';
+  // Progressive enhancement: filters, search and pagination swap the feed
+  // in place via fetch. The plain GET forms/links above stay as the no-JS
+  // fallback, and any fetch failure falls back to a full navigation.
+  // Listeners are delegated to document so they survive innerHTML swaps.
+  if (window.__activityFeedAjax) { return; }
+  window.__activityFeedAjax = true;
+
+  var controller = null;
+  var debounceTimer = null;
+
+  function swapFeed(url) {
+    if (controller) { controller.abort(); }
+    controller = new AbortController();
+    var feed = document.getElementById('activity-feed');
+    if (feed) { feed.setAttribute('aria-busy', 'true'); feed.classList.add('opacity-60'); }
+
+    var active = document.activeElement;
+    var restoreSearch = active && active.name === 'activity_q'
+      ? { value: active.value, start: active.selectionStart, end: active.selectionEnd }
+      : null;
+
+    fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal })
+      .then(function (res) {
+        if (!res.ok) { throw new Error('HTTP ' + res.status); }
+        return res.text();
+      })
+      .then(function (html) {
+        var next = new DOMParser().parseFromString(html, 'text/html').getElementById('activity-feed');
+        var current = document.getElementById('activity-feed');
+        if (!next || !current) { window.location.assign(url); return; }
+        current.innerHTML = next.innerHTML;
+        current.removeAttribute('aria-busy');
+        current.classList.remove('opacity-60');
+        window.history.replaceState(null, '', url);
+        if (restoreSearch) {
+          var input = current.querySelector('input[name="activity_q"]');
+          if (input) {
+            input.value = restoreSearch.value;
+            input.focus();
+            try { input.setSelectionRange(restoreSearch.start, restoreSearch.end); } catch (e) { /* type=search quirks */ }
+          }
+        }
+      })
+      .catch(function (err) {
+        if (err && err.name === 'AbortError') { return; }
+        window.location.assign(url);
+      });
+  }
+
+  function formUrl(form) {
+    var params = new URLSearchParams(new FormData(form));
+    var clean = new URLSearchParams();
+    params.forEach(function (value, key) {
+      if (value !== '') { clean.append(key, value); }
+    });
+    var query = clean.toString();
+    return form.action + (query ? '?' + query : '');
+  }
+
+  document.addEventListener('submit', function (e) {
+    var form = e.target && e.target.closest ? e.target.closest('#activity-feed form') : null;
+    if (!form) { return; }
+    e.preventDefault();
+    swapFeed(formUrl(form));
+  });
+
+  document.addEventListener('change', function (e) {
+    var select = e.target && e.target.closest ? e.target.closest('#activity-feed form select') : null;
+    if (!select || !select.form) { return; }
+    swapFeed(formUrl(select.form));
+  });
+
+  document.addEventListener('input', function (e) {
+    var input = e.target && e.target.closest ? e.target.closest('#activity-feed form input[name="activity_q"]') : null;
+    if (!input || !input.form) { return; }
+    clearTimeout(debounceTimer);
+    var form = input.form;
+    debounceTimer = setTimeout(function () { swapFeed(formUrl(form)); }, 350);
+  });
+
+  document.addEventListener('click', function (e) {
+    var link = e.target && e.target.closest ? e.target.closest('#activity-feed nav a[href]') : null;
+    if (!link) { return; }
+    e.preventDefault();
+    swapFeed(link.href);
+  });
+})();
+</script>
