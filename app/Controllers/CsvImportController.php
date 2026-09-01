@@ -22,7 +22,13 @@ class CsvImportController
     /**
      * #380: per-family "Libri già presenti" checkboxes. Each family checked =
      * update exactly as before; unchecked = that family is fully preserved on
-     * existing books. Created books always import everything.
+     * existing books (a true no-op). Created books always import everything.
+     *
+     * Six entity families plus one family per bibliographic field:
+     * isbn → isbn10+isbn13; ean → ean; formato → formato+tipo_media;
+     * collana → collana+numero_serie (+ series membership sync);
+     * anno → anno_pubblicazione; pagine → numero_pagine;
+     * dewey → classificazione_dewey.
      *
      * @var list<string>
      */
@@ -33,7 +39,18 @@ class CsvImportController
         'genre',
         'keywords',
         'description',
-        'bibliographic',
+        'isbn',
+        'ean',
+        'titolo',
+        'sottotitolo',
+        'anno',
+        'lingua',
+        'edizione',
+        'pagine',
+        'formato',
+        'prezzo',
+        'collana',
+        'dewey',
     ];
 
     /** @var bool|null Cached result of tipo_media column existence check */
@@ -1597,8 +1614,10 @@ class CsvImportController
      * $updateFields (#380): per-family "Libri già presenti" selection. A family
      * checked (or absent — the default) updates exactly as before; a family
      * unchecked keeps the book's current values for its columns:
-     * bibliographic → ISBN/EAN, titolo, sottotitolo, anno, lingua, edizione,
-     * pagine, formato/tipo_media, prezzo, collana, numero_serie, dewey;
+     * isbn → isbn10/isbn13; ean → ean; titolo/sottotitolo/anno/lingua/
+     * edizione/pagine/prezzo/dewey → the matching column;
+     * formato → formato + tipo_media; collana → collana + numero_serie
+     * (+ series membership sync skipped);
      * genre → genere_id; publisher → editore_id (+ junction sync skipped);
      * description → descrizione/descrizione_plain; keywords → parole_chiave;
      * contributors → the legacy traduttore/illustratore/curatore TEXT columns.
@@ -1723,22 +1742,45 @@ class CsvImportController
         // stays identical while the preserved columns are effectively no-ops.
         // The fail-closed guard above guarantees the current row is available.
         if ($anyPreserved) {
-            if (!$apply['bibliographic']) {
+            if (!$apply['isbn']) {
                 $isbn10 = $existingDesc['isbn10'];
                 $isbn13 = $existingDesc['isbn13'];
+            }
+            if (!$apply['ean']) {
                 $ean = $existingDesc['ean'];
+            }
+            if (!$apply['titolo']) {
+                // titolo is NOT NULL — the existing value is always a string.
                 $titolo = (string) $existingDesc['titolo'];
+            }
+            if (!$apply['sottotitolo']) {
                 $sottotitolo = $existingDesc['sottotitolo'];
+            }
+            if (!$apply['anno']) {
                 $anno = $existingDesc['anno_pubblicazione'] !== null ? (int) $existingDesc['anno_pubblicazione'] : null;
+            }
+            if (!$apply['lingua']) {
                 $lingua = $existingDesc['lingua'];
+            }
+            if (!$apply['edizione']) {
                 $edizione = $existingDesc['edizione'];
+            }
+            if (!$apply['pagine']) {
                 $pagine = $existingDesc['numero_pagine'] !== null ? (int) $existingDesc['numero_pagine'] : null;
+            }
+            if (!$apply['formato']) {
                 $formato = $existingDesc['formato'];
                 // tipo_media updates via COALESCE(?, tipo_media): NULL keeps it.
                 $tipoMedia = null;
+            }
+            if (!$apply['prezzo']) {
                 $prezzo = $existingDesc['prezzo'];
+            }
+            if (!$apply['collana']) {
                 $collana = $existingDesc['collana'];
                 $numeroSerie = $existingDesc['numero_serie'];
+            }
+            if (!$apply['dewey']) {
                 $dewey = $existingDesc['classificazione_dewey'];
             }
             if (!$apply['genre']) {
@@ -1796,7 +1838,7 @@ class CsvImportController
         // #380: with the family unchecked nothing CSV-driven changed, so the
         // dependent syncs are skipped entirely (they must not touch the
         // book's current series memberships / publisher junction).
-        if ($apply['bibliographic']) {
+        if ($apply['collana']) {
             $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
         }
         if ($apply['publisher']) {

@@ -273,7 +273,18 @@ test.describe.serial('CSV import update-fields checkboxes (#380)', () => {
       'genre',
       'keywords',
       'description',
-      'bibliographic',
+      'isbn',
+      'ean',
+      'titolo',
+      'sottotitolo',
+      'anno',
+      'lingua',
+      'edizione',
+      'pagine',
+      'formato',
+      'prezzo',
+      'collana',
+      'dewey',
     ]);
     expect(chunk.updated).toBe(1);
 
@@ -291,5 +302,25 @@ test.describe.serial('CSV import update-fields checkboxes (#380)', () => {
     expect(dbQuery(`SELECT COUNT(*) FROM autori WHERE nome IN ('${sqlEscape(AUTHOR_C)}','${sqlEscape(TRANSLATOR_3)}')`)).toBe('0');
     expect(dbQuery(`SELECT COUNT(*) FROM generi WHERE nome='${sqlEscape(GENRE_3)}'`)).toBe('0');
     expect(dbQuery(`SELECT COUNT(*) FROM editori WHERE nome='${sqlEscape(PUBLISHER_3)}'`)).toBe('0');
+  });
+
+  test('per-field granularity: anno unchecked is preserved while edizione updates', async ({ page }) => {
+    test.setTimeout(300000);
+    await loginAsAdmin(page);
+
+    // Seed anno + edizione with everything checked (historical behavior).
+    const seedCsv = `titolo;isbn13;anno_pubblicazione;edizione\n${TITLE_2};${F_ISBN};1999;Prima edizione\n`;
+    let chunk = await runFieldsImport(page, seedCsv);
+    expect(chunk.updated).toBe(1);
+    expect(bookField('anno_pubblicazione')).toBe('1999');
+    expect(bookField('edizione')).toBe('Prima edizione');
+
+    // Re-import new values with ONLY update_anno unchecked: the year must be
+    // preserved while the sibling bibliographic field still updates.
+    const changeCsv = `titolo;isbn13;anno_pubblicazione;edizione\n${TITLE_2};${F_ISBN};2005;Seconda edizione\n`;
+    chunk = await runFieldsImport(page, changeCsv, ['anno']);
+    expect(chunk.updated).toBe(1);
+    expect(bookField('anno_pubblicazione')).toBe('1999');
+    expect(bookField('edizione')).toBe('Seconda edizione');
   });
 });

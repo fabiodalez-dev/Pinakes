@@ -163,7 +163,38 @@ ob_start();
                                     'genre' => __("Genere"),
                                     'keywords' => __("Parole chiave"),
                                     'description' => __("Descrizione"),
-                                    'bibliographic' => __("Dati bibliografici (ISBN, EAN, titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)"),
+                                ] as $familyKey => $familyLabel): ?>
+                                <label class="flex items-start cursor-pointer">
+                                    <div class="flex items-center h-5">
+                                        <input type="checkbox" name="update_<?= htmlspecialchars($familyKey, ENT_QUOTES, 'UTF-8') ?>" id="update_<?= htmlspecialchars($familyKey, ENT_QUOTES, 'UTF-8') ?>" value="1" checked class="w-4 h-4 text-gray-800 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 focus:ring-2">
+                                    </div>
+                                    <div class="ml-3 text-sm">
+                                        <div class="font-medium text-gray-900">
+                                            <?= htmlspecialchars($familyLabel, ENT_QUOTES, 'UTF-8') ?>
+                                        </div>
+                                    </div>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="mt-4 text-sm">
+                                <div class="font-medium text-gray-900">
+                                    <?= __("Dati bibliografici") ?>
+                                </div>
+                            </div>
+                            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <?php foreach ([
+                                    'isbn' => __("ISBN"),
+                                    'ean' => __("EAN"),
+                                    'titolo' => __("Titolo"),
+                                    'sottotitolo' => __("Sottotitolo"),
+                                    'anno' => __("Anno"),
+                                    'lingua' => __("Lingua"),
+                                    'edizione' => __("Edizione"),
+                                    'pagine' => __("Pagine"),
+                                    'formato' => __("Formato"),
+                                    'prezzo' => __("Prezzo"),
+                                    'collana' => __("Collana e numero di serie"),
+                                    'dewey' => __("Classificazione Dewey"),
                                 ] as $familyKey => $familyLabel): ?>
                                 <label class="flex items-start cursor-pointer">
                                     <div class="flex items-center h-5">
