@@ -163,7 +163,7 @@ ob_start();
                                     'genre' => __("Genere"),
                                     'keywords' => __("Parole chiave"),
                                     'description' => __("Descrizione"),
-                                    'bibliographic' => __("Dati bibliografici (titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)"),
+                                    'bibliographic' => __("Dati bibliografici (ISBN, EAN, titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)"),
                                 ] as $familyKey => $familyLabel): ?>
                                 <label class="flex items-start cursor-pointer">
                                     <div class="flex items-center h-5">

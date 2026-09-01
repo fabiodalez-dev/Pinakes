@@ -391,6 +391,13 @@ class CsvImportController
 
                 $db->begin_transaction();
 
+                // Resolve the target before creating any related entity. On an
+                // existing book an unchecked publisher/genre family must be a
+                // true no-op: creating an unlinked editor/genre from the CSV is
+                // still a catalogue mutation and leaves orphan rows behind.
+                $existingBookId = $this->findExistingBook($db, $parsedData);
+                $isExistingBook = $existingBookId !== null;
+
                 // Resolve publisher(s). The exporter joins ALL publishers
                 // (primary + co-publishers from libri_editori, #143) into the
                 // single `editore` cell with ';'. Treating the whole cell as ONE
@@ -399,7 +406,7 @@ class CsvImportController
                 $editorId = null;
                 $coPublisherIds = [];
                 $publisherCellHasMultiple = false;
-                if (!empty($parsedData['editore'])) {
+                if ((!$isExistingBook || $updateFields['publisher']) && !empty($parsedData['editore'])) {
                     $publisherNames = array_values(array_filter(
                         array_map('trim', explode(';', (string) $parsedData['editore'])),
                         static fn (string $n): bool => $n !== ''
@@ -423,10 +430,19 @@ class CsvImportController
                 // existing rows and returned NULL for anything new — so a genre
                 // present in the export vanished on re-import — unlike the
                 // authors/publishers auto-create paths.
-                $genreId = $this->getOrCreateGenre($db, $parsedData['genere'] ?? '', $importData);
+                $genreId = (!$isExistingBook || $updateFields['genre'])
+                    ? $this->getOrCreateGenre($db, $parsedData['genere'] ?? '', $importData)
+                    : null;
 
                 // Upsert book
-                $upsertResult = $this->upsertBook($db, $parsedData, $editorId, $genreId, $updateFields);
+                $upsertResult = $this->upsertBook(
+                    $db,
+                    $parsedData,
+                    $editorId,
+                    $genreId,
+                    $updateFields,
+                    $existingBookId
+                );
                 $bookId = $upsertResult['id'];
                 $action = $upsertResult['action'];
 
@@ -1581,8 +1597,8 @@ class CsvImportController
      * $updateFields (#380): per-family "Libri già presenti" selection. A family
      * checked (or absent — the default) updates exactly as before; a family
      * unchecked keeps the book's current values for its columns:
-     * bibliographic → titolo, sottotitolo, anno, lingua, edizione, pagine,
-     * formato/tipo_media, prezzo, collana, numero_serie, dewey;
+     * bibliographic → ISBN/EAN, titolo, sottotitolo, anno, lingua, edizione,
+     * pagine, formato/tipo_media, prezzo, collana, numero_serie, dewey;
      * genre → genere_id; publisher → editore_id (+ junction sync skipped);
      * description → descrizione/descrizione_plain; keywords → parole_chiave;
      * contributors → the legacy traduttore/illustratore/curatore TEXT columns.
@@ -1652,7 +1668,7 @@ class CsvImportController
             // #380: with any family unchecked the current row is always needed —
             // the preserved columns ride along in the same lookup.
             $descCols = $hasDescPlain ? 'descrizione, descrizione_plain' : 'descrizione';
-            $descCols .= ', titolo, sottotitolo, anno_pubblicazione, lingua, edizione, numero_pagine, formato'
+            $descCols .= ', isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione, lingua, edizione, numero_pagine, formato'
                 . ', prezzo, collana, numero_serie, classificazione_dewey'
                 . ', genere_id, editore_id, traduttore, illustratore, curatore, parole_chiave';
             $sel = $db->prepare("SELECT {$descCols} FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
@@ -1662,6 +1678,12 @@ class CsvImportController
                 $existingDesc = $sel->get_result()->fetch_assoc() ?: null;
                 $sel->close();
             }
+        }
+        if ($anyPreserved && $existingDesc === null) {
+            // Preservation is a data-safety promise. Never fall back to CSV
+            // values if the current row cannot be read: abort this row and let
+            // the surrounding transaction roll back instead.
+            throw new \RuntimeException('Unable to read the existing book while preserving CSV field families');
         }
         if ($csvDescrizione === null) {
             $descrizione = null;
@@ -1699,10 +1721,12 @@ class CsvImportController
         // #380: every UNCHECKED family writes back the book's current values,
         // so the single UPDATE statement (and its placeholder/type sequence)
         // stays identical while the preserved columns are effectively no-ops.
-        // If the current row could not be read ($existingDesc === null, a
-        // pathological prepare failure) the CSV values apply as before.
-        if ($anyPreserved && $existingDesc !== null) {
+        // The fail-closed guard above guarantees the current row is available.
+        if ($anyPreserved) {
             if (!$apply['bibliographic']) {
+                $isbn10 = $existingDesc['isbn10'];
+                $isbn13 = $existingDesc['isbn13'];
+                $ean = $existingDesc['ean'];
                 $titolo = (string) $existingDesc['titolo'];
                 $sottotitolo = $existingDesc['sottotitolo'];
                 $anno = $existingDesc['anno_pubblicazione'] !== null ? (int) $existingDesc['anno_pubblicazione'] : null;
@@ -1861,11 +1885,18 @@ class CsvImportController
     /**
      * @param array<string,bool> $updateFields #380 — per-family selection;
      *        created books always import everything, only the update path gates
+     * @param int|null $existingBookId Existing target resolved before related
+     *        entities are created; null means this row must be inserted
      */
-    private function upsertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId, array $updateFields = []): array
+    private function upsertBook(
+        \mysqli $db,
+        array $data,
+        ?int $editorId,
+        ?int $genreId,
+        array $updateFields = [],
+        ?int $existingBookId = null
+    ): array
     {
-        $existingBookId = $this->findExistingBook($db, $data);
-
         if ($existingBookId !== null) {
             // UPDATE libro esistente
             $this->updateBook($db, $existingBookId, $data, $editorId, $genreId, $updateFields);

@@ -7014,5 +7014,5 @@
   "Libri già presenti: quali dati aggiornare": "Libri già presenti: quali dati aggiornare",
   "Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.": "Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.",
   "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)",
-  "Dati bibliografici (titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)": "Dati bibliografici (titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)"
+  "Dati bibliografici (ISBN, EAN, titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)": "Dati bibliografici (ISBN, EAN, titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)"
 }

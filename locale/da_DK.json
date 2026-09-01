@@ -7014,5 +7014,5 @@
   "Libri già presenti: quali dati aggiornare": "Bøger, der allerede findes: hvilke data skal opdateres",
   "Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.": "For bøger, der allerede er i kataloget (genkendt på ID, ISBN eller EAN), overskrives kun de valgte data med CSV-værdierne. Ikke-valgte data forbliver uændrede. Nye bøger importerer altid alle data.",
   "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Bidragydere (medforfattere, oversættere, illustratorer, redaktører, kolorister)",
-  "Dati bibliografici (titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)": "Bibliografiske data (titel, undertitel, år, sprog, udgave, sider, format, pris, serie, Dewey)"
+  "Dati bibliografici (ISBN, EAN, titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)": "Bibliografiske data (ISBN, EAN, titel, undertitel, år, sprog, udgave, sider, format, pris, serie, Dewey)"
 }

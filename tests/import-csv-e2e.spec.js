@@ -100,30 +100,45 @@ function isbn13From(base12) {
 const F_RUN = Date.now().toString(36);
 const TITLE_1 = `FieldsModeUno ${F_RUN}`;
 const TITLE_2 = `FieldsModeDue ${F_RUN}`;
+const TITLE_3 = `FieldsModeTre ${F_RUN}`;
 const AUTHOR_A = `FieldsAuthorA ${F_RUN}`;
 const AUTHOR_B = `FieldsAuthorB ${F_RUN}`;
+const AUTHOR_C = `FieldsAuthorC ${F_RUN}`;
+const TRANSLATOR_1 = `FieldsTranslatorUno ${F_RUN}`;
+const TRANSLATOR_3 = `FieldsTranslatorTre ${F_RUN}`;
 const GENRE_1 = `FieldsGenreUno ${F_RUN}`;
 const GENRE_2 = `FieldsGenreDue ${F_RUN}`;
+const GENRE_3 = `FieldsGenreTre ${F_RUN}`;
+const PUBLISHER_1 = `FieldsPublisherUno ${F_RUN}`;
+const PUBLISHER_2 = `FieldsPublisherDue ${F_RUN}`;
+const PUBLISHER_3 = `FieldsPublisherTre ${F_RUN}`;
 const KW_1 = `kwone${F_RUN}`;
 const KW_2 = `kwtwo${F_RUN}`;
+const KW_3 = `kwthree${F_RUN}`;
+const DESC_1 = `Description one ${F_RUN}`;
+const DESC_2 = `Description two ${F_RUN}`;
+const DESC_3 = `Description three ${F_RUN}`;
 const F_ISBN = isbn13From('9798' + String(Date.now() % 1e8).padStart(8, '0'));
+const F_ISBN_2 = isbn13From('9789' + String(Date.now() % 1e8).padStart(8, '0'));
+let F_BOOK_ID = '';
 
-const F_HEADER = 'titolo;isbn13;autori;genere;parole_chiave';
-const F_CSV_1 = `${F_HEADER}\n${TITLE_1};${F_ISBN};${AUTHOR_A};${GENRE_1};${KW_1}\n`;
-const F_CSV_2 = `${F_HEADER}\n${TITLE_2};${F_ISBN};${AUTHOR_B};${GENRE_2};${KW_2}\n`;
+const F_HEADER = 'titolo;isbn13;autori;traduttore;genere;editore;parole_chiave;descrizione';
+const F_CSV_1 = `${F_HEADER}\n${TITLE_1};${F_ISBN};${AUTHOR_A};${TRANSLATOR_1};${GENRE_1};${PUBLISHER_1};${KW_1};${DESC_1}\n`;
+const F_CSV_2 = `${F_HEADER}\n${TITLE_2};${F_ISBN};${AUTHOR_B};;${GENRE_2};${PUBLISHER_2};${KW_2};${DESC_2}\n`;
 
 function fieldsCleanup() {
   // FK-safe order: children of libri first, then the book, then the entities
   // this test created. Test-only rows — hard delete is fine.
-  const bookWhere = `l.isbn13='${sqlEscape(F_ISBN)}' OR l.titolo IN ('${sqlEscape(TITLE_1)}','${sqlEscape(TITLE_2)}')`;
+  const bookWhere = `l.isbn13 IN ('${sqlEscape(F_ISBN)}','${sqlEscape(F_ISBN_2)}') OR l.titolo IN ('${sqlEscape(TITLE_1)}','${sqlEscape(TITLE_2)}','${sqlEscape(TITLE_3)}')`;
   dbQuery(
     `DELETE lais FROM libri_autori_import_sources lais JOIN libri l ON l.id=lais.libro_id WHERE ${bookWhere};`
     + `DELETE la FROM libri_autori la JOIN libri l ON l.id=la.libro_id WHERE ${bookWhere};`
     + `DELETE le FROM libri_editori le JOIN libri l ON l.id=le.libro_id WHERE ${bookWhere};`
     + `DELETE c FROM copie c JOIN libri l ON l.id=c.libro_id WHERE ${bookWhere};`
-    + `DELETE FROM libri WHERE isbn13='${sqlEscape(F_ISBN)}' OR titolo IN ('${sqlEscape(TITLE_1)}','${sqlEscape(TITLE_2)}');`
-    + `DELETE FROM autori WHERE nome IN ('${sqlEscape(AUTHOR_A)}','${sqlEscape(AUTHOR_B)}');`
-    + `DELETE FROM generi WHERE nome IN ('${sqlEscape(GENRE_1)}','${sqlEscape(GENRE_2)}');`,
+    + `DELETE FROM libri WHERE isbn13 IN ('${sqlEscape(F_ISBN)}','${sqlEscape(F_ISBN_2)}') OR titolo IN ('${sqlEscape(TITLE_1)}','${sqlEscape(TITLE_2)}','${sqlEscape(TITLE_3)}');`
+    + `DELETE FROM autori WHERE nome IN ('${sqlEscape(AUTHOR_A)}','${sqlEscape(AUTHOR_B)}','${sqlEscape(AUTHOR_C)}','${sqlEscape(TRANSLATOR_1)}','${sqlEscape(TRANSLATOR_3)}');`
+    + `DELETE FROM generi WHERE nome IN ('${sqlEscape(GENRE_1)}','${sqlEscape(GENRE_2)}','${sqlEscape(GENRE_3)}');`
+    + `DELETE FROM editori WHERE nome IN ('${sqlEscape(PUBLISHER_1)}','${sqlEscape(PUBLISHER_2)}','${sqlEscape(PUBLISHER_3)}');`,
   );
 }
 
@@ -178,6 +193,10 @@ const bookGenre = () => dbQuery(
   `SELECT g.nome FROM libri l JOIN generi g ON g.id=l.genere_id WHERE l.isbn13='${sqlEscape(F_ISBN)}' AND l.deleted_at IS NULL`,
 );
 
+const bookPublisher = () => dbQuery(
+  `SELECT e.nome FROM libri l JOIN editori e ON e.id=l.editore_id WHERE l.isbn13='${sqlEscape(F_ISBN)}' AND l.deleted_at IS NULL`,
+);
+
 const principalAuthors = () => dbQuery(
   "SELECT a.nome FROM libri_autori la JOIN autori a ON a.id=la.autore_id JOIN libri l ON l.id=la.libro_id"
   + ` WHERE l.isbn13='${sqlEscape(F_ISBN)}' AND l.deleted_at IS NULL AND la.ruolo='principale'`
@@ -199,7 +218,12 @@ test.describe.serial('CSV import update-fields checkboxes (#380)', () => {
     expect(principalAuthors()).toEqual([AUTHOR_A]);
     expect(bookField('titolo')).toBe(TITLE_1);
     expect(bookField('parole_chiave')).toBe(KW_1);
+    expect(bookField('descrizione')).toBe(DESC_1);
+    expect(bookField('traduttore')).toBe(TRANSLATOR_1);
     expect(bookGenre()).toBe(GENRE_1);
+    expect(bookPublisher()).toBe(PUBLISHER_1);
+    F_BOOK_ID = bookField('id');
+    expect(Number(F_BOOK_ID)).toBeGreaterThan(0);
   });
 
   test('re-import with Autori UNCHECKED preserves authors, updates the rest', async ({ page }) => {
@@ -217,6 +241,7 @@ test.describe.serial('CSV import update-fields checkboxes (#380)', () => {
     // Every checked family updated exactly as before.
     expect(bookField('titolo')).toBe(TITLE_2);
     expect(bookGenre()).toBe(GENRE_2);
+    expect(bookPublisher()).toBe(PUBLISHER_2);
     expect(bookField('parole_chiave')).toBe(KW_2);
   });
 
@@ -230,7 +255,41 @@ test.describe.serial('CSV import update-fields checkboxes (#380)', () => {
     // Principal authors rewritten from the CSV: only B remains.
     expect(principalAuthors()).toEqual([AUTHOR_B]);
     expect(bookGenre()).toBe(GENRE_2);
+    expect(bookPublisher()).toBe(PUBLISHER_2);
     expect(bookField('titolo')).toBe(TITLE_2);
     expect(bookField('parole_chiave')).toBe(KW_2);
+  });
+
+  test('unchecked families are true no-ops and do not create orphan entities', async ({ page }) => {
+    test.setTimeout(150000);
+    await loginAsAdmin(page);
+
+    const csv = 'id;titolo;isbn13;autori;traduttore;genere;editore;parole_chiave;descrizione\n'
+      + `${F_BOOK_ID};${TITLE_3};${F_ISBN_2};${AUTHOR_C};${TRANSLATOR_3};${GENRE_3};${PUBLISHER_3};${KW_3};${DESC_3}\n`;
+    const chunk = await runFieldsImport(page, csv, [
+      'authors',
+      'contributors',
+      'publisher',
+      'genre',
+      'keywords',
+      'description',
+      'bibliographic',
+    ]);
+    expect(chunk.updated).toBe(1);
+
+    expect(bookField('isbn13')).toBe(F_ISBN);
+    expect(bookField('titolo')).toBe(TITLE_2);
+    expect(principalAuthors()).toEqual([AUTHOR_B]);
+    expect(bookField('traduttore')).toBe('NULL');
+    expect(bookGenre()).toBe(GENRE_2);
+    expect(bookPublisher()).toBe(PUBLISHER_2);
+    expect(bookField('parole_chiave')).toBe(KW_2);
+    expect(bookField('descrizione')).toBe(DESC_2);
+
+    // Values from unchecked relational families must not leak into standalone
+    // catalogue rows either.
+    expect(dbQuery(`SELECT COUNT(*) FROM autori WHERE nome IN ('${sqlEscape(AUTHOR_C)}','${sqlEscape(TRANSLATOR_3)}')`)).toBe('0');
+    expect(dbQuery(`SELECT COUNT(*) FROM generi WHERE nome='${sqlEscape(GENRE_3)}'`)).toBe('0');
+    expect(dbQuery(`SELECT COUNT(*) FROM editori WHERE nome='${sqlEscape(PUBLISHER_3)}'`)).toBe('0');
   });
 });
