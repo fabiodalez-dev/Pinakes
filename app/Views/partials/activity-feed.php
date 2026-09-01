@@ -48,7 +48,9 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
   /* Explicit, id-scoped CSS on purpose: a brand-new Tailwind utility here would
      not exist in the compiled main.css without a frontend rebuild (JIT). */
   #activity-feed .activity-scroll { max-height: 32rem; overflow-y: auto; }
-  /* 4-column filter row ≥640px: sm:grid-cols-4 is not in the compiled CSS. */
+  /* 4-column filter row ≥640px: the equivalent Tailwind utility is not in the
+     compiled main.css, and naming it here would get it picked up by the JIT
+     extractor (it scans comments too) and break asset reproducibility. */
   @media (min-width: 640px) {
     #activity-feed .activity-filter-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }

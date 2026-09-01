@@ -19,6 +19,14 @@ final class ActivityLog
     // retain archived books so their activity remains attributable to staff.
     public const TYPES = ['edit', 'copy', 'import', 'enrich', 'loan'];
 
+    /**
+     * Sentinel for events performed by the application itself (e.g. automatic
+     * loan approval running inside the requesting reader's HTTP session).
+     * Prevents the session-operator fallback: the event is stored with a NULL
+     * operator and the feed renders it as "Sistema".
+     */
+    public const SYSTEM_OPERATOR = 0;
+
     private const HIDDEN_FIELDS = [
         '_activity',
         'descrizione_plain',
@@ -136,7 +144,11 @@ final class ActivityLog
             return false;
         }
 
-        $operatorId ??= self::sessionOperatorId();
+        if ($operatorId === self::SYSTEM_OPERATOR) {
+            $operatorId = null; // system action: never attribute to the session user
+        } else {
+            $operatorId ??= self::sessionOperatorId();
+        }
         $operatorName = self::operatorName($db, $operatorId);
         $meta = [
             'type' => $type,

@@ -101,7 +101,6 @@ class ReservationsAdminController
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $id);
         $data = (array) ($request->getParsedBody() ?? []);
         // CSRF validated by CsrfMiddleware
         $stato = (string) ($data['stato'] ?? 'attiva');
@@ -196,6 +195,11 @@ class ReservationsAdminController
 
             $utenteId = (int) $libroResult['utente_id'];
             $oldStato = (string) $libroResult['stato'];
+
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier, a concurrent
+            // request could change the row between the read and the lock and
+            // the audit diff would attribute someone else's change to this edit.
+            $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $id);
 
             // Una prenotazione 'completata' è stata promossa: il prestito
             // collegato vive solo tramite origine='prenotazione' (nessuna FK) e
@@ -340,7 +344,10 @@ class ReservationsAdminController
                 $notificationStmt->close();
             }
 
-            $db->commit();
+            // Audit inside the transaction: after commit a concurrent request
+            // could alter the row before the snapshot read, attributing the
+            // next state to this operation. A failed audit write never aborts
+            // the transaction (recordBookEvent swallows its own errors).
             \App\Support\ActivityLog::recordReservationEvent(
                 $db,
                 $id,
@@ -348,6 +355,7 @@ class ReservationsAdminController
                 $activityBefore,
                 source: 'admin'
             );
+            $db->commit();
 
             if ($reservationManager !== null) {
                 $reservationManager->flushDeferredNotifications();
@@ -585,7 +593,7 @@ class ReservationsAdminController
                 throw new \RuntimeException('Failed to recalculate availability after reservation creation.');
             }
 
-            $db->commit();
+            // Audit inside the transaction (see update() for the rationale).
             \App\Support\ActivityLog::recordReservationEvent(
                 $db,
                 $reservationId,
@@ -593,6 +601,7 @@ class ReservationsAdminController
                 action: 'inserimento',
                 source: 'admin'
             );
+            $db->commit();
             return $response->withHeader('Location', url('/admin/reservations') . '?created=1')->withStatus(302);
 
         } catch (\Throwable $e) {

@@ -188,6 +188,36 @@ try {
     $stmt->close();
     $detachedFeed = ActivityLog::forBook($db, $bookId, 1, 20);
     $check($detachedFeed['items'][0]['operator_name'] === 'Audit Operator', 'operator name survives account deletion in event metadata');
+
+    // SYSTEM_OPERATOR sentinel: an automatic action running inside a reader's
+    // HTTP session must not be attributed to that session user.
+    $check(
+        ActivityLog::recordBookEvent(
+            $db,
+            $bookId,
+            'aggiornamento',
+            'loan',
+            'loan.approved',
+            [],
+            ['stato' => 'da_ritirare'],
+            operatorId: ActivityLog::SYSTEM_OPERATOR,
+            bookTitle: $title,
+            source: 'approval'
+        ),
+        'system event is written with the SYSTEM_OPERATOR sentinel'
+    );
+    $systemRow = $db->query(
+        "SELECT utente_id FROM log_modifiche WHERE tabella='libri' AND record_id={$bookId} ORDER BY id DESC LIMIT 1"
+    )->fetch_assoc();
+    $check($systemRow !== null && $systemRow['utente_id'] === null, 'system event stores a NULL operator despite an active session user');
+    $systemFeed = ActivityLog::forBook($db, $bookId, 1, 20);
+    $check(($systemFeed['items'][0]['operator_name'] ?? '') === '', 'system event renders without an operator name (feed shows "Sistema")');
+
+    // forBook type filter mirrors the dashboard allow-list behaviour.
+    $loanOnly = ActivityLog::forBook($db, $bookId, 1, 20, null, 'loan');
+    $check($loanOnly['total'] === 1 && $loanOnly['items'][0]['type'] === 'loan', 'forBook type filter narrows to the requested type');
+    $ignoredType = ActivityLog::forBook($db, $bookId, 1, 20, null, 'not-a-type');
+    $check($ignoredType['total'] === 3, 'forBook ignores out-of-allow-list types');
 } catch (Throwable $e) {
     $db->rollback();
     $db->close();

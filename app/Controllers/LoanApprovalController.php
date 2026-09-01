@@ -639,7 +639,17 @@ class LoanApprovalController
             }
 
             $db->commit();
-            \App\Support\ActivityLog::recordLoanEvent($db, $loanId, 'loan.approved', $activityBefore, source: 'approval');
+            // Automatic approvals run inside the requesting reader's HTTP
+            // session: without an explicit operator the audit event would be
+            // attributed to the reader, an action they cannot perform.
+            \App\Support\ActivityLog::recordLoanEvent(
+                $db,
+                $loanId,
+                'loan.approved',
+                $activityBefore,
+                source: 'approval',
+                operatorId: $automaticApproval ? \App\Support\ActivityLog::SYSTEM_OPERATOR : null
+            );
 
             // Send appropriate notification to user. Issue #301 explicitly keeps
             // the approval email in the auto-approval flow; manual immediate
