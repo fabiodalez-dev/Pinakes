@@ -7010,5 +7010,9 @@
   "Impossibile svuotare completamente la cache dell'applicazione. Controlla i permessi di storage/cache.": "Could not fully clear the application cache. Check the storage/cache permissions.",
   "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito tutta la cache: le query interne (scheda libro, recensioni, elenchi di catalogo e ricerca) e, se il server è LiteSpeed, anche le pagine memorizzate nell'edge cache.": "Content changes already invalidate the cache automatically. Use this button to immediately clear all caches: the internal queries (book detail, reviews, catalog and search listings) and, if the server runs LiteSpeed, the pages stored in the edge cache too.",
   "Svuota cache": "Clear cache",
-  "Cache svuotata.": "Cache cleared."
+  "Cache svuotata.": "Cache cleared.",
+  "Libri già presenti: quali dati aggiornare": "Existing books: which data to update",
+  "Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.": "For books already in the catalog (matched by ID, ISBN or EAN), only the selected data is overwritten with the CSV values. Unselected data stays unchanged. New books always import all data.",
+  "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Contributors (co-authors, translators, illustrators, editors, colorists)",
+  "Dati bibliografici (titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana, Dewey)": "Bibliographic data (title, subtitle, year, language, edition, pages, format, price, series, Dewey)"
 }
