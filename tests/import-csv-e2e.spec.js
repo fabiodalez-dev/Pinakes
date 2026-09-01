@@ -324,3 +324,107 @@ test.describe.serial('CSV import update-fields checkboxes (#380)', () => {
     expect(bookField('edizione')).toBe('Seconda edizione');
   });
 });
+
+// ---------------------------------------------------------------------------
+// #380 — full overwrite end-to-end, in BOTH delimiter formats: the test builds
+// its own CSV (';') and TSV (TAB) content, uploads each through the real
+// browser flow and asserts every field family was really overwritten in the
+// DB. The standard importer requires a .csv filename but explicitly supports
+// TAB as a delimiter (same convention as full-test 10.x), so the TSV travels
+// as tab-delimited content under a .csv name.
+// ---------------------------------------------------------------------------
+
+const OV_RUN = Date.now().toString(36) + 'ov';
+const OV_ISBN = isbn13From('9791' + String((Date.now() + 7) % 1e8).padStart(8, '0'));
+const OV_TITLES = [`OverwriteUno ${OV_RUN}`, `OverwriteDue ${OV_RUN}`, `OverwriteTre ${OV_RUN}`];
+const OV_AUTHORS = [`OvAutoreUno ${OV_RUN}`, `OvAutoreDue ${OV_RUN}`, `OvAutoreTre ${OV_RUN}`];
+const OV_GENRES = [`OvGenereUno ${OV_RUN}`, `OvGenereDue ${OV_RUN}`, `OvGenereTre ${OV_RUN}`];
+const OV_PUBLISHERS = [`OvEditoreUno ${OV_RUN}`, `OvEditoreDue ${OV_RUN}`, `OvEditoreTre ${OV_RUN}`];
+const OV_KWS = [`ovkwuno${OV_RUN}`, `ovkwdue${OV_RUN}`, `ovkwtre${OV_RUN}`];
+const OV_HEADER_COLS = ['titolo', 'isbn13', 'autori', 'genere', 'editore', 'parole_chiave', 'descrizione', 'anno_pubblicazione', 'edizione', 'prezzo'];
+const ovRow = (i, anno, edizione, prezzo) => [
+  OV_TITLES[i], OV_ISBN, OV_AUTHORS[i], OV_GENRES[i], OV_PUBLISHERS[i],
+  OV_KWS[i], `Overwrite descrizione ${i + 1} ${OV_RUN}`, anno, edizione, prezzo,
+];
+const ovContent = (sep, i, anno, edizione, prezzo) =>
+  OV_HEADER_COLS.join(sep) + '\n' + ovRow(i, anno, edizione, prezzo).join(sep) + '\n';
+
+const ovField = (field) => dbQuery(
+  `SELECT ${field} FROM libri WHERE isbn13='${sqlEscape(OV_ISBN)}' AND deleted_at IS NULL LIMIT 1`,
+);
+const ovGenre = () => dbQuery(
+  `SELECT g.nome FROM libri l JOIN generi g ON g.id=l.genere_id WHERE l.isbn13='${sqlEscape(OV_ISBN)}' AND l.deleted_at IS NULL`,
+);
+const ovPublisher = () => dbQuery(
+  `SELECT e.nome FROM libri l JOIN editori e ON e.id=l.editore_id WHERE l.isbn13='${sqlEscape(OV_ISBN)}' AND l.deleted_at IS NULL`,
+);
+const ovAuthors = () => dbQuery(
+  "SELECT a.nome FROM libri_autori la JOIN autori a ON a.id=la.autore_id JOIN libri l ON l.id=la.libro_id"
+  + ` WHERE l.isbn13='${sqlEscape(OV_ISBN)}' AND l.deleted_at IS NULL AND la.ruolo='principale'`
+  + ' ORDER BY la.ordine_credito, a.nome',
+).split('\n').filter(Boolean);
+
+function overwriteCleanup() {
+  const w = `l.isbn13='${sqlEscape(OV_ISBN)}'`;
+  dbQuery(
+    `DELETE lais FROM libri_autori_import_sources lais JOIN libri l ON l.id=lais.libro_id WHERE ${w};`
+    + `DELETE la FROM libri_autori la JOIN libri l ON l.id=la.libro_id WHERE ${w};`
+    + `DELETE le FROM libri_editori le JOIN libri l ON l.id=le.libro_id WHERE ${w};`
+    + `DELETE c FROM copie c JOIN libri l ON l.id=c.libro_id WHERE ${w};`
+    + `DELETE FROM libri WHERE isbn13='${sqlEscape(OV_ISBN)}';`
+    + `DELETE FROM autori WHERE nome IN ('${OV_AUTHORS.map(sqlEscape).join("','")}');`
+    + `DELETE FROM generi WHERE nome IN ('${OV_GENRES.map(sqlEscape).join("','")}');`
+    + `DELETE FROM editori WHERE nome IN ('${OV_PUBLISHERS.map(sqlEscape).join("','")}');`,
+  );
+}
+
+test.describe.serial('CSV and TSV overwrite end-to-end (#380)', () => {
+  test.skip(FIELDS_SKIP, 'E2E credentials not configured');
+  test.beforeAll(() => overwriteCleanup());
+  test.afterAll(() => overwriteCleanup());
+
+  test('CSV: creates the book, then a second CSV import overwrites every family', async ({ page }) => {
+    test.setTimeout(150000);
+    await loginAsAdmin(page);
+
+    // Create (v1, ';' delimiter, all checkboxes checked by default).
+    let chunk = await runFieldsImport(page, ovContent(';', 0, '1990', 'Prima edizione', '10.00'));
+    expect(chunk.imported).toBe(1);
+    expect(ovAuthors()).toEqual([OV_AUTHORS[0]]);
+    expect(ovField('anno_pubblicazione')).toBe('1990');
+
+    // Overwrite (v2, ';' delimiter, all checked): every family must change.
+    chunk = await runFieldsImport(page, ovContent(';', 1, '2005', 'Seconda edizione', '15.50'));
+    expect(chunk.updated).toBe(1);
+    expect(ovAuthors()).toEqual([OV_AUTHORS[1]]);
+    expect(ovField('titolo')).toBe(OV_TITLES[1]);
+    expect(ovGenre()).toBe(OV_GENRES[1]);
+    expect(ovPublisher()).toBe(OV_PUBLISHERS[1]);
+    expect(ovField('parole_chiave')).toBe(OV_KWS[1]);
+    expect(ovField('descrizione')).toBe(`Overwrite descrizione 2 ${OV_RUN}`);
+    expect(ovField('anno_pubblicazione')).toBe('2005');
+    expect(ovField('edizione')).toBe('Seconda edizione');
+    expect(ovField('prezzo')).toBe('15.50');
+  });
+
+  test('TSV: a tab-delimited import overwrites every family too', async ({ page }) => {
+    test.setTimeout(150000);
+    await loginAsAdmin(page);
+
+    // v3 as TAB-delimited content (.csv filename per the importer's extension
+    // rule; the delimiter sniffer picks TAB). All checkboxes checked.
+    const chunk = await runFieldsImport(page, ovContent('\t', 2, '2020', 'Terza edizione', '21.90'));
+    expect(chunk.updated).toBe(1);
+    expect(ovAuthors()).toEqual([OV_AUTHORS[2]]);
+    expect(ovField('titolo')).toBe(OV_TITLES[2]);
+    expect(ovGenre()).toBe(OV_GENRES[2]);
+    expect(ovPublisher()).toBe(OV_PUBLISHERS[2]);
+    expect(ovField('parole_chiave')).toBe(OV_KWS[2]);
+    expect(ovField('descrizione')).toBe(`Overwrite descrizione 3 ${OV_RUN}`);
+    expect(ovField('anno_pubblicazione')).toBe('2020');
+    expect(ovField('edizione')).toBe('Terza edizione');
+    expect(ovField('prezzo')).toBe('21.90');
+    // The v2 entities were replaced, not merged: only one principal author.
+    expect(ovAuthors().length).toBe(1);
+  });
+});
