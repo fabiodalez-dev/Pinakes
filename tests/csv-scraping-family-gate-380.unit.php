@@ -79,8 +79,8 @@ set_exception_handler(static function (Throwable $e) use ($cleanup, $db): void {
 
 // Sandbox book with EXISTING values in every gated field.
 $stmt = $db->prepare(
-    "INSERT INTO libri (titolo, descrizione, anno_pubblicazione, parole_chiave, copie_totali, copie_disponibili, stato)
-     VALUES (?, 'Descrizione originale', 1999, 'kw-originale', 1, 1, 'disponibile')"
+    "INSERT INTO libri (titolo, descrizione, descrizione_plain, anno_pubblicazione, parole_chiave, copie_totali, copie_disponibili, stato)
+     VALUES (?, '<p>Descrizione <strong>originale</strong></p>', 'Descrizione originale', 1999, 'kw-originale', 1, 1, 'disponibile')"
 );
 $stmt->bind_param('s', $title);
 $stmt->execute();
@@ -117,7 +117,7 @@ $principalCount = static fn (): int => (int) $db->query(
 // ── 1-4: UNCHECKED families on an existing book → scraping must NOT touch ────
 $allOff = ['description' => false, 'anno' => false, 'keywords' => false, 'authors' => false, 'publisher' => false];
 $enrich->invoke($controller, $db, $bookId, $csvEmpty, $scraped, $allOff, 'updated');
-$check($field('descrizione') === 'Descrizione originale', '01 unchecked description survives scraping on an existing book');
+$check($field('descrizione') === '<p>Descrizione <strong>originale</strong></p>', '01 unchecked description survives scraping on an existing book');
 $check($field('anno_pubblicazione') === '1999', '02 unchecked anno survives scraping');
 $check($field('parole_chiave') === 'kw-originale', '03 unchecked keywords survive scraping');
 $check($principalCount() === 0 && $field('editore_id') === null,
@@ -129,6 +129,8 @@ $enrich->invoke($controller, $db, $bookId, $csvEmpty, $scraped, $someOn, 'update
 $check($field('descrizione') === 'Descrizione scrappata' && $field('parole_chiave') === 'kw-scrappata',
     '05 checked families are still enriched from scraping');
 $check($field('anno_pubblicazione') === '1999', '06 the still-unchecked anno keeps resisting');
+$check($field('descrizione_plain') === 'Descrizione scrappata',
+    '06b scraped description refreshes descrizione_plain instead of leaving stale search text');
 
 // ── 7: created books enrich fully regardless of the selection ────────────────
 $db->query("UPDATE libri SET descrizione = NULL, anno_pubblicazione = NULL WHERE id = {$bookId}");

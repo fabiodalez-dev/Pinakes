@@ -7015,5 +7015,6 @@
   "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)",
   "Dati bibliografici": "Dati bibliografici",
   "Collana e numero di serie": "Collana e numero di serie",
-  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate"
+  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate",
+  "Per conservare un campo, deselezionalo: in una famiglia selezionata, una cella CSV vuota può cancellare il valore esistente.": "Per conservare un campo, deselezionalo: in una famiglia selezionata, una cella CSV vuota può cancellare il valore esistente."
 }

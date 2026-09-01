@@ -7015,5 +7015,6 @@
   "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Contributeurs (co-auteurs, traducteurs, illustrateurs, directeurs de publication, coloristes)",
   "Dati bibliografici": "Données bibliographiques",
   "Collana e numero di serie": "Collection et numéro de série",
-  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "Les doublons (reconnus par ID, ISBN13 ou EAN) sont mis à jour selon la sélection « Livres déjà présents » ; les exemplaires physiques ne sont jamais modifiés"
+  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "Les doublons (reconnus par ID, ISBN13 ou EAN) sont mis à jour selon la sélection « Livres déjà présents » ; les exemplaires physiques ne sont jamais modifiés",
+  "Per conservare un campo, deselezionalo: in una famiglia selezionata, una cella CSV vuota può cancellare il valore esistente.": "Pour conserver un champ, décochez-le : dans une famille sélectionnée, une cellule CSV vide peut effacer la valeur existante."
 }

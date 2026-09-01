@@ -7015,5 +7015,6 @@
   "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Bidragydere (medforfattere, oversættere, illustratorer, redaktører, kolorister)",
   "Dati bibliografici": "Bibliografiske data",
   "Collana e numero di serie": "Serie og serienummer",
-  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "Dubletter (genkendt på ID, ISBN13 eller EAN) opdateres i henhold til valget ”Bøger, der allerede findes”; fysiske eksemplarer ændres aldrig"
+  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "Dubletter (genkendt på ID, ISBN13 eller EAN) opdateres i henhold til valget ”Bøger, der allerede findes”; fysiske eksemplarer ændres aldrig",
+  "Per conservare un campo, deselezionalo: in una famiglia selezionata, una cella CSV vuota può cancellare il valore esistente.": "Fjern markeringen for at bevare et felt: I en valgt gruppe kan en tom CSV-celle slette den eksisterende værdi."
 }

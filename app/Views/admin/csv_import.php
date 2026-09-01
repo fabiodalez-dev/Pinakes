@@ -154,6 +154,10 @@ ob_start();
                                 <p class="text-gray-600 mt-1">
                                     <?= __("Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.") ?>
                                 </p>
+                                <p class="text-amber-700 mt-2 text-xs">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    <?= __("Per conservare un campo, deselezionalo: in una famiglia selezionata, una cella CSV vuota può cancellare il valore esistente.") ?>
+                                </p>
                             </div>
                             <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <?php foreach ([

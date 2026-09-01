@@ -402,10 +402,6 @@ class CsvImportController
                 }
                 $parsedData = $this->parseCsvRow($row);
 
-                if (empty($parsedData['titolo'])) {
-                    throw new \Exception(__('Titolo mancante'));
-                }
-
                 $db->begin_transaction();
 
                 // Resolve the target before creating any related entity. On an
@@ -414,6 +410,14 @@ class CsvImportController
                 // still a catalogue mutation and leaves orphan rows behind.
                 $existingBookId = $this->findExistingBook($db, $parsedData);
                 $isExistingBook = $existingBookId !== null;
+
+                // A title is mandatory for new books and when the title family
+                // is selected. For a row matched by ID/ISBN/EAN with Titolo
+                // unchecked, however, a blank cell must be a true no-op: the
+                // existing NOT NULL title is restored by updateBook().
+                if (empty($parsedData['titolo']) && (!$isExistingBook || $updateFields['titolo'])) {
+                    throw new \Exception(__('Titolo mancante'));
+                }
 
                 // Resolve publisher(s). The exporter joins ALL publishers
                 // (primary + co-publishers from libri_editori, #143) into the
@@ -583,8 +587,18 @@ class CsvImportController
 
                         if (!empty($scrapedData)) {
                             // #380: the enrichment respects the same per-family
-                            // selection as the CSV values themselves.
-                            $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData, $updateFields, $action);
+                            // selection as the CSV values themselves. Keep its
+                            // related writes (book fields, authors, publisher
+                            // junction) atomic: a retry after an interruption
+                            // must never start from a half-enriched book.
+                            $db->begin_transaction();
+                            try {
+                                $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData, $updateFields, $action);
+                                $db->commit();
+                            } catch (\Throwable $enrichmentError) {
+                                $db->rollback();
+                                throw $enrichmentError;
+                            }
                             $importData['scraped']++;
                         }
 
@@ -1495,17 +1509,18 @@ class CsvImportController
             return;
         }
 
-        // Prepara l'INSERT prima della DELETE, così un prepare fallito non lascia
-        // la junction spogliata dei co-editori (mirror di syncPrimaryPublisherJunction).
+        // Prepare before DELETE. Both failures must abort the caller-owned row
+        // transaction: silently returning would commit the new editore_id while
+        // leaving the selected co-publisher family stale.
         $insert = $db->prepare('INSERT INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE ordine = VALUES(ordine)');
         if ($insert === false) {
-            return;
+            throw new \RuntimeException('Unable to prepare imported co-publisher upsert');
         }
 
         $del = $db->prepare('DELETE FROM libri_editori WHERE libro_id = ? AND ordine > 0');
         if ($del === false) {
             $insert->close();
-            return;
+            throw new \RuntimeException('Unable to prepare imported co-publisher cleanup');
         }
         $del->bind_param('i', $bookId);
         $del->execute();
@@ -1874,13 +1889,14 @@ class CsvImportController
             return;
         }
 
-        // Prepare the upsert BEFORE the DELETE so a prepare failure can never
-        // leave the primary slot wiped (mirrors BookRepository::syncPublishers()).
+        // Prepare the upsert BEFORE the DELETE. A failure aborts the surrounding
+        // import/enrichment transaction so the scalar editore_id and junction
+        // can never commit in disagreement.
         $insert = null;
         if ($editoreId > 0) {
             $insert = $db->prepare('INSERT INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE ordine = 0');
             if ($insert === false) {
-                return;
+                throw new \RuntimeException('Unable to prepare primary publisher upsert');
             }
         }
 
@@ -1889,7 +1905,7 @@ class CsvImportController
             if ($insert !== null) {
                 $insert->close();
             }
-            return;
+            throw new \RuntimeException('Unable to prepare primary publisher cleanup');
         }
         $del->bind_param('i', $bookId);
         $del->execute();
@@ -1906,11 +1922,14 @@ class CsvImportController
     private function syncImportedSeries(\mysqli $db, int $bookId, ?string $collana, ?string $numeroSerie): void
     {
         $collana = trim((string) $collana);
-        if ($bookId <= 0 || $collana === '') {
+        if ($bookId <= 0) {
             return;
         }
 
         try {
+            // An empty selected series is meaningful: SeriesRepository clears
+            // libri_collane when the membership set is empty. Returning early
+            // here left stale series links beside libri.collana = NULL.
             (new \App\Models\SeriesRepository($db))->syncBookMemberships($bookId, $collana, $numeroSerie);
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::warning('CsvImportController::syncImportedSeries failed', [
@@ -1918,6 +1937,7 @@ class CsvImportController
                 'libro_id' => $bookId,
                 'collana' => $collana,
             ]);
+            throw $e;
         }
     }
 
@@ -2126,9 +2146,18 @@ class CsvImportController
 
         // Descrizione
         if ($allow('description') && empty($csvData['descrizione']) && !empty($scrapedData['description'])) {
+            $scrapedDescription = (string) $scrapedData['description'];
             $updates[] = 'descrizione = ?';
-            $params[] = $scrapedData['description'];
+            $params[] = $scrapedDescription;
             $types .= 's';
+            // Keep the search projection synchronized just like createBook()
+            // and updateBook(). Otherwise an existing descrizione_plain wins
+            // the SearchIndexBuilder COALESCE and keeps indexing stale text.
+            if ($this->hasDescrizionePlainColumn($db)) {
+                $updates[] = 'descrizione_plain = ?';
+                $params[] = \App\Support\DescriptionText::toPlain($scrapedDescription);
+                $types .= 's';
+            }
         }
 
         // Sottotitolo
@@ -2198,7 +2227,7 @@ class CsvImportController
 
         // Update libro if we have data
         if (!empty($updates)) {
-            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ? AND deleted_at IS NULL";
+            $sql = "UPDATE libri SET " . implode(', ', $updates) . ", updated_at = NOW() WHERE id = ? AND deleted_at IS NULL";
             $params[] = $bookId;
             $types .= 'i';
 
@@ -2243,7 +2272,7 @@ class CsvImportController
             $publisherResult = $this->getOrCreatePublisher($db, $scrapedData['publisher']);
             $editorId = $publisherResult['id'];
 
-            $stmt = $db->prepare("UPDATE libri SET editore_id = ? WHERE id = ? AND deleted_at IS NULL");
+            $stmt = $db->prepare("UPDATE libri SET editore_id = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
             $stmt->bind_param('ii', $editorId, $bookId);
             $stmt->execute();
             $stmt->close();

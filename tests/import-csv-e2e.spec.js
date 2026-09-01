@@ -134,11 +134,13 @@ function fieldsCleanup() {
     `DELETE lais FROM libri_autori_import_sources lais JOIN libri l ON l.id=lais.libro_id WHERE ${bookWhere};`
     + `DELETE la FROM libri_autori la JOIN libri l ON l.id=la.libro_id WHERE ${bookWhere};`
     + `DELETE le FROM libri_editori le JOIN libri l ON l.id=le.libro_id WHERE ${bookWhere};`
+    + `DELETE lc FROM libri_collane lc JOIN libri l ON l.id=lc.libro_id WHERE ${bookWhere};`
     + `DELETE c FROM copie c JOIN libri l ON l.id=c.libro_id WHERE ${bookWhere};`
     + `DELETE FROM libri WHERE isbn13 IN ('${sqlEscape(F_ISBN)}','${sqlEscape(F_ISBN_2)}') OR titolo IN ('${sqlEscape(TITLE_1)}','${sqlEscape(TITLE_2)}','${sqlEscape(TITLE_3)}');`
     + `DELETE FROM autori WHERE nome IN ('${sqlEscape(AUTHOR_A)}','${sqlEscape(AUTHOR_B)}','${sqlEscape(AUTHOR_C)}','${sqlEscape(TRANSLATOR_1)}','${sqlEscape(TRANSLATOR_3)}');`
     + `DELETE FROM generi WHERE nome IN ('${sqlEscape(GENRE_1)}','${sqlEscape(GENRE_2)}','${sqlEscape(GENRE_3)}');`
-    + `DELETE FROM editori WHERE nome IN ('${sqlEscape(PUBLISHER_1)}','${sqlEscape(PUBLISHER_2)}','${sqlEscape(PUBLISHER_3)}');`,
+    + `DELETE FROM editori WHERE nome IN ('${sqlEscape(PUBLISHER_1)}','${sqlEscape(PUBLISHER_2)}','${sqlEscape(PUBLISHER_3)}');`
+    + `DELETE FROM collane WHERE nome LIKE 'SerieCsv ${sqlEscape(F_RUN)}%';`,
   );
 }
 
@@ -322,6 +324,46 @@ test.describe.serial('CSV import update-fields checkboxes (#380)', () => {
     expect(chunk.updated).toBe(1);
     expect(bookField('anno_pubblicazione')).toBe('1999');
     expect(bookField('edizione')).toBe('Seconda edizione');
+  });
+
+  test('blank title is accepted as a true no-op when Titolo is unchecked', async ({ page }) => {
+    test.setTimeout(300000);
+    await loginAsAdmin(page);
+
+    // ISBN identifies the existing row. Before target resolution, a blank
+    // title used to be rejected even with update_titolo=false.
+    const sparseCsv = `titolo;isbn13;edizione\n;${F_ISBN};Terza edizione\n`;
+    const chunk = await runFieldsImport(page, sparseCsv, ['titolo']);
+    expect(chunk.updated).toBe(1);
+    expect(bookField('titolo')).toBe(TITLE_2);
+    expect(bookField('edizione')).toBe('Terza edizione');
+  });
+
+  test('selected empty series clears both scalar fields and memberships', async ({ page }) => {
+    test.setTimeout(300000);
+    await loginAsAdmin(page);
+
+    const series = `SerieCsv ${F_RUN}`;
+    let chunk = await runFieldsImport(
+      page,
+      `titolo;isbn13;collana;numero_serie\n${TITLE_2};${F_ISBN};${series};7\n`,
+    );
+    expect(chunk.updated).toBe(1);
+    expect(bookField('collana')).toBe(series);
+    expect(dbQuery(
+      `SELECT COUNT(*) FROM libri_collane lc JOIN libri l ON l.id=lc.libro_id WHERE l.isbn13='${sqlEscape(F_ISBN)}'`,
+    )).toBe('1');
+
+    chunk = await runFieldsImport(
+      page,
+      `titolo;isbn13;collana;numero_serie\n${TITLE_2};${F_ISBN};;\n`,
+    );
+    expect(chunk.updated).toBe(1);
+    expect(bookField('collana')).toBe('NULL');
+    expect(bookField('numero_serie')).toBe('NULL');
+    expect(dbQuery(
+      `SELECT COUNT(*) FROM libri_collane lc JOIN libri l ON l.id=lc.libro_id WHERE l.isbn13='${sqlEscape(F_ISBN)}'`,
+    )).toBe('0');
   });
 });
 

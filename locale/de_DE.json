@@ -7014,6 +7014,7 @@
   "Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.": "Bei Büchern, die bereits im Katalog sind (erkannt über ID, ISBN oder EAN), werden nur die ausgewählten Daten mit den CSV-Werten überschrieben. Nicht ausgewählte Daten bleiben unverändert. Neue Bücher importieren immer alle Daten.",
   "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Beitragende (Co-Autoren, Übersetzer, Illustratoren, Herausgeber, Koloristen)",
   "Dati bibliografici": "Bibliografische Daten",
-  "Collana e numero di serie": "Reihe und Bandnummer",
-  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "Dubletten (erkannt über ID, ISBN13 oder EAN) werden gemäß der Auswahl „Bereits vorhandene Bücher“ aktualisiert; physische Exemplare werden nie verändert"
+  "Collana e numero di serie": "Reihe und Reihennummer",
+  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "Dubletten (erkannt über ID, ISBN13 oder EAN) werden gemäß der Auswahl „Bereits vorhandene Bücher“ aktualisiert; physische Exemplare werden nie verändert",
+  "Per conservare un campo, deselezionalo: in una famiglia selezionata, una cella CSV vuota può cancellare il valore esistente.": "Um ein Feld beizubehalten, deaktivieren Sie es: In einer ausgewählten Gruppe kann eine leere CSV-Zelle den vorhandenen Wert löschen."
 }
