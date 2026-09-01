@@ -582,7 +582,9 @@ class CsvImportController
                         $scrapedData = $this->scrapeBookData($parsedData['isbn13']);
 
                         if (!empty($scrapedData)) {
-                            $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData);
+                            // #380: the enrichment respects the same per-family
+                            // selection as the CSV values themselves.
+                            $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData, $updateFields, $action);
                             $importData['scraped']++;
                         }
 
@@ -2089,9 +2091,20 @@ class CsvImportController
 
     /**
      * Enrich book with scraped data
+     *
+     * #380: scraping only ever FILLS what the CSV left empty, but on an
+     * EXISTING book an empty CSV cell may mean "family unchecked → preserve" —
+     * without the gate below the scraper would overwrite a field the user
+     * explicitly excluded. Each fill is therefore additionally gated on the
+     * field's update family; created books always accept every enrichment.
+     *
+     * @param array<string,bool> $updateFields
      */
-    private function enrichBookWithScrapedData(\mysqli $db, int $bookId, array $csvData, array $scrapedData): void
+    private function enrichBookWithScrapedData(\mysqli $db, int $bookId, array $csvData, array $scrapedData, array $updateFields = [], string $action = 'created'): void
     {
+        $allow = static function (string $family) use ($updateFields, $action): bool {
+            return $action === 'created' || (bool) ($updateFields[$family] ?? true);
+        };
         $updates = [];
         $params = [];
         $types = '';
@@ -2112,21 +2125,21 @@ class CsvImportController
         }
 
         // Descrizione
-        if (empty($csvData['descrizione']) && !empty($scrapedData['description'])) {
+        if ($allow('description') && empty($csvData['descrizione']) && !empty($scrapedData['description'])) {
             $updates[] = 'descrizione = ?';
             $params[] = $scrapedData['description'];
             $types .= 's';
         }
 
         // Sottotitolo
-        if (empty($csvData['sottotitolo']) && !empty($scrapedData['subtitle'])) {
+        if ($allow('sottotitolo') && empty($csvData['sottotitolo']) && !empty($scrapedData['subtitle'])) {
             $updates[] = 'sottotitolo = ?';
             $params[] = $scrapedData['subtitle'];
             $types .= 's';
         }
 
         // Prezzo — don't use empty() as it discards valid 0.00 prices
-        if (($csvData['prezzo'] === null || $csvData['prezzo'] === '') && !empty($scrapedData['price'])) {
+        if ($allow('prezzo') && ($csvData['prezzo'] === null || $csvData['prezzo'] === '') && !empty($scrapedData['price'])) {
             $priceClean = preg_replace('/[^0-9,.]/', '', $scrapedData['price']);
             $priceClean = str_replace(',', '.', $priceClean);
             if (is_numeric($priceClean)) {
@@ -2137,7 +2150,7 @@ class CsvImportController
         }
 
         // Pagine
-        if (empty($csvData['numero_pagine']) && !empty($scrapedData['pages'])) {
+        if ($allow('pagine') && empty($csvData['numero_pagine']) && !empty($scrapedData['pages'])) {
             $pagesClean = preg_replace('/[^0-9]/', '', $scrapedData['pages']);
             if (is_numeric($pagesClean)) {
                 $updates[] = 'numero_pagine = ?';
@@ -2147,7 +2160,7 @@ class CsvImportController
         }
 
         // Classificazione Dewey
-        if (empty($csvData['classificazione_dewey'] ?? null) && !empty($scrapedData['classificazione_dewey'] ?? null)) {
+        if ($allow('dewey') && empty($csvData['classificazione_dewey'] ?? null) && !empty($scrapedData['classificazione_dewey'] ?? null)) {
             // Validate Dewey format: 3 digits optionally followed by decimal point and 1-4 digits
             $deweyCode = trim((string) $scrapedData['classificazione_dewey']);
             if (preg_match('/^[0-9]{3}(\.[0-9]{1,4})?$/', $deweyCode)) {
@@ -2158,7 +2171,7 @@ class CsvImportController
         }
 
         // Anno pubblicazione
-        if (empty($csvData['anno_pubblicazione'] ?? null) && !empty($scrapedData['year'] ?? null)) {
+        if ($allow('anno') && empty($csvData['anno_pubblicazione'] ?? null) && !empty($scrapedData['year'] ?? null)) {
             $yearClean = preg_replace('/[^0-9]/', '', (string) $scrapedData['year']);
             if (is_numeric($yearClean) && strlen($yearClean) === 4) {
                 $updates[] = 'anno_pubblicazione = ?';
@@ -2168,14 +2181,14 @@ class CsvImportController
         }
 
         // Lingua
-        if (empty($csvData['lingua'] ?? null) && !empty($scrapedData['language'] ?? null)) {
+        if ($allow('lingua') && empty($csvData['lingua'] ?? null) && !empty($scrapedData['language'] ?? null)) {
             $updates[] = 'lingua = ?';
             $params[] = $scrapedData['language'];
             $types .= 's';
         }
 
         // Parole chiave
-        if (empty($csvData['parole_chiave'] ?? null) && !empty($scrapedData['keywords'] ?? null)) {
+        if ($allow('keywords') && empty($csvData['parole_chiave'] ?? null) && !empty($scrapedData['keywords'] ?? null)) {
             $updates[] = 'parole_chiave = ?';
             // Normalize keywords: handle both string and array formats
             $keywords = $scrapedData['keywords'];
@@ -2196,7 +2209,7 @@ class CsvImportController
         }
 
         // Add authors if missing
-        if (empty($csvData['autori']) && !empty($scrapedData['authors'])) {
+        if ($allow('authors') && empty($csvData['autori']) && !empty($scrapedData['authors'])) {
             $order = 1;
             foreach ($scrapedData['authors'] as $authorName) {
                 $authorName = trim($authorName);
@@ -2207,7 +2220,11 @@ class CsvImportController
                 $authorId = $authorResult['id'];
 
                 // Check if already linked
-                $checkStmt = $db->prepare("SELECT id FROM libri_autori WHERE libro_id = ? AND autore_id = ?");
+                // libri_autori has a composite PK (libro_id, autore_id, ruolo) —
+                // no `id` column: selecting it made this whole branch throw the
+                // first time scraping tried to add an author (pre-existing bug,
+                // surfaced by the #380 gate test).
+                $checkStmt = $db->prepare("SELECT 1 FROM libri_autori WHERE libro_id = ? AND autore_id = ? LIMIT 1");
                 $checkStmt->bind_param('ii', $bookId, $authorId);
                 $checkStmt->execute();
                 if ($checkStmt->get_result()->num_rows === 0) {
@@ -2222,7 +2239,7 @@ class CsvImportController
         }
 
         // Add publisher if missing
-        if (empty($csvData['editore']) && !empty($scrapedData['publisher'])) {
+        if ($allow('publisher') && empty($csvData['editore']) && !empty($scrapedData['publisher'])) {
             $publisherResult = $this->getOrCreatePublisher($db, $scrapedData['publisher']);
             $editorId = $publisherResult['id'];
 
