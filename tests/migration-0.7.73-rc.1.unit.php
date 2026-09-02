@@ -96,7 +96,13 @@ try {
     $check(array_key_exists('utente_id', $audit) && $audit['utente_id'] === null, 'deleting an operator preserves and detaches the audit row');
 
     $version = json_decode((string) file_get_contents($root . '/version.json'), true);
-    $check(($version['version'] ?? '') === '0.7.73-rc.1', 'release version includes the migration');
+    // Same comparison the Updater uses: the migration runs when its version
+    // sorts <= the release. Equality with the rc would break on the stable
+    // finalize (0.7.73-rc.1 <= 0.7.73 is the real invariant).
+    $check(
+        version_compare('0.7.73-rc.1', (string) ($version['version'] ?? '0'), '<='),
+        'release version includes the migration (0.7.73-rc.1 <= version.json)'
+    );
     $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
     $check(str_contains($schema, 'log_modifiche_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE SET NULL'), 'fresh-install schema has the same retention rule');
 } catch (Throwable $e) {

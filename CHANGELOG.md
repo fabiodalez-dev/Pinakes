@@ -2,15 +2,29 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [0.7.73-rc.1]
+## [0.7.73]
+
+A feature and hardening release: a full activity timeline for every book, per-field control over CSV imports, a circulation and settings hardening pass backed by ~140 new checks, and an immediate-effect fix for plugin activation.
 
 ### Added
 
-- **Activity feed for issue #374.** Admin and staff can inspect a field-level timeline at the bottom of each admin book page and a paginated library-wide feed at the bottom of the dashboard, filtered by event type and operator. Manual edits, physical copies, imports, enrichment, loans and reservations now write to the existing `log_modifiche` audit table; all interface strings are available in every shipped locale.
+- **Activity feed (issue #374).** Admin and staff can inspect a field-level timeline at the bottom of each admin book page and a paginated library-wide feed at the bottom of the dashboard. Both can be filtered by event type and operator, searched server-side by book title or operator name, and update in place via AJAX (filters, search and pagination swap the feed without a page reload; the list scrolls inside its own container). Manual edits, physical copies, imports, enrichment, loans and reservations write to the existing `log_modifiche` audit table; all interface strings ship in every locale.
+- **Per-field updates for existing books in CSV/TSV import (issue #380).** Eighteen field-family checkboxes — including twelve individual bibliographic fields (ISBN, EAN, title, subtitle, year, language, edition, pages, format, price, series, Dewey) — decide which data an import may overwrite on books already in the catalogue. Unchecked families are preserved untouched, and the post-import scraping enrichment honours the same selection.
 
 ### Changed
 
 - **Audit history survives operator deletion.** The `log_modifiche.utente_id` foreign key now uses `ON DELETE SET NULL`, while each new event also retains the operator display name in its JSON metadata. Existing installations receive the change through an idempotent migration.
+- **Audit events are atomic with their mutations.** Every circulation audit event is recorded inside the same transaction as the change it describes, with the before-snapshot taken after the row lock — a concurrent transition can no longer be misattributed. Automatic loan approvals are attributed to the system rather than to the requesting reader, and an expired pickup records its own `loan.expired` event instead of a generic cancellation.
+
+### Fixed
+
+- **Plugin activation now takes effect immediately.** The cross-request active-plugins + hooks payload was invalidated with a point delete, so a slower concurrent request could re-cache the pre-activation payload for up to 5 minutes and a freshly activated plugin's hooks stayed invisible. Invalidation now bumps a generation embedded in the cache key: stale writers land under the old generation, unreachable to every subsequent reader.
+- **Circulation hardening.** Notifications for archived titles are no longer silently lost (four sweep/notification fetches still filtered soft-deleted books after the loan had been expired on purpose); cancelling or expiring a pickup releases only a copy actually held for it (`prenotato`), never a copy physically out under another open loan; the reassignment allocator shares the canonical copy-preference ordering (issue #384); NCIP checkout replays return `duplicate-request` instead of consuming a second copy; the legacy maintenance script no longer nests transactions and flushes deferred promotion emails post-commit.
+- **Settings and themes hardening.** Activating a non-existent theme no longer deactivates every theme; the theme's custom CSS is actually rendered on the frontend (re-sanitized at render); the derived `--primary-dark` variable is emitted instead of falling back to a hardcoded colour; cookie-banner HTML descriptions are sanitized before persistence; the llms.txt API section renders when the API is enabled; settings inputs are hardened against array-typed POST values and out-of-range SMTP ports.
+
+### Testing
+
+- ~140 new checks land with this release: 106 circulation checks across four new suites plus an NCIP replay E2E, 31 settings/themes checks, a behavioural E2E for the loan-form UX (discussion #238), the CSV scraping-family gate, and the plugin-cache generation contract. The comprehensive browser suite grows to 145 tests.
 
 ## [0.7.72]
 
