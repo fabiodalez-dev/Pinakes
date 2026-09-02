@@ -182,12 +182,85 @@ try {
     $matchingOperators = array_filter($operators, static fn(array $operator): bool => $operator['id'] === $operatorId);
     $check(count($matchingOperators) === 1, 'operator filter options are read from audit rows');
 
+    // Readability contract: libro_id is hidden from the change list (the
+    // event is already anchored to its book) and utente_id resolves to the
+    // account's display name — "Utente 5" tells the reader nothing.
+    $check(
+        ActivityLog::recordBookEvent(
+            $db,
+            $bookId,
+            'inserimento',
+            'loan',
+            'loan.created',
+            [],
+            ['libro_id' => $bookId, 'utente_id' => $operatorId, 'stato' => 'in_corso', 'attivo' => 1, 'queue_position' => 3, 'origine' => 'richiesta'],
+            operatorId: ActivityLog::SYSTEM_OPERATOR,
+            bookTitle: $title,
+            source: 'backfill'
+        ),
+        'backfill-shaped loan event is written'
+    );
+    $readable = ActivityLog::forBook($db, $bookId, 1, 20);
+    $loanChanges = [];
+    foreach ($readable['items'] as $item) {
+        if (($item['event'] ?? '') === 'loan.created') {
+            foreach ($item['changes'] as $change) {
+                $loanChanges[$change['field']] = $change['after'];
+            }
+        }
+    }
+    $check(!array_key_exists('libro_id', $loanChanges), 'libro_id is hidden from the rendered change list');
+    $check(
+        !array_intersect_key($loanChanges, array_flip(['attivo', 'queue_position', 'origine'])),
+        'circulation bureaucracy fields (attivo, queue_position, origine) are hidden from loan cards'
+    );
+
+    // copia_id resolves to the copy inventory number ("which physical copy
+    // was picked up" is information; a bare id is not).
+    $db->query("INSERT INTO copie (libro_id, numero_inventario, stato) VALUES ({$bookId}, 'INV-374-TEST', 'disponibile')");
+    $copyId = (int) $db->insert_id;
+    $check(
+        ActivityLog::recordBookEvent(
+            $db,
+            $bookId,
+            'aggiornamento',
+            'loan',
+            'loan.picked_up',
+            ['stato' => 'da_ritirare'],
+            ['stato' => 'in_corso', 'copia_id' => $copyId],
+            operatorId: ActivityLog::SYSTEM_OPERATOR,
+            bookTitle: $title,
+            source: 'pickup'
+        ),
+        'pickup event with a copy reference is written'
+    );
+    $pickupFeed = ActivityLog::forBook($db, $bookId, 1, 20);
+    $copyValue = null;
+    foreach ($pickupFeed['items'] as $item) {
+        if (($item['event'] ?? '') === 'loan.picked_up') {
+            foreach ($item['changes'] as $change) {
+                if ($change['field'] === 'copia_id') {
+                    $copyValue = $change['after'];
+                }
+            }
+        }
+    }
+    $check($copyValue === 'INV-374-TEST', 'copia_id resolves to the copy inventory number');
+    $check(($loanChanges['utente_id'] ?? null) === 'Audit Operator', 'utente_id resolves to the account display name');
+
     $stmt = $db->prepare('DELETE FROM utenti WHERE id = ?');
     $stmt->bind_param('i', $operatorId);
     $stmt->execute();
     $stmt->close();
     $detachedFeed = ActivityLog::forBook($db, $bookId, 1, 20);
-    $check($detachedFeed['items'][0]['operator_name'] === 'Audit Operator', 'operator name survives account deletion in event metadata');
+    $detachedEnrich = null;
+    foreach ($detachedFeed['items'] as $item) {
+        if (($item['event'] ?? '') === 'enrich.updated') {
+            $detachedEnrich = $item;
+            break;
+        }
+    }
+    $check(($detachedEnrich['operator_name'] ?? null) === 'Audit Operator', 'operator name survives account deletion in event metadata');
 
     // SYSTEM_OPERATOR sentinel: an automatic action running inside a reader's
     // HTTP session must not be attributed to that session user.
@@ -215,9 +288,10 @@ try {
 
     // forBook type filter mirrors the dashboard allow-list behaviour.
     $loanOnly = ActivityLog::forBook($db, $bookId, 1, 20, null, 'loan');
-    $check($loanOnly['total'] === 1 && $loanOnly['items'][0]['type'] === 'loan', 'forBook type filter narrows to the requested type');
+    $loanTypes = array_unique(array_map(static fn(array $i): string => (string) $i['type'], $loanOnly['items']));
+    $check($loanOnly['total'] === 3 && $loanTypes === ['loan'], 'forBook type filter narrows to the requested type');
     $ignoredType = ActivityLog::forBook($db, $bookId, 1, 20, null, 'not-a-type');
-    $check($ignoredType['total'] === 3, 'forBook ignores out-of-allow-list types');
+    $check($ignoredType['total'] === 5, 'forBook ignores out-of-allow-list types');
 } catch (Throwable $e) {
     $db->rollback();
     $db->close();

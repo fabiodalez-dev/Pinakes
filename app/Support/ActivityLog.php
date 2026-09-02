@@ -27,8 +27,24 @@ final class ActivityLog
      */
     public const SYSTEM_OPERATOR = 0;
 
+    /**
+     * Bureaucracy fields hidden from CIRCULATION event cards: the header
+     * already tells the story (event + date), the requested period stays via
+     * data_inizio/fine_richiesta, and queue positions/duplicate datetime
+     * pairs only add noise (production feedback, 2026-09-02).
+     */
+    private const LOAN_NOISE_FIELDS = [
+        'queue_position',
+        'data_prenotazione',
+        'data_scadenza_prenotazione',
+        'attivo',
+        'renewals',
+        'origine',
+    ];
+
     private const HIDDEN_FIELDS = [
         '_activity',
+        'libro_id',
         'descrizione_plain',
         'search_index',
         'updated_at',
@@ -498,11 +514,15 @@ final class ActivityLog
         $after = self::decodeSnapshot($row['dati_nuovi'] ?? null);
         $meta = isset($after['_activity']) && is_array($after['_activity']) ? $after['_activity'] : [];
         unset($after['_activity']);
+        $type = (string) ($meta['type'] ?? 'edit');
 
         $changes = [];
         $keys = array_unique(array_merge(array_keys($before), array_keys($after)));
         foreach ($keys as $key) {
             if (in_array($key, self::HIDDEN_FIELDS, true)) {
+                continue;
+            }
+            if ($type === 'loan' && in_array($key, self::LOAN_NOISE_FIELDS, true)) {
                 continue;
             }
             $old = $before[$key] ?? null;
@@ -514,7 +534,7 @@ final class ActivityLog
         }
 
         $row['meta'] = $meta;
-        $row['type'] = (string) ($meta['type'] ?? 'edit');
+        $row['type'] = $type;
         $row['event'] = (string) ($meta['event'] ?? '');
         $row['book_title'] = (string) ($row['book_title'] ?? $meta['book_title'] ?? '');
         $row['operator_name'] = (string) ($row['operator_name'] ?? $meta['operator_name'] ?? '');
@@ -703,10 +723,133 @@ final class ActivityLog
             }
             $stmt->close();
 
+            $items = self::resolveUserReferences($db, $items);
+            $items = self::resolveCopyReferences($db, $items);
             return ['items' => $items, 'page' => $page, 'pages' => $pages, 'total' => $total];
         } catch (\Throwable $e) {
             SecureLogger::warning('ActivityLog read failed', ['error' => $e->getMessage()]);
             return ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
         }
+    }
+
+    /**
+     * Replace raw copia_id values with the copy's inventory number — "which
+     * physical copy was picked up" is real information, a bare id is not.
+     * Same batch pattern as resolveUserReferences; '#id' fallback for a
+     * copy that no longer exists.
+     *
+     * @param list<array<string,mixed>> $items
+     * @return list<array<string,mixed>>
+     */
+    private static function resolveCopyReferences(mysqli $db, array $items): array
+    {
+        $ids = [];
+        foreach ($items as $item) {
+            foreach (($item['changes'] ?? []) as $change) {
+                if (($change['field'] ?? '') !== 'copia_id') {
+                    continue;
+                }
+                foreach (['before', 'after'] as $side) {
+                    $value = $change[$side] ?? null;
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $ids[(int) $value] = true;
+                    }
+                }
+            }
+        }
+        if ($ids === []) {
+            return $items;
+        }
+
+        $labels = [];
+        try {
+            $list = implode(',', array_keys($ids));
+            $result = $db->query("SELECT id, numero_inventario FROM copie WHERE id IN ({$list})");
+            while ($result && ($row = $result->fetch_assoc())) {
+                $label = trim((string) ($row['numero_inventario'] ?? ''));
+                if ($label !== '') {
+                    $labels[(int) $row['id']] = $label;
+                }
+            }
+        } catch (\Throwable) {
+            return $items;
+        }
+
+        foreach ($items as &$item) {
+            foreach ($item['changes'] as &$change) {
+                if (($change['field'] ?? '') !== 'copia_id') {
+                    continue;
+                }
+                foreach (['before', 'after'] as $side) {
+                    $value = $change[$side] ?? null;
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $change[$side] = $labels[(int) $value] ?? ('#' . (int) $value);
+                    }
+                }
+            }
+        }
+        unset($item, $change);
+
+        return $items;
+    }
+
+    /**
+     * Replace raw utente_id values in the decoded change lists with the
+     * user's display name ("Utente 5" tells the reader nothing). One query
+     * for the whole page of items; a deleted account falls back to "#id".
+     *
+     * @param list<array<string,mixed>> $items
+     * @return list<array<string,mixed>>
+     */
+    private static function resolveUserReferences(mysqli $db, array $items): array
+    {
+        $ids = [];
+        foreach ($items as $item) {
+            foreach (($item['changes'] ?? []) as $change) {
+                if (($change['field'] ?? '') !== 'utente_id') {
+                    continue;
+                }
+                foreach (['before', 'after'] as $side) {
+                    $value = $change[$side] ?? null;
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $ids[(int) $value] = true;
+                    }
+                }
+            }
+        }
+        if ($ids === []) {
+            return $items;
+        }
+
+        $names = [];
+        try {
+            $list = implode(',', array_keys($ids));
+            $result = $db->query("SELECT id, TRIM(CONCAT(nome, ' ', cognome)) AS name FROM utenti WHERE id IN ({$list})");
+            while ($result && ($row = $result->fetch_assoc())) {
+                $name = trim((string) ($row['name'] ?? ''));
+                if ($name !== '') {
+                    $names[(int) $row['id']] = $name;
+                }
+            }
+        } catch (\Throwable) {
+            return $items;
+        }
+
+        foreach ($items as &$item) {
+            foreach ($item['changes'] as &$change) {
+                if (($change['field'] ?? '') !== 'utente_id') {
+                    continue;
+                }
+                foreach (['before', 'after'] as $side) {
+                    $value = $change[$side] ?? null;
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $change[$side] = $names[(int) $value] ?? ('#' . (int) $value);
+                    }
+                }
+            }
+        }
+        unset($item, $change);
+
+        return $items;
     }
 }

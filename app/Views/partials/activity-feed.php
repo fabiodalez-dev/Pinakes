@@ -25,6 +25,18 @@ $renderActivityValue = static function (mixed $value, string $field): string {
         if ($label !== null) {
             return __($label);
         }
+        // Bare ISO dates read poorly ("2026-07-07"): render them in the
+        // same localized format the event header already uses. Sentinel
+        // boundary times (midnight / 23:59) are storage artifacts, not
+        // information: show the date alone.
+        if (preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/', $value) === 1) {
+            $boundary = preg_match('/ (00:00|23:59)(:\d{2})?$/', $value) === 1;
+            return format_date($value, str_contains($value, ':') && !$boundary, '/');
+        }
+        // A resolved-but-deleted account comes through as '#<id>'.
+        if ($field === 'utente_id' && preg_match('/^#(\d+)$/', $value, $m) === 1) {
+            return sprintf(__('Account eliminato (#%d)'), (int) $m[1]);
+        }
     }
     if (is_array($value)) {
         return (string) json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -192,6 +204,10 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
                               <span class="break-words"><?= htmlspecialchars((string) ($renderActivityValue($change['after'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                             <?php elseif (($activity['azione'] ?? '') === 'cancellazione'): ?>
                               <span class="break-words line-through text-gray-500"><?= htmlspecialchars((string) ($renderActivityValue($change['before'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
+                            <?php elseif ($change['before'] === null || $change['before'] === ''): ?>
+                              <?php /* Nothing meaningful was replaced: "Non impostato ➜ X"
+                                       repeated on every row is clutter — show the value alone. */ ?>
+                              <span class="break-words"><?= htmlspecialchars((string) ($renderActivityValue($change['after'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                             <?php else: ?>
                               <span class="break-words text-gray-500 line-through"><?= htmlspecialchars((string) ($renderActivityValue($change['before'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                               <i class="fas fa-arrow-right mx-2 text-xs text-gray-400" aria-hidden="true"></i>
