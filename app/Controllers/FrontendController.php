@@ -2441,7 +2441,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $eventsFeatureEnabled = false;
         try {
             $settingsRepository = new \App\Models\SettingsRepository($db);
-            $eventsFeatureEnabled = $settingsRepository->get('cms', 'events_page_enabled', '0') === '1';
+            $eventsFeatureEnabled = $settingsRepository->get('cms', 'events_page_enabled', '1') === '1';
         } catch (\Throwable $e) {
             $eventsFeatureEnabled = false;
         }
@@ -2793,7 +2793,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
 
         // Check if events page is enabled
         $repository = new \App\Models\SettingsRepository($db);
-        $eventsEnabled = $repository->get('cms', 'events_page_enabled', '0');
+        $eventsEnabled = $repository->get('cms', 'events_page_enabled', '1');
 
         if ($eventsEnabled !== '1') {
             // Events page disabled, return 404
@@ -2861,7 +2861,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
 
         // Check if events page is enabled
         $repository = new \App\Models\SettingsRepository($db);
-        $eventsEnabled = $repository->get('cms', 'events_page_enabled', '0');
+        $eventsEnabled = $repository->get('cms', 'events_page_enabled', '1');
 
         if ($eventsEnabled !== '1') {
             $response->getBody()->write('Pagina non trovata');

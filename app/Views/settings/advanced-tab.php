@@ -807,6 +807,7 @@ use App\Support\HtmlHelper;
 
     <div id="api-section-content" class="p-6 space-y-6 max-sm:!p-0">
       <!-- Enable/Disable API -->
+      <?php if (!empty($isAdmin)): ?>
       <form action="<?= htmlspecialchars(url('/admin/settings/api/toggle'), ENT_QUOTES, 'UTF-8') ?>" method="post" id="api-toggle-form">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
@@ -827,6 +828,17 @@ use App\Support\HtmlHelper;
           </label>
         </div>
       </form>
+      <?php else: ?>
+      <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+        <div>
+          <h4 class="text-sm font-semibold text-gray-900"><?= __("Stato API") ?></h4>
+          <p class="text-xs text-gray-600 mt-1"><?= __("Operazione riservata agli amministratori") ?></p>
+        </div>
+        <span class="text-sm font-semibold <?= $apiEnabled ? 'text-green-700' : 'text-gray-500' ?>">
+          <?= $apiEnabled ? __("Attiva") : __("Disattivata") ?>
+        </span>
+      </div>
+      <?php endif; ?>
 
       <!-- <?= __("API Keys") ?> Management -->
       <?php if (!empty($isAdmin)): ?>

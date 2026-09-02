@@ -300,6 +300,9 @@ $htmlLang = substr($currentLocale, 0, 2);
             --primary-focus:
                 <?= htmlspecialchars($themePalette['primary_focus'], ENT_QUOTES, 'UTF-8') ?>
             ;
+            --primary-dark:
+                <?= htmlspecialchars($themePalette['primary_dark'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
             --secondary-color:
                 <?= htmlspecialchars($themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>
             ;
@@ -1505,6 +1508,25 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         <?= $additional_css ?? '' ?>
     </style>
+
+    <?php
+    // Active theme's "CSS Personalizzato" (settings.advanced.custom_css, saved
+    // by ThemeController). Sanitized again at render time — defense in depth,
+    // same as the custom_header_css partial below. Unavailable in the
+    // no-container fallback branch (no $themeManager there).
+    $themeCustomCss = '';
+    if (isset($themeManager)) {
+        $themeAdvanced = $themeManager->getAdvancedSettings($activeTheme ?? null);
+        $themeCustomCss = is_string($themeAdvanced['custom_css'] ?? null)
+            ? ContentSanitizer::sanitizeCustomCss($themeAdvanced['custom_css'])
+            : '';
+    }
+    if ($themeCustomCss !== ''):
+        ?>
+        <style>
+            <?= $themeCustomCss ?>
+        </style>
+    <?php endif; ?>
 
     <?php
     // Load custom CSS from settings (shared partial — also used by the auth
