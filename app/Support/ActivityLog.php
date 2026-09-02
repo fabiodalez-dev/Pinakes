@@ -54,6 +54,7 @@ final class ActivityLog
         'loan.returned' => 'Prestito restituito',
         'loan.renewed' => 'Prestito rinnovato',
         'loan.cancelled' => 'Prestito annullato',
+        'loan.expired' => 'Ritiro del prestito scaduto',
         'reservation.created' => 'Prenotazione creata',
         'reservation.updated' => 'Prenotazione aggiornata',
         'reservation.cancelled' => 'Prenotazione annullata',
@@ -638,7 +639,10 @@ final class ActivityLog
             $params[] = $bookId;
         }
         if ($type !== null) {
-            $where[] = "JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(lm.dati_nuovi) THEN lm.dati_nuovi ELSE '{}' END, '$._activity.type')) = ?";
+            // COALESCE mirrors decodeRow(): legacy rows without _activity.type
+            // render as 'edit' in the feed, so the SQL filter must classify
+            // them the same way or filtering by 'edit' would hide them.
+            $where[] = "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(lm.dati_nuovi) THEN lm.dati_nuovi ELSE '{}' END, '$._activity.type')), 'edit') = ?";
             $types .= 's';
             $params[] = $type;
         }
