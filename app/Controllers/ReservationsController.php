@@ -515,6 +515,18 @@ class ReservationsController
                         throw new \RuntimeException('Failed to recalculate availability after automatic copy claim.');
                     }
                 }
+                // Audit inside the transaction: recorded after commit, a
+                // concurrent request could mutate the loan before the snapshot
+                // read and the event would capture the wrong state. The audit
+                // helper swallows its own failures, so it cannot abort the tx.
+                \App\Support\ActivityLog::recordLoanEvent(
+                    $this->db,
+                    $loanRequestId,
+                    'loan.created',
+                    action: 'inserimento',
+                    source: 'book_request',
+                    operatorId: $userId
+                );
                 $this->db->commit();
 
                 // #301: honour the automatic-approval setting on THIS entry point

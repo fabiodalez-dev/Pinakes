@@ -170,6 +170,7 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
 
         try {
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
@@ -638,6 +639,17 @@ class LoanApprovalController
             }
 
             $db->commit();
+            // Automatic approvals run inside the requesting reader's HTTP
+            // session: without an explicit operator the audit event would be
+            // attributed to the reader, an action they cannot perform.
+            \App\Support\ActivityLog::recordLoanEvent(
+                $db,
+                $loanId,
+                'loan.approved',
+                $activityBefore,
+                source: 'approval',
+                operatorId: $automaticApproval ? \App\Support\ActivityLog::SYSTEM_OPERATOR : null
+            );
 
             // Send appropriate notification to user. Issue #301 explicitly keeps
             // the approval email in the auto-approval flow; manual immediate
@@ -748,6 +760,7 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
 
         // Canonical lock order: resolve the book without locking, lock `libri`
         // first, then lock the pending loan. DataIntegrity locks the same book
@@ -877,6 +890,7 @@ class LoanApprovalController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $loanId, 'loan.cancelled', $activityBefore, source: 'rejection');
 
             // Notifiche accodate durante la transazione esterna (P2): inviale ora
             // che il commit è avvenuto, come fa MaintenanceService.
@@ -942,6 +956,7 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
 
         try {
             $db->begin_transaction();
@@ -1123,6 +1138,7 @@ class LoanApprovalController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $loanId, 'loan.picked_up', $activityBefore, source: 'pickup');
 
             $response->getBody()->write(json_encode([
                 'success' => true,
@@ -1171,6 +1187,7 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
 
         try {
             $today = DateHelper::today();
@@ -1329,6 +1346,7 @@ class LoanApprovalController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $loanId, 'loan.cancelled', $activityBefore, source: 'pickup');
 
             // Send deferred reservation notifications AFTER commit (outside transaction)
             $reassignmentService->flushDeferredNotifications();
@@ -1390,6 +1408,7 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
 
         try {
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
@@ -1521,6 +1540,7 @@ class LoanApprovalController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $loanId, 'loan.returned', $activityBefore, source: 'return');
 
             // Send deferred notifications after commit
             if ($reassignmentService) {
@@ -1595,6 +1615,7 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prenotazione non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $reservationId);
 
         try {
             $db->begin_transaction();
@@ -1715,6 +1736,13 @@ class LoanApprovalController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordReservationEvent(
+                $db,
+                $reservationId,
+                'reservation.cancelled',
+                $activityBefore,
+                source: 'admin'
+            );
 
             // Notifiche accodate durante la transazione esterna (P2): inviale ora
             // che il commit è avvenuto, come fa MaintenanceService.

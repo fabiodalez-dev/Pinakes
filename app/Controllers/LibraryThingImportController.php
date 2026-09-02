@@ -1587,6 +1587,7 @@ class LibraryThingImportController
 
     private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId): void
     {
+        $activityBefore = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
         // Check if LibraryThing plugin is installed
         $hasLTFields = \App\Support\LibraryThingInstaller::isInstalled($db);
 
@@ -1763,6 +1764,19 @@ class LibraryThingImportController
             }
             // If row exists but unchanged, that's fine — continue
         }
+
+        $activityAfter = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
+        \App\Support\ActivityLog::recordBookEvent(
+            $db,
+            $bookId,
+            'aggiornamento',
+            'import',
+            'import.updated',
+            $activityBefore,
+            $activityAfter,
+            bookTitle: (string) ($activityAfter['titolo'] ?? $activityBefore['titolo'] ?? ''),
+            source: 'librarything'
+        );
     }
 
     private function insertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): int
@@ -1973,6 +1987,19 @@ class LibraryThingImportController
             throw new \RuntimeException(__('Impossibile ricalcolare la disponibilità del libro importato'));
         }
 
+        $activityAfter = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
+        \App\Support\ActivityLog::recordBookEvent(
+            $db,
+            $bookId,
+            'inserimento',
+            'import',
+            'import.created',
+            [],
+            $activityAfter,
+            bookTitle: (string) ($activityAfter['titolo'] ?? $data['titolo'] ?? ''),
+            source: 'librarything'
+        );
+
         return $bookId;
     }
 
@@ -2025,6 +2052,7 @@ class LibraryThingImportController
      */
     private function enrichBookWithScrapedData(\mysqli $db, int $bookId, array $csvData, array $scrapedData): void
     {
+        $activityBefore = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
         $updates = [];
         $params = [];
         $types = '';
@@ -2070,6 +2098,21 @@ class LibraryThingImportController
             $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $stmt->close();
+        }
+
+        $activityAfter = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
+        if ($activityBefore !== $activityAfter) {
+            \App\Support\ActivityLog::recordBookEvent(
+                $db,
+                $bookId,
+                'aggiornamento',
+                'enrich',
+                'enrich.updated',
+                $activityBefore,
+                $activityAfter,
+                bookTitle: (string) ($activityAfter['titolo'] ?? $activityBefore['titolo'] ?? ''),
+                source: 'librarything_scraping'
+            );
         }
     }
 

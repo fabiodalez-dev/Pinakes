@@ -691,6 +691,14 @@ class PrestitiController
 
             $db->commit();
 
+            \App\Support\ActivityLog::recordLoanEvent(
+                $db,
+                $newLoanId,
+                'loan.created',
+                action: 'inserimento',
+                source: 'manual'
+            );
+
             // Create in-app notification for new loan
             try {
                 $notificationService = new \App\Support\NotificationService($db);
@@ -845,6 +853,7 @@ class PrestitiController
         if (!$current) {
             return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
         }
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
         // Rifiuta la modifica di un prestito CHIUSO: editarlo non deve riattivarlo
         // (I1/I2 — BUG1). Un prestito è chiuso se attivo=0 o data_restituzione valorizzata.
         // (Ri-verificato più sotto, sotto lock.)
@@ -1244,6 +1253,7 @@ class PrestitiController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $activityBefore, source: 'manual');
         } catch (\mysqli_sql_exception $e) {
             $db->rollback();
             // A trigger SIGNAL (e.g. I7) surfaces here under STRICT mode — never a 500.
@@ -1263,11 +1273,15 @@ class PrestitiController
         }
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\LoanRepository($db);
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
         // false = prestito inesistente o non chiudibile (guardia di stato H1):
         // segnala invece di fingere il successo.
         if (!$repo->close($id)) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_closable')->withStatus(302);
         }
+        // Same audit contract as processReturn(): the legacy endpoint closes
+        // the same loans and must leave the same trail.
+        \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.returned', $activityBefore, source: 'manual');
 
         // Legacy close endpoint shares the same post-commit notification
         // contract as processReturn/quick return.
@@ -1337,6 +1351,7 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
@@ -1527,6 +1542,7 @@ class PrestitiController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.returned', $activityBefore, source: 'manual');
 
             // Send deferred notifications after commit. Each action is isolated
             // in its own try/catch: the data is already durably committed, so a
@@ -1854,6 +1870,9 @@ class PrestitiController
                 // null == a capacity/copy conflict: roll the WHOLE batch back so
                 // no partial extension is committed (same all-or-nothing contract
                 // the tests pin). A thrown error is handled by the outer catch.
+                // Before-snapshot inside the lock, so the audit diff shows the
+                // pre-extension due date (same event renew() records).
+                $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, (int) $loan['id']);
                 $applied = $this->applyBulkLoanExtension(
                     $loan,
                     $days,
@@ -1868,6 +1887,9 @@ class PrestitiController
                     $update->close();
                     $db->rollback();
                     return $response->withHeader('Location', $backUrl . '?error=bulk_extend_conflict')->withStatus(302);
+                }
+                if ($applied > 0) {
+                    \App\Support\ActivityLog::recordLoanEvent($db, (int) $loan['id'], 'loan.renewed', $activityBefore, source: 'manual');
                 }
                 $extended += $applied;
             }
@@ -1984,6 +2006,7 @@ class PrestitiController
 
         $loan = $result->fetch_assoc();
         $stmt->close();
+        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
 
         // Check if loan is active
         if ((int) $loan['attivo'] !== 1) {
@@ -2197,6 +2220,7 @@ class PrestitiController
             }
 
             $db->commit();
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.renewed', $activityBefore, source: 'manual');
             $_SESSION['success_message'] = __('Prestito rinnovato correttamente. Nuova scadenza: %s', format_date($newDueDate, false, '/'));
 
             // Conferma al lettore con la NUOVA scadenza, DOPO il commit: prima
