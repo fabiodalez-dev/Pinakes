@@ -2,6 +2,12 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.74]
+
+### Fixed
+
+- **The activity timeline now includes pre-existing circulation.** The feed shipped in 0.7.73 recorded events from the moment of the action only, so every upgraded install started with an empty timeline even for books currently on loan. An idempotent migration backfills one `loan.created` event per existing loan (plus `loan.returned` for closed ones) and one `reservation.created` per reservation, with the historical timestamps, a NULL operator (rendered as "Sistema") and `source=backfill`; loans already audited for real are left untouched.
+
 ## [0.7.73]
 
 A feature and hardening release: a full activity timeline for every book, per-field control over CSV imports, a circulation and settings hardening pass backed by ~140 new checks, and an immediate-effect fix for plugin activation.

@@ -41,7 +41,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.73 — latest
+### v0.7.74 — latest
+
+A follow-up fix: the activity timeline introduced in 0.7.73 now backfills the existing circulation history, so books already on loan show their events right after the upgrade instead of an empty timeline.
+
+### v0.7.73
 
 A feature and hardening release: every book now has a full activity timeline, CSV imports let you choose field by field what an update may overwrite, and a broad circulation/settings hardening pass lands with ~140 new automated checks.
 
@@ -55,14 +59,6 @@ A feature and hardening release: every book now has a full activity timeline, CS
 - Plugin activation takes effect immediately (a cache race could delay a plugin's hooks by up to 5 minutes).
 - Circulation: archived-title notifications are no longer lost, pickup cancel/expiry can never free a copy that is physically out under another loan, and NCIP checkout replays are idempotent.
 - Settings/themes: theme custom CSS actually renders, activating a broken theme id no longer disables all themes, cookie-banner texts are sanitized, and settings inputs are hardened.
-
-### v0.7.72
-
-A small usability release: the two cache-maintenance controls on *Settings → Advanced* are unified into one.
-
-### Changed
-
-- **A single "Svuota cache" button clears every cache.** It always flushes the application query cache (APCu or file backend, shown as a hint) and additionally purges the LiteSpeed edge cache where the server actually runs LiteSpeed — so a non-LiteSpeed install no longer shows a control it can't use, and a LiteSpeed install no longer shows two buttons. The flush runs inside the web request, so it reaches the same APCu segment that serves pages, which a CLI command cannot.
 
 ## Quick Start
 
