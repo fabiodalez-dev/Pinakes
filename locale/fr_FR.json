@@ -2033,7 +2033,6 @@
   "I dati attuali verranno sostituiti.": "Les données actuelles seront remplacées.",
   "I dati devono essere un array non vuoto.": "Les données doivent être un tableau non vide.",
   "I dati provengono dal file JSON, nessun seeding necessario.": "Les données proviennent du fichier JSON, aucun seeding nécessaire.",
-  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati senza modificare le copie fisiche": "Les doublons (par ID, ISBN13 ou EAN) sont mis à jour sans modifier les exemplaires physiques",
   "I filtri correnti sono stati salvati nell'URL": "Les filtres actuels ont été enregistrés dans l'URL",
   "I filtri vengono applicati automaticamente mentre digiti": "Les filtres sont appliqués automatiquement pendant la saisie",
   "I libri degli altri autori verranno assegnati a questo": "Les livres des autres auteurs seront assignés à celui-ci",
@@ -7010,5 +7009,12 @@
   "Impossibile svuotare completamente la cache dell'applicazione. Controlla i permessi di storage/cache.": "Impossible de vider entièrement le cache de l'application. Vérifiez les permissions de storage/cache.",
   "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito tutta la cache: le query interne (scheda libro, recensioni, elenchi di catalogo e ricerca) e, se il server è LiteSpeed, anche le pagine memorizzate nell'edge cache.": "Les modifications de contenu invalident déjà le cache automatiquement. Utilisez ce bouton pour vider immédiatement tout le cache : les requêtes internes (fiche du livre, avis, listes du catalogue et de recherche) et, si le serveur utilise LiteSpeed, aussi les pages stockées dans le cache edge.",
   "Svuota cache": "Vider le cache",
-  "Cache svuotata.": "Cache vidé."
+  "Cache svuotata.": "Cache vidé.",
+  "Libri già presenti: quali dati aggiornare": "Livres déjà présents : quelles données mettre à jour",
+  "Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.": "Pour les livres déjà au catalogue (reconnus par ID, ISBN ou EAN), seules les données sélectionnées sont remplacées par les valeurs du CSV. Les données non sélectionnées restent inchangées. Les nouveaux livres importent toujours toutes les données.",
+  "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Contributeurs (co-auteurs, traducteurs, illustrateurs, directeurs de publication, coloristes)",
+  "Dati bibliografici": "Données bibliographiques",
+  "Collana e numero di serie": "Collection et numéro de série",
+  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "Les doublons (reconnus par ID, ISBN13 ou EAN) sont mis à jour selon la sélection « Livres déjà présents » ; les exemplaires physiques ne sont jamais modifiés",
+  "Per conservare un campo, deselezionalo: in una famiglia selezionata, una cella CSV vuota può cancellare il valore esistente.": "Pour conserver un champ, décochez-le : dans une famille sélectionnée, une cellule CSV vide peut effacer la valeur existante."
 }

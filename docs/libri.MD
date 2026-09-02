@@ -257,6 +257,8 @@ Endpoint JSON di sola lettura / supporto al form:
 #### Importazione (CSV/TSV, LibraryThing)
 - **UI**: `GET /admin/libri/import` (esempio scaricabile da `/admin/libri/import/example`)
 - **Upload**: `POST /admin/libri/import/upload`, elaborazione a chunk via `POST /admin/libri/import/chunk` con progress su `GET /admin/libri/import/progress`
+- **Formati**: delimitatore `;`, `,` o TAB (rilevato automaticamente). Il file deve avere estensione `.csv` — un TSV va quindi caricato come contenuto tab-delimitato con nome `.csv`.
+- **Libri già presenti (issue #380)**: per i libri riconosciuti (per ID, ISBN o EAN) la pagina di import offre una selezione **"Libri già presenti: quali dati aggiornare"** — 18 caselle, tutte attive di default: 6 famiglie (Autori, Contributori, Editore, Genere, Parole chiave, Descrizione) più 12 campi bibliografici individuali (ISBN, EAN, titolo, sottotitolo, anno, lingua, edizione, pagine, formato, prezzo, collana e numero di serie, Dewey). I dati **selezionati** vengono sovrascritti con i valori del CSV; quelli **deselezionati** restano invariati (nessuna scrittura, nessuna entità creata). Anche l'**arricchimento via scraping** rispetta la stessa selezione. I libri nuovi importano sempre tutti i dati. In una famiglia selezionata, una cella vuota segue le normali regole dell'import e può cancellare il valore esistente: per conservarlo occorre deselezionare il campo. Le copie fisiche non vengono mai modificate dall'import.
 - **LibraryThing**: rotte dedicate sotto `/admin/libri/import/librarything/*` (disponibili con il plugin LibraryThing)
 
 #### Esportazione

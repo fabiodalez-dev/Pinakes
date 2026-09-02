@@ -19,6 +19,40 @@ class CsvImportController
      */
     private const CHUNK_SIZE = 10;
 
+    /**
+     * #380: per-family "Libri già presenti" checkboxes. Each family checked =
+     * update exactly as before; unchecked = that family is fully preserved on
+     * existing books (a true no-op). Created books always import everything.
+     *
+     * Six entity families plus one family per bibliographic field:
+     * isbn → isbn10+isbn13; ean → ean; formato → formato+tipo_media;
+     * collana → collana+numero_serie (+ series membership sync);
+     * anno → anno_pubblicazione; pagine → numero_pagine;
+     * dewey → classificazione_dewey.
+     *
+     * @var list<string>
+     */
+    private const UPDATE_FIELD_FAMILIES = [
+        'authors',
+        'contributors',
+        'publisher',
+        'genre',
+        'keywords',
+        'description',
+        'isbn',
+        'ean',
+        'titolo',
+        'sottotitolo',
+        'anno',
+        'lingua',
+        'edizione',
+        'pagine',
+        'formato',
+        'prezzo',
+        'collana',
+        'dewey',
+    ];
+
     /** @var bool|null Cached result of tipo_media column existence check */
     private ?bool $cachedHasTipoMedia = null;
 
@@ -221,6 +255,15 @@ class CsvImportController
             return $response->withHeader('Location', url('/admin/books/import'))->withStatus(302);
         }
 
+        // #380: which field families an import may update on books that already
+        // exist (matched by ID/ISBN/EAN). The checkboxes are always rendered
+        // and all checked by default, so a key absent from the POST means the
+        // user deliberately unchecked it (browsers omit unchecked checkboxes).
+        $updateFields = [];
+        foreach (self::UPDATE_FIELD_FAMILIES as $family) {
+            $updateFields[$family] = isset($data['update_' . $family]);
+        }
+
         // Store import metadata in session
         $_SESSION['csv_import_data'] = [
             'file_path' => $savedFilePath,
@@ -228,6 +271,7 @@ class CsvImportController
             'delimiter' => $delimiter,
             'total_rows' => $totalRows,
             'enable_scraping' => !empty($data['enable_scraping']),
+            'update_fields' => $updateFields,
             'imported' => 0,
             'updated' => 0,
             'scraped' => 0,
@@ -280,6 +324,15 @@ class CsvImportController
         $chunkSize = max(1, min($chunkSize, self::CHUNK_SIZE)); // Capped at CHUNK_SIZE
 
         $enableScraping = (bool) ($importData['enable_scraping'] ?? false);
+
+        // #380: field families the user allowed this import to update on books
+        // that already exist. A family absent from the session (pre-#380 upload
+        // or tampered payload) defaults to true — the historical behavior.
+        $sessionFields = is_array($importData['update_fields'] ?? null) ? $importData['update_fields'] : [];
+        $updateFields = [];
+        foreach (self::UPDATE_FIELD_FAMILIES as $family) {
+            $updateFields[$family] = (bool) ($sessionFields[$family] ?? true);
+        }
 
         // Scraping is slow (one external lookup per row): force a single row per
         // chunk so the request stays well under the fetch/server timeout.
@@ -349,11 +402,22 @@ class CsvImportController
                 }
                 $parsedData = $this->parseCsvRow($row);
 
-                if (empty($parsedData['titolo'])) {
+                $db->begin_transaction();
+
+                // Resolve the target before creating any related entity. On an
+                // existing book an unchecked publisher/genre family must be a
+                // true no-op: creating an unlinked editor/genre from the CSV is
+                // still a catalogue mutation and leaves orphan rows behind.
+                $existingBookId = $this->findExistingBook($db, $parsedData);
+                $isExistingBook = $existingBookId !== null;
+
+                // A title is mandatory for new books and when the title family
+                // is selected. For a row matched by ID/ISBN/EAN with Titolo
+                // unchecked, however, a blank cell must be a true no-op: the
+                // existing NOT NULL title is restored by updateBook().
+                if (empty($parsedData['titolo']) && (!$isExistingBook || $updateFields['titolo'])) {
                     throw new \Exception(__('Titolo mancante'));
                 }
-
-                $db->begin_transaction();
 
                 // Resolve publisher(s). The exporter joins ALL publishers
                 // (primary + co-publishers from libri_editori, #143) into the
@@ -363,7 +427,7 @@ class CsvImportController
                 $editorId = null;
                 $coPublisherIds = [];
                 $publisherCellHasMultiple = false;
-                if (!empty($parsedData['editore'])) {
+                if ((!$isExistingBook || $updateFields['publisher']) && !empty($parsedData['editore'])) {
                     $publisherNames = array_values(array_filter(
                         array_map('trim', explode(';', (string) $parsedData['editore'])),
                         static fn (string $n): bool => $n !== ''
@@ -387,17 +451,32 @@ class CsvImportController
                 // existing rows and returned NULL for anything new — so a genre
                 // present in the export vanished on re-import — unlike the
                 // authors/publishers auto-create paths.
-                $genreId = $this->getOrCreateGenre($db, $parsedData['genere'] ?? '', $importData);
+                $genreId = (!$isExistingBook || $updateFields['genre'])
+                    ? $this->getOrCreateGenre($db, $parsedData['genere'] ?? '', $importData)
+                    : null;
 
                 // Upsert book
-                $upsertResult = $this->upsertBook($db, $parsedData, $editorId, $genreId);
+                $upsertResult = $this->upsertBook(
+                    $db,
+                    $parsedData,
+                    $editorId,
+                    $genreId,
+                    $updateFields,
+                    $existingBookId
+                );
                 $bookId = $upsertResult['id'];
                 $action = $upsertResult['action'];
+
+                // #380: on an existing book each unchecked family is fully
+                // preserved. Created books always import everything.
+                $applyFamily = static function (string $family) use ($action, $updateFields): bool {
+                    return $action === 'created' || $updateFields[$family];
+                };
 
                 // Import the co-publishers (#12/#143) ONLY when the cell actually
                 // carried more than one publisher, so a single-publisher CSV never
                 // wipes co-publishers a librarian curated in the admin form.
-                if ($publisherCellHasMultiple) {
+                if ($publisherCellHasMultiple && $applyFamily('publisher')) {
                     $this->syncImportedCoPublishers($db, $bookId, $editorId, $coPublisherIds);
                 }
 
@@ -413,7 +492,9 @@ class CsvImportController
                 // principal authors — a blanket delete-when-updated left the book
                 // permanently authorless whenever a re-imported row omitted the
                 // author (#22).
-                if ($action === 'updated' && !empty($parsedData['autori'])) {
+                // #380: with the Autori checkbox off, an existing book's
+                // principal links are fully preserved (no delete, no rewrite).
+                if ($action === 'updated' && $applyFamily('authors') && !empty($parsedData['autori'])) {
                     $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ? AND ruolo = 'principale'");
                     $stmt->bind_param('i', $bookId);
                     $stmt->execute();
@@ -421,7 +502,7 @@ class CsvImportController
                 }
 
                 // Handle authors
-                if (!empty($parsedData['autori'])) {
+                if (!empty($parsedData['autori']) && $applyFamily('authors')) {
                     $separator = strpos($parsedData['autori'], ';') !== false ? ';' : '|';
                     $authors = array_map('trim', explode($separator, $parsedData['autori']));
                     $authorOrder = 1;
@@ -462,7 +543,9 @@ class CsvImportController
                         $contributorValues[$role] = $parsedData[$field] ?? null;
                     }
                 }
-                if ($contributorValues !== []) {
+                // #380: with the Contributori checkbox off, an existing book's
+                // contributor links are fully preserved (no sync at all).
+                if ($contributorValues !== [] && $applyFamily('contributors')) {
                     $importData['authors_created'] += \App\Support\ContributorSync::syncImportedLegacyValues(
                         $db,
                         $bookId,
@@ -503,7 +586,19 @@ class CsvImportController
                         $scrapedData = $this->scrapeBookData($parsedData['isbn13']);
 
                         if (!empty($scrapedData)) {
-                            $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData);
+                            // #380: the enrichment respects the same per-family
+                            // selection as the CSV values themselves. Keep its
+                            // related writes (book fields, authors, publisher
+                            // junction) atomic: a retry after an interruption
+                            // must never start from a half-enriched book.
+                            $db->begin_transaction();
+                            try {
+                                $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData, $updateFields, $action);
+                                $db->commit();
+                            } catch (\Throwable $enrichmentError) {
+                                $db->rollback();
+                                throw $enrichmentError;
+                            }
                             $importData['scraped']++;
                         }
 
@@ -1414,17 +1509,18 @@ class CsvImportController
             return;
         }
 
-        // Prepara l'INSERT prima della DELETE, così un prepare fallito non lascia
-        // la junction spogliata dei co-editori (mirror di syncPrimaryPublisherJunction).
+        // Prepare before DELETE. Both failures must abort the caller-owned row
+        // transaction: silently returning would commit the new editore_id while
+        // leaving the selected co-publisher family stale.
         $insert = $db->prepare('INSERT INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE ordine = VALUES(ordine)');
         if ($insert === false) {
-            return;
+            throw new \RuntimeException('Unable to prepare imported co-publisher upsert');
         }
 
         $del = $db->prepare('DELETE FROM libri_editori WHERE libro_id = ? AND ordine > 0');
         if ($del === false) {
             $insert->close();
-            return;
+            throw new \RuntimeException('Unable to prepare imported co-publisher cleanup');
         }
         $del->bind_param('i', $bookId);
         $del->execute();
@@ -1531,9 +1627,27 @@ class CsvImportController
 
     /**
      * Aggiorna libro esistente (NON modifica copie_totali/copie_disponibili)
+     *
+     * $updateFields (#380): per-family "Libri già presenti" selection. A family
+     * checked (or absent — the default) updates exactly as before; a family
+     * unchecked keeps the book's current values for its columns:
+     * isbn → isbn10/isbn13; ean → ean; titolo/sottotitolo/anno/lingua/
+     * edizione/pagine/prezzo/dewey → the matching column;
+     * formato → formato + tipo_media; collana → collana + numero_serie
+     * (+ series membership sync skipped);
+     * genre → genere_id; publisher → editore_id (+ junction sync skipped);
+     * description → descrizione/descrizione_plain; keywords → parole_chiave;
+     * contributors → the legacy traduttore/illustratore/curatore TEXT columns.
+     *
+     * @param array<string,bool> $updateFields
      */
-    private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId): void
+    private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId, array $updateFields = []): void
     {
+        $apply = [];
+        foreach (self::UPDATE_FIELD_FAMILIES as $family) {
+            $apply[$family] = (bool) ($updateFields[$family] ?? true);
+        }
+        $anyPreserved = in_array(false, $apply, true);
         $hasTipoMedia = $this->hasTipoMediaColumn($db);
         $tipoMediaSet = $hasTipoMedia ? ', tipo_media = COALESCE(?, tipo_media)' : '';
         $hasDescPlain = $this->hasDescrizionePlainColumn($db);
@@ -1584,10 +1698,15 @@ class CsvImportController
         // alongside so the search_index never indexes a stale projection.
         $csvDescrizione = !empty($data['descrizione']) ? (string) $data['descrizione'] : null;
         $existingDesc = null;
-        if ($csvDescrizione !== null) {
+        if ($csvDescrizione !== null || $anyPreserved) {
             // Select descrizione_plain only when the column exists, so the lookup
             // doesn't throw on a pre-migration schema (same guard as the UPDATE).
+            // #380: with any family unchecked the current row is always needed —
+            // the preserved columns ride along in the same lookup.
             $descCols = $hasDescPlain ? 'descrizione, descrizione_plain' : 'descrizione';
+            $descCols .= ', isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione, lingua, edizione, numero_pagine, formato'
+                . ', prezzo, collana, numero_serie, classificazione_dewey'
+                . ', genere_id, editore_id, traduttore, illustratore, curatore, parole_chiave';
             $sel = $db->prepare("SELECT {$descCols} FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
             if ($sel !== false) {
                 $sel->bind_param('i', $bookId);
@@ -1595,6 +1714,12 @@ class CsvImportController
                 $existingDesc = $sel->get_result()->fetch_assoc() ?: null;
                 $sel->close();
             }
+        }
+        if ($anyPreserved && $existingDesc === null) {
+            // Preservation is a data-safety promise. Never fall back to CSV
+            // values if the current row cannot be read: abort this row and let
+            // the surrounding transaction roll back instead.
+            throw new \RuntimeException('Unable to read the existing book while preserving CSV field families');
         }
         if ($csvDescrizione === null) {
             $descrizione = null;
@@ -1629,6 +1754,72 @@ class CsvImportController
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
+        // #380: every UNCHECKED family writes back the book's current values,
+        // so the single UPDATE statement (and its placeholder/type sequence)
+        // stays identical while the preserved columns are effectively no-ops.
+        // The fail-closed guard above guarantees the current row is available.
+        if ($anyPreserved) {
+            if (!$apply['isbn']) {
+                $isbn10 = $existingDesc['isbn10'];
+                $isbn13 = $existingDesc['isbn13'];
+            }
+            if (!$apply['ean']) {
+                $ean = $existingDesc['ean'];
+            }
+            if (!$apply['titolo']) {
+                // titolo is NOT NULL — the existing value is always a string.
+                $titolo = (string) $existingDesc['titolo'];
+            }
+            if (!$apply['sottotitolo']) {
+                $sottotitolo = $existingDesc['sottotitolo'];
+            }
+            if (!$apply['anno']) {
+                $anno = $existingDesc['anno_pubblicazione'] !== null ? (int) $existingDesc['anno_pubblicazione'] : null;
+            }
+            if (!$apply['lingua']) {
+                $lingua = $existingDesc['lingua'];
+            }
+            if (!$apply['edizione']) {
+                $edizione = $existingDesc['edizione'];
+            }
+            if (!$apply['pagine']) {
+                $pagine = $existingDesc['numero_pagine'] !== null ? (int) $existingDesc['numero_pagine'] : null;
+            }
+            if (!$apply['formato']) {
+                $formato = $existingDesc['formato'];
+                // tipo_media updates via COALESCE(?, tipo_media): NULL keeps it.
+                $tipoMedia = null;
+            }
+            if (!$apply['prezzo']) {
+                $prezzo = $existingDesc['prezzo'];
+            }
+            if (!$apply['collana']) {
+                $collana = $existingDesc['collana'];
+                $numeroSerie = $existingDesc['numero_serie'];
+            }
+            if (!$apply['dewey']) {
+                $dewey = $existingDesc['classificazione_dewey'];
+            }
+            if (!$apply['genre']) {
+                $genreId = $existingDesc['genere_id'] !== null ? (int) $existingDesc['genere_id'] : null;
+            }
+            if (!$apply['publisher']) {
+                $editorId = $existingDesc['editore_id'] !== null ? (int) $existingDesc['editore_id'] : null;
+            }
+            if (!$apply['contributors']) {
+                $traduttore = $existingDesc['traduttore'];
+                $illustratore = $existingDesc['illustratore'];
+                $curatore = $existingDesc['curatore'];
+            }
+            if (!$apply['keywords']) {
+                $paroleChiave = $existingDesc['parole_chiave'];
+            }
+            if (!$apply['description']) {
+                $descrizione = $existingDesc['descrizione'];
+                $descrizionePlain = $hasDescPlain ? ($existingDesc['descrizione_plain'] ?? null) : null;
+            }
+        }
+
         $params = [
             $isbn10, $isbn13, $ean, $titolo, $sottotitolo,
             $anno, $lingua, $edizione, $pagine, $genreId,
@@ -1661,8 +1852,15 @@ class CsvImportController
         $stmt->execute();
         $stmt->close();
 
-        $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
-        $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
+        // #380: with the family unchecked nothing CSV-driven changed, so the
+        // dependent syncs are skipped entirely (they must not touch the
+        // book's current series memberships / publisher junction).
+        if ($apply['collana']) {
+            $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
+        }
+        if ($apply['publisher']) {
+            $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
+        }
     }
 
     /**
@@ -1691,13 +1889,14 @@ class CsvImportController
             return;
         }
 
-        // Prepare the upsert BEFORE the DELETE so a prepare failure can never
-        // leave the primary slot wiped (mirrors BookRepository::syncPublishers()).
+        // Prepare the upsert BEFORE the DELETE. A failure aborts the surrounding
+        // import/enrichment transaction so the scalar editore_id and junction
+        // can never commit in disagreement.
         $insert = null;
         if ($editoreId > 0) {
             $insert = $db->prepare('INSERT INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE ordine = 0');
             if ($insert === false) {
-                return;
+                throw new \RuntimeException('Unable to prepare primary publisher upsert');
             }
         }
 
@@ -1706,7 +1905,7 @@ class CsvImportController
             if ($insert !== null) {
                 $insert->close();
             }
-            return;
+            throw new \RuntimeException('Unable to prepare primary publisher cleanup');
         }
         $del->bind_param('i', $bookId);
         $del->execute();
@@ -1723,11 +1922,14 @@ class CsvImportController
     private function syncImportedSeries(\mysqli $db, int $bookId, ?string $collana, ?string $numeroSerie): void
     {
         $collana = trim((string) $collana);
-        if ($bookId <= 0 || $collana === '') {
+        if ($bookId <= 0) {
             return;
         }
 
         try {
+            // An empty selected series is meaningful: SeriesRepository clears
+            // libri_collane when the membership set is empty. Returning early
+            // here left stale series links beside libri.collana = NULL.
             (new \App\Models\SeriesRepository($db))->syncBookMemberships($bookId, $collana, $numeroSerie);
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::warning('CsvImportController::syncImportedSeries failed', [
@@ -1735,6 +1937,7 @@ class CsvImportController
                 'libro_id' => $bookId,
                 'collana' => $collana,
             ]);
+            throw $e;
         }
     }
 
@@ -1743,13 +1946,24 @@ class CsvImportController
      *
      * @return array ['id' => int, 'action' => 'created'|'updated']
      */
-    private function upsertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): array
+    /**
+     * @param array<string,bool> $updateFields #380 — per-family selection;
+     *        created books always import everything, only the update path gates
+     * @param int|null $existingBookId Existing target resolved before related
+     *        entities are created; null means this row must be inserted
+     */
+    private function upsertBook(
+        \mysqli $db,
+        array $data,
+        ?int $editorId,
+        ?int $genreId,
+        array $updateFields = [],
+        ?int $existingBookId = null
+    ): array
     {
-        $existingBookId = $this->findExistingBook($db, $data);
-
         if ($existingBookId !== null) {
             // UPDATE libro esistente
-            $this->updateBook($db, $existingBookId, $data, $editorId, $genreId);
+            $this->updateBook($db, $existingBookId, $data, $editorId, $genreId, $updateFields);
             return ['id' => $existingBookId, 'action' => 'updated'];
         } else {
             // INSERT nuovo libro
@@ -1897,9 +2111,20 @@ class CsvImportController
 
     /**
      * Enrich book with scraped data
+     *
+     * #380: scraping only ever FILLS what the CSV left empty, but on an
+     * EXISTING book an empty CSV cell may mean "family unchecked → preserve" —
+     * without the gate below the scraper would overwrite a field the user
+     * explicitly excluded. Each fill is therefore additionally gated on the
+     * field's update family; created books always accept every enrichment.
+     *
+     * @param array<string,bool> $updateFields
      */
-    private function enrichBookWithScrapedData(\mysqli $db, int $bookId, array $csvData, array $scrapedData): void
+    private function enrichBookWithScrapedData(\mysqli $db, int $bookId, array $csvData, array $scrapedData, array $updateFields = [], string $action = 'created'): void
     {
+        $allow = static function (string $family) use ($updateFields, $action): bool {
+            return $action === 'created' || (bool) ($updateFields[$family] ?? true);
+        };
         $updates = [];
         $params = [];
         $types = '';
@@ -1920,21 +2145,30 @@ class CsvImportController
         }
 
         // Descrizione
-        if (empty($csvData['descrizione']) && !empty($scrapedData['description'])) {
+        if ($allow('description') && empty($csvData['descrizione']) && !empty($scrapedData['description'])) {
+            $scrapedDescription = (string) $scrapedData['description'];
             $updates[] = 'descrizione = ?';
-            $params[] = $scrapedData['description'];
+            $params[] = $scrapedDescription;
             $types .= 's';
+            // Keep the search projection synchronized just like createBook()
+            // and updateBook(). Otherwise an existing descrizione_plain wins
+            // the SearchIndexBuilder COALESCE and keeps indexing stale text.
+            if ($this->hasDescrizionePlainColumn($db)) {
+                $updates[] = 'descrizione_plain = ?';
+                $params[] = \App\Support\DescriptionText::toPlain($scrapedDescription);
+                $types .= 's';
+            }
         }
 
         // Sottotitolo
-        if (empty($csvData['sottotitolo']) && !empty($scrapedData['subtitle'])) {
+        if ($allow('sottotitolo') && empty($csvData['sottotitolo']) && !empty($scrapedData['subtitle'])) {
             $updates[] = 'sottotitolo = ?';
             $params[] = $scrapedData['subtitle'];
             $types .= 's';
         }
 
         // Prezzo — don't use empty() as it discards valid 0.00 prices
-        if (($csvData['prezzo'] === null || $csvData['prezzo'] === '') && !empty($scrapedData['price'])) {
+        if ($allow('prezzo') && ($csvData['prezzo'] === null || $csvData['prezzo'] === '') && !empty($scrapedData['price'])) {
             $priceClean = preg_replace('/[^0-9,.]/', '', $scrapedData['price']);
             $priceClean = str_replace(',', '.', $priceClean);
             if (is_numeric($priceClean)) {
@@ -1945,7 +2179,7 @@ class CsvImportController
         }
 
         // Pagine
-        if (empty($csvData['numero_pagine']) && !empty($scrapedData['pages'])) {
+        if ($allow('pagine') && empty($csvData['numero_pagine']) && !empty($scrapedData['pages'])) {
             $pagesClean = preg_replace('/[^0-9]/', '', $scrapedData['pages']);
             if (is_numeric($pagesClean)) {
                 $updates[] = 'numero_pagine = ?';
@@ -1955,7 +2189,7 @@ class CsvImportController
         }
 
         // Classificazione Dewey
-        if (empty($csvData['classificazione_dewey'] ?? null) && !empty($scrapedData['classificazione_dewey'] ?? null)) {
+        if ($allow('dewey') && empty($csvData['classificazione_dewey'] ?? null) && !empty($scrapedData['classificazione_dewey'] ?? null)) {
             // Validate Dewey format: 3 digits optionally followed by decimal point and 1-4 digits
             $deweyCode = trim((string) $scrapedData['classificazione_dewey']);
             if (preg_match('/^[0-9]{3}(\.[0-9]{1,4})?$/', $deweyCode)) {
@@ -1966,7 +2200,7 @@ class CsvImportController
         }
 
         // Anno pubblicazione
-        if (empty($csvData['anno_pubblicazione'] ?? null) && !empty($scrapedData['year'] ?? null)) {
+        if ($allow('anno') && empty($csvData['anno_pubblicazione'] ?? null) && !empty($scrapedData['year'] ?? null)) {
             $yearClean = preg_replace('/[^0-9]/', '', (string) $scrapedData['year']);
             if (is_numeric($yearClean) && strlen($yearClean) === 4) {
                 $updates[] = 'anno_pubblicazione = ?';
@@ -1976,14 +2210,14 @@ class CsvImportController
         }
 
         // Lingua
-        if (empty($csvData['lingua'] ?? null) && !empty($scrapedData['language'] ?? null)) {
+        if ($allow('lingua') && empty($csvData['lingua'] ?? null) && !empty($scrapedData['language'] ?? null)) {
             $updates[] = 'lingua = ?';
             $params[] = $scrapedData['language'];
             $types .= 's';
         }
 
         // Parole chiave
-        if (empty($csvData['parole_chiave'] ?? null) && !empty($scrapedData['keywords'] ?? null)) {
+        if ($allow('keywords') && empty($csvData['parole_chiave'] ?? null) && !empty($scrapedData['keywords'] ?? null)) {
             $updates[] = 'parole_chiave = ?';
             // Normalize keywords: handle both string and array formats
             $keywords = $scrapedData['keywords'];
@@ -1993,7 +2227,7 @@ class CsvImportController
 
         // Update libro if we have data
         if (!empty($updates)) {
-            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ? AND deleted_at IS NULL";
+            $sql = "UPDATE libri SET " . implode(', ', $updates) . ", updated_at = NOW() WHERE id = ? AND deleted_at IS NULL";
             $params[] = $bookId;
             $types .= 'i';
 
@@ -2004,7 +2238,7 @@ class CsvImportController
         }
 
         // Add authors if missing
-        if (empty($csvData['autori']) && !empty($scrapedData['authors'])) {
+        if ($allow('authors') && empty($csvData['autori']) && !empty($scrapedData['authors'])) {
             $order = 1;
             foreach ($scrapedData['authors'] as $authorName) {
                 $authorName = trim($authorName);
@@ -2015,7 +2249,11 @@ class CsvImportController
                 $authorId = $authorResult['id'];
 
                 // Check if already linked
-                $checkStmt = $db->prepare("SELECT id FROM libri_autori WHERE libro_id = ? AND autore_id = ?");
+                // libri_autori has a composite PK (libro_id, autore_id, ruolo) —
+                // no `id` column: selecting it made this whole branch throw the
+                // first time scraping tried to add an author (pre-existing bug,
+                // surfaced by the #380 gate test).
+                $checkStmt = $db->prepare("SELECT 1 FROM libri_autori WHERE libro_id = ? AND autore_id = ? LIMIT 1");
                 $checkStmt->bind_param('ii', $bookId, $authorId);
                 $checkStmt->execute();
                 if ($checkStmt->get_result()->num_rows === 0) {
@@ -2030,11 +2268,11 @@ class CsvImportController
         }
 
         // Add publisher if missing
-        if (empty($csvData['editore']) && !empty($scrapedData['publisher'])) {
+        if ($allow('publisher') && empty($csvData['editore']) && !empty($scrapedData['publisher'])) {
             $publisherResult = $this->getOrCreatePublisher($db, $scrapedData['publisher']);
             $editorId = $publisherResult['id'];
 
-            $stmt = $db->prepare("UPDATE libri SET editore_id = ? WHERE id = ? AND deleted_at IS NULL");
+            $stmt = $db->prepare("UPDATE libri SET editore_id = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
             $stmt->bind_param('ii', $editorId, $bookId);
             $stmt->execute();
             $stmt->close();

@@ -2033,7 +2033,6 @@
   "I dati attuali verranno sostituiti.": "De aktuelle data vil blive erstattet.",
   "I dati devono essere un array non vuoto.": "Dataene skal være et ikke-tomt array.",
   "I dati provengono dal file JSON, nessun seeding necessario.": "Dataene kommer fra JSON-filen, ingen seeding nødvendig.",
-  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati senza modificare le copie fisiche": "Dubletter (efter ID, ISBN13 eller EAN) opdateres uden at ændre de fysiske eksemplarer",
   "I filtri correnti sono stati salvati nell'URL": "De aktuelle filtre er gemt i URL'en",
   "I filtri vengono applicati automaticamente mentre digiti": "Filtre anvendes automatisk, mens du skriver",
   "I libri degli altri autori verranno assegnati a questo": "Bøger af de andre forfattere vil blive tildelt denne",
@@ -7010,5 +7009,12 @@
   "Impossibile svuotare completamente la cache dell'applicazione. Controlla i permessi di storage/cache.": "Programcachen kunne ikke ryddes helt. Kontrollér tilladelserne for storage/cache.",
   "Le modifiche ai contenuti invalidano già la cache in automatico. Usa questo pulsante per svuotare subito tutta la cache: le query interne (scheda libro, recensioni, elenchi di catalogo e ricerca) e, se il server è LiteSpeed, anche le pagine memorizzate nell'edge cache.": "Ændringer i indholdet ugyldiggør allerede cachen automatisk. Brug denne knap til straks at rydde hele cachen: de interne forespørgsler (bogdetaljer, anmeldelser, katalog- og søgelister) og, hvis serveren kører LiteSpeed, også de sider, der er gemt i edge-cachen.",
   "Svuota cache": "Ryd cache",
-  "Cache svuotata.": "Cache ryddet."
+  "Cache svuotata.": "Cache ryddet.",
+  "Libri già presenti: quali dati aggiornare": "Bøger, der allerede findes: hvilke data skal opdateres",
+  "Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.": "For bøger, der allerede er i kataloget (genkendt på ID, ISBN eller EAN), overskrives kun de valgte data med CSV-værdierne. Ikke-valgte data forbliver uændrede. Nye bøger importerer altid alle data.",
+  "Contributori (co-autori, traduttori, illustratori, curatori, coloristi)": "Bidragydere (medforfattere, oversættere, illustratorer, redaktører, kolorister)",
+  "Dati bibliografici": "Bibliografiske data",
+  "Collana e numero di serie": "Serie og serienummer",
+  "I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate": "Dubletter (genkendt på ID, ISBN13 eller EAN) opdateres i henhold til valget ”Bøger, der allerede findes”; fysiske eksemplarer ændres aldrig",
+  "Per conservare un campo, deselezionalo: in una famiglia selezionata, una cella CSV vuota può cancellare il valore esistente.": "Fjern markeringen for at bevare et felt: I en valgt gruppe kan en tom CSV-celle slette den eksisterende værdi."
 }

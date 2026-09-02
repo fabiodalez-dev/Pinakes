@@ -144,6 +144,76 @@ ob_start();
                             </label>
                         </div>
 
+                        <!-- Libri già presenti: quali dati aggiornare (#380) -->
+                        <div class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                            <div class="text-sm">
+                                <div class="font-medium text-gray-900">
+                                    <i class="fas fa-clone mr-1 text-gray-600"></i>
+                                    <?= __("Libri già presenti: quali dati aggiornare") ?>
+                                </div>
+                                <p class="text-gray-600 mt-1">
+                                    <?= __("Per i libri già in catalogo (riconosciuti per ID, ISBN o EAN), solo i dati selezionati vengono sovrascritti con i valori del CSV. I dati non selezionati restano invariati. I libri nuovi importano sempre tutti i dati.") ?>
+                                </p>
+                                <p class="text-amber-700 mt-2 text-xs">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    <?= __("Per conservare un campo, deselezionalo: in una famiglia selezionata, una cella CSV vuota può cancellare il valore esistente.") ?>
+                                </p>
+                            </div>
+                            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <?php foreach ([
+                                    'authors' => __("Autori"),
+                                    'contributors' => __("Contributori (co-autori, traduttori, illustratori, curatori, coloristi)"),
+                                    'publisher' => __("Editore"),
+                                    'genre' => __("Genere"),
+                                    'keywords' => __("Parole chiave"),
+                                    'description' => __("Descrizione"),
+                                ] as $familyKey => $familyLabel): ?>
+                                <label class="flex items-start cursor-pointer">
+                                    <div class="flex items-center h-5">
+                                        <input type="checkbox" name="update_<?= htmlspecialchars($familyKey, ENT_QUOTES, 'UTF-8') ?>" id="update_<?= htmlspecialchars($familyKey, ENT_QUOTES, 'UTF-8') ?>" value="1" checked class="w-4 h-4 text-gray-800 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 focus:ring-2">
+                                    </div>
+                                    <div class="ml-3 text-sm">
+                                        <div class="font-medium text-gray-900">
+                                            <?= htmlspecialchars($familyLabel, ENT_QUOTES, 'UTF-8') ?>
+                                        </div>
+                                    </div>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="mt-4 text-sm">
+                                <div class="font-medium text-gray-900">
+                                    <?= __("Dati bibliografici") ?>
+                                </div>
+                            </div>
+                            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <?php foreach ([
+                                    'isbn' => __("ISBN"),
+                                    'ean' => __("EAN"),
+                                    'titolo' => __("Titolo"),
+                                    'sottotitolo' => __("Sottotitolo"),
+                                    'anno' => __("Anno"),
+                                    'lingua' => __("Lingua"),
+                                    'edizione' => __("Edizione"),
+                                    'pagine' => __("Pagine"),
+                                    'formato' => __("Formato"),
+                                    'prezzo' => __("Prezzo"),
+                                    'collana' => __("Collana e numero di serie"),
+                                    'dewey' => __("Classificazione Dewey"),
+                                ] as $familyKey => $familyLabel): ?>
+                                <label class="flex items-start cursor-pointer">
+                                    <div class="flex items-center h-5">
+                                        <input type="checkbox" name="update_<?= htmlspecialchars($familyKey, ENT_QUOTES, 'UTF-8') ?>" id="update_<?= htmlspecialchars($familyKey, ENT_QUOTES, 'UTF-8') ?>" value="1" checked class="w-4 h-4 text-gray-800 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 focus:ring-2">
+                                    </div>
+                                    <div class="ml-3 text-sm">
+                                        <div class="font-medium text-gray-900">
+                                            <?= htmlspecialchars($familyLabel, ENT_QUOTES, 'UTF-8') ?>
+                                        </div>
+                                    </div>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
                         <!-- Progress Monitor (hidden initially) -->
                         <div id="import-progress-container" class="mt-6 hidden">
                             <div class="bg-white border border-gray-200 rounded-lg p-4">
@@ -322,7 +392,7 @@ ob_start();
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-sync-alt text-gray-400 mr-2 mt-0.5"></i>
-                            <span><?= __("I doppioni (per ID, ISBN13 o EAN) vengono aggiornati senza modificare le copie fisiche") ?></span>
+                            <span><?= __("I doppioni (per ID, ISBN13 o EAN) vengono aggiornati secondo la selezione «Libri già presenti»; le copie fisiche non vengono mai modificate") ?></span>
                         </li>
                     </ul>
                 </div>
