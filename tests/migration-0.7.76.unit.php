@@ -88,7 +88,9 @@ try {
         . $mk(601, 'loan.returned', 'backfill') . ','
         . $mk(602, 'loan.created', 'backfill') . ','          // loan senza copia: resta senza
         . $mk(603, 'loan.created', 'backfill', ',"copia_id":77') . ','  // già arricchito: intoccato
-        . $mk(601, 'loan.picked_up', 'pickup'));               // evento REALE: intoccato
+        . $mk(601, 'loan.picked_up', 'pickup') . ','           // evento REALE: intoccato
+        . $mk(601, 'loan.created', 'manual') . ','             // event TARGET ma source reale: prova il filtro source da solo
+        . $mk(601, 'reservation.created', 'backfill'));        // source backfill ma event non-target: prova il filtro event da solo
 
     $runMigration();
 
@@ -99,6 +101,11 @@ try {
     $check((string) $copiaOf(603) === '77', 'an already-enriched event keeps its value');
     $real = $db->query("SELECT JSON_EXTRACT(dati_nuovi, '$.copia_id') c FROM `{$auditTable}` WHERE JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi,'$._activity.source'))='pickup'")->fetch_assoc();
     $check(($real['c'] ?? null) === null, 'real runtime events are untouched');
+    // I due filtri devono discriminare da soli, non solo in AND fortuito.
+    $manualCreated = $db->query("SELECT JSON_EXTRACT(dati_nuovi, '$.copia_id') c FROM `{$auditTable}` WHERE JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi,'$._activity.source'))='manual'")->fetch_assoc();
+    $check(($manualCreated['c'] ?? null) === null, 'a target-event row with a REAL source is untouched (source filter alone discriminates)');
+    $backfillRes = $db->query("SELECT JSON_EXTRACT(dati_nuovi, '$.copia_id') c FROM `{$auditTable}` WHERE JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi,'$._activity.event'))='reservation.created'")->fetch_assoc();
+    $check(($backfillRes['c'] ?? null) === null, 'a backfill row with a non-target event is untouched (event filter alone discriminates)');
 
     $before = md5((string) json_encode($db->query("SELECT dati_nuovi FROM `{$auditTable}` ORDER BY id")->fetch_all()));
     $runMigration();
