@@ -48,11 +48,16 @@ final class PickupDeadlineBackfill
 
             // COALESCE fallback equals the uncapped deadline so rows with a
             // NULL data_scadenza (legacy data) simply get today + N days.
+            // "Today" is the APPLICATION-timezone date (DateHelper), not SQL
+            // CURDATE(): the DB session TZ can differ, and the sweeps that later
+            // enforce this deadline compare against DateHelper::today() — a
+            // midnight-window upgrade must not produce an off-by-one deadline.
+            $today = DateHelper::today();
             $stmt = $db->prepare("
                 UPDATE prestiti
                 SET pickup_deadline = LEAST(
-                    DATE_ADD(CURDATE(), INTERVAL ? DAY),
-                    COALESCE(data_scadenza, DATE_ADD(CURDATE(), INTERVAL ? DAY))
+                    DATE_ADD(?, INTERVAL ? DAY),
+                    COALESCE(data_scadenza, DATE_ADD(?, INTERVAL ? DAY))
                 )
                 WHERE stato = 'da_ritirare'
                   AND attivo = 1
@@ -62,7 +67,7 @@ final class PickupDeadlineBackfill
                 SecureLogger::warning('PickupDeadlineBackfill: prepare failed: ' . $db->error);
                 return false;
             }
-            $stmt->bind_param('ii', $pickupDays, $pickupDays);
+            $stmt->bind_param('sisi', $today, $pickupDays, $today, $pickupDays);
             if (!$stmt->execute()) {
                 // With mysqli in exception mode a failure throws (caught below);
                 // this guard also holds if reporting is ever disabled, so the

@@ -1288,7 +1288,13 @@ class LoanApprovalController
             $reassignmentService = new \App\Services\ReservationReassignmentService($db);
             $reassignmentService->setExternalTransaction(true);
 
-            // Release copy if assigned (set back to 'disponibile' only if valid state)
+            // Release copy if assigned. Only a copy actually HELD for this pickup
+            // (stato='prenotato') may be freed — mirrors the user cancel twin's
+            // guarded UPDATE. In particular a copy in 'prestato' is physically out
+            // under ANOTHER open loan (the reassignment service deliberately binds
+            // 'prestato' copies to disjoint future windows), so flipping it to
+            // 'disponibile' here would mark an out-of-library copy as available
+            // until its real return. 'disponibile' (promoted pendente) is a no-op.
             if ($copiaId) {
                 // FOR UPDATE prevents TOCTOU race - lock row before checking and updating
                 $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
@@ -1297,14 +1303,13 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
-                if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
+                if ($copyResult && $copyResult['stato'] === 'prenotato') {
                     $copyRepo = new \App\Models\CopyRepository($db);
                     $copyRepo->updateStatus($copiaId, 'disponibile');
 
                     // Advance reservation queue: promote next waiting user for this copy
                     $reassignmentService->reassignOnReturn($copiaId);
-                } elseif ($copyResult) {
+                } elseif ($copyResult && $copyResult['stato'] !== 'disponibile') {
                     \App\Support\SecureLogger::warning("[cancelPickup] Copy {$copiaId} in state '{$copyResult['stato']}' not reset to disponibile");
                 }
             }
