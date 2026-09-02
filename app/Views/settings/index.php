@@ -127,10 +127,10 @@ $activeTab = $activeTab ?? 'general';
                 <!-- Fallback file input (hidden, used by Uppy) -->
                 <input type="file"
                        name="app_logo"
-                       accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                       accept="image/png,image/jpeg,image/webp"
                        style="display: none;"
                        id="logo-file-input">
-                <p class="text-xs text-gray-500"><?= __("Consigliato PNG o SVG con sfondo trasparente. Dimensione massima 2MB.") ?></p>
+                <p class="text-xs text-gray-500"><?= __("Consigliato PNG con sfondo trasparente. Formati accettati: PNG, JPG o WebP. Dimensione massima 2MB.") ?></p>
               </div>
             </div>
           </div>
@@ -285,7 +285,7 @@ $activeTab = $activeTab ?? 'general';
           <div id="smtp-settings-card" class="border border-gray-200 rounded-2xl p-5 bg-white max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide"><?= __("Server SMTP") ?></h3>
-              <span class="text-xs text-gray-500"><?= __("Disponibile solo con driver SMTP") ?></span>
+              <span class="text-xs text-gray-500"><?= __("Disponibile con driver SMTP o PHPMailer") ?></span>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -321,7 +321,7 @@ $activeTab = $activeTab ?? 'general';
               <i class="fas fa-info-circle text-base text-gray-500 mt-0.5"></i>
               <div>
                 <p class="font-semibold text-gray-800"><?= __("PHPMailer") ?></p>
-                <p><?= __("Quando utilizzi PHPMailer il sistema invia le email con le configurazioni definite nel codice o tramite provider esterni. Passa al driver \"SMTP personalizzato\" per modificare questi parametri direttamente dall'interfaccia.") ?></p>
+                <p><?= __("Quando utilizzi PHPMailer il sistema invia le email tramite il server SMTP configurato qui sotto: host, porta e credenziali si applicano anche a questo driver.") ?></p>
               </div>
             </div>
           </div>
@@ -1085,7 +1085,9 @@ $activeTab = $activeTab ?? 'general';
       if (!driverSelect) return;
       const value = driverSelect.value;
       if (smtpCard) {
-        smtpCard.classList.toggle('hidden', value !== 'smtp');
+        // 'phpmailer' uses the same DB-stored SMTP host/port/credentials as
+        // 'smtp' (see Mailer.php), so the card stays visible for both drivers.
+        smtpCard.classList.toggle('hidden', value !== 'smtp' && value !== 'phpmailer');
       }
       if (phpmailerNote) {
         phpmailerNote.classList.toggle('hidden', value !== 'phpmailer');
@@ -1159,7 +1161,7 @@ $activeTab = $activeTab ?? 'general';
           restrictions: {
             maxFileSize: 2 * 1024 * 1024, // 2MB
             maxNumberOfFiles: 1,
-            allowedFileTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+            allowedFileTypes: ['image/png', 'image/jpeg', 'image/webp']
           },
           autoProceed: false
         });
@@ -1168,7 +1170,7 @@ $activeTab = $activeTab ?? 'general';
 
         uppyLogo.use(UppyDragDrop, {
           target: '#uppy-logo-upload',
-          note: <?= json_encode(__("PNG, SVG, JPG o WebP (max 2MB)"), JSON_HEX_TAG) ?>,
+          note: <?= json_encode(__("PNG, JPG o WebP (max 2MB)"), JSON_HEX_TAG) ?>,
           locale: {
             strings: {
               dropPasteFiles: <?= json_encode(__("Trascina qui il logo o %{browse}"), JSON_HEX_TAG) ?>,

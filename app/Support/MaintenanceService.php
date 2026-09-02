@@ -1249,6 +1249,7 @@ class MaintenanceService
                     UPDATE prestiti
                     SET stato = 'scaduto',
                         attivo = 0,
+                        pickup_deadline = NULL,
                         updated_at = NOW(),
                         note = CONCAT(COALESCE(note, ''), ?)
                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1
@@ -1277,18 +1278,25 @@ class MaintenanceService
                     $copyState = $copyResult ? $copyResult->fetch_assoc() : null;
                     $checkCopy->close();
 
-                    // Ensure copy is available (but don't resurrect non-restorable copies)
-                    // Skip if copy is in a non-lendable operational state.
-                    $nonRestorableStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
-                    if ($copyState && !in_array($copyState['stato'], $nonRestorableStates, true) && $copyState['stato'] !== 'disponibile') {
-                        $updateCopy = $this->db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ?");
+                    // Release only the hold owned by this expired pickup. The
+                    // same copy may already be physically out under another
+                    // open, date-disjoint loan; never turn `prestato` (or any
+                    // other lifecycle state) back into `disponibile` here.
+                    if ($copyState && $copyState['stato'] === 'prenotato') {
+                        $updateCopy = $this->db->prepare(
+                            "UPDATE copie SET stato = 'disponibile' WHERE id = ? AND stato = 'prenotato'"
+                        );
                         $updateCopy->bind_param('i', $copiaId);
                         $updateCopy->execute();
+                        $releasedCopy = $updateCopy->affected_rows === 1;
                         $updateCopy->close();
-                    }
 
-                    // Trigger reassignment logic for this copy (inside same transaction)
-                    $reassignmentService->reassignOnReturn($copiaId);
+                        if ($releasedCopy) {
+                            // Trigger reassignment only for a copy this sweep
+                            // actually released (inside the same transaction).
+                            $reassignmentService->reassignOnReturn($copiaId);
+                        }
+                    }
                 }
 
                 // Layer 2: promote queued waitlist reservations freed by this expired
@@ -1318,10 +1326,15 @@ class MaintenanceService
                     \App\Support\SecureLogger::warning('Flush notifiche differite fallito', ['error' => $flushErr->getMessage()]);
                 }
 
-                // Send pickup expired notification to user
+                // Send pickup expired notification to user. The terminal UPDATE
+                // above NULLed pickup_deadline, so pass the elapsed deadline
+                // captured under lock for the email body.
                 try {
                     $notificationService = new NotificationService($this->db);
-                    $notificationService->sendPickupExpiredNotification($id);
+                    $notificationService->sendPickupExpiredNotification(
+                        $id,
+                        isset($lockedPickup['pickup_deadline']) ? (string) $lockedPickup['pickup_deadline'] : null
+                    );
                 } catch (\Throwable $notifError) {
                     SecureLogger::warning(__('Errore invio notifica ritiro scaduto'), [
                         'prestito_id' => $id,

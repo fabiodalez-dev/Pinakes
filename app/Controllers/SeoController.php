@@ -128,8 +128,10 @@ class SeoController
         $lines[] = '- [Sitemap](' . $baseUrl . '/sitemap.xml): ' . __('Indice completo degli URL');
         $lines[] = '';
 
-        // API (only if enabled)
-        if (ConfigStore::get('api.enabled', '0') === '1') {
+        // API (only if enabled) — ConfigStore normalizes api.enabled to bool when
+        // hydrated from the DB, but the default (and legacy values) are strings ('1'/'0');
+        // filter_var accepts both representations.
+        if (filter_var(ConfigStore::get('api.enabled', '0'), FILTER_VALIDATE_BOOLEAN)) {
             $lines[] = '## API';
             $lines[] = '- [SRU 1.2](' . $baseUrl . '/api/sru?operation=explain): ' . __('Interoperabilità bibliotecaria (MARCXML, Dublin Core)');
             $lines[] = '';

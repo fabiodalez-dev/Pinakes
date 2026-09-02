@@ -992,11 +992,14 @@ class NotificationService {
     public function notifyAdminsOverdue(int $loanId): void
     {
         try {
+            // CI-SOFT-DELETE-EXEMPT: the borrower's overdue notice is exempt, so
+            // the admin alert for the SAME overdue loan must be too — an archived
+            // title's outstanding loan is exactly the case staff must chase.
             $stmt = $this->db->prepare("
                 SELECT p.id, p.data_scadenza, p.data_prestito, l.titolo AS libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email AS utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -1485,10 +1488,15 @@ class NotificationService {
             }
             $stmt->close();
 
+            // The fallback reason must render in the RECIPIENT's locale, not the
+            // acting admin's session locale (same pattern as the other senders).
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'motivo_rifiuto' => $reason ?: __('Nessun motivo specificato')
+                // !== '' (not ?:) so a literal "0" reason is preserved — same
+                // criterion as sendPickupCancelledNotification's reason handling.
+                'motivo_rifiuto' => $reason !== '' ? $reason : $this->translateInLocale('Nessun motivo specificato', $recipientLocale)
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_rejected', $variables);
@@ -1515,10 +1523,14 @@ class NotificationService {
         string $reason = ''
     ): bool {
         try {
+            // Recipient-locale fallback, mirroring sendLoanRejectedNotification.
+            $recipientLocale = $this->resolveRecipientLocale($userEmail);
             $variables = [
                 'utente_nome' => $userName,
                 'libro_titolo' => $bookTitle,
-                'motivo_rifiuto' => $reason ?: __('Nessun motivo specificato')
+                // !== '' (not ?:) so a literal "0" reason is preserved — same
+                // criterion as sendPickupCancelledNotification's reason handling.
+                'motivo_rifiuto' => $reason !== '' ? $reason : $this->translateInLocale('Nessun motivo specificato', $recipientLocale)
             ];
 
             return $this->sendWithRetry($userEmail, 'loan_rejected', $variables);
@@ -1768,13 +1780,18 @@ class NotificationService {
     /**
      * Invia notifica quando la scadenza del ritiro è passata (prestito scaduto)
      */
-    public function sendPickupExpiredNotification(int $loanId): bool {
+    public function sendPickupExpiredNotification(int $loanId, ?string $pickupDeadline = null): bool {
         try {
+            // CI-SOFT-DELETE-EXEMPT: this terminal pickup notice must reach the
+            // borrower even after the book was soft-deleted — checkExpiredPickups()
+            // deliberately expires pickups on archived titles (its sweep is
+            // exempt), so filtering deleted_at here silently swallowed the email
+            // while the loan still expired and the copy was freed (#381 class).
             $stmt = $this->db->prepare("
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -1789,12 +1806,16 @@ class NotificationService {
             $stmt->close();
 
             $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
+            // The sweep NULLs pickup_deadline on the terminal 'scaduto' row (kept
+            // consistent with both cancel paths), so the caller passes the elapsed
+            // deadline it captured under lock; the row value is only a fallback.
+            $deadline = $pickupDeadline ?? $loan['pickup_deadline'];
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
+                'scadenza_ritiro' => $deadline ? $this->formatEmailDate($deadline, false, $recipientLocale) : '',
                 // #304: alias under the DB column name, see sendPickupReadyNotification.
-                'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : ''
+                'pickup_deadline' => $deadline ? $this->formatEmailDate($deadline, false, $recipientLocale) : ''
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_expired', $variables);
@@ -1883,11 +1904,14 @@ class NotificationService {
      */
     public function sendLoanReturnedNotification(int $loanId): bool {
         try {
+            // CI-SOFT-DELETE-EXEMPT: the return-confirmation must reach the
+            // borrower even when the title was archived while the loan was out —
+            // the return path itself is exempt and closes the loan regardless.
             $stmt = $this->db->prepare("
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -1923,11 +1947,15 @@ class NotificationService {
      */
     public function sendReservationExpiredNotification(int $loanId): bool {
         try {
+            // CI-SOFT-DELETE-EXEMPT: this terminal expiry notice must reach the
+            // borrower even after the book was soft-deleted — checkExpiredReservations()
+            // deliberately expires scheduled loans on archived titles, so the
+            // deleted_at filter here silently swallowed the email (#381 class).
             $stmt = $this->db->prepare("
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");

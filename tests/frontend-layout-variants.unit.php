@@ -114,7 +114,7 @@ $checks = [
     'themes overview exposes the shared layout selector' => str_contains($adminThemes, 'layout-variant-selector.php') && str_contains($adminLayoutSelector, 'name="layout_variant"'),
     'themes overview has a dedicated protected layout route' => str_contains($routes, "post('/admin/themes/{id}/layout'") && str_contains($routes, 'saveLayout($request, $response, $args)'),
     'controller validates against the allow-list' => str_contains($controller, 'ThemeManager::LAYOUT_VARIANTS'),
-    'full customization saves colors and layout in one settings update' => str_contains($controller, 'updateThemeColors($themeId, $colors, $layoutVariant)'),
+    'full customization saves colors, layout and advanced CSS in one settings update' => str_contains($controller, 'updateThemeColors($themeId, $colors, $layoutVariant, $advanced)'),
     'stylesheet includes editorial rules' => str_contains($css, 'body.layout-editorial'),
     'stylesheet includes workspace rules' => str_contains($css, 'body.layout-workspace'),
     'stylesheet includes command rules' => str_contains($css, 'body.layout-command'),

@@ -667,6 +667,15 @@ class ReservationReassignmentService
                   )
             )
         ";
+        // DELIBERATE divergence from the three canonical #384 allocators: this
+        // is a REASSIGNMENT (an already-promised hold being repointed after its
+        // copy became unavailable), not a new request that can route to the
+        // waitlist instead. Here the alternative to stacking date-disjoint
+        // holds onto the replacement copy is cancelling them, so the overlap
+        // test stays date-based (open-ended overdue included) and disjoint
+        // preceding commitments remain valid targets — see the sibling comment
+        // above ("a copy currently 'prestato' is a valid target for a disjoint
+        // future hold") and tests/loan-edge-cases.unit.php which encodes this.
         $params = [$libroId, $libroId, $userId, $reservationId, $reservationId, $endDate, $applicationToday, $startDate];
         $types = 'iiiiisss';
 
@@ -679,7 +688,29 @@ class ReservationReassignmentService
             }
         }
 
-        $sql .= " ORDER BY c.id ASC LIMIT 1";
+        // #384 preference, identical to the canonical allocators: prefer a copy
+        // with no later commitment (or whose next one is furthest away) so this
+        // reassignment never makes an existing scheduled loan depend on this
+        // borrower returning on time. `future.id <> ?` excludes the very hold
+        // being repointed, which may still reference its old binding.
+        $sql .= "
+            ORDER BY COALESCE((
+                SELECT MIN(future.data_prestito)
+                FROM prestiti future
+                WHERE future.copia_id = c.id
+                  AND future.id <> ?
+                  AND future.data_prestito > ?
+                  AND (
+                      (future.attivo = 1 AND future.stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                      OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL)
+                  )
+            ), '9999-12-31') DESC,
+            c.id ASC
+            LIMIT 1";
+        $params[] = $reservationId;
+        $types .= 'i';
+        $params[] = $endDate;
+        $types .= 's';
 
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param($types, ...$params);

@@ -109,9 +109,13 @@ $reservationManager = new ReservationManager($db);
 echo "=== RESERVATION MAINTENANCE STARTED ===\n";
 echo "Time: " . date('Y-m-d H:i:s') . "\n\n";
 
-// Cancel expired reservations
+// Cancel expired reservations. This runs OUTSIDE the per-book transaction
+// loop below, so the manager must still own its transactions here — external
+// mode is switched on only afterwards. Flush its queued expiry notifications
+// right away: the loop may process zero books and never flush otherwise.
 echo "Cancelling expired reservations...\n";
 $reservationManager->cancelExpiredReservations();
+$reservationManager->flushDeferredNotifications();
 echo "✓ Expired reservations processed\n\n";
 
 // Process available books for pending reservations
@@ -130,17 +134,30 @@ $processedBooks = 0;
 while ($row = $result->fetch_assoc()) {
     $bookId = (int)$row['libro_id'];
     $inTransaction = false;
+    // Fresh manager per book (same pattern as MaintenanceService::checkExpiredPickups):
+    // a rollback below must not leave this book's queued promotion notification in a
+    // shared manager, where the next book's post-commit flush would email a user
+    // about a promotion that never persisted.
+    // TXN-003: each book is wrapped in this script's own transaction, so the
+    // manager must NOT begin a nested one — mysqli begin_transaction() inside an
+    // open transaction implicitly COMMITS the outer one, silently breaking the
+    // FOR UPDATE serialization the loop relies on.
+    $bookManager = new ReservationManager($db);
+    $bookManager->setExternalTransaction(true);
     try {
         // Wrap in transaction to ensure FOR UPDATE locks are effective
         $db->begin_transaction();
         $inTransaction = true;
 
-        if ($reservationManager->processBookAvailability($bookId)) {
+        if ($bookManager->processBookAvailability($bookId)) {
             echo "✓ Processed reservations for book ID: $bookId\n";
             $processedBooks++;
         }
         $db->commit();
         $inTransaction = false;
+        // External-transaction mode defers promotion emails: flush them only
+        // after this book's transaction has committed.
+        $bookManager->flushDeferredNotifications();
     } catch (\Throwable $e) {
         if ($inTransaction) {
             try {

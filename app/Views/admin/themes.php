@@ -119,9 +119,9 @@ $pageTitle = __('Gestione Temi');
                 <div class="bg-white rounded-xl border <?= $isActive ? 'border-green-300 ring-2 ring-green-100' : 'border-gray-200' ?> overflow-hidden hover:shadow-lg transition-all duration-200">
                     <!-- Color Preview Bar -->
                     <div class="h-3 flex">
-                        <div class="flex-1" style="background: <?= htmlspecialchars($primaryColor) ?>;"></div>
-                        <div class="flex-1" style="background: <?= htmlspecialchars($buttonColor) ?>;"></div>
-                        <div class="flex-1" style="background: <?= htmlspecialchars($secondaryColor) ?>;"></div>
+                        <div class="flex-1" style="background: <?= htmlspecialchars($primaryColor, ENT_QUOTES, 'UTF-8') ?>;"></div>
+                        <div class="flex-1" style="background: <?= htmlspecialchars($buttonColor, ENT_QUOTES, 'UTF-8') ?>;"></div>
+                        <div class="flex-1" style="background: <?= htmlspecialchars($secondaryColor, ENT_QUOTES, 'UTF-8') ?>;"></div>
                     </div>
 
                     <!-- Theme Content -->
@@ -162,8 +162,8 @@ $pageTitle = __('Gestione Temi');
                                 $label = $colorLabels[$key] ?? ucfirst($key);
                             ?>
                                 <div class="w-6 h-6 rounded-md border border-gray-300 shadow-sm cursor-help"
-                                     style="background: <?= htmlspecialchars($color) ?>;"
-                                     title="<?= $label ?>: <?= htmlspecialchars($color) ?>"></div>
+                                     style="background: <?= htmlspecialchars($color, ENT_QUOTES, 'UTF-8') ?>;"
+                                     title="<?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars($color, ENT_QUOTES, 'UTF-8') ?>"></div>
                             <?php endforeach; ?>
                         </div>
 

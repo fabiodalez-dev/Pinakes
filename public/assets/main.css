@@ -4449,6 +4449,9 @@ input:where([type='file']):focus {
 .min-w-11 {
   min-width: 2.75rem;
 }
+.min-w-44 {
+  min-width: 11rem;
+}
 .min-w-\[10rem\] {
   min-width: 10rem;
 }
@@ -6091,6 +6094,9 @@ input:where([type='file']):focus {
 }
 .underline {
   text-decoration-line: underline;
+}
+.line-through {
+  text-decoration-line: line-through;
 }
 .no-underline {
   text-decoration-line: none;
@@ -8240,6 +8246,10 @@ table.dataTable thead td {
     flex-direction: row;
   }
 
+  .sm\:items-start {
+    align-items: flex-start;
+  }
+
   .sm\:items-end {
     align-items: flex-end;
   }
@@ -8256,6 +8266,10 @@ table.dataTable thead td {
     gap: 0.5rem;
   }
 
+  .sm\:gap-4 {
+    gap: 1rem;
+  }
+
   .sm\:px-2 {
     padding-left: 0.5rem;
     padding-right: 0.5rem;
@@ -8269,6 +8283,10 @@ table.dataTable thead td {
   .sm\:px-8 {
     padding-left: 2rem;
     padding-right: 2rem;
+  }
+
+  .sm\:text-right {
+    text-align: right;
   }
 
   .sm\:opacity-0 {
@@ -8414,6 +8432,10 @@ table.dataTable thead td {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
+  .md\:grid-cols-\[minmax\(9rem\2c 0\.35fr\)_1fr\] {
+    grid-template-columns: minmax(9rem,0.35fr) 1fr;
+  }
+
   .md\:flex-row {
     flex-direction: row;
   }
@@ -8440,6 +8462,10 @@ table.dataTable thead td {
 
   .md\:gap-3 {
     gap: 0.75rem;
+  }
+
+  .md\:gap-4 {
+    gap: 1rem;
   }
 
   .md\:space-y-5 > :not([hidden]) ~ :not([hidden]) {
