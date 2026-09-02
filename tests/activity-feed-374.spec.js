@@ -43,7 +43,29 @@ const RUN = Date.now().toString(36) + 'af';
 const TITLE_V1 = `ActivityFeedLibro ${RUN}`;
 const TITLE_V2 = `ActivityFeedLibroDue ${RUN}`;
 const PATRON_EMAIL = `zz-feed-patron-${RUN}@test.local`;
+const BORROWER_EMAIL = `zz-feed-borrower-${RUN}@test.local`;
+const BORROWER_SURNAME = `CopyProbe${RUN}`;
+const COPY_INVENTORY = `INV-374-${RUN}`.toUpperCase();
 let bookId = '';
+
+async function fillAutocomplete(page, inputSelector, suggestSelector, query, apiUrlFragment) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await page.fill(inputSelector, '');
+    const responsePromise = page.waitForResponse(
+      (resp) => resp.url().includes(apiUrlFragment) && resp.status() === 200,
+      { timeout: 15000 },
+    );
+    await page.locator(inputSelector).pressSequentially(query, { delay: 50 });
+    await responsePromise;
+    const suggestionItem = page.locator(`${suggestSelector} .suggestion-item`).first();
+    if (await suggestionItem.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await suggestionItem.click();
+      return;
+    }
+    await page.waitForTimeout(300);
+  }
+  throw new Error(`autocomplete never suggested for ${query}`);
+}
 
 async function loginAsAdmin(page) {
   await page.goto(`${BASE}/admin/dashboard`);
@@ -62,9 +84,11 @@ function feedCleanup() {
   }
   dbQuery(
     `DELETE lm FROM log_modifiche lm JOIN libri l ON l.id=lm.record_id AND lm.tabella='libri' WHERE l.titolo IN ('${sqlEscape(TITLE_V1)}','${sqlEscape(TITLE_V2)}');`
+    + `DELETE p FROM prestiti p JOIN libri l ON l.id=p.libro_id WHERE l.titolo IN ('${sqlEscape(TITLE_V1)}','${sqlEscape(TITLE_V2)}');`
     + `DELETE c FROM copie c JOIN libri l ON l.id=c.libro_id WHERE l.titolo IN ('${sqlEscape(TITLE_V1)}','${sqlEscape(TITLE_V2)}');`
     + `DELETE FROM libri WHERE titolo IN ('${sqlEscape(TITLE_V1)}','${sqlEscape(TITLE_V2)}');`
-    + `DELETE FROM utenti WHERE email='${sqlEscape(PATRON_EMAIL)}';`,
+    + `DELETE FROM utenti WHERE email='${sqlEscape(PATRON_EMAIL)}';`
+    + `DELETE FROM utenti WHERE email='${sqlEscape(BORROWER_EMAIL)}';`,
   );
 }
 
@@ -140,6 +164,55 @@ test.describe.serial('Activity feed (#374)', () => {
     await expect(page.locator('#activity-feed')).toContainText('Libro aggiornato');
 
     expect(errors).toEqual([]);
+  });
+
+  test('a real admin loan records the physical copy and the timeline shows its inventory number', async ({ page }) => {
+    test.setTimeout(120000);
+    await loginAsAdmin(page);
+
+    // Real fixtures: a named borrower and a physical copy with a known
+    // inventory number. The LOAN itself goes through the real admin form,
+    // so the copy assignment is the production allocator's, not ours.
+    const adminHash = dbQuery(
+      `SELECT password FROM utenti WHERE email='${sqlEscape(process.env.E2E_ADMIN_EMAIL)}' LIMIT 1`,
+    );
+    dbQuery(
+      `INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato, email_verificata)
+       VALUES ('CP${RUN.slice(0, 8).toUpperCase()}', 'Probe', '${sqlEscape(BORROWER_SURNAME)}', '${sqlEscape(BORROWER_EMAIL)}', '${sqlEscape(adminHash)}', 'standard', 'attivo', 1)`,
+    );
+    dbQuery(
+      `INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${Number(bookId)}, '${sqlEscape(COPY_INVENTORY)}', 'disponibile')`,
+    );
+    const copyId = dbQuery(`SELECT id FROM copie WHERE numero_inventario='${sqlEscape(COPY_INVENTORY)}' LIMIT 1`);
+    dbQuery(`UPDATE libri SET copie_totali=1, copie_disponibili=1 WHERE id=${Number(bookId)}`);
+
+    // Create the loan through the REAL admin form (same driving pattern as
+    // full-test Phase 14.2: autocomplete pickers + app-timezone loan date).
+    await page.goto(`${BASE}/admin/loans/create`);
+    await page.waitForLoadState('domcontentloaded');
+    await fillAutocomplete(page, '#utente_search', '#utente_suggest', BORROWER_SURNAME, '/api/search/utenti');
+    await fillAutocomplete(page, '#libro_search', '#libro_suggest', TITLE_V2, '/api/search/libri');
+    expect(Number(await page.locator('#libro_id').inputValue())).toBe(Number(bookId));
+    const appLoanDate = await page.locator('#data_prestito').inputValue();
+    expect(appLoanDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    await page.locator('form button[type="submit"]').first().click();
+    await page.waitForURL((url) => url.searchParams.get('created') === '1', { timeout: 20000 });
+
+    // DB truth: the production allocator bound OUR physical copy to the loan.
+    const loanCopy = dbQuery(
+      `SELECT copia_id FROM prestiti WHERE libro_id=${Number(bookId)} AND attivo=1 ORDER BY id DESC LIMIT 1`,
+    );
+    expect(Number(loanCopy)).toBe(Number(copyId));
+
+    // UI truth: the timeline shows the loan with the resolved inventory
+    // number and the borrower's name — never the raw ids.
+    await page.goto(`${BASE}/admin/books/${bookId}?activity_type=loan`);
+    const feed = page.locator('#activity-feed');
+    await expect(feed).toBeVisible({ timeout: 10000 });
+    await expect(feed).toContainText('Prestito creato');
+    await expect(feed).toContainText(COPY_INVENTORY);
+    await expect(feed).toContainText(BORROWER_SURNAME);
+    await expect(feed).not.toContainText(`#${copyId}`);
   });
 
   test('the dashboard feed renders and the type filter is allow-listed', async ({ page }) => {

@@ -40,7 +40,6 @@ final class ActivityLog
         'attivo',
         'renewals',
         'origine',
-        'copia_id',
     ];
 
     private const HIDDEN_FIELDS = [
@@ -724,11 +723,74 @@ final class ActivityLog
             }
             $stmt->close();
 
-            return ['items' => self::resolveUserReferences($db, $items), 'page' => $page, 'pages' => $pages, 'total' => $total];
+            $items = self::resolveUserReferences($db, $items);
+            $items = self::resolveCopyReferences($db, $items);
+            return ['items' => $items, 'page' => $page, 'pages' => $pages, 'total' => $total];
         } catch (\Throwable $e) {
             SecureLogger::warning('ActivityLog read failed', ['error' => $e->getMessage()]);
             return ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
         }
+    }
+
+    /**
+     * Replace raw copia_id values with the copy's inventory number — "which
+     * physical copy was picked up" is real information, a bare id is not.
+     * Same batch pattern as resolveUserReferences; '#id' fallback for a
+     * copy that no longer exists.
+     *
+     * @param list<array<string,mixed>> $items
+     * @return list<array<string,mixed>>
+     */
+    private static function resolveCopyReferences(mysqli $db, array $items): array
+    {
+        $ids = [];
+        foreach ($items as $item) {
+            foreach (($item['changes'] ?? []) as $change) {
+                if (($change['field'] ?? '') !== 'copia_id') {
+                    continue;
+                }
+                foreach (['before', 'after'] as $side) {
+                    $value = $change[$side] ?? null;
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $ids[(int) $value] = true;
+                    }
+                }
+            }
+        }
+        if ($ids === []) {
+            return $items;
+        }
+
+        $labels = [];
+        try {
+            $list = implode(',', array_keys($ids));
+            $result = $db->query("SELECT id, numero_inventario FROM copie WHERE id IN ({$list})");
+            while ($result && ($row = $result->fetch_assoc())) {
+                $label = trim((string) ($row['numero_inventario'] ?? ''));
+                if ($label !== '') {
+                    $labels[(int) $row['id']] = $label;
+                }
+            }
+        } catch (\Throwable) {
+            return $items;
+        }
+
+        foreach ($items as &$item) {
+            foreach ($item['changes'] as &$change) {
+                if (($change['field'] ?? '') !== 'copia_id') {
+                    continue;
+                }
+                foreach (['before', 'after'] as $side) {
+                    $value = $change[$side] ?? null;
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $change[$side] = $labels[(int) $value] ?? ('#' . (int) $value);
+                    }
+                }
+            }
+        }
+        unset($item, $change);
+
+        return $items;
     }
 
     /**

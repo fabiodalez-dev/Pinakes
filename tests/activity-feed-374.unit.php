@@ -214,6 +214,38 @@ try {
         !array_intersect_key($loanChanges, array_flip(['attivo', 'queue_position', 'origine'])),
         'circulation bureaucracy fields (attivo, queue_position, origine) are hidden from loan cards'
     );
+
+    // copia_id resolves to the copy inventory number ("which physical copy
+    // was picked up" is information; a bare id is not).
+    $db->query("INSERT INTO copie (libro_id, numero_inventario, stato) VALUES ({$bookId}, 'INV-374-TEST', 'disponibile')");
+    $copyId = (int) $db->insert_id;
+    $check(
+        ActivityLog::recordBookEvent(
+            $db,
+            $bookId,
+            'aggiornamento',
+            'loan',
+            'loan.picked_up',
+            ['stato' => 'da_ritirare'],
+            ['stato' => 'in_corso', 'copia_id' => $copyId],
+            operatorId: ActivityLog::SYSTEM_OPERATOR,
+            bookTitle: $title,
+            source: 'pickup'
+        ),
+        'pickup event with a copy reference is written'
+    );
+    $pickupFeed = ActivityLog::forBook($db, $bookId, 1, 20);
+    $copyValue = null;
+    foreach ($pickupFeed['items'] as $item) {
+        if (($item['event'] ?? '') === 'loan.picked_up') {
+            foreach ($item['changes'] as $change) {
+                if ($change['field'] === 'copia_id') {
+                    $copyValue = $change['after'];
+                }
+            }
+        }
+    }
+    $check($copyValue === 'INV-374-TEST', 'copia_id resolves to the copy inventory number');
     $check(($loanChanges['utente_id'] ?? null) === 'Audit Operator', 'utente_id resolves to the account display name');
 
     $stmt = $db->prepare('DELETE FROM utenti WHERE id = ?');
@@ -257,9 +289,9 @@ try {
     // forBook type filter mirrors the dashboard allow-list behaviour.
     $loanOnly = ActivityLog::forBook($db, $bookId, 1, 20, null, 'loan');
     $loanTypes = array_unique(array_map(static fn(array $i): string => (string) $i['type'], $loanOnly['items']));
-    $check($loanOnly['total'] === 2 && $loanTypes === ['loan'], 'forBook type filter narrows to the requested type');
+    $check($loanOnly['total'] === 3 && $loanTypes === ['loan'], 'forBook type filter narrows to the requested type');
     $ignoredType = ActivityLog::forBook($db, $bookId, 1, 20, null, 'not-a-type');
-    $check($ignoredType['total'] === 4, 'forBook ignores out-of-allow-list types');
+    $check($ignoredType['total'] === 5, 'forBook ignores out-of-allow-list types');
 } catch (Throwable $e) {
     $db->rollback();
     $db->close();

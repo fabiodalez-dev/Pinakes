@@ -204,6 +204,10 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
                               <span class="break-words"><?= htmlspecialchars((string) ($renderActivityValue($change['after'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                             <?php elseif (($activity['azione'] ?? '') === 'cancellazione'): ?>
                               <span class="break-words line-through text-gray-500"><?= htmlspecialchars((string) ($renderActivityValue($change['before'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
+                            <?php elseif ($change['before'] === null || $change['before'] === ''): ?>
+                              <?php /* Nothing meaningful was replaced: "Non impostato ➜ X"
+                                       repeated on every row is clutter — show the value alone. */ ?>
+                              <span class="break-words"><?= htmlspecialchars((string) ($renderActivityValue($change['after'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                             <?php else: ?>
                               <span class="break-words text-gray-500 line-through"><?= htmlspecialchars((string) ($renderActivityValue($change['before'], (string) $change['field'])), ENT_QUOTES, 'UTF-8') ?></span>
                               <i class="fas fa-arrow-right mx-2 text-xs text-gray-400" aria-hidden="true"></i>
