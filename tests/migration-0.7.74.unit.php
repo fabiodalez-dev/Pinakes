@@ -16,20 +16,23 @@ require $root . '/vendor/autoload.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-// E2E-runner credentials only (no .env fallback): this test creates and
-// drops tables in the configured database, so it must go through the
-// serial runner that points at the dedicated test DB.
-$dbName = getenv('E2E_DB_NAME') ?: '';
-$dbUser = getenv('E2E_DB_USER') ?: '';
-if ($dbName === '' || $dbUser === '') {
-    fwrite(STDERR, "FAIL: refusing to run — export E2E_DB_NAME/E2E_DB_USER (plus E2E_DB_SOCKET or E2E_DB_HOST/E2E_DB_PASS) via the E2E runner.\n");
-    exit(1);
+// Credentials: E2E_DB_* env preferred, .env fallback REQUIRED — the schema
+// gate (scripts/verify-schema.sh, line 24 of its contract) runs migration
+// tests reading creds from .env, same as every migration-*.unit.php sibling.
+// This test only touches per-run zz_m74_* sandbox tables, never live rows.
+$env = [];
+foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as $line) {
+    if (!str_contains($line, '=') || str_starts_with(trim($line), '#')) {
+        continue;
+    }
+    [$key, $value] = explode('=', $line, 2);
+    $env[trim($key)] = trim(trim($value), "\"'");
 }
-$socket = getenv('E2E_DB_SOCKET') ?: '';
+$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
 try {
     $db = $socket !== '' && file_exists($socket)
-        ? new mysqli(null, $dbUser, getenv('E2E_DB_PASS') ?: '', $dbName, 0, $socket)
-        : new mysqli(getenv('E2E_DB_HOST') ?: '127.0.0.1', $dbUser, getenv('E2E_DB_PASS') ?: '', $dbName, (int) (getenv('E2E_DB_PORT') ?: 3306));
+        ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
+        : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
     $db->set_charset('utf8mb4');
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: database unreachable — migration test is mandatory: {$e->getMessage()}\n");
