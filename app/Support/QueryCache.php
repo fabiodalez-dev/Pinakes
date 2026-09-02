@@ -33,6 +33,7 @@ class QueryCache
         'home_',
         'genre_tree_',
         'plugins_maintenance_',
+        'plugins_payload_',
         'schema_table_',
         'book_detail_',
         'book_reviews_',

@@ -44,6 +44,13 @@ class PluginManager
      */
     private static array $isActiveCache = [];
 
+    /**
+     * Cross-request cache key for the active-plugins + hooks payload. The
+     * 'plugins_payload_' prefix is generation-namespaced in QueryCache, so
+     * invalidation is an O(1) generation bump that stale writers cannot undo.
+     */
+    private const HOOKS_PAYLOAD_KEY = 'plugins_payload_active_with_hooks';
+
     public function __construct(mysqli $db, HookManager $hookManager)
     {
         $this->db = $db;
@@ -2134,7 +2141,7 @@ class PluginManager
             // plugins: drop the cached plugin/hook payload so this very
             // request (and the next ones) reads the fresh state instead of a
             // pre-maintenance snapshot.
-            QueryCache::delete('plugins_active_with_hooks');
+            QueryCache::clearByPrefix('plugins_payload_');
             self::$isActiveCache = [];
 
             QueryCache::set($maintenanceKey, 1, 900);
@@ -2143,7 +2150,7 @@ class PluginManager
         // Active plugins + their hook rows, cached across requests. One cache
         // payload replaces 1 + N queries per request (plugin list + one hooks
         // query per plugin).
-        $cached = QueryCache::get('plugins_active_with_hooks');
+        $cached = QueryCache::get(self::HOOKS_PAYLOAD_KEY);
         if (is_array($cached) && isset($cached['plugins'], $cached['hooks'])) {
             $activePlugins = $cached['plugins'];
             $hooksByPlugin = $cached['hooks'];
@@ -2186,7 +2193,7 @@ class PluginManager
                 $activePlugins
             ));
             if ($hooksByPlugin !== null) {
-                QueryCache::set('plugins_active_with_hooks', [
+                QueryCache::set(self::HOOKS_PAYLOAD_KEY, [
                     'plugins' => $activePlugins,
                     'hooks' => $hooksByPlugin,
                 ], 300);
@@ -2545,7 +2552,14 @@ class PluginManager
      */
     public static function clearPluginCache(): void
     {
-        QueryCache::delete('plugins_active_with_hooks');
+        // Generation bump, NOT a point delete: a request that read the old
+        // payload's generation before this bump can still write its stale
+        // payload afterwards, but under the OLD generation — unreachable to
+        // every subsequent reader. A plain delete left a race window (delete,
+        // then a slower in-flight request re-writes the pre-mutation payload
+        // with a 300s TTL) where a freshly activated plugin's hooks stayed
+        // invisible for up to 5 minutes.
+        QueryCache::clearByPrefix('plugins_payload_');
         QueryCache::clearByPrefix('plugins_maintenance_');
         self::$isActiveCache = [];
     }
