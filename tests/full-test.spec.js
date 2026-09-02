@@ -66,12 +66,24 @@ function ensureE2eEnvFlags() {
         'PINAKES_E2E_SCRAPER_STUB=1',
         'PINAKES_E2E_CACHE_FLUSH=1',
       ];
-      const missingFlags = requiredFlags.filter((entry) => {
+      // Enforce the VALUE, not just the key: a stray `FLAG=0` (or empty)
+      // would otherwise survive and silently disable the stub/bypass.
+      let updated = current;
+      const toAppend = [];
+      for (const entry of requiredFlags) {
         const key = entry.split('=', 1)[0];
-        return !new RegExp(`^${key}=`, 'm').test(current);
-      });
-      if (missingFlags.length) {
-        fs.appendFileSync(envPath, `\n${missingFlags.join('\n')}\n`);
+        const lineRe = new RegExp(`^${key}=.*$`, 'm');
+        if (!lineRe.test(updated)) {
+          toAppend.push(entry);
+        } else if (!new RegExp(`^${key}=1$`, 'm').test(updated)) {
+          updated = updated.replace(lineRe, entry);
+        }
+      }
+      if (toAppend.length) {
+        updated += `\n${toAppend.join('\n')}\n`;
+      }
+      if (updated !== current) {
+        fs.writeFileSync(envPath, updated);
       }
     }
   } catch { /* best-effort */ }
