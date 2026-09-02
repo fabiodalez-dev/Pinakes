@@ -689,8 +689,8 @@ class PrestitiController
                 throw new \RuntimeException((string) ($validation['message'] ?? 'Loan validation failed'));
             }
 
-            $db->commit();
-
+            // Recorded inside the transaction (atomic with the insert); the
+            // helper swallows its own failures and cannot abort the commit.
             \App\Support\ActivityLog::recordLoanEvent(
                 $db,
                 $newLoanId,
@@ -698,6 +698,8 @@ class PrestitiController
                 action: 'inserimento',
                 source: 'manual'
             );
+
+            $db->commit();
 
             // Create in-app notification for new loan
             try {
@@ -853,7 +855,6 @@ class PrestitiController
         if (!$current) {
             return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
         }
-        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
         // Rifiuta la modifica di un prestito CHIUSO: editarlo non deve riattivarlo
         // (I1/I2 — BUG1). Un prestito è chiuso se attivo=0 o data_restituzione valorizzata.
         // (Ri-verificato più sotto, sotto lock.)
@@ -930,6 +931,10 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
             }
+
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
 
             // Ricostruisci i valori effettivi dai dati LOCKATI: i campi non inviati
             // dal form devono completarsi con lo stato corrente reale della riga.
@@ -1252,8 +1257,8 @@ class PrestitiController
                 throw new \RuntimeException('Impossibile ricalcolare la disponibilità del libro.');
             }
 
-            $db->commit();
             \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $activityBefore, source: 'manual');
+            $db->commit();
         } catch (\mysqli_sql_exception $e) {
             $db->rollback();
             // A trigger SIGNAL (e.g. I7) surfaces here under STRICT mode — never a 500.
@@ -1273,15 +1278,12 @@ class PrestitiController
         }
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\LoanRepository($db);
-        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
         // false = prestito inesistente o non chiudibile (guardia di stato H1):
-        // segnala invece di fingere il successo.
+        // segnala invece di fingere il successo. L'audit loan.returned è
+        // registrato DENTRO la transazione del repository (snapshot post-lock).
         if (!$repo->close($id)) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_closable')->withStatus(302);
         }
-        // Same audit contract as processReturn(): the legacy endpoint closes
-        // the same loans and must leave the same trail.
-        \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.returned', $activityBefore, source: 'manual');
 
         // Legacy close endpoint shares the same post-commit notification
         // contract as processReturn/quick return.
@@ -1351,7 +1353,6 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
-        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
@@ -1437,6 +1438,10 @@ class PrestitiController
             if ((int) $loan['libro_id'] !== $libro_id) {
                 throw new \RuntimeException('libro_id del prestito cambiato durante il lock (TOCTOU).');
             }
+
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
 
             $copia_id = $loan['copia_id'];
 
@@ -1541,8 +1546,8 @@ class PrestitiController
                 throw new \RuntimeException('Failed to recalculate availability after loan return.');
             }
 
-            $db->commit();
             \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.returned', $activityBefore, source: 'manual');
+            $db->commit();
 
             // Send deferred notifications after commit. Each action is isolated
             // in its own try/catch: the data is already durably committed, so a
@@ -2006,7 +2011,6 @@ class PrestitiController
 
         $loan = $result->fetch_assoc();
         $stmt->close();
-        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
 
         // Check if loan is active
         if ((int) $loan['attivo'] !== 1) {
@@ -2125,6 +2129,10 @@ class PrestitiController
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_picked_up'))->withStatus(302);
             }
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
+
             if ((int) $lockedLoan['renewals'] >= $maxRenewals) {
                 $db->rollback();
                 $errorUrl = $redirectTo ?? url('/admin/loans');
@@ -2219,8 +2227,8 @@ class PrestitiController
                 SecureLogger::warning(__('Validazione prestito fallita'), ['loan_id' => $id, 'message' => $validationResult['message']]);
             }
 
-            $db->commit();
             \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.renewed', $activityBefore, source: 'manual');
+            $db->commit();
             $_SESSION['success_message'] = __('Prestito rinnovato correttamente. Nuova scadenza: %s', format_date($newDueDate, false, '/'));
 
             // Conferma al lettore con la NUOVA scadenza, DOPO il commit: prima

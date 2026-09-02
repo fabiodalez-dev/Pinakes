@@ -130,7 +130,6 @@ class UserActionsController
             return $response->withStatus(422);
         }
         $uid = (int) $user['id'];
-        $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
 
         // ORDINE DI LOCK CANONICO (P3, M2): risolvi libro_id con una lettura
         // NON bloccante PRIMA di begin_transaction() (lock-first, MVCC: la read
@@ -198,6 +197,10 @@ class UserActionsController
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
             }
 
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
+
             // Mark as cancelled
             $cancelNote = "\n[User] Annullato dall'utente";
             // pickup_deadline = NULL: a 'da_ritirare' loan carries a deadline;
@@ -252,7 +255,6 @@ class UserActionsController
                 throw new \RuntimeException('Failed to recalculate availability after loan cancellation.');
             }
 
-            $db->commit();
             \App\Support\ActivityLog::recordLoanEvent(
                 $db,
                 $loanId,
@@ -261,6 +263,7 @@ class UserActionsController
                 source: 'user',
                 operatorId: $uid
             );
+            $db->commit();
 
             // Send deferred notifications after commit
             if (isset($reassignmentService)) {
@@ -298,7 +301,6 @@ class UserActionsController
             return $response->withStatus(422);
         }
         $uid = (int) $user['id'];
-        $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $rid);
 
         // CANONICAL LOCK ORDER (P3, L7): resolve libro_id with a NON-blocking
         // read BEFORE begin_transaction() (lock-first, MVCC: the REPEATABLE READ
@@ -348,6 +350,10 @@ class UserActionsController
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
             }
 
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $rid);
+
             // Cancel the reservation
             $stmt = $db->prepare("UPDATE prenotazioni SET stato='annullata' WHERE id=? AND utente_id=?");
             $stmt->bind_param('ii', $rid, $uid);
@@ -391,7 +397,6 @@ class UserActionsController
                 throw new \RuntimeException('Failed to recalculate availability after reservation cancellation.');
             }
 
-            $db->commit();
             \App\Support\ActivityLog::recordReservationEvent(
                 $db,
                 $rid,
@@ -400,6 +405,7 @@ class UserActionsController
                 source: 'user',
                 operatorId: $uid
             );
+            $db->commit();
 
             try {
                 $reservationManager->flushDeferredNotifications();
@@ -436,7 +442,6 @@ class UserActionsController
         }
 
         $uid = (int) $user['id'];
-        $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $rid);
         $startDate = $date;
         $loanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
         $loanDays = $loanDays > 0 ? $loanDays : 30;
@@ -482,6 +487,11 @@ class UserActionsController
                 $db->rollback();
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
             }
+
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $rid);
+
             // Canonical peak-capacity check, excluding the row being moved.
             $capacity = new \App\Services\CapacityService($db);
             if (!$capacity->hasFreeCapacity($libroId, $startDate, $endDate, excludeReservationId: $rid, excludeUserId: $uid)) {
@@ -511,7 +521,6 @@ class UserActionsController
                 throw new \RuntimeException('Failed to recalculate availability after reservation date change.');
             }
 
-            $db->commit();
             \App\Support\ActivityLog::recordReservationEvent(
                 $db,
                 $rid,
@@ -520,6 +529,7 @@ class UserActionsController
                 source: 'user',
                 operatorId: $uid
             );
+            $db->commit();
 
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?updated=1')->withStatus(302);
 
@@ -737,7 +747,6 @@ class UserActionsController
                     throw new \RuntimeException('Failed to recalculate availability after automatic copy claim.');
                 }
             }
-            $db->commit();
             \App\Support\ActivityLog::recordLoanEvent(
                 $db,
                 $newLoanId,
@@ -746,6 +755,7 @@ class UserActionsController
                 source: 'user',
                 operatorId: $utenteId
             );
+            $db->commit();
 
             // Promote immediately before performing slower email I/O, minimizing
             // the post-commit window in which another request could claim the
