@@ -193,7 +193,7 @@ try {
             'loan',
             'loan.created',
             [],
-            ['libro_id' => $bookId, 'utente_id' => $operatorId, 'stato' => 'in_corso'],
+            ['libro_id' => $bookId, 'utente_id' => $operatorId, 'stato' => 'in_corso', 'attivo' => 1, 'queue_position' => 3, 'origine' => 'richiesta'],
             operatorId: ActivityLog::SYSTEM_OPERATOR,
             bookTitle: $title,
             source: 'backfill'
@@ -210,6 +210,10 @@ try {
         }
     }
     $check(!array_key_exists('libro_id', $loanChanges), 'libro_id is hidden from the rendered change list');
+    $check(
+        !array_intersect_key($loanChanges, array_flip(['attivo', 'queue_position', 'origine'])),
+        'circulation bureaucracy fields (attivo, queue_position, origine) are hidden from loan cards'
+    );
     $check(($loanChanges['utente_id'] ?? null) === 'Audit Operator', 'utente_id resolves to the account display name');
 
     $stmt = $db->prepare('DELETE FROM utenti WHERE id = ?');

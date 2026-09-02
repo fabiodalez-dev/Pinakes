@@ -26,9 +26,16 @@ $renderActivityValue = static function (mixed $value, string $field): string {
             return __($label);
         }
         // Bare ISO dates read poorly ("2026-07-07"): render them in the
-        // same localized format the event header already uses.
+        // same localized format the event header already uses. Sentinel
+        // boundary times (midnight / 23:59) are storage artifacts, not
+        // information: show the date alone.
         if (preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/', $value) === 1) {
-            return format_date($value, str_contains($value, ':'), '/');
+            $boundary = preg_match('/ (00:00|23:59)(:\d{2})?$/', $value) === 1;
+            return format_date($value, str_contains($value, ':') && !$boundary, '/');
+        }
+        // A resolved-but-deleted account comes through as '#<id>'.
+        if ($field === 'utente_id' && preg_match('/^#(\d+)$/', $value, $m) === 1) {
+            return sprintf(__('Account eliminato (#%d)'), (int) $m[1]);
         }
     }
     if (is_array($value)) {

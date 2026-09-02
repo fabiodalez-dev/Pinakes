@@ -27,6 +27,22 @@ final class ActivityLog
      */
     public const SYSTEM_OPERATOR = 0;
 
+    /**
+     * Bureaucracy fields hidden from CIRCULATION event cards: the header
+     * already tells the story (event + date), the requested period stays via
+     * data_inizio/fine_richiesta, and queue positions/duplicate datetime
+     * pairs only add noise (production feedback, 2026-09-02).
+     */
+    private const LOAN_NOISE_FIELDS = [
+        'queue_position',
+        'data_prenotazione',
+        'data_scadenza_prenotazione',
+        'attivo',
+        'renewals',
+        'origine',
+        'copia_id',
+    ];
+
     private const HIDDEN_FIELDS = [
         '_activity',
         'libro_id',
@@ -499,11 +515,15 @@ final class ActivityLog
         $after = self::decodeSnapshot($row['dati_nuovi'] ?? null);
         $meta = isset($after['_activity']) && is_array($after['_activity']) ? $after['_activity'] : [];
         unset($after['_activity']);
+        $type = (string) ($meta['type'] ?? 'edit');
 
         $changes = [];
         $keys = array_unique(array_merge(array_keys($before), array_keys($after)));
         foreach ($keys as $key) {
             if (in_array($key, self::HIDDEN_FIELDS, true)) {
+                continue;
+            }
+            if ($type === 'loan' && in_array($key, self::LOAN_NOISE_FIELDS, true)) {
                 continue;
             }
             $old = $before[$key] ?? null;
@@ -515,7 +535,7 @@ final class ActivityLog
         }
 
         $row['meta'] = $meta;
-        $row['type'] = (string) ($meta['type'] ?? 'edit');
+        $row['type'] = $type;
         $row['event'] = (string) ($meta['event'] ?? '');
         $row['book_title'] = (string) ($row['book_title'] ?? $meta['book_title'] ?? '');
         $row['operator_name'] = (string) ($row['operator_name'] ?? $meta['operator_name'] ?? '');
