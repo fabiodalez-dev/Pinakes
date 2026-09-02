@@ -2,6 +2,12 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.76]
+
+### Fixed
+
+- **Backfilled loan events now carry the physical copy.** The 0.7.75 history backfill synthesized `loan.created`/`loan.returned` events without `copia_id`, so the timeline could not show which physical copy was involved — the exact information the feature was asked for. An idempotent migration copies each loan's `copia_id` into every backfilled event that lacks it; loans without a copy, already-enriched events and real runtime events are untouched.
+
 ## [0.7.75]
 
 ### Fixed

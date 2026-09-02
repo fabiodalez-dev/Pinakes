@@ -41,24 +41,13 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.75 — latest
+### v0.7.76 — latest
+
+A follow-up fix: backfilled loan history now includes the physical copy's inventory number, completing the timeline shipped in 0.7.75.
+
+### v0.7.75
 
 A follow-up fix: the activity timeline introduced in 0.7.73 now backfills the existing circulation history, so books already on loan show their events right after the upgrade instead of an empty timeline.
-
-### v0.7.73
-
-A feature and hardening release: every book now has a full activity timeline, CSV imports let you choose field by field what an update may overwrite, and a broad circulation/settings hardening pass lands with ~140 new automated checks.
-
-### New
-
-- **Activity timeline.** Each admin book page ends with a field-level history of everything that happened to the title — edits, copies, imports, enrichment, loans and reservations — and the dashboard gains a library-wide feed. Filter by event type and operator, search by title or operator, and everything updates in place without page reloads.
-- **Per-field CSV updates.** Eighteen checkboxes (including twelve individual bibliographic fields) decide exactly which data an import may overwrite on existing books; unchecked data is preserved and the scraping enrichment honours the same selection.
-
-### Fixes
-
-- Plugin activation takes effect immediately (a cache race could delay a plugin's hooks by up to 5 minutes).
-- Circulation: archived-title notifications are no longer lost, pickup cancel/expiry can never free a copy that is physically out under another loan, and NCIP checkout replays are idempotent.
-- Settings/themes: theme custom CSS actually renders, activating a broken theme id no longer disables all themes, cookie-banner texts are sanitized, and settings inputs are hardened.
 
 ## Quick Start
 
