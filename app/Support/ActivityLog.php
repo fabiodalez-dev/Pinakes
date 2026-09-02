@@ -29,6 +29,7 @@ final class ActivityLog
 
     private const HIDDEN_FIELDS = [
         '_activity',
+        'libro_id',
         'descrizione_plain',
         'search_index',
         'updated_at',
@@ -703,10 +704,70 @@ final class ActivityLog
             }
             $stmt->close();
 
-            return ['items' => $items, 'page' => $page, 'pages' => $pages, 'total' => $total];
+            return ['items' => self::resolveUserReferences($db, $items), 'page' => $page, 'pages' => $pages, 'total' => $total];
         } catch (\Throwable $e) {
             SecureLogger::warning('ActivityLog read failed', ['error' => $e->getMessage()]);
             return ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
         }
+    }
+
+    /**
+     * Replace raw utente_id values in the decoded change lists with the
+     * user's display name ("Utente 5" tells the reader nothing). One query
+     * for the whole page of items; a deleted account falls back to "#id".
+     *
+     * @param list<array<string,mixed>> $items
+     * @return list<array<string,mixed>>
+     */
+    private static function resolveUserReferences(mysqli $db, array $items): array
+    {
+        $ids = [];
+        foreach ($items as $item) {
+            foreach (($item['changes'] ?? []) as $change) {
+                if (($change['field'] ?? '') !== 'utente_id') {
+                    continue;
+                }
+                foreach (['before', 'after'] as $side) {
+                    $value = $change[$side] ?? null;
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $ids[(int) $value] = true;
+                    }
+                }
+            }
+        }
+        if ($ids === []) {
+            return $items;
+        }
+
+        $names = [];
+        try {
+            $list = implode(',', array_keys($ids));
+            $result = $db->query("SELECT id, TRIM(CONCAT(nome, ' ', cognome)) AS name FROM utenti WHERE id IN ({$list})");
+            while ($result && ($row = $result->fetch_assoc())) {
+                $name = trim((string) ($row['name'] ?? ''));
+                if ($name !== '') {
+                    $names[(int) $row['id']] = $name;
+                }
+            }
+        } catch (\Throwable) {
+            return $items;
+        }
+
+        foreach ($items as &$item) {
+            foreach ($item['changes'] as &$change) {
+                if (($change['field'] ?? '') !== 'utente_id') {
+                    continue;
+                }
+                foreach (['before', 'after'] as $side) {
+                    $value = $change[$side] ?? null;
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $change[$side] = $names[(int) $value] ?? ('#' . (int) $value);
+                    }
+                }
+            }
+        }
+        unset($item, $change);
+
+        return $items;
     }
 }

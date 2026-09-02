@@ -2,10 +2,12 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [0.7.74]
+## [0.7.75]
 
 ### Fixed
 
+- **Readable event cards.** The change list no longer shows a redundant `libro_id` row (the event is already anchored to its book), `utente_id` resolves to the account's display name instead of a bare number, and bare ISO dates render in the interface's localized format. Purely a rendering fix: it applies retroactively to events already recorded.
+- **Build toolchain advisory cleared.** The frontend lockfile pins a patched `fast-uri` (four high-severity advisories published 2026-09-02, reachable only through the dev-time webpack toolchain — nothing shipped was affected); the compiled assets are byte-identical.
 - **The activity timeline now includes pre-existing circulation.** The feed shipped in 0.7.73 recorded events from the moment of the action only, so every upgraded install started with an empty timeline even for books currently on loan. An idempotent migration backfills one `loan.created` event per existing loan (plus `loan.returned` for closed ones) and one `reservation.created` per reservation, with the historical timestamps, a NULL operator (rendered as "Sistema") and `source=backfill`; equivalent events already recorded for real are preserved, never duplicated.
 
 ## [0.7.73]

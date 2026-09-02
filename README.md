@@ -41,7 +41,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.74 — latest
+### v0.7.75 — latest
 
 A follow-up fix: the activity timeline introduced in 0.7.73 now backfills the existing circulation history, so books already on loan show their events right after the upgrade instead of an empty timeline.
 

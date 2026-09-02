@@ -25,6 +25,11 @@ $renderActivityValue = static function (mixed $value, string $field): string {
         if ($label !== null) {
             return __($label);
         }
+        // Bare ISO dates read poorly ("2026-07-07"): render them in the
+        // same localized format the event header already uses.
+        if (preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/', $value) === 1) {
+            return format_date($value, str_contains($value, ':'), '/');
+        }
     }
     if (is_array($value)) {
         return (string) json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
