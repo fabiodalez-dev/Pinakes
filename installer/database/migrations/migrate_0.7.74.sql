@@ -41,13 +41,17 @@ WHERE p.data_restituzione IS NOT NULL
     AND JSON_UNQUOTE(JSON_EXTRACT(lm.dati_nuovi, '$._activity.type')) = 'loan'
     AND JSON_UNQUOTE(JSON_EXTRACT(lm.dati_nuovi, '$._activity.event')) = 'loan.returned');
 
+-- NB: reservations use _activity.type='loan' ON PURPOSE — it mirrors
+-- ActivityLog::recordReservationEvent(), and the feed's single
+-- "Prestiti e prenotazioni" filter covers both (there is no separate
+-- 'reservation' entry in ActivityLog::TYPES).
 INSERT INTO log_modifiche (tabella, record_id, azione, dati_precedenti, dati_nuovi, utente_id, data_modifica)
 SELECT 'libri', r.libro_id, 'inserimento', '{}',
   JSON_OBJECT('libro_id', r.libro_id, 'utente_id', r.utente_id,
     'data_prenotazione', r.data_prenotazione, 'stato', r.stato,
     '_activity', JSON_OBJECT('type','loan','event','reservation.created','entity_id',r.id,
       'book_title', l.titolo, 'source','backfill')),
-  NULL, COALESCE(r.data_prenotazione, NOW())
+  NULL, COALESCE(r.data_prenotazione, r.created_at)
 FROM prenotazioni r JOIN libri l ON l.id = r.libro_id
 WHERE NOT EXISTS (
   SELECT 1 FROM log_modifiche lm WHERE lm.tabella = 'libri'
