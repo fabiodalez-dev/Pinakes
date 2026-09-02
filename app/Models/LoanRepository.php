@@ -224,6 +224,11 @@ class LoanRepository
             }
             $closedCopiaId = $lockedRow['copia_id'] !== null ? (int) $lockedRow['copia_id'] : null;
 
+            // Audit snapshot AFTER the loan lock, inside this repository-managed
+            // transaction: taken by the caller before close() it could capture a
+            // concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($this->db, $id);
+
             // Chiude il prestito (restituito + flag ritardo se oltre scadenza, I4/BUG5).
             // "Oggi" nel timezone applicativo (M9), non UTC: a cavallo della
             // mezzanotte gmdate() registrerebbe il giorno sbagliato.
@@ -280,6 +285,10 @@ class LoanRepository
             if (!$integrity->recalculateBookAvailability($bookId, true)) {
                 throw new \RuntimeException('Unable to recalculate final book availability.');
             }
+
+            // Recorded inside the transaction (atomic with the close); the
+            // helper swallows its own failures and cannot abort the commit.
+            \App\Support\ActivityLog::recordLoanEvent($this->db, $id, 'loan.returned', $activityBefore, source: 'manual');
 
             $this->db->commit();
 

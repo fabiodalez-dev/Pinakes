@@ -250,6 +250,10 @@ class LoanApprovalController
             $loan = $result->fetch_assoc();
             $stmt->close();
 
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
+
             $existingCopiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
             $dataPrestito = $loan['data_prestito'];
             $dataScadenza = $loan['data_scadenza'];
@@ -637,6 +641,19 @@ class LoanApprovalController
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            // Automatic approvals run inside the requesting reader's HTTP
+            // session: without an explicit operator the audit event would be
+            // attributed to the reader, an action they cannot perform.
+            // Recorded inside the transaction: atomic with the mutation, and
+            // the helper swallows its own failures so it cannot block commit.
+            \App\Support\ActivityLog::recordLoanEvent(
+                $db,
+                $loanId,
+                'loan.approved',
+                $activityBefore,
+                source: 'approval',
+                operatorId: $automaticApproval ? \App\Support\ActivityLog::SYSTEM_OPERATOR : null
+            );
             $db->commit();
 
             // Send appropriate notification to user. Issue #301 explicitly keeps
@@ -823,6 +840,9 @@ class LoanApprovalController
             if ((int) $loan['libro_id'] !== $bookId) {
                 throw new \RuntimeException('libro_id del prestito cambiato durante il lock (TOCTOU).');
             }
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
             // Store data needed for the rejection email before changing state.
             $userEmail = $loan['utente_email'];
             $userName = $loan['utente_nome'];
@@ -876,6 +896,7 @@ class LoanApprovalController
                 // keep promoting while freed capacity converts the next queued reservation
             }
 
+            \App\Support\ActivityLog::recordLoanEvent($db, $loanId, 'loan.cancelled', $activityBefore, source: 'rejection');
             $db->commit();
 
             // Notifiche accodate durante la transazione esterna (P2): inviale ora
@@ -1012,6 +1033,10 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
+
             // Block if no copy assigned (data integrity issue - legacy/migration problem)
             if (empty($loan['copia_id'])) {
                 $db->rollback();
@@ -1122,6 +1147,7 @@ class LoanApprovalController
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            \App\Support\ActivityLog::recordLoanEvent($db, $loanId, 'loan.picked_up', $activityBefore, source: 'pickup');
             $db->commit();
 
             $response->getBody()->write(json_encode([
@@ -1243,6 +1269,10 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
+
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
 
             // #381: a voluntary cancellation before (or on) the pickup deadline
@@ -1288,7 +1318,13 @@ class LoanApprovalController
             $reassignmentService = new \App\Services\ReservationReassignmentService($db);
             $reassignmentService->setExternalTransaction(true);
 
-            // Release copy if assigned (set back to 'disponibile' only if valid state)
+            // Release copy if assigned. Only a copy actually HELD for this pickup
+            // (stato='prenotato') may be freed — mirrors the user cancel twin's
+            // guarded UPDATE. In particular a copy in 'prestato' is physically out
+            // under ANOTHER open loan (the reassignment service deliberately binds
+            // 'prestato' copies to disjoint future windows), so flipping it to
+            // 'disponibile' here would mark an out-of-library copy as available
+            // until its real return. 'disponibile' (promoted pendente) is a no-op.
             if ($copiaId) {
                 // FOR UPDATE prevents TOCTOU race - lock row before checking and updating
                 $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
@@ -1297,14 +1333,13 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
-                if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
+                if ($copyResult && $copyResult['stato'] === 'prenotato') {
                     $copyRepo = new \App\Models\CopyRepository($db);
                     $copyRepo->updateStatus($copiaId, 'disponibile');
 
                     // Advance reservation queue: promote next waiting user for this copy
                     $reassignmentService->reassignOnReturn($copiaId);
-                } elseif ($copyResult) {
+                } elseif ($copyResult && $copyResult['stato'] !== 'disponibile') {
                     \App\Support\SecureLogger::warning("[cancelPickup] Copy {$copiaId} in state '{$copyResult['stato']}' not reset to disponibile");
                 }
             }
@@ -1323,6 +1358,16 @@ class LoanApprovalController
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            // 'scaduto' is a distinct outcome (deadline passed), not a staff
+            // cancellation: give it its own event so the feed does not read
+            // "Prestito annullato" for an expiry.
+            \App\Support\ActivityLog::recordLoanEvent(
+                $db,
+                $loanId,
+                $terminalState === 'scaduto' ? 'loan.expired' : 'loan.cancelled',
+                $activityBefore,
+                source: 'pickup'
+            );
             $db->commit();
 
             // Send deferred reservation notifications AFTER commit (outside transaction)
@@ -1453,6 +1498,10 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
+
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
             // "Oggi" nel timezone applicativo (M9): a cavallo della mezzanotte
             // date('Y-m-d') in UTC registrerebbe il giorno sbagliato di restituzione
@@ -1515,6 +1564,7 @@ class LoanApprovalController
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            \App\Support\ActivityLog::recordLoanEvent($db, $loanId, 'loan.returned', $activityBefore, source: 'return');
             $db->commit();
 
             // Send deferred notifications after commit
@@ -1649,6 +1699,10 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $reservationId);
+
             // Re-verifica TOCTOU: se libro_id è cambiato tra la lettura non bloccante e
             // il lock avremmo bloccato (e ricalcolato) il libro sbagliato: abort.
             if ((int) $reservation['libro_id'] !== $libroId) {
@@ -1709,6 +1763,13 @@ class LoanApprovalController
                 // keep promoting while freed capacity converts the next queued reservation
             }
 
+            \App\Support\ActivityLog::recordReservationEvent(
+                $db,
+                $reservationId,
+                'reservation.cancelled',
+                $activityBefore,
+                source: 'admin'
+            );
             $db->commit();
 
             // Notifiche accodate durante la transazione esterna (P2): inviale ora

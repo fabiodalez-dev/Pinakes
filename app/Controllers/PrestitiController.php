@@ -689,6 +689,16 @@ class PrestitiController
                 throw new \RuntimeException((string) ($validation['message'] ?? 'Loan validation failed'));
             }
 
+            // Recorded inside the transaction (atomic with the insert); the
+            // helper swallows its own failures and cannot abort the commit.
+            \App\Support\ActivityLog::recordLoanEvent(
+                $db,
+                $newLoanId,
+                'loan.created',
+                action: 'inserimento',
+                source: 'manual'
+            );
+
             $db->commit();
 
             // Create in-app notification for new loan
@@ -921,6 +931,10 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
             }
+
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
 
             // Ricostruisci i valori effettivi dai dati LOCKATI: i campi non inviati
             // dal form devono completarsi con lo stato corrente reale della riga.
@@ -1243,6 +1257,7 @@ class PrestitiController
                 throw new \RuntimeException('Impossibile ricalcolare la disponibilità del libro.');
             }
 
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $activityBefore, source: 'manual');
             $db->commit();
         } catch (\mysqli_sql_exception $e) {
             $db->rollback();
@@ -1264,7 +1279,8 @@ class PrestitiController
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\LoanRepository($db);
         // false = prestito inesistente o non chiudibile (guardia di stato H1):
-        // segnala invece di fingere il successo.
+        // segnala invece di fingere il successo. L'audit loan.returned è
+        // registrato DENTRO la transazione del repository (snapshot post-lock).
         if (!$repo->close($id)) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_closable')->withStatus(302);
         }
@@ -1423,6 +1439,10 @@ class PrestitiController
                 throw new \RuntimeException('libro_id del prestito cambiato durante il lock (TOCTOU).');
             }
 
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
+
             $copia_id = $loan['copia_id'];
 
             // Ritardo: un rientro oltre la scadenza è 'restituito' + flag (I4/BUG5).
@@ -1526,6 +1546,7 @@ class PrestitiController
                 throw new \RuntimeException('Failed to recalculate availability after loan return.');
             }
 
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.returned', $activityBefore, source: 'manual');
             $db->commit();
 
             // Send deferred notifications after commit. Each action is isolated
@@ -1854,6 +1875,9 @@ class PrestitiController
                 // null == a capacity/copy conflict: roll the WHOLE batch back so
                 // no partial extension is committed (same all-or-nothing contract
                 // the tests pin). A thrown error is handled by the outer catch.
+                // Before-snapshot inside the lock, so the audit diff shows the
+                // pre-extension due date (same event renew() records).
+                $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, (int) $loan['id']);
                 $applied = $this->applyBulkLoanExtension(
                     $loan,
                     $days,
@@ -1868,6 +1892,9 @@ class PrestitiController
                     $update->close();
                     $db->rollback();
                     return $response->withHeader('Location', $backUrl . '?error=bulk_extend_conflict')->withStatus(302);
+                }
+                if ($applied > 0) {
+                    \App\Support\ActivityLog::recordLoanEvent($db, (int) $loan['id'], 'loan.renewed', $activityBefore, source: 'manual');
                 }
                 $extended += $applied;
             }
@@ -2102,6 +2129,10 @@ class PrestitiController
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_picked_up'))->withStatus(302);
             }
+            // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
+            // capture a concurrent transition and misattribute the diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
+
             if ((int) $lockedLoan['renewals'] >= $maxRenewals) {
                 $db->rollback();
                 $errorUrl = $redirectTo ?? url('/admin/loans');
@@ -2196,6 +2227,7 @@ class PrestitiController
                 SecureLogger::warning(__('Validazione prestito fallita'), ['loan_id' => $id, 'message' => $validationResult['message']]);
             }
 
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.renewed', $activityBefore, source: 'manual');
             $db->commit();
             $_SESSION['success_message'] = __('Prestito rinnovato correttamente. Nuova scadenza: %s', format_date($newDueDate, false, '/'));
 

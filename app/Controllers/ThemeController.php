@@ -29,7 +29,7 @@ class ThemeController
     {
         // Check authorization
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            return $response->withStatus(403)->withHeader('Location', url('/admin/dashboard'));
+            return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
         }
 
         $themes = $this->themeManager->getAllThemes();
@@ -57,7 +57,7 @@ class ThemeController
     {
         // Check authorization
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            return $response->withStatus(403)->withHeader('Location', url('/admin/dashboard'));
+            return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
         }
 
         $themeId = (int)($args['id'] ?? 0);
@@ -94,8 +94,19 @@ class ThemeController
      */
     public function save(Request $request, Response $response, array $args): Response
     {
+        // Check authorization
+        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+            return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
+        }
+
         // CSRF validated by CsrfMiddleware
         $parsedBody = $request->getParsedBody();
+        if (!is_array($parsedBody)) {
+            $_SESSION['error'] = __('Richiesta non valida');
+            return $response
+                ->withHeader('Location', url('/admin/themes'))
+                ->withStatus(302);
+        }
 
         $themeId = (int)($args['id'] ?? 0);
         $theme = $this->themeManager->getThemeById($themeId);
@@ -109,10 +120,13 @@ class ThemeController
 
         // Get submitted colors
         $colors = $parsedBody['colors'] ?? [];
+        if (!is_array($colors)) {
+            $colors = [];
+        }
 
-        // Validate colors
+        // Validate colors (non-string values would hit string-typed methods under strict_types)
         foreach ($colors as $key => $color) {
-            if (!$this->themeColorizer->isValidHex($color)) {
+            if (!is_string($color) || !$this->themeColorizer->isValidHex($color)) {
                 $_SESSION['error'] = __('Colore non valido') . ': ' . $key;
                 return $response
                     ->withHeader('Location', url('/admin/themes/' . $themeId . '/customize'))
@@ -135,31 +149,35 @@ class ThemeController
             }
         }
 
-        $layoutVariant = (string) ($parsedBody['layout_variant'] ?? ThemeManager::DEFAULT_LAYOUT_VARIANT);
-        if (!in_array($layoutVariant, ThemeManager::LAYOUT_VARIANTS, true)) {
+        $layoutVariant = $parsedBody['layout_variant'] ?? ThemeManager::DEFAULT_LAYOUT_VARIANT;
+        if (!is_string($layoutVariant) || !in_array($layoutVariant, ThemeManager::LAYOUT_VARIANTS, true)) {
             $_SESSION['error'] = __('Stile interfaccia non valido');
             return $response
                 ->withHeader('Location', url('/admin/themes/' . $themeId . '/customize'))
                 ->withStatus(302);
         }
 
-        // Update theme colors only after every submitted presentation option
-        // has passed validation, avoiding partial saves on invalid requests.
-        $success = $this->themeManager->updateThemeColors($themeId, $colors, $layoutVariant);
-
-        // Update advanced settings if provided
-        if (isset($parsedBody['advanced'])) {
+        // Build the optional advanced block before writing anything. Colors,
+        // layout and CSS are then persisted by ThemeManager in one JSON update,
+        // so a failure cannot leave a partially-saved customization.
+        $advanced = null;
+        if (isset($parsedBody['advanced']) && is_array($parsedBody['advanced'])) {
+            $customCss = $parsedBody['advanced']['custom_css'] ?? '';
+            $storedSettings = json_decode($theme['settings'], true) ?? [];
+            $storedCustomJs = $storedSettings['advanced']['custom_js'] ?? '';
             $advanced = [
-                'custom_css' => $parsedBody['advanced']['custom_css'] ?? '',
-                'custom_js' => $parsedBody['advanced']['custom_js'] ?? ''
+                'custom_css' => is_string($customCss) ? $customCss : '',
+                // custom_js has no UI field and is not accepted from POST;
+                // carry the stored value forward untouched.
+                'custom_js' => is_string($storedCustomJs) ? $storedCustomJs : ''
             ];
 
             // Neutralise any </style>/<script> breakout in the CSS so it can
             // never escape its inline <style> wrapper into script execution.
-            $advanced['custom_css'] = \App\Support\ContentSanitizer::sanitizeCustomCss((string) $advanced['custom_css']);
-
-            $this->themeManager->updateAdvancedSettings($themeId, $advanced);
+            $advanced['custom_css'] = \App\Support\ContentSanitizer::sanitizeCustomCss($advanced['custom_css']);
         }
+
+        $success = $this->themeManager->updateThemeColors($themeId, $colors, $layoutVariant, $advanced);
 
         if ($success) {
             $_SESSION['success'] = __('Tema salvato con successo');
@@ -180,13 +198,15 @@ class ThemeController
         // Check authorization — AdminAuthMiddleware also admits 'staff', but
         // changing the site-wide public layout is admin-only (matches index()/customize()).
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            return $response->withStatus(403)->withHeader('Location', url('/admin/dashboard'));
+            return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
         }
 
         $themeId = (int) ($args['id'] ?? 0);
         $theme = $this->themeManager->getThemeById($themeId);
-        $parsedBody = (array) $request->getParsedBody();
-        $layoutVariant = (string) ($parsedBody['layout_variant'] ?? '');
+        $parsedBody = $request->getParsedBody();
+        $layoutVariant = is_array($parsedBody) && is_string($parsedBody['layout_variant'] ?? null)
+            ? $parsedBody['layout_variant']
+            : '';
 
         if (!$theme || empty($theme['active'])) {
             $_SESSION['error'] = __('Tema non trovato');
@@ -208,6 +228,15 @@ class ThemeController
      */
     public function activate(Request $request, Response $response, array $args): Response
     {
+        // Check authorization
+        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __('Non autorizzato.')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+        }
+
         $themeId = (int)($args['id'] ?? 0);
 
         $success = $this->themeManager->activateTheme($themeId);
@@ -225,6 +254,15 @@ class ThemeController
      */
     public function reset(Request $request, Response $response, array $args): Response
     {
+        // Check authorization
+        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => __('Non autorizzato.')
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+        }
+
         $themeId = (int)($args['id'] ?? 0);
 
         $success = $this->themeManager->resetThemeColors($themeId);
@@ -242,11 +280,26 @@ class ThemeController
      */
     public function checkContrast(Request $request, Response $response): Response
     {
+        // Check authorization
+        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+            $response->getBody()->write(json_encode([
+                'error' => 'Forbidden'
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+        }
+
         $parsedBody = $request->getParsedBody();
+        if (!is_array($parsedBody)) {
+            $response->getBody()->write(json_encode([
+                'error' => 'Invalid request body'
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
         $foreground = $parsedBody['fg'] ?? '#000000';
         $background = $parsedBody['bg'] ?? '#ffffff';
 
-        if (!$this->themeColorizer->isValidHex($foreground) || !$this->themeColorizer->isValidHex($background)) {
+        if (!is_string($foreground) || !is_string($background)
+            || !$this->themeColorizer->isValidHex($foreground) || !$this->themeColorizer->isValidHex($background)) {
             $response->getBody()->write(json_encode([
                 'error' => 'Invalid color format'
             ]));

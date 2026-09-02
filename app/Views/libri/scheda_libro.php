@@ -1839,6 +1839,21 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
     </script>
   <?php endif; ?>
 
+  <?php if ($isAdminOrStaff): ?>
+    <?php
+    $activityContext = 'book';
+    $activityBaseUrl = '/admin/books/' . (int) $libro['id'];
+    $activityPageParam = 'book_activity_page';
+    $activityFilters = [
+        'activity_type' => (string) ($activityType ?? ''),
+        'activity_operator' => 0,
+        'activity_q' => (string) ($activityQ ?? ''),
+    ];
+    $activityOperators = [];
+    require __DIR__ . '/../partials/activity-feed.php';
+    ?>
+  <?php endif; ?>
+
   <!-- Modal Modifica Stato Copia -->
   <div id="edit-copy-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">

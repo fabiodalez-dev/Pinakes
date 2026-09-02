@@ -592,7 +592,7 @@ CREATE TABLE `log_modifiche` (
   PRIMARY KEY (`id`),
   KEY `utente_id` (`utente_id`),
   KEY `idx_log_modifiche_tabella_record_id` (`tabella`,`record_id`),
-  CONSTRAINT `log_modifiche_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`)
+  CONSTRAINT `log_modifiche_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
