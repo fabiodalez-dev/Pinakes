@@ -44,6 +44,39 @@ const state = {
   userPass: 'Test1234!',
 };
 
+// Restore the E2E control flags into the target install's .env (idempotent).
+// The login-rate bypass, deterministic scraper fixture and test-only cache
+// flush must be present BOTH on a fresh install (the installer rewrites .env
+// from scratch) AND on an already-installed target: reinstall-test.sh Test B
+// runs this suite against an upgraded install whose Phase 1 skips entirely —
+// without this, its scrapes silently hit live providers and Phase 5 fails on
+// real metadata instead of the fixture (found 2026-09-02 on the 0.7.73-rc.1
+// upgrade bench). E2E_INSTALL_ROOT is set by reinstall-test.sh; falls back
+// to CWD. Best-effort: if .env is unwritable, logins fall back to the real
+// rate limiter.
+function ensureE2eEnvFlags() {
+  const fs = require('fs');
+  const path = require('path');
+  const envPath = path.join(process.env.E2E_INSTALL_ROOT || process.cwd(), '.env');
+  try {
+    if (fs.existsSync(envPath)) {
+      const current = fs.readFileSync(envPath, 'utf8');
+      const requiredFlags = [
+        'PINAKES_E2E_BYPASS_RATE_LIMIT=1',
+        'PINAKES_E2E_SCRAPER_STUB=1',
+        'PINAKES_E2E_CACHE_FLUSH=1',
+      ];
+      const missingFlags = requiredFlags.filter((entry) => {
+        const key = entry.split('=', 1)[0];
+        return !new RegExp(`^${key}=`, 'm').test(current);
+      });
+      if (missingFlags.length) {
+        fs.appendFileSync(envPath, `\n${missingFlags.join('\n')}\n`);
+      }
+    }
+  } catch { /* best-effort */ }
+}
+
 // Flag: set to true when Phase 1 completes (or app is already installed)
 let appReady = false;
 
@@ -349,7 +382,12 @@ test.describe.serial('Phase 1: Installation (Italian)', () => {
     await page.goto(`${BASE}/installer/?step=0`);
     const radio = page.locator('input[name="language"][value="it_IT"]');
     installerAvailable = await radio.isVisible({ timeout: 5000 }).catch(() => false);
-    if (!installerAvailable) appReady = true;
+    if (!installerAvailable) {
+      // Already installed (e.g. Test B's upgraded target): the install-phase
+      // test that normally restores the E2E flags will skip — do it here.
+      ensureE2eEnvFlags();
+      appReady = true;
+    }
   });
   test.afterAll(async () => { await context.close(); });
 
@@ -436,31 +474,7 @@ test.describe.serial('Phase 1: Installation (Italian)', () => {
     await page.waitForURL(url => !url.toString().includes('installer'), { timeout: 30000 });
 
     // Installer rewrites .env from scratch — that wipes our E2E controls.
-    // Restore the login-rate bypass, deterministic scraper fixture and
-    // test-only cache flush route into the isolated install. Otherwise local
-    // Apache runs can silently hit live providers or retain stale DTOs after
-    // direct-DB fixtures even though CI's vhost supplies the same flags.
-    // E2E_INSTALL_ROOT is set by reinstall-test.sh; fall back to CWD.
-    const fs = require('fs');
-    const path = require('path');
-    const envPath = path.join(process.env.E2E_INSTALL_ROOT || process.cwd(), '.env');
-    try {
-      if (fs.existsSync(envPath)) {
-        const current = fs.readFileSync(envPath, 'utf8');
-        const requiredFlags = [
-          'PINAKES_E2E_BYPASS_RATE_LIMIT=1',
-          'PINAKES_E2E_SCRAPER_STUB=1',
-          'PINAKES_E2E_CACHE_FLUSH=1',
-        ];
-        const missingFlags = requiredFlags.filter((entry) => {
-          const key = entry.split('=', 1)[0];
-          return !new RegExp(`^${key}=`, 'm').test(current);
-        });
-        if (missingFlags.length) {
-          fs.appendFileSync(envPath, `\n${missingFlags.join('\n')}\n`);
-        }
-      }
-    } catch { /* best-effort — if we can't write, subsequent logins fall back to real limiter */ }
+    ensureE2eEnvFlags();
 
     appReady = true;
   });
