@@ -631,13 +631,28 @@ final class MobileModule
         $idParam = static fn(string $name): array => [
             'name' => $name, 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer'],
         ];
+        $typeEnum = array_keys(\EmerotecaPlugin::TIPI_TESTATA);
         $ok  = static fn(string $desc): array => ['200' => ['description' => $desc . ' — core envelope {data, meta, error}']];
         $sec = [['bearerAuth' => []]];
         $tag = ['periodicals'];
 
         $paths = [
             '/periodicals/health' => ['get' => ['tags' => $tag, 'summary' => 'Bridge discovery probe: 200 {status: ok} while the emeroteca bridge is mounted.', 'security' => $sec, 'responses' => $ok('Discovery payload')]],
-            '/periodicals' => ['get' => ['tags' => $tag, 'summary' => 'Mastheads directory (q/type filters, cursor pagination on title).', 'security' => $sec, 'responses' => $ok('Masthead list')]],
+            '/periodicals' => [
+                'get' => [
+                    'tags'        => $tag,
+                    'summary'     => 'Mastheads directory (q/type filters, cursor pagination on title).',
+                    'security'    => $sec,
+                    'description' => 'List of periodical mastheads (riviste, giornali, magazines). Supports typed filtering and keyset cursor pagination by title+id.',
+                    'parameters'  => [
+                        ['name' => 'q',      'in' => 'query', 'schema' => ['type' => 'string'],  'description' => 'Search by title, subtitle, or ISSN (SQL LIKE backend).'],
+                        ['name' => 'type',   'in' => 'query', 'schema' => ['type' => 'string', 'enum' => $typeEnum], 'description' => 'Filter by periodical type.'],
+                        ['name' => 'cursor', 'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Opaque pagination cursor from meta.next_cursor.'],
+                        ['name' => 'limit',  'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50, 'default' => 20], 'description' => 'Page size (max 50).'],
+                    ],
+                    'responses' => $ok('Masthead list')
+                ],
+            ],
             '/periodicals/{id}' => ['get' => ['tags' => $tag, 'summary' => 'Masthead detail: bibliographic data, holdings summary, years (annate).', 'security' => $sec, 'parameters' => [$idParam('id')], 'responses' => $ok('Masthead detail')]],
             '/periodicals/years/{id}/issues' => ['get' => ['tags' => $tag, 'summary' => 'Issues of one year (annata), ordered by sequence/number.', 'security' => $sec, 'parameters' => [$idParam('id')], 'responses' => $ok('Issue list')]],
             '/periodicals/issues/{id}' => ['get' => ['tags' => $tag, 'summary' => 'Issue detail: masthead, year, articles index, public PDF link when opted in.', 'security' => $sec, 'parameters' => [$idParam('id')], 'responses' => $ok('Issue detail')]],
