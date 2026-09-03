@@ -274,7 +274,11 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
         return res.text();
       })
       .then(function (html) {
-        var next = new DOMParser().parseFromString(html, 'text/html').getElementById('activity-feed');
+        // The endpoint returns the complete server-rendered page. Parse only
+        // its markup: stylesheet/script nodes carry a nonce for that separate
+        // response and would violate the CSP of the page currently displayed.
+        var markupOnly = html.replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+        var next = new DOMParser().parseFromString(markupOnly, 'text/html').getElementById('activity-feed');
         var current = document.getElementById('activity-feed');
         if (!next || !current) { window.location.assign(url); return; }
         current.innerHTML = next.innerHTML;

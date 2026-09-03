@@ -55,6 +55,18 @@ $dashboardRoute = route_path('user_dashboard');
 $logoutRoute = route_path('logout');
 $eventsRoute = route_path('events');
 $eventsEnabled = false;
+// Emeroteca (periodicals plugin): cached isActive(), same pattern as the
+// public layout — the link appears only when the plugin is active.
+$emerotecaAvailable = false;
+try {
+    if (isset($container) && $container->has('pluginManager')) {
+        /** @var \App\Support\PluginManager $emPluginManager */
+        $emPluginManager = $container->get('pluginManager');
+        $emerotecaAvailable = $emPluginManager->isActive('emeroteca');
+    }
+} catch (\Throwable $e) {
+    $emerotecaAvailable = false;
+}
 if (isset($db)) {
     try {
         $settingsRepository = new \App\Models\SettingsRepository($db);
@@ -68,6 +80,8 @@ $currentLocale = I18n::getLocale();
 $htmlLang = substr($currentLocale, 0, 2);
 $assetRoot = dirname(__DIR__, 2) . '/public/assets';
 $vendorVersion = (string) (@filemtime($assetRoot . '/vendor.css') ?: 1);
+$vendorBundleVersion = (string) (@filemtime($assetRoot . '/vendor.bundle.js') ?: 1);
+$mainBundleVersion = (string) (@filemtime($assetRoot . '/main.bundle.js') ?: 1);
 $mainVersion = (string) (@filemtime($assetRoot . '/main.css') ?: 1);
 $frontendLayoutsVersion = (string) (@filemtime($assetRoot . '/frontend-layouts.css') ?: 1);
 $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?: 1);
@@ -227,7 +241,10 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
         }
 
         .search-form {
-            flex: 1;
+            /* Shrinkable: with many nav entries active the search bar gives
+               way instead of pushing the header onto a second line. */
+            flex: 1 1 10rem;
+            min-width: 8rem;
             max-width: 600px;
         }
 
@@ -899,6 +916,11 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                         <li><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"
                                 class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a>
                         </li>
+                        <?php if ($emerotecaAvailable): ?>
+                            <li><a href="<?= htmlspecialchars(url('/emeroteca'), ENT_QUOTES, 'UTF-8') ?>"
+                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/emeroteca') !== false ? 'active' : '' ?>"><?= __("Emeroteca") ?></a>
+                            </li>
+                        <?php endif; ?>
                         <?php if ($eventsEnabled): ?>
                             <li><a href="<?= htmlspecialchars($eventsRoute, ENT_QUOTES, 'UTF-8') ?>"
                                     class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $eventsRoute) !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a>
@@ -1000,6 +1022,12 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                         class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
                         <i class="fas fa-book mr-2"></i><?= __("Catalogo") ?>
                     </a>
+                    <?php if ($emerotecaAvailable): ?>
+                        <a href="<?= htmlspecialchars(url('/emeroteca'), ENT_QUOTES, 'UTF-8') ?>"
+                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/emeroteca') !== false ? 'active' : '' ?>">
+                            <i class="fas fa-newspaper mr-2"></i><?= __("Emeroteca") ?>
+                        </a>
+                    <?php endif; ?>
                     <?php if ($eventsEnabled): ?>
                         <a href="<?= htmlspecialchars($eventsRoute, ENT_QUOTES, 'UTF-8') ?>"
                             class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $eventsRoute) !== false ? 'active' : '' ?>">
@@ -1139,8 +1167,8 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
     </footer>
 
     <!-- Scripts -->
-    <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
-    <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($mainBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
 
     <?php $searchViewAllLabel = json_encode(__('Vedi tutti i risultati'), JSON_HEX_TAG | JSON_HEX_AMP); ?>

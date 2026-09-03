@@ -133,7 +133,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
           </div>
           <?php if ($canManage && $isCurrentYear): ?>
             <form method="post" action="<?= $e($base . '/' . $challengeId . '/delete') ?>"
-                  onsubmit="return confirm('<?= $e(__('Eliminare questa sfida?')) ?>');">
+                  onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa sfida?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
                 <i class="fas fa-trash"></i><?= $e(__('Elimina')) ?>
@@ -224,7 +224,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
           </div>
           <?php if (($canManage || $isOwn) && $isCurrentYear): ?>
             <form method="post" action="<?= $e($base . '/' . $challengeId . '/delete') ?>"
-                  onsubmit="return confirm('<?= $e(__('Eliminare questa sfida?')) ?>');">
+                  onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa sfida?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
                 <i class="fas fa-trash"></i><?= $e(__('Elimina')) ?>

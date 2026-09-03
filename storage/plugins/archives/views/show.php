@@ -55,28 +55,27 @@ $levelText   = $levelLabel[(string) $row['level']] ?? $v('level');
 
 $id = (int) $row['id'];
 ?>
-<div class="p-6 max-w-4xl mx-auto">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=1.5.0'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page archive-show-page p-6 max-w-4xl mx-auto">
     <nav class="text-sm text-gray-500 mb-2">
         <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __("Archivi") ?></a>
         &nbsp;&raquo;&nbsp; <?= $v('reference_code') ?>
     </nav>
 
-    <div class="flex items-start justify-between mb-6">
-        <div>
+    <div class="archive-page-header mb-6">
+        <div class="min-w-0">
             <div class="flex items-center gap-3 mb-1">
-                <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $badgeClass ?>">
-                    <?= $e($levelText) ?>
-                </span>
+                <span class="archive-level"><span class="archive-level-dot" aria-hidden="true"></span><?= $e($levelText) ?></span>
                 <span class="font-mono text-sm text-gray-500"><?= $v('reference_code') ?></span>
             </div>
-            <h1 class="text-2xl font-bold text-gray-900"><?= $v('constructed_title') ?></h1>
+            <h1 class="text-3xl font-bold text-gray-900 break-words"><?= $v('constructed_title') ?></h1>
             <?php if (!empty($row['formal_title']) && $row['formal_title'] !== $row['constructed_title']): ?>
                 <p class="text-sm italic text-gray-600 mt-1">
                     <?= __("Titolo formale:") ?> <?= $v('formal_title') ?>
                 </p>
             <?php endif; ?>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="archive-header-actions">
             <a href="<?= $e(url('/admin/archives/' . $id . '/export.xml')) ?>"
                class="btn-secondary"
                title="<?= $e(__("Esporta MARCXML")) ?>">
@@ -107,8 +106,8 @@ $id = (int) $row['id'];
         </div>
     </div>
 
-    <div class="bg-white shadow rounded-lg overflow-hidden">
-        <dl class="divide-y divide-gray-200">
+    <div class="card archive-detail-card">
+        <dl class="archive-detail-list divide-y divide-gray-200">
             <div class="px-6 py-3 grid grid-cols-3 gap-4">
                 <dt class="text-sm font-medium text-gray-500"><?= __("Istituzione") ?></dt>
                 <dd class="col-span-2 text-sm text-gray-900 font-mono"><?= $v('institution_code') ?></dd>
@@ -285,7 +284,7 @@ $id = (int) $row['id'];
     </div>
 
     <!-- Cover image + downloadable document -->
-    <div class="bg-white shadow rounded-lg overflow-hidden mt-6">
+    <div class="card archive-detail-card mt-6">
         <div class="px-6 py-3 bg-gray-50 border-b">
             <h2 class="text-sm font-semibold text-gray-700"><?= __("Copertina e documenti") ?></h2>
         </div>
@@ -389,7 +388,7 @@ $id = (int) $row['id'];
     </div>
 
     <!-- Authority records linked to this archival_unit -->
-    <div class="bg-white shadow rounded-lg overflow-hidden mt-6">
+    <div class="card archive-detail-card mt-6">
         <div class="px-6 py-3 bg-gray-50 border-b flex items-center justify-between">
             <h2 class="text-sm font-semibold text-gray-700"><?= __("Authority records collegati") ?></h2>
             <a href="<?= $e(url('/admin/archives/authorities')) ?>" class="text-xs text-blue-600 hover:underline">

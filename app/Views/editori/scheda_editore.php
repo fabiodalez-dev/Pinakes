@@ -23,15 +23,15 @@ if ($sitoWebRaw !== '') {
 $createdAt = trim((string)($editore['created_at'] ?? ''));
 $updatedAt = trim((string)($editore['updated_at'] ?? ''));
 
-// Shared button styles — identical to the book/author detail pages.
-$btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700';
-$btnGhost   = 'inline-flex items-center gap-2 rounded-lg border-2 border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100';
-$btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50';
+// Use the shared backend action vocabulary used by forms and plugin screens.
+$btnPrimary = 'btn-primary inline-flex items-center gap-2';
+$btnGhost   = 'btn-secondary inline-flex items-center gap-2';
+$btnDanger  = 'btn-danger inline-flex items-center gap-2';
 ?>
 <section class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 <?php if (isset($_SESSION['success_message'])): ?>
-    <div class="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-green-700" role="alert">
+    <div class="mb-6 p-4 rounded-lg border border-green-200 bg-green-50 text-green-700" role="alert">
       <i class="fas fa-check-circle mr-2"></i>
       <?php echo HtmlHelper::e($_SESSION['success_message']); ?>
     </div>
@@ -60,13 +60,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-2">
-          <h1 class="text-3xl font-bold text-gray-900 flex flex-wrap items-start gap-3">
-            <i class="fas fa-building text-gray-600 mt-1"></i>
-            <?php echo $nomeEditore; ?>
-          </h1>
+          <h1 class="text-3xl font-bold text-gray-900 break-words"><?php echo $nomeEditore; ?></h1>
         </div>
 
-        <div class="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-3">
+        <div class="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
           <a href="<?= htmlspecialchars(url('/admin/publishers/edit/' . (int)($editore['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>"
              class="<?php echo $btnPrimary; ?> justify-center">
             <i class="fas fa-pen"></i>
@@ -79,7 +76,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </a>
           <?php if ($hasBooks): ?>
             <button type="button" disabled
-                    class="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-400 cursor-not-allowed"
+                    class="btn-secondary inline-flex items-center justify-center gap-2 text-gray-400 cursor-not-allowed"
                     title="<?= htmlspecialchars(__("Rimuovere i libri dell'editore prima di eliminarlo"), ENT_QUOTES, 'UTF-8') ?>">
               <i class="fas fa-lock"></i>
               <?= __("Non eliminabile") ?>
@@ -101,9 +98,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
     <!-- Identity card: icon + key facts, full width -->
     <div class="card mb-6">
-      <div class="p-6 flex flex-col sm:flex-row gap-6">
+      <div class="flex flex-col sm:flex-row gap-6">
         <div class="shrink-0 flex sm:block justify-center">
-          <div class="w-36 h-36 rounded-2xl bg-gray-100 flex items-center justify-center">
+          <div class="w-28 h-28 rounded-lg bg-gray-100 flex items-center justify-center">
             <i class="fas fa-building text-gray-300 text-5xl"></i>
           </div>
         </div>
@@ -153,7 +150,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <?php if (!empty($editore['email']) || !empty($editore['telefono']) || !empty($editore['indirizzo'])): ?>
     <!-- Contacts: full width -->
     <div class="card mb-6">
-      <div class="p-6">
+      <div>
         <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <i class="fas fa-address-card text-gray-600"></i>
           <?= __("Contatti") ?>
@@ -193,7 +190,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <?php if (!empty($editore['referente_nome']) || !empty($editore['referente_email']) || !empty($editore['referente_telefono'])): ?>
     <!-- Reference: full width -->
     <div class="card mb-6">
-      <div class="p-6">
+      <div>
         <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <i class="fas fa-user-tie text-gray-600"></i>
           <?= __("Referente") ?>
@@ -233,16 +230,16 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <?php if (!empty($autori)): ?>
     <!-- Published authors: full width -->
     <div class="card mb-6">
-      <div class="p-6">
+      <div>
         <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <i class="fas fa-user-edit text-gray-600"></i>
           <?= __("Autori pubblicati") ?>
-          <span class="bg-gray-200 text-gray-800 text-xs font-bold px-2.5 py-1 rounded-full"><?php echo number_format($totalAuthors, 0, ',', '.'); ?></span>
+          <span class="status-badge bg-gray-100 text-gray-700"><?php echo number_format($totalAuthors, 0, ',', '.'); ?></span>
         </h2>
         <div class="flex flex-wrap gap-2">
           <?php foreach ($autori as $autoreItem): ?>
             <a href="<?= htmlspecialchars(url('/admin/authors/' . (int)$autoreItem['id']), ENT_QUOTES, 'UTF-8') ?>"
-               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors">
+               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors">
               <i class="fas fa-user text-gray-400"></i>
               <?php echo HtmlHelper::e($autoreItem['nome'] ?? ''); ?>
             </a>
@@ -254,12 +251,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
     <!-- Book catalog: full width, its own row -->
     <div class="card">
-      <div class="p-6">
+      <div>
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
           <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-book text-gray-600"></i>
             <?= __("Catalogo libri") ?>
-            <span class="bg-gray-200 text-gray-800 text-xs font-bold px-2.5 py-1 rounded-full">
+            <span class="status-badge bg-gray-100 text-gray-700">
               <?= sprintf(__("%d titoli"), $totalBooks) ?>
             </span>
           </h2>
@@ -271,15 +268,15 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         </div>
 
         <?php if ($totalBooks === 0): ?>
-          <div class="text-center py-12 bg-gray-50 rounded-2xl">
-            <div class="mx-auto mb-4 w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+          <div class="text-center py-12 bg-gray-50 rounded-lg">
+            <div class="mx-auto mb-4 w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
               <i class="fas fa-book text-gray-500 text-2xl"></i>
             </div>
             <h3 class="text-lg font-semibold text-gray-900 mb-1"><?= __("Nessun libro registrato") ?></h3>
             <p class="text-sm text-gray-500"><?= __("Aggiungi un nuovo titolo per arricchire il catalogo di questo editore.") ?></p>
           </div>
         <?php else: ?>
-          <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <?php foreach ($libri as $libro): ?>
               <?php
                 $cover = (string)($libro['copertina_url'] ?? '');
@@ -288,7 +285,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
                 $cover = preg_match('#^https?://#', $cover) ? $cover : url($cover);
               ?>
-              <article class="group bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-300 hover:shadow-xl transition-all duration-300">
+              <article class="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 hover:shadow-md transition-all duration-200">
                 <div class="relative h-52 bg-gray-100 overflow-hidden">
                   <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                        alt="Copertina <?php echo HtmlHelper::e($libro['titolo'] ?? ''); ?>"
@@ -310,11 +307,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   </div>
                   <div class="flex gap-2 pt-3 items-center">
                     <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id']), ENT_QUOTES, 'UTF-8') ?>"
-                       class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 text-white text-sm font-medium px-3 h-11 hover:bg-gray-700 transition whitespace-nowrap">
+                       class="btn-primary inline-flex items-center justify-center gap-2 text-sm whitespace-nowrap">
                       <i class="fas fa-eye"></i><?= __("Dettagli") ?>
                     </a>
                     <a href="<?= htmlspecialchars(url('/admin/books/edit/' . (int)$libro['id']), ENT_QUOTES, 'UTF-8') ?>"
-                       class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg border-2 border-gray-300 text-gray-700 text-sm font-medium h-11 hover:bg-gray-100 transition"
+                       class="btn-secondary flex-1 inline-flex items-center justify-center gap-2 text-sm"
                        title="<?= __("Modifica") ?>">
                       <i class="fas fa-edit"></i>
                       <?= __("Modifica") ?>

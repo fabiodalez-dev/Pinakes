@@ -37,23 +37,24 @@ $typeLabel = [
 
 $totalHits = count($results['archival_units']) + count($results['authority_records']) + count($results['linked_autori']);
 ?>
-<div class="p-6 max-w-6xl mx-auto">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=1.5.0'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page p-6 max-w-6xl mx-auto">
     <div class="mb-6">
         <nav class="text-sm text-gray-500 mb-1">
             <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __("Archivi") ?></a>
             &nbsp;&raquo;&nbsp; <?= __("Ricerca unificata") ?>
         </nav>
-        <h1 class="text-2xl font-bold text-gray-900"><?= __("Ricerca unificata") ?></h1>
+        <h1 class="text-3xl font-bold text-gray-900"><?= __("Ricerca unificata") ?></h1>
         <p class="text-sm text-gray-600 mt-1">
             <?= __("Ricerca cross-entity su archivi, authority records e autori di libreria riconciliati.") ?>
         </p>
     </div>
 
-    <form method="GET" action="<?= $e(url('/admin/archives/search')) ?>" class="bg-white shadow rounded-lg p-4 mb-6 flex items-center gap-2">
+    <form method="GET" action="<?= $e(url('/admin/archives/search')) ?>" class="card archive-search-form mb-6">
         <input type="search" name="q" value="<?= $e($q) ?>"
                placeholder="<?= $e(__("Titolo, nome, descrizione… (minimo 2 caratteri)")) ?>"
                autofocus minlength="2"
-               class="flex-1 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+               class="form-input">
         <button type="submit"
                 class="btn-primary">
             <?= __("Cerca") ?>
@@ -61,7 +62,7 @@ $totalHits = count($results['archival_units']) + count($results['authority_recor
     </form>
 
     <?php if ($q === ''): ?>
-        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+        <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
             <p class="text-sm text-yellow-800">
                 <?= __("Inserisci almeno 2 caratteri per avviare la ricerca.") ?>
             </p>
@@ -86,7 +87,7 @@ $totalHits = count($results['archival_units']) + count($results['authority_recor
                     <?= __("Unità archivistiche") ?>
                     <span class="text-xs text-gray-400">(<?= count($results['archival_units']) ?>)</span>
                 </h2>
-                <ul class="bg-white shadow rounded-lg divide-y divide-gray-200">
+                <ul class="card divide-y divide-gray-200">
                     <?php foreach ($results['archival_units'] as $row): ?>
                         <?php
                         $lvl = (string) $row['level'];
@@ -126,7 +127,7 @@ $totalHits = count($results['archival_units']) + count($results['authority_recor
                     <?= __("Authority records") ?>
                     <span class="text-xs text-gray-400">(<?= count($results['authority_records']) ?>)</span>
                 </h2>
-                <ul class="bg-white shadow rounded-lg divide-y divide-gray-200">
+                <ul class="card divide-y divide-gray-200">
                     <?php foreach ($results['authority_records'] as $row): ?>
                         <?php
                         $type = (string) $row['type'];
@@ -155,7 +156,7 @@ $totalHits = count($results['archival_units']) + count($results['authority_recor
                     <?= __("Autori di libreria riconciliati") ?>
                     <span class="text-xs text-gray-400">(<?= count($results['linked_autori']) ?>)</span>
                 </h2>
-                <ul class="bg-white shadow rounded-lg divide-y divide-gray-200">
+                <ul class="card divide-y divide-gray-200">
                     <?php foreach ($results['linked_autori'] as $row): ?>
                         <?php
                         $aid = (int) $row['id'];

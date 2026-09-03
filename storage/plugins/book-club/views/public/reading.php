@@ -227,7 +227,7 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
               <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('Salva')) ?></button>
             </form>
             <form method="post" action="<?= $e($base . '/sections/' . $sid . '/delete') ?>"
-                  onsubmit="return confirm('<?= $e(__('Eliminare questa sezione?')) ?>');">
+                  onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa sezione?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Elimina')) ?></button>
             </form>

@@ -482,6 +482,14 @@ test.describe.serial('Phase 1: Installation (Italian)', () => {
   test('1.8 Step 7: Verify completion and go to app', async () => {
     test.skip(!installerAvailable, 'App already installed');
     await expect(page.locator('.alert-success').first()).toBeVisible({ timeout: 30000 });
+    const emerotecaRegistration = dbQuery(
+      `SELECT COUNT(*), COALESCE(MAX(p.is_active), -1), COUNT(ph.id)
+         FROM plugins p
+         LEFT JOIN plugin_hooks ph ON ph.plugin_id = p.id
+        WHERE p.name='emeroteca'`,
+    ).split('\t');
+    expect(emerotecaRegistration).toEqual(['1', '0', '0']);
+    await expect(page.locator('.summary-list')).toContainText('emeroteca');
     await page.locator('a.btn-primary').click();
     await page.waitForURL(url => !url.toString().includes('installer'), { timeout: 30000 });
 

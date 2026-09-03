@@ -718,6 +718,7 @@ document.addEventListener('DOMContentLoaded', function() {
             note: <?= json_encode(__("Immagini JPG, PNG o WebP (max 5MB)"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
             locale: {
                 strings: {
+                    dropHereOr: <?= json_encode(__("Trascina qui l'immagine di sfondo o %{browse}"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
                     dropPasteFiles: <?= json_encode(__("Trascina qui l'immagine di sfondo o %{browse}"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
                     browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
                 }
@@ -1012,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', function() {
        { title: __('Heading 5'), format: 'h5' },
        { title: __('Heading 6'), format: 'h6' }
      ],
-     content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.6; }',
+     content_css: <?= json_encode(assetUrl('css/tinymce-content.css'), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
      branding: false,
      promotion: false
    });

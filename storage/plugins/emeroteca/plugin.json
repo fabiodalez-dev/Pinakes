@@ -1,0 +1,37 @@
+{
+  "name": "emeroteca",
+  "display_name": "Emeroteca",
+  "description": "Gestione di riviste, giornali e periodici (emeroteca): testate con dati bibliografici (ISSN, editore, periodicità, storia della testata), annate rilegate o sciolte, fascicoli con stato di possesso e kardex dei fascicoli attesi, spoglio degli articoli con ricerca full-text. Sezione pubblica /emeroteca per la consultazione di testate e fascicoli.",
+  "version": "1.2.3",
+  "changelog": "v1.2.3 (Pinakes 0.7.76): filtro pubblico per le sole tipologie presenti, navigazione pubblica coerente, upload Uppy per logo della testata, copertina e PDF del fascicolo; PDF conservati fuori dalla web root con accesso pubblico opzionale; migrazione additiva auto-riparante; interfaccia backend e frontend armonizzata e responsive, inclusa la tabella amministrativa compatta. Include le correzioni di lifecycle, vincoli, atomicità e ricerca della v1.1.0.",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "",
+  "main_file": "wrapper.php",
+  "requires_php": "8.1",
+  "requires_app": "0.7.76",
+  "metadata": {
+    "category": "periodicals",
+    "tags": [
+      "emeroteca",
+      "periodici",
+      "riviste",
+      "giornali",
+      "issn",
+      "kardex",
+      "spoglio"
+    ],
+    "priority": 10,
+    "features": [
+      "Anagrafica testate (ISSN, editore, periodicità, tipo, storia della testata)",
+      "Annate con volume, rilegatura e copertina",
+      "Fascicoli con stato di possesso, inventario, collocazione e PDF protetto",
+      "Upload Uppy per logo della testata, copertina e documento PDF",
+      "Creazione fascicoli in serie e kardex dei fascicoli attesi",
+      "Spoglio articoli con indice FULLTEXT (titolo, autori, keywords)",
+      "Sezione pubblica /emeroteca per testate e fascicoli"
+    ],
+    "optional": true,
+    "status": "stable"
+  }
+}

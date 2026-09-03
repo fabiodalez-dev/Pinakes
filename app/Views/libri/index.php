@@ -7,52 +7,35 @@ $libri = $data['libri'];
 ?>
 <!-- Enhanced Books Management Interface -->
 <div class="min-h-screen bg-gray-50 py-6">
-  <div class="max-w-7xl mx-auto px-4 sm:px-2">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-4">
-      <ol class="flex items-center space-x-2 text-sm">
-        <li>
-          <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
-          </a>
-        </li>
-        <li>
-          <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
-        </li>
-        <li class="text-gray-900 font-medium">
-          <a href="<?= htmlspecialchars(url('/admin/books'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-700">
-            <i class="fas fa-book mr-1"></i><?= __("Libri") ?>
-          </a>
-        </li>
-      </ol>
+    <nav aria-label="breadcrumb" class="flex items-center text-sm text-gray-500 mb-2">
+      <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-gray-700" aria-label="<?= __('Home') ?>"><i class="fas fa-home" aria-hidden="true"></i></a>
+      <i class="fas fa-chevron-right mx-2 text-xs text-gray-400" aria-hidden="true"></i>
+      <span class="text-gray-900 font-medium" aria-current="page"><?= __("Libri") ?></span>
     </nav>
 
     <!-- Header with Actions -->
-    <div class="mb-5 fade-in">
-      <div class="flex items-center justify-between mb-3">
+    <div class="mb-6 fade-in">
+      <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900 flex flex-wrap items-center">
-            <span class="flex items-center">
-              <i class="fas fa-book text-gray-600 mr-3"></i>
-              <?= __("Gestione Libri") ?>
-            </span>
-            <span id="total-count" class="ml-3 md:ml-3 mt-2 md:mt-0 w-full md:w-auto px-3 py-1 bg-gray-100 text-gray-600 text-sm font-normal rounded-full"></span>
-          </h1>
+          <h1 class="text-3xl font-bold text-gray-900"><?= __("Libri") ?></h1>
           <p class="text-sm text-gray-600 mt-1"><?= __("Esplora e gestisci la collezione della biblioteca") ?></p>
+          <span id="total-count" class="status-badge bg-gray-100 text-gray-700 mt-3"></span>
         </div>
-        <div class="hidden md:flex items-center gap-2">
+        <div class="hidden md:flex items-center gap-2 books-page-actions">
           <!-- View Toggle -->
-          <div class="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
-            <button id="view-table" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all bg-white shadow-sm text-gray-900" title="<?= __('Vista tabella') ?>">
-              <i class="fas fa-list"></i>
+          <div class="books-view-toggle" role="group" aria-label="<?= __('Tipo di visualizzazione') ?>">
+            <button id="view-table" class="books-view-button is-active" title="<?= __('Vista tabella') ?>" aria-pressed="true">
+              <i class="fas fa-list" aria-hidden="true"></i><span class="sr-only"><?= __('Vista tabella') ?></span>
             </button>
-            <button id="view-grid" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-700" title="<?= __('Vista griglia') ?>">
-              <i class="fas fa-th-large"></i>
+            <button id="view-grid" class="books-view-button" title="<?= __('Vista griglia') ?>" aria-pressed="false">
+              <i class="fas fa-th-large" aria-hidden="true"></i><span class="sr-only"><?= __('Vista griglia') ?></span>
             </button>
           </div>
           <!-- Export Dropdown -->
           <div class="relative export-dropdown">
-            <button class="px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300 text-sm export-btn" title="<?= __("Esporta") ?>">
+            <button class="btn-secondary export-btn" title="<?= __("Esporta") ?>" type="button" aria-haspopup="true" aria-expanded="false">
               <i class="fas fa-download mr-2"></i><?= __("Export") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
             </button>
             <div class="export-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
@@ -67,7 +50,7 @@ $libri = $data['libri'];
 
           <!-- Import Dropdown -->
           <div class="relative import-dropdown">
-            <button class="px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300 text-sm import-btn" title="<?= __("Importa") ?>">
+            <button class="btn-secondary import-btn" title="<?= __("Importa") ?>" type="button" aria-haspopup="true" aria-expanded="false">
               <i class="fas fa-upload mr-2"></i><?= __("Import") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
             </button>
             <div class="import-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
@@ -83,24 +66,24 @@ $libri = $data['libri'];
               </a>
             </div>
           </div>
-          <a href="<?= htmlspecialchars(url('/admin/books/create'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center text-sm">
+          <a href="<?= htmlspecialchars(url('/admin/books/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary">
             <i class="fas fa-plus mr-2"></i><?= __("Nuovo Libro") ?>
           </a>
         </div>
       </div>
       <!-- Mobile Actions -->
-      <div class="flex md:hidden gap-2 mb-3">
-        <div class="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
-          <button id="view-table-mobile" class="px-2 py-1 rounded text-xs font-medium transition-all bg-white shadow-sm text-gray-900">
-            <i class="fas fa-list"></i>
+      <div class="grid grid-cols-[auto_1fr_1fr] md:hidden gap-2 mt-4">
+        <div class="books-view-toggle" role="group" aria-label="<?= __('Tipo di visualizzazione') ?>">
+          <button id="view-table-mobile" class="books-view-button is-active" title="<?= __('Vista tabella') ?>" aria-pressed="true">
+            <i class="fas fa-list" aria-hidden="true"></i><span class="sr-only"><?= __('Vista tabella') ?></span>
           </button>
-          <button id="view-grid-mobile" class="px-2 py-1 rounded text-xs font-medium transition-all text-gray-500">
-            <i class="fas fa-th-large"></i>
+          <button id="view-grid-mobile" class="books-view-button" title="<?= __('Vista griglia') ?>" aria-pressed="false">
+            <i class="fas fa-th-large" aria-hidden="true"></i><span class="sr-only"><?= __('Vista griglia') ?></span>
           </button>
         </div>
         <!-- Mobile Export Dropdown -->
         <div class="relative export-dropdown-mobile flex-1">
-          <button class="w-full px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300 text-sm export-btn-mobile">
+          <button class="btn-secondary w-full export-btn-mobile" type="button" aria-haspopup="true" aria-expanded="false">
             <i class="fas fa-download mr-1"></i><?= __("Export") ?><i class="fas fa-chevron-down ml-1 text-xs"></i>
           </button>
           <div class="export-menu-mobile hidden absolute left-0 mt-2 w-full bg-white rounded-lg shadow-lg border border-gray-200 z-10">
@@ -112,74 +95,74 @@ $libri = $data['libri'];
             </a>
           </div>
         </div>
-        <a href="<?= htmlspecialchars(url('/admin/books/create'), ENT_QUOTES, 'UTF-8') ?>" class="flex-1 px-3 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center text-sm">
+        <a href="<?= htmlspecialchars(url('/admin/books/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary w-full">
           <i class="fas fa-plus mr-1"></i><?= __("Nuovo") ?>
         </a>
       </div>
     </div>
 
     <!-- Main Card with Integrated Filters -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="card books-list-card">
       <!-- Primary Filters Bar - Always Visible -->
       <div class="p-4 border-b border-gray-100">
-        <div class="flex flex-wrap items-end gap-3">
+        <div class="books-filter-grid">
           <!-- Search Text -->
-          <div class="w-full md:flex-1 md:min-w-[200px] md:w-auto">
-            <label for="search_text" class="block text-xs font-medium text-gray-500 mb-1">
+          <div class="books-filter-search">
+            <label for="search_text" class="form-label books-filter-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
             <input id="search_text" type="text" placeholder="<?= __('Titolo, sottotitolo, descrizione...') ?>"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent text-sm" />
+                   class="form-input" />
           </div>
 
           <!-- ISBN/EAN -->
-          <div class="w-full md:w-44">
-            <label for="search_isbn" class="block text-xs font-medium text-gray-500 mb-1">
+          <div class="books-filter-isbn">
+            <label for="search_isbn" class="form-label books-filter-label">
               <i class="fas fa-barcode mr-1"></i>ISBN/EAN
             </label>
             <input id="search_isbn" type="text" placeholder="<?= __('ISBN o EAN...') ?>"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
           </div>
 
           <!-- Author Autocomplete -->
-          <div class="w-[calc(50%-0.375rem)] md:w-44 relative">
-            <label for="filter_autore" class="block text-xs font-medium text-gray-500 mb-1">
+          <div class="relative">
+            <label for="filter_autore" class="form-label books-filter-label">
               <i class="fas fa-user-edit mr-1"></i><?= __("Autore") ?>
             </label>
             <input id="filter_autore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
             <ul id="filter_autore_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="autore_id" />
           </div>
 
           <!-- Publisher Autocomplete -->
-          <div class="w-[calc(50%-0.375rem)] md:w-44 relative">
-            <label for="filter_editore" class="block text-xs font-medium text-gray-500 mb-1">
+          <div class="relative">
+            <label for="filter_editore" class="form-label books-filter-label">
               <i class="fas fa-building mr-1"></i><?= __("Editore") ?>
             </label>
             <input id="filter_editore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
             <ul id="filter_editore_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="editore_filter" />
           </div>
 
           <!-- Genre Autocomplete -->
-          <div class="w-[calc(50%-0.375rem)] md:w-44 relative">
-            <label for="filter_genere" class="block text-xs font-medium text-gray-500 mb-1">
+          <div class="relative">
+            <label for="filter_genere" class="form-label books-filter-label">
               <i class="fas fa-tags mr-1"></i><?= __("Genere") ?>
             </label>
             <input id="filter_genere" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
             <ul id="filter_genere_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="genere_id" />
           </div>
 
           <!-- Status -->
-          <div class="w-[calc(50%-0.375rem)] md:w-36">
-            <label for="stato_filter" class="block text-xs font-medium text-gray-500 mb-1">
+          <div>
+            <label for="stato_filter" class="form-label books-filter-label">
               <i class="fas fa-info-circle mr-1"></i><?= __("Stato") ?>
             </label>
-            <select id="stato_filter" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
+            <select id="stato_filter" class="form-input">
               <option value=""><?= __("Tutti") ?></option>
               <option value="Disponibile"><?= __("Disponibile") ?></option>
               <option value="Prestato"><?= __("Prestato") ?></option>
@@ -190,11 +173,11 @@ $libri = $data['libri'];
           </div>
 
           <!-- Media Type -->
-          <div class="w-[calc(50%-0.375rem)] md:w-36">
-            <label for="tipo_media_filter" class="block text-xs font-medium text-gray-500 mb-1">
+          <div>
+            <label for="tipo_media_filter" class="form-label books-filter-label">
               <i class="fas fa-compact-disc mr-1"></i><?= __("Tipo Media") ?>
             </label>
-            <select id="tipo_media_filter" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
+            <select id="tipo_media_filter" class="form-input">
               <option value=""><?= __("Tutti i media") ?></option>
               <?php foreach (\App\Support\MediaLabels::allTypes() as $value => $meta): ?>
                 <option value="<?= $value ?>">
@@ -205,21 +188,21 @@ $libri = $data['libri'];
           </div>
 
           <!-- More Filters Toggle -->
-          <button id="toggle-advanced" class="px-3 py-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm flex items-center gap-1 border border-gray-200">
+          <button id="toggle-advanced" class="btn-secondary books-filter-action" type="button" aria-expanded="false" aria-controls="advanced-filters">
             <i class="fas fa-sliders-h"></i>
-            <span class="hidden sm:inline"><?= __("Altri filtri") ?></span>
+            <span><?= __("Altri filtri") ?></span>
             <i id="toggle-advanced-icon" class="fas fa-chevron-down text-xs ml-1 transition-transform"></i>
           </button>
 
           <!-- Clear All -->
-          <button id="clear-filters" class="px-3 py-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors text-sm" title="<?= __('Cancella tutti i filtri') ?>">
-            <i class="fas fa-times"></i>
+          <button id="clear-filters" class="btn-secondary books-filter-action" type="button" title="<?= __('Cancella tutti i filtri') ?>">
+            <i class="fas fa-times"></i><span><?= __('Azzera') ?></span>
           </button>
 
           <!-- Recent Searches -->
-          <div class="relative">
-            <button id="recent-searches-btn" class="px-3 py-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-200" type="button" title="<?= __('Ricerche recenti') ?>">
-              <i class="fas fa-history"></i>
+          <div class="relative books-recent-searches">
+            <button id="recent-searches-btn" class="btn-secondary books-filter-action" type="button" title="<?= __('Ricerche recenti') ?>" aria-haspopup="true" aria-expanded="false">
+              <i class="fas fa-history"></i><span class="lg:sr-only"><?= __('Recenti') ?></span>
             </button>
             <div id="recent-searches-dropdown" class="hidden absolute top-full right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-64 overflow-y-auto">
               <div class="p-2 border-b border-gray-100 flex items-center justify-between">
@@ -242,52 +225,52 @@ $libri = $data['libri'];
 
       <!-- Advanced Filters - Collapsible -->
       <div id="advanced-filters" class="hidden border-b border-gray-100 bg-gray-50/50 p-4">
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <!-- Position -->
           <div class="relative">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="filter_posizione" class="form-label books-filter-label">
               <i class="fas fa-map-marker-alt mr-1"></i><?= __("Posizione") ?>
             </label>
             <input id="filter_posizione" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
             <ul id="filter_posizione_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="posizione_id" />
           </div>
 
           <!-- Year From -->
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="anno_from" class="form-label books-filter-label">
               <i class="fas fa-calendar mr-1"></i><?= __("Anno da") ?>
             </label>
             <input id="anno_from" type="number" placeholder="<?= __('es. 2020') ?>" min="1800" max="2030"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
           </div>
 
           <!-- Year To -->
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="anno_to" class="form-label books-filter-label">
               <i class="fas fa-calendar mr-1"></i><?= __("Anno a") ?>
             </label>
             <input id="anno_to" type="number" placeholder="<?= __('es. 2024') ?>" min="1800" max="2030"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
           </div>
 
           <!-- Acquisition Date From -->
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="acq_from" class="form-label books-filter-label">
               <i class="fas fa-calendar-plus mr-1"></i><?= __("Acquisito da") ?>
             </label>
             <input id="acq_from" type="date"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
           </div>
 
           <!-- Acquisition Date To -->
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label for="acq_to" class="form-label books-filter-label">
               <i class="fas fa-calendar-plus mr-1"></i><?= __("Acquisito a") ?>
             </label>
             <input id="acq_to" type="date"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
           </div>
         </div>
       </div>
@@ -298,13 +281,13 @@ $libri = $data['libri'];
       <!-- Table View -->
       <div id="table-view" class="p-4">
         <!-- Mobile scroll hint -->
-        <div class="md:hidden mb-3 p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 flex items-center gap-2">
+        <div class="books-scroll-hint mb-3 p-2 bg-gray-50 border border-gray-200 text-xs text-gray-600 items-center gap-2">
           <i class="fas fa-hand-point-right"></i>
           <span><?= __("Scorri a destra per vedere tutte le colonne") ?></span>
         </div>
 
-        <div class="overflow-x-auto">
-          <table id="libri-table" class="display" style="width:100%">
+        <div class="books-table-wrap overflow-x-auto">
+          <table id="libri-table" class="display">
             <thead>
               <tr>
                 <th class="text-center">
@@ -336,8 +319,8 @@ $libri = $data['libri'];
     </div>
 
     <!-- Bulk Actions Bar (Fixed at bottom viewport, respects sidebar) -->
-    <div id="bulk-actions-bar" class="hidden fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40" style="left: 0;">
-      <div class="px-4 py-3 flex items-center justify-between">
+    <div id="bulk-actions-bar" class="books-bulk-actions hidden fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+      <div class="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div class="flex items-center gap-3">
           <span class="text-sm font-medium text-gray-700">
             <span id="selected-count">0</span> <?= __("selezionati") ?>
@@ -346,17 +329,17 @@ $libri = $data['libri'];
             <?= __("Deseleziona tutti") ?>
           </button>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="bulk-export" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
+        <div class="books-bulk-buttons">
+          <button id="bulk-export" class="btn-secondary">
             <i class="fas fa-download mr-2"></i><?= __("Esporta selezionati") ?>
           </button>
-          <button id="bulk-assign-collana" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
+          <button id="bulk-assign-collana" class="btn-secondary">
             <i class="fas fa-layer-group mr-2"></i><?= __("Assegna collana") ?>
           </button>
-          <button id="bulk-fetch-covers" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors text-sm">
+          <button id="bulk-fetch-covers" class="btn-primary">
             <i class="fas fa-image mr-2"></i><?= __("Scarica copertine") ?>
           </button>
-          <button id="bulk-delete" class="inline-flex items-center px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors text-sm">
+          <button id="bulk-delete" class="btn-danger">
             <i class="fas fa-trash mr-2"></i><?= __("Elimina") ?>
           </button>
         </div>
@@ -376,17 +359,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const btn = document.querySelector(btnClass);
     const menu = document.querySelector(menuClass);
     if (btn && menu) {
-      allDropdownMenus.push(menu);
+      allDropdownMenus.push({ btn, menu });
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Close all other dropdowns
-        allDropdownMenus.forEach(m => {
-          if (m !== menu) m.classList.add('hidden');
+        // Close all other dropdowns (and sync their buttons' aria-expanded)
+        allDropdownMenus.forEach(({ btn: otherBtn, menu: otherMenu }) => {
+          if (otherMenu !== menu) {
+            otherMenu.classList.add('hidden');
+            otherBtn.setAttribute('aria-expanded', 'false');
+          }
         });
         menu.classList.toggle('hidden');
+        btn.setAttribute('aria-expanded', menu.classList.contains('hidden') ? 'false' : 'true');
       });
       document.addEventListener('click', () => {
         menu.classList.add('hidden');
+        btn.setAttribute('aria-expanded', 'false');
       });
     }
   };
@@ -457,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       banner.appendChild(msg);
       banner.appendChild(closeBtn);
-      const target = document.getElementById('table-view')?.closest('.bg-white.rounded-xl');
+      const target = document.querySelector('.books-list-card');
       if (target && target.parentNode) {
         target.parentNode.insertBefore(banner, target);
       }
@@ -554,6 +542,7 @@ document.addEventListener('DOMContentLoaded', function() {
     e.stopPropagation();
     const dropdown = document.getElementById('recent-searches-dropdown');
     dropdown.classList.toggle('hidden');
+    this.setAttribute('aria-expanded', dropdown.classList.contains('hidden') ? 'false' : 'true');
     if (!dropdown.classList.contains('hidden')) {
       renderRecentSearches();
     }
@@ -569,6 +558,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const dropdown = document.getElementById('recent-searches-dropdown');
     if (!dropdown.contains(e.target) && e.target.id !== 'recent-searches-btn') {
       dropdown.classList.add('hidden');
+      document.getElementById('recent-searches-btn').setAttribute('aria-expanded', 'false');
     }
   });
 
@@ -578,6 +568,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const icon = document.getElementById('toggle-advanced-icon');
     panel.classList.toggle('hidden');
     icon.classList.toggle('rotate-180');
+    this.setAttribute('aria-expanded', panel.classList.contains('hidden') ? 'false' : 'true');
   });
 
   // Initialize DataTable
@@ -586,7 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
     serverSide: true,
     responsive: false,
     scrollX: false,
-    autoWidth: true,
+    autoWidth: false,
     searching: false,
     stateSave: true,
     stateDuration: 60 * 60 * 24,
@@ -900,7 +891,7 @@ document.addEventListener('DOMContentLoaded', function() {
     container.classList.remove('hidden');
     filters.forEach(f => {
       const chip = document.createElement('span');
-      chip.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs';
+      chip.className = 'status-badge inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs';
       const safeLabel = escapeHtml(f.label);
       chip.innerHTML = `<i class="fas ${f.icon} text-gray-400"></i>${safeLabel}<button class="ml-1 text-gray-400 hover:text-red-500 transition-colors" data-clear="${f.key}"><i class="fas fa-times"></i></button>`;
       chip.querySelector('button').addEventListener('click', () => clearFilter(f.key));
@@ -1188,7 +1179,7 @@ document.addEventListener('DOMContentLoaded', function() {
       title: __('Assegna collana'),
       html: '<div class="text-left">'
         + '<label class="block text-sm font-medium text-gray-700 mb-1">' + __('Nome della collana') + '</label>'
-        + '<input id="swal-collana-input" class="swal2-input" placeholder="' + __('es. Harry Potter') + '" style="margin:0;width:100%">'
+        + '<input id="swal-collana-input" class="swal2-input swal-collana-input" placeholder="' + __('es. Harry Potter') + '">'
         + '<div id="swal-collana-results" class="mt-1 max-h-32 overflow-y-auto text-sm"></div>'
         + '</div>',
       showCancelButton: true,
@@ -1273,6 +1264,14 @@ document.addEventListener('DOMContentLoaded', function() {
       btnTableMobile?.classList.remove('text-gray-500');
       btnGridMobile?.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
       btnGridMobile?.classList.add('text-gray-500');
+      [btnTable, btnTableMobile].forEach((button) => {
+        button?.classList.add('is-active');
+        button?.setAttribute('aria-pressed', 'true');
+      });
+      [btnGrid, btnGridMobile].forEach((button) => {
+        button?.classList.remove('is-active');
+        button?.setAttribute('aria-pressed', 'false');
+      });
     } else {
       tableView.classList.add('hidden');
       gridView.classList.remove('hidden');
@@ -1284,6 +1283,14 @@ document.addEventListener('DOMContentLoaded', function() {
       btnGridMobile?.classList.remove('text-gray-500');
       btnTableMobile?.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
       btnTableMobile?.classList.add('text-gray-500');
+      [btnGrid, btnGridMobile].forEach((button) => {
+        button?.classList.add('is-active');
+        button?.setAttribute('aria-pressed', 'true');
+      });
+      [btnTable, btnTableMobile].forEach((button) => {
+        button?.classList.remove('is-active');
+        button?.setAttribute('aria-pressed', 'false');
+      });
       renderGrid();
     }
   }
@@ -1412,6 +1419,85 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+.books-list-card {
+  padding: 0;
+  overflow: visible;
+}
+
+.books-page-actions .btn-primary,
+.books-page-actions .btn-secondary {
+  min-height: 44px;
+  padding: .65rem 1rem;
+  white-space: nowrap;
+}
+
+.books-view-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, 42px);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #d1d5db;
+  border-radius: var(--radius);
+  background: #f3f4f6;
+}
+
+.books-view-button {
+  display: inline-flex;
+  min-width: 42px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: #6b7280;
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease;
+}
+
+.books-view-button:hover { color: #111827; }
+.books-view-button.is-active {
+  border-color: #d1d5db;
+  background: #fdfcfd;
+  color: #111827;
+  box-shadow: 0 1px 2px rgb(17 24 39 / .08);
+}
+
+.books-filter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .75rem;
+}
+
+.books-filter-grid > div:not(.books-filter-search):not(.books-filter-isbn):not(.books-recent-searches) {
+  flex: 1 1 calc(50% - .375rem);
+  min-width: 0;
+}
+
+.books-filter-search,
+.books-filter-isbn {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+.books-filter-label {
+  margin-bottom: .375rem;
+  color: #4b5563;
+  font-size: .75rem;
+  line-height: 1rem;
+}
+
+.books-filter-action {
+  min-height: 44px;
+  gap: .4rem;
+  padding: .65rem .85rem;
+  white-space: nowrap;
+}
+
+.books-filter-grid > #toggle-advanced { flex: 1 0 100%; }
+.books-filter-grid > #clear-filters,
+.books-recent-searches { flex: 1 1 calc(50% - .375rem); }
+.books-recent-searches > button { width: 100%; }
+
 .autocomplete-suggestions {
   position: absolute;
   top: 100%;
@@ -1419,7 +1505,7 @@ document.addEventListener('DOMContentLoaded', function() {
   z-index: 50;
   background-color: white;
   border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
+  border-radius: var(--radius);
   margin-top: 0.25rem;
   width: 100%;
   box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
@@ -1430,44 +1516,112 @@ document.addEventListener('DOMContentLoaded', function() {
 .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-.fade-in { animation: fadeIn 0.3s ease-out; }
+.fade-in { animation: fadeIn 0.2s ease-out; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+@media (prefers-reduced-motion: reduce) {
+  .fade-in { animation: none; }
+}
+
 /* Bulk actions bar - rispetta la sidebar */
+.books-bulk-actions { left: 0; }
 @media (min-width: 1024px) {
-  #bulk-actions-bar { left: 16rem !important; } /* lg:left-64 = 256px = 16rem */
+  .books-bulk-actions { left: 16rem; }
 }
 @media (min-width: 1280px) {
-  #bulk-actions-bar { left: 18rem !important; } /* xl:left-72 = 288px = 18rem */
+  .books-bulk-actions { left: 18rem; }
 }
 
+.books-bulk-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+}
+
+.books-bulk-buttons :is(.btn-primary, .btn-secondary, .btn-danger) {
+  min-width: 0;
+  padding: .65rem .75rem;
+}
+
+.swal-collana-input { width: 100% !important; margin: 0 !important; }
+
 /* DataTables styling */
-table#libri-table { border: 1px solid gainsboro; width: 100% !important; }
-#libri-table thead th { @apply bg-gray-50 font-medium text-gray-600 text-xs uppercase tracking-wide border-b border-gray-200 px-2 py-3; }
-#libri-table tbody td { @apply px-2 py-3 border-b border-gray-100 text-sm; }
-#libri-table tbody tr:hover { @apply bg-gray-50; }
+table#libri-table { border: 1px solid #e5e7eb; width: 100% !important; }
+#libri-table thead th {
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #4b5563;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .025em;
+  padding: .75rem;
+  text-transform: uppercase;
+}
+#libri-table tbody td {
+  border-bottom: 1px solid #f3f4f6;
+  font-size: .875rem;
+  padding: .75rem;
+}
+#libri-table tbody tr:hover { background: #f9fafb; }
 
 /* Info column text wrapping */
-#libri-table tbody td:nth-child(5) { white-space: normal !important; word-wrap: break-word; }
+#libri-table tbody td:nth-child(5) { overflow-wrap: anywhere; white-space: normal !important; }
 
-.dataTables_wrapper .dataTables_length select { @apply py-1.5 px-2 text-sm border border-gray-300 rounded-lg bg-white; }
-.dataTables_wrapper .dataTables_info { @apply text-sm text-gray-600 py-3; }
+.dataTables_wrapper .dataTables_length select,
+.dt-container .dt-length select { background:#fff; border:1px solid #d1d5db; border-radius:var(--radius); font-size:.875rem; padding:.375rem 2rem .375rem .5rem; }
+.dataTables_wrapper .dataTables_info,
+.dt-container .dt-info { color:#4b5563; font-size:.875rem; padding:.75rem 0; }
 /* Pagination buttons - hide disabled navigation buttons */
-.dataTables_wrapper .dataTables_paginate .paginate_button { @apply px-3 py-1.5 text-sm border border-gray-300 bg-white hover:bg-gray-50 rounded mx-0.5; }
-.dataTables_wrapper .dataTables_paginate .paginate_button.current { @apply bg-gray-800 text-white border-gray-800; }
+.dataTables_wrapper .dataTables_paginate .paginate_button,
+.dt-container .dt-paging .dt-paging-button { background:#fff; border:1px solid #d1d5db; border-radius:var(--radius); font-size:.875rem; margin:0 .125rem; min-height:38px; padding:.375rem .625rem; }
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dt-container .dt-paging .dt-paging-button.current { background:#111827; border-color:#111827; color:#fdfcfd !important; }
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled.first,
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled.previous,
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled.next,
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled.last { display: none !important; }
 
-@media (max-width: 768px) {
-  .dataTables_wrapper .dataTables_length,
-  .dataTables_wrapper .dataTables_info { @apply text-xs; }
+@media (min-width: 640px) {
+  .books-filter-search { flex: 1 1 18rem; }
+  .books-filter-isbn { flex: 0 1 10rem; }
+  .books-filter-grid > div:not(.books-filter-search):not(.books-filter-isbn):not(.books-recent-searches) { flex: 1 1 9rem; }
+  .books-filter-grid > #toggle-advanced,
+  .books-filter-grid > #clear-filters,
+  .books-recent-searches { flex: 0 0 auto; }
+  .books-recent-searches > button { width: auto; }
+  .books-bulk-buttons { grid-template-columns: repeat(4, auto); }
+}
 
-  /* Hide media-type and cover columns on mobile */
-  #libri-table thead th:nth-child(3),
-  #libri-table tbody td:nth-child(3),
-  #libri-table thead th:nth-child(4),
-  #libri-table tbody td:nth-child(4) { display: none; }
+.books-scroll-hint { display: none; }
+
+@media (min-width: 640px) and (max-width: 767px) {
+  .books-scroll-hint { display: flex; }
+}
+
+@media (max-width: 639px) {
+  #libri-table { table-layout: fixed; min-width: 0 !important; max-width: 100%; }
+  #libri-table col:nth-child(3), #libri-table col:nth-child(4), #libri-table col:nth-child(6), #libri-table col:nth-child(7), #libri-table col:nth-child(8),
+  #libri-table th:nth-child(3), #libri-table td:nth-child(3),
+  #libri-table th:nth-child(4), #libri-table td:nth-child(4),
+  #libri-table th:nth-child(6), #libri-table td:nth-child(6),
+  #libri-table th:nth-child(7), #libri-table td:nth-child(7),
+  #libri-table th:nth-child(8), #libri-table td:nth-child(8) { display: none; }
+  #libri-table col:first-child, #libri-table th:first-child, #libri-table td:first-child { width:10% !important; padding:.55rem .2rem !important; }
+  #libri-table col:nth-child(2), #libri-table th:nth-child(2), #libri-table td:nth-child(2) { width:16% !important; padding:.55rem .2rem !important; }
+  #libri-table col:nth-child(5), #libri-table th:nth-child(5), #libri-table td:nth-child(5) { width:46% !important; min-width:0; padding:.55rem .35rem !important; }
+  #libri-table col:last-child, #libri-table th:last-child, #libri-table td:last-child { width:28% !important; padding:.55rem .1rem !important; }
+  #libri-table td:last-child > div { gap:0; }
+  #libri-table td:last-child :is(a, button) { width:1.65rem; height:1.85rem; flex:0 0 1.65rem; }
+
+  .dataTables_wrapper .dataTables_length,
+  .dataTables_wrapper .dataTables_info,
+  .dt-container .dt-length,
+  .dt-container .dt-info { font-size:.75rem; }
+  .dataTables_wrapper .top, .dataTables_wrapper .bottom,
+  .dt-container .dt-layout-row { align-items:stretch; display:flex; flex-direction:column; gap:.5rem; }
+  .dt-container .dt-layout-cell { width:100%; }
+  .dataTables_wrapper .dataTables_paginate,
+  .dt-container .dt-paging { display:flex; flex-wrap:wrap; gap:.25rem; text-align:left !important; }
+  .books-table-wrap { overflow-x: visible; }
 }
 </style>

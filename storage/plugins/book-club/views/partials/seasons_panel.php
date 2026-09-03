@@ -76,7 +76,7 @@ foreach ($archivedBooks as $book) {
             <?php endif; ?>
             <?php if ($bookCount === 0): ?>
               <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/' . $seasonId . '/delete')) ?>"
-                    onsubmit="return confirm('<?= $e(__('Eliminare questa stagione?')) ?>');">
+                    onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa stagione?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm" title="<?= $e(__('Puoi eliminare solo stagioni senza libri.')) ?>"><?= $e(__('Elimina')) ?></button>
               </form>

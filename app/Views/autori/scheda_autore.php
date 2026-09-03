@@ -50,15 +50,15 @@ if (!empty($autore['collegamenti'])) {
     }
 }
 
-// Shared button styles — identical to the book detail page (scheda_libro.php).
-$btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700';
-$btnGhost   = 'inline-flex items-center gap-2 rounded-lg border-2 border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100';
-$btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50';
+// Use the shared backend action vocabulary used by forms and plugin screens.
+$btnPrimary = 'btn-primary inline-flex items-center gap-2';
+$btnGhost   = 'btn-secondary inline-flex items-center gap-2';
+$btnDanger  = 'btn-danger inline-flex items-center gap-2';
 ?>
 <section class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 <?php if (isset($_SESSION['success_message'])): ?>
-    <div class="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-green-700" role="alert">
+    <div class="mb-6 p-4 rounded-lg border border-green-200 bg-green-50 text-green-700" role="alert">
       <i class="fas fa-check-circle mr-2"></i>
       <?php echo HtmlHelper::e($_SESSION['success_message']); ?>
     </div>
@@ -87,18 +87,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-2">
-          <h1 class="text-3xl font-bold text-gray-900 flex flex-wrap items-start gap-3">
-            <i class="fas fa-user-edit text-gray-600 mt-1"></i>
-            <?php echo $nomeAutore; ?>
-            <?php if ($pseudonimo !== ''): ?>
-              <span class="self-center inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                <i class="fas fa-theater-masks mr-1"></i><?php echo HtmlHelper::e($pseudonimo); ?>
-              </span>
-            <?php endif; ?>
-          </h1>
+          <h1 class="text-3xl font-bold text-gray-900 break-words"><?php echo $nomeAutore; ?></h1>
+          <?php if ($pseudonimo !== ''): ?>
+            <p class="text-sm text-gray-600"><?= __("Pseudonimo:") ?> <?php echo htmlspecialchars($pseudonimo, ENT_QUOTES, 'UTF-8'); ?></p>
+          <?php endif; ?>
         </div>
 
-        <div class="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-3">
+        <div class="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
           <a href="<?= htmlspecialchars(url('/admin/authors/edit/' . (int)($autore['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>"
              class="<?php echo $btnPrimary; ?> justify-center">
             <i class="fas fa-pen"></i>
@@ -111,7 +106,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </a>
           <?php if ($hasBooks): ?>
             <button type="button" disabled
-                    class="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-400 cursor-not-allowed"
+                    class="btn-secondary inline-flex items-center justify-center gap-2 text-gray-400 cursor-not-allowed"
                     title="<?= htmlspecialchars(__("Rimuovere i libri associati prima di eliminare l'autore"), ENT_QUOTES, 'UTF-8') ?>">
               <i class="fas fa-lock"></i>
               <?= __('Non eliminabile') ?>
@@ -133,18 +128,18 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
     <!-- Identity card: photo + quick facts, full width, side-by-side -->
     <div class="card mb-6">
-      <div class="p-6 flex flex-col sm:flex-row gap-6">
+      <div class="flex flex-col sm:flex-row gap-6">
         <div class="shrink-0 flex sm:block justify-center">
           <?php if ($fotoUrl !== ''): ?>
             <img src="<?php echo htmlspecialchars($fotoUrl, ENT_QUOTES, 'UTF-8'); ?>"
                  alt="<?= htmlspecialchars(__('Foto autore'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy"
                  onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
-                 class="w-36 h-36 object-cover rounded-2xl border border-gray-200 shadow-sm" />
-            <div class="hidden w-36 h-36 rounded-2xl bg-gray-100 items-center justify-center">
+                 class="w-28 h-28 object-cover rounded-lg border border-gray-200 shadow-sm" />
+            <div class="hidden w-28 h-28 rounded-lg bg-gray-100 items-center justify-center">
               <i class="fas fa-user text-gray-300 text-5xl"></i>
             </div>
           <?php else: ?>
-            <div class="w-36 h-36 rounded-2xl bg-gray-100 flex items-center justify-center">
+            <div class="w-28 h-28 rounded-lg bg-gray-100 flex items-center justify-center">
               <i class="fas fa-user text-gray-300 text-5xl"></i>
             </div>
           <?php endif; ?>
@@ -210,7 +205,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <div class="flex flex-wrap gap-2">
                 <?php foreach ($collegamenti as $c): ?>
                   <a href="<?php echo htmlspecialchars($c['url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer"
-                     class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                     class="inline-flex items-center px-3 py-1 rounded-md text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
                     <i class="fas fa-external-link-alt mr-1.5 text-xs text-gray-400"></i><?php echo htmlspecialchars($c['etichetta'] !== '' ? $c['etichetta'] : $c['url'], ENT_QUOTES, 'UTF-8'); ?>
                   </a>
                 <?php endforeach; ?>
@@ -224,7 +219,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <!-- Biography: full width -->
     <?php if ($biografia): ?>
       <div class="card mb-6">
-        <div class="p-6">
+        <div>
           <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <i class="fas fa-feather text-gray-600"></i>
             <?= __("Biografia") ?>
@@ -238,12 +233,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
     <!-- Book catalog: full width, its own row -->
     <div class="card">
-      <div class="p-6">
+      <div>
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
           <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-book text-gray-600"></i>
             <?= __("Catalogo libri") ?>
-            <span class="bg-gray-200 text-gray-800 text-xs font-bold px-2.5 py-1 rounded-full">
+            <span class="status-badge bg-gray-100 text-gray-700">
               <?= sprintf(__("%d titoli"), $totalBooks) ?>
             </span>
           </h2>
@@ -255,15 +250,15 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         </div>
 
         <?php if ($totalBooks === 0): ?>
-          <div class="text-center py-12 bg-gray-50 rounded-2xl">
-            <div class="mx-auto mb-4 w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+          <div class="text-center py-12 bg-gray-50 rounded-lg">
+            <div class="mx-auto mb-4 w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
               <i class="fas fa-book text-gray-500 text-2xl"></i>
             </div>
             <h3 class="text-lg font-semibold text-gray-900 mb-1"><?= __("Nessun libro trovato") ?></h3>
             <p class="text-sm text-gray-500"><?= __("Questo autore non ha ancora libri registrati nella biblioteca.") ?></p>
           </div>
         <?php else: ?>
-          <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <?php foreach ($libri as $libro): ?>
               <?php
                 $cover = (string)($libro['copertina_url'] ?? '');
@@ -272,7 +267,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
                 $cover = preg_match('#^https?://#', $cover) ? $cover : url($cover);
               ?>
-              <article class="group bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-300 hover:shadow-xl transition-all duration-300">
+              <article class="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 hover:shadow-md transition-all duration-200">
                 <div class="relative h-52 bg-gray-100 overflow-hidden">
                   <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                        alt="Copertina <?php echo HtmlHelper::e($libro['titolo'] ?? ''); ?>"
@@ -294,11 +289,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   </div>
                   <div class="flex gap-2 pt-3 items-center">
                     <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id']), ENT_QUOTES, 'UTF-8') ?>"
-                       class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 text-white text-sm font-medium px-3 h-11 hover:bg-gray-700 transition whitespace-nowrap">
+                       class="btn-primary inline-flex items-center justify-center gap-2 text-sm whitespace-nowrap">
                       <i class="fas fa-eye"></i><?= __("Dettagli") ?>
                     </a>
                     <a href="<?= htmlspecialchars(url('/admin/books/edit/' . (int)$libro['id']), ENT_QUOTES, 'UTF-8') ?>"
-                       class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg border-2 border-gray-300 text-gray-700 text-sm font-medium h-11 hover:bg-gray-100 transition"
+                       class="btn-secondary flex-1 inline-flex items-center justify-center gap-2 text-sm"
                        title="<?= __("Modifica") ?>">
                       <i class="fas fa-edit"></i>
                       <?= __("Modifica") ?>

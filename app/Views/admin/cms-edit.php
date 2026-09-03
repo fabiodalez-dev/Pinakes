@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
        { title: <?= json_encode(__("Heading 5"), JSON_HEX_TAG) ?>, format: 'h5' },
        { title: <?= json_encode(__("Heading 6"), JSON_HEX_TAG) ?>, format: 'h6' }
      ],
-     content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.6; }',
+     content_css: <?= json_encode(assetUrl('css/tinymce-content.css'), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
      branding: false,
      promotion: false
    });
@@ -231,6 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
     proudlyDisplayPoweredByUppy: false,
     locale: {
       strings: {
+        dropPasteFiles: <?= json_encode(__("Trascina qui l'immagine o %{browse}"), JSON_HEX_TAG) ?>,
         dropPasteImport: <?= json_encode(__("Trascina qui l'immagine, %{browse} o importa da"), JSON_HEX_TAG) ?>,
         browse: <?= json_encode(__("sfoglia"), JSON_HEX_TAG) ?>,
         uploadXFiles: {

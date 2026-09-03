@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (attempts <= 0) {
             console.warn('Digital uploads unavailable. Missing:', missing.join(', '));
-            showAlert('error', '<?= __("Uploader non disponibile") ?>', '<?= __("Impossibile inizializzare Uppy per i contenuti digitali.") ?>');
+            showAlert('error', <?= json_encode(__("Uploader non disponibile"), JSON_HEX_TAG) ?>, <?= json_encode(__("Impossibile inizializzare Uppy per i contenuti digitali."), JSON_HEX_TAG) ?>);
             return;
         }
 
@@ -229,8 +229,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const successTitle = type === 'audio'
-                ? '<?= __("Audiobook caricato!") ?>'
-                : '<?= __("eBook caricato!") ?>';
+                ? <?= json_encode(__("Audiobook caricato!"), JSON_HEX_TAG) ?>
+                : <?= json_encode(__("eBook caricato!"), JSON_HEX_TAG) ?>;
 
             showAlert('success', successTitle, file.name);
         });
@@ -242,8 +242,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultEl.innerHTML = '';
             }
             const errorTitle = type === 'audio'
-                ? '<?= __("Errore caricamento Audiobook") ?>'
-                : '<?= __("Errore caricamento eBook") ?>';
+                ? <?= json_encode(__("Errore caricamento Audiobook"), JSON_HEX_TAG) ?>
+                : <?= json_encode(__("Errore caricamento eBook"), JSON_HEX_TAG) ?>;
 
             showAlert('error', errorTitle, error?.message || 'Upload failed');
         });
@@ -282,8 +282,19 @@ document.addEventListener('DOMContentLoaded', function() {
         uppyInstance.use(UppyDragDrop, {
             target: targetSelector,
             note: isAudio
-                ? '<?= __("MP3, M4A o OGG, max 500 MB") ?>'
-                : '<?= __("PDF o ePub, max 100 MB") ?>'
+                ? <?= json_encode(__("MP3, M4A o OGG, max 500 MB"), JSON_HEX_TAG) ?>
+                : <?= json_encode(__("PDF o ePub, max 100 MB"), JSON_HEX_TAG) ?>,
+            locale: {
+                strings: {
+                    dropHereOr: isAudio
+                        ? <?= json_encode(__("Trascina qui l'audiolibro o %{browse}"), JSON_HEX_TAG) ?>
+                        : <?= json_encode(__("Trascina qui l'eBook o %{browse}"), JSON_HEX_TAG) ?>,
+                    dropPasteFiles: isAudio
+                        ? <?= json_encode(__("Trascina qui l'audiolibro o %{browse}"), JSON_HEX_TAG) ?>
+                        : <?= json_encode(__("Trascina qui l'eBook o %{browse}"), JSON_HEX_TAG) ?>,
+                    browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
+                }
+            }
         });
 
         uppyInstance.use(UppyProgressBar, {

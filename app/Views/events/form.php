@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', function() {
         { title: <?= json_encode(__('Titolo 2'), JSON_HEX_TAG) ?>, format: 'h2' },
         { title: <?= json_encode(__('Titolo 3'), JSON_HEX_TAG) ?>, format: 'h3' }
       ],
-      content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.6; }',
+      content_css: <?= json_encode(assetUrl('css/tinymce-content.css'), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
       branding: false,
       promotion: false
     });
@@ -448,6 +448,7 @@ document.addEventListener('DOMContentLoaded', function() {
         note: <?= json_encode(__("Immagini JPG, PNG o WebP (max 5MB)"), JSON_HEX_TAG) ?>,
         locale: {
           strings: {
+            dropHereOr: <?= json_encode(__("Trascina qui l'immagine o %{browse}"), JSON_HEX_TAG) ?>,
             dropPasteFiles: <?= json_encode(__("Trascina qui l'immagine o %{browse}"), JSON_HEX_TAG) ?>,
             browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
           }

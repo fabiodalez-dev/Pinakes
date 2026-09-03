@@ -32,16 +32,15 @@ $title = "Modifica " . __("Editore:") . " " . ($editore['nome'] ?? 'N/D');
       </ol>
     </nav>
     <!-- Header -->
-    <div class="mb-8 fade-in">
-      <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-        <i class="fas fa-building text-blue-600"></i>
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">
         <?= __("Modifica Editore") ?>
       </h1>
       <p class="text-gray-600"><?= __("Aggiorna i dettagli dell'editore:") ?> <strong><?php echo App\Support\HtmlHelper::e($editore['nome'] ?? 'N/A'); ?></strong></p>
     </div>
 
     <!-- Main Form -->
-    <form method="post" action="<?= htmlspecialchars(url('/admin/publishers/update/' . (int)$editore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
+    <form method="post" action="<?= htmlspecialchars(url('/admin/publishers/update/' . (int)$editore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->

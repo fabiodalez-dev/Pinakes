@@ -104,7 +104,7 @@ $activePerms = static function (mixed $json): array {
               </p>
             <?php else: ?>
               <form method="post" action="<?= $e($formAction) ?>" class="mt-3"
-                    onsubmit="return confirm('<?= $e(__('Eliminare definitivamente questo ruolo?')) ?>');">
+                    onsubmit="return confirm(<?= $e(json_encode(__('Eliminare definitivamente questo ruolo?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="role_id" value="<?= (int) $role['id'] ?>">

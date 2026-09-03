@@ -28,14 +28,15 @@ $typeLabel = [
     // (e.g. external referrer stripping, opened in a new tab).
     try { sessionStorage.setItem('archives_authorities_return_url', window.location.href); } catch (e) { /* private mode / disabled storage */ }
 </script>
-<div class="p-6 max-w-7xl mx-auto">
-    <div class="flex items-center justify-between mb-6">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=1.5.0'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page archive-subindex p-6 max-w-7xl mx-auto">
+    <div class="archive-page-header mb-6">
         <div>
             <nav class="text-sm text-gray-500 mb-1">
                 <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __("Archivi") ?></a>
                 &nbsp;&raquo;&nbsp; <?= __("Authority records") ?>
             </nav>
-            <h1 class="text-2xl font-bold text-gray-900"><?= __("Authority records") ?></h1>
+            <h1 class="text-3xl font-bold text-gray-900"><?= __("Authority records") ?></h1>
             <p class="text-sm text-gray-600 mt-1">
                 <?= __("Record di autorità (persone, enti, famiglie) secondo lo standard ISAAR(CPF).") ?>
             </p>
@@ -50,14 +51,14 @@ $typeLabel = [
     </div>
 
     <?php if (empty($rows)): ?>
-        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-            <p class="text-sm text-yellow-800">
+        <div class="card text-center py-10">
+            <p class="text-sm text-gray-700">
                 <strong><?= __("Nessun authority record.") ?></strong>
                 <?= __("Crea il primo authority record per associarlo poi a un archivio.") ?>
             </p>
         </div>
     <?php else: ?>
-        <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="card archive-subtable-card">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>

@@ -57,6 +57,23 @@ make_alert() {
         '{riskcode:"3", riskdesc:"High", alert:"fixture", pluginid:$plugin_id, instances:[{uri:$uri, evidence:$evidence, method:$method, param:"", attack:""}]}'
 }
 
+make_csp_wildcard_alert() {
+    local uri=${1:-http://localhost:8081/}
+    local directives=${2:-img-src, frame-src, media-src}
+    local policy
+    if [[ $# -ge 3 ]]; then
+        policy=$3
+    else
+        policy="default-src 'self'; script-src 'self' 'nonce-test'; style-src 'self' 'nonce-test'; img-src 'self' https:; media-src 'self' https:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"
+    fi
+
+    jq -cn \
+        --arg uri "$uri" \
+        --arg directives "$directives" \
+        --arg policy "$policy" \
+        '{riskcode:"2", riskdesc:"Medium", alert:"CSP: Wildcard Directive", pluginid:"10055", instances:[{uri:$uri, evidence:$policy, method:"GET", param:"Content-Security-Policy", attack:"", otherinfo:("Wildcard directives:\n" + $directives)}]}'
+}
+
 blocking_count() {
     local document
     document=$(jq -cn --argjson alert "$1" '{site:[{alerts:[$alert]}]}')
@@ -179,6 +196,34 @@ assert_blocked 'unregistered canonical-shaped URL' "$(make_alert 'http://localho
 assert_blocked 'unknown identifier on catalogue page' "$(make_alert 'http://localhost:8081/da/forlag/Test' '9781234567897')"
 assert_blocked 'unknown 13-digit value on ordinary page' "$(make_alert 'http://localhost:8081/en/register' '9781234567897')"
 assert_blocked 'another ZAP rule' "$(make_alert 'http://localhost:8081/da/forlag/Test' '5634784354285' 'GET' '10020')"
+
+assert_allowed 'intended passive CSP wildcard directives' "$(make_csp_wildcard_alert)"
+assert_blocked 'CSP wildcard on active script source' "$(make_csp_wildcard_alert \
+    'http://localhost:8081/' \
+    'img-src, frame-src, media-src' \
+    "default-src 'self'; script-src https:; style-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'")"
+assert_blocked 'CSP wildcard on an unapproved directive' "$(make_csp_wildcard_alert \
+    'http://localhost:8081/' \
+    'connect-src')"
+assert_blocked 'CSP wildcard finding from an external origin' "$(make_csp_wildcard_alert \
+    'https://example.com/')"
+
+csp_post_alert=$(make_csp_wildcard_alert)
+csp_post_alert=$(jq -c '.instances[0].method = "POST"' <<<"$csp_post_alert")
+assert_blocked 'CSP wildcard finding on a non-GET request' "$csp_post_alert"
+
+csp_param_alert=$(make_csp_wildcard_alert)
+csp_param_alert=$(jq -c '.instances[0].param = "X-Content-Security-Policy"' <<<"$csp_param_alert")
+assert_blocked 'CSP wildcard finding on a different header param' "$csp_param_alert"
+
+csp_no_otherinfo_alert=$(make_csp_wildcard_alert)
+csp_no_otherinfo_alert=$(jq -c 'del(.instances[0].otherinfo)' <<<"$csp_no_otherinfo_alert")
+assert_blocked 'CSP wildcard finding without the directive list (otherinfo)' "$csp_no_otherinfo_alert"
+
+assert_blocked 'CSP wildcard with a policy missing the strict anchors' "$(make_csp_wildcard_alert \
+    'http://localhost:8081/' \
+    'img-src, frame-src, media-src' \
+    "default-src 'self'; script-src 'self' 'nonce-test'; style-src 'self' 'nonce-test'; img-src 'self' https:; media-src 'self' https:; frame-src 'self' https:; base-uri 'self'; form-action 'self'")"
 
 mixed_alert=$(make_alert 'http://localhost:8081/da/forlag/Test')
 mixed_alert=$(jq -c '.instances += [{uri:"http://localhost:8081/admin/settings", evidence:"5634784354285", method:"GET", param:"", attack:""}]' <<<"$mixed_alert")

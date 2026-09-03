@@ -1374,7 +1374,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     uppyManualUpdate.use(UppyDragDrop, {
         target: '#uppy-manual-update',
-        note: <?= json_encode(__("File ZIP del pacchetto di aggiornamento (max 200MB)"), JSON_HEX_TAG) ?>
+        note: <?= json_encode(__("File ZIP del pacchetto di aggiornamento (max 200MB)"), JSON_HEX_TAG) ?>,
+        locale: {
+            strings: {
+                dropHereOr: <?= json_encode(__("Trascina qui il file ZIP di aggiornamento o %{browse}"), JSON_HEX_TAG) ?>,
+                dropPasteFiles: <?= json_encode(__("Trascina qui il file ZIP di aggiornamento o %{browse}"), JSON_HEX_TAG) ?>,
+                browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
+            }
+        }
     });
 
     uppyManualUpdate.on('file-added', (file) => {

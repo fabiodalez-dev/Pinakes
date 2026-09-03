@@ -23,20 +23,17 @@
         <li class="text-gray-900 font-medium"><?= __('Nuovo') ?></li>
       </ol>
     </nav>
-    <div class="mb-8 fade-in">
-      <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/60 dark:border-gray-700/60 p-6">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-          <i class="fas fa-tags text-blue-600"></i>
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">
           <?= __("Crea Nuovo Genere") ?>
         </h1>
-        <p class="text-gray-600 dark:text-gray-300"><?= __('Aggiungi un genere o un sottogenere alla struttura.') ?></p>
-      </div>
+        <p class="text-gray-600"><?= __('Aggiungi un genere o un sottogenere alla struttura.') ?></p>
     </div>
 
     <form method="post" action="<?= htmlspecialchars(url('/admin/genres/create'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 
-      <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/60 dark:border-gray-700/60 p-6">
+      <div class="card">
         <div class="grid grid-cols-1 gap-6">
           <div>
             <label for="nome" class="form-label"><?= __('Nome genere') ?> <span class="text-red-500">*</span></label>

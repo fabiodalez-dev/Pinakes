@@ -40,7 +40,7 @@ body[class*="layout-"] :where(.loans-container, .wishlist-hero, .wishlist-info-c
 
 body[class*="layout-"] .loans-container {
   max-width: 1180px;
-  padding: clamp(2.25rem, 5vw, 4.5rem) clamp(1rem, 3vw, 2rem) 5rem;
+  padding: clamp(2rem, 4vw, 3.5rem) clamp(1rem, 3vw, 2rem) 4rem;
 }
 
 .account-page-heading {
@@ -48,9 +48,13 @@ body[class*="layout-"] .loans-container {
   align-items: end;
   justify-content: space-between;
   gap: 2rem;
-  margin-bottom: clamp(2.5rem, 5vw, 4rem);
+  margin-bottom: 1.5rem;
   padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--account-line);
+}
+
+.loans-container .account-page-heading {
+  border-bottom: 0;
 }
 
 .account-page-heading__eyebrow {
@@ -116,18 +120,15 @@ body.layout-editorial .account-page-heading h1 {
 }
 
 body[class*="layout-"] .section-header {
-  gap: .8rem;
-  margin-bottom: 1rem;
+  display: block;
+  margin: 0;
+  padding: 1.35rem 0 .75rem;
+  border-top: 1px solid var(--account-line);
 }
 
 body[class*="layout-"] .section-icon,
 body[class*="layout-"] .section-icon[style] {
-  width: 32px;
-  height: 32px;
-  border: 1px solid color-mix(in srgb, var(--primary-color) 18%, var(--account-line));
-  border-radius: var(--account-radius);
-  background: color-mix(in srgb, var(--primary-color) 7%, var(--white)) !important;
-  color: var(--primary-color);
+  display: none;
 }
 
 body[class*="layout-"] .section-icon :where(i, svg),
@@ -150,7 +151,7 @@ body[class*="layout-"] .account-line-icon {
 }
 
 body[class*="layout-"] .section-title h2 {
-  margin: 0 0 .1rem;
+  margin: 0;
   color: var(--text-color);
   font-family: var(--font-family, Inter, system-ui, sans-serif);
   font-size: 1.08rem;
@@ -159,18 +160,26 @@ body[class*="layout-"] .section-title h2 {
 }
 
 body[class*="layout-"] .section-title p {
+  margin: 0;
   color: var(--account-muted);
   font-size: .8rem;
 }
 
+body[class*="layout-"] .section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 body[class*="layout-"] .section-divider {
-  margin: 1.8rem 0;
-  border-top: 1px solid var(--account-line);
+  display: none;
 }
 
 body[class*="layout-"] .items-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr));
   gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 body[class*="layout-"] .item-card {
@@ -219,10 +228,10 @@ body[class*="layout-"] .item-title a:hover {
   color: var(--primary-color);
 }
 
-body[class*="layout-"] .badge,
-body[class*="layout-"] .badge[style] {
-  gap: .35rem;
-  padding: .38rem .55rem;
+body[class*="layout-"] :where(.badge, .status-badge),
+body[class*="layout-"] :where(.badge, .status-badge)[style] {
+  gap: .25rem;
+  padding: .32rem .5rem;
   border: 0 !important;
   border-radius: max(4px, calc(var(--account-radius) - 2px));
   background: var(--account-subtle) !important;
@@ -241,6 +250,21 @@ body[class*="layout-"] .badge i[style] {
 body[class*="layout-"] :where(.badge-active, .badge-scheduled) {
   background: color-mix(in srgb, var(--account-success) 10%, var(--white)) !important;
   color: var(--account-success) !important;
+}
+
+body[class*="layout-"] :where(.badge-pending, .badge-review--pendente) {
+  background: color-mix(in srgb, var(--account-warning) 10%, var(--white)) !important;
+  color: var(--account-warning) !important;
+}
+
+body[class*="layout-"] .badge-review--approvata {
+  background: color-mix(in srgb, var(--account-success) 10%, var(--white)) !important;
+  color: var(--account-success) !important;
+}
+
+body[class*="layout-"] .badge-review--rifiutata {
+  background: color-mix(in srgb, var(--account-danger) 9%, var(--white)) !important;
+  color: var(--account-danger) !important;
 }
 
 body[class*="layout-"] .badge-overdue {
@@ -275,9 +299,12 @@ body[class*="layout-"] .btn-review:hover {
 }
 
 body[class*="layout-"] .empty-state {
-  padding: 1.25rem 1rem 1.35rem;
+  display: grid;
+  grid-template-columns: minmax(12rem, .45fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: baseline;
+  padding: .15rem 0 1.5rem;
   border: 0;
-  border-top: 1px solid var(--account-line);
   border-radius: 0;
   background: transparent;
   text-align: left;
@@ -297,6 +324,7 @@ body[class*="layout-"] .empty-state-icon {
 }
 
 body[class*="layout-"] .empty-state h3 {
+  margin: 0;
   color: var(--text-color);
   font-family: var(--font-family, Inter, system-ui, sans-serif);
   font-size: .95rem;
@@ -304,8 +332,16 @@ body[class*="layout-"] .empty-state h3 {
 }
 
 body[class*="layout-"] .empty-state p {
+  margin: 0;
   color: var(--account-muted);
   font-size: .84rem;
+}
+
+body[class*="layout-"] .review-heading {
+  margin-top: .5rem;
+  color: var(--text-color);
+  font-size: .875rem;
+  font-weight: 650;
 }
 
 body[class*="layout-"] :where(.alert-overdue, .alert-outcome) {
@@ -605,6 +641,24 @@ body[class*="layout-"] #wishlist-no-results {
     align-items: flex-start;
     flex-direction: column;
     gap: 1.25rem;
+  }
+
+  body[class*="layout-"] .loans-container {
+    padding-top: 2rem;
+  }
+
+  body[class*="layout-"] .section-title {
+    display: block;
+  }
+
+  body[class*="layout-"] .section-title p {
+    margin-top: .15rem;
+  }
+
+  body[class*="layout-"] .empty-state {
+    grid-template-columns: 1fr;
+    gap: .25rem;
+    padding-bottom: 1.35rem;
   }
 
   .account-page-heading__actions,

@@ -182,7 +182,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
               <?php if (!in_array((int) $option['id'], $adminTiedIds, true)) { continue; } ?>
               <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/pick-winner/' . (int) $option['id'])) ?>"
                     class="flex items-center justify-between gap-3"
-                    onsubmit="return confirm('<?= $e(__('Proclamare questo libro vincitore? Avanzerà nel workflow.')) ?>');">
+                    onsubmit="return confirm(<?= $e(json_encode(__('Proclamare questo libro vincitore? Avanzerà nel workflow.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <span class="font-semibold"><?= $e($option['titolo']) ?></span>
                 <button type="submit" class="bc-btn bc-btn-sm">
@@ -300,7 +300,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
             : __('Chiudere la votazione adesso? Il libro più votato avanzerà nel workflow.');
       ?>
       <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/close')) ?>" class="mt-4 pt-3 border-t"
-            onsubmit="return confirm('<?= $e($confirmMsg) ?>');">
+            onsubmit="return confirm(<?= $e(json_encode($confirmMsg, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
           <?= $isRoundClose ? $e(__('Concludi il turno')) : $e(__('Chiudi la votazione adesso')) ?>

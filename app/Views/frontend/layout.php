@@ -42,6 +42,8 @@ $frontendMainMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/main.css')
 $frontendMainVersion = $frontendMainMtime !== false ? (string)$frontendMainMtime : $appVersion;
 $frontendVendorMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/vendor.css');
 $frontendVendorVersion = $frontendVendorMtime !== false ? (string)$frontendVendorMtime : $appVersion;
+$frontendVendorBundleMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/vendor.bundle.js');
+$frontendVendorBundleVersion = $frontendVendorBundleMtime !== false ? (string)$frontendVendorBundleMtime : $appVersion;
 $frontendBundleMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/main.bundle.js');
 $frontendBundleVersion = $frontendBundleMtime !== false ? (string)$frontendBundleMtime : $appVersion;
 $flatpickrCustomMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/flatpickr-custom.css');
@@ -100,28 +102,61 @@ $eventsEnabled = ConfigStore::get('cms.events_page_enabled', '1') === '1';
 // using the $container DB connection.
 $archivesAvailable = $archivesAvailable ?? false;
 $archivesRoute = $archivesRoute ?? '/archive';
-try {
-    if (!$archivesAvailable && isset($container)) {
-        // Use PluginManager::isActive() (per-process cached) instead of an
-        // ad-hoc `SELECT 1 FROM plugins ...` query — this layout renders on
-        // every frontend page, including anonymous catalog crawls, so the
-        // raw lookup was an unconditional extra DB round-trip per request.
-        $archivesPluginActive = false;
-        if ($container->has('pluginManager')) {
-            /** @var \App\Support\PluginManager $pluginManager */
-            $pluginManager = $container->get('pluginManager');
-            $archivesPluginActive = $pluginManager->isActive('archives');
+$emerotecaAvailable = $emerotecaAvailable ?? false;
+
+// Resolve plugin availability once for every public renderer. Core
+// controllers expose the DI container; plugin controllers usually expose only
+// their mysqli handle. Keeping both paths here guarantees that Home, Catalogo,
+// Archivio and Emeroteca build the same navigation from the same source.
+$publicNavigationDb = null;
+$publicContainer = isset($container) ? $container : null;
+if ($publicContainer !== null && $publicContainer->has('db')) {
+    $candidateDb = $publicContainer->get('db');
+    if ($candidateDb instanceof mysqli) {
+        $publicNavigationDb = $candidateDb;
+    }
+} elseif (isset($db) && $db instanceof mysqli) {
+    $publicNavigationDb = $db;
+}
+$publicPluginIsActive = static function (string $pluginName) use ($publicContainer, $publicNavigationDb): bool {
+    try {
+        if ($publicContainer !== null && $publicContainer->has('pluginManager')) {
+            return $publicContainer->get('pluginManager')->isActive($pluginName);
         }
-        if ($archivesPluginActive) {
-            $dbConn = $container->get('db');
-            if ($dbConn instanceof mysqli) {
-                $unitCheck = $dbConn->query("SELECT 1 FROM archival_units WHERE deleted_at IS NULL LIMIT 1");
-                if ($unitCheck instanceof mysqli_result && $unitCheck->num_rows === 1) {
-                    $archivesAvailable = true;
-                }
-                if ($unitCheck instanceof mysqli_result) { $unitCheck->free(); }
+        if ($publicNavigationDb instanceof mysqli) {
+            $stmt = $publicNavigationDb->prepare('SELECT is_active FROM plugins WHERE name = ? LIMIT 1');
+            if ($stmt === false) {
+                return false;
             }
+            $stmt->bind_param('s', $pluginName);
+            $active = false;
+            if ($stmt->execute()) {
+                $result = $stmt->get_result();
+                $active = $result instanceof mysqli_result && (int) ($result->fetch_assoc()['is_active'] ?? 0) === 1;
+            }
+            $stmt->close();
+            return $active;
         }
+    } catch (\Throwable $e) {
+        return false;
+    }
+    return false;
+};
+
+try {
+    if (!$emerotecaAvailable) {
+        $emerotecaAvailable = $publicPluginIsActive('emeroteca');
+    }
+} catch (\Throwable $e) {
+    $emerotecaAvailable = false;
+}
+try {
+    if (!$archivesAvailable && $publicPluginIsActive('archives') && $publicNavigationDb instanceof mysqli) {
+        $unitCheck = $publicNavigationDb->query("SELECT 1 FROM archival_units WHERE deleted_at IS NULL LIMIT 1");
+        if ($unitCheck instanceof mysqli_result && $unitCheck->num_rows === 1) {
+            $archivesAvailable = true;
+        }
+        if ($unitCheck instanceof mysqli_result) { $unitCheck->free(); }
     }
     if ($archivesAvailable) {
         $archivesRoute = \App\Support\RouteTranslator::route('archives') ?: '/archive';
@@ -464,7 +499,11 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .search-form {
-            flex: 1;
+            /* flex-basis + min-width let the bar SHRINK when many nav items
+               are active (Archivio, Emeroteca, Eventi...) instead of wrapping
+               the whole header to a second line. */
+            flex: 1 1 10rem;
+            min-width: 8rem;
             max-width: 600px;
             overflow: visible !important;
         }
@@ -1669,6 +1708,22 @@ $htmlLang = substr($currentLocale, 0, 2);
   $basePath = \App\Support\HtmlHelper::getBasePath();
   $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
   $isHome = ($requestPath === ($basePath ?: '/') || $requestPath === $basePath . '/' || $requestPath === $basePath . '/index.php');
+  // Confini di segmento: '/catalog' deve marcare '/en/catalog' e
+  // '/catalog/…' ma NON '/catalogue' (locale diverso dalla sessione).
+  $navPathActive = static fn(string $match): bool => $match !== ''
+      && preg_match('#' . preg_quote(rtrim($match, '/'), '#') . '(?:/|$)#', $requestPath) === 1;
+  $publicNavItems = [
+      ['href' => $catalogRoute, 'label' => __('Catalogo'), 'icon' => 'fa-book', 'active' => $navPathActive((string) $catalogRoute)],
+  ];
+  if ($archivesAvailable) {
+      $publicNavItems[] = ['href' => $archivesRoute, 'label' => __('Archivio'), 'icon' => 'fa-archive', 'active' => $navPathActive((string) $archivesRoute)];
+  }
+  if ($emerotecaAvailable) {
+      $publicNavItems[] = ['href' => '/emeroteca', 'label' => __('Emeroteca'), 'icon' => 'fa-newspaper', 'active' => $navPathActive('/emeroteca')];
+  }
+  if ($eventsEnabled) {
+      $publicNavItems[] = ['href' => '/events', 'label' => __('Eventi'), 'icon' => 'fa-calendar-alt', 'active' => $navPathActive('/events')];
+  }
 ?>
 <body class="<?= $isHome ? 'home ' : '' ?>layout-<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>" data-layout="<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>">
     <!-- Minimalist Header -->
@@ -1688,19 +1743,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                         </a>
 
                         <ul class="nav-links hidden md:flex">
-                            <li><a href="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>"
-                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __('Catalogo') ?></a>
-                            </li>
-                            <?php if ($archivesAvailable): ?>
-                                <li><a href="<?= htmlspecialchars(absoluteUrl($archivesRoute), ENT_QUOTES, 'UTF-8') ?>"
-                                        class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $archivesRoute) !== false ? 'active' : '' ?>"><?= __('Archivio') ?></a>
+                            <?php foreach ($publicNavItems as $publicNavItem): ?>
+                                <li><a href="<?= htmlspecialchars(absoluteUrl((string) $publicNavItem['href']), ENT_QUOTES, 'UTF-8') ?>"
+                                        class="<?= $publicNavItem['active'] ? 'active' : '' ?>"<?= $publicNavItem['active'] ? ' aria-current="page"' : '' ?>><?= htmlspecialchars((string) $publicNavItem['label'], ENT_QUOTES, 'UTF-8') ?></a>
                                 </li>
-                            <?php endif; ?>
-                            <?php if ($eventsEnabled): ?>
-                                <li><a href="<?= htmlspecialchars(absoluteUrl('/events'), ENT_QUOTES, 'UTF-8') ?>"
-                                        class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __('Eventi') ?></a>
-                                </li>
-                            <?php endif; ?>
+                            <?php endforeach; ?>
                         </ul>
                     </div>
 
@@ -1808,22 +1855,12 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </button>
                 </div>
                 <nav class="mobile-nav">
-                    <a href="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>"
-                        class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
-                        <i class="fas fa-book mr-2"></i><?= __('Catalogo') ?>
-                    </a>
-                    <?php if ($archivesAvailable): ?>
-                        <a href="<?= htmlspecialchars(absoluteUrl($archivesRoute), ENT_QUOTES, 'UTF-8') ?>"
-                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $archivesRoute) !== false ? 'active' : '' ?>">
-                            <i class="fas fa-archive mr-2"></i><?= __('Archivio') ?>
+                    <?php foreach ($publicNavItems as $publicNavItem): ?>
+                        <a href="<?= htmlspecialchars(absoluteUrl((string) $publicNavItem['href']), ENT_QUOTES, 'UTF-8') ?>"
+                            class="mobile-nav-link <?= $publicNavItem['active'] ? 'active' : '' ?>"<?= $publicNavItem['active'] ? ' aria-current="page"' : '' ?>>
+                            <i class="fas <?= htmlspecialchars((string) $publicNavItem['icon'], ENT_QUOTES, 'UTF-8') ?> mr-2" aria-hidden="true"></i><?= htmlspecialchars((string) $publicNavItem['label'], ENT_QUOTES, 'UTF-8') ?>
                         </a>
-                    <?php endif; ?>
-                    <?php if ($eventsEnabled): ?>
-                        <a href="<?= htmlspecialchars(absoluteUrl('/events'), ENT_QUOTES, 'UTF-8') ?>"
-                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>">
-                            <i class="fas fa-calendar-alt mr-2"></i><?= __('Eventi') ?>
-                        </a>
-                    <?php endif; ?>
+                    <?php endforeach; ?>
                     <?php if ($isLogged): ?>
                         <hr class="mobile-menu-divider">
                         <a href="<?= htmlspecialchars(absoluteUrl('/user/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
@@ -1955,7 +1992,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     </footer>
 
     <!-- Scripts -->
-    <script src="<?= htmlspecialchars(assetUrl('/vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script src="<?= htmlspecialchars(assetUrl('/vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendVendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(assetUrl('/flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script src="<?= htmlspecialchars(assetUrl('/js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>

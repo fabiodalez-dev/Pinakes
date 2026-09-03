@@ -38,7 +38,8 @@ $badgeClass = $typeBadge[(string) $row['type']] ?? 'bg-gray-100 text-gray-800';
 $typeText   = $typeLabel[(string) $row['type']] ?? (string) ($row['type'] ?? '');
 $id = (int) $row['id'];
 ?>
-<div class="p-6 max-w-4xl mx-auto">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=1.5.0'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page p-6 max-w-4xl mx-auto">
     <div class="flex items-center gap-3 mb-2">
         <button type="button"
                 data-fallback-url="<?= $e(url('/admin/archives/authorities')) ?>"

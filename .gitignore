@@ -196,6 +196,21 @@ storage/plugins/archives/*
 !storage/plugins/archives/assets/css/*.css
 !storage/plugins/archives/assets/js/
 !storage/plugins/archives/assets/js/*.js
+!storage/plugins/emeroteca/
+storage/plugins/emeroteca/*
+!storage/plugins/emeroteca/*.php
+!storage/plugins/emeroteca/*.json
+!storage/plugins/emeroteca/*.md
+!storage/plugins/emeroteca/src/
+!storage/plugins/emeroteca/src/Controllers/
+!storage/plugins/emeroteca/src/Controllers/*.php
+!storage/plugins/emeroteca/src/Views/
+!storage/plugins/emeroteca/src/Views/*.php
+!storage/plugins/emeroteca/src/Views/public/
+!storage/plugins/emeroteca/src/Views/public/*.php
+!storage/plugins/emeroteca/assets/
+!storage/plugins/emeroteca/assets/css/
+!storage/plugins/emeroteca/assets/css/*.css
 
 !storage/plugins/oai-pmh-server/
 storage/plugins/oai-pmh-server/**
@@ -626,6 +641,8 @@ docs/prototypes/
 # ========================================
 # Scratch/design output of local skills and assistant tooling. These are
 # developer-machine artifacts, not project source, and must never reach a remote.
+/PRODUCT.md
+/DESIGN.md
 .impeccable/
 .code-review-graph/
 .playwright-mcp/

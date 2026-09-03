@@ -24,16 +24,15 @@
       </ol>
     </nav>
     <!-- Header -->
-    <div class="mb-8 fade-in">
-      <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-        <i class="fas fa-building text-blue-600"></i>
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">
         <?= __("Aggiungi Nuovo Editore") ?>
       </h1>
       <p class="text-gray-600"><?= __("Compila i dettagli della casa editrice per aggiungerla alla biblioteca") ?></p>
     </div>
 
     <!-- Main Form -->
-    <form method="post" action="<?= htmlspecialchars(url('/admin/publishers/create'), ENT_QUOTES, 'UTF-8') ?>" id="form-crea-editore" class="space-y-8 slide-in-up">
+    <form method="post" action="<?= htmlspecialchars(url('/admin/publishers/create'), ENT_QUOTES, 'UTF-8') ?>" id="form-crea-editore" class="space-y-6">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->

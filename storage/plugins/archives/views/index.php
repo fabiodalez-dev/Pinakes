@@ -68,13 +68,6 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
     $visited[$rowId] = true;
     $renderedIds[$rowId] = true;
     $indent = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $depth);
-    $levelBadge = [
-        'fonds'  => 'bg-blue-100 text-blue-800',
-        'series' => 'bg-blue-100 text-blue-800',
-        'file'   => 'bg-green-100 text-green-800',
-        'item'   => 'bg-gray-100 text-gray-800',
-    ];
-    $badgeClass  = $levelBadge[$row['level']] ?? 'bg-gray-100 text-gray-800';
     $levelText   = $levelLabel[$row['level']] ?? $e((string) $row['level']);
     $dateRange = '';
     if ($row['date_start'] !== null) {
@@ -86,18 +79,18 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
     $viewUrl = $e(url('/admin/archives/' . $rowId));
     $editUrl = $e(url('/admin/archives/' . $rowId . '/edit'));
     $html  = '<tr class="hover:bg-gray-50 border-b">';
-    $html .= '<td class="px-4 py-2 font-mono text-xs text-gray-500">';
+    $html .= '<td data-label="' . $e(__("Reference")) . '" class="px-4 py-2 font-mono text-xs text-gray-500">';
     $html .= '<a href="' . $viewUrl . '" class="text-blue-600 hover:underline">' . $e((string) $row['reference_code']) . '</a>';
     $html .= '</td>';
-    $html .= '<td class="px-4 py-2">';
-    $html .= '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded ' . $badgeClass . '">' . $e($levelText) . '</span>';
+    $html .= '<td data-label="' . $e(__("Livello")) . '" class="px-4 py-2">';
+    $html .= '<span class="archive-level"><span class="archive-level-dot" aria-hidden="true"></span>' . $e($levelText) . '</span>';
     $html .= '</td>';
-    $html .= '<td class="px-4 py-2">' . $indent;
+    $html .= '<td data-label="' . $e(__("Titolo")) . '" class="px-4 py-2">' . $indent;
     $html .= '<a href="' . $viewUrl . '" class="text-gray-900 hover:underline">' . $e((string) $row['constructed_title']) . '</a>';
     $html .= '</td>';
-    $html .= '<td class="px-4 py-2 text-sm text-gray-600">' . $e($dateRange) . '</td>';
-    $html .= '<td class="px-4 py-2 text-sm text-gray-600">' . $e((string) ($row['extent'] ?? '')) . '</td>';
-    $html .= '<td class="px-4 py-2 text-right text-sm whitespace-nowrap">';
+    $html .= '<td data-label="' . $e(__("Date")) . '" class="px-4 py-2 text-sm text-gray-600">' . $e($dateRange) . '</td>';
+    $html .= '<td data-label="' . $e(__("Estensione")) . '" class="px-4 py-2 text-sm text-gray-600">' . $e((string) ($row['extent'] ?? '')) . '</td>';
+    $html .= '<td data-label="' . $e(__("Azioni")) . '" class="px-4 py-2 text-right text-sm whitespace-nowrap">';
     $html .= '<a href="' . $editUrl . '" class="text-blue-600 hover:underline">' . __('modifica') . '</a>';
     $html .= '</td>';
     $html .= '</tr>';
@@ -117,53 +110,19 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
 // Root-level rows = parent_id IS NULL → indexed under 0.
 $rootRows = $byParent[0] ?? [];
 ?>
-<div class="p-6 max-w-7xl mx-auto">
-    <div class="mb-5">
-        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 class="text-2xl font-bold text-gray-900"><?= __("Archivi") ?></h1>
-            <p class="text-sm text-gray-500">
-                <?= __("Gestione materiale archivistico secondo standard ISAD(G) / ISAAR(CPF).") ?>
-            </p>
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=1.5.0'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page p-6 max-w-7xl mx-auto">
+    <header class="archive-page-header mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900"><?= __("Archivi") ?></h1>
+            <p class="mt-1 text-sm text-gray-600"><?= __("Gestione materiale archivistico secondo standard ISAD(G) / ISAAR(CPF).") ?></p>
         </div>
-        <div class="flex flex-wrap items-center gap-2 mt-3">
-            <?php /* desktop: tutti i bottoni secondari */ ?>
-            <a href="<?= $e(url('/admin/archives/search')) ?>"
-               class="hidden sm:inline-flex btn-secondary items-center text-sm">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-                <?= __("Ricerca") ?>
-            </a>
-            <a href="<?= $e(url('/admin/archives/authorities')) ?>"
-               class="hidden sm:inline-flex btn-secondary items-center text-sm">
-                <?= __("Authority records") ?>
-            </a>
-            <a href="<?= $e(url('/admin/archives/import')) ?>"
-               class="hidden sm:inline-flex btn-secondary items-center text-sm">
-                <?= __("Importa MARCXML") ?>
-            </a>
-            <a href="<?= $e(url('/admin/archives/export.xml')) ?>"
-               class="hidden sm:inline-flex btn-secondary items-center text-sm">
-                <?= __("Esporta MARCXML") ?>
-            </a>
-            <a href="<?= $e(url('/admin/archives/export.ead3')) ?>"
-               class="hidden sm:inline-flex btn-secondary items-center text-sm">
-                <?= __("Esporta EAD3") ?>
-            </a>
-            <a href="<?= $e(url('/archives/oai?verb=Identify')) ?>"
-               class="hidden sm:inline-flex btn-secondary items-center text-sm" target="_blank" rel="noopener">
-                <?= __("OAI-PMH") ?>
-            </a>
-
-            <?php /* mobile: dropdown "Altre azioni" */ ?>
-            <details class="relative sm:hidden" id="arc-actions-details">
+        <div class="archive-header-actions">
+            <a href="<?= $e(url('/admin/archives/search')) ?>" class="btn-secondary"><i class="fas fa-search mr-2"></i><?= __("Ricerca") ?></a>
+            <a href="<?= $e(url('/admin/archives/authorities')) ?>" class="btn-secondary"><?= __("Authority records") ?></a>
+            <details class="relative" id="arc-actions-details">
                 <summary class="btn-secondary inline-flex items-center text-sm cursor-pointer select-none list-none">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M4 6h16M4 12h16M4 18h16"/>
-                    </svg>
-                    <?= __("Azioni") ?>
+                    <?= __("Importa / esporta") ?>
                     <svg class="w-3 h-3 ml-1.5 transition-transform arc-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
@@ -217,35 +176,31 @@ $rootRows = $byParent[0] ?? [];
                     </a>
                 </div>
             </details>
-            <link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css'), ENT_QUOTES, 'UTF-8') ?>">
-
-            <?php /* bottone primario: sempre visibile */ ?>
-            <a href="<?= $e(url('/admin/archives/new')) ?>"
-               class="btn-primary inline-flex items-center text-sm">
+            <a href="<?= $e(url('/admin/archives/new')) ?>" class="btn-primary inline-flex items-center text-sm">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>
                 <?= __("Nuovo record archivistico") ?>
             </a>
         </div>
-    </div>
+    </header>
 
     <form method="GET" action="<?= $e(url('/admin/archives')) ?>"
-          class="bg-white shadow rounded-lg p-4 mb-6 flex flex-wrap items-end gap-3">
-        <div class="flex-1 min-w-[200px]">
-            <label for="arc-q" class="block text-xs font-medium text-gray-600 mb-1">
+          class="card archive-filter-form mb-6">
+        <div>
+            <label for="arc-q" class="form-label">
                 <?= __("Ricerca (titolo, reference code, descrizione)") ?>
             </label>
             <input id="arc-q" type="search" name="q" value="<?= $e($q) ?>"
                    placeholder="<?= $e(__("es. IT-MI-001 o Fondo Rossi")) ?>"
-                   class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                   class="form-input">
         </div>
-        <div class="min-w-[150px]">
-            <label for="arc-level" class="block text-xs font-medium text-gray-600 mb-1">
+        <div>
+            <label for="arc-level" class="form-label">
                 <?= __("Livello") ?>
             </label>
             <select id="arc-level" name="level"
-                    class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                    class="form-input">
                 <option value=""><?= __("Tutti i livelli") ?></option>
                 <option value="fonds"  <?= $level === 'fonds'  ? 'selected' : '' ?>><?= __("Fondo")      ?></option>
                 <option value="series" <?= $level === 'series' ? 'selected' : '' ?>><?= __("Serie")      ?></option>
@@ -285,7 +240,7 @@ $rootRows = $byParent[0] ?? [];
     $isFiltered = $q !== '' || $level !== '';
     if (empty($rows)): ?>
         <?php if ($isFiltered): ?>
-            <div class="bg-gray-50 border border-gray-200 p-6 rounded text-center">
+            <div class="card text-center">
                 <p class="text-sm text-gray-700">
                     <?= __("Nessun risultato") ?>
                     <?php if ($q !== ''): ?> <?= __("per") ?> <strong><?= $e($q) ?></strong><?php endif; ?>
@@ -293,19 +248,20 @@ $rootRows = $byParent[0] ?? [];
                 </p>
             </div>
         <?php else: ?>
-            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                <p class="text-sm text-yellow-800">
+            <div class="card text-center py-10">
+                <i class="fas fa-box-archive mb-3 text-3xl text-gray-300"></i>
+                <p class="text-sm text-gray-700">
                     <strong><?= __("Nessun record archivistico.") ?></strong>
                     <?= __("Crea il primo fondo (fonds) per iniziare a strutturare l'archivio.") ?>
                 </p>
-                <p class="text-xs text-yellow-700 mt-2">
+                <p class="text-xs text-gray-500 mt-2">
                     <?= __("Gerarchia consigliata: Fondo → Serie → Fascicolo → Unità (ISAD(G) 3.1.4).") ?>
                 </p>
             </div>
         <?php endif; ?>
     <?php else: ?>
-        <div class="bg-white shadow rounded-lg overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200">
+        <div class="card archive-table-card">
+            <table class="archive-records-table min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Reference") ?></th>

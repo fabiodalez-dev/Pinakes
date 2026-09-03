@@ -199,7 +199,7 @@ $now = time();
             <?php endif; ?>
             <?php if (($isCreator || $canManage) && ($status === 'scheduled' || $status === 'running')): ?>
               <form method="post" action="<?= $e($base . '/' . $sprintId . '/cancel') ?>"
-                    onsubmit="return confirm('<?= $e(__('Annullare questo sprint?')) ?>');">
+                    onsubmit="return confirm(<?= $e(json_encode(__('Annullare questo sprint?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
                   <i class="fas fa-ban"></i><?= $e(__('Annulla')) ?>

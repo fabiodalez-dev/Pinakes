@@ -130,14 +130,11 @@ test.describe.serial('Activity feed (#374)', () => {
     // UI truth: the book page renders the timeline with the event and operator.
     const errors = [];
     // Resource-load failures (e.g. a fixture book without a cover → 404 image)
-    // surface as console errors; only real JS errors should fail the test.
-    // "Applying inline style" CSP notices are a PRE-EXISTING book-page quirk
-    // for copy-less books (a library injects empty style elements) — verified
-    // absent on normal books and unrelated to the feed.
+    // surface as console errors; CSP violations remain test failures.
     page.on('console', (m) => {
       if (m.type() !== 'error') return;
       const t = m.text();
-      if (/Failed to load resource|Applying inline style/i.test(t)) return;
+      if (/Failed to load resource/i.test(t)) return;
       errors.push(t);
     });
     await page.goto(`${BASE}/admin/books/${bookId}`);
@@ -220,13 +217,12 @@ test.describe.serial('Activity feed (#374)', () => {
     await loginAsAdmin(page);
 
     const errors = [];
-    // Same filter as the book-page test: resource 404s and the pre-existing
-    // "Applying inline style" CSP notices (dashboard JS injects styles) are
-    // page-wide noise unrelated to the feed.
+    // Same filter as the book-page test: optional resource 404s are ignored,
+    // while CSP violations remain test failures.
     page.on('console', (m) => {
       if (m.type() !== 'error') return;
       const t = m.text();
-      if (/Failed to load resource|Applying inline style/i.test(t)) return;
+      if (/Failed to load resource/i.test(t)) return;
       errors.push(t);
     });
 

@@ -2,234 +2,136 @@
 /** @var array $generiPrincipali */
 /** @var int $totalGeneri */
 /** @var array $sottogeneri */
+$csrf = App\Support\Csrf::ensureToken();
+$totalPrincipali = count($generiPrincipali);
+$totalSottogeneri = max(0, $totalGeneri - $totalPrincipali);
 ?>
-<!-- Modern Genres Management Interface -->
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-4">
-      <ol class="flex items-center space-x-2 text-sm">
-        <li>
-          <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i><?= __("Home") ?>
-          </a>
-        </li>
-        <li>
-          <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
-        </li>
-        <li class="text-gray-900 font-medium">
-          <a href="<?= htmlspecialchars(url('/admin/genres'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-900">
-            <i class="fas fa-tags mr-1"></i><?= __("Generi") ?>
-          </a>
-        </li>
+      <ol class="flex items-center gap-2 text-sm text-gray-500">
+        <li><a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a></li>
+        <li><i class="fas fa-chevron-right text-xs text-gray-400"></i></li>
+        <li class="font-medium text-gray-900"><?= __("Generi") ?></li>
       </ol>
     </nav>
-    <!-- Modern Header -->
-    <div class="mb-8 fade-in">
+
+    <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-          <i class="fas fa-tags text-blue-600 mr-3"></i>
-          <?= __("Gestione Generi e Sottogeneri") ?>
-        </h1>
-        <p class="text-sm text-gray-600 mt-2"><?= __("Organizza e gestisci i generi letterari della biblioteca") ?></p>
-      </div>
-    </div>
-
-    <!-- Success Messages -->
-    <?php if(!empty($_SESSION['success_message'])): ?>
-      <div class="mb-6 p-4 bg-green-100 text-green-800 rounded-lg border border-green-200 slide-in-up">
-        <div class="flex items-center gap-2">
-          <i class="fas fa-check-circle"></i>
-          <span><?php echo htmlspecialchars($_SESSION['success_message']); unset($_SESSION['success_message']); ?></span>
+        <h1 class="text-3xl font-bold text-gray-900"><?= __("Generi") ?></h1>
+        <p class="mt-1 text-sm text-gray-600"><?= __("Organizza generi e sottogeneri usati nel catalogo") ?></p>
+        <div class="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
+          <span class="status-badge bg-gray-100 text-gray-700"><?= $totalPrincipali ?> <?= __("principali") ?></span>
+          <span class="status-badge bg-gray-100 text-gray-700"><?= $totalSottogeneri ?> <?= __("sottogeneri") ?></span>
+          <span class="status-badge bg-gray-100 text-gray-700"><?= (int)$totalGeneri ?> <?= __("totali") ?></span>
         </div>
       </div>
-    <?php endif; ?>
-
-    <?php if(!empty($_SESSION['error_message'])): ?>
-      <div class="mb-6 p-4 bg-red-100 text-red-800 rounded-lg border border-red-200 slide-in-up">
-        <div class="flex items-center gap-2">
-          <i class="fas fa-exclamation-triangle"></i>
-          <span><?php echo htmlspecialchars($_SESSION['error_message']); unset($_SESSION['error_message']); ?></span>
-        </div>
-      </div>
-    <?php endif; ?>
-
-    <!-- Quick Add Card -->
-    <div class="card mb-6">
-      <div class="card-header">
-        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-plus text-gray-900"></i>
-          <?= __("Aggiungi Genere Rapido") ?>
-        </h2>
-      </div>
-      <div class="card-body">
-        <?php $csrf = App\Support\Csrf::ensureToken(); ?>
-        <form method="post" action="<?= htmlspecialchars(url('/admin/genres/create'), ENT_QUOTES, 'UTF-8') ?>" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
-          <div class="md:col-span-2">
-            <label for="nome_genere" class="form-label"><?= __("Nome") ?></label>
-            <input id="nome_genere" name="nome" class="form-input" placeholder="<?= __('es. Noir mediterraneo') ?>" required aria-required="true">
-          </div>
-          <div>
-            <label for="parent_id_genere" class="form-label"><?= __("Genere padre (opz.)") ?></label>
-            <select id="parent_id_genere" name="parent_id" class="form-input">
-              <option value=""><?= __("– Nessuno –") ?></option>
-              <?php foreach ($generiPrincipali as $g): ?>
-                <option value="<?php echo (int)$g['id']; ?>"><?php echo htmlspecialchars($g['nome']); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="md:col-span-3 flex justify-end">
-            <button type="submit" class="btn-primary">
-              <i class="fas fa-save mr-2"></i>
-              <?= __("Salva") ?>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Statistics Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-gray-600"><?= __("Generi Principali") ?></p>
-            <p class="text-2xl font-bold text-gray-900"><?php echo count($generiPrincipali); ?></p>
-          </div>
-          <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-            <i class="fas fa-layer-group text-blue-600 text-xl"></i>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-gray-600"><?= __("Sottogeneri") ?></p>
-            <p class="text-2xl font-bold text-gray-900"><?php echo $totalGeneri - count($generiPrincipali); ?></p>
-          </div>
-          <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-            <i class="fas fa-tags text-green-600 text-xl"></i>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-gray-600"><?= __("Totale Generi") ?></p>
-            <p class="text-2xl font-bold text-gray-900"><?php echo $totalGeneri; ?></p>
-          </div>
-          <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-            <i class="fas fa-chart-bar text-purple-600 text-xl"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Create New Button -->
-    <div class="mb-6">
-      <a href="<?= htmlspecialchars(url('/admin/genres/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary inline-flex items-center">
-        <i class="fas fa-plus mr-2"></i>
-        <?= __("Crea Nuovo Genere") ?>
+      <a href="<?= htmlspecialchars(url('/admin/genres/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary">
+        <i class="fas fa-plus mr-2"></i><?= __("Nuovo genere") ?>
       </a>
-    </div>
+    </header>
 
-    <!-- Generi List Card -->
-    <div class="card">
-      <p class="text-sm text-gray-600"><?= __("Visualizzazione gerarchica di generi e sottogeneri") ?></p>
-          </div>
-          <div class="card-body">
-            <?php if (empty($generiPrincipali)): ?>
-              <div class="text-center py-12">
-                <i class="fas fa-tags text-6xl text-gray-300 mb-4"></i>
-                <h3 class="text-xl font-medium text-gray-900 mb-2"><?= __("Nessun genere trovato") ?></h3>
-                <p class="text-gray-600 mb-6"><?= __("Inizia creando il primo genere letterario") ?></p>
-                <a href="<?= htmlspecialchars(url('/admin/genres/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary inline-flex items-center">
-                  <i class="fas fa-plus mr-2"></i>
-              <?= __("Crea Primo Genere") ?>
-            </a>
-          </div>
-        <?php else: ?>
-          <div class="space-y-4">
-            <?php foreach ($generiPrincipali as $genere): ?>
-              <div class="border border-gray-200 rounded-xl overflow-hidden">
-                <!-- Parent Genere -->
-                <div class="bg-gray-50 p-4 flex items-center justify-between">
-                  <div class="flex items-center space-x-3">
-                    <div class="p-2 bg-blue-100 rounded-lg">
-                      <i class="fas fa-layer-group text-blue-600"></i>
-                    </div>
-                    <div>
-                      <h3 class="font-semibold text-gray-900">
-                        <?php echo htmlspecialchars($genere['nome']); ?>
-                      </h3>
-                      <p class="text-sm text-gray-500">
-                        <?= __("Genere principale") ?> • <?php echo $genere['children_count']; ?> <?= __("sottogeneri") ?>
-                      </p>
-                    </div>
-                  </div>
-                  <div class="flex items-center space-x-2">
-                    <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$genere['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline px-3 py-2 text-xs">
-                      <i class="fas fa-eye mr-1"></i>
-                      <?= __("Dettagli") ?>
-                    </a>
-                  </div>
-                </div>
-
-                <!-- Sottogeneri -->
-                <?php if (!empty($sottogeneri[$genere['id']])): ?>
-                  <div class="p-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      <?php foreach ($sottogeneri[$genere['id']] as $sottogenere): ?>
-                        <div class="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-all">
-                          <div class="flex items-center space-x-2">
-                            <i class="fas fa-tag text-green-500 text-sm"></i>
-                            <span class="text-sm font-medium text-gray-900">
-                              <?php echo htmlspecialchars($sottogenere['nome']); ?>
-                            </span>
-                          </div>
-                          <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$sottogenere['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline px-3 py-2 text-xs">
-                            <i class="fas fa-external-link-alt mr-1"></i><?= __("Dettagli") ?>
-                          </a>
-                        </div>
-                      <?php endforeach; ?>
-                    </div>
-                  </div>
-                <?php else: ?>
-                  <div class="p-4 text-center text-gray-500 text-sm">
-                    <?= __("Nessun sottogenere definito") ?>
-                  </div>
-                <?php endif; ?>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
+    <?php if (!empty($_SESSION['success_message'])): ?>
+      <div class="mb-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+        <i class="fas fa-check-circle mr-2"></i><?php echo htmlspecialchars($_SESSION['success_message']); unset($_SESSION['success_message']); ?>
       </div>
-    </div>
+    <?php endif; ?>
+    <?php if (!empty($_SESSION['error_message'])): ?>
+      <div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <i class="fas fa-exclamation-triangle mr-2"></i><?php echo htmlspecialchars($_SESSION['error_message']); unset($_SESSION['error_message']); ?>
+      </div>
+    <?php endif; ?>
+
+    <section class="card mb-6">
+      <div class="card-header">
+        <h2 class="form-section-title"><i class="fas fa-bolt mr-2 text-gray-500"></i><?= __("Aggiunta rapida") ?></h2>
+      </div>
+      <form method="post" action="<?= htmlspecialchars(url('/admin/genres/create'), ENT_QUOTES, 'UTF-8') ?>" class="genre-quick-form">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+        <div>
+          <label for="nome_genere" class="form-label"><?= __("Nome") ?></label>
+          <input id="nome_genere" name="nome" class="form-input" placeholder="<?= __('es. Noir mediterraneo') ?>" required aria-required="true">
+        </div>
+        <div>
+          <label for="parent_id_genere" class="form-label"><?= __("Genere padre (opzionale)") ?></label>
+          <select id="parent_id_genere" name="parent_id" class="form-input">
+            <option value=""><?= __("– Nessuno –") ?></option>
+            <?php foreach ($generiPrincipali as $g): ?>
+              <option value="<?= (int)$g['id'] ?>"><?= htmlspecialchars($g['nome']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i><?= __("Salva") ?></button>
+      </form>
+    </section>
+
+    <section class="card genre-list-card">
+      <div class="card-header">
+        <div>
+          <h2 class="form-section-title"><i class="fas fa-sitemap mr-2 text-gray-500"></i><?= __("Struttura dei generi") ?></h2>
+          <p class="mt-1 text-sm text-gray-600"><?= __("Apri una voce per modificarla, unirla o gestirne i sottogeneri") ?></p>
+        </div>
+      </div>
+
+      <?php if (empty($generiPrincipali)): ?>
+        <div class="py-12 text-center">
+          <i class="fas fa-tags mb-4 text-4xl text-gray-300"></i>
+          <h3 class="font-semibold text-gray-900"><?= __("Nessun genere trovato") ?></h3>
+          <p class="mt-1 text-sm text-gray-600"><?= __("Inizia creando il primo genere letterario") ?></p>
+        </div>
+      <?php else: ?>
+        <div class="genre-tree">
+          <?php foreach ($generiPrincipali as $genere): ?>
+            <article class="genre-group">
+              <div class="genre-parent-row">
+                <div class="min-w-0">
+                  <h3 class="font-semibold text-gray-900 break-words"><?= htmlspecialchars($genere['nome']) ?></h3>
+                  <p class="mt-1 text-xs text-gray-500"><?= (int)$genere['children_count'] ?> <?= __("sottogeneri") ?></p>
+                </div>
+                <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$genere['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary genre-detail-button">
+                  <i class="fas fa-eye mr-2"></i><span><?= __("Dettagli") ?></span>
+                </a>
+              </div>
+
+              <?php if (!empty($sottogeneri[$genere['id']])): ?>
+                <div class="genre-children">
+                  <?php foreach ($sottogeneri[$genere['id']] as $sottogenere): ?>
+                    <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$sottogenere['id']), ENT_QUOTES, 'UTF-8') ?>" class="genre-child-link">
+                      <span class="min-w-0 break-words"><i class="fas fa-tag mr-2 text-xs text-gray-400"></i><?= htmlspecialchars($sottogenere['nome']) ?></span>
+                      <i class="fas fa-chevron-right ml-3 text-xs text-gray-400"></i>
+                    </a>
+                  <?php endforeach; ?>
+                </div>
+              <?php else: ?>
+                <p class="genre-empty-child"><?= __("Nessun sottogenere definito") ?></p>
+              <?php endif; ?>
+            </article>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </section>
   </div>
 </div>
 
-<!-- Custom Styles for Enhanced UI -->
 <style>
-.fade-in {
-  animation: fadeIn 0.5s ease-in-out;
+.genre-quick-form { display:grid; grid-template-columns:minmax(0, 1fr) minmax(14rem, .6fr) auto; align-items:end; gap:1rem; }
+.genre-tree { display:grid; gap:1rem; }
+.genre-group { border:1px solid #e5e7eb; border-radius:.5rem; overflow:hidden; }
+.genre-parent-row { align-items:center; background:#f9fafb; display:flex; gap:1rem; justify-content:space-between; padding:1rem; }
+.genre-children { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.75rem; padding:1rem; }
+.genre-child-link { align-items:center; border:1px solid #e5e7eb; border-radius:.5rem; color:#374151; display:flex; font-size:.875rem; justify-content:space-between; min-width:0; padding:.75rem; }
+.genre-child-link:hover { background:#f9fafb; border-color:#d1d5db; }
+.genre-empty-child { color:#6b7280; font-size:.875rem; padding:1rem; text-align:center; }
+@media (max-width:767px) {
+  .genre-quick-form { grid-template-columns:1fr; }
+  .genre-quick-form .btn-primary { justify-content:center; width:100%; }
+  .genre-children { grid-template-columns:1fr; }
 }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* Responsive design for mobile */
-@media (max-width: 768px) {
-  .grid-cols-1.md\:grid-cols-3 {
-    grid-template-columns: 1fr;
-  }
-  
-  .grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3 {
-    grid-template-columns: 1fr;
-  }
+@media (max-width:479px) {
+  .genre-list-card { padding:1rem; }
+  .genre-parent-row { align-items:flex-start; }
+  .genre-detail-button { flex:0 0 2.75rem; padding-left:.75rem; padding-right:.75rem; width:2.75rem !important; }
+  .genre-detail-button span { display:none; }
+  .genre-detail-button i { margin-right:0; }
 }
 </style>

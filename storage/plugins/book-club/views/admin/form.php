@@ -136,7 +136,7 @@ $action = $isEdit ? url('/admin/book-club/' . (int) $club['id'] . '/edit') : url
 
   <?php if ($isEdit): ?>
     <form method="post" action="<?= $e(url('/admin/book-club/' . (int) $club['id'] . '/delete')) ?>" class="mt-4"
-          onsubmit="return confirm('<?= $e(__('Eliminare questo club? I dati restano nel database ma il club non sarà più visibile.')) ?>');">
+          onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questo club? I dati restano nel database ma il club non sarà più visibile.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
       <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
       <button type="submit" class="text-sm text-red-600 hover:underline"><?= $e(__('Elimina club')) ?></button>
     </form>

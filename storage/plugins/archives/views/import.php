@@ -21,7 +21,8 @@ declare(strict_types=1);
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 ?>
-<div class="p-6 max-w-4xl mx-auto">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=1.5.0'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page p-6 max-w-4xl mx-auto">
     <nav class="text-sm text-gray-500 mb-1">
         <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __("Archivi") ?></a>
         &nbsp;&raquo;&nbsp; <?= __("Importa MARCXML") ?>
@@ -33,7 +34,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 
     <?php if ($result !== null): ?>
         <?php if (!empty($result['errors'])): ?>
-            <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4 rounded">
+            <div class="bg-red-50 border border-red-200 p-4 mb-4 rounded-lg">
                 <p class="text-sm font-semibold text-red-800"><?= __("Errori durante l'importazione") ?></p>
                 <ul class="mt-2 text-sm text-red-700 list-disc list-inside">
                     <?php foreach ($result['errors'] as $err): ?>
@@ -44,7 +45,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
         <?php endif; ?>
 
         <?php if (!empty($result['xsd_errors'])): ?>
-            <details class="bg-orange-50 border-l-4 border-orange-400 p-4 mb-4 rounded" open>
+            <details class="bg-orange-50 border border-orange-200 p-4 mb-4 rounded-lg" open>
                 <summary class="text-sm font-semibold text-orange-800 cursor-pointer">
                     <?= sprintf(__("Errori XSD (%d)"), count($result['xsd_errors'])) ?>
                 </summary>
@@ -57,7 +58,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
         <?php endif; ?>
 
         <?php if ($result['dry_run']): ?>
-            <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded">
+            <div class="bg-blue-50 border border-blue-200 p-4 mb-4 rounded-lg">
                 <p class="text-sm text-blue-800">
                     <strong><?= __("Dry-run:") ?></strong>
                     <?= sprintf(
@@ -69,7 +70,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
                 </p>
             </div>
         <?php elseif ($result['success']): ?>
-            <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-4 rounded">
+            <div class="bg-green-50 border border-green-200 p-4 mb-4 rounded-lg">
                 <p class="text-sm text-green-800">
                     <?= sprintf(
                         /* TRANSLATORS: %d=inserted, %d=updated, %d=auth-inserted, %d=auth-skipped */
@@ -84,7 +85,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
         <?php endif; ?>
 
         <?php if (!empty($result['parsed'])): ?>
-            <div class="bg-white shadow rounded-lg overflow-hidden mb-6">
+            <div class="card archive-subtable-card mb-6">
                 <div class="px-6 py-3 bg-gray-50 border-b">
                     <h2 class="text-sm font-semibold text-gray-700"><?= __("Unità archivistiche analizzate") ?></h2>
                 </div>
@@ -135,7 +136,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
         <?php endif; ?>
 
         <?php if (!empty($result['parsed_authorities'])): ?>
-            <div class="bg-white shadow rounded-lg overflow-hidden mb-6">
+            <div class="card archive-subtable-card mb-6">
                 <div class="px-6 py-3 bg-gray-50 border-b">
                     <h2 class="text-sm font-semibold text-gray-700"><?= __("Authority record analizzati") ?></h2>
                 </div>
@@ -178,7 +179,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
     <?php endif; ?>
 
     <form method="POST" action="<?= $e(url('/admin/archives/import')) ?>" enctype="multipart/form-data"
-          class="bg-white shadow rounded-lg p-6 space-y-4">
+          class="card space-y-4">
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
         <div>

@@ -2,6 +2,32 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.77]
+
+A feature release: a new bundled plugin for periodicals, a CSP opening for remote media backed by new guards, and a broad UI/hardening pass ([PR #410](https://github.com/fabiodalez-dev/Pinakes/pull/410)).
+
+### Added
+
+- **Emeroteca bundled plugin.** Periodicals management for newspapers, magazines, journals, bulletins and fanzines: testate with ISSN/type/periodicity and the shared publisher registry, bound or loose annate, numbered fascicoli with per-issue state, covers and per-issue PDFs (public or admin-only, served `no-store` so revoking public access is immediate), a Kardex workflow (expected issues generated from the periodicity, receive / mark-missing, derived consistenza with gaps), article-level spoglio with full-text search, and a public `/emeroteca` section (A–Z / publisher / type views, search, prev-next issue navigation, schema.org markup). Registered **inactive** on fresh installs and upgrades; activation from the admin UI creates its four tables idempotently. Covered by 22 E2E tests, 74 unit checks and a UI-driven demo seeder.
+- **Remote HTTPS media under CSP.** `img-src`, `media-src` and `frame-src` now allow `https:` so remote covers, author photos, externally hosted audio and user-configured PDFs render; scripts and styles remain nonce-only. The contract is enforced three ways: a CSP spec + unit suite (token-delimited wildcard detection anywhere in active-content directives), and a narrowly-scoped OWASP ZAP allowlist that still blocks any wildcard on active content, on other directives, or on other origins (158 filter assertions).
+
+### Changed
+
+- **Redesigned admin lists** for authors, publishers, genres and books (responsive filter grids, scrollable tables, synced `aria-expanded` on the export/import dropdowns) and a **redesigned user reservations page** with canonical per-state text badges.
+- **Plugin-aware public header.** Active plugin sections (Archive, Emeroteca, Events) appear in the navigation with segment-boundary active-state matching; the desktop search bar shrinks to make room.
+- The fresh installer registers optional bundled plugins **inactive**, preserving the existing activation state on reinstalls.
+
+### Fixed
+
+- **French apostrophes broke two JS surfaces**: the digital-uploads initializer (three raw translations inside single-quoted JS literals killed the whole Uppy script) and 24 book-club confirmation dialogs (`htmlspecialchars` in `onX` attributes lets the browser hand a live quote back to the JS parser, so the destructive form submitted without confirmation). Both now use `json_encode(JSON_HEX_*)`.
+- Issue PDF sizes render with locale-aware separators (intl `NumberFormatter`, locale-derived fallback without it); cover-fallback images that 404 before `DOMContentLoaded` still get the placeholder; stale hardcoded cache-busters bumped (archives CSS, emeroteca upload JS); terminology fixes in de/en/fr locales.
+
+### Testing
+
+- Emeroteca: 22-test Playwright spec (activation from the real admin UI, CRUD, kardex, uploads, public views, access control) + 74-check unit suite (schema idempotency, hook idempotency asserted after both activations, consistenza/kardex logic).
+- CSP: dedicated spec + unit suite; the ZAP PII/CSP filter test grew to 158 assertions with negative coverage for every exception branch.
+- Form submissions in the emeroteca spec and demo seeder arm the navigation waiter before clicking (no more `waitForLoadState` races); the seeder blocks every off-origin request at the network layer.
+
 ## [0.7.76]
 
 ### Fixed
