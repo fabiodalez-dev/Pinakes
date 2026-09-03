@@ -55,6 +55,18 @@ $dashboardRoute = route_path('user_dashboard');
 $logoutRoute = route_path('logout');
 $eventsRoute = route_path('events');
 $eventsEnabled = false;
+// Emeroteca (periodicals plugin): cached isActive(), same pattern as the
+// public layout — the link appears only when the plugin is active.
+$emerotecaAvailable = false;
+try {
+    if (isset($container) && $container->has('pluginManager')) {
+        /** @var \App\Support\PluginManager $emPluginManager */
+        $emPluginManager = $container->get('pluginManager');
+        $emerotecaAvailable = $emPluginManager->isActive('emeroteca');
+    }
+} catch (\Throwable $e) {
+    $emerotecaAvailable = false;
+}
 if (isset($db)) {
     try {
         $settingsRepository = new \App\Models\SettingsRepository($db);
@@ -227,7 +239,10 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
         }
 
         .search-form {
-            flex: 1;
+            /* Shrinkable: with many nav entries active the search bar gives
+               way instead of pushing the header onto a second line. */
+            flex: 1 1 10rem;
+            min-width: 8rem;
             max-width: 600px;
         }
 
@@ -899,6 +914,11 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                         <li><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"
                                 class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a>
                         </li>
+                        <?php if ($emerotecaAvailable): ?>
+                            <li><a href="<?= htmlspecialchars(url('/emeroteca'), ENT_QUOTES, 'UTF-8') ?>"
+                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/emeroteca') !== false ? 'active' : '' ?>"><?= __("Emeroteca") ?></a>
+                            </li>
+                        <?php endif; ?>
                         <?php if ($eventsEnabled): ?>
                             <li><a href="<?= htmlspecialchars($eventsRoute, ENT_QUOTES, 'UTF-8') ?>"
                                     class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $eventsRoute) !== false ? 'active' : '' ?>"><?= __("Eventi") ?></a>
@@ -1000,6 +1020,12 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                         class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
                         <i class="fas fa-book mr-2"></i><?= __("Catalogo") ?>
                     </a>
+                    <?php if ($emerotecaAvailable): ?>
+                        <a href="<?= htmlspecialchars(url('/emeroteca'), ENT_QUOTES, 'UTF-8') ?>"
+                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/emeroteca') !== false ? 'active' : '' ?>">
+                            <i class="fas fa-newspaper mr-2"></i><?= __("Emeroteca") ?>
+                        </a>
+                    <?php endif; ?>
                     <?php if ($eventsEnabled): ?>
                         <a href="<?= htmlspecialchars($eventsRoute, ENT_QUOTES, 'UTF-8') ?>"
                             class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $eventsRoute) !== false ? 'active' : '' ?>">

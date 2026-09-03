@@ -402,30 +402,78 @@ class PeriodicalAdminController extends AbstractAdminController
             && $values['anno_fine'] < $values['anno_inizio']) {
             $errors['anno_fine'] = __('L\'anno finale non può precedere l\'anno iniziale.');
         }
-        if ($values['logo_url'] !== null
-            && !str_starts_with($values['logo_url'], '/')
-            && filter_var($values['logo_url'], FILTER_VALIDATE_URL) === false) {
-            $errors['logo_url'] = __('URL del logo non valido (usa un URL assoluto o un percorso che inizia con /).');
+        if ($values['logo_url'] !== null && !str_starts_with($values['logo_url'], '/')) {
+            $scheme = parse_url($values['logo_url'], PHP_URL_SCHEME);
+            if (filter_var($values['logo_url'], FILTER_VALIDATE_URL) === false
+                || !is_string($scheme)
+                || !in_array(strtolower($scheme), ['http', 'https'], true)) {
+                $errors['logo_url'] = __('URL del logo non valido (usa un URL assoluto o un percorso che inizia con /).');
+            }
         }
         if ($selfId !== null && $values['testata_precedente_id'] === $selfId) {
             $errors['testata_precedente_id'] = __('Una testata non può continuare sé stessa.');
         }
 
         // Referential sanity: unknown ids become validation errors, not
-        // FK explosions at INSERT time.
+        // FK explosions at INSERT time. Pointed lookups instead of
+        // loading whole tables; degraded installs (missing core tables)
+        // skip the check, like the fetch* helpers degrade to empty.
         if ($values['editore_id'] !== null
-            && !array_key_exists($values['editore_id'], $this->fetchEditori())) {
+            && $this->refRowExists(
+                'SELECT 1 FROM editori WHERE id = ? LIMIT 1',
+                'i',
+                [$values['editore_id']]
+            ) === false) {
             $errors['editore_id'] = __('Editore non trovato.');
         }
         if ($values['genere_id'] !== null
-            && !array_key_exists($values['genere_id'], $this->fetchGeneriTopLevel())) {
+            && $this->refRowExists(
+                'SELECT 1 FROM generi WHERE id = ? AND parent_id IS NULL LIMIT 1',
+                'i',
+                [$values['genere_id']]
+            ) === false) {
             $errors['genere_id'] = __('Genere non trovato.');
         }
         if ($values['testata_precedente_id'] !== null
-            && !array_key_exists($values['testata_precedente_id'], $this->fetchTestateExcept($selfId))) {
+            && $this->refRowExists(
+                'SELECT 1 FROM emeroteca_testate WHERE id = ? AND id <> ? LIMIT 1',
+                'ii',
+                [$values['testata_precedente_id'], (int) ($selfId ?? 0)]
+            ) === false) {
             $errors['testata_precedente_id'] = __('Testata precedente non trovata.');
         }
 
         return [$values, $errors];
+    }
+
+    /**
+     * Pointed referential probe: true when the row exists, false when it
+     * does not, null when the check itself failed (e.g. missing core
+     * table on a degraded install) — callers treat null as "skip".
+     *
+     * @param list<int> $params
+     */
+    private function refRowExists(string $sql, string $types, array $params): ?bool
+    {
+        try {
+            $stmt = $this->db->prepare($sql);
+            if ($stmt === false) {
+                SecureLogger::error('[Emeroteca] ref check prepare failed (check skipped): ' . $this->db->error);
+                return null;
+            }
+            $stmt->bind_param($types, ...$params);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[Emeroteca] ref check failed (check skipped): ' . $stmt->error);
+                $stmt->close();
+                return null;
+            }
+            $res = $stmt->get_result();
+            $exists = $res instanceof \mysqli_result && $res->fetch_row() !== null;
+            $stmt->close();
+            return $exists;
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] ref check error (check skipped): ' . $e->getMessage());
+            return null;
+        }
     }
 }

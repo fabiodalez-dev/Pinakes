@@ -469,7 +469,9 @@ class IssueAdminController extends AbstractAdminController
 
         // Optional cover upload (classic file input; Uppy not wired
         // from plugins — kept intentionally simple).
-        $copertinaUrl = (string) ($fascicolo['copertina_url'] ?? '');
+        $previousCover = (string) ($fascicolo['copertina_url'] ?? '');
+        $copertinaUrl = $previousCover;
+        $newCoverUploaded = false;
         $files = $request->getUploadedFiles();
         if (isset($files['copertina'])
             && $files['copertina'] instanceof \Psr\Http\Message\UploadedFileInterface
@@ -480,6 +482,7 @@ class IssueAdminController extends AbstractAdminController
                 return $this->redirect($response, $back);
             }
             $copertinaUrl = (string) $result['path'];
+            $newCoverUploaded = true;
         }
         $copertinaOrNull = $copertinaUrl === '' ? null : $copertinaUrl;
 
@@ -526,6 +529,12 @@ class IssueAdminController extends AbstractAdminController
             return $this->redirect($response, $back);
         }
         $stmt->close();
+
+        // The UPDATE succeeded with a freshly uploaded cover: the old
+        // file is now orphaned unless another row still references it.
+        if ($newCoverUploaded && $previousCover !== '' && $previousCover !== $copertinaUrl) {
+            $this->deleteOldCoverIfUnreferenced($previousCover, $id);
+        }
 
         if (!$this->saveArticles($id, $body)) {
             $this->flashError(__('Fascicolo salvato ma spoglio non aggiornato: errore nel salvataggio degli articoli.'));
@@ -633,6 +642,39 @@ class IssueAdminController extends AbstractAdminController
      */
     private function getOrCreateAnnata(int $testataId, int $anno): ?int
     {
+        $found = $this->findAnnataId($testataId, $anno);
+        if ($found !== null) {
+            return $found;
+        }
+
+        $empty = '';
+        $ins = $this->db->prepare(
+            'INSERT INTO emeroteca_annate (testata_id, anno, volume) VALUES (?, ?, ?)'
+        );
+        if ($ins === false) {
+            SecureLogger::error('[Emeroteca] getOrCreateAnnata insert prepare failed: ' . $this->db->error);
+            return null;
+        }
+        $ins->bind_param('iis', $testataId, $anno, $empty);
+        if (!$ins->execute()) {
+            $dup = $this->db->errno === 1062;
+            SecureLogger::error('[Emeroteca] getOrCreateAnnata insert failed: ' . $ins->error);
+            $ins->close();
+            if ($dup) {
+                // Lost a race against a concurrent request that created
+                // the same annata: fetch the winner's row.
+                return $this->findAnnataId($testataId, $anno);
+            }
+            return null;
+        }
+        $newId = (int) $this->db->insert_id;
+        $ins->close();
+        return $newId;
+    }
+
+    /** Annata id for (testata, anno, volume ''/NULL), or null when absent. */
+    private function findAnnataId(int $testataId, int $anno): ?int
+    {
         $stmt = $this->db->prepare(
             "SELECT id FROM emeroteca_annate
               WHERE testata_id = ? AND anno = ? AND (volume = '' OR volume IS NULL)
@@ -651,27 +693,7 @@ class IssueAdminController extends AbstractAdminController
         $res = $stmt->get_result();
         $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
         $stmt->close();
-        if (is_array($row)) {
-            return (int) $row['id'];
-        }
-
-        $empty = '';
-        $ins = $this->db->prepare(
-            'INSERT INTO emeroteca_annate (testata_id, anno, volume) VALUES (?, ?, ?)'
-        );
-        if ($ins === false) {
-            SecureLogger::error('[Emeroteca] getOrCreateAnnata insert prepare failed: ' . $this->db->error);
-            return null;
-        }
-        $ins->bind_param('iis', $testataId, $anno, $empty);
-        if (!$ins->execute()) {
-            SecureLogger::error('[Emeroteca] getOrCreateAnnata insert failed: ' . $ins->error);
-            $ins->close();
-            return null;
-        }
-        $newId = (int) $this->db->insert_id;
-        $ins->close();
-        return $newId;
+        return is_array($row) ? (int) $row['id'] : null;
     }
 
     /**
@@ -707,18 +729,26 @@ class IssueAdminController extends AbstractAdminController
             SecureLogger::error('[Emeroteca] insertNumberedIssues prepare failed: ' . $this->db->error);
             return [0, 0];
         }
-        for ($n = $from; $n <= $to; $n++) {
-            $numero = (string) $n;
-            if (in_array($numero, $existing, true)) {
-                $skipped++;
-                continue;
+        $this->db->begin_transaction();
+        try {
+            for ($n = $from; $n <= $to; $n++) {
+                $numero = (string) $n;
+                if (in_array($numero, $existing, true)) {
+                    $skipped++;
+                    continue;
+                }
+                $ins->bind_param('iss', $annataId, $numero, $stato);
+                if ($ins->execute()) {
+                    $created++;
+                } else {
+                    SecureLogger::error('[Emeroteca] issue insert failed for n. ' . $numero . ': ' . $ins->error);
+                }
             }
-            $ins->bind_param('iss', $annataId, $numero, $stato);
-            if ($ins->execute()) {
-                $created++;
-            } else {
-                SecureLogger::error('[Emeroteca] issue insert failed for n. ' . $numero . ': ' . $ins->error);
-            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            $ins->close();
+            throw $e;
         }
         $ins->close();
         return [$created, $skipped];
@@ -884,6 +914,58 @@ class IssueAdminController extends AbstractAdminController
         } catch (\Throwable $e) {
             SecureLogger::error('[Emeroteca] cover upload error: ' . $e->getMessage());
             return ['success' => false, 'message' => __('Errore durante l\'upload.')];
+        }
+    }
+
+    /**
+     * Delete a replaced cover file, but only when it lives under
+     * public/uploads/emeroteca/ (realpath-verified) and no other row —
+     * emeroteca_fascicoli, emeroteca_annate (copertina_url) or
+     * emeroteca_testate (logo_url) — still references the same value.
+     * Any doubt (query failure, unresolved path) means keep the file.
+     */
+    private function deleteOldCoverIfUnreferenced(string $oldUrl, int $fascicoloId): void
+    {
+        if (!str_starts_with($oldUrl, '/uploads/emeroteca/')) {
+            return; // externally managed value: never touch it
+        }
+        $baseDir = realpath(__DIR__ . '/../../../../../public/uploads');
+        if ($baseDir === false) {
+            return;
+        }
+        $emerotecaDir = $baseDir . DIRECTORY_SEPARATOR . 'emeroteca';
+        $resolved = realpath($emerotecaDir . DIRECTORY_SEPARATOR . basename($oldUrl));
+        if ($resolved === false
+            || !str_starts_with($resolved, $emerotecaDir . DIRECTORY_SEPARATOR)) {
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM emeroteca_fascicoli WHERE copertina_url = ? AND id <> ?
+             UNION
+             SELECT 1 FROM emeroteca_annate WHERE copertina_url = ?
+             UNION
+             SELECT 1 FROM emeroteca_testate WHERE logo_url = ?
+             LIMIT 1'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Emeroteca] old cover reference check prepare failed: ' . $this->db->error);
+            return;
+        }
+        $stmt->bind_param('siss', $oldUrl, $fascicoloId, $oldUrl, $oldUrl);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Emeroteca] old cover reference check failed: ' . $stmt->error);
+            $stmt->close();
+            return;
+        }
+        $res = $stmt->get_result();
+        $referenced = $res instanceof \mysqli_result && $res->fetch_row() !== null;
+        $stmt->close();
+        if ($referenced) {
+            return;
+        }
+        if (file_exists($resolved)) {
+            @unlink($resolved);
         }
     }
 }

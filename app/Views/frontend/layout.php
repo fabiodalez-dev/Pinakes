@@ -100,6 +100,17 @@ $eventsEnabled = ConfigStore::get('cms.events_page_enabled', '1') === '1';
 // using the $container DB connection.
 $archivesAvailable = $archivesAvailable ?? false;
 $archivesRoute = $archivesRoute ?? '/archive';
+// Emeroteca (periodicals plugin): same cached isActive() pattern as archives.
+$emerotecaAvailable = $emerotecaAvailable ?? false;
+try {
+    if (!$emerotecaAvailable && isset($container) && $container->has('pluginManager')) {
+        /** @var \App\Support\PluginManager $emPluginManager */
+        $emPluginManager = $container->get('pluginManager');
+        $emerotecaAvailable = $emPluginManager->isActive('emeroteca');
+    }
+} catch (\Throwable $e) {
+    $emerotecaAvailable = false;
+}
 try {
     if (!$archivesAvailable && isset($container)) {
         // Use PluginManager::isActive() (per-process cached) instead of an
@@ -464,7 +475,11 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .search-form {
-            flex: 1;
+            /* flex-basis + min-width let the bar SHRINK when many nav items
+               are active (Archivio, Emeroteca, Eventi...) instead of wrapping
+               the whole header to a second line. */
+            flex: 1 1 10rem;
+            min-width: 8rem;
             max-width: 600px;
             overflow: visible !important;
         }
@@ -1696,6 +1711,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                                         class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $archivesRoute) !== false ? 'active' : '' ?>"><?= __('Archivio') ?></a>
                                 </li>
                             <?php endif; ?>
+                            <?php if ($emerotecaAvailable): ?>
+                                <li><a href="<?= htmlspecialchars(absoluteUrl('/emeroteca'), ENT_QUOTES, 'UTF-8') ?>"
+                                        class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/emeroteca') !== false ? 'active' : '' ?>"><?= __('Emeroteca') ?></a>
+                                </li>
+                            <?php endif; ?>
                             <?php if ($eventsEnabled): ?>
                                 <li><a href="<?= htmlspecialchars(absoluteUrl('/events'), ENT_QUOTES, 'UTF-8') ?>"
                                         class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __('Eventi') ?></a>
@@ -1816,6 +1836,12 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <a href="<?= htmlspecialchars(absoluteUrl($archivesRoute), ENT_QUOTES, 'UTF-8') ?>"
                             class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $archivesRoute) !== false ? 'active' : '' ?>">
                             <i class="fas fa-archive mr-2"></i><?= __('Archivio') ?>
+                        </a>
+                    <?php endif; ?>
+                    <?php if ($emerotecaAvailable): ?>
+                        <a href="<?= htmlspecialchars(absoluteUrl('/emeroteca'), ENT_QUOTES, 'UTF-8') ?>"
+                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/emeroteca') !== false ? 'active' : '' ?>">
+                            <i class="fas fa-newspaper mr-2"></i><?= __('Emeroteca') ?>
                         </a>
                     <?php endif; ?>
                     <?php if ($eventsEnabled): ?>
