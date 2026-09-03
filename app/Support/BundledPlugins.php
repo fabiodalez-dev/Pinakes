@@ -14,6 +14,7 @@ final class BundledPlugins
         'dewey-editor',
         'digital-library',
         'discogs',
+        'emeroteca',
         'frbr-lrm',
         'goodlib',
         'mobile-api',
