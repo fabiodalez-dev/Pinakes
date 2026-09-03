@@ -76,6 +76,55 @@ def is_catalogue_ean_false_positive:
   and ((.instances // []) | length > 0)
   and ((.instances // []) | all(.[]; is_catalogue_ean_instance));
 
+# A scheme-only source ("https:" / "http:" / "*") inside the named directive.
+# "https://host" never matches: the token is followed by "//", not by a
+# delimiter. Used to prove active-content directives stay host-listed.
+def csp_directive_has_wildcard_source($name):
+  test($name + "[^;]*[\\s](\\*|https?:)([\\s;]|$)");
+
+# OWASP ZAP 10055 (CSP: Wildcard Directive) fires on the DELIBERATE
+# scheme-wide sources shipped since 0.7.77: covers, author photos and plugin
+# logos may be stored as remote HTTPS URLs (img-src), the Digital Library
+# plays externally hosted audio (media-src) and the native PDF viewer can
+# frame a user-configured remote PDF (frame-src). Those are passive/framed
+# resources; the alert is ignored ONLY when every instance is the
+# Content-Security-Policy header of the target origin, the directives ZAP
+# lists as overly broad are a subset of exactly those three, and the quoted
+# policy itself proves active content stays strict (default-src 'self',
+# object-src 'none', base-uri 'self', form-action 'self', and no
+# scheme-only source in script-src / style-src). Any other wildcard —
+# script-src https:, a new loose directive, another origin — still blocks.
+def is_intended_csp_wildcard_instance:
+  type == "object"
+  and has("method") and (.method | type == "string")
+  and has("param") and (.param | type == "string")
+  and has("uri") and (.uri | type == "string")
+  and has("evidence") and (.evidence | type == "string")
+  and has("otherinfo") and (.otherinfo | type == "string")
+  and (.method | ascii_upcase) == "GET"
+  and (.param | ascii_downcase) == "content-security-policy"
+  and (.uri | is_target_uri)
+  and (.evidence | contains("default-src 'self'"))
+  and (.evidence | contains("object-src 'none'"))
+  and (.evidence | contains("base-uri 'self'"))
+  and (.evidence | contains("form-action 'self'"))
+  and (.evidence | csp_directive_has_wildcard_source("script-src") | not)
+  and (.evidence | csp_directive_has_wildcard_source("style-src") | not)
+  and (
+    .otherinfo
+    | split("\n")
+    | last
+    | split(", ")
+    | length > 0
+    and all(.[]; . == "img-src" or . == "frame-src" or . == "media-src")
+  );
+
+def is_intended_csp_wildcard_false_positive:
+  ((.pluginid // "") | tostring) == "10055"
+  and ((.instances // []) | type == "array")
+  and ((.instances // []) | length > 0)
+  and ((.instances // []) | all(.[]; is_intended_csp_wildcard_instance));
+
 def has_valid_riskcode:
   has("riskcode")
   and (
@@ -135,5 +184,6 @@ else
       .site[].alerts[]
       | select((.riskcode | tonumber) >= 2)
       | select(is_catalogue_ean_false_positive | not)
+      | select(is_intended_csp_wildcard_false_positive | not)
     ]
 end

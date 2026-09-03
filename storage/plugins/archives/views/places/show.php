@@ -56,7 +56,7 @@ $relationTargetLabels = [
     'archive_place'    => __('Luogo'),
 ];
 ?>
-<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=0.8.1'), ENT_QUOTES, 'UTF-8') ?>">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=1.5.0'), ENT_QUOTES, 'UTF-8') ?>">
 <div class="archive-admin-page p-6 max-w-4xl mx-auto">
     <div class="mb-6">
         <nav class="text-sm text-gray-500 mb-2">

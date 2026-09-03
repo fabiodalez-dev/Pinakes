@@ -28,7 +28,7 @@ $typeLabel = [
     // (e.g. external referrer stripping, opened in a new tab).
     try { sessionStorage.setItem('archives_authorities_return_url', window.location.href); } catch (e) { /* private mode / disabled storage */ }
 </script>
-<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=0.8.1'), ENT_QUOTES, 'UTF-8') ?>">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=1.5.0'), ENT_QUOTES, 'UTF-8') ?>">
 <div class="archive-admin-page archive-subindex p-6 max-w-7xl mx-auto">
     <div class="archive-page-header mb-6">
         <div>

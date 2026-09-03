@@ -902,9 +902,15 @@ if (typeof window.__ === 'undefined') {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('img[data-cover-fallback]').forEach(image => {
-    image.addEventListener('error', () => {
+    const swapToPlaceholder = () => {
       image.src = (window.BASE_PATH || '') + '/uploads/copertine/placeholder.jpg';
-    }, { once: true });
+    };
+    image.addEventListener('error', swapToPlaceholder, { once: true });
+    // Un 404 immediato può scattare prima di DOMContentLoaded: a quel punto
+    // l'evento error è già passato e il listener non verrà mai chiamato.
+    if (image.complete && image.naturalWidth === 0) {
+      swapToPlaceholder();
+    }
   });
 
   const modal = document.getElementById('reviewModal');

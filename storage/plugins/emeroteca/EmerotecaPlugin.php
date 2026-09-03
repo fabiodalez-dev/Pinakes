@@ -1027,7 +1027,11 @@ class EmerotecaPlugin
             ->withHeader('Content-Type', 'application/pdf')
             ->withHeader('Content-Length', (string) $size)
             ->withHeader('X-Content-Type-Options', 'nosniff')
-            ->withHeader('Cache-Control', $publicOnly ? 'public, max-age=3600' : 'private, no-store')
+            // Never cacheable, even when pdf_pubblico is on: the flag is a
+            // revocable privacy toggle, and a 'public' TTL would keep a
+            // revoked (or deleted) PDF servable from shared/edge caches
+            // (LiteSpeed edge in production) until expiry.
+            ->withHeader('Cache-Control', 'private, no-store')
             ->withHeader(
                 'Content-Disposition',
                 'inline; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($original)

@@ -681,6 +681,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+.entity-table-wrap { overflow-x: auto; }
 .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Bulk actions bar - rispetta la sidebar */

@@ -110,7 +110,7 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
 // Root-level rows = parent_id IS NULL → indexed under 0.
 $rootRows = $byParent[0] ?? [];
 ?>
-<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=0.8.1'), ENT_QUOTES, 'UTF-8') ?>">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=1.5.0'), ENT_QUOTES, 'UTF-8') ?>">
 <div class="archive-admin-page p-6 max-w-7xl mx-auto">
     <header class="archive-page-header mb-6">
         <div>

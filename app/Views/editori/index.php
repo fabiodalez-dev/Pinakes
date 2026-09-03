@@ -665,6 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+.entity-table-wrap { overflow-x: auto; }
 /* Bulk actions bar - rispetta la sidebar */
 @media (min-width: 1024px) {
   #bulk-actions-bar { left: 16rem !important; }

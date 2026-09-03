@@ -437,4 +437,4 @@ $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
     });
 })();
 </script>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.2.0')) ?>" defer></script>
+<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.2.3')) ?>" defer></script>

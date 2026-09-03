@@ -113,10 +113,13 @@ $check(
         && str_contains($userDashboardCtrl, 'COALESCE(pr.data_restituzione, pr.updated_at)'),
     'history sorts cancelled loans by closing time instead of sinking NULL return dates'
 );
+// Il redesign del dashboard (0.7.77) sostituisce le icone di stato con la
+// label canonica per-stato: la distinzione visiva di 'annullato' resta
+// garantita dal testo (translate_loan_status), non più da fa-ban.
 $check(
     str_contains($profileReservations, "'annullato' => 'fa-ban'")
-        && str_contains($userDashboard, "'annullato' => 'fa-ban'"),
-    'both user history views give cancelled loans a dedicated icon'
+        && str_contains($userDashboard, "translate_loan_status((string) \$loan['stato'])"),
+    'both user history views make cancelled loans visually distinct (icon or canonical label)'
 );
 // Strutturale (CodeRabbit): asserisci l'ESPRESSIONE di esclusione, non la sola
 // presenza della variabile — le due viste iterano con nomi diversi ($p / $loan).

@@ -1708,23 +1708,19 @@ $htmlLang = substr($currentLocale, 0, 2);
   $basePath = \App\Support\HtmlHelper::getBasePath();
   $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
   $isHome = ($requestPath === ($basePath ?: '/') || $requestPath === $basePath . '/' || $requestPath === $basePath . '/index.php');
+  $navPathActive = static fn(string $match): bool => $match !== '' && strpos($requestPath, $match) !== false;
   $publicNavItems = [
-      ['href' => $catalogRoute, 'match' => $catalogRoute, 'label' => __('Catalogo'), 'icon' => 'fa-book'],
+      ['href' => $catalogRoute, 'label' => __('Catalogo'), 'icon' => 'fa-book', 'active' => $navPathActive((string) $catalogRoute)],
   ];
   if ($archivesAvailable) {
-      $publicNavItems[] = ['href' => $archivesRoute, 'match' => $archivesRoute, 'label' => __('Archivio'), 'icon' => 'fa-archive'];
+      $publicNavItems[] = ['href' => $archivesRoute, 'label' => __('Archivio'), 'icon' => 'fa-archive', 'active' => $navPathActive((string) $archivesRoute)];
   }
   if ($emerotecaAvailable) {
-      $publicNavItems[] = ['href' => '/emeroteca', 'match' => '/emeroteca', 'label' => __('Emeroteca'), 'icon' => 'fa-newspaper'];
+      $publicNavItems[] = ['href' => '/emeroteca', 'label' => __('Emeroteca'), 'icon' => 'fa-newspaper', 'active' => $navPathActive('/emeroteca')];
   }
   if ($eventsEnabled) {
-      $publicNavItems[] = ['href' => '/events', 'match' => '/events', 'label' => __('Eventi'), 'icon' => 'fa-calendar-alt'];
+      $publicNavItems[] = ['href' => '/events', 'label' => __('Eventi'), 'icon' => 'fa-calendar-alt', 'active' => $navPathActive('/events')];
   }
-  foreach ($publicNavItems as &$publicNavItem) {
-      $match = (string) $publicNavItem['match'];
-      $publicNavItem['active'] = $match !== '' && strpos($requestPath, $match) !== false;
-  }
-  unset($publicNavItem);
 ?>
 <body class="<?= $isHome ? 'home ' : '' ?>layout-<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>" data-layout="<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>">
     <!-- Minimalist Header -->
@@ -1746,7 +1742,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <ul class="nav-links hidden md:flex">
                             <?php foreach ($publicNavItems as $publicNavItem): ?>
                                 <li><a href="<?= htmlspecialchars(absoluteUrl((string) $publicNavItem['href']), ENT_QUOTES, 'UTF-8') ?>"
-                                        class="<?= !empty($publicNavItem['active']) ? 'active' : '' ?>"<?= !empty($publicNavItem['active']) ? ' aria-current="page"' : '' ?>><?= htmlspecialchars((string) $publicNavItem['label'], ENT_QUOTES, 'UTF-8') ?></a>
+                                        class="<?= $publicNavItem['active'] ? 'active' : '' ?>"<?= $publicNavItem['active'] ? ' aria-current="page"' : '' ?>><?= htmlspecialchars((string) $publicNavItem['label'], ENT_QUOTES, 'UTF-8') ?></a>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
@@ -1858,7 +1854,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 <nav class="mobile-nav">
                     <?php foreach ($publicNavItems as $publicNavItem): ?>
                         <a href="<?= htmlspecialchars(absoluteUrl((string) $publicNavItem['href']), ENT_QUOTES, 'UTF-8') ?>"
-                            class="mobile-nav-link <?= !empty($publicNavItem['active']) ? 'active' : '' ?>"<?= !empty($publicNavItem['active']) ? ' aria-current="page"' : '' ?>>
+                            class="mobile-nav-link <?= $publicNavItem['active'] ? 'active' : '' ?>"<?= $publicNavItem['active'] ? ' aria-current="page"' : '' ?>>
                             <i class="fas <?= htmlspecialchars((string) $publicNavItem['icon'], ENT_QUOTES, 'UTF-8') ?> mr-2" aria-hidden="true"></i><?= htmlspecialchars((string) $publicNavItem['label'], ENT_QUOTES, 'UTF-8') ?>
                         </a>
                     <?php endforeach; ?>

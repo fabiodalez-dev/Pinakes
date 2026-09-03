@@ -28,6 +28,40 @@ function collectCspErrors(page) {
   return errors;
 }
 
+// The emeroteca surfaces below only exist when the bundled plugin is active.
+// CI shards start from a fresh install (plugin registered but inactive), so
+// activate it through the real admin UI first — idempotent, same flow as
+// emeroteca.spec.js. Gate on the public route answering 200, not on UI state.
+async function ensureEmerotecaActive(browser) {
+  const page = await browser.newPage();
+  try {
+    if ((await page.request.get(`${BASE}/emeroteca`)).status() === 200) {
+      return;
+    }
+    await login(page);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await page.goto(`${BASE}/admin/plugins`);
+      await page.waitForLoadState('domcontentloaded');
+      const card = page.locator('[data-plugin-id]', { hasText: 'Emeroteca' }).first();
+      const activateBtn = card.locator('button:has-text("Attiva")');
+      if (await activateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await activateBtn.click();
+        const confirmBtn = page.locator('.swal2-confirm:visible');
+        if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await confirmBtn.click();
+        }
+        await page.waitForTimeout(1500);
+      }
+      if ((await page.request.get(`${BASE}/emeroteca`)).status() === 200) {
+        return;
+      }
+    }
+    throw new Error('emeroteca plugin could not be activated: /emeroteca still not 200');
+  } finally {
+    await page.close();
+  }
+}
+
 test('CSP keeps active content strict and permits configured HTTPS media', async ({ request }) => {
   const response = await request.get(`${BASE}/`);
   expect(response.status()).toBe(200);
@@ -43,7 +77,10 @@ test('CSP keeps active content strict and permits configured HTTPS media', async
   expect(csp).toContain("connect-src 'self' data: blob: https://www.google.com");
 });
 
-test('public shell and Emeroteca render without CSP violations', async ({ page }) => {
+test('public shell and Emeroteca render without CSP violations', async ({ page, browser }) => {
+  test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'E2E admin credentials not configured (needed to activate emeroteca)');
+  test.setTimeout(120000);
+  await ensureEmerotecaActive(browser);
   const violations = collectCspErrors(page);
   for (const path of ['/', '/catalogo', '/emeroteca']) {
     const response = await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
@@ -57,7 +94,9 @@ test('public shell and Emeroteca render without CSP violations', async ({ page }
 test.describe('admin CSP surfaces', () => {
   test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'E2E admin credentials not configured');
 
-  test('Uppy and periodical forms render without CSP violations', async ({ page }) => {
+  test('Uppy and periodical forms render without CSP violations', async ({ page, browser }) => {
+    test.setTimeout(120000);
+    await ensureEmerotecaActive(browser);
     await login(page);
     const violations = collectCspErrors(page);
     for (const path of [
