@@ -237,9 +237,10 @@ try {
     $fixturePluginId = (int) $db->insert_id;
     $insPlugin->close();
     $plugin->setPluginId($fixturePluginId);
-    // Conta DOPO la prima attivazione e DOPO la seconda: 2+2 prova
-    // l'idempotenza; il solo conteggio finale non distingue "2 hook
-    // idempotenti" da "1 hook registrato due volte".
+    // Conta DOPO la prima attivazione e DOPO la seconda: 3+3 prova
+    // l'idempotenza; il solo conteggio finale non distingue "3 hook
+    // idempotenti" da hook registrati due volte. I 3 hook: routes,
+    // admin menu, mobile_api.openapi (bridge mobile, v1.3.0).
     $countHooks = static function () use ($db, $fixturePluginId): int {
         $res = $db->query("SELECT COUNT(*) AS n FROM plugin_hooks WHERE plugin_id = {$fixturePluginId}");
         $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
@@ -250,8 +251,8 @@ try {
     $plugin->onActivate();
     $afterSecond = $countHooks();
     check(
-        $afterFirst === 2 && $afterSecond === 2,
-        'activation registers exactly two hooks and remains idempotent (2 after first run, still 2 after second)'
+        $afterFirst === 3 && $afterSecond === 3,
+        'activation registers exactly three hooks and remains idempotent (3 after first run, still 3 after second)'
     );
     $plugin->onDeactivate();
     $hookRowsAfter = $db->query("SELECT 1 FROM plugin_hooks WHERE plugin_id = {$fixturePluginId}");
