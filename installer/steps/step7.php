@@ -172,6 +172,9 @@ if (!empty($triggerWarnings)):
         $successfulPlugins = array_filter($installedPlugins, function ($p) {
             return $p['status'] === 'installed_and_activated';
         });
+        $inactivePlugins = array_filter($installedPlugins, function ($p) {
+            return $p['status'] === 'installed_inactive';
+        });
         ?>
         <li><i class="fas fa-check-circle"></i> <?= __("Plugin installati e attivati:") ?>
             <strong><?= count($successfulPlugins) ?></strong>
@@ -179,6 +182,12 @@ if (!empty($triggerWarnings)):
                 (<?= htmlspecialchars(implode(', ', array_column($successfulPlugins, 'name')), ENT_QUOTES, 'UTF-8') ?>)
             <?php endif; ?>
         </li>
+        <?php if (!empty($inactivePlugins)): ?>
+            <li><i class="fas fa-check-circle"></i> <?= __("Plugin opzionali installati (disattivati):") ?>
+                <strong><?= count($inactivePlugins) ?></strong>
+                (<?= htmlspecialchars(implode(', ', array_column($inactivePlugins, 'name')), ENT_QUOTES, 'UTF-8') ?>)
+            </li>
+        <?php endif; ?>
     <?php endif; ?>
     <li><i class="fas fa-check-circle"></i> <?= __("File .htaccess creato") ?></li>
     <li><i class="fas fa-check-circle"></i> <?= __("Lock file creato (installazione protetta)") ?></li>

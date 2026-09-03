@@ -3507,6 +3507,7 @@
   "Plugin già installato": "Plugin already installed",
   "Plugin già installato.": "Plugin already installed.",
   "Plugin installati e attivati:": "Plugins installed and activated:",
+  "Plugin opzionali installati (disattivati):": "Optional plugins installed (inactive):",
   "Plugin installato con successo.": "Plugin installed successfully.",
   "Plugin non installato": "Plugin not installed",
   "Plugin non trovato.": "Plugin not found.",

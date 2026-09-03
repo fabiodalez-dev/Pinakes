@@ -139,6 +139,19 @@ try {
         "'emeroteca' is in BundledPlugins::LIST → collected automatically by the dynamic schema guards"
     );
 
+    $installerSource = (string) file_get_contents(__DIR__ . '/../installer/classes/Installer.php');
+    $installerSummary = (string) file_get_contents(__DIR__ . '/../installer/steps/step7.php');
+    check(
+        str_contains($installerSource, "\$installPlugin('emeroteca', [], false)")
+            && str_contains($installerSource, "'installed_inactive'"),
+        'fresh installer registers emeroteca exactly once as an inactive optional plugin'
+    );
+    check(
+        str_contains($installerSummary, "\$p['status'] === 'installed_inactive'")
+            && str_contains($installerSummary, 'Plugin opzionali installati (disattivati):'),
+        'installer completion summary counts inactive optional plugins separately'
+    );
+
     $ddlTables = plugin_schema_declared_tables_in_directory($pluginDir);
     check($ddlTables !== [], 'plugin-schema-source helper detects the CREATE TABLE declarations of the plugin');
 

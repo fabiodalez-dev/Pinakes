@@ -1441,8 +1441,10 @@ HTACCESS;
             }
         };
 
-        // Generic plugin installer
-        $installPlugin = function(string $pluginName, array $additionalHooks = []) use ($pdo, $ensureHooks, &$results) {
+        // Generic plugin installer. Optional bundled plugins may be registered
+        // here without being activated; their onActivate() lifecycle remains
+        // responsible for schema migrations and hook registration.
+        $installPlugin = function(string $pluginName, array $additionalHooks = [], bool $activate = true) use ($pdo, $ensureHooks, &$results) {
             try {
                 $pluginDir = $this->baseDir . '/storage/plugins/' . $pluginName;
 
@@ -1463,16 +1465,20 @@ HTACCESS;
                     return;
                 }
 
-                $stmt = $pdo->prepare("SELECT id FROM plugins WHERE name = :name LIMIT 1");
+                $stmt = $pdo->prepare("SELECT id, is_active FROM plugins WHERE name = :name LIMIT 1");
                 $stmt->execute(['name' => $pluginJson['name']]);
-                $pluginId = (int)$stmt->fetchColumn();
+                $existingPlugin = $stmt->fetch(PDO::FETCH_ASSOC);
+                $pluginId = is_array($existingPlugin) ? (int)($existingPlugin['id'] ?? 0) : 0;
+                $isActive = is_array($existingPlugin)
+                    ? (int)($existingPlugin['is_active'] ?? 0)
+                    : ($activate ? 1 : 0);
 
                 if (!$pluginId) {
                     $insertStmt = $pdo->prepare("
                         INSERT INTO plugins (name, display_name, description, version, author, author_url, plugin_url,
                             is_active, path, main_file, requires_php, requires_app, metadata, installed_at)
                         VALUES (:name, :display_name, :description, :version, :author, :author_url, :plugin_url,
-                            1, :path, :main_file, :requires_php, :requires_app, :metadata, NOW())
+                            :is_active, :path, :main_file, :requires_php, :requires_app, :metadata, NOW())
                     ");
 
                     $insertStmt->execute([
@@ -1483,6 +1489,7 @@ HTACCESS;
                         'author' => $pluginJson['author'] ?? '',
                         'author_url' => $pluginJson['author_url'] ?? '',
                         'plugin_url' => $pluginJson['plugin_url'] ?? '',
+                        'is_active' => $isActive,
                         'path' => $pluginName,
                         'main_file' => $pluginJson['main_file'],
                         'requires_php' => $pluginJson['requires_php'] ?? '8.0',
@@ -1501,11 +1508,15 @@ HTACCESS;
                 // Determine callback class from plugin name (CamelCase convention)
                 $callbackClass = str_replace(' ', '', ucwords(str_replace('-', ' ', $pluginName))) . 'Plugin';
 
-                if (!empty($hooks)) {
+                if ($isActive === 1 && !empty($hooks)) {
                     $ensureHooks($pluginId, $hooks, $callbackClass);
                 }
 
-                $results[] = ['name' => $pluginName, 'status' => 'installed_and_activated', 'plugin_id' => $pluginId];
+                $results[] = [
+                    'name' => $pluginName,
+                    'status' => $isActive === 1 ? 'installed_and_activated' : 'installed_inactive',
+                    'plugin_id' => $pluginId,
+                ];
 
             } catch (Exception $e) {
                 $results[] = ['name' => $pluginName, 'status' => 'error', 'message' => $e->getMessage()];
@@ -1514,10 +1525,9 @@ HTACCESS;
 
         // NOTE: The 5 historically-default plugins plus mobile-api (active by default
         // since 0.7.21) are auto-activated on fresh install.
-        // Other bundled plugins (BundledPlugins::LIST) are registered later by
-        // autoRegisterBundledPlugins(). Their manifest policy remains authoritative:
-        // metadata.optional plugins start inactive, while the bundled list itself
-        // never means "activate everything".
+        // Other bundled plugins are registered later by autoRegisterBundledPlugins().
+        // Emeroteca is also registered by the installer so it is visible in the
+        // completion summary, but remains opt-in and receives no active hooks.
         // Install all default plugins (excluding scraping-pro)
         $installPlugin('open-library');
         $installPlugin('z39-server', [
@@ -1539,6 +1549,7 @@ HTACCESS;
             ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10],
             ['name' => 'mobile_api.dispatch_push', 'callback_method' => 'dispatchPush', 'priority' => 20]
         ]);
+        $installPlugin('emeroteca', [], false);
 
         // Configure Z39 Server with SBN (Servizio Bibliotecario Nazionale) as default
         $this->configureZ39DefaultSettings($pdo);
