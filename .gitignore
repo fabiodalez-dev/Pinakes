@@ -641,6 +641,8 @@ docs/prototypes/
 # ========================================
 # Scratch/design output of local skills and assistant tooling. These are
 # developer-machine artifacts, not project source, and must never reach a remote.
+/PRODUCT.md
+/DESIGN.md
 .impeccable/
 .code-review-graph/
 .playwright-mcp/
