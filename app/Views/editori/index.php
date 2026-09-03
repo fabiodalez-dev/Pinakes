@@ -709,6 +709,10 @@ table#editori-table { border:1px solid #e5e7eb; border-radius:.5rem; width:100% 
 
 @media (min-width: 640px) {
   .entity-filter-grid { align-items:end; display:grid; gap:.75rem; }
+  /* Stesso vincolo della griglia autori: le colonne minime piene solo da 1280px. */
+  .publisher-filter-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
   .publisher-filter-grid { grid-template-columns:minmax(16rem, 1fr) minmax(9rem, .45fr) auto auto; }
 }
 </style>

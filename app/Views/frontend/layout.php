@@ -1708,7 +1708,10 @@ $htmlLang = substr($currentLocale, 0, 2);
   $basePath = \App\Support\HtmlHelper::getBasePath();
   $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
   $isHome = ($requestPath === ($basePath ?: '/') || $requestPath === $basePath . '/' || $requestPath === $basePath . '/index.php');
-  $navPathActive = static fn(string $match): bool => $match !== '' && strpos($requestPath, $match) !== false;
+  // Confini di segmento: '/catalog' deve marcare '/en/catalog' e
+  // '/catalog/…' ma NON '/catalogue' (locale diverso dalla sessione).
+  $navPathActive = static fn(string $match): bool => $match !== ''
+      && preg_match('#' . preg_quote(rtrim($match, '/'), '#') . '(?:/|$)#', $requestPath) === 1;
   $publicNavItems = [
       ['href' => $catalogRoute, 'label' => __('Catalogo'), 'icon' => 'fa-book', 'active' => $navPathActive((string) $catalogRoute)],
   ];

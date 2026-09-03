@@ -197,7 +197,7 @@ abstract class AbstractAdminController
             return ['success' => false, 'message' => __('Errore di configurazione.')];
         }
         $targetDir = $baseDir . '/emeroteca';
-        if ((!is_dir($targetDir) && !@mkdir($targetDir, 0755, true)) || !is_writable($targetDir)) {
+        if ((!is_dir($targetDir) && !@mkdir($targetDir, 0755, true) && !is_dir($targetDir)) || !is_writable($targetDir)) {
             SecureLogger::error('[Emeroteca] image uploads target directory is not writable');
             return ['success' => false, 'message' => __('Errore di configurazione.')];
         }
@@ -245,7 +245,7 @@ abstract class AbstractAdminController
         }
 
         $targetDir = __DIR__ . '/../../../../uploads/emeroteca';
-        if ((!is_dir($targetDir) && !@mkdir($targetDir, 0750, true)) || !is_writable($targetDir)) {
+        if ((!is_dir($targetDir) && !@mkdir($targetDir, 0750, true) && !is_dir($targetDir)) || !is_writable($targetDir)) {
             SecureLogger::error('[Emeroteca] private PDF uploads target directory is not writable');
             return ['success' => false, 'message' => __('Errore di configurazione.')];
         }

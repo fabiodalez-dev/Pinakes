@@ -52,8 +52,12 @@ const page = await browser.newPage();
 async function login() {
   await page.goto(`${BASE}/accedi`);
   // Validate the final URL too: page.goto() may have followed a redirect.
-  // Credentials are never filled on cleartext non-loopback destinations.
-  allowedSeedUrl(page.url());
+  // Credentials are never filled on cleartext non-loopback destinations,
+  // nor on a DIFFERENT origin than the one the operator configured.
+  const finalUrl = allowedSeedUrl(page.url());
+  if (finalUrl.origin !== BASE_URL.origin) {
+    throw new Error(`login redirected off-origin: ${finalUrl.origin} (atteso ${BASE_URL.origin})`);
+  }
   await page.fill('input[name="email"]', EMAIL);
   await page.fill('input[name="password"]', PASS);
   await page.click('button[type="submit"]');
@@ -83,16 +87,20 @@ async function bulkIssues(testataId, anno, da, a) {
   await page.fill('#blk-anno', String(anno));
   await page.fill('#blk-da', String(da));
   await page.fill('#blk-a', String(a));
-  await page.locator('form:has(#blk-anno) button[type="submit"]').click();
-  await page.waitForLoadState('domcontentloaded');
+  await Promise.all([
+    page.waitForEvent('load', { timeout: 15000 }),
+    page.locator('form:has(#blk-anno) button[type="submit"]').click(),
+  ]);
   log(`  annata ${anno}: fascicoli ${da}–${a} creati in serie`);
 }
 
 async function kardexGenerate(testataId, anno) {
   await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
   await page.fill('#krd-anno', String(anno));
-  await page.locator('form:has(#krd-anno) button[type="submit"]').click();
-  await page.waitForLoadState('domcontentloaded');
+  await Promise.all([
+    page.waitForEvent('load', { timeout: 15000 }),
+    page.locator('form:has(#krd-anno) button[type="submit"]').click(),
+  ]);
   log(`  kardex ${anno}: fascicoli attesi generati`);
 }
 
@@ -101,8 +109,10 @@ async function receiveFirstExpected(testataId, howMany) {
     await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
     const form = page.locator('form:has(input[name="action"][value="receive_issue"])').first();
     if (!(await form.count())) break;
-    await form.locator('button[type="submit"]').click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      form.locator('button[type="submit"]').click(),
+    ]);
   }
   log(`  kardex: ${howMany} fascicoli ricevuti`);
 }
@@ -112,8 +122,10 @@ async function markMissing(testataId) {
   const form = page.locator('form:has(input[name="action"][value="mark_missing"])').first();
   if (await form.count()) {
     page.once('dialog', (d) => d.accept().catch(() => {}));
-    await form.locator('button[type="submit"]').click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      form.locator('button[type="submit"]').click(),
+    ]);
     log('  kardex: attesi residui marcati mancanti');
   }
 }
@@ -130,8 +142,10 @@ async function issueIds(testataId) {
 async function uploadCover(issueId, coverPath) {
   await page.goto(`${BASE}/admin/periodicals/issue/${issueId}`);
   await page.locator('#emt-cover-upload input[type="file"]').setInputFiles(coverPath);
-  await page.locator('form button[type="submit"]').first().click();
-  await page.waitForLoadState('domcontentloaded');
+  await Promise.all([
+    page.waitForEvent('load', { timeout: 15000 }),
+    page.locator('form button[type="submit"]').first().click(),
+  ]);
 }
 
 async function addArticles(issueId, articles) {
@@ -147,15 +161,19 @@ async function addArticles(issueId, articles) {
     if (articles[i].autori) await au.nth(i).fill(articles[i].autori);
     if (articles[i].pag) await pd.nth(i).fill(String(articles[i].pag));
   }
-  await page.locator('form button[type="submit"]').first().click();
-  await page.waitForLoadState('domcontentloaded');
+  await Promise.all([
+    page.waitForEvent('load', { timeout: 15000 }),
+    page.locator('form button[type="submit"]').first().click(),
+  ]);
 }
 
 async function setIssueState(issueId, stato) {
   await page.goto(`${BASE}/admin/periodicals/issue/${issueId}`);
   await page.selectOption('select[name="stato"]', stato);
-  await page.locator('form button[type="submit"]').first().click();
-  await page.waitForLoadState('domcontentloaded');
+  await Promise.all([
+    page.waitForEvent('load', { timeout: 15000 }),
+    page.locator('form button[type="submit"]').first().click(),
+  ]);
 }
 
 const cover = (name) => path.join(COVERS, name);

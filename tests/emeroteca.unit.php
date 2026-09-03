@@ -142,7 +142,8 @@ try {
     $installerSource = (string) file_get_contents(__DIR__ . '/../installer/classes/Installer.php');
     $installerSummary = (string) file_get_contents(__DIR__ . '/../installer/steps/step7.php');
     check(
-        str_contains($installerSource, "\$installPlugin('emeroteca', [], false)")
+        substr_count($installerSource, "\$installPlugin('emeroteca'") === 1
+            && str_contains($installerSource, "\$installPlugin('emeroteca', [], false)")
             && str_contains($installerSource, "'installed_inactive'"),
         'fresh installer registers emeroteca exactly once as an inactive optional plugin'
     );
@@ -236,15 +237,21 @@ try {
     $fixturePluginId = (int) $db->insert_id;
     $insPlugin->close();
     $plugin->setPluginId($fixturePluginId);
+    // Conta DOPO la prima attivazione e DOPO la seconda: 2+2 prova
+    // l'idempotenza; il solo conteggio finale non distingue "2 hook
+    // idempotenti" da "1 hook registrato due volte".
+    $countHooks = static function () use ($db, $fixturePluginId): int {
+        $res = $db->query("SELECT COUNT(*) AS n FROM plugin_hooks WHERE plugin_id = {$fixturePluginId}");
+        $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+        return (int) ($row['n'] ?? -1);
+    };
     $plugin->onActivate();
+    $afterFirst = $countHooks();
     $plugin->onActivate();
-    $hookRows = $db->query(
-        "SELECT hook_name, callback_method FROM plugin_hooks
-          WHERE plugin_id = {$fixturePluginId} ORDER BY hook_name"
-    );
+    $afterSecond = $countHooks();
     check(
-        $hookRows instanceof \mysqli_result && $hookRows->num_rows === 2,
-        'activation registers exactly two hooks and remains idempotent'
+        $afterFirst === 2 && $afterSecond === 2,
+        'activation registers exactly two hooks and remains idempotent (2 after first run, still 2 after second)'
     );
     $plugin->onDeactivate();
     $hookRowsAfter = $db->query("SELECT 1 FROM plugin_hooks WHERE plugin_id = {$fixturePluginId}");

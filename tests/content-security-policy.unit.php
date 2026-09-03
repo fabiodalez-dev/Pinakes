@@ -42,7 +42,7 @@ $check(str_contains($header, "script-src 'self' 'nonce-{$nonce}'"), 'script elem
 $check(str_contains($header, "style-src 'self' 'nonce-{$nonce}'"), 'style elements require the response nonce');
 $check(!str_contains($header, "script-src 'self' 'unsafe-inline'"), 'script-src does not permit arbitrary inline scripts');
 $check(!str_contains($header, "style-src 'self' 'unsafe-inline'"), 'style-src does not permit arbitrary inline stylesheets');
-$check(!preg_match('/(?:script|style)-src[^;]*(?:https?:|\*)\s*(?:;|$)/', $header), 'active-content directives contain no scheme-wide or star wildcard');
+$check(!preg_match('/(?:script|style)-src[^;]*\s(?:https?:|\*)(?:\s|;|$)/', $header), 'active-content directives contain no scheme-wide or star wildcard (token-delimited, any position)');
 $check(str_contains($header, "img-src 'self' data: blob: https:"), 'remote HTTPS covers, photos and logos are permitted');
 $check(str_contains($header, "media-src 'self' blob: https:"), 'remote HTTPS audio is permitted');
 $check(str_contains($header, "frame-src 'self' data: blob: about: https:"), 'remote HTTPS PDFs are permitted in the native viewer');

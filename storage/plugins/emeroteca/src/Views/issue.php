@@ -42,7 +42,22 @@ $coverSrc = $cover === '' ? '' : (str_starts_with($cover, '/') ? url($cover) : $
 $pdfPath = (string) ($fascicolo['pdf_path'] ?? '');
 $pdfName = (string) ($fascicolo['pdf_nome_originale'] ?? '');
 $pdfSize = (int) ($fascicolo['pdf_dimensione'] ?? 0);
-$pdfSizeLabel = $pdfSize > 0 ? number_format($pdfSize / 1024 / 1024, 2, ',', '.') . ' MB' : '';
+$pdfSizeLabel = '';
+if ($pdfSize > 0) {
+    // Separatori decimali secondo la locale attiva, non hardcoded italiani.
+    $pdfMb = $pdfSize / 1048576;
+    $sizeFormatter = class_exists(\NumberFormatter::class)
+        ? new \NumberFormatter(\App\Support\I18n::getLocale(), \NumberFormatter::DECIMAL)
+        : null;
+    if ($sizeFormatter !== null) {
+        $sizeFormatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, 2);
+        $sizeFormatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, 2);
+        $formattedMb = $sizeFormatter->format($pdfMb);
+        $pdfSizeLabel = ($formattedMb !== false ? $formattedMb : number_format($pdfMb, 2)) . ' MB';
+    } else {
+        $pdfSizeLabel = number_format($pdfMb, 2) . ' MB';
+    }
+}
 $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">

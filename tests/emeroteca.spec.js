@@ -58,7 +58,12 @@ async function loginAsAdmin(page) {
     await email.fill(process.env.E2E_ADMIN_EMAIL);
     await page.fill('input[name="password"]', process.env.E2E_ADMIN_PASS);
     await page.click('button[type="submit"]');
-    await page.waitForURL(/.*(?:dashboard|admin).*/, { timeout: 15000 });
+    // Guarda il pathname, non l'URL intero: un login fallito resta su
+    // /accedi?redirect=%2Fadmin%2F... che matcherebbe /admin/ nell'URL.
+    await page.waitForFunction(
+      () => !location.pathname.includes('accedi') && !location.pathname.includes('login'),
+      { timeout: 15000 },
+    );
   }
 }
 
@@ -204,8 +209,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
 
     // Add the annata through the real quick-action form.
     await page.fill('#ann-anno', String(ANNO));
-    await page.locator('form:has(input[name="action"][value="add_annata"]) button[type="submit"]').click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form:has(input[name="action"][value="add_annata"]) button[type="submit"]').click(),
+    ]);
 
     annataId = String(dbQuery(
       `SELECT id FROM emeroteca_annate WHERE testata_id=${Number(testataId)} AND anno=${ANNO} LIMIT 1`,
@@ -217,8 +224,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
       const numInput = page.locator(`#fsc-num-${annataId}`);
       await expect(numInput).toBeVisible({ timeout: 10000 });
       await numInput.fill(numero);
-      await page.locator(`form:has(#fsc-num-${annataId}) button[type="submit"]`).click();
-      await page.waitForLoadState('domcontentloaded');
+      await Promise.all([
+        page.waitForEvent('load', { timeout: 15000 }),
+        page.locator(`form:has(#fsc-num-${annataId}) button[type="submit"]`).click(),
+      ]);
     }
 
     const rows = dbQuery(
@@ -278,8 +287,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     // exercise the SERVER validation, which is the real contract.
     await page.evaluate(() => document.getElementById('titolo').removeAttribute('required'));
     await page.fill('#issn', 'not-an-issn');
-    await page.locator('form button[type="submit"]:has-text("Crea testata")').click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]:has-text("Crea testata")').click(),
+    ]);
     const created = dbQuery(`SELECT COUNT(*) FROM emeroteca_testate WHERE issn='not-an-issn'`);
     expect(Number(created)).toBe(0);
     await expect(page).not.toHaveURL(/\/issues/);
@@ -292,8 +303,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await expect(page.locator('#titolo')).toHaveValue(TITLE, { timeout: 10000 });
     await page.fill('#sottotitolo', 'Mensile di prova E2E');
     await page.fill('#issn', '1125-3460');
-    await page.locator('form button[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
     const row = dbQuery(`SELECT sottotitolo, issn FROM emeroteca_testate WHERE id=${Number(testataId)}`);
     expect(row).toContain('Mensile di prova E2E');
     expect(row).toContain('1125-3460');
@@ -332,8 +345,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await page.fill('#blk-anno', String(ANNO + 1));
     await page.fill('#blk-da', '1');
     await page.fill('#blk-a', '6');
-    await page.locator('form:has(#blk-anno) button[type="submit"]').click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form:has(#blk-anno) button[type="submit"]').click(),
+    ]);
     const count = dbQuery(
       `SELECT COUNT(*) FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
        WHERE a.testata_id=${Number(testataId)} AND a.anno=${ANNO + 1}`,
@@ -347,8 +362,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
     await expect(page.locator('#krd-anno')).toBeVisible({ timeout: 10000 });
     await page.fill('#krd-anno', String(ANNO + 2));
-    await page.locator('form:has(#krd-anno) button[type="submit"]').click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form:has(#krd-anno) button[type="submit"]').click(),
+    ]);
     // Monthly testata → 12 expected issues for the empty year.
     const attesi = dbQuery(
       `SELECT COUNT(*) FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
@@ -368,8 +385,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
     const receiveForm = page.locator(`form:has(input[name="action"][value="receive_issue"]):has(input[name="fascicolo_id"][value="${firstAtteso}"])`);
     await expect(receiveForm.locator('button[type="submit"]')).toBeVisible({ timeout: 10000 });
-    await receiveForm.locator('button[type="submit"]').click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      receiveForm.locator('button[type="submit"]').click(),
+    ]);
     const stato = dbQuery(`SELECT stato FROM emeroteca_fascicoli WHERE id=${Number(firstAtteso)}`).trim();
     expect(stato).toBe('posseduto');
   });
@@ -384,8 +403,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     const markForm = page.locator(`form:has(input[name="action"][value="mark_missing"]):has(input[name="annata_id"][value="${annataK}"])`);
     await expect(markForm.locator('button[type="submit"]')).toBeVisible({ timeout: 10000 });
     page.once('dialog', (d) => d.accept().catch(() => {}));
-    await markForm.locator('button[type="submit"]').click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      markForm.locator('button[type="submit"]').click(),
+    ]);
     const rows = dbQuery(
       `SELECT SUM(stato='mancante'), SUM(stato='atteso'), SUM(stato='posseduto') FROM emeroteca_fascicoli WHERE annata_id=${Number(annataK)}`,
     ).trim().split('\t');
@@ -402,8 +423,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await page.fill('input[name="titolo_fascicolo"]', 'Numero monografico E2E');
     await page.fill('input[name="pagine"]', '96');
     await page.selectOption('select[name="stato"]', 'danneggiato');
-    await page.locator('form button[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
     const row = dbQuery(`SELECT titolo_fascicolo, pagine, stato FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[1])}`);
     expect(row).toContain('Numero monografico E2E');
     expect(row).toContain('96');
@@ -425,8 +448,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await expect(uppyInput).toBeAttached({ timeout: 10000 });
     await uppyInput.setInputFiles(tmpPng);
     await expect(page.locator('#emt-cover-preview-image')).toBeVisible({ timeout: 10000 });
-    await page.locator('form button[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
     fs.unlinkSync(tmpPng);
     const url = dbQuery(`SELECT copertina_url FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[0])}`).trim();
     expect(url.length).toBeGreaterThan(0);
@@ -450,8 +475,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
       await expect(uppyInput).toBeAttached({ timeout: 10000 });
       await uppyInput.setInputFiles(tmpPdf);
       await expect(page.locator('#emt-pdf-result')).toContainText(path.basename(tmpPdf));
-      await page.locator('form button[type="submit"]').first().click();
-      await page.waitForLoadState('domcontentloaded');
+      await Promise.all([
+        page.waitForEvent('load', { timeout: 15000 }),
+        page.locator('form button[type="submit"]').first().click(),
+      ]);
     } finally {
       fs.rmSync(tmpPdf, { force: true });
     }
@@ -469,8 +496,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
 
     await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}`);
     await page.check('input[name="pdf_pubblico"]');
-    await page.locator('form button[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
     expect(dbQuery(`SELECT pdf_pubblico FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[0])}`).trim()).toBe('1');
     expect((await page.request.get(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}/pdf`)).status()).toBe(200);
     await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
@@ -479,8 +508,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     // Removal clears both metadata and the private file after the DB commit.
     await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}`);
     await page.check('input[name="rimuovi_pdf"]');
-    await page.locator('form button[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
     expect(dbQuery(
       `SELECT COALESCE(pdf_path,'') FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[0])}`,
     ).trim()).toBe('');
@@ -506,8 +537,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await titoli.nth(1).fill('Intervista sulla catalogazione');
     await page.locator('input[name="art_autori[]"]').nth(1).fill('Luca Neri');
     await page.locator('input[name="art_pag_da[]"]').nth(1).fill('12');
-    await page.locator('form button[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
     const count = dbQuery(`SELECT COUNT(*) FROM emeroteca_articoli WHERE fascicolo_id=${Number(fascicoloIds[0])}`);
     expect(Number(count)).toBe(2);
   });

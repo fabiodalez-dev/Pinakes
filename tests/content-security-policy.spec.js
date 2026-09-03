@@ -69,8 +69,10 @@ test('CSP keeps active content strict and permits configured HTTPS media', async
 
   expect(csp).toContain("script-src 'self' 'nonce-");
   expect(csp).toContain("style-src 'self' 'nonce-");
-  expect(csp).not.toMatch(/script-src[^;]*\shttps:\s*(?:;|$)/);
-  expect(csp).not.toMatch(/style-src[^;]*\shttps:\s*(?:;|$)/);
+  // Token-delimited: a scheme-wide or star source anywhere in the directive
+  // must fail, not only in last position ("https://host" never matches).
+  expect(csp).not.toMatch(/script-src[^;]*\s(?:https?:|\*)(?:\s|;|$)/);
+  expect(csp).not.toMatch(/style-src[^;]*\s(?:https?:|\*)(?:\s|;|$)/);
   expect(csp).toContain("img-src 'self' data: blob: https:");
   expect(csp).toContain("media-src 'self' blob: https:");
   expect(csp).toContain("frame-src 'self' data: blob: about: https:");

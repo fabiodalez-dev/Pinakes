@@ -359,12 +359,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const btn = document.querySelector(btnClass);
     const menu = document.querySelector(menuClass);
     if (btn && menu) {
-      allDropdownMenus.push(menu);
+      allDropdownMenus.push({ btn, menu });
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Close all other dropdowns
-        allDropdownMenus.forEach(m => {
-          if (m !== menu) m.classList.add('hidden');
+        // Close all other dropdowns (and sync their buttons' aria-expanded)
+        allDropdownMenus.forEach(({ btn: otherBtn, menu: otherMenu }) => {
+          if (otherMenu !== menu) {
+            otherMenu.classList.add('hidden');
+            otherBtn.setAttribute('aria-expanded', 'false');
+          }
         });
         menu.classList.toggle('hidden');
         btn.setAttribute('aria-expanded', menu.classList.contains('hidden') ? 'false' : 'true');

@@ -726,6 +726,11 @@ table#autori-table { border: 1px solid #e5e7eb; border-radius: .5rem; width: 100
 
 @media (min-width: 640px) {
   .entity-filter-grid { align-items:end; display:grid; gap:.75rem; }
+  /* Sotto i 1280px la card lascia ~526px: le cinque colonne minime (544px+)
+     non ci stanno — due colonne fino al breakpoint largo. */
+  .author-filter-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
   .author-filter-grid { grid-template-columns:minmax(14rem, 1fr) minmax(9rem, .55fr) minmax(8rem, .45fr) auto auto; }
 }
 </style>

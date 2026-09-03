@@ -89,7 +89,7 @@ $btnDanger  = 'btn-danger inline-flex items-center gap-2';
         <div class="flex flex-col gap-2">
           <h1 class="text-3xl font-bold text-gray-900 break-words"><?php echo $nomeAutore; ?></h1>
           <?php if ($pseudonimo !== ''): ?>
-            <p class="text-sm text-gray-600"><?= __("Pseudonimo:") ?> <?php echo HtmlHelper::e($pseudonimo); ?></p>
+            <p class="text-sm text-gray-600"><?= __("Pseudonimo:") ?> <?php echo htmlspecialchars($pseudonimo, ENT_QUOTES, 'UTF-8'); ?></p>
           <?php endif; ?>
         </div>
 

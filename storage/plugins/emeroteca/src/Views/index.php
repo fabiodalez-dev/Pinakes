@@ -188,7 +188,7 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                                             <?php if (!empty($row['issn'])): ?><span class="font-mono"><?= $e($row['issn']) ?></span><?php endif; ?>
                                             <?php if (!empty($row['editore_nome'])): ?><span><?= $e($row['editore_nome']) ?></span><?php endif; ?>
                                             <?php if (!empty($row['periodicita'])): ?><span><?= $e($periodicitaLabels[(string) $row['periodicita']] ?? (string) $row['periodicita']) ?></span><?php endif; ?>
-                                            <span><?= (int) $row['n_posseduti'] ?> <?= $e(lcfirst(__('Posseduti'))) ?> · <?= (int) $row['n_mancanti'] ?> <?= $e(lcfirst(__('Mancanti'))) ?></span>
+                                            <span><?= (int) $row['n_posseduti'] ?> <?= $e(__('Posseduti')) ?> · <?= (int) $row['n_mancanti'] ?> <?= $e(__('Mancanti')) ?></span>
                                             <span><?= $e($row['consistenza'] ?? '—') ?></span>
                                         </div>
                                     </div>

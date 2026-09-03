@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (attempts <= 0) {
             console.warn('Digital uploads unavailable. Missing:', missing.join(', '));
-            showAlert('error', '<?= __("Uploader non disponibile") ?>', '<?= __("Impossibile inizializzare Uppy per i contenuti digitali.") ?>');
+            showAlert('error', <?= json_encode(__("Uploader non disponibile"), JSON_HEX_TAG) ?>, <?= json_encode(__("Impossibile inizializzare Uppy per i contenuti digitali."), JSON_HEX_TAG) ?>);
             return;
         }
 
@@ -229,8 +229,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const successTitle = type === 'audio'
-                ? '<?= __("Audiobook caricato!") ?>'
-                : '<?= __("eBook caricato!") ?>';
+                ? <?= json_encode(__("Audiobook caricato!"), JSON_HEX_TAG) ?>
+                : <?= json_encode(__("eBook caricato!"), JSON_HEX_TAG) ?>;
 
             showAlert('success', successTitle, file.name);
         });
@@ -242,8 +242,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultEl.innerHTML = '';
             }
             const errorTitle = type === 'audio'
-                ? '<?= __("Errore caricamento Audiobook") ?>'
-                : '<?= __("Errore caricamento eBook") ?>';
+                ? <?= json_encode(__("Errore caricamento Audiobook"), JSON_HEX_TAG) ?>
+                : <?= json_encode(__("Errore caricamento eBook"), JSON_HEX_TAG) ?>;
 
             showAlert('error', errorTitle, error?.message || 'Upload failed');
         });

@@ -212,6 +212,19 @@ csp_post_alert=$(make_csp_wildcard_alert)
 csp_post_alert=$(jq -c '.instances[0].method = "POST"' <<<"$csp_post_alert")
 assert_blocked 'CSP wildcard finding on a non-GET request' "$csp_post_alert"
 
+csp_param_alert=$(make_csp_wildcard_alert)
+csp_param_alert=$(jq -c '.instances[0].param = "X-Content-Security-Policy"' <<<"$csp_param_alert")
+assert_blocked 'CSP wildcard finding on a different header param' "$csp_param_alert"
+
+csp_no_otherinfo_alert=$(make_csp_wildcard_alert)
+csp_no_otherinfo_alert=$(jq -c 'del(.instances[0].otherinfo)' <<<"$csp_no_otherinfo_alert")
+assert_blocked 'CSP wildcard finding without the directive list (otherinfo)' "$csp_no_otherinfo_alert"
+
+assert_blocked 'CSP wildcard with a policy missing the strict anchors' "$(make_csp_wildcard_alert \
+    'http://localhost:8081/' \
+    'img-src, frame-src, media-src' \
+    "default-src 'self'; script-src 'self' 'nonce-test'; style-src 'self' 'nonce-test'; img-src 'self' https:; media-src 'self' https:; frame-src 'self' https:; base-uri 'self'; form-action 'self'")"
+
 mixed_alert=$(make_alert 'http://localhost:8081/da/forlag/Test')
 mixed_alert=$(jq -c '.instances += [{uri:"http://localhost:8081/admin/settings", evidence:"5634784354285", method:"GET", param:"", attack:""}]' <<<"$mixed_alert")
 assert_blocked 'mixed safe and unsafe instances' "$mixed_alert"

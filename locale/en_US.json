@@ -7239,7 +7239,7 @@
   "Trimestrale": "Quarterly",
   "URL assoluto o percorso che inizia con /": "Absolute URL or path starting with /",
   "URL del logo non valido (usa un URL assoluto o un percorso che inizia con /).": "Invalid logo URL (use an absolute URL or a path starting with /).",
-  "Un fascicolo con questo numero esiste già nell’annata.": "An issue with this number already exists in the year.",
+  "Un fascicolo con questo numero esiste già nell’annata.": "An issue with this number already exists in the volume year.",
   "Una testata non può continuare sé stessa.": "A periodical cannot continue itself.",
   "Viste": "Views",
   "Volume": "Volume",
