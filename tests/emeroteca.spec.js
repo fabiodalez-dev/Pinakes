@@ -8,6 +8,9 @@
 // guard, console-error guard, FK-safe cleanup).
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 
@@ -248,4 +251,246 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
 
     expect(errors).toEqual([]);
   });
+
+  test('validation: empty title and malformed ISSN are rejected', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/create`);
+    await expect(page.locator('#titolo')).toBeVisible({ timeout: 10000 });
+    // Empty title: HTML5 required blocks submit client-side; strip it to
+    // exercise the SERVER validation, which is the real contract.
+    await page.evaluate(() => document.getElementById('titolo').removeAttribute('required'));
+    await page.fill('#issn', 'not-an-issn');
+    await page.locator('form button[type="submit"]:has-text("Crea testata")').click();
+    await page.waitForLoadState('domcontentloaded');
+    const created = dbQuery(`SELECT COUNT(*) FROM emeroteca_testate WHERE issn='not-an-issn'`);
+    expect(Number(created)).toBe(0);
+    await expect(page).not.toHaveURL(/\/issues/);
+  });
+
+  test('edit testata: subtitle and a valid ISSN persist', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/edit/${testataId}`);
+    await expect(page.locator('#titolo')).toHaveValue(TITLE, { timeout: 10000 });
+    await page.fill('#sottotitolo', 'Mensile di prova E2E');
+    await page.fill('#issn', '1125-3460');
+    await page.locator('form button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded');
+    const row = dbQuery(`SELECT sottotitolo, issn FROM emeroteca_testate WHERE id=${Number(testataId)}`);
+    expect(row).toContain('Mensile di prova E2E');
+    expect(row).toContain('1125-3460');
+  });
+
+  test('bulk series creation adds a run of issues in one submit', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
+    await expect(page.locator('#blk-anno')).toBeVisible({ timeout: 10000 });
+    await page.fill('#blk-anno', String(ANNO + 1));
+    await page.fill('#blk-da', '1');
+    await page.fill('#blk-a', '6');
+    await page.locator('form:has(#blk-anno) button[type="submit"]').click();
+    await page.waitForLoadState('domcontentloaded');
+    const count = dbQuery(
+      `SELECT COUNT(*) FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
+       WHERE a.testata_id=${Number(testataId)} AND a.anno=${ANNO + 1}`,
+    );
+    expect(Number(count)).toBe(6);
+  });
+
+  test('kardex: generate expected issues from the frequency', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
+    await expect(page.locator('#krd-anno')).toBeVisible({ timeout: 10000 });
+    await page.fill('#krd-anno', String(ANNO + 2));
+    await page.locator('form:has(#krd-anno) button[type="submit"]').click();
+    await page.waitForLoadState('domcontentloaded');
+    // Monthly testata → 12 expected issues for the empty year.
+    const attesi = dbQuery(
+      `SELECT COUNT(*) FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
+       WHERE a.testata_id=${Number(testataId)} AND a.anno=${ANNO + 2} AND f.stato='atteso'`,
+    );
+    expect(Number(attesi)).toBe(12);
+  });
+
+  test('kardex: receiving an expected issue flips it to owned', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    const firstAtteso = dbQuery(
+      `SELECT f.id FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
+       WHERE a.testata_id=${Number(testataId)} AND a.anno=${ANNO + 2} AND f.stato='atteso'
+       ORDER BY CAST(f.numero AS UNSIGNED) LIMIT 1`,
+    ).trim();
+    await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
+    const receiveForm = page.locator(`form:has(input[name="action"][value="receive_issue"]):has(input[name="fascicolo_id"][value="${firstAtteso}"])`);
+    await expect(receiveForm.locator('button[type="submit"]')).toBeVisible({ timeout: 10000 });
+    await receiveForm.locator('button[type="submit"]').click();
+    await page.waitForLoadState('domcontentloaded');
+    const stato = dbQuery(`SELECT stato FROM emeroteca_fascicoli WHERE id=${Number(firstAtteso)}`).trim();
+    expect(stato).toBe('posseduto');
+  });
+
+  test('kardex: mark-missing converts the remaining expected issues', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    const annataK = dbQuery(
+      `SELECT id FROM emeroteca_annate WHERE testata_id=${Number(testataId)} AND anno=${ANNO + 2} LIMIT 1`,
+    ).trim();
+    await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
+    const markForm = page.locator(`form:has(input[name="action"][value="mark_missing"]):has(input[name="annata_id"][value="${annataK}"])`);
+    await expect(markForm.locator('button[type="submit"]')).toBeVisible({ timeout: 10000 });
+    page.once('dialog', (d) => d.accept().catch(() => {}));
+    await markForm.locator('button[type="submit"]').click();
+    await page.waitForLoadState('domcontentloaded');
+    const rows = dbQuery(
+      `SELECT SUM(stato='mancante'), SUM(stato='atteso'), SUM(stato='posseduto') FROM emeroteca_fascicoli WHERE annata_id=${Number(annataK)}`,
+    ).trim().split('\t');
+    expect(Number(rows[0])).toBe(11);
+    expect(Number(rows[1])).toBe(0);
+    expect(Number(rows[2])).toBe(1);
+  });
+
+  test('issue detail form persists title, pages and a damaged state', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[1]}`);
+    await expect(page.locator('input[name="titolo_fascicolo"]')).toBeVisible({ timeout: 10000 });
+    await page.fill('input[name="titolo_fascicolo"]', 'Numero monografico E2E');
+    await page.fill('input[name="pagine"]', '96');
+    await page.selectOption('select[name="stato"]', 'danneggiato');
+    await page.locator('form button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded');
+    const row = dbQuery(`SELECT titolo_fascicolo, pagine, stato FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[1])}`);
+    expect(row).toContain('Numero monografico E2E');
+    expect(row).toContain('96');
+    expect(row).toContain('danneggiato');
+  });
+
+  test('cover upload through the real form stores a served image', async ({ page }) => {
+    test.setTimeout(90000);
+    await loginAsAdmin(page);
+    // Minimal valid 1x1 PNG written on the fly — a REAL multipart upload.
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const tmpPng = path.join(os.tmpdir(), `emeroteca-cover-${Date.now()}.png`);
+    fs.writeFileSync(tmpPng, png);
+    await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}`);
+    await expect(page.locator('input[name="copertina"]')).toBeAttached({ timeout: 10000 });
+    await page.setInputFiles('input[name="copertina"]', tmpPng);
+    await page.locator('form button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded');
+    fs.unlinkSync(tmpPng);
+    const url = dbQuery(`SELECT copertina_url FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[0])}`).trim();
+    expect(url.length).toBeGreaterThan(0);
+    const resp = await page.request.get(`${BASE}${url.startsWith('/') ? '' : '/'}${url}`);
+    expect(resp.status()).toBe(200);
+  });
+
+  test('table of contents: two articles saved from the issue form', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}`);
+    // Article rows are stamped from a <template> by the add button: the DOM
+    // starts with zero rows, one click = one row.
+    const addBtn = page.locator('#emt-art-add');
+    await expect(addBtn).toBeVisible({ timeout: 10000 });
+    await addBtn.click();
+    await addBtn.click();
+    const titoli = page.locator('input[name="art_titolo[]"]');
+    await expect(titoli).toHaveCount(2);
+    await titoli.nth(0).fill('Editoriale di prova');
+    await page.locator('input[name="art_autori[]"]').nth(0).fill('Anna Verdi');
+    await page.locator('input[name="art_pag_da[]"]').nth(0).fill('3');
+    await titoli.nth(1).fill('Intervista sulla catalogazione');
+    await page.locator('input[name="art_autori[]"]').nth(1).fill('Luca Neri');
+    await page.locator('input[name="art_pag_da[]"]').nth(1).fill('12');
+    await page.locator('form button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded');
+    const count = dbQuery(`SELECT COUNT(*) FROM emeroteca_articoli WHERE fascicolo_id=${Number(fascicoloIds[0])}`);
+    expect(Number(count)).toBe(2);
+  });
+
+  test('admin list shows the computed holdings statement', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals`);
+    const row = page.locator('tr', { hasText: TITLE }).first();
+    await expect(row).toBeVisible({ timeout: 10000 });
+    // Years 2024–2026 exist; 2026 carries 11 lacune from the kardex test.
+    await expect(row).toContainText(String(ANNO));
+    await expect(row).toContainText(String(ANNO + 2));
+  });
+
+  test('public index: search finds the testata, alternative views respond', async ({ page }) => {
+    test.setTimeout(60000);
+    const errors = [];
+    attachConsoleGuard(page, errors);
+    await page.goto(`${BASE}/emeroteca?q=${encodeURIComponent(TITLE)}`);
+    await expect(page.locator('#emeroteca-index')).toContainText(TITLE, { timeout: 10000 });
+    await page.goto(`${BASE}/emeroteca?q=zz-nessuna-testata-cosi`);
+    await expect(page.locator('#emeroteca-index')).not.toContainText(TITLE);
+    for (const vista of ['editore', 'argomento']) {
+      const resp = await page.goto(`${BASE}/emeroteca?vista=${vista}`);
+      expect(resp.status()).toBe(200);
+      await expect(page.locator('#emeroteca-index')).toContainText(TITLE);
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test('public testata page: missing issues render as placeholders', async ({ page }) => {
+    test.setTimeout(60000);
+    await page.goto(`${BASE}/emeroteca/${testataId}?anno=${ANNO + 2}`);
+    await expect(page.locator('h1', { hasText: TITLE })).toBeVisible({ timeout: 10000 });
+    const bodyText = await page.locator('body').innerText();
+    expect(bodyText).toContain('Mancante');
+  });
+
+  test('public issue page shows the table of contents', async ({ page }) => {
+    test.setTimeout(60000);
+    await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
+    await expect(page.locator('body')).toContainText('Editoriale di prova', { timeout: 10000 });
+    await expect(page.locator('body')).toContainText('Intervista sulla catalogazione');
+    await expect(page.locator('body')).toContainText('Anna Verdi');
+  });
+
+  test('public issue page navigates to the next issue in the annata', async ({ page }) => {
+    test.setTimeout(60000);
+    await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
+    const next = page.locator(`a[href$="/emeroteca/fascicolo/${fascicoloIds[1]}"]`).first();
+    await expect(next).toBeVisible({ timeout: 10000 });
+    await next.click();
+    await expect(page.locator('h1')).toContainText('n. 2', { timeout: 10000 });
+  });
+
+  test('schema.org: Periodical on the testata, PublicationIssue on the issue', async ({ page }) => {
+    test.setTimeout(60000);
+    await page.goto(`${BASE}/emeroteca/${testataId}`);
+    const periodical = await page.locator('script[type="application/ld+json"]').allTextContents();
+    expect(periodical.join(' ')).toContain('Periodical');
+    await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
+    const issueLd = await page.locator('script[type="application/ld+json"]').allTextContents();
+    expect(issueLd.join(' ')).toContain('PublicationIssue');
+  });
+
+  test('access control: public emeroteca is anonymous, admin is not', async ({ browser }) => {
+    test.setTimeout(60000);
+    const context = await browser.newContext();
+    const anon = await context.newPage();
+    try {
+      const pub = await anon.goto(`${BASE}/emeroteca`);
+      expect(pub.status()).toBe(200);
+      await anon.goto(`${BASE}/admin/periodicals`);
+      await anon.waitForLoadState('domcontentloaded');
+      // Anonymous hit on the admin area must land on the login form, never
+      // on the periodicals management page.
+      await expect(anon.locator('input[name="password"]')).toBeVisible({ timeout: 10000 });
+    } finally {
+      await context.close();
+    }
+  });
+
 });
