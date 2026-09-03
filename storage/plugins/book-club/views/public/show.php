@@ -126,7 +126,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           <span class="bc-badge bc-badge-warn"><?= $e(__('Richiesta in attesa di approvazione')) ?></span>
         <?php else: ?>
           <form method="post" action="<?= $e(url('/book-club/' . $slug . '/leave')) ?>"
-                onsubmit="return confirm('<?= $e(__('Vuoi davvero lasciare il club?')) ?>');">
+                onsubmit="return confirm(<?= $e(json_encode(__('Vuoi davvero lasciare il club?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Lascia il club')) ?></button>
           </form>
@@ -536,7 +536,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button name="status" value="done" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('Segna come svolto')) ?></button>
                 <button name="status" value="cancelled" class="bc-btn bc-btn-danger bc-btn-sm"
-                        onclick="return confirm('<?= $e(__('Annullare questo incontro?')) ?>');"><?= $e(__('Annulla incontro')) ?></button>
+                        onclick="return confirm(<?= $e(json_encode(__('Annullare questo incontro?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);"><?= $e(__('Annulla incontro')) ?></button>
               </form>
               <details class="mt-2 bc-meeting-edit">
                 <summary class="bc-summary"><?= $e(__('Modifica incontro')) ?></summary>

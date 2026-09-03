@@ -133,7 +133,7 @@ $base = url('/book-club/' . $slug . '/surveys');
                 <i class="fas fa-pen"></i><?= $e(__('Modifica le domande')) ?>
               </a>
               <form method="post" action="<?= $e($draftBase . '/delete') ?>"
-                    onsubmit="return confirm('<?= $e(__('Eliminare questa bozza? Le domande andranno perse.')) ?>');">
+                    onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa bozza? Le domande andranno perse.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
                   <i class="fas fa-trash"></i><?= $e(__('Elimina bozza')) ?>

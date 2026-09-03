@@ -99,7 +99,7 @@ $notYetOpen = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
         <div class="flex flex-wrap items-center gap-2">
           <?php if ($status === 'open'): ?>
             <form method="post" action="<?= $e($base . '/close') ?>"
-                  onsubmit="return confirm('<?= $e(__('Chiudere il questionario? Non accetterà più risposte.')) ?>');">
+                  onsubmit="return confirm(<?= $e(json_encode(__('Chiudere il questionario? Non accetterà più risposte.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
                 <i class="fas fa-lock"></i><?= $e(__('Chiudi questionario')) ?>
@@ -112,7 +112,7 @@ $notYetOpen = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
             </a>
           <?php else: ?>
             <form method="post" action="<?= $e($base . '/delete') ?>"
-                  onsubmit="return confirm('<?= $e(__('Eliminare questa bozza? Le domande andranno perse.')) ?>');">
+                  onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa bozza? Le domande andranno perse.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
                 <i class="fas fa-trash"></i><?= $e(__('Elimina bozza')) ?>
@@ -173,7 +173,7 @@ $notYetOpen = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
                 </form>
               <?php endif; ?>
               <form method="post" action="<?= $e($base . '/questions/' . (int) $i . '/delete') ?>"
-                    onsubmit="return confirm('<?= $e(__('Eliminare questa domanda?')) ?>');">
+                    onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa domanda?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm" title="<?= $e(__('Elimina')) ?>"><i class="fas fa-trash"></i></button>
               </form>
@@ -268,7 +268,7 @@ $notYetOpen = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
       <div class="flex flex-wrap items-center justify-between gap-3">
         <p class="bc-muted mb-0"><?= $e(__('Pronto? La pubblicazione apre il questionario ai membri e congela le domande.')) ?></p>
         <form method="post" action="<?= $e($base . '/publish') ?>"
-              onsubmit="return confirm('<?= $e(__('Pubblicare il questionario? Le domande non saranno più modificabili.')) ?>');">
+              onsubmit="return confirm(<?= $e(json_encode(__('Pubblicare il questionario? Le domande non saranno più modificabili.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
           <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
           <button type="submit" class="bc-btn" <?= $schema === [] ? 'disabled' : '' ?>>
             <i class="fas fa-paper-plane"></i><?= $e(__('Pubblica')) ?>
