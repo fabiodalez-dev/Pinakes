@@ -1173,6 +1173,7 @@ $activeTab = $activeTab ?? 'general';
           note: <?= json_encode(__("PNG, JPG o WebP (max 2MB)"), JSON_HEX_TAG) ?>,
           locale: {
             strings: {
+              dropHereOr: <?= json_encode(__("Trascina qui il logo o %{browse}"), JSON_HEX_TAG) ?>,
               dropPasteFiles: <?= json_encode(__("Trascina qui il logo o %{browse}"), JSON_HEX_TAG) ?>,
               browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
             }

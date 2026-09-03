@@ -1271,6 +1271,7 @@ function initializeUppy() {
             note: <?= json_encode(__("Trascina qui la copertina del libro o clicca per selezionare"), JSON_HEX_TAG) ?>,
             locale: {
                 strings: {
+                    dropHereOr: <?= json_encode(__("Trascina qui la copertina del libro o %{browse}"), JSON_HEX_TAG) ?>,
                     dropPasteFiles: <?= json_encode(__("Trascina qui la copertina del libro o %{browse}"), JSON_HEX_TAG) ?>,
                     browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
                 }
@@ -4661,9 +4662,10 @@ function convertItalianDateToISO(italianDate) {
     return null;
 }
 
-// Add some CSS for loading states and animations
-const style = document.createElement('style');
-style.textContent = `
+</script>
+
+<!-- Static style block: the response middleware attaches the CSP nonce. -->
+<style>
     .fade-in {
         animation: fadeIn 0.5s ease-in-out;
     }
@@ -4887,9 +4889,7 @@ style.textContent = `
             margin-bottom: 6px !important;
         }
     }
-`;
-document.head.appendChild(style);
-</script>
+</style>
 
 <!-- TinyMCE is loaded by layout.php; only initialize here -->
 <script>
@@ -4945,7 +4945,7 @@ function initBookTinyMCE() {
             'advlist', 'autolink', 'lists', 'link', 'preview', 'code', 'fullscreen'
         ],
         toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link | removeformat | code preview fullscreen',
-        content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; font-size: 15px; line-height: 1.6; }',
+        content_css: <?= json_encode(assetUrl('css/tinymce-content.css'), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
         branding: false,
         promotion: false,
         statusbar: true,

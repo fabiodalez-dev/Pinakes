@@ -36,7 +36,8 @@ $typeLabel = [
     'mandate'     => __('Mandato'),
 ];
 ?>
-<div class="p-6 max-w-4xl mx-auto">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=0.8.1'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page p-6 max-w-4xl mx-auto">
     <div class="mb-6">
         <nav class="text-sm text-gray-500 mb-2">
             <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __('Archivi') ?></a>
@@ -52,12 +53,12 @@ $typeLabel = [
     </div>
 
     <?php if (!empty($errors['_global'])): ?>
-        <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4 rounded">
+        <div class="bg-red-50 border border-red-200 p-4 mb-4 rounded-lg">
             <p class="text-sm text-red-800"><strong><?= __('Errore:') ?></strong> <?= $e($errors['_global']) ?></p>
         </div>
     <?php endif; ?>
 
-    <form method="POST" action="<?= $e($formAction) ?>" class="bg-white shadow rounded-lg p-6 space-y-5">
+    <form method="POST" action="<?= $e($formAction) ?>" class="card space-y-5">
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
         <div>
@@ -162,7 +163,7 @@ $typeLabel = [
                 <?= __('Annulla') ?>
             </a>
             <button type="submit"
-                    class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow-sm">
+                    class="btn-primary">
                 <?= $e($submitLabel) ?>
             </button>
         </div>

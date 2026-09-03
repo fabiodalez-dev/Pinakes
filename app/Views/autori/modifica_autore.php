@@ -31,16 +31,15 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
       </ol>
     </nav>
     <!-- Header -->
-    <div class="mb-8 fade-in">
-      <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-        <i class="fas fa-user-edit text-blue-600"></i>
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">
         <?= __("Modifica Autore") ?>
       </h1>
       <p class="text-gray-600">Aggiorna i dettagli dell'autore: <strong><?php echo App\Support\HtmlHelper::e($autore['nome'] ?? 'N/A'); ?></strong></p>
     </div>
 
     <!-- Main Form -->
-    <form id="edit-author-form" method="post" enctype="multipart/form-data" action="<?= htmlspecialchars(url('/admin/authors/update/' . (int)$autore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
+    <form id="edit-author-form" method="post" enctype="multipart/form-data" action="<?= htmlspecialchars(url('/admin/authors/update/' . (int)$autore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->
@@ -238,7 +237,14 @@ function initializeAuthorUppy() {
         });
         uppy.use(UppyDragDrop, {
             target: '#author-uppy-upload',
-            note: <?= json_encode(__("Trascina qui la foto dell'autore o clicca per selezionare"), JSON_HEX_TAG) ?>
+            note: <?= json_encode(__("Trascina qui la foto dell'autore o clicca per selezionare"), JSON_HEX_TAG) ?>,
+            locale: {
+                strings: {
+                    dropHereOr: <?= json_encode(__("Trascina qui la foto dell'autore o %{browse}"), JSON_HEX_TAG) ?>,
+                    dropPasteFiles: <?= json_encode(__("Trascina qui la foto dell'autore o %{browse}"), JSON_HEX_TAG) ?>,
+                    browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
+                }
+            }
         });
         if (typeof UppyProgressBar !== 'undefined') {
             uppy.use(UppyProgressBar, { target: '#author-uppy-progress', hideAfterFinish: false });

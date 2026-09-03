@@ -22,7 +22,11 @@ import * as ThumbnailGenerator from '@uppy/thumbnail-generator';
 
 import Choices from 'choices.js';
 import 'choices.js/public/assets/styles/choices.min.css';
-import Swal from 'sweetalert2';
+// Use the JavaScript-only ESM build. The package default is `*.esm.all.js`,
+// which injects its own <style> element at runtime and is therefore rejected
+// by our nonce-based CSP. SweetAlert's stylesheet is already extracted into
+// vendor.css by the explicit import above.
+import Swal from 'sweetalert2/dist/sweetalert2.esm.js';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 
 // Chart.js - charting library (self-hosted, no CDN)

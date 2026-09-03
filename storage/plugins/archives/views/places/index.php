@@ -21,32 +21,33 @@ $typeLabel = [
     'other'              => __('Altro'),
 ];
 ?>
-<div class="p-6 max-w-6xl mx-auto">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=0.8.1'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page archive-subindex p-6 max-w-6xl mx-auto">
     <div class="mb-6">
         <nav class="text-sm text-gray-500 mb-2">
             <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __('Archivi') ?></a>
             &nbsp;&raquo;&nbsp; <?= __('Luoghi') ?>
         </nav>
-        <div class="flex items-center justify-between">
+        <div class="archive-page-header">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900"><?= __('Luoghi (RiC-CM)') ?></h1>
+                <h1 class="text-3xl font-bold text-gray-900"><?= __('Luoghi (RiC-CM)') ?></h1>
                 <p class="text-sm text-gray-600 mt-1">
                     <?= __('Entità geografiche (paesi, regioni, comuni, edifici) collegabili a unità archivistiche, agenti e attività. Supporto identificativi GeoNames, Wikidata e Getty TGN per Linked Data.') ?>
                 </p>
             </div>
             <a href="<?= $e(url('/admin/archives/places/new')) ?>"
-               class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow-sm">
-                <?= __('+ Nuovo luogo') ?>
+               class="btn-primary">
+                <i class="fas fa-plus mr-2"></i><?= __('Nuovo luogo') ?>
             </a>
         </div>
     </div>
 
     <?php if (empty($rows)): ?>
-        <div class="bg-white shadow rounded-lg p-6">
+        <div class="card text-center py-10">
             <p class="text-sm text-gray-500"><?= __('Nessun luogo registrato.') ?></p>
         </div>
     <?php else: ?>
-        <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="card archive-subtable-card">
             <table class="min-w-full">
                 <thead class="bg-gray-50">
                     <tr>

@@ -188,7 +188,7 @@ class IssueAdminController extends AbstractAdminController
             return;
         }
         $dataPub = trim((string) ($body['data_pubblicazione'] ?? ''));
-        if ($dataPub !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataPub)) {
+        if ($dataPub !== '' && !$this->isValidDate($dataPub)) {
             $this->flashError(__('Data di pubblicazione non valida (formato AAAA-MM-GG).'));
             return;
         }
@@ -208,9 +208,12 @@ class IssueAdminController extends AbstractAdminController
         }
         $stmt->bind_param('isss', $annataId, $numero, $dataPubOrNull, $stato);
         if (!$stmt->execute()) {
+            $duplicate = (int) $stmt->errno === 1062;
             SecureLogger::error('[Emeroteca] addFascicolo insert failed: ' . $stmt->error);
             $stmt->close();
-            $this->flashError(__('Errore durante la creazione del fascicolo.'));
+            $this->flashError($duplicate
+                ? __('Un fascicolo con questo numero esiste già nell’annata.')
+                : __('Errore durante la creazione del fascicolo.'));
             return;
         }
         $stmt->close();
@@ -317,7 +320,11 @@ class IssueAdminController extends AbstractAdminController
             return $this->redirect($response, $back);
         }
 
-        [$created, $skipped] = $this->insertNumberedIssues($annataId, $da, $a, $stato);
+        [$created, $skipped, $success] = $this->insertNumberedIssues($annataId, $da, $a, $stato);
+        if (!$success) {
+            $this->flashError(__('Errore durante la creazione della serie di fascicoli. Nessun fascicolo è stato aggiunto.'));
+            return $this->redirect($response, $back);
+        }
         $this->flashSuccess(sprintf(
             __('Serie creata: %d fascicoli aggiunti, %d già presenti saltati.'),
             $created,
@@ -364,7 +371,11 @@ class IssueAdminController extends AbstractAdminController
             return $this->redirect($response, $back);
         }
 
-        [$created, $skipped] = $this->insertNumberedIssues($annataId, 1, $perYear[$periodicita], 'atteso');
+        [$created, $skipped, $success] = $this->insertNumberedIssues($annataId, 1, $perYear[$periodicita], 'atteso');
+        if (!$success) {
+            $this->flashError(__('Errore durante la generazione del Kardex. Nessun fascicolo è stato aggiunto.'));
+            return $this->redirect($response, $back);
+        }
         $this->flashSuccess(sprintf(
             __('Kardex %d generato: %d fascicoli attesi creati, %d già presenti saltati.'),
             $anno,
@@ -416,6 +427,7 @@ class IssueAdminController extends AbstractAdminController
         return $this->renderView($response, 'issue', [
             'fascicolo' => $fascicolo,
             'articoli'  => $articoli,
+            'collocazioni' => $this->fetchCollocazioni(),
         ]);
     }
 
@@ -457,7 +469,7 @@ class IssueAdminController extends AbstractAdminController
             return $this->redirect($response, $back);
         }
         $dataPub = trim((string) ($body['data_pubblicazione'] ?? ''));
-        if ($dataPub !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataPub)) {
+        if ($dataPub !== '' && !$this->isValidDate($dataPub)) {
             $this->flashError(__('Data di pubblicazione non valida (formato AAAA-MM-GG).'));
             return $this->redirect($response, $back);
         }
@@ -467,8 +479,8 @@ class IssueAdminController extends AbstractAdminController
             $stato = 'posseduto';
         }
 
-        // Optional cover upload (classic file input; Uppy not wired
-        // from plugins — kept intentionally simple).
+        // Uppy feeds these hidden multipart inputs. Files are validated and
+        // moved server-side only after the ordinary issue fields pass.
         $previousCover = (string) ($fascicolo['copertina_url'] ?? '');
         $copertinaUrl = $previousCover;
         $newCoverUploaded = false;
@@ -476,69 +488,151 @@ class IssueAdminController extends AbstractAdminController
         if (isset($files['copertina'])
             && $files['copertina'] instanceof \Psr\Http\Message\UploadedFileInterface
             && $files['copertina']->getError() === UPLOAD_ERR_OK) {
-            $result = $this->handleCoverUpload($files['copertina']);
+            $result = $this->storeManagedImage($files['copertina'], 'fascicolo');
             if (!$result['success']) {
                 $this->flashError((string) $result['message']);
                 return $this->redirect($response, $back);
             }
             $copertinaUrl = (string) $result['path'];
             $newCoverUploaded = true;
+        } elseif (isset($files['copertina'])
+            && $files['copertina'] instanceof \Psr\Http\Message\UploadedFileInterface
+            && $files['copertina']->getError() !== UPLOAD_ERR_NO_FILE) {
+            $this->flashError(__('Errore durante l\'upload.'));
+            return $this->redirect($response, $back);
         }
         $copertinaOrNull = $copertinaUrl === '' ? null : $copertinaUrl;
+
+        $previousPdf = (string) ($fascicolo['pdf_path'] ?? '');
+        $pdfPath = $previousPdf;
+        $pdfOriginalName = $fascicolo['pdf_nome_originale'] !== null
+            ? (string) $fascicolo['pdf_nome_originale']
+            : null;
+        $pdfSize = $fascicolo['pdf_dimensione'] !== null
+            ? (int) $fascicolo['pdf_dimensione']
+            : null;
+        $newPdfUploaded = false;
+        $removePdf = isset($body['rimuovi_pdf']) && (string) $body['rimuovi_pdf'] === '1';
+        if ($removePdf) {
+            $pdfPath = '';
+            $pdfOriginalName = null;
+            $pdfSize = null;
+        }
+        if (isset($files['pdf_file'])
+            && $files['pdf_file'] instanceof \Psr\Http\Message\UploadedFileInterface
+            && $files['pdf_file']->getError() === UPLOAD_ERR_OK) {
+            $pdfResult = $this->storeManagedPdf($files['pdf_file']);
+            if (!$pdfResult['success']) {
+                if ($newCoverUploaded) {
+                    $this->deleteUploadedCover($copertinaUrl);
+                }
+                $this->flashError((string) $pdfResult['message']);
+                return $this->redirect($response, $back);
+            }
+            $pdfPath = (string) $pdfResult['path'];
+            $pdfOriginalName = (string) $pdfResult['original_name'];
+            $pdfSize = (int) $pdfResult['size'];
+            $newPdfUploaded = true;
+        } elseif (isset($files['pdf_file'])
+            && $files['pdf_file'] instanceof \Psr\Http\Message\UploadedFileInterface
+            && $files['pdf_file']->getError() !== UPLOAD_ERR_NO_FILE) {
+            if ($newCoverUploaded) {
+                $this->deleteUploadedCover($copertinaUrl);
+            }
+            $this->flashError(__('Errore durante l\'upload.'));
+            return $this->redirect($response, $back);
+        }
+        $pdfPathOrNull = $pdfPath === '' ? null : $pdfPath;
+        // New scans are private by default. The checkbox must be explicitly
+        // posted on each save to expose the protected public route.
+        $pdfPubblico = $pdfPathOrNull !== null && isset($body['pdf_pubblico']) ? 1 : 0;
 
         $numeroProgressivo = $str('numero_progressivo', 50);
         $titoloFascicolo   = $str('titolo_fascicolo', 255);
         $dataCopertina     = $str('data_copertina', 100);
         $pagine            = $smallint('pagine');
         $numeroInventario  = $str('numero_inventario', 100);
+        $collocazioneId = array_key_exists('collocazione_id', $body)
+            ? (int) ($body['collocazione_id'] ?? 0)
+            : (int) ($fascicolo['collocazione_id'] ?? 0);
+        $collocazioneId = $collocazioneId > 0 ? $collocazioneId : null;
+        if ($collocazioneId !== null && !$this->collocazioneExists($collocazioneId)) {
+            if ($newCoverUploaded) {
+                $this->deleteUploadedCover($copertinaUrl);
+            }
+            if ($newPdfUploaded) {
+                $this->deleteManagedPdfIfUnreferenced($pdfPath);
+            }
+            $this->flashError(__('Collocazione non valida.'));
+            return $this->redirect($response, $back);
+        }
         $supplementi       = $str('supplementi', 500);
         $note              = $str('note', 65535);
 
-        $stmt = $this->db->prepare(
-            'UPDATE emeroteca_fascicoli SET
-                numero = ?, numero_progressivo = ?, titolo_fascicolo = ?,
-                data_copertina = ?, data_pubblicazione = ?, pagine = ?,
-                copertina_url = ?, numero_inventario = ?, stato = ?,
-                supplementi = ?, note = ?
-             WHERE id = ?'
-        );
-        if ($stmt === false) {
-            SecureLogger::error('[Emeroteca] issue update prepare failed: ' . $this->db->error);
-            $this->flashError(__('Errore durante il salvataggio del fascicolo.'));
-            return $this->redirect($response, $back);
-        }
-        $stmt->bind_param(
-            'sssssisssssi',
-            $numero,
-            $numeroProgressivo,
-            $titoloFascicolo,
-            $dataCopertina,
-            $dataPubOrNull,
-            $pagine,
-            $copertinaOrNull,
-            $numeroInventario,
-            $stato,
-            $supplementi,
-            $note,
-            $id
-        );
-        if (!$stmt->execute()) {
-            SecureLogger::error('[Emeroteca] issue update failed: ' . $stmt->error);
+        try {
+            if (!$this->db->begin_transaction()) {
+                throw new \RuntimeException('could not start issue-save transaction');
+            }
+            $stmt = $this->db->prepare(
+                'UPDATE emeroteca_fascicoli SET
+                    numero = ?, numero_progressivo = ?, titolo_fascicolo = ?,
+                    data_copertina = ?, data_pubblicazione = ?, pagine = ?,
+                    copertina_url = ?, numero_inventario = ?, collocazione_id = ?, stato = ?,
+                    supplementi = ?, note = ?, pdf_path = ?, pdf_nome_originale = ?,
+                    pdf_dimensione = ?, pdf_pubblico = ?
+                 WHERE id = ?'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException('issue update prepare failed: ' . $this->db->error);
+            }
+            $stmt->bind_param(
+                'sssssississsssiii',
+                $numero,
+                $numeroProgressivo,
+                $titoloFascicolo,
+                $dataCopertina,
+                $dataPubOrNull,
+                $pagine,
+                $copertinaOrNull,
+                $numeroInventario,
+                $collocazioneId,
+                $stato,
+                $supplementi,
+                $note,
+                $pdfPathOrNull,
+                $pdfOriginalName,
+                $pdfSize,
+                $pdfPubblico,
+                $id
+            );
+            if (!$stmt->execute()) {
+                $error = $stmt->error;
+                $stmt->close();
+                throw new \RuntimeException('issue update failed: ' . $error);
+            }
             $stmt->close();
-            $this->flashError(__('Errore durante il salvataggio del fascicolo.'));
+            $this->replaceArticles($id, $body);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            SecureLogger::error('[Emeroteca] atomic issue save failed: ' . $e->getMessage());
+            if ($newCoverUploaded) {
+                $this->deleteUploadedCover($copertinaUrl);
+            }
+            if ($newPdfUploaded) {
+                $this->deleteManagedPdfIfUnreferenced($pdfPath);
+            }
+            $this->flashError(__('Errore durante il salvataggio del fascicolo. Nessuna modifica è stata applicata.'));
             return $this->redirect($response, $back);
         }
-        $stmt->close();
 
         // The UPDATE succeeded with a freshly uploaded cover: the old
         // file is now orphaned unless another row still references it.
         if ($newCoverUploaded && $previousCover !== '' && $previousCover !== $copertinaUrl) {
-            $this->deleteOldCoverIfUnreferenced($previousCover, $id);
+            $this->deleteManagedImageIfUnreferenced($previousCover);
         }
-
-        if (!$this->saveArticles($id, $body)) {
-            $this->flashError(__('Fascicolo salvato ma spoglio non aggiornato: errore nel salvataggio degli articoli.'));
-            return $this->redirect($response, $back);
+        if (($newPdfUploaded || $removePdf) && $previousPdf !== '' && $previousPdf !== $pdfPath) {
+            $this->deleteManagedPdfIfUnreferenced($previousPdf);
         }
 
         $this->flashSuccess(__('Fascicolo salvato con successo.'));
@@ -576,6 +670,9 @@ class IssueAdminController extends AbstractAdminController
             return $this->redirect($response, '/admin/periodicals/issue/' . $id);
         }
         $stmt->close();
+
+        $this->deleteManagedImageIfUnreferenced((string) ($fascicolo['copertina_url'] ?? ''));
+        $this->deleteManagedPdfIfUnreferenced((string) ($fascicolo['pdf_path'] ?? ''));
 
         $this->flashSuccess(__('Fascicolo eliminato.'));
         return $this->redirect($response, '/admin/periodicals/' . $testataId . '/issues');
@@ -700,70 +797,92 @@ class IssueAdminController extends AbstractAdminController
      * Insert issues numbered $from..$to into an annata with the given
      * stato, skipping numbers that already exist there.
      *
-     * @return array{0:int, 1:int} [created, skipped]
+     * @return array{0:int, 1:int, 2:bool} [created, skipped, success]
      */
     private function insertNumberedIssues(int $annataId, int $from, int $to, string $stato): array
     {
-        /** @var list<string> $existing */
-        $existing = [];
-        $stmt = $this->db->prepare('SELECT numero FROM emeroteca_fascicoli WHERE annata_id = ?');
-        if ($stmt !== false) {
+        $created = 0;
+        $skipped = 0;
+        try {
+            if (!$this->db->begin_transaction()) {
+                throw new \RuntimeException('could not start bulk-create transaction');
+            }
+            // Serialize generators for the same annata. Without this parent-row
+            // lock, two concurrent Kardex requests can both pass the pre-check.
+            $lock = $this->db->prepare('SELECT id FROM emeroteca_annate WHERE id = ? FOR UPDATE');
+            if ($lock === false) {
+                throw new \RuntimeException('annata lock prepare failed: ' . $this->db->error);
+            }
+            $lock->bind_param('i', $annataId);
+            if (!$lock->execute() || $lock->get_result()->fetch_row() === null) {
+                $error = $lock->error;
+                $lock->close();
+                throw new \RuntimeException('annata lock failed: ' . $error);
+            }
+            $lock->close();
+
+            /** @var array<string, true> $existing */
+            $existing = [];
+            $stmt = $this->db->prepare('SELECT numero FROM emeroteca_fascicoli WHERE annata_id = ?');
+            if ($stmt === false) {
+                throw new \RuntimeException('issue lookup prepare failed: ' . $this->db->error);
+            }
             $stmt->bind_param('i', $annataId);
-            if ($stmt->execute()) {
-                $res = $stmt->get_result();
-                if ($res instanceof \mysqli_result) {
-                    while ($row = $res->fetch_assoc()) {
-                        $existing[] = (string) $row['numero'];
-                    }
+            if (!$stmt->execute()) {
+                $error = $stmt->error;
+                $stmt->close();
+                throw new \RuntimeException('issue lookup failed: ' . $error);
+            }
+            $res = $stmt->get_result();
+            if ($res instanceof \mysqli_result) {
+                while ($row = $res->fetch_assoc()) {
+                    $existing[(string) $row['numero']] = true;
                 }
             }
             $stmt->close();
-        }
 
-        $created = 0;
-        $skipped = 0;
-        $ins = $this->db->prepare(
-            'INSERT INTO emeroteca_fascicoli (annata_id, numero, stato) VALUES (?, ?, ?)'
-        );
-        if ($ins === false) {
-            SecureLogger::error('[Emeroteca] insertNumberedIssues prepare failed: ' . $this->db->error);
-            return [0, 0];
-        }
-        $this->db->begin_transaction();
-        try {
+            $ins = $this->db->prepare(
+                'INSERT INTO emeroteca_fascicoli (annata_id, numero, stato) VALUES (?, ?, ?)'
+            );
+            if ($ins === false) {
+                throw new \RuntimeException('issue insert prepare failed: ' . $this->db->error);
+            }
             for ($n = $from; $n <= $to; $n++) {
                 $numero = (string) $n;
-                if (in_array($numero, $existing, true)) {
+                if (isset($existing[$numero])) {
                     $skipped++;
                     continue;
                 }
                 $ins->bind_param('iss', $annataId, $numero, $stato);
-                if ($ins->execute()) {
-                    $created++;
-                } else {
-                    SecureLogger::error('[Emeroteca] issue insert failed for n. ' . $numero . ': ' . $ins->error);
+                if (!$ins->execute()) {
+                    $error = $ins->error;
+                    $ins->close();
+                    throw new \RuntimeException('issue insert failed for n. ' . $numero . ': ' . $error);
                 }
+                $existing[$numero] = true;
+                $created++;
             }
+            $ins->close();
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
-            $ins->close();
-            throw $e;
+            SecureLogger::error('[Emeroteca] insertNumberedIssues: ' . $e->getMessage());
+            return [0, 0, false];
         }
-        $ins->close();
-        return [$created, $skipped];
+        return [$created, $skipped, true];
     }
 
     /**
      * Replace the spoglio of a fascicolo with the posted rows (parallel
      * arrays art_titolo[], art_autori[], art_pag_da[], art_pag_a[],
      * art_tipo[], art_keywords[] — one entry per row, aligned by index).
-     * Delete + reinsert in a transaction: simple and idempotent; row
-     * ids churn but nothing references emeroteca_articoli.id.
+     * The caller owns the transaction around the issue update and this
+     * delete + reinsert operation. Row ids churn, but no table references
+     * emeroteca_articoli.id.
      *
      * @param array<string, mixed> $body
      */
-    private function saveArticles(int $fascicoloId, array $body): bool
+    private function replaceArticles(int $fascicoloId, array $body): void
     {
         $titoli   = is_array($body['art_titolo'] ?? null) ? array_values($body['art_titolo']) : [];
         $autori   = is_array($body['art_autori'] ?? null) ? array_values($body['art_autori']) : [];
@@ -794,178 +913,114 @@ class IssueAdminController extends AbstractAdminController
             ];
         }
 
-        $this->db->begin_transaction();
-        try {
-            $del = $this->db->prepare('DELETE FROM emeroteca_articoli WHERE fascicolo_id = ?');
-            if ($del === false) {
-                throw new \RuntimeException('delete prepare failed: ' . $this->db->error);
-            }
-            $del->bind_param('i', $fascicoloId);
-            if (!$del->execute()) {
-                $err = $del->error;
-                $del->close();
-                throw new \RuntimeException('delete failed: ' . $err);
-            }
+        $del = $this->db->prepare('DELETE FROM emeroteca_articoli WHERE fascicolo_id = ?');
+        if ($del === false) {
+            throw new \RuntimeException('delete prepare failed: ' . $this->db->error);
+        }
+        $del->bind_param('i', $fascicoloId);
+        if (!$del->execute()) {
+            $err = $del->error;
             $del->close();
+            throw new \RuntimeException('delete failed: ' . $err);
+        }
+        $del->close();
 
-            if ($rows !== []) {
-                $ins = $this->db->prepare(
-                    'INSERT INTO emeroteca_articoli
-                        (fascicolo_id, titolo, autori, pagina_inizio, pagina_fine, tipo, keywords)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)'
-                );
-                if ($ins === false) {
-                    throw new \RuntimeException('insert prepare failed: ' . $this->db->error);
-                }
-                foreach ($rows as $r) {
-                    $autoriVal = $r['autori'] === '' ? null : $r['autori'];
-                    $kwVal     = $r['keywords'] === '' ? null : $r['keywords'];
-                    $ins->bind_param(
-                        'issiiss',
-                        $fascicoloId,
-                        $r['titolo'],
-                        $autoriVal,
-                        $r['pagina_inizio'],
-                        $r['pagina_fine'],
-                        $r['tipo'],
-                        $kwVal
-                    );
-                    if (!$ins->execute()) {
-                        $err = $ins->error;
-                        $ins->close();
-                        throw new \RuntimeException('insert failed: ' . $err);
-                    }
-                }
+        if ($rows === []) {
+            return;
+        }
+        $ins = $this->db->prepare(
+            'INSERT INTO emeroteca_articoli
+                (fascicolo_id, titolo, autori, pagina_inizio, pagina_fine, tipo, keywords)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($ins === false) {
+            throw new \RuntimeException('insert prepare failed: ' . $this->db->error);
+        }
+        foreach ($rows as $r) {
+            $autoriVal = $r['autori'] === '' ? null : $r['autori'];
+            $kwVal     = $r['keywords'] === '' ? null : $r['keywords'];
+            $ins->bind_param(
+                'issiiss',
+                $fascicoloId,
+                $r['titolo'],
+                $autoriVal,
+                $r['pagina_inizio'],
+                $r['pagina_fine'],
+                $r['tipo'],
+                $kwVal
+            );
+            if (!$ins->execute()) {
+                $err = $ins->error;
                 $ins->close();
+                throw new \RuntimeException('insert failed: ' . $err);
             }
-            $this->db->commit();
-            return true;
-        } catch (\Throwable $e) {
-            $this->db->rollback();
-            SecureLogger::error('[Emeroteca] saveArticles: ' . $e->getMessage());
+        }
+        $ins->close();
+    }
+
+    /** @return array<int, string> mensola id => human-readable location */
+    private function fetchCollocazioni(): array
+    {
+        if (!$this->tableExists('mensole')) {
+            return [];
+        }
+        $hasScaffali = $this->tableExists('scaffali');
+        $select = $hasScaffali
+            ? "SELECT m.id, m.numero_livello, m.descrizione, s.codice, s.nome
+                 FROM mensole m LEFT JOIN scaffali s ON s.id = m.scaffale_id
+                ORDER BY s.ordine, s.codice, m.ordine, m.numero_livello"
+            : "SELECT m.id, m.numero_livello, m.descrizione, NULL AS codice, NULL AS nome
+                 FROM mensole m ORDER BY m.ordine, m.numero_livello";
+        $res = $this->db->query($select);
+        if (!$res instanceof \mysqli_result) {
+            SecureLogger::error('[Emeroteca] collocation list failed: ' . $this->db->error);
+            return [];
+        }
+        $out = [];
+        while ($row = $res->fetch_assoc()) {
+            $bookcase = trim((string) ($row['codice'] ?? ''));
+            if ($bookcase === '') {
+                $bookcase = trim((string) ($row['nome'] ?? ''));
+            }
+            $label = $bookcase !== '' ? $bookcase . '.' : '';
+            $label .= (string) (int) $row['numero_livello'];
+            if (!empty($row['descrizione'])) {
+                $label .= ' · ' . trim((string) $row['descrizione']);
+            }
+            $out[(int) $row['id']] = $label;
+        }
+        $res->free();
+        return $out;
+    }
+
+    private function collocazioneExists(int $id): bool
+    {
+        if (!$this->tableExists('mensole')) {
             return false;
         }
-    }
-
-    /**
-     * Cover upload for a fascicolo — same hardening as the core
-     * EventsController::handleImageUpload (extension + size + finfo
-     * MIME + random name + path-traversal check), saved under
-     * public/uploads/emeroteca/ (created on first use).
-     *
-     * @return array{success: bool, message?: string, path?: string}
-     */
-    private function handleCoverUpload(\Psr\Http\Message\UploadedFileInterface $uploadedFile): array
-    {
-        $filename = (string) $uploadedFile->getClientFilename();
-        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-
-        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-        if (!in_array($extension, $allowedExtensions, true)) {
-            return ['success' => false, 'message' => __('Formato immagine non supportato. Usa JPG, PNG o WebP.')];
-        }
-
-        if ((int) $uploadedFile->getSize() > 5 * 1024 * 1024) {
-            return ['success' => false, 'message' => __('L\'immagine è troppo grande. Max 5MB.')];
-        }
-
-        $tmpPath = $uploadedFile->getStream()->getMetadata('uri');
-        if (!is_string($tmpPath) || !is_file($tmpPath)) {
-            return ['success' => false, 'message' => __('Errore durante l\'upload.')];
-        }
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->file($tmpPath);
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
-        if (!in_array($mimeType, $allowedMimes, true)) {
-            return ['success' => false, 'message' => __('Tipo di file non valido.')];
-        }
-
-        $baseDir = realpath(__DIR__ . '/../../../../../public/uploads');
-        if ($baseDir === false) {
-            SecureLogger::error('[Emeroteca] uploads base directory not found');
-            return ['success' => false, 'message' => __('Errore di configurazione.')];
-        }
-        $targetDir = $baseDir . '/emeroteca';
-        if (!is_dir($targetDir)) {
-            @mkdir($targetDir, 0755, true);
-        }
-
-        try {
-            $randomSuffix = bin2hex(random_bytes(8));
-        } catch (\Throwable $e) {
-            SecureLogger::error('[Emeroteca] random_bytes() failed');
-            return ['success' => false, 'message' => __('Errore di sistema.')];
-        }
-
-        $newFilename = 'fascicolo_' . date('Ymd_His') . '_' . $randomSuffix . '.' . $extension;
-        $newFilename = str_replace("\0", '', $newFilename);
-        $uploadPath = $targetDir . '/' . basename($newFilename);
-
-        $realUploadPath = realpath(dirname($uploadPath));
-        if ($realUploadPath === false || strpos($realUploadPath, $baseDir) !== 0) {
-            SecureLogger::error('[Emeroteca] path traversal attempt detected in cover upload');
-            return ['success' => false, 'message' => __('Percorso non valido.')];
-        }
-
-        try {
-            $uploadedFile->moveTo($uploadPath);
-            @chmod($uploadPath, 0644);
-            return ['success' => true, 'path' => '/uploads/emeroteca/' . $newFilename];
-        } catch (\Throwable $e) {
-            SecureLogger::error('[Emeroteca] cover upload error: ' . $e->getMessage());
-            return ['success' => false, 'message' => __('Errore durante l\'upload.')];
-        }
-    }
-
-    /**
-     * Delete a replaced cover file, but only when it lives under
-     * public/uploads/emeroteca/ (realpath-verified) and no other row —
-     * emeroteca_fascicoli, emeroteca_annate (copertina_url) or
-     * emeroteca_testate (logo_url) — still references the same value.
-     * Any doubt (query failure, unresolved path) means keep the file.
-     */
-    private function deleteOldCoverIfUnreferenced(string $oldUrl, int $fascicoloId): void
-    {
-        if (!str_starts_with($oldUrl, '/uploads/emeroteca/')) {
-            return; // externally managed value: never touch it
-        }
-        $baseDir = realpath(__DIR__ . '/../../../../../public/uploads');
-        if ($baseDir === false) {
-            return;
-        }
-        $emerotecaDir = $baseDir . DIRECTORY_SEPARATOR . 'emeroteca';
-        $resolved = realpath($emerotecaDir . DIRECTORY_SEPARATOR . basename($oldUrl));
-        if ($resolved === false
-            || !str_starts_with($resolved, $emerotecaDir . DIRECTORY_SEPARATOR)) {
-            return;
-        }
-
-        $stmt = $this->db->prepare(
-            'SELECT 1 FROM emeroteca_fascicoli WHERE copertina_url = ? AND id <> ?
-             UNION
-             SELECT 1 FROM emeroteca_annate WHERE copertina_url = ?
-             UNION
-             SELECT 1 FROM emeroteca_testate WHERE logo_url = ?
-             LIMIT 1'
-        );
+        $stmt = $this->db->prepare('SELECT 1 FROM mensole WHERE id = ? LIMIT 1');
         if ($stmt === false) {
-            SecureLogger::error('[Emeroteca] old cover reference check prepare failed: ' . $this->db->error);
-            return;
+            return false;
         }
-        $stmt->bind_param('siss', $oldUrl, $fascicoloId, $oldUrl, $oldUrl);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[Emeroteca] old cover reference check failed: ' . $stmt->error);
-            $stmt->close();
-            return;
-        }
-        $res = $stmt->get_result();
-        $referenced = $res instanceof \mysqli_result && $res->fetch_row() !== null;
+        $stmt->bind_param('i', $id);
+        $ok = $stmt->execute();
+        $res = $ok ? $stmt->get_result() : false;
+        $exists = $res instanceof \mysqli_result && $res->fetch_row() !== null;
         $stmt->close();
-        if ($referenced) {
-            return;
-        }
-        if (file_exists($resolved)) {
-            @unlink($resolved);
-        }
+        return $exists;
     }
+
+    private function isValidDate(string $value): bool
+    {
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts) !== 1) {
+            return false;
+        }
+        return checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+    }
+
+    private function deleteUploadedCover(string $url): void
+    {
+        $this->deleteManagedImageIfUnreferenced($url);
+    }
+
 }

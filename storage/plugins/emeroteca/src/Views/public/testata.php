@@ -81,51 +81,9 @@ $schema = array_filter($schema, static fn($v) => $v !== null && $v !== '');
 $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <script type="application/ld+json"><?= $emerotecaSchema ?: '{}' ?></script>
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
 
-<style id="emeroteca-testata-css">
-/* Emeroteca public testata page — plugin-scoped styles (Tailwind JIT:
-   new utility classes would not exist in the compiled main.css). */
-#emeroteca-testata .emeroteca-logo-large {
-    width: 100%; max-width: 16rem; height: 12rem; display: flex; align-items: center;
-    justify-content: center; background: #f3f4f6; border-radius: .5rem; overflow: hidden;
-}
-#emeroteca-testata .emeroteca-logo-large img { max-width: 100%; max-height: 100%; object-fit: contain; }
-#emeroteca-testata .emeroteca-logo-large i { font-size: 3rem; color: #9ca3af; }
-#emeroteca-testata .emeroteca-issn {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem;
-    background: #f3f4f6; border-radius: .25rem; padding: .15rem .5rem; color: #374151;
-}
-#emeroteca-testata .emeroteca-meta-line { color: #4b5563; margin-bottom: .35rem; font-size: .95rem; }
-#emeroteca-testata .emeroteca-timeline {
-    display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; padding: 0; list-style: none;
-}
-#emeroteca-testata .emeroteca-year {
-    display: inline-flex; flex-direction: column; align-items: center; min-width: 4rem;
-    padding: .35rem .7rem; border: 1px solid #d1d5db; border-radius: .375rem;
-    color: #374151; text-decoration: none; font-size: .9rem; line-height: 1.2;
-}
-#emeroteca-testata .emeroteca-year small { color: #6b7280; font-size: .7rem; }
-#emeroteca-testata .emeroteca-year.active {
-    background: var(--primary-color, #d70161); border-color: var(--primary-color, #d70161); color: #fff;
-}
-#emeroteca-testata .emeroteca-year.active small { color: rgba(255, 255, 255, .8); }
-#emeroteca-testata .emeroteca-cover-box {
-    position: relative; width: 100%; aspect-ratio: 3 / 4; background: #f3f4f6;
-    border-radius: .375rem; overflow: hidden; display: flex; align-items: center;
-    justify-content: center; flex-direction: column; gap: .35rem;
-}
-#emeroteca-testata .emeroteca-cover-box img { width: 100%; height: 100%; object-fit: cover; }
-#emeroteca-testata .emeroteca-cover-box .emeroteca-cover-missing {
-    color: #9ca3af; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em;
-}
-#emeroteca-testata .emeroteca-cover-box i { font-size: 2rem; color: #9ca3af; }
-#emeroteca-testata .emeroteca-cover-badge {
-    position: absolute; top: .4rem; left: .4rem;
-}
-#emeroteca-testata .emeroteca-issue-caption { font-size: .85rem; margin-top: .35rem; color: #374151; }
-</style>
-
-<main id="emeroteca-testata" class="container py-4">
+<main id="emeroteca-testata" class="container emeroteca-public">
     <nav aria-label="breadcrumb" class="mb-3 text-sm text-gray-500">
         <a href="<?= $e(url('/')) ?>"><?= __('Home') ?></a>
         <span aria-hidden="true">/</span>
@@ -135,10 +93,8 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
     </nav>
 
     <!-- Intestazione testata -->
-    <section class="card rounded-md mb-4">
-        <div class="card-body p-4">
-            <div class="flex flex-wrap -mx-3 gap-y-3">
-                <div class="w-full px-3 md:w-1/3 flex justify-center">
+    <section class="emeroteca-identity mb-4">
+                <div>
                     <div class="emeroteca-logo-large">
                         <?php if ($logo !== ''): ?>
                             <img src="<?= $e($logo) ?>" alt="<?= $e((string) $testata['titolo']) ?>">
@@ -147,7 +103,7 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="w-full px-3 md:w-2/3">
+                <div>
                     <div class="flex flex-wrap items-center gap-2 mb-2">
                         <span class="status-badge bg-sky-100 text-sky-800">
                             <?= $e($tipoLabels[(string) $testata['tipo']] ?? (string) $testata['tipo']) ?>
@@ -201,15 +157,13 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
                         </p>
                     <?php endif; ?>
                     <?php if (!empty($testata['descrizione'])): ?>
-                        <p class="mt-2 text-gray-500" style="white-space: pre-wrap;"><?= $e((string) $testata['descrizione']) ?></p>
+                        <p class="mt-2 text-gray-500 emeroteca-pre-wrap"><?= $e((string) $testata['descrizione']) ?></p>
                     <?php endif; ?>
                 </div>
-            </div>
-        </div>
     </section>
 
     <?php if (empty($years)): ?>
-        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+        <div class="emeroteca-notice" role="alert">
             <strong><?= __('Nessuna annata registrata.') ?></strong>
             <?= __('Questa testata non ha ancora annate o fascicoli catalogati.') ?>
         </div>
@@ -239,11 +193,11 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
                 <?= sprintf(__('Fascicoli %d'), (int) $selectedYear) ?>
             </h2>
             <?php if (empty($fascicoli)): ?>
-                <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800" role="alert">
+                <div class="emeroteca-notice" role="alert">
                     <?= __('Nessun fascicolo registrato per questa annata.') ?>
                 </div>
             <?php else: ?>
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <div class="emeroteca-issues-grid">
                     <?php foreach ($fascicoli as $f):
                         $stato = (string) $f['stato'];
                         $posseduto = $stato === 'posseduto';

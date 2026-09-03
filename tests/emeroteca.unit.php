@@ -89,6 +89,7 @@ $tableExists = function (string $t) use ($db): bool {
 $pluginDir = __DIR__ . '/../storage/plugins/emeroteca';
 require_once $pluginDir . '/EmerotecaPlugin.php';
 require_once $pluginDir . '/src/Controllers/IssueAdminController.php';
+require_once $pluginDir . '/src/Controllers/PeriodicalAdminController.php';
 
 // Flash helpers in AbstractAdminController write to $_SESSION; in CLI the
 // superglobal is not started — initialize it so the writes are harmless.
@@ -101,12 +102,13 @@ $plugin = new EmerotecaPlugin($db, $hm);
 $RUN = 'emu-' . bin2hex(random_bytes(4));
 $TITLE_CONSISTENZA = "EmerotecaUnit Consistenza {$RUN}";
 $TITLE_KARDEX      = "EmerotecaUnit Kardex {$RUN}";
+$PLUGIN_FIXTURE    = "emeroteca-unit-{$RUN}";
 
 /**
  * FK-ordered cleanup of every fixture testata (articoli → fascicoli →
  * annate → testate). Safe when the tables do not exist yet.
  */
-$cleanup = static function () use ($db, $TITLE_CONSISTENZA, $TITLE_KARDEX): void {
+$cleanup = static function () use ($db, $TITLE_CONSISTENZA, $TITLE_KARDEX, $PLUGIN_FIXTURE): void {
     $titles = "'" . $db->real_escape_string($TITLE_CONSISTENZA) . "','" . $db->real_escape_string($TITLE_KARDEX) . "'";
     @$db->query(
         "DELETE ar FROM emeroteca_articoli ar
@@ -127,6 +129,7 @@ $cleanup = static function () use ($db, $TITLE_CONSISTENZA, $TITLE_KARDEX): void
           WHERE t.titolo IN ({$titles})"
     );
     @$db->query("DELETE FROM emeroteca_testate WHERE titolo IN ({$titles})");
+    @$db->query("DELETE FROM plugins WHERE name = '" . $db->real_escape_string($PLUGIN_FIXTURE) . "'");
 };
 
 try {
@@ -161,6 +164,82 @@ try {
 
     $result2 = $plugin->ensureSchema();
     check(($result2['failed'] ?? ['x']) === [], 'second ensureSchema() is a clean no-op (idempotent)');
+
+    foreach ($plugin->expectedColumns() as $column) {
+        $table = $db->real_escape_string((string) $column['table']);
+        $name = $db->real_escape_string((string) $column['column']);
+        $probe = $db->query(
+            "SELECT 1 FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$name}'"
+        );
+        check(
+            $probe instanceof \mysqli_result && $probe->num_rows === 1,
+            "migration sentinel {$table}.{$name} exists"
+        );
+    }
+
+    foreach ($plugin->expectedForeignKeys() as $foreignKey) {
+        $table = $db->real_escape_string((string) $foreignKey['table']);
+        $column = $db->real_escape_string((string) $foreignKey['column']);
+        $referenced = $db->real_escape_string((string) $foreignKey['ref_table']);
+        $probe = $db->query(
+            "SELECT 1 FROM information_schema.KEY_COLUMN_USAGE
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}'
+                AND COLUMN_NAME = '{$column}' AND REFERENCED_TABLE_NAME = '{$referenced}'"
+        );
+        check(
+            $probe instanceof \mysqli_result && $probe->num_rows >= 1,
+            "declared FK {$table}.{$column} → {$referenced} exists"
+        );
+    }
+
+    $indexProbe = $db->query(
+        "SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS columns_list
+           FROM information_schema.STATISTICS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'emeroteca_fascicoli'
+            AND INDEX_NAME = 'uq_emeroteca_fascicolo_numero' AND NON_UNIQUE = 0"
+    );
+    $indexColumns = $indexProbe instanceof \mysqli_result
+        ? (string) ($indexProbe->fetch_assoc()['columns_list'] ?? '')
+        : '';
+    check(
+        $indexColumns === 'annata_id,numero',
+        'schema migration installs the unique issue-number index'
+    );
+
+    // Exercise the lifecycle contract without changing the real plugin row.
+    $fixtureName = $PLUGIN_FIXTURE;
+    $fixtureDisplay = 'Emeroteca unit lifecycle';
+    $fixtureVersion = '1.2.0';
+    $fixturePath = 'emeroteca';
+    $fixtureMain = 'wrapper.php';
+    $insPlugin = $db->prepare(
+        'INSERT INTO plugins (name, display_name, version, path, main_file, is_active)
+         VALUES (?, ?, ?, ?, ?, 0)'
+    );
+    check($insPlugin !== false, 'lifecycle fixture plugin insert prepared');
+    $insPlugin->bind_param('sssss', $fixtureName, $fixtureDisplay, $fixtureVersion, $fixturePath, $fixtureMain);
+    check($insPlugin->execute(), 'lifecycle fixture plugin inserted');
+    $fixturePluginId = (int) $db->insert_id;
+    $insPlugin->close();
+    $plugin->setPluginId($fixturePluginId);
+    $plugin->onActivate();
+    $plugin->onActivate();
+    $hookRows = $db->query(
+        "SELECT hook_name, callback_method FROM plugin_hooks
+          WHERE plugin_id = {$fixturePluginId} ORDER BY hook_name"
+    );
+    check(
+        $hookRows instanceof \mysqli_result && $hookRows->num_rows === 2,
+        'activation registers exactly two hooks and remains idempotent'
+    );
+    $plugin->onDeactivate();
+    $hookRowsAfter = $db->query("SELECT 1 FROM plugin_hooks WHERE plugin_id = {$fixturePluginId}");
+    check(
+        $hookRowsAfter instanceof \mysqli_result && $hookRowsAfter->num_rows === 0,
+        'deactivation removes every plugin hook'
+    );
+    $db->query("DELETE FROM plugins WHERE id = {$fixturePluginId}");
 
     // ── 3. consistenzaTestata on a known holding set ──────────────────
     // Anni 1990-1992, fascicoli: 1990 posseduto, 1991 mancante, 1992
@@ -211,6 +290,24 @@ try {
     $stmt->close();
     $gotEmpty = EmerotecaPlugin::consistenzaTestata($db, $kardexTestataId);
     check($gotEmpty === '—', "consistenzaTestata renders '—' with no holdings (got '{$gotEmpty}')");
+
+    $linkTitles = $db->prepare(
+        'UPDATE emeroteca_testate SET testata_precedente_id = ? WHERE id = ?'
+    );
+    check($linkTitles !== false, 'title-cycle fixture update prepared');
+    $linkTitles->bind_param('ii', $kardexTestataId, $consTestataId);
+    check($linkTitles->execute(), 'title-cycle fixture linked A → B');
+    $linkTitles->close();
+    $periodicalController = new \App\Plugins\Emeroteca\Controllers\PeriodicalAdminController($db, $hm);
+    $cycleProbe = new \ReflectionMethod($periodicalController, 'wouldCreateTitleCycle');
+    check(
+        $cycleProbe->invoke($periodicalController, $kardexTestataId, $consTestataId) === true,
+        'title predecessor validation rejects a two-title cycle'
+    );
+    check(
+        $cycleProbe->invoke($periodicalController, $consTestataId, $consTestataId) === true,
+        'title predecessor validation rejects a direct self-cycle'
+    );
 
     // ── 4. Kardex "genera attesi" (mensile → 12 attesi, no dup) ───────
     // Set the periodicita to 'mensile' and drive the REAL controller
@@ -283,6 +380,47 @@ try {
     );
     $kardexAnnataId = $annataRow instanceof \mysqli_result ? (int) ($annataRow->fetch_assoc()['id'] ?? 0) : 0;
     check($kardexAnnataId > 0, 'kardex annata 2024 exists');
+
+    $invalidDateReq = $reqFactory
+        ->createServerRequest('POST', '/admin/periodicals/' . $kardexTestataId . '/issues')
+        ->withParsedBody([
+            'action' => 'add_fascicolo',
+            'annata_id' => (string) $kardexAnnataId,
+            'numero' => '99',
+            'data_pubblicazione' => '2024-02-31',
+            'stato' => 'posseduto',
+        ]);
+    $invalidDateResp = $controller->manageSubmit(
+        $invalidDateReq,
+        $resFactory->createResponse(),
+        ['id' => (string) $kardexTestataId]
+    );
+    check($invalidDateResp->getStatusCode() === 303, 'invalid calendar date redirects safely');
+    $invalidDateRow = $db->query(
+        "SELECT COUNT(*) AS c FROM emeroteca_fascicoli
+          WHERE annata_id = {$kardexAnnataId} AND numero = '99'"
+    );
+    $invalidDateCount = $invalidDateRow instanceof \mysqli_result
+        ? (int) ($invalidDateRow->fetch_assoc()['c'] ?? -1)
+        : -1;
+    check($invalidDateCount === 0, 'invalid calendar date is rejected without creating an issue');
+
+    $duplicateReq = $reqFactory
+        ->createServerRequest('POST', '/admin/periodicals/' . $kardexTestataId . '/issues')
+        ->withParsedBody([
+            'action' => 'add_fascicolo',
+            'annata_id' => (string) $kardexAnnataId,
+            'numero' => '1',
+            'stato' => 'posseduto',
+        ]);
+    $controller->manageSubmit($duplicateReq, $resFactory->createResponse(), ['id' => (string) $kardexTestataId]);
+    $afterDuplicate = $db->query(
+        "SELECT COUNT(*) AS c FROM emeroteca_fascicoli WHERE annata_id = {$kardexAnnataId}"
+    );
+    $afterDuplicateCount = $afterDuplicate instanceof \mysqli_result
+        ? (int) ($afterDuplicate->fetch_assoc()['c'] ?? -1)
+        : -1;
+    check($afterDuplicateCount === 12, 'unique index rejects a duplicate issue number');
 
     $oneRow = $db->query(
         "SELECT id FROM emeroteca_fascicoli WHERE annata_id = {$kardexAnnataId} AND stato = 'atteso' ORDER BY id LIMIT 1"

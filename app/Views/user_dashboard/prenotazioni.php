@@ -8,7 +8,6 @@ use App\Support\HtmlHelper;
 
 $csrfToken = Csrf::ensureToken();
 $catalogRoute = route_path('catalog');
-$wishlistRoute = route_path('wishlist');
 
 function reservationBookUrl(array $item): string {
     return book_url([
@@ -33,19 +32,6 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
     return url($cover);
 }
 
-function accountLineIcon(string $name): string {
-    $paths = [
-        'clock' => '<circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5v5l3.25 2"></path>',
-        'book' => '<path d="M5 5.5c2.6-.7 4.65-.25 7 1.1v12c-2.35-1.35-4.4-1.8-7-1.1z"></path><path d="M19 5.5c-2.6-.7-4.65-.25-7 1.1v12c2.35-1.35 4.4-1.8 7-1.1z"></path>',
-        'bookmark' => '<path d="M7.5 4.5h9v15l-4.5-3-4.5 3z"></path>',
-        'history' => '<path d="M4.5 8.5V4.75M4.5 4.75h3.75"></path><path d="M5.25 5.5A8.5 8.5 0 1 1 3.8 14"></path><path d="M12 7.5v5l3 1.75"></path>',
-        'star' => '<path d="m12 3.75 2.45 4.95 5.46.8-3.95 3.84.93 5.43L12 16.2l-4.89 2.57.93-5.43L4.1 9.5l5.45-.8z"></path>',
-        'calendar-x' => '<rect x="4.5" y="6" width="15" height="13" rx="2"></rect><path d="M8 3.75V7m8-3.25V7M4.5 10h15m-9 3 3.5 3.5m0-3.5-3.5 3.5"></path>',
-    ];
-    $content = $paths[$name] ?? $paths['book'];
-
-    return '<svg class="account-line-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' . $content . '</svg>';
-}
 ?>
 
 <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.css'), ENT_QUOTES, 'UTF-8') ?>">
@@ -495,7 +481,6 @@ function accountLineIcon(string $name): string {
     </div>
     <nav class="account-page-heading__actions" aria-label="<?= __('Collegamenti area personale') ?>">
       <a class="account-page-link" href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Esplora catalogo') ?></a>
-      <a class="account-page-link" href="<?= htmlspecialchars($wishlistRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Preferiti') ?></a>
     </nav>
   </header>
   <?php
@@ -566,9 +551,6 @@ function accountLineIcon(string $name): string {
 
   <?php if (!empty($pendingRequests)): ?>
     <div class="section-header">
-      <div class="section-icon" style="background: #fbbf24;">
-        <?= accountLineIcon('clock') ?>
-      </div>
       <div class="section-title">
         <h2><?= __("Richieste in sospeso") ?></h2>
         <p><?= count($pendingRequests); ?> <?= __n('richiesta in sospeso', 'richieste in sospeso', count($pendingRequests)) ?></p>
@@ -584,23 +566,20 @@ function accountLineIcon(string $name): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($request['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="status-badge" style="background: #fef3c7; color: #78350f; border: 1px solid #fcd34d;">
-                  <i class="fas fa-clock" aria-hidden="true" style="color: #f59e0b;"></i>
+                <div class="status-badge badge-pending">
                   <span><?= __("In attesa di approvazione") ?></span>
                 </div>
                 <?php if ($loanStart && $loanEnd): ?>
                   <div class="status-badge badge-date">
-                    <i class="fas fa-calendar-plus" aria-hidden="true"></i>
                     <span><?= __("Dal %s al %s", format_date($loanStart, false, '/'), format_date($loanEnd, false, '/')) ?></span>
                   </div>
                 <?php endif; ?>
-                <div class="status-badge badge-date" style="font-size: 0.75rem; color: #6b7280;">
-                  <i class="fas fa-history" aria-hidden="true"></i>
+                <div class="status-badge badge-date">
                   <span><?= __("Richiesto il %s", format_date($request['created_at'] ?? 'now', true, '/')) ?></span>
                 </div>
               </div>
@@ -610,7 +589,6 @@ function accountLineIcon(string $name): string {
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="loan_id" value="<?= (int)$request['id']; ?>">
                 <button type="submit" class="btn-cancel">
-                  <i class="fas fa-trash" aria-hidden="true"></i>
                   <span><?= __("Annulla richiesta") ?></span>
                 </button>
               </form>
@@ -624,9 +602,6 @@ function accountLineIcon(string $name): string {
   <?php endif; ?>
 
   <div class="section-header">
-    <div class="section-icon">
-      <?= accountLineIcon('book') ?>
-    </div>
     <div class="section-title">
       <h2><?= __("Prestiti attivi") ?></h2>
       <p><?= count($activePrestiti); ?> <?= __n('prestito attivo', 'prestiti attivi', count($activePrestiti)) ?></p>
@@ -650,7 +625,7 @@ function accountLineIcon(string $name): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
@@ -658,31 +633,27 @@ function accountLineIcon(string $name): string {
                 <?php
                 $stato = $loan['stato'] ?? 'in_corso';
                 // Etichette dall'helper canonico (translate_loan_status, #333);
-                // icone e stili restano specifici di questa vista frontend.
+                // Stili compatti specifici della vista frontend.
                 $statoBadges = [
-                    'da_ritirare' => ['icon' => 'fa-box-open', 'label' => translate_loan_status('da_ritirare'), 'style' => 'background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;'],
-                    'prenotato' => ['icon' => 'fa-bookmark', 'label' => translate_loan_status('prenotato'), 'style' => 'background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd;'],
+                    'da_ritirare' => translate_loan_status('da_ritirare'),
+                    'prenotato' => translate_loan_status('prenotato'),
                 ];
                 if (isset($statoBadges[$stato])): ?>
-                  <div class="status-badge" style="<?= $statoBadges[$stato]['style'] ?>">
-                    <i class="fas <?= $statoBadges[$stato]['icon'] ?>" aria-hidden="true"></i>
-                    <span><?= $statoBadges[$stato]['label'] ?></span>
+                  <div class="status-badge badge-scheduled">
+                    <span><?= $statoBadges[$stato] ?></span>
                   </div>
                 <?php else: ?>
                   <div class="status-badge <?= $isOverdue ? 'badge-overdue' : 'badge-active'; ?>">
-                    <i class="fas fa-calendar" aria-hidden="true"></i>
                     <span><?= $isOverdue ? __('In ritardo') : __('Scadenza'); ?>: <?= $scadenza ? format_date($scadenza, false, '/') : __('N/D'); ?></span>
                   </div>
                 <?php endif; ?>
                 <?php if ($startDate): ?>
                   <div class="status-badge badge-date">
-                    <i class="fas fa-clock" aria-hidden="true"></i>
                     <span><?= __('Dal') ?> <?= format_date($startDate, false, '/'); ?></span>
                   </div>
                 <?php endif; ?>
               </div>
               <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= HtmlHelper::e($loan['titolo'] ?? ''); ?>">
-                <i class="fas fa-star" aria-hidden="true"></i>
                 <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
               <?php // Annullabile dall'utente solo finché il prestito non è partito:
@@ -695,7 +666,6 @@ function accountLineIcon(string $name): string {
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="loan_id" value="<?= (int)$loan['id']; ?>">
                 <button type="submit" class="btn-cancel">
-                  <i class="fas fa-trash" aria-hidden="true"></i>
                   <span><?= __("Annulla prestito") ?></span>
                 </button>
               </form>
@@ -710,9 +680,6 @@ function accountLineIcon(string $name): string {
   <div class="section-divider"></div>
 
   <div class="section-header">
-    <div class="section-icon">
-      <?= accountLineIcon('bookmark') ?>
-    </div>
     <div class="section-title">
       <h2><?= __("Prenotazioni attive") ?></h2>
       <p><?= count($items); ?> <?= __n('prenotazione attiva', 'prenotazioni attive', count($items)) ?></p>
@@ -721,7 +688,6 @@ function accountLineIcon(string $name): string {
 
   <?php if (empty($items)): ?>
     <div class="empty-state">
-      <span class="empty-state-icon"><?= accountLineIcon('calendar-x') ?></span>
       <h3><?= __("Nessuna prenotazione") ?></h3>
       <p><?= __("Non hai prenotazioni attive al momento") ?></p>
     </div>
@@ -734,17 +700,15 @@ function accountLineIcon(string $name): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($reservation['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="status-badge badge-position">
-                  <i class="fas fa-sort-numeric-up" aria-hidden="true"></i>
                   <span><?= __("Posizione: %d", (int)($reservation['queue_position'] ?? 0)) ?></span>
                 </div>
                 <div class="status-badge badge-date">
-                  <i class="fas fa-calendar" aria-hidden="true"></i>
                   <span><?= $deadline ? format_date($deadline, false, '/') : __('Non specificata') ?></span>
                 </div>
               </div>
@@ -754,7 +718,6 @@ function accountLineIcon(string $name): string {
                 <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
                 <input type="hidden" name="reservation_id" value="<?= (int)$reservation['id']; ?>">
                 <button type="submit" class="btn-cancel" data-reservation-id="<?= (int)$reservation['id']; ?>">
-                  <i class="fas fa-trash" aria-hidden="true"></i>
                   <span><?= __("Annulla prenotazione") ?></span>
                 </button>
               </form>
@@ -768,9 +731,6 @@ function accountLineIcon(string $name): string {
   <div class="section-divider"></div>
 
   <div class="section-header">
-    <div class="section-icon">
-      <?= accountLineIcon('history') ?>
-    </div>
     <div class="section-title">
       <h2><?= __("Prestiti passati") ?></h2>
       <p><?= count($pastPrestiti); ?> <?= __n('prestito passato', 'prestiti passati', count($pastPrestiti)) ?></p>
@@ -779,7 +739,6 @@ function accountLineIcon(string $name): string {
 
   <?php if (empty($pastPrestiti)): ?>
     <div class="empty-state">
-      <span class="empty-state-icon"><?= accountLineIcon('history') ?></span>
       <h3><?= __("Nessun prestito passato") ?></h3>
       <p><?= __("Non hai prestiti passati") ?></p>
     </div>
@@ -790,11 +749,6 @@ function accountLineIcon(string $name): string {
         // Etichetta canonica dello stato (translate_loan_status, #333): lo storico
         // contiene solo stati chiusi (restituito/perso/danneggiato/annullato/scaduto).
         $statusLabel = translate_loan_status((string) $loan['stato']);
-        $statusIcon = match ($loan['stato']) {
-          'annullato' => 'fa-ban',
-          'scaduto' => 'fa-calendar-times',
-          default => 'fa-check-circle',
-        };
         $hasReview = !empty($loan['has_review']);
         // Un prestito annullato/scaduto non è mai uscito: nessuna recensione
         // proponibile (il server la rifiuterebbe: richiede restituito/in corso).
@@ -804,25 +758,22 @@ function accountLineIcon(string $name): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="status-badge badge-status">
-                  <i class="fas <?= $statusIcon ?>" aria-hidden="true"></i>
                   <span><?= HtmlHelper::e($statusLabel); ?></span>
                 </div>
                 <?php if ($returnDate): ?>
                   <div class="status-badge badge-date">
-                    <i class="fas fa-calendar" aria-hidden="true"></i>
                     <span><?= format_date($returnDate, false, '/'); ?></span>
                   </div>
                 <?php endif; ?>
               </div>
               <?php if ($hasReview || $canReview): ?>
               <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= htmlspecialchars((string) ($loan['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-star" aria-hidden="true"></i>
                 <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
               <?php endif; ?>
@@ -836,9 +787,6 @@ function accountLineIcon(string $name): string {
   <div class="section-divider"></div>
 
   <div class="section-header">
-    <div class="section-icon" style="background: #fbbf24;">
-      <?= accountLineIcon('star') ?>
-    </div>
     <div class="section-title">
       <h2><?= __("Le tue recensioni") ?></h2>
       <p><?= count($myReviews); ?> <?= __n('recensione', 'recensioni', count($myReviews)) ?></p>
@@ -847,7 +795,6 @@ function accountLineIcon(string $name): string {
 
   <?php if (empty($myReviews)): ?>
     <div class="empty-state">
-      <span class="empty-state-icon"><?= accountLineIcon('star') ?></span>
       <h3><?= __("Nessuna recensione") ?></h3>
       <p><?= __("Non hai ancora lasciato recensioni") ?></p>
     </div>
@@ -860,29 +807,21 @@ function accountLineIcon(string $name): string {
           'approvata' => __('Approvata'),
           'rifiutata' => __('Rifiutata'),
         ];
-        $statusColors = [
-          'pendente' => 'background: #fef3c7; color: #78350f;',
-          'approvata' => 'background: #dcfce7; color: #15803d;',
-          'rifiutata' => 'background: #fee2e2; color: #991b1b;',
-        ];
         $status = (string)($review['stato'] ?? 'pendente');
         $statusLabel = $statusLabels[$status] ?? ucfirst($status);
-        $statusColor = $statusColors[$status] ?? 'background: #f3f4f6; color: #4b5563;';
       ?>
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($review['libro_titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
-                <div class="status-badge" style="<?= $statusColor; ?>">
-                  <i class="fas fa-info-circle" aria-hidden="true"></i>
+                <div class="status-badge badge-review--<?= HtmlHelper::e($status) ?>">
                   <span><?= HtmlHelper::e($statusLabel); ?></span>
                 </div>
                 <div class="status-badge badge-date">
-                  <i class="fas fa-calendar" aria-hidden="true"></i>
                   <span><?= format_date($review['created_at'] ?? '', false, '/'); ?></span>
                 </div>
               </div>
@@ -892,7 +831,7 @@ function accountLineIcon(string $name): string {
                 <?php endfor; ?>
               </div>
               <?php if (!empty($review['titolo'])): ?>
-                <div style="font-weight: 600; margin-top: 0.5rem; font-size: 0.875rem;">
+                <div class="review-heading">
                   "<?= HtmlHelper::e($review['titolo']); ?>"
                 </div>
               <?php endif; ?>
@@ -913,7 +852,6 @@ function accountLineIcon(string $name): string {
   <div class="review-modal__dialog">
     <div class="review-modal__header">
       <h3 class="review-modal__title">
-        <i class="fas fa-star" aria-hidden="true" style="color: #f59e0b; margin-right: 0.5rem;"></i>
         <?= __('Lascia una recensione') ?>
       </h3>
       <button type="button" class="review-modal__close" aria-label="<?= __('Chiudi') ?>" data-review-modal-close>&times;</button>
@@ -963,6 +901,12 @@ if (typeof window.__ === 'undefined') {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('img[data-cover-fallback]').forEach(image => {
+    image.addEventListener('error', () => {
+      image.src = (window.BASE_PATH || '') + '/uploads/copertine/placeholder.jpg';
+    }, { once: true });
+  });
+
   const modal = document.getElementById('reviewModal');
   const form = document.getElementById('reviewForm');
   const bookTitleEl = document.getElementById('reviewBookTitle');

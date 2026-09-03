@@ -64,11 +64,35 @@ class PublicController
     ): ResponseInterface {
         $params = $request->getQueryParams();
         $rawQ = $params['q'] ?? '';
-        $q = is_string($rawQ) ? trim($rawQ) : '';
+        $q = is_string($rawQ) ? mb_substr(trim($rawQ), 0, 200) : '';
         $rawVista = $params['vista'] ?? 'az';
         $vista = is_string($rawVista) && in_array($rawVista, ['az', 'editore', 'argomento'], true)
             ? $rawVista
             : 'az';
+        $rawTipo = $params['tipo'] ?? '';
+        $tipo = is_string($rawTipo) && array_key_exists($rawTipo, \EmerotecaPlugin::TIPI_TESTATA)
+            ? $rawTipo
+            : '';
+
+        // Populate the public filter from real holdings only. Unknown legacy
+        // values are deliberately omitted, while valid types remain ordered
+        // according to the plugin vocabulary rather than database collation.
+        $typeCounts = [];
+        foreach ($this->fetchAll(
+            'SELECT tipo, COUNT(*) AS totale FROM emeroteca_testate GROUP BY tipo',
+            '',
+            []
+        ) as $typeRow) {
+            $typeKey = (string) ($typeRow['tipo'] ?? '');
+            $count = (int) ($typeRow['totale'] ?? 0);
+            if ($count > 0 && array_key_exists($typeKey, \EmerotecaPlugin::TIPI_TESTATA)) {
+                $typeCounts[$typeKey] = $count;
+            }
+        }
+        $availableTypes = array_intersect_key(\EmerotecaPlugin::TIPI_TESTATA, $typeCounts);
+        if ($tipo !== '' && !array_key_exists($tipo, $availableTypes)) {
+            $tipo = '';
+        }
 
         $hasEditori = $this->tableExists('editori');
         $hasGeneri  = $this->tableExists('generi');
@@ -93,13 +117,38 @@ class PublicController
                          GROUP BY testata_id
                   ) ann ON ann.testata_id = t.id";
 
+        $where = [];
         $bindTypes = '';
         $bindValues = [];
         if ($q !== '') {
-            $sql .= ' WHERE (t.titolo LIKE ? OR t.sottotitolo LIKE ? OR t.issn LIKE ?)';
+            $where[] = '(t.titolo LIKE ? ESCAPE \'\\\\\'
+                         OR t.sottotitolo LIKE ? ESCAPE \'\\\\\'
+                         OR t.issn LIKE ? ESCAPE \'\\\\\'
+                         OR EXISTS (
+                            SELECT 1
+                              FROM emeroteca_articoli ar
+                              JOIN emeroteca_fascicoli ef ON ef.id = ar.fascicolo_id
+                              JOIN emeroteca_annate ea ON ea.id = ef.annata_id
+                             WHERE ea.testata_id = t.id
+                               AND (
+                                    MATCH(ar.titolo, ar.autori, ar.keywords)
+                                        AGAINST (? IN NATURAL LANGUAGE MODE)
+                                    OR ar.titolo LIKE ? ESCAPE \'\\\\\'
+                                    OR ar.autori LIKE ? ESCAPE \'\\\\\'
+                                    OR ar.keywords LIKE ? ESCAPE \'\\\\\'
+                               )
+                         ))';
             $pattern = '%' . $this->escapeLike($q) . '%';
-            $bindTypes = 'sss';
-            $bindValues = [$pattern, $pattern, $pattern];
+            $bindTypes .= 'sssssss';
+            $bindValues = [$pattern, $pattern, $pattern, $q, $pattern, $pattern, $pattern];
+        }
+        if ($tipo !== '') {
+            $where[] = 't.tipo = ?';
+            $bindTypes .= 's';
+            $bindValues[] = $tipo;
+        }
+        if ($where !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
         }
 
         // Sorting drives the grouping headers rendered by the view.
@@ -116,6 +165,9 @@ class PublicController
             'rows'  => $rows,
             'q'     => $q,
             'vista' => $vista,
+            'tipo'  => $tipo,
+            'availableTypes' => $availableTypes,
+            'typeCounts' => $typeCounts,
             'tipoLabels' => \EmerotecaPlugin::TIPI_TESTATA,
             'seoTitle' => __('Emeroteca'),
             'seoDescription' => __('Consulta le testate di riviste, giornali e periodici conservate in emeroteca.'),
@@ -461,6 +513,11 @@ class PublicController
         $seoTitle = $title;
         $seoDescription = (string) ($data['seoDescription'] ?? __('Emeroteca'));
         $seoCanonical = (string) ($data['seoCanonical'] ?? ($this->baseUrl() . '/emeroteca'));
+
+        // The current route proves the plugin is active. Pass the same flag
+        // consumed by the shared frontend layout so its navigation does not
+        // depend on a DI container that plugin-rendered pages do not expose.
+        $emerotecaAvailable = true;
 
         $layoutPath = __DIR__ . '/../../../../../app/Views/frontend/layout.php';
         if (!is_file($layoutPath)) {

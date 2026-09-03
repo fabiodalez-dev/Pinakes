@@ -41,15 +41,12 @@ $periodicitaLabels = [
     'annuale'      => __('Annuale'),
     'irregolare'   => __('Irregolare'),
 ];
-$statoBadge = [
-    'attiva'   => 'bg-green-100 text-green-800',
-    'chiusa'   => 'bg-yellow-100 text-yellow-800',
-    'dismessa' => 'bg-gray-100 text-gray-800',
-];
 $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
 ?>
-<div class="p-6 max-w-7xl mx-auto">
-    <div class="mb-5">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
+<div id="emeroteca-admin-index" class="emeroteca-admin">
+    <div class="emt-page-header">
+        <div>
         <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h1 class="text-2xl font-bold text-gray-900"><?= __("Emeroteca") ?></h1>
             <p class="text-sm text-gray-500">
@@ -65,10 +62,11 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                 <?= __("Nuova testata") ?>
             </a>
         </div>
+        </div>
     </div>
 
     <form method="GET" action="<?= $e(url('/admin/periodicals')) ?>"
-          class="bg-white shadow rounded-lg p-4 mb-6 flex flex-wrap items-end gap-3">
+          class="emt-toolbar p-4 mb-6 flex flex-wrap items-end gap-3">
         <div class="min-w-[150px]">
             <label for="emt-tipo" class="block text-xs font-medium text-gray-600 mb-1">
                 <?= __("Tipo") ?>
@@ -125,11 +123,11 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
 
     <?php if (empty($rows)): ?>
         <?php if ($isFiltered): ?>
-            <div class="bg-gray-50 border border-gray-200 p-6 rounded text-center">
+            <div class="emt-empty">
                 <p class="text-sm text-gray-700"><?= __("Nessuna testata corrisponde ai filtri selezionati.") ?></p>
             </div>
         <?php else: ?>
-            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+            <div class="emt-notice bg-yellow-50 text-yellow-900" role="status">
                 <p class="text-sm text-yellow-800">
                     <strong><?= __("Nessuna testata registrata.") ?></strong>
                     <?= __("Crea la prima testata per iniziare a catalogare riviste e periodici.") ?>
@@ -137,19 +135,19 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
             </div>
         <?php endif; ?>
     <?php else: ?>
-        <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="emt-surface overflow-hidden">
             <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
+            <table class="emt-periodicals-table min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Testata") ?></th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("ISSN") ?></th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Editore") ?></th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Periodicità") ?></th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Tipo") ?></th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Fascicoli") ?></th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Consistenza") ?></th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Azioni") ?></th>
+                        <th class="emt-col-title px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Testata") ?></th>
+                        <th class="emt-col-issn px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("ISSN") ?></th>
+                        <th class="emt-col-publisher px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Editore") ?></th>
+                        <th class="emt-col-frequency px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Periodicità") ?></th>
+                        <th class="emt-col-type px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Tipo") ?></th>
+                        <th class="emt-col-issues px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Fascicoli") ?></th>
+                        <th class="emt-col-holdings px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Consistenza") ?></th>
+                        <th class="emt-col-actions px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Azioni") ?></th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -164,7 +162,7 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                         $statoVal = (string) ($row['stato_raccolta'] ?? 'attiva');
                         ?>
                         <tr class="hover:bg-gray-50 border-b">
-                            <td class="px-4 py-2">
+                            <td class="emt-col-title px-4 py-2">
                                 <div class="flex items-center">
                                     <?php if ($logoSrc !== ''): ?>
                                         <img src="<?= $e($logoSrc) ?>" alt="<?= $e($row['titolo']) ?>"
@@ -179,38 +177,47 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                                         <?php if (!empty($row['sottotitolo'])): ?>
                                             <div class="text-xs text-gray-500"><?= $e($row['sottotitolo']) ?></div>
                                         <?php endif; ?>
-                                        <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $e($statoBadge[$statoVal] ?? 'bg-gray-100 text-gray-800') ?>">
-                                            <?= $e($statoLabels[$statoVal] ?? $statoVal) ?>
+                                        <div class="emt-periodical-secondary-meta">
+                                            <?php if (!empty($row['editore_nome'])): ?><span><?= $e($row['editore_nome']) ?></span><?php endif; ?>
+                                            <?php if (!empty($row['periodicita'])): ?><span><?= $e($periodicitaLabels[(string) $row['periodicita']] ?? (string) $row['periodicita']) ?></span><?php endif; ?>
+                                        </div>
+                                        <span class="emt-status emt-status--<?= $e($statoVal) ?>">
+                                            <i aria-hidden="true"></i><?= $e($statoLabels[$statoVal] ?? $statoVal) ?>
                                         </span>
+                                        <div class="emt-periodical-mobile-meta">
+                                            <?php if (!empty($row['issn'])): ?><span class="font-mono"><?= $e($row['issn']) ?></span><?php endif; ?>
+                                            <?php if (!empty($row['editore_nome'])): ?><span><?= $e($row['editore_nome']) ?></span><?php endif; ?>
+                                            <?php if (!empty($row['periodicita'])): ?><span><?= $e($periodicitaLabels[(string) $row['periodicita']] ?? (string) $row['periodicita']) ?></span><?php endif; ?>
+                                            <span><?= (int) $row['n_posseduti'] ?> <?= $e(lcfirst(__('Posseduti'))) ?> · <?= (int) $row['n_mancanti'] ?> <?= $e(lcfirst(__('Mancanti'))) ?></span>
+                                            <span><?= $e($row['consistenza'] ?? '—') ?></span>
+                                        </div>
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-4 py-2 font-mono text-xs text-gray-500"><?= $e($row['issn'] ?? '') ?></td>
-                            <td class="px-4 py-2 text-sm text-gray-600"><?= $e($row['editore_nome'] ?? '') ?></td>
-                            <td class="px-4 py-2 text-sm text-gray-600">
+                            <td class="emt-col-issn px-4 py-2 font-mono text-xs text-gray-500"><?= $e($row['issn'] ?? '') ?></td>
+                            <td class="emt-col-publisher px-4 py-2 text-sm text-gray-600"><?= $e($row['editore_nome'] ?? '') ?></td>
+                            <td class="emt-col-frequency px-4 py-2 text-sm text-gray-600">
                                 <?= $e($periodicitaLabels[(string) ($row['periodicita'] ?? '')] ?? '') ?>
                             </td>
-                            <td class="px-4 py-2">
+                            <td class="emt-col-type px-4 py-2">
                                 <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-800">
                                     <?= $e($tipoLabels[(string) ($row['tipo'] ?? '')] ?? (string) ($row['tipo'] ?? '')) ?>
                                 </span>
                             </td>
-                            <td class="px-4 py-2 text-sm text-gray-600 whitespace-nowrap">
+                            <td class="emt-col-issues px-4 py-2 text-sm text-gray-600 whitespace-nowrap">
                                 <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-800"
                                       title="<?= $e(__('Posseduti')) ?>"><?= (int) $row['n_posseduti'] ?></span>
                                 <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-red-100 text-red-800"
                                       title="<?= $e(__('Mancanti')) ?>"><?= (int) $row['n_mancanti'] ?></span>
                             </td>
-                            <td class="px-4 py-2 text-sm text-gray-600 whitespace-nowrap"><?= $e($row['consistenza'] ?? '—') ?></td>
-                            <td class="px-4 py-2 text-right text-sm whitespace-nowrap">
-                                <a href="<?= $issuesUrl ?>" class="text-blue-600 hover:underline"><?= __('fascicoli') ?></a>
-                                &middot;
-                                <a href="<?= $editUrl ?>" class="text-blue-600 hover:underline"><?= __('modifica') ?></a>
-                                &middot;
+                            <td class="emt-col-holdings px-4 py-2 text-sm text-gray-600 whitespace-nowrap"><?= $e($row['consistenza'] ?? '—') ?></td>
+                            <td class="emt-col-actions px-4 py-2 text-right text-sm whitespace-nowrap">
+                                <a href="<?= $issuesUrl ?>" class="emt-table-action" title="<?= $e(__('Fascicoli')) ?>" aria-label="<?= $e(__('Fascicoli')) ?>"><i class="fas fa-layer-group" aria-hidden="true"></i><span class="emt-action-label"><?= __('fascicoli') ?></span></a>
+                                <a href="<?= $editUrl ?>" class="emt-table-action" title="<?= $e(__('Modifica')) ?>" aria-label="<?= $e(__('Modifica')) ?>"><i class="fas fa-pen" aria-hidden="true"></i><span class="emt-action-label"><?= __('modifica') ?></span></a>
                                 <form method="POST" action="<?= $deleteUrl ?>" class="inline"
                                       onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa testata con tutte le annate, i fascicoli e lo spoglio?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
                                     <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-                                    <button type="submit" class="text-red-600 hover:underline"><?= __('elimina') ?></button>
+                                    <button type="submit" class="emt-table-action emt-table-action--danger" title="<?= $e(__('Elimina')) ?>" aria-label="<?= $e(__('Elimina')) ?>"><i class="fas fa-trash" aria-hidden="true"></i><span class="emt-action-label"><?= __('elimina') ?></span></button>
                                 </form>
                             </td>
                         </tr>

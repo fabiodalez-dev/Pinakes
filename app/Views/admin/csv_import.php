@@ -455,6 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
             note: <?= json_encode(__("File CSV (max 10MB)"), JSON_HEX_TAG) ?>,
             locale: {
                 strings: {
+                    dropHereOr: <?= json_encode(__("Trascina qui il file CSV o %{browse}"), JSON_HEX_TAG) ?>,
                     dropPasteFiles: <?= json_encode(__("Trascina qui il file CSV o %{browse}"), JSON_HEX_TAG) ?>,
                     browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
                 }

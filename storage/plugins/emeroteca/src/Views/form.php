@@ -26,6 +26,8 @@ $formAction = $mode === 'edit'
     : url('/admin/periodicals/create');
 $pageTitle = $mode === 'edit' ? __('Modifica testata') : __('Nuova testata');
 $submitLabel = $mode === 'edit' ? __('Salva modifiche') : __('Crea testata');
+$logo = (string) ($values['logo_url'] ?? '');
+$logoSrc = $logo === '' ? '' : (str_starts_with($logo, '/') ? url($logo) : $logo);
 
 $tipoLabels = [
     'rivista'    => __('Rivista'),
@@ -51,8 +53,10 @@ $periodicitaLabels = [
     'irregolare'   => __('Irregolare'),
 ];
 ?>
-<div class="p-6 max-w-4xl mx-auto">
-    <div class="mb-6">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
+<div id="emeroteca-admin-form" class="emeroteca-admin emeroteca-admin--form">
+    <div class="emt-page-header">
+        <div>
         <nav class="text-sm text-gray-500 mb-2">
             <a href="<?= $e(url('/admin/periodicals')) ?>" class="hover:underline"><?= __('Emeroteca') ?></a>
             &nbsp;&raquo;&nbsp; <?= $mode === 'edit' ? __('Modifica testata') . ' #' . $e((string) $editId) : __('Nuova testata') ?>
@@ -61,19 +65,21 @@ $periodicitaLabels = [
         <p class="text-sm text-gray-600 mt-1">
             <?= __("Anagrafica della testata: identificazione, editore, periodicità e stato della raccolta.") ?>
         </p>
+        </div>
     </div>
 
     <?php if (!empty($errors['_global'])): ?>
-        <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4 rounded">
+        <div class="emt-notice bg-red-50 text-red-800 mb-4" role="alert">
             <p class="text-sm text-red-800"><strong><?= __("Errore:") ?></strong> <?= $e($errors['_global']) ?></p>
         </div>
     <?php endif; ?>
 
-    <form method="POST" action="<?= $e($formAction) ?>" class="bg-white shadow rounded-lg p-6 space-y-5">
+    <form method="POST" action="<?= $e($formAction) ?>" enctype="multipart/form-data"
+          class="emt-surface p-6 space-y-5">
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
         <!-- ── Identificazione ─────────────────────────────────────── -->
-        <div class="border-l-4 border-gray-300 pl-4">
+        <section class="emt-form-section">
             <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
                 <?= __("Identificazione") ?>
             </h2>
@@ -161,10 +167,10 @@ $periodicitaLabels = [
                     <?php endif; ?>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- ── Pubblicazione ───────────────────────────────────────── -->
-        <div class="border-l-4 border-gray-300 pl-4">
+        <section class="emt-form-section">
             <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
                 <?= __("Pubblicazione") ?>
             </h2>
@@ -260,23 +266,54 @@ $periodicitaLabels = [
                     <?php endif; ?>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- ── Presentazione e note ────────────────────────────────── -->
-        <div class="border-l-4 border-gray-300 pl-4">
+        <section class="emt-form-section">
             <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
                 <?= __("Presentazione e note") ?>
             </h2>
 
-            <div>
+            <div class="emt-media-editor">
                 <label for="logo_url" class="form-label">
-                    <?= __("Logo (URL)") ?>
-                    <span class="text-xs text-gray-500 font-normal">(<?= __("URL assoluto o percorso che inizia con /") ?>)</span>
+                    <?= __("Logo o immagine della rivista") ?>
                 </label>
-                <input type="text" name="logo_url" id="logo_url"
-                       value="<?= $val('logo_url') ?>" maxlength="500"
-                       placeholder="/uploads/emeroteca/logo.png"
-                       class="form-input font-mono text-sm <?= $err('logo_url') ? 'border-red-500' : '' ?>">
+                <div class="emt-media-editor__grid">
+                    <div id="emt-logo-preview" class="emt-upload-preview <?= $logoSrc === '' ? 'is-empty' : '' ?>">
+                        <?php if ($logoSrc !== ''): ?>
+                            <img id="emt-logo-preview-image" src="<?= $e($logoSrc) ?>"
+                                 alt="<?= $e(__('Logo della rivista')) ?>">
+                        <?php else: ?>
+                            <img id="emt-logo-preview-image" src="" alt="<?= $e(__('Logo della rivista')) ?>" hidden>
+                            <i class="fas fa-newspaper" aria-hidden="true"></i>
+                        <?php endif; ?>
+                    </div>
+                    <div class="emt-media-editor__controls">
+                        <div id="emt-logo-upload"
+                             data-emt-uppy="image"
+                             data-input="emt-logo-input"
+                             data-progress="emt-logo-progress"
+                             data-preview="emt-logo-preview"
+                             data-preview-image="emt-logo-preview-image"
+                             data-note="<?= $e(__('Immagini JPG, PNG o WebP (max 5MB)')) ?>"
+                             data-drop="<?= $e(__("Trascina qui l'immagine o %{browse}")) ?>"
+                             data-browse="<?= $e(__('seleziona file')) ?>"></div>
+                        <div id="emt-logo-progress"></div>
+                        <input type="file" name="logo_file" id="emt-logo-input"
+                               accept="image/jpeg,image/jpg,image/png,image/webp" hidden>
+                        <p class="text-xs text-gray-500">
+                            <?= __('JPG, PNG o WebP, max 5MB. Il nuovo file sostituisce il logo attuale.') ?>
+                        </p>
+                    </div>
+                </div>
+                <details class="mt-3">
+                    <summary class="text-sm text-gray-600 cursor-pointer"><?= __('In alternativa usa un URL') ?></summary>
+                    <input type="text" name="logo_url" id="logo_url"
+                           value="<?= $val('logo_url') ?>" maxlength="500"
+                           placeholder="/uploads/emeroteca/logo.png"
+                           class="form-input font-mono text-sm mt-2 <?= $err('logo_url') ? 'border-red-500' : '' ?>">
+                    <p class="mt-1 text-xs text-gray-500"><?= __('URL assoluto o percorso che inizia con /') ?></p>
+                </details>
                 <?php if ($err('logo_url')): ?>
                     <p class="mt-1 text-xs text-red-600"><?= $e($err('logo_url')) ?></p>
                 <?php endif; ?>
@@ -314,7 +351,7 @@ $periodicitaLabels = [
                     <p class="mt-1 text-xs text-red-600"><?= $e($err('stato_raccolta')) ?></p>
                 <?php endif; ?>
             </div>
-        </div>
+        </section>
 
         <div class="flex items-center justify-end space-x-3 pt-4 border-t">
             <a href="<?= $e(url('/admin/periodicals')) ?>"
@@ -328,3 +365,4 @@ $periodicitaLabels = [
         </div>
     </form>
 </div>
+<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.2.0')) ?>" defer></script>

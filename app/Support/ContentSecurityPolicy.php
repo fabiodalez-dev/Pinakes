@@ -40,16 +40,21 @@ final class ContentSecurityPolicy
             "script-src-attr 'unsafe-inline'",
             "style-src 'self' 'nonce-{$nonce}' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
             "style-src-attr 'unsafe-inline'",
-            "img-src 'self' data: blob: https://cdnjs.cloudflare.com https://www.gstatic.com",
+            // Covers, author photos and plugin logos may be stored as remote
+            // HTTPS URLs. They are passive image resources; scripts remain
+            // constrained to the explicit allow-list above.
+            "img-src 'self' data: blob: https:",
             "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
             "connect-src 'self' data: blob: https://www.google.com",
-            "media-src 'self' blob:",
+            // Digital Library supports externally hosted audio files.
+            "media-src 'self' blob: https:",
             "object-src 'none'",
             "worker-src 'self' blob:",
             "manifest-src 'self'",
             "base-uri 'self'",
             "form-action 'self'",
-            "frame-src 'self' data: blob: about: https://www.google.com https://www.google.it https://maps.google.com https://www.openstreetmap.org",
+            // The native PDF viewer can render a user-configured remote PDF.
+            "frame-src 'self' data: blob: about: https:",
             "child-src 'self' data: blob: about:",
             "frame-ancestors 'self'",
         ];
@@ -100,16 +105,16 @@ final class ContentSecurityPolicy
             "script-src-attr 'unsafe-inline'",
             "style-src 'self' " . implode(' ', $styleHashes) . " https://fonts.googleapis.com https://cdnjs.cloudflare.com",
             "style-src-attr 'unsafe-inline'",
-            "img-src 'self' data: blob: https://cdnjs.cloudflare.com https://www.gstatic.com",
+            "img-src 'self' data: blob: https:",
             "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
             "connect-src 'self' data: blob: https://www.google.com",
-            "media-src 'self' blob:",
+            "media-src 'self' blob: https:",
             "object-src 'none'",
             "worker-src 'self' blob:",
             "manifest-src 'self'",
             "base-uri 'self'",
             "form-action 'self'",
-            "frame-src 'self' data: blob: about: https://www.google.com https://www.google.it https://maps.google.com https://www.openstreetmap.org",
+            "frame-src 'self' data: blob: about: https:",
             "child-src 'self' data: blob: about:",
             "frame-ancestors 'self'",
         ];

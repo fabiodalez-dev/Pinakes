@@ -10,6 +10,9 @@
  * @var list<array<string, mixed>> $rows
  * @var string                     $q
  * @var string                     $vista
+ * @var string                     $tipo
+ * @var array<string, string>      $availableTypes
+ * @var array<string, int>         $typeCounts
  * @var array<string, string>      $tipoLabels
  */
 declare(strict_types=1);
@@ -17,6 +20,17 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 
 $emerotecaUrl = htmlspecialchars(url('/emeroteca'), ENT_QUOTES, 'UTF-8');
+$tipo = isset($tipo) && is_string($tipo) ? $tipo : '';
+$availableTypes = isset($availableTypes) && is_array($availableTypes) ? $availableTypes : [];
+$typeCounts = isset($typeCounts) && is_array($typeCounts) ? $typeCounts : [];
+
+/** Build a base-path-aware Emeroteca URL while preserving active filters. */
+$filteredUrl = static function (array $overrides = []) use ($q, $vista, $tipo): string {
+    $params = array_merge(['vista' => $vista, 'q' => $q, 'tipo' => $tipo], $overrides);
+    $params = array_filter($params, static fn(mixed $value): bool => $value !== '' && $value !== null);
+    $query = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+    return url('/emeroteca' . ($query !== '' ? '?' . $query : ''));
+};
 
 // Resolve a stored logo/cover reference: absolute URLs pass through,
 // site-relative paths go through url() (base-path aware).
@@ -67,57 +81,48 @@ if ($vista === 'editore' || $vista === 'argomento') {
     $groups[''] = $rows;
 }
 ?>
-<style id="emeroteca-index-css">
-/* Emeroteca public index — plugin-scoped styles (Tailwind JIT: new
-   utility classes would not exist in the compiled main.css). */
-#emeroteca-index .emeroteca-hero h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: .5rem; }
-#emeroteca-index .emeroteca-hero p { color: #6b7280; max-width: 46rem; }
-#emeroteca-index .emeroteca-logo-box {
-    width: 100%; height: 9rem; display: flex; align-items: center; justify-content: center;
-    background: #f3f4f6; border-radius: .375rem; overflow: hidden; margin-bottom: .75rem;
-}
-#emeroteca-index .emeroteca-logo-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
-#emeroteca-index .emeroteca-logo-box i { font-size: 2.25rem; color: #9ca3af; }
-#emeroteca-index .emeroteca-group-title {
-    font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
-    color: #6b7280; border-bottom: 1px solid #e5e7eb; padding-bottom: .35rem;
-    margin: 1.5rem 0 1rem;
-}
-#emeroteca-index .emeroteca-vista-tab {
-    display: inline-flex; align-items: center; padding: .4rem .9rem; border-radius: 9999px;
-    border: 1px solid #d1d5db; color: #374151; font-size: .85rem; text-decoration: none;
-}
-#emeroteca-index .emeroteca-vista-tab.active {
-    background: var(--primary-color, #d70161); border-color: var(--primary-color, #d70161); color: #fff;
-}
-</style>
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
 
-<main id="emeroteca-index" class="container py-4">
+<main id="emeroteca-index" class="container emeroteca-public">
     <section class="emeroteca-hero mb-4">
         <h1><?= __('Emeroteca') ?></h1>
         <p><?= __('Consulta le testate di riviste, giornali e periodici conservate in emeroteca, con le annate e i fascicoli disponibili.') ?></p>
     </section>
 
     <!-- Barra di ricerca -->
-    <form method="GET" action="<?= $emerotecaUrl ?>" class="mb-3">
+    <form method="GET" action="<?= $emerotecaUrl ?>" class="emeroteca-search">
         <input type="hidden" name="vista" value="<?= $e($vista) ?>">
-        <div class="flex flex-wrap -mx-3 gap-y-2 items-end">
-            <div class="w-full px-3 md:w-1/2">
+        <div class="emeroteca-search-grid">
+            <div>
                 <label for="eme-q" class="form-label text-sm font-semibold text-gray-500 mb-1">
                     <?= __('Ricerca') ?>
                 </label>
                 <input id="eme-q" type="search" name="q" value="<?= $e($q) ?>"
                        class="form-input"
-                       placeholder="<?= $e(__('Titolo, sottotitolo, ISSN…')) ?>">
+                       placeholder="<?= $e(__('Titolo, sottotitolo, ISSN o articolo…')) ?>">
             </div>
-            <div class="flex w-full gap-2 px-3 md:w-1/6">
+            <?php if ($availableTypes !== []): ?>
+                <div>
+                    <label for="eme-tipo" class="form-label text-sm font-semibold text-gray-500 mb-1">
+                        <?= __('Tipologia') ?>
+                    </label>
+                    <select id="eme-tipo" name="tipo" class="form-input">
+                        <option value=""><?= __('Tutte le tipologie') ?></option>
+                        <?php foreach ($availableTypes as $typeKey => $typeLabel): ?>
+                            <option value="<?= $e($typeKey) ?>"<?= $tipo === $typeKey ? ' selected' : '' ?>>
+                                <?= $e(__($typeLabel)) ?> (<?= (int) ($typeCounts[$typeKey] ?? 0) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            <?php endif; ?>
+            <div class="emeroteca-search-actions">
                 <button type="submit" class="ui-button btn-primary w-full">
                     <?= __('Cerca') ?>
                 </button>
-                <?php if ($q !== ''): ?>
-                    <a href="<?= $e(url('/emeroteca?vista=' . $vista)) ?>" class="ui-button btn-outline"
-                       aria-label="<?= $e(__('Azzera filtri')) ?>" title="<?= $e(__('Azzera filtri')) ?>"
-                       style="min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                <?php if ($q !== '' || $tipo !== ''): ?>
+                    <a href="<?= $e($filteredUrl(['q' => '', 'tipo' => ''])) ?>" class="ui-button btn-outline emeroteca-clear"
+                       aria-label="<?= $e(__('Azzera filtri')) ?>" title="<?= $e(__('Azzera filtri')) ?>">
                         <i class="fas fa-times" aria-hidden="true"></i>
                     </a>
                 <?php endif; ?>
@@ -128,7 +133,7 @@ if ($vista === 'editore' || $vista === 'argomento') {
     <!-- Viste commutabili -->
     <nav class="flex flex-wrap gap-2 mb-3" aria-label="<?= $e(__('Viste')) ?>">
         <?php foreach ($vistaTabs as $key => $label):
-            $tabHref = url('/emeroteca?vista=' . $key . ($q !== '' ? '&q=' . rawurlencode($q) : ''));
+            $tabHref = $filteredUrl(['vista' => $key]);
         ?>
             <a class="emeroteca-vista-tab<?= $vista === $key ? ' active' : '' ?>"
                href="<?= $e($tabHref) ?>"<?= $vista === $key ? ' aria-current="page"' : '' ?>>
@@ -137,21 +142,26 @@ if ($vista === 'editore' || $vista === 'argomento') {
         <?php endforeach; ?>
     </nav>
 
-    <?php if ($q !== ''): ?>
+    <?php if ($q !== '' || $tipo !== ''): ?>
         <p class="text-gray-500 text-sm mb-3">
             <?= sprintf(__('%d testate trovate'), count($rows)) ?>
-            <?= __('per') ?> <strong><?= $e($q) ?></strong>
+            <?php if ($q !== ''): ?>
+                <?= __('per') ?> <strong><?= $e($q) ?></strong>
+            <?php endif; ?>
+            <?php if ($tipo !== ''): ?>
+                <span class="status-badge bg-gray-100 text-gray-700 ml-2"><?= $e(__($tipoLabels[$tipo] ?? $tipo)) ?></span>
+            <?php endif; ?>
         </p>
     <?php endif; ?>
 
     <?php if (empty($rows)): ?>
-        <?php if ($q !== ''): ?>
-            <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800" role="alert">
-                <?= __('Nessun risultato') ?> <?= __('per') ?> <strong><?= $e($q) ?></strong>.
-                <a href="<?= $e(url('/emeroteca?vista=' . $vista)) ?>" class="font-semibold underline underline-offset-2"><?= __('Mostra tutto') ?></a>
+        <?php if ($q !== '' || $tipo !== ''): ?>
+            <div class="emeroteca-notice" role="alert">
+                <?= __('Nessun risultato') ?><?php if ($q !== ''): ?> <?= __('per') ?> <strong><?= $e($q) ?></strong><?php endif; ?>.
+                <a href="<?= $e($filteredUrl(['q' => '', 'tipo' => ''])) ?>" class="font-semibold underline underline-offset-2"><?= __('Mostra tutto') ?></a>
             </div>
         <?php else: ?>
-            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+            <div class="emeroteca-notice" role="alert">
                 <strong><?= __('Nessuna testata pubblicata.') ?></strong>
                 <?= __("L'emeroteca non contiene ancora testate.") ?>
             </div>
@@ -161,15 +171,13 @@ if ($vista === 'editore' || $vista === 'argomento') {
             <?php if ((string) $groupTitle !== ''): ?>
                 <h2 class="emeroteca-group-title"><?= $e($groupTitle) ?></h2>
             <?php endif; ?>
-            <div class="flex flex-wrap -mx-3 gap-y-3">
+            <div class="emeroteca-record-list">
                 <?php foreach ($groupRows as $row):
                     $detailUrl = $e(url('/emeroteca/' . (int) $row['id']));
                     $logo = $asset((string) ($row['logo_url'] ?? ''));
                     $anni = $yearsLabel($row);
                 ?>
-                    <div class="w-full px-3 sm:w-1/2 lg:w-1/3">
-                        <article class="card rounded-md">
-                            <div class="card-body">
+                    <article class="emeroteca-record">
                                 <a href="<?= $detailUrl ?>" class="emeroteca-logo-box"
                                    aria-label="<?= $e((string) $row['titolo']) ?>">
                                     <?php if ($logo !== ''): ?>
@@ -180,6 +188,7 @@ if ($vista === 'editore' || $vista === 'argomento') {
                                         <i class="fas fa-newspaper" aria-hidden="true"></i>
                                     <?php endif; ?>
                                 </a>
+                            <div>
                                 <div class="flex items-center gap-2 mb-2">
                                     <span class="status-badge bg-sky-100 text-sky-800">
                                         <?= $e($tipoLabels[(string) $row['tipo']] ?? (string) $row['tipo']) ?>
@@ -200,12 +209,11 @@ if ($vista === 'editore' || $vista === 'argomento') {
                                     </p>
                                 <?php endif; ?>
                             </div>
-                        </article>
-                    </div>
+                    </article>
                 <?php endforeach; ?>
             </div>
         <?php endforeach; ?>
-        <?php if ($q === ''): ?>
+        <?php if ($q === '' && $tipo === ''): ?>
             <p class="text-gray-500 text-sm mt-3">
                 <?= sprintf(__('%d testate in emeroteca.'), count($rows)) ?>
             </p>

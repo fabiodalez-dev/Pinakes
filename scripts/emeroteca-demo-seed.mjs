@@ -19,7 +19,27 @@ import { chromium } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 
-const BASE = process.env.SEED_BASE_URL || 'http://localhost:8081';
+function allowedSeedUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`SEED_BASE_URL non valido: ${rawUrl}`);
+  }
+  const host = parsed.hostname.toLowerCase();
+  const octets = host.split('.');
+  const ipv4Loopback = octets.length === 4
+    && octets[0] === '127'
+    && octets.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
+  const loopback = host === 'localhost' || host === '[::1]' || ipv4Loopback;
+  if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) {
+    throw new Error('SEED_BASE_URL deve usare HTTPS; HTTP è consentito solo su localhost/loopback.');
+  }
+  return parsed;
+}
+
+const BASE_URL = allowedSeedUrl(process.env.SEED_BASE_URL || 'http://localhost:8081');
+const BASE = BASE_URL.href.replace(/\/$/, '');
 const EMAIL = process.env.SEED_ADMIN_EMAIL || 'e2e-admin@test.local';
 const PASS = process.env.SEED_ADMIN_PASS || 'Test1234!Aa';
 const COVERS = process.env.SEED_COVERS_DIR || '/tmp/emeroteca-covers';
@@ -31,6 +51,9 @@ const page = await browser.newPage();
 
 async function login() {
   await page.goto(`${BASE}/accedi`);
+  // Validate the final URL too: page.goto() may have followed a redirect.
+  // Credentials are never filled on cleartext non-loopback destinations.
+  allowedSeedUrl(page.url());
   await page.fill('input[name="email"]', EMAIL);
   await page.fill('input[name="password"]', PASS);
   await page.click('button[type="submit"]');
@@ -106,7 +129,7 @@ async function issueIds(testataId) {
 
 async function uploadCover(issueId, coverPath) {
   await page.goto(`${BASE}/admin/periodicals/issue/${issueId}`);
-  await page.setInputFiles('input[name="copertina"]', coverPath);
+  await page.locator('#emt-cover-upload input[type="file"]').setInputFiles(coverPath);
   await page.locator('form button[type="submit"]').first().click();
   await page.waitForLoadState('domcontentloaded');
 }

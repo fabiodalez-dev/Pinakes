@@ -26,14 +26,6 @@ $statoLabels = [
     'smarrito'    => __('Smarrito'),
     'atteso'      => __('Atteso'),
 ];
-$statoBadge = [
-    'posseduto'   => 'bg-green-100 text-green-800',
-    'mancante'    => 'bg-red-100 text-red-800',
-    'danneggiato' => 'bg-orange-100 text-orange-800',
-    'in_restauro' => 'bg-yellow-100 text-yellow-800',
-    'smarrito'    => 'bg-gray-100 text-gray-800',
-    'atteso'      => 'bg-blue-100 text-blue-800',
-];
 $periodicitaLabels = [
     'quotidiano'   => __('Quotidiano'),
     'settimanale'  => __('Settimanale'),
@@ -51,117 +43,124 @@ $logo = (string) ($testata['logo_url'] ?? '');
 $logoSrc = $logo === '' ? '' : (str_starts_with($logo, '/') ? url($logo) : $logo);
 $currentYear = (int) date('Y');
 ?>
-<div class="p-6 max-w-7xl mx-auto">
-    <div class="mb-6">
-        <nav class="text-sm text-gray-500 mb-2">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
+<div id="emeroteca-admin-issues" class="emeroteca-admin">
+    <header class="emt-page-header">
+        <nav aria-label="breadcrumb" class="text-sm text-gray-500 mb-4">
             <a href="<?= $e(url('/admin/periodicals')) ?>" class="hover:underline"><?= __('Emeroteca') ?></a>
             &nbsp;&raquo;&nbsp; <?= $e($testata['titolo']) ?>
         </nav>
-        <div class="bg-white shadow rounded-lg p-6">
-            <div class="flex items-start">
-                <?php if ($logoSrc !== ''): ?>
-                    <img src="<?= $e($logoSrc) ?>" alt="<?= $e($testata['titolo']) ?>"
-                         class="w-16 h-16 rounded object-cover mr-4">
-                <?php else: ?>
-                    <div class="flex items-center justify-center w-16 h-16 rounded-lg bg-gray-100 mr-4">
-                        <i class="fas fa-newspaper text-gray-600"></i>
-                    </div>
-                <?php endif; ?>
-                <div class="flex-1">
-                    <h1 class="text-2xl font-bold text-gray-900"><?= $e($testata['titolo']) ?></h1>
-                    <?php if (!empty($testata['sottotitolo'])): ?>
-                        <p class="text-sm text-gray-600"><?= $e($testata['sottotitolo']) ?></p>
+        <div class="emt-page-header__main">
+            <div class="min-w-0">
+                <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                    <?php if ($logoSrc !== ''): ?>
+                        <img src="<?= $e($logoSrc) ?>" alt="" class="emt-title-logo">
+                    <?php else: ?>
+                        <i class="fas fa-newspaper text-gray-600" aria-hidden="true"></i>
                     <?php endif; ?>
-                    <p class="text-sm text-gray-500 mt-1">
-                        <?php if (!empty($testata['issn'])): ?>
-                            <span class="font-mono text-xs"><?= __('ISSN') ?> <?= $e($testata['issn']) ?></span> ·
-                        <?php endif; ?>
-                        <?php if (!empty($testata['editore_nome'])): ?>
-                            <?= $e($testata['editore_nome']) ?> ·
-                        <?php endif; ?>
-                        <?php if ($periodicita !== ''): ?>
-                            <?= $e($periodicitaLabels[$periodicita] ?? $periodicita) ?> ·
-                        <?php endif; ?>
-                        <strong><?= __('Consistenza:') ?></strong> <?= $e($consistenza) ?>
-                    </p>
+                    <span><?= $e($testata['titolo']) ?></span>
+                </h1>
+                <?php if (!empty($testata['sottotitolo'])): ?>
+                    <p class="text-gray-600 mt-2"><?= $e($testata['sottotitolo']) ?></p>
+                <?php endif; ?>
+                <div class="emt-meta-line">
+                    <?php if (!empty($testata['issn'])): ?>
+                        <span class="font-mono"><?= __('ISSN') ?> <?= $e($testata['issn']) ?></span>
+                    <?php endif; ?>
+                    <?php if (!empty($testata['editore_nome'])): ?>
+                        <span><?= $e($testata['editore_nome']) ?></span>
+                    <?php endif; ?>
+                    <?php if ($periodicita !== ''): ?>
+                        <span><?= $e($periodicitaLabels[$periodicita] ?? $periodicita) ?></span>
+                    <?php endif; ?>
+                    <span><strong><?= __('Consistenza:') ?></strong> <?= $e($consistenza) ?></span>
                 </div>
-                <a href="<?= $e(url('/admin/periodicals/edit/' . $testataId)) ?>"
-                   class="btn-secondary inline-flex items-center text-sm">
-                    <?= __('Modifica testata') ?>
-                </a>
             </div>
+            <a href="<?= $e(url('/admin/periodicals/edit/' . $testataId)) ?>"
+               class="btn-secondary inline-flex items-center gap-2 text-sm">
+                <i class="fas fa-pen" aria-hidden="true"></i>
+                <?= __('Modifica testata') ?>
+            </a>
         </div>
-    </div>
+    </header>
 
     <!-- ── Quick actions: add annata / bulk series / kardex ────────── -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+    <section class="card emt-actions-panel mb-6" aria-label="<?= $e(__('Azioni')) ?>">
+        <div class="card-header">
+            <h2 class="form-section-title flex items-center gap-2">
+                <i class="fas fa-bolt text-gray-600" aria-hidden="true"></i>
+                <?= __('Azioni') ?>
+            </h2>
+        </div>
         <form method="POST" action="<?= $manageUrl ?>"
-              class="bg-white shadow rounded-lg p-4 flex flex-wrap items-end gap-3">
+              class="emt-quick-form">
             <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
             <input type="hidden" name="action" value="add_annata">
-            <div class="min-w-[100px]">
-                <label for="ann-anno" class="block text-xs font-medium text-gray-600 mb-1"><?= __('Anno') ?> *</label>
-                <input id="ann-anno" type="number" name="anno" min="1400" max="2100" required
-                       value="<?= $currentYear ?>"
-                       class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+            <h3><?= __('Aggiungi annata') ?></h3>
+            <div class="emt-inline-fields">
+                <div class="emt-field--year">
+                    <label for="ann-anno" class="form-label"><?= __('Anno') ?> *</label>
+                    <input id="ann-anno" type="number" name="anno" min="1400" max="2100" required
+                           value="<?= $currentYear ?>" class="form-input">
+                </div>
+                <div class="emt-field--volume">
+                    <label for="ann-volume" class="form-label"><?= __('Volume') ?></label>
+                    <input id="ann-volume" type="text" name="volume" maxlength="50" class="form-input">
+                </div>
+                <label class="emt-checkbox-label">
+                    <input type="checkbox" name="rilegata" value="1" class="form-checkbox">
+                    <span><?= __('Rilegata') ?></span>
+                </label>
+                <button type="submit" class="btn-primary text-sm"><?= __('Aggiungi annata') ?></button>
             </div>
-            <div class="min-w-[90px]">
-                <label for="ann-volume" class="block text-xs font-medium text-gray-600 mb-1"><?= __('Volume') ?></label>
-                <input id="ann-volume" type="text" name="volume" maxlength="50"
-                       class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-            </div>
-            <label class="inline-flex items-center text-sm text-gray-700 mb-1">
-                <input type="checkbox" name="rilegata" value="1" class="rounded border-gray-300 mr-1.5">
-                <?= __('Rilegata') ?>
-            </label>
-            <button type="submit" class="btn-primary text-sm"><?= __('Aggiungi annata') ?></button>
         </form>
 
         <form method="POST" action="<?= $bulkUrl ?>"
-              class="bg-white shadow rounded-lg p-4 flex flex-wrap items-end gap-3">
+              class="emt-quick-form">
             <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
-            <div class="min-w-[90px]">
-                <label for="blk-anno" class="block text-xs font-medium text-gray-600 mb-1"><?= __('Anno') ?> *</label>
-                <input id="blk-anno" type="number" name="anno" min="1400" max="2100" required
-                       value="<?= $currentYear ?>"
-                       class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+            <h3><?= __('Crea serie') ?></h3>
+            <div class="emt-inline-fields">
+                <div class="emt-field--year">
+                    <label for="blk-anno" class="form-label"><?= __('Anno') ?> *</label>
+                    <input id="blk-anno" type="number" name="anno" min="1400" max="2100" required
+                           value="<?= $currentYear ?>" class="form-input">
+                </div>
+                <div class="emt-field--number">
+                    <label for="blk-da" class="form-label"><?= __('Dal n.') ?> *</label>
+                    <input id="blk-da" type="number" name="numero_da" min="1" required class="form-input">
+                </div>
+                <div class="emt-field--number">
+                    <label for="blk-a" class="form-label"><?= __('Al n.') ?> *</label>
+                    <input id="blk-a" type="number" name="numero_a" min="1" required class="form-input">
+                </div>
+                <button type="submit" class="btn-primary text-sm"><?= __('Crea serie') ?></button>
             </div>
-            <div class="min-w-[70px]">
-                <label for="blk-da" class="block text-xs font-medium text-gray-600 mb-1"><?= __('Dal n.') ?> *</label>
-                <input id="blk-da" type="number" name="numero_da" min="1" required
-                       class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-            </div>
-            <div class="min-w-[70px]">
-                <label for="blk-a" class="block text-xs font-medium text-gray-600 mb-1"><?= __('Al n.') ?> *</label>
-                <input id="blk-a" type="number" name="numero_a" min="1" required
-                       class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-            </div>
-            <button type="submit" class="btn-primary text-sm"><?= __('Crea serie') ?></button>
         </form>
 
         <form method="POST" action="<?= $kardexUrl ?>"
-              class="bg-white shadow rounded-lg p-4 flex flex-wrap items-end gap-3">
+              class="emt-quick-form">
             <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
-            <div class="min-w-[90px]">
-                <label for="krd-anno" class="block text-xs font-medium text-gray-600 mb-1"><?= __('Anno') ?> *</label>
-                <input id="krd-anno" type="number" name="anno" min="1400" max="2100" required
-                       value="<?= $currentYear ?>"
-                       class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500"
-                       <?= $kardexKnown ? '' : 'disabled' ?>>
+            <h3><?= __('Kardex: genera attesi') ?></h3>
+            <div class="emt-inline-fields">
+                <div class="emt-field--year">
+                    <label for="krd-anno" class="form-label"><?= __('Anno') ?> *</label>
+                    <input id="krd-anno" type="number" name="anno" min="1400" max="2100" required
+                           value="<?= $currentYear ?>" class="form-input" <?= $kardexKnown ? '' : 'disabled' ?>>
+                </div>
+                <button type="submit" class="btn-secondary text-sm" <?= $kardexKnown ? '' : 'disabled' ?>>
+                    <?= __('Kardex: genera attesi') ?>
+                </button>
+                <?php if (!$kardexKnown): ?>
+                    <p class="text-xs text-gray-500">
+                        <?= __('Disponibile solo con una periodicità nota (non irregolare).') ?>
+                    </p>
+                <?php endif; ?>
             </div>
-            <button type="submit" class="btn-secondary text-sm" <?= $kardexKnown ? '' : 'disabled' ?>>
-                <?= __('Kardex: genera attesi') ?>
-            </button>
-            <?php if (!$kardexKnown): ?>
-                <p class="w-full text-xs text-gray-500 mt-1">
-                    <?= __('Disponibile solo con una periodicità nota (non irregolare).') ?>
-                </p>
-            <?php endif; ?>
         </form>
-    </div>
+    </section>
 
     <?php if (empty($annate)): ?>
-        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+        <div class="emt-notice" role="status">
             <p class="text-sm text-yellow-800">
                 <strong><?= __("Nessuna annata registrata.") ?></strong>
                 <?= __("Crea la prima annata per iniziare ad aggiungere fascicoli.") ?>
@@ -179,18 +178,18 @@ $currentYear = (int) date('Y');
                 }
             }
             ?>
-            <details class="bg-white shadow rounded-lg mb-4" open>
-                <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700 flex flex-wrap items-center gap-2">
+            <details class="card emt-year mb-6" open>
+                <summary class="cursor-pointer text-sm font-medium text-gray-700 flex flex-wrap items-center gap-3">
                     <span class="text-base font-semibold text-gray-900"><?= (int) $annata['anno'] ?></span>
                     <?php if (!empty($annata['volume'])): ?>
                         <span class="text-gray-500"><?= __('vol.') ?> <?= $e($annata['volume']) ?></span>
                     <?php endif; ?>
                     <?php if ((int) ($annata['rilegata'] ?? 0) === 1): ?>
-                        <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-indigo-100 text-indigo-800"><?= __('Rilegata') ?></span>
+                        <span class="emt-bound-label"><i class="fas fa-book" aria-hidden="true"></i><?= __('Rilegata') ?></span>
                     <?php endif; ?>
                     <span class="text-xs text-gray-500"><?= sprintf(__('%d fascicoli'), count($fascicoli)) ?></span>
                 </summary>
-                <div class="p-4 border-t">
+                <div class="emt-year__body">
                     <?php if ($nAttesi > 0): ?>
                         <form method="POST" action="<?= $manageUrl ?>" class="mb-3 text-right"
                               onsubmit="return confirm(<?= $e(json_encode(__('Marcare come mancanti tutti i fascicoli ancora attesi di questa annata?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
@@ -205,7 +204,7 @@ $currentYear = (int) date('Y');
                     <?php if (empty($fascicoli)): ?>
                         <p class="text-sm text-gray-500 mb-3"><?= __('Nessun fascicolo in questa annata.') ?></p>
                     <?php else: ?>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+                        <div class="emt-issue-grid">
                             <?php foreach ($fascicoli as $f): ?>
                                 <?php
                                 $fid = (int) $f['id'];
@@ -214,62 +213,62 @@ $currentYear = (int) date('Y');
                                 $cover = (string) ($f['copertina_url'] ?? '');
                                 $coverSrc = $cover === '' ? '' : (str_starts_with($cover, '/') ? url($cover) : $cover);
                                 ?>
-                                <div class="border border-gray-200 rounded-lg p-2 hover:bg-gray-50">
-                                    <a href="<?= $fUrl ?>" class="block">
+                                <article class="emt-issue-tile">
+                                    <a href="<?= $fUrl ?>" class="emt-issue-link">
                                         <?php if ($coverSrc !== ''): ?>
                                             <img src="<?= $e($coverSrc) ?>" alt="<?= $e(__('Copertina n.')) ?> <?= $e($f['numero']) ?>"
-                                                 class="w-full h-28 rounded object-cover mb-2">
+                                                 class="emt-issue-cover">
                                         <?php else: ?>
-                                            <div class="flex items-center justify-center w-full h-28 rounded-lg bg-gray-100 mb-2">
+                                            <div class="emt-issue-cover emt-issue-cover--empty">
                                                 <i class="fas fa-newspaper text-gray-600"></i>
                                             </div>
                                         <?php endif; ?>
-                                        <div class="text-sm font-medium text-gray-900 truncate">
-                                            <?= __('n.') ?> <?= $e($f['numero']) ?>
+                                        <div class="emt-issue-caption">
+                                            <div class="emt-issue-caption__top">
+                                                <strong><?= __('n.') ?> <?= $e($f['numero']) ?></strong>
+                                                <span class="emt-status emt-status--<?= $e($fStato) ?>">
+                                                    <i aria-hidden="true"></i><?= $e($statoLabels[$fStato] ?? $fStato) ?>
+                                                </span>
+                                            </div>
+                                            <?php if (!empty($f['data_pubblicazione'])): ?>
+                                                <span class="emt-issue-date"><?= $e($f['data_pubblicazione']) ?></span>
+                                            <?php elseif (!empty($f['data_copertina'])): ?>
+                                                <span class="emt-issue-date"><?= $e($f['data_copertina']) ?></span>
+                                            <?php endif; ?>
                                         </div>
-                                        <?php if (!empty($f['data_pubblicazione'])): ?>
-                                            <div class="text-xs text-gray-500"><?= $e($f['data_pubblicazione']) ?></div>
-                                        <?php elseif (!empty($f['data_copertina'])): ?>
-                                            <div class="text-xs text-gray-500"><?= $e($f['data_copertina']) ?></div>
-                                        <?php endif; ?>
-                                        <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $e($statoBadge[$fStato] ?? 'bg-gray-100 text-gray-800') ?>">
-                                            <?= $e($statoLabels[$fStato] ?? $fStato) ?>
-                                        </span>
                                     </a>
                                     <?php if ($fStato === 'atteso'): ?>
-                                        <form method="POST" action="<?= $manageUrl ?>" class="mt-1.5">
+                                        <form method="POST" action="<?= $manageUrl ?>" class="emt-receive-form">
                                             <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
                                             <input type="hidden" name="action" value="receive_issue">
                                             <input type="hidden" name="fascicolo_id" value="<?= $fid ?>">
-                                            <button type="submit" class="text-blue-600 hover:underline text-xs">
+                                            <button type="submit" class="text-gray-700 hover:underline text-xs">
                                                 <?= __('Segna ricevuto') ?>
                                             </button>
                                         </form>
                                     <?php endif; ?>
-                                </div>
+                                </article>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
 
-                    <form method="POST" action="<?= $manageUrl ?>"
-                          class="flex flex-wrap items-end gap-3 border-t pt-3">
+                    <form method="POST" action="<?= $manageUrl ?>" class="emt-add-issue">
                         <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
                         <input type="hidden" name="action" value="add_fascicolo">
                         <input type="hidden" name="annata_id" value="<?= $annataId ?>">
-                        <div class="min-w-[90px]">
-                            <label for="fsc-num-<?= $annataId ?>" class="block text-xs font-medium text-gray-600 mb-1"><?= __('Numero') ?> *</label>
+                        <div class="emt-field--number">
+                            <label for="fsc-num-<?= $annataId ?>" class="form-label"><?= __('Numero') ?> *</label>
                             <input id="fsc-num-<?= $annataId ?>" type="text" name="numero" maxlength="50" required
-                                   class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                                   class="form-input">
                         </div>
-                        <div class="min-w-[150px]">
-                            <label for="fsc-data-<?= $annataId ?>" class="block text-xs font-medium text-gray-600 mb-1"><?= __('Data di pubblicazione') ?></label>
+                        <div class="emt-field--date">
+                            <label for="fsc-data-<?= $annataId ?>" class="form-label"><?= __('Data di pubblicazione') ?></label>
                             <input id="fsc-data-<?= $annataId ?>" type="date" name="data_pubblicazione"
-                                   class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                                   class="form-input">
                         </div>
-                        <div class="min-w-[130px]">
-                            <label for="fsc-stato-<?= $annataId ?>" class="block text-xs font-medium text-gray-600 mb-1"><?= __('Stato') ?></label>
-                            <select id="fsc-stato-<?= $annataId ?>" name="stato"
-                                    class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                        <div class="emt-field--status">
+                            <label for="fsc-stato-<?= $annataId ?>" class="form-label"><?= __('Stato') ?></label>
+                            <select id="fsc-stato-<?= $annataId ?>" name="stato" class="form-input">
                                 <?php foreach ($statoLabels as $value => $label): ?>
                                     <option value="<?= $e($value) ?>" <?= $value === 'posseduto' ? 'selected' : '' ?>><?= $e($label) ?></option>
                                 <?php endforeach; ?>

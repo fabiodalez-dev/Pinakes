@@ -5,8 +5,9 @@
  */
 declare(strict_types=1);
 ?>
-<main class="container py-4">
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3'), ENT_QUOTES, 'UTF-8') ?>">
+<main class="container emeroteca-public">
+    <div class="emeroteca-notice" role="alert">
         <strong><?= __('Contenuto non trovato') ?></strong>
         — <?= __('La testata o il fascicolo richiesto non esiste o non è più disponibile.') ?>
         <a href="<?= htmlspecialchars(url('/emeroteca'), ENT_QUOTES, 'UTF-8') ?>" class="font-semibold underline underline-offset-2">

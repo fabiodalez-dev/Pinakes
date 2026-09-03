@@ -56,7 +56,8 @@ $relationTargetLabels = [
     'archive_place'    => __('Luogo'),
 ];
 ?>
-<div class="p-6 max-w-4xl mx-auto">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=0.8.1'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page p-6 max-w-4xl mx-auto">
     <div class="mb-6">
         <nav class="text-sm text-gray-500 mb-2">
             <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __('Archivi') ?></a>
@@ -64,7 +65,7 @@ $relationTargetLabels = [
             <a href="<?= $e(url('/admin/archives/places')) ?>" class="hover:underline"><?= __('Luoghi') ?></a>
             &nbsp;&raquo;&nbsp; #<?= $id ?>
         </nav>
-        <div class="flex items-start justify-between">
+        <div class="archive-page-header">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900"><?= $e((string) ($row['name'] ?? '')) ?></h1>
                 <p class="text-sm text-gray-600 mt-1">
@@ -73,9 +74,9 @@ $relationTargetLabels = [
                     </span>
                 </p>
             </div>
-            <div class="space-x-2">
+            <div class="archive-header-actions">
                 <a href="<?= $e(url('/admin/archives/places/' . $id . '/edit')) ?>"
-                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-semibold shadow-sm">
+                   class="btn-primary">
                     <?= __('Modifica') ?>
                 </a>
                 <?php
@@ -94,7 +95,7 @@ $relationTargetLabels = [
                     <input type="hidden" name="csrf_token" value="<?= $e($csrfToken) ?>">
                     <button type="button"
                             onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeletePlaceId) ?>, <?= $jsAttr($archivesDeletePlaceMessage) ?>, <?= $jsAttr(__('Elimina')) ?>)"
-                            class="bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded text-sm font-semibold">
+                            class="btn-danger">
                         <?= __('Elimina') ?>
                     </button>
                 </form>
@@ -102,7 +103,7 @@ $relationTargetLabels = [
         </div>
     </div>
 
-    <div class="bg-white shadow rounded-lg p-6 space-y-4">
+    <div class="card space-y-4">
         <?php if (!empty($row['description'])): ?>
             <div>
                 <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2"><?= __('Descrizione') ?></h2>
@@ -146,7 +147,7 @@ $relationTargetLabels = [
         </dl>
     </div>
 
-    <div class="bg-white shadow rounded-lg p-6 mt-4">
+    <div class="card mt-4">
         <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3"><?= __('Relazioni RiC-CM') ?></h2>
         <?php if (empty($relations)): ?>
             <p class="text-sm text-gray-500"><?= __('Nessuna relazione collegata.') ?></p>
@@ -212,7 +213,7 @@ $relationTargetLabels = [
                    placeholder="ric:isOrWasRelatedTo"
                    aria-label="<?= $e(__('Predicato RiC-O')) ?>"
                    class="rounded-md border-gray-300">
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-semibold"><?= __('Collega') ?></button>
+            <button type="submit" class="btn-primary"><?= __('Collega') ?></button>
         </form>
     </div>
 

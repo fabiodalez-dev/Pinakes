@@ -16,16 +16,12 @@ $editori = $data['editori'];
             <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
             <span class="text-gray-900 font-medium"><?= __("Editori") ?></span>
           </nav>
-          <h1 class="text-2xl font-bold text-gray-900 flex flex-wrap items-center gap-3">
-            <span class="flex items-center gap-3">
-              <i class="fas fa-building text-gray-600"></i>
-              <?= __("Gestione Editori") ?>
-            </span>
-            <span id="total-badge" class="text-sm font-normal bg-gray-100 text-gray-600 px-2 py-1 rounded-full w-full md:w-auto"></span>
-          </h1>
+          <h1 class="text-3xl font-bold text-gray-900"><?= __("Editori") ?></h1>
+          <p class="mt-1 text-sm text-gray-600"><?= __("Gestisci le case editrici e i relativi contatti") ?></p>
+          <span id="total-badge" class="status-badge bg-gray-100 text-gray-700 mt-3"></span>
         </div>
         <div class="flex items-center gap-2">
-          <a href="<?= htmlspecialchars(url('/admin/publishers/create'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium inline-flex items-center">
+          <a href="<?= htmlspecialchars(url('/admin/publishers/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary">
             <i class="fas fa-plus mr-2"></i><?= __("Nuovo Editore") ?>
           </a>
         </div>
@@ -33,25 +29,25 @@ $editori = $data['editori'];
     </div>
 
     <!-- Main Card with Integrated Filters -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="card entity-list-card">
       <!-- Primary Filters Bar -->
       <div class="p-4 border-b border-gray-100">
-        <div class="flex flex-wrap items-end gap-3">
+        <div class="entity-filter-grid publisher-filter-grid">
           <!-- Search Text -->
-          <div class="flex-1 min-w-[200px]">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+          <div>
+            <label class="form-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
             <input id="search_nome" type="text" placeholder="<?= __('Nome editore...') ?>"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent text-sm" />
+                   class="form-input" />
           </div>
 
           <!-- Books Count Filter -->
-          <div class="w-36">
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+          <div>
+            <label class="form-label">
               <i class="fas fa-book mr-1"></i><?= __("N. Libri") ?>
             </label>
-            <select id="filter_libri_count" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
+            <select id="filter_libri_count" class="form-input">
               <option value=""><?= __("Tutti") ?></option>
               <option value="0"><?= __("Nessun libro") ?></option>
               <option value="1-10">1-10 <?= __("libri") ?></option>
@@ -61,15 +57,15 @@ $editori = $data['editori'];
           </div>
 
           <!-- Toggle Advanced Filters -->
-          <button id="toggle-advanced" class="inline-flex items-center px-3 py-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-200">
+          <button id="toggle-advanced" class="btn-secondary justify-center">
             <i class="fas fa-sliders-h mr-1"></i>
             <span class="hidden sm:inline"><?= __("Altri filtri") ?></span>
             <i id="toggle-advanced-icon" class="fas fa-chevron-down text-xs ml-1 transition-transform"></i>
           </button>
 
           <!-- Clear All -->
-          <button id="clear-filters" class="px-3 py-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors text-sm" title="<?= __('Cancella tutti i filtri') ?>">
-            <i class="fas fa-times"></i>
+          <button id="clear-filters" class="btn-secondary justify-center" title="<?= __('Cancella tutti i filtri') ?>">
+            <i class="fas fa-times mr-2"></i><span><?= __("Azzera") ?></span>
           </button>
         </div>
 
@@ -79,44 +75,39 @@ $editori = $data['editori'];
 
       <!-- Advanced Filters - Collapsible -->
       <div id="advanced-filters" class="hidden border-b border-gray-100 bg-gray-50/50 p-4">
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <!-- Website -->
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label class="form-label">
               <i class="fas fa-globe mr-1"></i><?= __("Sito web") ?>
             </label>
             <input id="search_sito" type="text" placeholder="<?= __('URL...') ?>"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
           </div>
 
           <!-- Address -->
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label class="form-label">
               <i class="fas fa-road mr-1"></i><?= __("Indirizzo") ?>
             </label>
             <input id="search_via" type="text" placeholder="<?= __('Via, numero...') ?>"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
           </div>
 
           <!-- CAP -->
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">
+            <label class="form-label">
               <i class="fas fa-hashtag mr-1"></i><?= __("CAP") ?>
             </label>
             <input id="search_cap" type="text" placeholder="<?= __('Codice postale...') ?>"
-                   class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
+                   class="form-input" />
           </div>
         </div>
       </div>
 
       <!-- Table -->
       <div class="p-4">
-        <div class="md:hidden mb-3 p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 flex items-center gap-2">
-          <i class="fas fa-hand-point-right"></i>
-          <span><?= __("Scorri a destra per vedere tutte le colonne") ?></span>
-        </div>
-
-        <div class="overflow-x-auto">
+        <div class="entity-table-wrap">
           <table id="editori-table" class="display" style="width:100%">
             <thead>
               <tr>
@@ -137,7 +128,7 @@ $editori = $data['editori'];
 
     <!-- Bulk Actions Bar -->
     <div id="bulk-actions-bar" class="hidden fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40" style="left: 0;">
-      <div class="px-4 py-3 flex items-center justify-between">
+      <div class="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div class="flex items-center gap-3">
           <span class="text-sm font-medium text-gray-700">
             <span id="selected-count">0</span> <?= __("selezionati") ?>
@@ -146,14 +137,14 @@ $editori = $data['editori'];
             <?= __("Deseleziona tutti") ?>
           </button>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="bulk-merge" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors text-sm">
+        <div class="grid grid-cols-3 gap-2">
+          <button id="bulk-merge" class="btn-primary">
             <i class="fas fa-compress-arrows-alt mr-2"></i><?= __("Unisci") ?>
           </button>
-          <button id="bulk-export" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors text-sm border border-gray-300">
+          <button id="bulk-export" class="btn-secondary">
             <i class="fas fa-download mr-2"></i><?= __("Esporta") ?>
           </button>
-          <button id="bulk-delete" class="inline-flex items-center px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors text-sm">
+          <button id="bulk-delete" class="btn-danger">
             <i class="fas fa-trash mr-2"></i><?= __("Elimina") ?>
           </button>
         </div>
@@ -683,18 +674,40 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 /* DataTables styling */
-table#editori-table { border: 1px solid gainsboro; width: 100% !important; }
-#editori-table thead th { @apply bg-gray-50 font-medium text-gray-600 text-xs uppercase tracking-wide border-b border-gray-200 px-3 py-3; }
-#editori-table tbody td { @apply px-3 py-3 border-b border-gray-100 text-sm; }
-#editori-table tbody tr:hover { @apply bg-gray-50; }
+table#editori-table { border:1px solid #e5e7eb; border-radius:.5rem; width:100% !important; }
+#editori-table thead th { background:#f9fafb; color:#4b5563; font-size:.75rem; font-weight:600; letter-spacing:.025em; padding:.75rem; text-transform:uppercase; }
+#editori-table tbody td { border-bottom:1px solid #f3f4f6; font-size:.875rem; padding:.75rem; }
+#editori-table tbody tr:hover { background:#f9fafb; }
 
-.dataTables_wrapper .dataTables_length select { @apply py-1.5 px-2 text-sm border border-gray-300 rounded-lg bg-white; }
-.dataTables_wrapper .dataTables_info { @apply text-sm text-gray-600 py-3; }
-/* Pagination buttons - hide disabled navigation buttons */
-.dataTables_wrapper .dataTables_paginate .paginate_button { @apply px-3 py-1.5 text-sm border border-gray-300 bg-white hover:bg-gray-50 rounded mx-0.5; }
-.dataTables_wrapper .dataTables_paginate .paginate_button.current { @apply bg-gray-800 text-white border-gray-800; }
+.dataTables_wrapper .dataTables_length select { background:#fff; border:1px solid #d1d5db; border-radius:.5rem; font-size:.875rem; padding:.375rem 2rem .375rem .5rem; }
+.dataTables_wrapper .dataTables_info { color:#4b5563; font-size:.875rem; padding:.75rem 0; }
+.dataTables_wrapper .dataTables_paginate .paginate_button { background:#fff; border:1px solid #d1d5db; border-radius:.375rem; font-size:.875rem; margin:0 .125rem; padding:.375rem .625rem; }
+.dataTables_wrapper .dataTables_paginate .paginate_button.current { background:#1f2937; border-color:#1f2937; color:#fff !important; }
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled.first,
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled.previous,
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled.next,
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled.last { display: none !important; }
+
+@media (max-width: 639px) {
+  .entity-list-card { padding:0; }
+  .entity-list-card > .p-4 { padding:1rem; }
+  #editori-table { table-layout:fixed; }
+  #editori-table col:nth-child(3), #editori-table col:nth-child(4), #editori-table col:nth-child(5),
+  #editori-table th:nth-child(3), #editori-table td:nth-child(3),
+  #editori-table th:nth-child(4), #editori-table td:nth-child(4),
+  #editori-table th:nth-child(5), #editori-table td:nth-child(5) { display:none; }
+  #editori-table col:first-child, #editori-table th:first-child, #editori-table td:first-child { width:2.75rem !important; padding-left:.5rem; padding-right:.5rem; }
+  #editori-table col:nth-child(2), #editori-table th:nth-child(2), #editori-table td:nth-child(2) { width:auto !important; min-width:0; word-break:normal; }
+  #editori-table col:last-child, #editori-table th:last-child, #editori-table td:last-child { width:7rem !important; padding-left:.25rem; padding-right:.25rem; }
+  .dataTables_wrapper .top, .dataTables_wrapper .bottom { display:flex; flex-direction:column; align-items:stretch; gap:.5rem; }
+  .dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_info, .dataTables_wrapper .dataTables_paginate { float:none !important; text-align:left !important; }
+  .dataTables_wrapper .dataTables_paginate { display:flex; flex-wrap:wrap; gap:.25rem; }
+  #bulk-actions-bar .btn-primary, #bulk-actions-bar .btn-secondary, #bulk-actions-bar .btn-danger { min-width:0; padding-left:.5rem; padding-right:.5rem; justify-content:center; }
+}
+
+
+@media (min-width: 640px) {
+  .entity-filter-grid { align-items:end; display:grid; gap:.75rem; }
+  .publisher-filter-grid { grid-template-columns:minmax(16rem, 1fr) minmax(9rem, .45fr) auto auto; }
+}
 </style>

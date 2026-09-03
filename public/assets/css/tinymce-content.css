@@ -1,0 +1,22 @@
+/* Shared editor canvas styling. Kept external so TinyMCE works with strict CSP. */
+html {
+  background: #fff;
+}
+
+body {
+  margin: 1rem;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+a {
+  color: #be185d;
+}

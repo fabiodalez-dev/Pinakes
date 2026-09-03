@@ -80,6 +80,8 @@ $currentLocale = I18n::getLocale();
 $htmlLang = substr($currentLocale, 0, 2);
 $assetRoot = dirname(__DIR__, 2) . '/public/assets';
 $vendorVersion = (string) (@filemtime($assetRoot . '/vendor.css') ?: 1);
+$vendorBundleVersion = (string) (@filemtime($assetRoot . '/vendor.bundle.js') ?: 1);
+$mainBundleVersion = (string) (@filemtime($assetRoot . '/main.bundle.js') ?: 1);
 $mainVersion = (string) (@filemtime($assetRoot . '/main.css') ?: 1);
 $frontendLayoutsVersion = (string) (@filemtime($assetRoot . '/frontend-layouts.css') ?: 1);
 $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?: 1);
@@ -1165,8 +1167,8 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
     </footer>
 
     <!-- Scripts -->
-    <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
-    <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($mainBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
 
     <?php $searchViewAllLabel = json_encode(__('Vedi tutti i risultati'), JSON_HEX_TAG | JSON_HEX_AMP); ?>

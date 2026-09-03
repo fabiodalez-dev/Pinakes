@@ -107,38 +107,20 @@ if ($fascicolo['pagine'] !== null && (int) $fascicolo['pagine'] > 0) {
 if ($cover !== '') {
     $schema['image'] = absoluteUrl($cover);
 }
+if ((int) ($fascicolo['pdf_pubblico'] ?? 0) === 1 && !empty($fascicolo['pdf_path'])) {
+    $schema['associatedMedia'] = [
+        '@type' => 'MediaObject',
+        'encodingFormat' => 'application/pdf',
+        'contentUrl' => $baseAbs . '/emeroteca/fascicolo/' . $fascicoloId . '/pdf',
+    ];
+}
 $schema = array_filter($schema, static fn($v) => $v !== '');
 $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <script type="application/ld+json"><?= $emerotecaSchema ?: '{}' ?></script>
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
 
-<style id="emeroteca-fascicolo-css">
-/* Emeroteca public fascicolo page — plugin-scoped styles (Tailwind JIT:
-   new utility classes would not exist in the compiled main.css). */
-#emeroteca-fascicolo .emeroteca-cover-large {
-    width: 100%; max-width: 20rem; aspect-ratio: 3 / 4; background: #f3f4f6;
-    border-radius: .5rem; overflow: hidden; display: flex; align-items: center;
-    justify-content: center; flex-direction: column; gap: .5rem;
-}
-#emeroteca-fascicolo .emeroteca-cover-large img { width: 100%; height: 100%; object-fit: cover; }
-#emeroteca-fascicolo .emeroteca-cover-large i { font-size: 3rem; color: #9ca3af; }
-#emeroteca-fascicolo .emeroteca-cover-large .emeroteca-cover-missing {
-    color: #9ca3af; font-size: .85rem; text-transform: uppercase; letter-spacing: .05em;
-}
-#emeroteca-fascicolo .emeroteca-dl dt {
-    font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
-    color: #6b7280; margin-top: .75rem;
-}
-#emeroteca-fascicolo .emeroteca-dl dt:first-child { margin-top: 0; }
-#emeroteca-fascicolo .emeroteca-dl dd { margin: .1rem 0 0; color: #111827; }
-#emeroteca-fascicolo .emeroteca-toc-main { flex: 1 1 auto; min-width: 0; }
-#emeroteca-fascicolo .emeroteca-toc-pages {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #6b7280;
-    white-space: nowrap;
-}
-</style>
-
-<main id="emeroteca-fascicolo" class="container py-4">
+<main id="emeroteca-fascicolo" class="container emeroteca-public">
     <nav aria-label="breadcrumb" class="mb-3 text-sm text-gray-500">
         <a href="<?= $e(url('/')) ?>"><?= __('Home') ?></a>
         <span aria-hidden="true">/</span>
@@ -149,9 +131,9 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
         <span aria-current="page"><?= $e($issueLabel . ' (' . $anno . ')') ?></span>
     </nav>
 
-    <div class="flex flex-wrap -mx-3 gap-y-4">
+    <div class="emeroteca-issue-layout">
         <!-- Copertina -->
-        <div class="w-full px-3 md:w-1/3 flex justify-center">
+        <div>
             <div class="emeroteca-cover-large">
                 <?php if ($cover !== ''): ?>
                     <img src="<?= $e($cover) ?>"
@@ -166,7 +148,7 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
         </div>
 
         <!-- Scheda -->
-        <div class="w-full px-3 md:w-2/3">
+        <div>
             <div class="flex flex-wrap items-center gap-2 mb-2">
                 <span class="status-badge <?= $e($badge) ?>">
                     <?= $e($statoFascicoloLabels[$stato] ?? $stato) ?>
@@ -185,8 +167,7 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
                 <p class="text-gray-500 italic mb-3"><?= $e((string) $fascicolo['titolo_fascicolo']) ?></p>
             <?php endif; ?>
 
-            <div class="card rounded-md mb-4">
-                <div class="card-body p-4">
+            <div class="emeroteca-data-sheet">
                     <dl class="emeroteca-dl mb-0">
                         <dt><?= __('Numero') ?></dt>
                         <dd><?= $e((string) $fascicolo['numero']) ?><?php if (!empty($fascicolo['numero_progressivo'])): ?>
@@ -213,11 +194,17 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
                             <dd><?= $e($collocazioneLabel) ?></dd>
                         <?php endif; ?>
                     </dl>
-                </div>
             </div>
 
             <!-- Navigazione fascicoli dentro l'annata -->
             <div class="flex flex-wrap items-center gap-2">
+                <?php if ((int) ($fascicolo['pdf_pubblico'] ?? 0) === 1 && !empty($fascicolo['pdf_path'])): ?>
+                    <a class="ui-button btn-primary"
+                       href="<?= $e(url('/emeroteca/fascicolo/' . $fascicoloId . '/pdf')) ?>"
+                       target="_blank" rel="noopener noreferrer">
+                        <i class="fas fa-file-pdf mr-2" aria-hidden="true"></i><?= __('Consulta PDF') ?>
+                    </a>
+                <?php endif; ?>
                 <?php if ($prev !== null): ?>
                     <a class="ui-button btn-outline" href="<?= $e(url('/emeroteca/fascicolo/' . (int) $prev['id'])) ?>">
                         <i class="fas fa-chevron-left mr-2" aria-hidden="true"></i><?= $e(sprintf(__('n. %s'), (string) $prev['numero'])) ?>
@@ -237,14 +224,13 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
 
     <!-- Sommario (spoglio) -->
     <?php if (!empty($articoli)): ?>
-        <section class="mt-4">
-            <div class="card rounded-md">
-                <div class="card-header">
+        <section class="emeroteca-toc">
+                <header>
                     <h2 class="mb-0 text-base font-semibold">
                         <i class="fas fa-list mr-2" aria-hidden="true"></i>
                         <?= sprintf(__('Sommario (%d)'), count($articoli)) ?>
                     </h2>
-                </div>
+                </header>
                 <ul class="divide-y divide-gray-200">
                     <?php foreach ($articoli as $art):
                         $pp = $pagesLabel($art);
@@ -268,18 +254,6 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
                         </li>
                     <?php endforeach; ?>
                 </ul>
-            </div>
-        </section>
-    <?php endif; ?>
-
-    <?php if (!empty($fascicolo['note'])): ?>
-        <section class="mt-4">
-            <div class="card rounded-md">
-                <div class="card-body p-4">
-                    <h2 class="text-base font-semibold mb-2"><?= __('Note') ?></h2>
-                    <p class="mb-0 text-gray-500" style="white-space: pre-wrap;"><?= $e((string) $fascicolo['note']) ?></p>
-                </div>
-            </div>
         </section>
     <?php endif; ?>
 </main>

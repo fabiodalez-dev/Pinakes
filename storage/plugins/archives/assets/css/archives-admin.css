@@ -13,3 +13,74 @@
 /* Hide the default browser disclosure marker on the summary element
    so we can render our own SVG chevron instead. */
 #arc-actions-details summary::-webkit-details-marker { display: none; }
+
+.archive-page-header {
+    align-items: flex-end;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.archive-header-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.archive-filter-form {
+    align-items: end;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(14rem, 1fr) minmax(10rem, .35fr) auto;
+}
+
+.archive-table-card { overflow-x: auto; padding: 0; }
+.archive-records-table tbody tr:last-child { border-bottom: 0; }
+.archive-level { align-items: center; color: #4b5563; display: inline-flex; font-size: .75rem; font-weight: 600; gap: .375rem; white-space: nowrap; }
+.archive-level-dot { background: #6b7280; border-radius: 9999px; display: inline-block; height: .45rem; width: .45rem; }
+
+.archive-record-form > .border-l-4 {
+    border: 0;
+    padding-left: 0;
+}
+
+.archive-record-form > .border-l-4 > h2 {
+    border-bottom: 1px solid #e5e7eb;
+    color: #111827;
+    font-size: 1rem;
+    padding-bottom: .75rem;
+}
+
+.archive-search-form { align-items: center; display: grid; gap: .75rem; grid-template-columns: minmax(0, 1fr) auto; }
+
+.archive-detail-card { overflow: hidden; padding: 0; }
+.archive-detail-list > div { overflow-wrap: anywhere; }
+.archive-subtable-card { overflow-x: auto; padding: 0; }
+.archive-subtable-card table { min-width: 40rem; }
+.archive-admin-page h1 { font-size: 1.875rem; line-height: 2.25rem; overflow-wrap: anywhere; }
+.archive-admin-page input, .archive-admin-page select, .archive-admin-page textarea { max-width: 100%; }
+.archive-admin-page > header.archive-page-header { align-items: flex-start; flex-direction: column; }
+
+@media (max-width: 767px) {
+    .archive-admin-page { padding: 1.5rem 1rem; }
+    .archive-page-header { align-items: stretch; flex-direction: column; }
+    .archive-header-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    .archive-header-actions > *, .archive-header-actions .btn-primary, .archive-header-actions .btn-secondary, .archive-header-actions .btn-danger { justify-content: center; min-width: 0; width: 100%; }
+    .archive-filter-form { grid-template-columns: 1fr; }
+    .archive-filter-form > .flex { display: grid; grid-template-columns: 1fr 1fr; }
+    .archive-records-table thead { display: none; }
+    .archive-records-table, .archive-records-table tbody, .archive-records-table tr, .archive-records-table td { display: block; width: 100%; }
+    .archive-records-table tr { border-bottom: 1px solid #d1d5db; padding: .75rem 1rem; }
+    .archive-records-table td { border: 0; display: grid; gap: .75rem; grid-template-columns: 5.5rem minmax(0, 1fr); padding: .35rem 0; text-align: left; white-space: normal; }
+    .archive-records-table td::before { color: #6b7280; content: attr(data-label); font-size: .7rem; font-weight: 600; letter-spacing: .025em; text-transform: uppercase; }
+    .archive-detail-list > div { display: grid; gap: .25rem; grid-template-columns: 1fr; padding: .75rem 1rem; }
+    .archive-detail-list > div > dd { grid-column: auto; }
+    .archive-subindex .archive-page-header .btn-primary { align-self: stretch; justify-content: center; }
+    .archive-search-form { grid-template-columns: 1fr; }
+    .archive-search-form .btn-primary { justify-content: center; }
+}
+
+@media (max-width: 420px) {
+    .archive-header-actions { grid-template-columns: 1fr; }
+}

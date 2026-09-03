@@ -32,31 +32,28 @@ $genereName = $genere['nome'] ?? 'Genere';
         <li class="text-gray-900 font-medium">Dettaglio</li>
       </ol>
     </nav>
-    <div class="mb-8 fade-in">
-      <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/60 dark:border-gray-700/60 p-6">
-        <div class="flex items-start justify-between">
+    <div class="mb-6">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div class="flex-1">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-              <i class="fas fa-tag text-blue-600"></i>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2 break-words">
               <span id="genre-name-display"><?= HtmlHelper::e($genereName) ?></span>
             </h1>
-            <p class="text-gray-600 dark:text-gray-300">
+            <p class="text-gray-600">
               <?php if (!empty($genere['parent_nome'])): ?>
-                <?= __("Sottogenere di") ?> <strong class="text-blue-600 dark:text-blue-400"><?= HtmlHelper::e($genere['parent_nome']) ?></strong>
+                <?= __("Sottogenere di") ?> <strong><?= HtmlHelper::e($genere['parent_nome']) ?></strong>
               <?php else: ?>
                 <?= __("Genere principale") ?>
               <?php endif; ?>
             </p>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 sm:flex-none">
             <button id="btn-edit-genre" class="btn-secondary text-sm" title="<?= __('Modifica') ?>">
               <i class="fas fa-edit mr-1"></i><?= __("Modifica") ?>
             </button>
           </div>
         </div>
-
         <!-- Inline edit form (hidden by default) -->
-        <form id="edit-genre-form" method="post" action="<?= htmlspecialchars(url("/admin/genres/{$genereId}/edit"), ENT_QUOTES, 'UTF-8') ?>" class="mt-4 hidden">
+        <form id="edit-genre-form" method="post" action="<?= htmlspecialchars(url("/admin/genres/{$genereId}/edit"), ENT_QUOTES, 'UTF-8') ?>" class="card mt-4 hidden">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
           <div class="space-y-3">
             <div>
@@ -84,28 +81,27 @@ $genereName = $genere['nome'] ?? 'Genere';
             </div>
           </div>
         </form>
-      </div>
     </div>
 
     <div class="grid grid-cols-1 gap-6">
       <!-- Children list -->
-      <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/60 dark:border-gray-700/60">
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <i class="fas fa-sitemap text-gray-900"></i>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="form-section-title flex items-center gap-2">
+            <i class="fas fa-sitemap text-gray-500"></i>
             <?= __("Sottogeneri") ?>
           </h2>
         </div>
-        <div class="p-6">
+        <div>
           <?php if (empty($children)): ?>
-            <div class="text-center py-10 text-gray-500 dark:text-gray-400">
+            <div class="text-center py-10 text-gray-500">
               <?= __("Nessun sottogenere.") ?>
             </div>
           <?php else: ?>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <?php foreach ($children as $c): ?>
-                <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$c['id']), ENT_QUOTES, 'UTF-8') ?>" class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition">
-                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100"><?= HtmlHelper::e($c['nome']) ?></span>
+                <a href="<?= htmlspecialchars(url('/admin/genres/' . (int)$c['id']), ENT_QUOTES, 'UTF-8') ?>" class="flex min-w-0 items-center justify-between rounded-lg border border-gray-200 p-3 hover:bg-gray-50">
+                  <span class="text-sm font-medium text-gray-900 break-words"><?= HtmlHelper::e($c['nome']) ?></span>
                   <i class="fas fa-chevron-right text-gray-400"></i>
                 </a>
               <?php endforeach; ?>
@@ -115,14 +111,14 @@ $genereName = $genere['nome'] ?? 'Genere';
       </div>
 
       <!-- Quick add child -->
-      <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/60 dark:border-gray-700/60">
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <i class="fas fa-plus text-gray-900"></i>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="form-section-title flex items-center gap-2">
+            <i class="fas fa-plus text-gray-500"></i>
             <?= __("Aggiungi Sottogenere") ?>
           </h2>
         </div>
-        <form method="post" action="<?= htmlspecialchars(url('/admin/genres/create'), ENT_QUOTES, 'UTF-8') ?>" class="p-6 space-y-4">
+        <form method="post" action="<?= htmlspecialchars(url('/admin/genres/create'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-4">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
           <input type="hidden" name="parent_id" value="<?= $genereId ?>">
           <div>
@@ -136,16 +132,16 @@ $genereName = $genere['nome'] ?? 'Genere';
       </div>
 
       <!-- Merge genre -->
-      <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-amber-200/60 dark:border-amber-700/60">
-        <div class="p-6">
-          <h2 class="text-lg font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2 mb-3">
+      <div class="card">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-3">
             <i class="fas fa-compress-arrows-alt"></i>
             <?= __("Unisci con altro genere") ?>
           </h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4"><?= __("Sposta tutti i libri e sottogeneri di questo genere nel genere selezionato, poi elimina questo genere.") ?></p>
+          <p class="text-sm text-gray-600 mb-4"><?= __("Sposta tutti i libri e sottogeneri di questo genere nel genere selezionato, poi elimina questo genere.") ?></p>
           <form id="merge-genre-form" method="post" action="<?= htmlspecialchars(url("/admin/genres/{$genereId}/merge"), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
-            <div class="flex items-end gap-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div class="flex-1">
                 <label for="merge_target_id" class="form-label"><?= __("Genere di destinazione") ?></label>
                 <select id="merge_target_id" name="target_id" class="form-input" required>
@@ -212,7 +208,7 @@ $genereName = $genere['nome'] ?? 'Genere';
                   ?>
                 </select>
               </div>
-              <button type="submit" class="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm whitespace-nowrap">
+              <button type="submit" class="btn-secondary justify-center whitespace-nowrap">
                 <i class="fas fa-compress-arrows-alt mr-1"></i><?= __("Unisci") ?>
               </button>
             </div>
@@ -221,30 +217,30 @@ $genereName = $genere['nome'] ?? 'Genere';
       </div>
 
       <!-- Delete genre -->
-      <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-red-200/60 dark:border-red-700/60">
-        <div class="p-6">
-          <h2 class="text-lg font-semibold text-red-700 dark:text-red-400 flex items-center gap-2 mb-3">
+      <div class="card">
+        <div>
+          <h2 class="text-lg font-semibold text-red-700 flex items-center gap-2 mb-3">
             <i class="fas fa-trash-alt"></i>
             <?= __("Elimina genere") ?>
           </h2>
           <?php if (!empty($children)): ?>
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4"><?= __("Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.") ?></p>
+          <p class="text-sm text-gray-600 mb-4"><?= __("Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.") ?></p>
           <form method="post" action="<?= htmlspecialchars(url("/admin/genres/{$genereId}/delete"), ENT_QUOTES, 'UTF-8') ?>"
                 data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.'), ENT_QUOTES, 'UTF-8') ?>"
                 data-swal-confirm-button="<?= htmlspecialchars(__('Elimina tutto'), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="cascade_delete" value="1">
-            <button type="submit" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
+            <button type="submit" class="btn-danger">
               <i class="fas fa-trash-alt mr-1"></i><?= __("Elimina genere e sottogeneri") ?>
             </button>
           </form>
           <?php else: ?>
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4"><?= __("Questa azione elimina il genere in modo permanente. Possibile solo se non ha sottogeneri e non è usato da nessun libro.") ?></p>
+          <p class="text-sm text-gray-600 mb-4"><?= __("Questa azione elimina il genere in modo permanente. Possibile solo se non ha sottogeneri e non è usato da nessun libro.") ?></p>
           <form method="post" action="<?= htmlspecialchars(url("/admin/genres/{$genereId}/delete"), ENT_QUOTES, 'UTF-8') ?>"
                 data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questo genere?'), ENT_QUOTES, 'UTF-8') ?>"
                 data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
-            <button type="submit" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
+            <button type="submit" class="btn-danger">
               <i class="fas fa-trash-alt mr-1"></i><?= __("Elimina") ?>
             </button>
           </form>

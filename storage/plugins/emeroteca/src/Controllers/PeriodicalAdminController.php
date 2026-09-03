@@ -143,6 +143,14 @@ class PeriodicalAdminController extends AbstractAdminController
         $body = (array) $request->getParsedBody();
         [$values, $errors] = $this->validate($body, null);
 
+        $newLogo = '';
+        if ($errors === []) {
+            [$newLogo, $uploadError] = $this->receiveLogoUpload($request, $values);
+            if ($uploadError !== null) {
+                $errors['logo_url'] = $uploadError;
+            }
+        }
+
         if ($errors !== []) {
             return $this->renderView($response, 'form', [
                 'mode'    => 'create',
@@ -164,6 +172,9 @@ class PeriodicalAdminController extends AbstractAdminController
         );
         if ($stmt === false) {
             SecureLogger::error('[Emeroteca] create prepare failed: ' . $this->db->error);
+            if ($newLogo !== '') {
+                $this->deleteManagedImageIfUnreferenced($newLogo);
+            }
             $this->flashError(__('Errore durante il salvataggio della testata.'));
             return $this->redirect($response, '/admin/periodicals/create');
         }
@@ -189,6 +200,9 @@ class PeriodicalAdminController extends AbstractAdminController
         if (!$stmt->execute()) {
             SecureLogger::error('[Emeroteca] create insert failed: ' . $stmt->error);
             $stmt->close();
+            if ($newLogo !== '') {
+                $this->deleteManagedImageIfUnreferenced($newLogo);
+            }
             $this->flashError(__('Errore durante il salvataggio della testata.'));
             return $this->redirect($response, '/admin/periodicals/create');
         }
@@ -232,12 +246,21 @@ class PeriodicalAdminController extends AbstractAdminController
     {
         // CSRF validated by CsrfMiddleware
         $id = (int) ($args['id'] ?? 0);
-        if ($this->fetchTestata($id) === null) {
+        $existing = $this->fetchTestata($id);
+        if ($existing === null) {
             $this->flashError(__('Testata non trovata.'));
             return $this->redirect($response, '/admin/periodicals');
         }
         $body = (array) $request->getParsedBody();
         [$values, $errors] = $this->validate($body, $id);
+
+        $newLogo = '';
+        if ($errors === []) {
+            [$newLogo, $uploadError] = $this->receiveLogoUpload($request, $values);
+            if ($uploadError !== null) {
+                $errors['logo_url'] = $uploadError;
+            }
+        }
 
         if ($errors !== []) {
             return $this->renderView($response, 'form', [
@@ -261,6 +284,9 @@ class PeriodicalAdminController extends AbstractAdminController
         );
         if ($stmt === false) {
             SecureLogger::error('[Emeroteca] edit prepare failed: ' . $this->db->error);
+            if ($newLogo !== '') {
+                $this->deleteManagedImageIfUnreferenced($newLogo);
+            }
             $this->flashError(__('Errore durante il salvataggio della testata.'));
             return $this->redirect($response, '/admin/periodicals/edit/' . $id);
         }
@@ -287,10 +313,19 @@ class PeriodicalAdminController extends AbstractAdminController
         if (!$stmt->execute()) {
             SecureLogger::error('[Emeroteca] edit update failed: ' . $stmt->error);
             $stmt->close();
+            if ($newLogo !== '') {
+                $this->deleteManagedImageIfUnreferenced($newLogo);
+            }
             $this->flashError(__('Errore durante il salvataggio della testata.'));
             return $this->redirect($response, '/admin/periodicals/edit/' . $id);
         }
         $stmt->close();
+
+        $previousLogo = (string) ($existing['logo_url'] ?? '');
+        $currentLogo = (string) ($values['logo_url'] ?? '');
+        if ($previousLogo !== '' && $previousLogo !== $currentLogo) {
+            $this->deleteManagedImageIfUnreferenced($previousLogo);
+        }
 
         $this->flashSuccess(__('Testata aggiornata con successo.'));
         return $this->redirect($response, '/admin/periodicals');
@@ -306,6 +341,54 @@ class PeriodicalAdminController extends AbstractAdminController
     {
         // CSRF validated by CsrfMiddleware
         $id = (int) ($args['id'] ?? 0);
+
+        // Capture locally managed images before the cascading DELETE removes
+        // the rows that point to them. Cleanup happens only after DB success.
+        $managedImages = [];
+        $images = $this->db->prepare(
+            'SELECT logo_url AS image_url FROM emeroteca_testate WHERE id = ?
+             UNION SELECT a.copertina_url FROM emeroteca_annate a WHERE a.testata_id = ?
+             UNION SELECT f.copertina_url FROM emeroteca_fascicoli f
+                    JOIN emeroteca_annate a ON a.id = f.annata_id WHERE a.testata_id = ?'
+        );
+        if ($images !== false) {
+            $images->bind_param('iii', $id, $id, $id);
+            if ($images->execute()) {
+                $res = $images->get_result();
+                if ($res instanceof \mysqli_result) {
+                    while ($row = $res->fetch_assoc()) {
+                        $path = trim((string) ($row['image_url'] ?? ''));
+                        if ($path !== '') {
+                            $managedImages[$path] = true;
+                        }
+                    }
+                }
+            }
+            $images->close();
+        }
+
+        $managedPdfs = [];
+        $pdfs = $this->db->prepare(
+            'SELECT f.pdf_path FROM emeroteca_fascicoli f
+             JOIN emeroteca_annate a ON a.id = f.annata_id
+             WHERE a.testata_id = ? AND f.pdf_path IS NOT NULL'
+        );
+        if ($pdfs !== false) {
+            $pdfs->bind_param('i', $id);
+            if ($pdfs->execute()) {
+                $res = $pdfs->get_result();
+                if ($res instanceof \mysqli_result) {
+                    while ($row = $res->fetch_assoc()) {
+                        $path = trim((string) ($row['pdf_path'] ?? ''));
+                        if ($path !== '') {
+                            $managedPdfs[$path] = true;
+                        }
+                    }
+                }
+            }
+            $pdfs->close();
+        }
+
         $stmt = $this->db->prepare('DELETE FROM emeroteca_testate WHERE id = ?');
         if ($stmt === false) {
             SecureLogger::error('[Emeroteca] delete prepare failed: ' . $this->db->error);
@@ -323,11 +406,44 @@ class PeriodicalAdminController extends AbstractAdminController
         $stmt->close();
 
         if ($deleted) {
+            foreach (array_keys($managedImages) as $imageUrl) {
+                $this->deleteManagedImageIfUnreferenced($imageUrl);
+            }
+            foreach (array_keys($managedPdfs) as $pdfPath) {
+                $this->deleteManagedPdfIfUnreferenced($pdfPath);
+            }
             $this->flashSuccess(__('Testata eliminata (con annate, fascicoli e spoglio).'));
         } else {
             $this->flashError(__('Testata non trovata.'));
         }
         return $this->redirect($response, '/admin/periodicals');
+    }
+
+    /**
+     * Receive the hidden multipart input populated by the standard Uppy image
+     * widget. A selected file takes precedence over a manually entered URL.
+     *
+     * @param array<string,mixed> $values
+     * @return array{0:string,1:?string} new managed path, validation error
+     */
+    private function receiveLogoUpload(ServerRequestInterface $request, array &$values): array
+    {
+        $files = $request->getUploadedFiles();
+        $file = $files['logo_file'] ?? null;
+        if (!$file instanceof \Psr\Http\Message\UploadedFileInterface
+            || $file->getError() === UPLOAD_ERR_NO_FILE) {
+            return ['', null];
+        }
+        if ($file->getError() !== UPLOAD_ERR_OK) {
+            return ['', __('Errore durante l\'upload.')];
+        }
+        $result = $this->storeManagedImage($file, 'testata');
+        if (!$result['success']) {
+            return ['', (string) ($result['message'] ?? __('Errore durante l\'upload.'))];
+        }
+        $path = (string) $result['path'];
+        $values['logo_url'] = $path;
+        return [$path, null];
     }
 
     // ── Validation ────────────────────────────────────────────────────
@@ -410,8 +526,10 @@ class PeriodicalAdminController extends AbstractAdminController
                 $errors['logo_url'] = __('URL del logo non valido (usa un URL assoluto o un percorso che inizia con /).');
             }
         }
-        if ($selfId !== null && $values['testata_precedente_id'] === $selfId) {
-            $errors['testata_precedente_id'] = __('Una testata non può continuare sé stessa.');
+        if ($selfId !== null
+            && $values['testata_precedente_id'] !== null
+            && $this->wouldCreateTitleCycle($selfId, $values['testata_precedente_id'])) {
+            $errors['testata_precedente_id'] = __('La relazione tra testate creerebbe un ciclo.');
         }
 
         // Referential sanity: unknown ids become validation errors, not
@@ -475,5 +593,37 @@ class PeriodicalAdminController extends AbstractAdminController
             SecureLogger::error('[Emeroteca] ref check error (check skipped): ' . $e->getMessage());
             return null;
         }
+    }
+
+    /** Reject self-links and longer A → B → … → A predecessor cycles. */
+    private function wouldCreateTitleCycle(int $selfId, int $candidateId): bool
+    {
+        $current = $candidateId;
+        $visited = [];
+        for ($hop = 0; $hop < 100 && $current > 0; $hop++) {
+            if ($current === $selfId || isset($visited[$current])) {
+                return true;
+            }
+            $visited[$current] = true;
+            $stmt = $this->db->prepare(
+                'SELECT testata_precedente_id FROM emeroteca_testate WHERE id = ? LIMIT 1'
+            );
+            if ($stmt === false) {
+                return true;
+            }
+            $stmt->bind_param('i', $current);
+            if (!$stmt->execute()) {
+                $stmt->close();
+                return true;
+            }
+            $res = $stmt->get_result();
+            $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+            $stmt->close();
+            if (!is_array($row) || $row['testata_precedente_id'] === null) {
+                return false;
+            }
+            $current = (int) $row['testata_precedente_id'];
+        }
+        return $current > 0;
     }
 }

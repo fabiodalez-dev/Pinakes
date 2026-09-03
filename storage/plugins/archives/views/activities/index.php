@@ -32,32 +32,33 @@ $typeBadge = [
     'mandate'     => 'bg-amber-100 text-amber-800',
 ];
 ?>
-<div class="p-6 max-w-6xl mx-auto">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/archives/assets/css/archives-admin.css?v=0.8.1'), ENT_QUOTES, 'UTF-8') ?>">
+<div class="archive-admin-page archive-subindex p-6 max-w-6xl mx-auto">
     <div class="mb-6">
         <nav class="text-sm text-gray-500 mb-2">
             <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __('Archivi') ?></a>
             &nbsp;&raquo;&nbsp; <?= __('Attività') ?>
         </nav>
-        <div class="flex items-center justify-between">
+        <div class="archive-page-header">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900"><?= __('Attività (RiC-CM)') ?></h1>
+                <h1 class="text-3xl font-bold text-gray-900"><?= __('Attività (RiC-CM)') ?></h1>
                 <p class="text-sm text-gray-600 mt-1">
                     <?= __("Funzioni, attività e transazioni allineate allo standard ISDF. Ogni attività può essere collegata a unità archivistiche e a un agente esecutore.") ?>
                 </p>
             </div>
             <a href="<?= $e(url('/admin/archives/activities/new')) ?>"
-               class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow-sm">
-                <?= __('+ Nuova attività') ?>
+               class="btn-primary">
+                <i class="fas fa-plus mr-2"></i><?= __('Nuova attività') ?>
             </a>
         </div>
     </div>
 
     <?php if (empty($rows)): ?>
-        <div class="bg-white shadow rounded-lg p-6">
+        <div class="card text-center py-10">
             <p class="text-sm text-gray-500"><?= __('Nessuna attività registrata.') ?></p>
         </div>
     <?php else: ?>
-        <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="card archive-subtable-card">
             <table class="min-w-full">
                 <thead class="bg-gray-50">
                     <tr>

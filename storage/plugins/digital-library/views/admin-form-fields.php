@@ -282,8 +282,19 @@ document.addEventListener('DOMContentLoaded', function() {
         uppyInstance.use(UppyDragDrop, {
             target: targetSelector,
             note: isAudio
-                ? '<?= __("MP3, M4A o OGG, max 500 MB") ?>'
-                : '<?= __("PDF o ePub, max 100 MB") ?>'
+                ? <?= json_encode(__("MP3, M4A o OGG, max 500 MB"), JSON_HEX_TAG) ?>
+                : <?= json_encode(__("PDF o ePub, max 100 MB"), JSON_HEX_TAG) ?>,
+            locale: {
+                strings: {
+                    dropHereOr: isAudio
+                        ? <?= json_encode(__("Trascina qui l'audiolibro o %{browse}"), JSON_HEX_TAG) ?>
+                        : <?= json_encode(__("Trascina qui l'eBook o %{browse}"), JSON_HEX_TAG) ?>,
+                    dropPasteFiles: isAudio
+                        ? <?= json_encode(__("Trascina qui l'audiolibro o %{browse}"), JSON_HEX_TAG) ?>
+                        : <?= json_encode(__("Trascina qui l'eBook o %{browse}"), JSON_HEX_TAG) ?>,
+                    browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
+                }
+            }
         });
 
         uppyInstance.use(UppyProgressBar, {

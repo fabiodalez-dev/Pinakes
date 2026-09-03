@@ -6,11 +6,12 @@ use App\Support\HookManager;
 use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Slim\Psr7\Stream;
 
 /**
  * Emeroteca plugin — periodicals management for Pinakes.
  *
- * Skeleton (v1.0.0). Introduces four tables:
+ * Introduces four tables:
  *   - emeroteca_testate   : periodical titles (rivista/giornale/magazine/…)
  *   - emeroteca_annate    : yearly volumes of a title (bound or loose)
  *   - emeroteca_fascicoli : single issues with holding status + kardex
@@ -258,6 +259,11 @@ class EmerotecaPlugin
             ['table' => 'emeroteca_testate',   'column' => 'stato_raccolta'],
             ['table' => 'emeroteca_annate',    'column' => 'rilegata'],
             ['table' => 'emeroteca_fascicoli', 'column' => 'stato'],
+            ['table' => 'emeroteca_fascicoli', 'column' => 'collocazione_id'],
+            ['table' => 'emeroteca_fascicoli', 'column' => 'pdf_path'],
+            ['table' => 'emeroteca_fascicoli', 'column' => 'pdf_nome_originale'],
+            ['table' => 'emeroteca_fascicoli', 'column' => 'pdf_dimensione'],
+            ['table' => 'emeroteca_fascicoli', 'column' => 'pdf_pubblico'],
             ['table' => 'emeroteca_articoli',  'column' => 'keywords'],
         ];
     }
@@ -342,14 +348,69 @@ class EmerotecaPlugin
             }
         }
 
+        // CREATE TABLE IF NOT EXISTS does not evolve installations created by
+        // an older plugin release. Keep additive migrations explicit and
+        // idempotent so activation and PluginManager's boot-time self-heal
+        // converge to the same schema.
+        if (!in_array('emeroteca_fascicoli', $failed, true) && !$this->ensureAdditiveColumns()) {
+            $failed[] = 'emeroteca_fascicoli';
+        }
+
         // FKs towards core tables (editori, generi) are added after the
         // CREATE so an install where those tables are missing degrades
         // to a schema without the FK instead of failing activation.
         if (!in_array('emeroteca_testate', $failed, true) && !$this->ensureCoreForeignKeys()) {
             $failed[] = 'emeroteca_testate';
         }
+        if (!in_array('emeroteca_fascicoli', $failed, true) && !$this->ensureIssueNumberIndex()) {
+            $failed[] = 'emeroteca_fascicoli';
+        }
 
         return ['created' => $created, 'failed' => $failed];
+    }
+
+    /** Add columns introduced after the initial 1.0 schema. */
+    private function ensureAdditiveColumns(): bool
+    {
+        $definitions = [
+            'pdf_path'           => 'VARCHAR(500) NULL AFTER note',
+            'pdf_nome_originale' => 'VARCHAR(255) NULL AFTER pdf_path',
+            'pdf_dimensione'     => 'BIGINT UNSIGNED NULL AFTER pdf_nome_originale',
+            'pdf_pubblico'       => 'TINYINT(1) NOT NULL DEFAULT 0 AFTER pdf_dimensione',
+        ];
+
+        foreach ($definitions as $column => $ddl) {
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME = 'emeroteca_fascicoli'
+                    AND COLUMN_NAME = ?"
+            );
+            if ($stmt === false) {
+                SecureLogger::error('[Emeroteca] column migration probe prepare failed: ' . $this->db->error);
+                return false;
+            }
+            $stmt->bind_param('s', $column);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[Emeroteca] column migration probe failed for ' . $column . ': ' . $stmt->error);
+                $stmt->close();
+                return false;
+            }
+            $res = $stmt->get_result();
+            $exists = $res instanceof \mysqli_result
+                && ((int) ($res->fetch_assoc()['c'] ?? 0)) > 0;
+            $stmt->close();
+            if ($exists) {
+                continue;
+            }
+
+            // Column names and definitions come only from the static map above.
+            if ($this->db->query("ALTER TABLE emeroteca_fascicoli ADD COLUMN {$column} {$ddl}") === false) {
+                SecureLogger::error('[Emeroteca] adding column ' . $column . ' failed: ' . $this->db->error);
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -364,6 +425,7 @@ class EmerotecaPlugin
         return [
             ['table' => 'emeroteca_testate', 'column' => 'editore_id', 'ref_table' => 'editori', 'ref_col' => 'id', 'name' => 'fk_emeroteca_testata_editore'],
             ['table' => 'emeroteca_testate', 'column' => 'genere_id',  'ref_table' => 'generi',  'ref_col' => 'id', 'name' => 'fk_emeroteca_testata_genere'],
+            ['table' => 'emeroteca_fascicoli', 'column' => 'collocazione_id', 'ref_table' => 'mensole', 'ref_col' => 'id', 'name' => 'fk_emeroteca_fascicolo_mensola'],
         ];
     }
 
@@ -425,7 +487,7 @@ class EmerotecaPlugin
             $stmt = $this->db->prepare(
                 "SELECT COUNT(*) AS c FROM information_schema.KEY_COLUMN_USAGE
                   WHERE TABLE_SCHEMA = DATABASE()
-                    AND TABLE_NAME = 'emeroteca_testate'
+                    AND TABLE_NAME = ?
                     AND COLUMN_NAME = ?
                     AND REFERENCED_TABLE_NAME = ?"
             );
@@ -434,7 +496,7 @@ class EmerotecaPlugin
                 $ok = false;
                 continue;
             }
-            $stmt->bind_param('ss', $fk['column'], $fk['ref_table']);
+            $stmt->bind_param('sss', $fk['table'], $fk['column'], $fk['ref_table']);
             if (!$stmt->execute()) {
                 SecureLogger::error('[Emeroteca] FK probe failed for ' . $fk['column'] . ': ' . $stmt->error);
                 $stmt->close();
@@ -451,7 +513,7 @@ class EmerotecaPlugin
 
             // Null out orphan references that would fail the FK on ADD.
             if ($this->db->query(
-                "UPDATE emeroteca_testate t
+                "UPDATE {$fk['table']} t
                  LEFT JOIN {$fk['ref_table']} r ON t.{$fk['column']} = r.{$fk['ref_col']}
                  SET t.{$fk['column']} = NULL
                  WHERE t.{$fk['column']} IS NOT NULL AND r.{$fk['ref_col']} IS NULL"
@@ -461,7 +523,7 @@ class EmerotecaPlugin
                 continue;
             }
 
-            $alter = "ALTER TABLE emeroteca_testate
+            $alter = "ALTER TABLE {$fk['table']}
                       ADD CONSTRAINT {$fk['name']}
                       FOREIGN KEY ({$fk['column']}) REFERENCES {$fk['ref_table']} ({$fk['ref_col']}) ON DELETE SET NULL";
             if ($this->db->query($alter) === false) {
@@ -470,6 +532,55 @@ class EmerotecaPlugin
             }
         }
         return $ok;
+    }
+
+    /**
+     * An issue number is unique inside one annata. Version 1.0 already
+     * had both columns but not this index, so the 1.1 activation adds it
+     * explicitly instead of relying on CREATE TABLE IF NOT EXISTS.
+     */
+    private function ensureIssueNumberIndex(): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS columns_list
+               FROM information_schema.STATISTICS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'emeroteca_fascicoli'
+                AND INDEX_NAME = 'uq_emeroteca_fascicolo_numero'
+                AND NON_UNIQUE = 0"
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Emeroteca] issue unique-index probe prepare failed: ' . $this->db->error);
+            return false;
+        }
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Emeroteca] issue unique-index probe failed: ' . $stmt->error);
+            $stmt->close();
+            return false;
+        }
+        $res = $stmt->get_result();
+        $columns = $res instanceof \mysqli_result
+            ? (string) ($res->fetch_assoc()['columns_list'] ?? '')
+            : '';
+        $stmt->close();
+        if ($columns === 'annata_id,numero') {
+            return true;
+        }
+        if ($columns !== '') {
+            SecureLogger::error('[Emeroteca] issue unique index exists with unexpected columns: ' . $columns);
+            return false;
+        }
+        if ($this->db->query(
+            'ALTER TABLE emeroteca_fascicoli
+             ADD UNIQUE KEY uq_emeroteca_fascicolo_numero (annata_id, numero)'
+        ) === false) {
+            SecureLogger::error(
+                '[Emeroteca] issue unique-index migration failed; resolve duplicate numbers per annata: '
+                . $this->db->error
+            );
+            return false;
+        }
+        return true;
     }
 
     // ── DDL ───────────────────────────────────────────────────────────
@@ -544,9 +655,9 @@ class EmerotecaPlugin
     }
 
     /**
-     * DDL for `emeroteca_fascicoli` — single issues. collocazione_id is a
-     * plain nullable INT (no FK): shelf/position wiring arrives with the
-     * controllers and the core collocazione tables are not guaranteed here.
+     * DDL for `emeroteca_fascicoli` — single issues. The optional
+     * collocazione FK is attached after creation when the core mensole
+     * table exists.
      */
     public static function ddlFascicoli(): string
     {
@@ -566,9 +677,14 @@ class EmerotecaPlugin
             stato              ENUM('posseduto','mancante','danneggiato','in_restauro','smarrito','atteso') NOT NULL DEFAULT 'posseduto',
             supplementi        VARCHAR(500) NULL,
             note               TEXT         NULL,
+            pdf_path           VARCHAR(500) NULL,
+            pdf_nome_originale VARCHAR(255) NULL,
+            pdf_dimensione     BIGINT UNSIGNED NULL,
+            pdf_pubblico       TINYINT(1)   NOT NULL DEFAULT 0,
             created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
+            UNIQUE KEY uq_emeroteca_fascicolo_numero (annata_id, numero),
             KEY idx_emeroteca_fascicolo_annata (annata_id),
             KEY idx_emeroteca_fascicolo_stato (stato),
             CONSTRAINT fk_emeroteca_fascicolo_annata
@@ -728,6 +844,16 @@ class EmerotecaPlugin
             return $plugin->dispatch($issues, 'show', $request, $response, $args);
         })->add($adminMiddleware);
 
+        // PDF scans are stored outside the web root and streamed only after
+        // the same admin authorization used by the issue editor.
+        $app->get('/admin/periodicals/issue/{id:[0-9]+}/pdf', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->serveIssuePdf($response, $args, false);
+        })->add($adminMiddleware);
+
         // POST /admin/periodicals/issue/{id} — update fascicolo
         $app->post('/admin/periodicals/issue/{id:[0-9]+}', function (
             ServerRequestInterface $request,
@@ -745,6 +871,15 @@ class EmerotecaPlugin
         ) use ($plugin, $issues): ResponseInterface {
             return $plugin->dispatch($issues, 'delete', $request, $response, $args);
         })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // Plugin-local stylesheet, served only while the plugin is active.
+        $app->get('/plugins/emeroteca/assets/{type}/{filename}', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->serveAsset($request, $response, $args);
+        });
 
         // ── Public frontend — read-only /emeroteca section ───────────
         // No auth: periodicals are public cultural material. Literal
@@ -769,6 +904,16 @@ class EmerotecaPlugin
             return $plugin->dispatch($public, 'showFascicolo', $request, $response, $args);
         });
 
+        // Public PDF access is opt-in per issue; newly uploaded scans stay
+        // private until an administrator explicitly enables this route.
+        $app->get('/emeroteca/fascicolo/{id:[0-9]+}/pdf', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->serveIssuePdf($response, $args, true);
+        });
+
         // GET /emeroteca/{id} — testata detail
         $app->get('/emeroteca/{id:[0-9]+}', function (
             ServerRequestInterface $request,
@@ -777,6 +922,116 @@ class EmerotecaPlugin
         ) use ($plugin, $public): ResponseInterface {
             return $plugin->dispatch($public, 'showTestata', $request, $response, $args);
         });
+    }
+
+    /**
+     * Serve CSS/JS bundled with the plugin, using the same realpath guard and
+     * immutable cache policy as Archives and Digital Library.
+     *
+     * @param array<string,string> $args
+     */
+    public function serveAsset(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $type = (string) ($args['type'] ?? '');
+        $filename = (string) ($args['filename'] ?? '');
+        if (!in_array($type, ['css', 'js'], true)
+            || preg_match('/^[A-Za-z0-9._-]+$/', $filename) !== 1) {
+            return $response->withStatus(404);
+        }
+
+        $baseDir = realpath(__DIR__ . '/assets/' . $type);
+        if ($baseDir === false) {
+            return $response->withStatus(404);
+        }
+        $filePath = realpath($baseDir . DIRECTORY_SEPARATOR . $filename);
+        if ($filePath === false
+            || !str_starts_with($filePath, $baseDir . DIRECTORY_SEPARATOR)
+            || !is_file($filePath)) {
+            return $response->withStatus(404);
+        }
+
+        $contents = file_get_contents($filePath);
+        if ($contents === false) {
+            return $response->withStatus(500);
+        }
+        $response->getBody()->write($contents);
+        return $response
+            ->withHeader('Content-Type', $type === 'css'
+                ? 'text/css; charset=UTF-8'
+                : 'application/javascript; charset=UTF-8')
+            ->withHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+
+    /**
+     * Stream an issue PDF from storage/uploads/emeroteca. Public requests are
+     * accepted only when pdf_pubblico is enabled; admin authorization is
+     * enforced by route middleware before this method runs.
+     *
+     * @param array<string,string> $args
+     */
+    public function serveIssuePdf(
+        ResponseInterface $response,
+        array $args,
+        bool $publicOnly
+    ): ResponseInterface {
+        $id = (int) ($args['id'] ?? 0);
+        $sql = 'SELECT pdf_path, pdf_nome_originale FROM emeroteca_fascicoli WHERE id = ? AND pdf_path IS NOT NULL';
+        if ($publicOnly) {
+            $sql .= ' AND pdf_pubblico = 1';
+        }
+        $stmt = $this->db->prepare($sql . ' LIMIT 1');
+        if ($stmt === false) {
+            SecureLogger::error('[Emeroteca] PDF lookup prepare failed: ' . $this->db->error);
+            return $response->withStatus(500);
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Emeroteca] PDF lookup failed: ' . $stmt->error);
+            $stmt->close();
+            return $response->withStatus(500);
+        }
+        $res = $stmt->get_result();
+        $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if (!is_array($row)) {
+            return $response->withStatus(404);
+        }
+
+        $relative = (string) ($row['pdf_path'] ?? '');
+        if ($relative === '' || str_contains($relative, "\0") || str_contains($relative, '..')) {
+            return $response->withStatus(404);
+        }
+        $baseDir = realpath(__DIR__ . '/../../uploads/emeroteca');
+        $filePath = $baseDir === false ? false : realpath($baseDir . DIRECTORY_SEPARATOR . basename($relative));
+        if ($filePath === false
+            || !str_starts_with($filePath, $baseDir . DIRECTORY_SEPARATOR)
+            || !is_file($filePath)) {
+            return $response->withStatus(404);
+        }
+        $handle = fopen($filePath, 'rb');
+        $size = filesize($filePath);
+        if ($handle === false || $size === false) {
+            return $response->withStatus(404);
+        }
+
+        $original = basename((string) ($row['pdf_nome_originale'] ?? 'fascicolo.pdf'));
+        if ($original === '' || strtolower(pathinfo($original, PATHINFO_EXTENSION)) !== 'pdf') {
+            $original = 'fascicolo.pdf';
+        }
+        $ascii = preg_replace('/[^A-Za-z0-9._-]+/', '_', $original) ?: 'fascicolo.pdf';
+        return $response
+            ->withBody(new Stream($handle))
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Length', (string) $size)
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('Cache-Control', $publicOnly ? 'public, max-age=3600' : 'private, no-store')
+            ->withHeader(
+                'Content-Disposition',
+                'inline; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($original)
+            );
     }
 
     /**

@@ -62,14 +62,13 @@ async function loginAsAdmin(page) {
   }
 }
 
-// Console-error guard, same filters as activity-feed-374.spec.js:
-// resource-load 404s and the pre-existing "Applying inline style" CSP
-// notices are page-wide noise; only real JS errors should fail the test.
+// Console-error guard: resource-load 404s from optional fixture images are
+// tolerated, while CSP violations must always fail the suite.
 function attachConsoleGuard(page, errors) {
   page.on('console', (m) => {
     if (m.type() !== 'error') return;
     const t = m.text();
-    if (/Failed to load resource|Applying inline style/i.test(t)) return;
+    if (/Failed to load resource/i.test(t)) return;
     errors.push(t);
   });
 }
@@ -79,6 +78,24 @@ function attachConsoleGuard(page, errors) {
 function emCleanup() {
   const t = sqlEscape(TITLE);
   try {
+    const files = dbQuery(
+      `SELECT COALESCE(tt.logo_url,''), COALESCE(f.copertina_url,''), COALESCE(f.pdf_path,'')
+       FROM emeroteca_testate tt
+       LEFT JOIN emeroteca_annate a ON a.testata_id=tt.id
+       LEFT JOIN emeroteca_fascicoli f ON f.annata_id=a.id
+       WHERE tt.titolo='${t}'`,
+    ).split('\n').filter(Boolean);
+    for (const row of files) {
+      const [logo, cover, pdf] = row.split('\t');
+      for (const url of [logo, cover]) {
+        if (url && url.startsWith('/uploads/emeroteca/') && path.basename(url) === url.slice('/uploads/emeroteca/'.length)) {
+          fs.rmSync(path.join(__dirname, '..', 'public', url), { force: true });
+        }
+      }
+      if (pdf && path.basename(pdf) === pdf && pdf.toLowerCase().endsWith('.pdf')) {
+        fs.rmSync(path.join(__dirname, '..', 'storage', 'uploads', 'emeroteca', pdf), { force: true });
+      }
+    }
     dbQuery(
       `DELETE ar FROM emeroteca_articoli ar JOIN emeroteca_fascicoli f ON ar.fascicolo_id=f.id JOIN emeroteca_annate a ON f.annata_id=a.id JOIN emeroteca_testate tt ON a.testata_id=tt.id WHERE tt.titolo='${t}';`
       + `DELETE f FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON f.annata_id=a.id JOIN emeroteca_testate tt ON a.testata_id=tt.id WHERE tt.titolo='${t}';`
@@ -282,6 +299,31 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     expect(row).toContain('1125-3460');
   });
 
+  test('logo upload uses Uppy and persists a served image', async ({ page }) => {
+    test.setTimeout(90000);
+    await loginAsAdmin(page);
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const tmpPng = path.join(os.tmpdir(), `emeroteca-logo-${Date.now()}.png`);
+    fs.writeFileSync(tmpPng, png);
+    try {
+      await page.goto(`${BASE}/admin/periodicals/edit/${testataId}`);
+      const uppyInput = page.locator('#emt-logo-upload input[type="file"]');
+      await expect(uppyInput).toBeAttached({ timeout: 10000 });
+      await uppyInput.setInputFiles(tmpPng);
+      await expect(page.locator('#emt-logo-preview-image')).toBeVisible({ timeout: 10000 });
+      await page.locator('form button[type="submit"]').first().click();
+      await page.waitForURL(/\/admin\/periodicals$/, { timeout: 15000 });
+    } finally {
+      fs.rmSync(tmpPng, { force: true });
+    }
+    const logoUrl = dbQuery(`SELECT logo_url FROM emeroteca_testate WHERE id=${Number(testataId)}`).trim();
+    expect(logoUrl).toMatch(/^\/uploads\/emeroteca\/testata_/);
+    expect((await page.request.get(`${BASE}${logoUrl}`)).status()).toBe(200);
+  });
+
   test('bulk series creation adds a run of issues in one submit', async ({ page }) => {
     test.setTimeout(60000);
     await loginAsAdmin(page);
@@ -368,7 +410,7 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     expect(row).toContain('danneggiato');
   });
 
-  test('cover upload through the real form stores a served image', async ({ page }) => {
+  test('cover upload through Uppy stores a served image', async ({ page }) => {
     test.setTimeout(90000);
     await loginAsAdmin(page);
     // Minimal valid 1x1 PNG written on the fly — a REAL multipart upload.
@@ -379,8 +421,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     const tmpPng = path.join(os.tmpdir(), `emeroteca-cover-${Date.now()}.png`);
     fs.writeFileSync(tmpPng, png);
     await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}`);
-    await expect(page.locator('input[name="copertina"]')).toBeAttached({ timeout: 10000 });
-    await page.setInputFiles('input[name="copertina"]', tmpPng);
+    const uppyInput = page.locator('#emt-cover-upload input[type="file"]');
+    await expect(uppyInput).toBeAttached({ timeout: 10000 });
+    await uppyInput.setInputFiles(tmpPng);
+    await expect(page.locator('#emt-cover-preview-image')).toBeVisible({ timeout: 10000 });
     await page.locator('form button[type="submit"]').first().click();
     await page.waitForLoadState('domcontentloaded');
     fs.unlinkSync(tmpPng);
@@ -388,6 +432,60 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     expect(url.length).toBeGreaterThan(0);
     const resp = await page.request.get(`${BASE}${url.startsWith('/') ? '' : '/'}${url}`);
     expect(resp.status()).toBe(200);
+  });
+
+  test('PDF upload uses Uppy, stays private by default and can be published', async ({ page }) => {
+    test.setTimeout(90000);
+    await loginAsAdmin(page);
+    const pdf = Buffer.from(
+      '%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n'
+      + '2 0 obj\n<< /Type /Pages /Count 0 >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n',
+      'utf8',
+    );
+    const tmpPdf = path.join(os.tmpdir(), `emeroteca-issue-${Date.now()}.pdf`);
+    fs.writeFileSync(tmpPdf, pdf);
+    try {
+      await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}`);
+      const uppyInput = page.locator('#emt-pdf-upload input[type="file"]');
+      await expect(uppyInput).toBeAttached({ timeout: 10000 });
+      await uppyInput.setInputFiles(tmpPdf);
+      await expect(page.locator('#emt-pdf-result')).toContainText(path.basename(tmpPdf));
+      await page.locator('form button[type="submit"]').first().click();
+      await page.waitForLoadState('domcontentloaded');
+    } finally {
+      fs.rmSync(tmpPdf, { force: true });
+    }
+
+    const stored = dbQuery(
+      `SELECT pdf_path, pdf_nome_originale, pdf_pubblico FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[0])}`,
+    ).trim().split('\t');
+    expect(stored[0]).toMatch(/^fascicolo_.*\.pdf$/);
+    expect(stored[1]).toMatch(/^emeroteca-issue-.*\.pdf$/);
+    expect(stored[2]).toBe('0');
+    const adminPdf = await page.request.get(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}/pdf`);
+    expect(adminPdf.status()).toBe(200);
+    expect(adminPdf.headers()['content-type']).toContain('application/pdf');
+    expect((await page.request.get(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}/pdf`)).status()).toBe(404);
+
+    await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}`);
+    await page.check('input[name="pdf_pubblico"]');
+    await page.locator('form button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded');
+    expect(dbQuery(`SELECT pdf_pubblico FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[0])}`).trim()).toBe('1');
+    expect((await page.request.get(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}/pdf`)).status()).toBe(200);
+    await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
+    await expect(page.locator('a', { hasText: 'Consulta PDF' })).toBeVisible();
+
+    // Removal clears both metadata and the private file after the DB commit.
+    await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}`);
+    await page.check('input[name="rimuovi_pdf"]');
+    await page.locator('form button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded');
+    expect(dbQuery(
+      `SELECT COALESCE(pdf_path,'') FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[0])}`,
+    ).trim()).toBe('');
+    expect(fs.existsSync(path.join(__dirname, '..', 'storage', 'uploads', 'emeroteca', stored[0]))).toBeFalsy();
+    expect((await page.request.get(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}/pdf`)).status()).toBe(404);
   });
 
   test('table of contents: two articles saved from the issue form', async ({ page }) => {
@@ -429,8 +527,27 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     test.setTimeout(60000);
     const errors = [];
     attachConsoleGuard(page, errors);
+    await page.goto(`${BASE}/emeroteca`);
+    const optionValues = await page.locator('#eme-tipo option').evaluateAll((options) =>
+      options.map((option) => option.value).filter(Boolean),
+    );
+    const populatedTypes = dbQuery(
+      'SELECT tipo FROM emeroteca_testate GROUP BY tipo HAVING COUNT(*) > 0 ORDER BY tipo',
+    ).split('\n').filter(Boolean);
+    expect([...optionValues].sort()).toEqual(populatedTypes.sort());
+    await page.selectOption('#eme-tipo', 'rivista');
+    await Promise.all([
+      page.waitForURL(/(?:\?|&)tipo=rivista(?:&|$)/),
+      page.locator('.emeroteca-search button[type="submit"]').click(),
+    ]);
+    await expect(page.locator('#emeroteca-index')).toContainText(TITLE, { timeout: 10000 });
     await page.goto(`${BASE}/emeroteca?q=${encodeURIComponent(TITLE)}`);
     await expect(page.locator('#emeroteca-index')).toContainText(TITLE, { timeout: 10000 });
+    await page.goto(`${BASE}/emeroteca?q=${encodeURIComponent('Anna Verdi')}`);
+    await expect(page.locator('#emeroteca-index')).toContainText(TITLE, { timeout: 10000 });
+    const css = await page.request.get(`${BASE}/plugins/emeroteca/assets/css/emeroteca.css`);
+    expect(css.status()).toBe(200);
+    expect(css.headers()['content-type']).toContain('text/css');
     await page.goto(`${BASE}/emeroteca?q=zz-nessuna-testata-cosi`);
     await expect(page.locator('#emeroteca-index')).not.toContainText(TITLE);
     for (const vista of ['editore', 'argomento']) {
