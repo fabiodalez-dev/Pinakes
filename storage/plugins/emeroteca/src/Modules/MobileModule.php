@@ -40,6 +40,9 @@ final class MobileModule
 
     private \mysqli $db;
 
+    /** @var array<string, bool> Cached information_schema table probes. */
+    private array $tableCache = [];
+
     public function __construct(\mysqli $db)
     {
         $this->db = $db;
@@ -209,18 +212,24 @@ final class MobileModule
             $where = $conditions !== [] ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
             // Fetch limit+1 to detect a further page without a COUNT round-trip.
+            // The editori core table is optional for this plugin (schema
+            // degrades without its FK — same guard as PublicController):
+            // join it only when present, else publisher resolves to null.
+            $hasEditori  = $this->tableExists('editori');
+            $editoreSel  = $hasEditori ? 'e.nome' : 'NULL';
+            $editoreJoin = $hasEditori ? 'LEFT JOIN editori e ON t.editore_id = e.id' : '';
             $fetch = $limit + 1;
             $sql = "
                 SELECT
                     t.id, t.titolo, t.sottotitolo, t.issn, t.tipo, t.periodicita,
                     t.logo_url, t.anno_inizio, t.anno_fine, t.stato_raccolta,
-                    t.editore_id, e.nome AS editore_nome,
+                    t.editore_id, {$editoreSel} AS editore_nome,
                     (SELECT COUNT(*) FROM emeroteca_annate a WHERE a.testata_id = t.id) AS years_count,
                     (SELECT COUNT(*) FROM emeroteca_fascicoli f
                        JOIN emeroteca_annate a2 ON f.annata_id = a2.id
                       WHERE a2.testata_id = t.id) AS issues_count
                 FROM emeroteca_testate t
-                LEFT JOIN editori e ON t.editore_id = e.id
+                {$editoreJoin}
                 {$where}
                 ORDER BY t.titolo ASC, t.id ASC
                 LIMIT ?
@@ -299,19 +308,24 @@ final class MobileModule
         int $id
     ): ResponseInterface {
         try {
+            // Same optional-editori guard as the list endpoint: the plugin
+            // schema legitimately degrades without the core editori table.
+            $hasEditori  = $this->tableExists('editori');
+            $editoreSel  = $hasEditori ? 'e.nome' : 'NULL';
+            $editoreJoin = $hasEditori ? 'LEFT JOIN editori e ON t.editore_id = e.id' : '';
             $stmt = $this->db->prepare(
-                'SELECT t.id, t.titolo, t.sottotitolo, t.issn, t.tipo, t.periodicita,
+                "SELECT t.id, t.titolo, t.sottotitolo, t.issn, t.tipo, t.periodicita,
                         t.logo_url, t.anno_inizio, t.anno_fine, t.stato_raccolta,
                         t.luogo_pubblicazione, t.lingua, t.descrizione,
-                        t.editore_id, e.nome AS editore_nome,
+                        t.editore_id, {$editoreSel} AS editore_nome,
                         (SELECT COUNT(*) FROM emeroteca_annate a WHERE a.testata_id = t.id) AS years_count,
                         (SELECT COUNT(*) FROM emeroteca_fascicoli f
                            JOIN emeroteca_annate a2 ON f.annata_id = a2.id
                           WHERE a2.testata_id = t.id) AS issues_count
                    FROM emeroteca_testate t
-                   LEFT JOIN editori e ON t.editore_id = e.id
+                   {$editoreJoin}
                   WHERE t.id = ?
-                  LIMIT 1'
+                  LIMIT 1"
             );
             if ($stmt === false) {
                 SecureLogger::error('[Emeroteca:mobile] detail prepare failed: ' . $this->db->error);
@@ -671,6 +685,36 @@ final class MobileModule
      * @param array<string, mixed> $r
      * @return array<string, mixed>
      */
+    /**
+     * Probe an optional core table (same guard as PublicController): the
+     * emeroteca schema legitimately degrades on installs without editori.
+     */
+    private function tableExists(string $table): bool
+    {
+        if (array_key_exists($table, $this->tableCache)) {
+            return $this->tableCache[$table];
+        }
+        $exists = false;
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) AS c FROM information_schema.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('s', $table);
+                if ($stmt->execute()) {
+                    $res = $stmt->get_result();
+                    $exists = $res instanceof \mysqli_result
+                        && ((int) ($res->fetch_assoc()['c'] ?? 0)) > 0;
+                }
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca:mobile] table probe failed for ' . $table . ': ' . $e->getMessage());
+        }
+        return $this->tableCache[$table] = $exists;
+    }
+
     private function mapPeriodicalItem(array $r): array
     {
         $publisher = null;
