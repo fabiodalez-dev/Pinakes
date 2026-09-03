@@ -49,6 +49,19 @@ const log = (m) => console.log(`[seed] ${m}`);
 const browser = await chromium.launch();
 const page = await browser.newPage();
 
+// Guardia a livello di rete per l'INTERA sessione: nessuna richiesta può
+// lasciare l'origine configurata, quindi nemmeno un redirect 307/308 durante
+// il submit del login può inoltrare le credenziali a un'altra origine o a HTTP.
+await page.route('**/*', (route) => {
+  let origin = '';
+  try {
+    origin = new URL(route.request().url()).origin;
+  } catch {
+    return route.abort('blockedbyclient');
+  }
+  return origin === BASE_URL.origin ? route.continue() : route.abort('blockedbyclient');
+});
+
 async function login() {
   await page.goto(`${BASE}/accedi`);
   // Validate the final URL too: page.goto() may have followed a redirect.

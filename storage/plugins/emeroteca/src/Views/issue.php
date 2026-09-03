@@ -44,19 +44,23 @@ $pdfName = (string) ($fascicolo['pdf_nome_originale'] ?? '');
 $pdfSize = (int) ($fascicolo['pdf_dimensione'] ?? 0);
 $pdfSizeLabel = '';
 if ($pdfSize > 0) {
-    // Separatori decimali secondo la locale attiva, non hardcoded italiani.
+    // Separatori decimali secondo la locale attiva, non hardcoded italiani —
+    // anche nel fallback senza ext-intl.
     $pdfMb = $pdfSize / 1048576;
-    $sizeFormatter = class_exists(\NumberFormatter::class)
-        ? new \NumberFormatter(\App\Support\I18n::getLocale(), \NumberFormatter::DECIMAL)
-        : null;
-    if ($sizeFormatter !== null) {
+    $sizeLocale = \App\Support\I18n::getLocale();
+    [$decSep, $thouSep] = match (substr($sizeLocale, 0, 2)) {
+        'it', 'de', 'da' => [',', '.'],
+        'fr' => [',', ' '],
+        default => ['.', ','],
+    };
+    $formattedMb = false;
+    if (class_exists(\NumberFormatter::class)) {
+        $sizeFormatter = new \NumberFormatter($sizeLocale, \NumberFormatter::DECIMAL);
         $sizeFormatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, 2);
         $sizeFormatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, 2);
         $formattedMb = $sizeFormatter->format($pdfMb);
-        $pdfSizeLabel = ($formattedMb !== false ? $formattedMb : number_format($pdfMb, 2)) . ' MB';
-    } else {
-        $pdfSizeLabel = number_format($pdfMb, 2) . ' MB';
     }
+    $pdfSizeLabel = ($formattedMb !== false ? $formattedMb : number_format($pdfMb, 2, $decSep, $thouSep)) . ' MB';
 }
 $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
 ?>
