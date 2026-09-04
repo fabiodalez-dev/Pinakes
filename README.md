@@ -41,7 +41,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.77 — latest
+### v0.7.78 — latest
+
+**The Emeroteca reaches the Android app** ([PR #411](https://github.com/fabiodalez-dev/Pinakes/pull/411)): the emeroteca plugin (now 1.3.0) exposes a read-only mobile API — `/api/v1/periodicals/*` — reusing the Mobile API plugin's authentication, quota and HTTPS middleware. Mastheads with cursor pagination and search, volume years with holdings, issues with per-copy state, article-level tables of contents, and issue PDFs only when publicly enabled. The bridge is inert unless BOTH plugins are active, and the [Android app](https://github.com/fabiodalez-dev/Pinakes-Android) (from release 1.5.0) shows its new Emeroteca section only after probing the capability — no server upgrade means the section simply never appears. No core migration.
+
+### v0.7.77
 
 **New bundled plugin: Emeroteca** ([PR #410](https://github.com/fabiodalez-dev/Pinakes/pull/410)) — periodicals management for newspapers, magazines, journals, bulletins and fanzines. Catalogue *testate* (mastheads with ISSN, shared publisher registry, periodicity, masthead history), organise issues into bound or loose *annate* (volume years), track holdings with a **Kardex** workflow (generate expected issues from the periodicity, receive or mark them missing), attach covers and per-issue PDFs (public or admin-only, never edge-cached after revocation), and index articles (*spoglio*) with full-text search. A public `/emeroteca` section offers A–Z / publisher / type browsing, search, and schema.org `Periodical`/`PublicationIssue` markup. **Inactive by default** — activate from Admin → Plugins. No core migration: the plugin creates its own tables on activation.
 
