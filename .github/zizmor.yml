@@ -11,3 +11,4 @@ rules:
   adhoc-packages:
     ignore:
       - ci-quality.yml
+      - release.yml

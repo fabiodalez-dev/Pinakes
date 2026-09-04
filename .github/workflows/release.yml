@@ -55,10 +55,14 @@ jobs:
           composer validate --strict
           composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
           composer audit --no-dev --abandoned=ignore
+          # npm bundled with Node 22 POSTs the retired quick-audit endpoint;
+          # npm 11 uses the bulk one, and the wrapper distinguishes real
+          # advisories from registry outages (retry, then loud neutral).
+          npm install -g npm@11 --silent
           npm ci --silent
-          npm audit --audit-level=high
+          bash scripts/ci-npm-audit.sh .
           npm --prefix frontend ci --silent
-          npm --prefix frontend audit --audit-level=high
+          bash scripts/ci-npm-audit.sh frontend
           npm --prefix frontend run lint
           npm --prefix frontend run build
           npm run test:ci-policy
