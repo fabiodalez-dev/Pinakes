@@ -203,6 +203,15 @@ const ENDPOINTS = [
         body: () => ({ response: 'no' }) /* 'no' never hits seat gating: both 2xx */ },
     { name: 'POST /bookclub/clubs/{slug}/books/{clubBookId}/progress', method: 'POST', path: '/bookclub/clubs/{bookclubSlug}/books/{bookclubClubBookId}/progress', auth: true, kind: 'write2xx', skipIf: (c) => !c.bookclubActive || !c.bookclubClubBookId,
         body: () => ({ percent: 10 }) /* upsert: both 2xx */ },
+
+    // ── Emeroteca bridge (/api/v1/periodicals, mounted by the emeroteca plugin) ──
+    // skipIf: optional plugin — rows only run when the bridge answers (probed
+    // in beforeAll via /periodicals/health, authed) and the demo data exists.
+    { name: 'GET /periodicals/health',               method: 'GET', path: '/periodicals/health',                     auth: true, kind: 'safeGet', skipIf: (c) => !c.periodicalsActive },
+    { name: 'GET /periodicals',                      method: 'GET', path: '/periodicals',                            auth: true, kind: 'etag',    skipIf: (c) => !c.periodicalsActive },
+    { name: 'GET /periodicals/{periodicalId}',       method: 'GET', path: '/periodicals/{periodicalId}',             auth: true, kind: 'etag',    skipIf: (c) => !c.periodicalsActive || !c.periodicalId },
+    { name: 'GET /periodicals/years/{yearId}/issues', method: 'GET', path: '/periodicals/years/{periodicalYearId}/issues', auth: true, kind: 'etag', skipIf: (c) => !c.periodicalsActive || !c.periodicalYearId },
+    { name: 'GET /periodicals/issues/{issueId}',     method: 'GET', path: '/periodicals/issues/{periodicalIssueId}', auth: true, kind: 'etag',    skipIf: (c) => !c.periodicalsActive || !c.periodicalIssueId },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -398,6 +407,27 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
                     if (pollId) { ctx.bookclubPollId = pollId; ctx.bookclubOptionId = parseInt(optionId, 10); }
                     ctx.bookclubMeetingId = dbScalar(`SELECT id FROM bookclub_meetings WHERE club_id=${clubId} AND status='scheduled' AND starts_at >= NOW() ORDER BY starts_at LIMIT 1`) || undefined;
                     ctx.bookclubClubBookId = dbScalar(`SELECT id FROM bookclub_books WHERE club_id=${clubId} ORDER BY id LIMIT 1`) || undefined;
+                }
+            } catch {}
+        }
+
+        // ── Emeroteca bridge probe (optional plugin) ────────────────────────
+        // The bridge answers /periodicals/health (authed) only when both the
+        // emeroteca and mobile-api plugins are active. Fixtures come from the
+        // existing demo data; every missing piece just skips its row (skipIf).
+        ctx.periodicalsActive = false;
+        try {
+            const pHealth = await call(request, 'GET', `${API}/periodicals/health`, { token: ctx.token });
+            ctx.periodicalsActive = pHealth.status() === 200;
+        } catch {}
+        if (ctx.periodicalsActive) {
+            try {
+                ctx.periodicalId = dbScalar('SELECT id FROM emeroteca_testate ORDER BY id LIMIT 1') || undefined;
+                if (ctx.periodicalId) {
+                    ctx.periodicalYearId = dbScalar(`SELECT id FROM emeroteca_annate WHERE testata_id=${ctx.periodicalId} ORDER BY id LIMIT 1`) || undefined;
+                }
+                if (ctx.periodicalYearId) {
+                    ctx.periodicalIssueId = dbScalar(`SELECT id FROM emeroteca_fascicoli WHERE annata_id=${ctx.periodicalYearId} ORDER BY id LIMIT 1`) || undefined;
                 }
             } catch {}
         }

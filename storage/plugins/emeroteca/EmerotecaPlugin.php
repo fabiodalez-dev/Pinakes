@@ -137,6 +137,11 @@ class EmerotecaPlugin
         try {
             $this->registerHookInDb('app.routes.register', 'registerRoutes',        10);
             $this->registerHookInDb('admin.menu.render',   'renderAdminMenuEntry',  10);
+            // Documents the /api/v1/periodicals bridge inside mobile-api's
+            // /api/v1/openapi.json, so the add-endpoint => add-manifest-row
+            // guard sees the whole surface (book-club pattern). Registered via
+            // plugin_hooks ONLY — never doAction/applyFilters from onActivate.
+            $this->registerHookInDb('mobile_api.openapi',  'extendMobileOpenApi',   10);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -922,6 +927,51 @@ class EmerotecaPlugin
         ) use ($plugin, $public): ResponseInterface {
             return $plugin->dispatch($public, 'showTestata', $request, $response, $args);
         });
+
+        // ── Mobile bridge (/api/v1/periodicals, needs mobile-api) ────
+        // The module guards itself: when the mobile-api plugin is not
+        // active it mounts nothing. A bridge failure must never take the
+        // web routes of the plugin down with it.
+        try {
+            if ($this->loadMobileModule()) {
+                (new \App\Plugins\Emeroteca\Modules\MobileModule($this->db))->registerRoutes($app);
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] mobile bridge registerRoutes failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Load the mobile bridge module class (no PSR-4 scope for plugin
+     * classes — same reason dispatch() require_once's the controllers).
+     */
+    private function loadMobileModule(): bool
+    {
+        if (!class_exists(\App\Plugins\Emeroteca\Modules\MobileModule::class)) {
+            $file = __DIR__ . '/src/Modules/MobileModule.php';
+            if (is_file($file)) {
+                require_once $file;
+            }
+        }
+
+        return class_exists(\App\Plugins\Emeroteca\Modules\MobileModule::class);
+    }
+
+    /**
+     * Filter target for mobile-api's 'mobile_api.openapi' hook: appends the
+     * /api/v1/periodicals bridge paths when the bridge is actually mounted
+     * (book-club pattern — the availability re-check lives in the module).
+     *
+     * @param array<string, mixed> $doc
+     * @return array<string, mixed>
+     */
+    public function extendMobileOpenApi(array $doc): array
+    {
+        if (!$this->loadMobileModule()) {
+            return $doc;
+        }
+
+        return \App\Plugins\Emeroteca\Modules\MobileModule::extendOpenApi($doc, $this->db);
     }
 
     /**
