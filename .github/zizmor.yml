@@ -10,4 +10,8 @@
 rules:
   adhoc-packages:
     ignore:
-      - ci-quality.yml
+      # Line-pinned on purpose: if the steps move, the finding resurfaces
+      # instead of being silently masked for the whole file.
+      - ci-quality.yml:117
+      - ci-quality.yml:361
+      - release.yml:61

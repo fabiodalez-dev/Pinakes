@@ -2,9 +2,9 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [0.7.78]
+## [0.7.79]
 
-The Emeroteca reaches the Android app ([PR #411](https://github.com/fabiodalez-dev/Pinakes/pull/411)).
+The Emeroteca reaches the Android app (re-cut of the unpublished 0.7.78: its tag-triggered build died on the npm registry's retired audit endpoint before any asset was produced, and tags are immutable — same recovery as 0.7.74/0.7.75) ([PR #411](https://github.com/fabiodalez-dev/Pinakes/pull/411)).
 
 ### Added
 

@@ -114,7 +114,7 @@ jobs:
           # npm bundled with Node 22 still POSTs the retired quick-audit
           # endpoint (400 since 2026-09-04); npm 11+ talks to the bulk one.
           # Tool upgrade, not a dependency: nothing from it ships in any asset.
-          npm install -g npm@11 --silent
+          npm install -g npm@11.19.1 --silent
           npm ci --silent
           bash scripts/ci-npm-audit.sh .
 
@@ -358,7 +358,7 @@ jobs:
       - name: Install and audit locked dependencies
         run: |
           # Same retired quick-audit endpoint workaround as the root audit.
-          npm install -g npm@11 --silent
+          npm install -g npm@11.19.1 --silent
           npm ci --silent
           bash scripts/ci-npm-audit.sh .
           npm --prefix frontend ci --silent
