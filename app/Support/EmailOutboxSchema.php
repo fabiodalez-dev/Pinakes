@@ -39,8 +39,10 @@ final class EmailOutboxSchema
             // Never let compatibility DDL implicitly commit a circulation
             // transaction. Pre-migration callers simply send best-effort; the
             // installer/updater creates the table authoritatively.
-            $transaction = $db->query('SELECT @@session.in_transaction AS active')->fetch_assoc();
-            if ((int) ($transaction['active'] ?? 0) === 1) {
+            // (@@session.in_transaction is MariaDB-only: on MySQL it throws
+            // "Unknown system variable" and would poison the availability
+            // cache — use the portable autocommit + savepoint probe instead.)
+            if (self::hasActiveTransaction($db)) {
                 SecureLogger::warning('Email outbox creation deferred until outside the active transaction');
                 return false;
             }
@@ -69,5 +71,46 @@ final class EmailOutboxSchema
         }
 
         return self::$availability[$connectionId];
+    }
+
+    /**
+     * Portable active-transaction probe (MySQL + MariaDB): detects both
+     * autocommit(false) and an explicit begin_transaction() via a disposable
+     * uniquely-named savepoint — same pattern as GenereRepository.
+     */
+    private static function hasActiveTransaction(\mysqli $db): bool
+    {
+        $result = $db->query('SELECT @@autocommit AS ac');
+        if ($result instanceof \mysqli_result) {
+            $row = $result->fetch_assoc();
+            $result->free();
+            if ((int) ($row['ac'] ?? 1) === 0) {
+                return true;
+            }
+        }
+
+        $probe = 'pinakes_outbox_probe_' . bin2hex(random_bytes(6));
+        $probeCreated = false;
+        try {
+            if (!$db->query("SAVEPOINT {$probe}")) {
+                return false;
+            }
+            $probeCreated = true;
+            if (!$db->query("ROLLBACK TO SAVEPOINT {$probe}")) {
+                return false;
+            }
+            return true;
+        } catch (\mysqli_sql_exception) {
+            return false;
+        } finally {
+            if ($probeCreated) {
+                try {
+                    $db->query("RELEASE SAVEPOINT {$probe}");
+                } catch (\mysqli_sql_exception) {
+                    // The caller still owns its transaction; a failed cleanup
+                    // of the disposable probe savepoint is harmless.
+                }
+            }
+        }
     }
 }

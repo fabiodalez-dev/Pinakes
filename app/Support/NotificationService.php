@@ -34,6 +34,14 @@ class NotificationService {
         'loan_pickup_ready',
     ];
 
+    /**
+     * Righe outbox oltre questa soglia vengono scartate: senza tetto una
+     * consegna permanentemente impossibile (destinatario inesistente,
+     * variables_json corrotto) resterebbe in coda per sempre, occupando il
+     * batch e conservando dati personali a tempo indeterminato.
+     */
+    private const OUTBOX_MAX_ATTEMPTS = 10;
+
     public function __construct(mysqli $db) {
         $this->db = $db;
         $this->emailService = new EmailService($db);
@@ -2008,7 +2016,11 @@ class NotificationService {
                     2,
                     in_array(substr($locale, 0, 2), ['it', 'de', 'fr', 'da'], true) ? ',' : '.',
                     ''
-                ) . ' €',
+                    // Valuta configurata (app.currency, come i prezzi dei
+                    // libri): simbolo per EUR, codice ISO per il resto.
+                ) . (strtoupper((string) ConfigStore::get('app.currency', 'EUR')) === 'EUR'
+                    ? ' €'
+                    : ' ' . strtoupper((string) ConfigStore::get('app.currency', 'EUR'))),
             ];
 
             return $this->sendWithRetry($email, 'loan_copy_outcome', $variables);
@@ -2300,6 +2312,18 @@ class NotificationService {
             }
 
             $attempts = (int) $row['attempts'] + 1;
+            if ($attempts >= self::OUTBOX_MAX_ATTEMPTS) {
+                $drop = $this->db->prepare('DELETE FROM email_delivery_outbox WHERE id = ? AND claim_token = ?');
+                $drop->bind_param('is', $id, $token);
+                $drop->execute();
+                $drop->close();
+                SecureLogger::error('Email outbox row discarded after max attempts', [
+                    'outbox_id' => $id,
+                    'template' => (string) $row['template_name'],
+                    'attempts' => $attempts,
+                ]);
+                continue;
+            }
             $delay = min(86400, 300 * (2 ** min($attempts, 8)));
             $retryAt = gmdate('Y-m-d H:i:s', time() + $delay);
             $error = is_array($variables) ? 'delivery failed' : 'invalid variables_json';

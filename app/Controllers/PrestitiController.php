@@ -1323,8 +1323,7 @@ class PrestitiController
                    prestiti.data_prestito, prestiti.data_scadenza, prestiti.data_restituzione,
                    prestiti.stato, prestiti.note, prestiti.sanzione
             FROM prestiti
-            -- CI-SOFT-DELETE-EXEMPT: active loans on archived titles must remain returnable.
-            LEFT JOIN libri ON prestiti.libro_id = libri.id
+            LEFT JOIN libri ON prestiti.libro_id = libri.id AND libri.deleted_at IS NULL
             LEFT JOIN utenti ON prestiti.utente_id = utenti.id
             WHERE prestiti.id = ?
               AND prestiti.attivo = 1
@@ -1662,8 +1661,6 @@ class PrestitiController
             SELECT p.id
             FROM prestiti p
             JOIN copie c ON c.id = p.copia_id
-            -- CI-SOFT-DELETE-EXEMPT: barcode return must close loans for archived titles.
-            JOIN libri l ON l.id = c.libro_id
             WHERE c.numero_inventario = ?
               AND p.attivo = 1
               AND p.stato IN ('in_corso','in_ritardo')

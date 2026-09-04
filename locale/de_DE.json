@@ -7288,7 +7288,7 @@
   "Pseudonimo:": "Pseudonym:",
   "Tipologia": "Typ",
   "Tutte le tipologie": "Alle Typen",
-  "MaintenanceService errore recupero email accodate": "MaintenanceService-Fehler beim Wiederholen vorgemerkter E-Mails",
+  "MaintenanceService errore recupero email accodate": "MaintenanceService-Fehler beim Wiederholen der in der Warteschlange befindlichen E-Mails",
   "Prenotazione assegnata, in attesa di approvazione": "Vormerkung zugewiesen, Genehmigung ausstehend",
   "Inviata quando una prenotazione ottiene una copia e attende l'approvazione del prestito.": "Wird gesendet, wenn einer Vormerkung ein Exemplar zugewiesen wurde und die Ausleihgenehmigung aussteht.",
   "Copia persa o danneggiata": "Verlorenes oder beschädigtes Exemplar",

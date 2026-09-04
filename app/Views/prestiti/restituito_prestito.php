@@ -188,7 +188,7 @@ $csrfToken = Csrf::ensureToken();
                             name="sanzione"
                             type="text"
                             inputmode="decimal"
-                            value="<?= HtmlHelper::e((string) ($prestito['sanzione'] ?? '0.00')); ?>"
+                            value="<?= htmlspecialchars((string) ($prestito['sanzione'] ?? '0.00'), ENT_QUOTES, 'UTF-8'); ?>"
                             pattern="(?:0|[1-9][0-9]{0,7})(?:[.,][0-9]{1,2})?"
                             class="w-full rounded-lg border-2 border-gray-300 bg-white py-3 pl-9 pr-4 text-gray-900 focus:border-gray-900 focus:outline-none"
                         >

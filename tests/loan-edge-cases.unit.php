@@ -91,7 +91,10 @@ $db->set_charset('utf8mb4');
 // which disagrees with app.timezone between 22:00 and 24:00 UTC.
 \App\Support\DateHelper::synchronizeDatabaseSession($db);
 $edgeSettings = new SettingsRepository($db);
-$originalMaxActiveLoans = $edgeSettings->get('loans', 'max_active_loans_per_user', '0');
+// Preserva l'ASSENZA della riga, non solo il valore: get() con default '0'
+// non distingue "riga assente" da "riga = 0", e il cleanup creerebbe una
+// riga persistente alterando lo stato osservato dai test successivi.
+$originalMaxActiveLoans = $edgeSettings->get('loans', 'max_active_loans_per_user');
 
 /* --------------------------------------------------------------------------
  * Markers + cleanup
@@ -124,11 +127,12 @@ function cleanup(mysqli $db): void
     $db->query("DELETE FROM copie WHERE numero_inventario LIKE 'ZZLE-%'");
     $db->query("DELETE FROM libri WHERE titolo LIKE 'ZZ_LOANEDGE_%'");
     $db->query("DELETE FROM utenti WHERE email LIKE 'zzloanedge+%@test.local'");
-    (new SettingsRepository($db))->set(
-        'loans',
-        'max_active_loans_per_user',
-        (string) ($originalMaxActiveLoans ?? '0')
-    );
+    $restoreSettings = new SettingsRepository($db);
+    if ($originalMaxActiveLoans === null) {
+        $restoreSettings->delete('loans', 'max_active_loans_per_user');
+    } else {
+        $restoreSettings->set('loans', 'max_active_loans_per_user', (string) $originalMaxActiveLoans);
+    }
 }
 
 // Single, intentional exit point. On any failure (assertion throw or DB error)
@@ -631,12 +635,14 @@ $ua = mkUser();
 $ub = mkUser();
 $today = date('Y-m-d');
 $end = date('Y-m-d', strtotime('+1 day'));
-foreach ([$ua, $ub] as $uu) {
+// Posizioni in coda DISTINTE: il trigger 0.7.80 rifiuta due prenotazioni
+// attive sulla stessa posizione (lo scenario qui è il clamp, non il duplicato).
+foreach ([1 => $ua, 2 => $ub] as $pos => $uu) {
     $st = $db->prepare(
         "INSERT INTO prenotazioni (libro_id, utente_id, data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, stato, queue_position)
-         VALUES (?, ?, ?, ?, ?, 'attiva', 1)"
+         VALUES (?, ?, ?, ?, ?, 'attiva', ?)"
     );
-    $st->bind_param('iisss', $b, $uu, $today, $end, $end);
+    $st->bind_param('iisssi', $b, $uu, $today, $end, $end, $pos);
     $st->execute();
     $st->close();
 }
@@ -1027,7 +1033,11 @@ assertEq(true, $capPromoted, 'promotion scans past a patron at the active-loan c
 assertEq('attiva', $atCapState, 'at-cap reservation retains its FIFO identity for later recovery');
 assertEq('completata', $underCapState, 'next eligible reservation is completed');
 assertEq($capCopy, $underCapCopy, 'eligible reader receives the physical copy');
-$edgeSettings->set('loans', 'max_active_loans_per_user', (string) ($originalMaxActiveLoans ?? '0'));
+if ($originalMaxActiveLoans === null) {
+    $edgeSettings->delete('loans', 'max_active_loans_per_user');
+} else {
+    $edgeSettings->set('loans', 'max_active_loans_per_user', (string) $originalMaxActiveLoans);
+}
 pass('reservations: active-loan cap pauses a row without head-of-line blocking');
 
 // 67: eligibility is checked again when a scheduled loan reaches its start.

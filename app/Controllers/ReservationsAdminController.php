@@ -644,6 +644,19 @@ class ReservationsAdminController
         }
         $stmt->close();
 
+        // Two-phase move (stesso pattern di ReservationManager): prima le
+        // righe attive vanno su posizioni temporanee fuori intervallo, poi
+        // si assegnano le posizioni finali — il trigger BEFORE UPDATE
+        // rifiuta i duplicati riga per riga durante il riordino.
+        $shiftStmt = $db->prepare("
+            UPDATE prenotazioni
+            SET queue_position = queue_position + 1000000
+            WHERE libro_id = ? AND stato = 'attiva' AND queue_position IS NOT NULL
+        ");
+        $shiftStmt->bind_param('i', $libroId);
+        $shiftStmt->execute();
+        $shiftStmt->close();
+
         $position = 1;
         $updateStmt = $db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
         foreach ($ids as $reservationId) {

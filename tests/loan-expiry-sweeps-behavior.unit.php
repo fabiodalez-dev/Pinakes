@@ -178,6 +178,11 @@ $stmt->close();
 // ═════════ Fixture C: promoted reservation never approved before window end ═════════
 [$bookC, [$copyC]] = $makeBook('C', 1);
 [$userC] = $makeUser('c');
+// La copia parte OCCUPATA (prenotato, disponibili=0): lo sweep libera solo
+// copie in stato 'prenotato', quindi senza questo setup l'assert passerebbe
+// anche se la liberazione non avvenisse mai.
+$db->query("UPDATE copie SET stato = 'prenotato' WHERE id = {$copyC}");
+$db->query("UPDATE libri SET copie_disponibili = 0 WHERE id = {$bookC}");
 $stmt = $db->prepare(
     "INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
      VALUES (?, ?, ?, ?, ?, 'pendente', 'prenotazione', 0)"

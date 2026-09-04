@@ -1098,26 +1098,44 @@ class DataIntegrity {
                 // MySQL 8 / MariaDB 10.3+. Leggiamo le righe ordinate e riscriviamo
                 // queue_position con un loop esplicito.
                 $sel = $this->db->prepare("
-                    SELECT id FROM prenotazioni
+                    SELECT id, queue_position FROM prenotazioni
                     WHERE libro_id = ? AND stato = 'attiva'
                     ORDER BY queue_position ASC, id ASC
                 ");
                 $sel->bind_param('i', $bookId);
                 $sel->execute();
                 $rowsRes = $sel->get_result();
-                $ids = [];
+                $rows = [];
                 while ($r = $rowsRes->fetch_assoc()) {
-                    $ids[] = (int) $r['id'];
+                    $rows[] = ['id' => (int) $r['id'], 'pos' => $r['queue_position'] === null ? null : (int) $r['queue_position']];
                 }
                 $sel->close();
 
+                // Two-phase move (stesso pattern di ReservationManager): prima le
+                // righe attive vanno su posizioni temporanee fuori intervallo, poi
+                // si assegnano le posizioni finali — il trigger BEFORE UPDATE
+                // rifiuta i duplicati riga per riga durante il riordino.
+                $shiftStmt = $this->db->prepare("
+                    UPDATE prenotazioni
+                    SET queue_position = queue_position + 1000000
+                    WHERE libro_id = ? AND stato = 'attiva' AND queue_position IS NOT NULL
+                ");
+                $shiftStmt->bind_param('i', $bookId);
+                $shiftStmt->execute();
+                $shiftStmt->close();
+
                 $pos = 0;
                 $upd = $this->db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
-                foreach ($ids as $id) {
+                foreach ($rows as $row) {
                     $pos++;
-                    $upd->bind_param('ii', $pos, $id);
+                    $upd->bind_param('ii', $pos, $row['id']);
                     $upd->execute();
-                    $results['fixed'] += $this->db->affected_rows;
+                    // Conta come "fixed" solo le righe la cui posizione finale
+                    // differisce da quella originale (lo shift temporaneo tocca
+                    // sempre tutte le righe e falserebbe il conteggio).
+                    if ($row['pos'] !== $pos) {
+                        $results['fixed']++;
+                    }
                 }
                 $upd->close();
             }
