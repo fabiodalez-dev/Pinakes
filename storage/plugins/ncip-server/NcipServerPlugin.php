@@ -2131,14 +2131,27 @@ class NcipServerPlugin
                     // intervallo, poi si assegnano le posizioni finali — il
                     // trigger BEFORE UPDATE rifiuta i duplicati riga per riga
                     // durante il riordino.
-                    $shiftStmt = $this->db->prepare(
-                        "UPDATE prenotazioni
-                            SET queue_position = queue_position + 1000000
-                          WHERE libro_id = ? AND stato = 'attiva' AND queue_position IS NOT NULL"
+                    // Offset DINAMICO: un offset fisso può collidere con
+                    // posizioni residue già oltre l'offset; deve superare sia
+                    // il MAX attivo sia l'ultima posizione finale assegnata
+                    // (righe NULL incluse in N).
+                    $maxStmt = $this->db->prepare(
+                        "SELECT COALESCE(MAX(queue_position), 0) FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'"
                     );
-                    $shiftStmt->bind_param('i', $bookId);
-                    $shiftStmt->execute();
-                    $shiftStmt->close();
+                    $maxStmt->bind_param('i', $bookId);
+                    $maxStmt->execute();
+                    $offset = max((int) $maxStmt->get_result()->fetch_row()[0], (int) $rows->num_rows);
+                    $maxStmt->close();
+                    if ($offset > 0) {
+                        $shiftStmt = $this->db->prepare(
+                            "UPDATE prenotazioni
+                                SET queue_position = queue_position + ?
+                              WHERE libro_id = ? AND stato = 'attiva' AND queue_position IS NOT NULL"
+                        );
+                        $shiftStmt->bind_param('ii', $offset, $bookId);
+                        $shiftStmt->execute();
+                        $shiftStmt->close();
+                    }
 
                     $position = 1;
                     $setPosition = $this->db->prepare(

@@ -648,24 +648,47 @@ class ReservationManager
         // Two-phase move avoids transient duplicate positions regardless of
         // MySQL's row-update order; the DB trigger enforces uniqueness among
         // active queue rows on every individual row transition.
+        // Offset DINAMICO (MAX attivo): un offset fisso può collidere con
+        // posizioni residue già oltre l'offset (run interrotti/dati sporchi);
+        // pos + MAX è sempre > MAX, quindi sopra ogni posizione esistente.
+        $offset = $this->maxActiveQueuePosition((int) $bookId);
+        if ($offset <= 0) {
+            return; // nessuna posizione attiva da spostare
+        }
         $stmt = $this->db->prepare("
             UPDATE prenotazioni
-            SET queue_position = queue_position + 1000000
+            SET queue_position = queue_position + ?
             WHERE libro_id = ? AND stato = 'attiva' AND queue_position > ?
         ");
-        $stmt->bind_param('ii', $bookId, $completedPosition);
+        $stmt->bind_param('iii', $offset, $bookId, $completedPosition);
         $stmt->execute();
         $stmt->close();
 
-        $threshold = $completedPosition + 1000000;
+        $threshold = $completedPosition + $offset;
+        $decrement = $offset + 1;
         $stmt = $this->db->prepare("
             UPDATE prenotazioni
-            SET queue_position = queue_position - 1000001
+            SET queue_position = queue_position - ?
             WHERE libro_id = ? AND stato = 'attiva' AND queue_position > ?
         ");
-        $stmt->bind_param('ii', $bookId, $threshold);
+        $stmt->bind_param('iii', $decrement, $bookId, $threshold);
         $stmt->execute();
         $stmt->close();
+    }
+
+    /**
+     * Highest queue_position among the book's active reservations (0 if none).
+     * Read inside the caller's transaction: it is the collision-free base for
+     * the temporary shift offsets used by the queue reorder paths.
+     */
+    private function maxActiveQueuePosition(int $bookId): int
+    {
+        $stmt = $this->db->prepare("SELECT COALESCE(MAX(queue_position), 0) FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $max = (int) $stmt->get_result()->fetch_row()[0];
+        $stmt->close();
+        return $max;
     }
 
     /**
@@ -1145,15 +1168,23 @@ class ReservationManager
         }
         $sel->close();
 
+        // Offset DINAMICO: un offset fisso può collidere con posizioni residue
+        // già oltre l'offset. Deve superare sia il MAX attivo (fase di shift)
+        // sia l'ultima posizione finale assegnata (con righe NULL, N può
+        // superare il MAX e raggiungere la zona temporanea).
+        $offset = max($this->maxActiveQueuePosition((int) $bookId), count($ids));
+        if ($offset > 0) {
+            $shift = $this->db->prepare("
+                UPDATE prenotazioni
+                SET queue_position = queue_position + ?
+                WHERE libro_id = ? AND stato = 'attiva' AND queue_position IS NOT NULL
+            ");
+            $shift->bind_param('ii', $offset, $bookId);
+            $shift->execute();
+            $shift->close();
+        }
+
         $pos = 0;
-        $shift = $this->db->prepare("
-            UPDATE prenotazioni
-            SET queue_position = queue_position + 1000000
-            WHERE libro_id = ? AND stato = 'attiva' AND queue_position IS NOT NULL
-        ");
-        $shift->bind_param('i', $bookId);
-        $shift->execute();
-        $shift->close();
 
         $upd = $this->db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
         foreach ($ids as $id) {
