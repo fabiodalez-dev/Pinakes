@@ -53,7 +53,7 @@ $periodicitaLabels = [
     'irregolare'   => __('Irregolare'),
 ];
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
 <div id="emeroteca-admin-form" class="emeroteca-admin emeroteca-admin--form">
     <div class="emt-page-header">
         <div>

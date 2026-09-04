@@ -5,7 +5,7 @@
  */
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3'), ENT_QUOTES, 'UTF-8') ?>">
+<link rel="stylesheet" href="<?= htmlspecialchars(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4'), ENT_QUOTES, 'UTF-8') ?>">
 <main class="container emeroteca-public">
     <div class="emeroteca-notice" role="alert">
         <strong><?= __('Contenuto non trovato') ?></strong>

@@ -64,7 +64,7 @@ if ($pdfSize > 0) {
 }
 $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
 <div class="emeroteca-admin emeroteca-admin--form">
     <header class="emt-page-header">
         <nav aria-label="breadcrumb" class="text-sm text-gray-500 mb-4">
