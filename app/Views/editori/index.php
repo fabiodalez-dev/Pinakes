@@ -7,26 +7,30 @@ $editori = $data['editori'];
 ?>
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Header -->
-    <div class="mb-6">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <nav class="flex items-center text-sm text-gray-500 mb-2">
-            <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
-            <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
-            <span class="text-gray-900 font-medium"><?= __("Editori") ?></span>
-          </nav>
-          <h1 class="text-3xl font-bold text-gray-900"><?= __("Editori") ?></h1>
-          <p class="mt-1 text-sm text-gray-600"><?= __("Gestisci le case editrici e i relativi contatti") ?></p>
-          <span id="total-badge" class="status-badge bg-gray-100 text-gray-700 mt-3"></span>
-        </div>
-        <div class="flex items-center gap-2">
-          <a href="<?= htmlspecialchars(url('/admin/publishers/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary">
-            <i class="fas fa-plus mr-2"></i><?= __("Nuovo Editore") ?>
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="flex items-center gap-2 text-sm text-gray-500">
+        <li>
+          <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-gray-700" aria-label="<?= __('Home') ?>">
+            <i class="fas fa-home" aria-hidden="true"></i>
           </a>
-        </div>
+        </li>
+        <li><i class="fas fa-chevron-right text-xs text-gray-400" aria-hidden="true"></i></li>
+        <li class="font-medium text-gray-900" aria-current="page"><?= __("Editori") ?></li>
+      </ol>
+    </nav>
+
+    <!-- Header -->
+    <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div class="min-w-0">
+        <h1 class="text-3xl font-bold text-gray-900"><?= __("Editori") ?></h1>
+        <p class="mt-1 text-sm text-gray-600"><?= __("Gestisci le case editrici e i relativi contatti") ?></p>
+        <span id="total-badge" class="status-badge mt-3 bg-gray-100 text-gray-700"></span>
       </div>
-    </div>
+      <a href="<?= htmlspecialchars(url('/admin/publishers/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary self-start sm:self-auto">
+        <i class="fas fa-plus mr-2" aria-hidden="true"></i><?= __("Nuovo Editore") ?>
+      </a>
+    </header>
 
     <!-- Main Card with Integrated Filters -->
     <div class="card entity-list-card">
