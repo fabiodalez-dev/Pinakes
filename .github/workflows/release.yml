@@ -58,7 +58,7 @@ jobs:
           # npm bundled with Node 22 POSTs the retired quick-audit endpoint;
           # npm 11 uses the bulk one, and the wrapper distinguishes real
           # advisories from registry outages (retry, then loud neutral).
-          npm install -g npm@11 --silent
+          npm install -g npm@11.19.1 --silent
           npm ci --silent
           bash scripts/ci-npm-audit.sh .
           npm --prefix frontend ci --silent
