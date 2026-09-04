@@ -1,0 +1,13 @@
+# zizmor configuration (picked up automatically by zizmor-action).
+#
+# adhoc-packages is ignored ONLY for ci-quality.yml: its two npm-audit
+# steps upgrade the runner's npm to v11 before auditing, because the npm
+# registry retired the quick-audit endpoint the npm bundled with Node 22
+# still uses (permanent 400 since 2026-09-04). This is a tool upgrade on
+# an ephemeral runner — nothing installed there ships in any asset, and
+# the built assets' reproducibility is still enforced by the dedicated
+# "vendor assets are reproducible" and release double-build checks.
+rules:
+  adhoc-packages:
+    ignore:
+      - ci-quality.yml

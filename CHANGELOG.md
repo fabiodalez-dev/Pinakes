@@ -2,6 +2,14 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.78]
+
+The Emeroteca reaches the Android app ([PR #411](https://github.com/fabiodalez-dev/Pinakes/pull/411)).
+
+### Added
+
+- **Periodicals mobile bridge.** The emeroteca plugin (1.2.3 → 1.3.0) mounts five read-only endpoints under `/api/v1/periodicals/*`, mirroring the book-club bridge pattern: inert when the Mobile API plugin is inactive, nonexistent when emeroteca is inactive, and reusing the Mobile API authentication, token-quota and HTTPS middleware. Mastheads (keyset cursor, search over title/subtitle/ISSN, type filter with 422 on invalid values, shared-publisher join guarded for degraded installs without the optional `editori` table), volume years with derived holdings, issues with per-copy state and `has_public_pdf`, issue detail with the article-level table of contents. The PDF URL is exposed only when the per-issue public flag is on, always via the public streaming route — internal paths, notes and inventory numbers are never serialized. ETag/304 on every read endpoint; OpenAPI contributed through the `mobile_api.openapi` filter; one manifest row per endpoint in the idempotency spec. The plugin version bump re-runs activation on already-active installs so the new hook lands without manual steps. The companion Android release (1.5.0) gates its new Emeroteca section on the `/periodicals/health` probe.
+
 ## [0.7.77]
 
 A feature release: a new bundled plugin for periodicals, a CSP opening for remote media backed by new guards, and a broad UI/hardening pass ([PR #410](https://github.com/fabiodalez-dev/Pinakes/pull/410)).

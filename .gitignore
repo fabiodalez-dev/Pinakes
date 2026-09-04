@@ -394,6 +394,7 @@ traduzione_stringhe.md
 .github/*
 !.github/workflows/
 !.github/codeql/
+!.github/zizmor.yml
 vendor/**/.github/
 **/.gitkeep
 
