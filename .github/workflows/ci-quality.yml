@@ -111,6 +111,9 @@ jobs:
 
       - name: npm audit (known CVEs)
         run: |
+          # npm bundled with Node 22 still POSTs the retired quick-audit
+          # endpoint (400/503 since 2026-09-04); npm 11+ uses the bulk one.
+          npm install -g npm@11 --silent
           npm ci --silent
           npm audit --audit-level=high 2>&1 || { echo "⚠ npm audit: high/critical vulnerabilities found"; exit 1; }
 
@@ -353,6 +356,8 @@ jobs:
             frontend/package-lock.json
       - name: Install and audit locked dependencies
         run: |
+          # Same retired quick-audit endpoint workaround as the root audit.
+          npm install -g npm@11 --silent
           npm ci --silent
           npm audit --audit-level=high
           npm --prefix frontend ci --silent
