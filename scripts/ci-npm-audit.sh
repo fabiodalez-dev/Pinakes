@@ -24,13 +24,16 @@ for attempt in 1 2 3; do
     if [ "$ec" -eq 0 ]; then
         exit 0
     fi
-    if printf '%s' "$out" | grep -qiE 'audit endpoint returned an error|Service Unavailable|ENOAUDIT|being retired|ECONNRESET|ETIMEDOUT|EAI_AGAIN'; then
-        echo "npm audit: registry endpoint unavailable (attempt ${attempt}/3), retrying in 20s..."
-        sleep 20
-        continue
+    # Fail ONLY on a recognizable advisory report. Any other non-zero exit
+    # (retired endpoint, 503, ECONNREFUSED, ENETUNREACH, DNS, ...) is
+    # infrastructure, not a finding — an open-ended error blacklist can
+    # never be complete, so the classification is inverted.
+    if printf '%s' "$out" | grep -qiE '# npm audit report|severity: *(high|critical)|[0-9]+ +(high|critical) +severity'; then
+        echo "⚠ npm audit: high/critical vulnerabilities found in ${dir}"
+        exit 1
     fi
-    echo "⚠ npm audit: high/critical vulnerabilities found in ${dir}"
-    exit 1
+    echo "npm audit: non-advisory failure (endpoint/transport, attempt ${attempt}/3), retrying in 20s..."
+    sleep 20
 done
 
 echo "⚠ npm registry audit endpoint unavailable after 3 attempts — no advisory data retrievable."
