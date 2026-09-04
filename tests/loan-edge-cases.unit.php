@@ -17,7 +17,7 @@ declare(strict_types=1);
  *   - installer/database/triggers.sql (copy-occupancy invariants)
  *
  * Run:   php tests/loan-edge-cases.unit.php
- * Exit:  0 only if all 66 pass; prints "ALL 66 PASS".
+ * Exit:  0 only if all 68 pass; prints "ALL 68 PASS".
  */
 
 use App\Models\CopyRepository;
@@ -698,7 +698,7 @@ assertEq('disponibile', bookStato($b), 'recalc overwrites manually-wrong libri.s
 pass('misc: libri.stato is derived (recalc overwrites wrong value)');
 
 /* ==========================================================================
- * 53-66  Canonical capacity, schedules, integrity, calendars and reservation queues
+ * 53-68  Canonical capacity, schedules, integrity, calendars and reservation queues
  * ====================================================================== */
 // 53: an unreturned overdue loan is open-ended for future capacity decisions.
 $b = mkBook('capacity_overdue_open');

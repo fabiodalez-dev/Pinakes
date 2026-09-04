@@ -1222,11 +1222,12 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
   // ── Test 21: Expired reservation via maintenance → stato='scaduto' ────────
   test('F.21: expired prenotazione (data_scadenza past) → maintenance marks it scaduto (+ email if Mailpit)', async () => {
     // checkExpiredReservations looks for: stato='prenotato' AND attivo=1 AND data_scadenza < today
-    // activateScheduledLoans looks for: stato='prenotato' AND data_prestito <= today → da_ritirare
-    // To avoid the activation competing, set data_prestito to a FUTURE date (loan hasn't started)
-    // but data_scadenza to the past (it has conceptually expired without being used).
+    // Valid, fully-past window: the 0.7.80 trigger rejects data_prestito >
+    // data_scadenza, and the old future-start hack is unnecessary anyway —
+    // MaintenanceService runs the expiry sweeps BEFORE activateScheduledLoans,
+    // so the row is marked scaduto before activation could ever touch it.
     const pastScadenza = dateISO(-5);
-    const futurePrestito = dateISO(+30); // future start date → activateScheduledLoans won't touch it
+    const futurePrestito = dateISO(-10); // past start < past scadenza → trigger-valid
 
     const copiaRaw21 = dbQuery(`SELECT id FROM copie WHERE libro_id=${testBookId} AND stato='disponibile' LIMIT 1`);
     const copia21 = copiaRaw21 ? parseInt(copiaRaw21, 10) : null;
