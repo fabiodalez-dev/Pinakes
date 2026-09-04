@@ -7287,5 +7287,17 @@
   "Importa / esporta": "Importer / exporter",
   "Pseudonimo:": "Pseudonyme :",
   "Tipologia": "Type",
-  "Tutte le tipologie": "Tous les types"
+  "Tutte le tipologie": "Tous les types",
+  "MaintenanceService errore recupero email accodate": "Erreur de récupération des e-mails en attente dans MaintenanceService",
+  "Prenotazione assegnata, in attesa di approvazione": "Réservation attribuée, en attente d'approbation",
+  "Inviata quando una prenotazione ottiene una copia e attende l'approvazione del prestito.": "Envoyé lorsqu'un exemplaire est attribué à une réservation en attente d'approbation du prêt.",
+  "Copia persa o danneggiata": "Exemplaire perdu ou endommagé",
+  "Inviata quando un prestito viene chiuso dichiarando la copia persa o danneggiata.": "Envoyé lorsqu'un prêt est clôturé en déclarant l'exemplaire perdu ou endommagé.",
+  "Data di chiusura del prestito": "Date de clôture du prêt",
+  "Esito registrato per la copia fisica": "Résultat enregistré pour l'exemplaire physique",
+  "Note registrate dall'operatore": "Notes enregistrées par l'opérateur",
+  "Importo addebitato per la copia": "Montant facturé pour l'exemplaire",
+  "Importo non valido: usa un valore positivo con al massimo due decimali.": "Montant non valide : utilisez une valeur positive avec deux décimales au maximum.",
+  "Importo addebitato": "Montant facturé",
+  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Facultatif ; enregistré et communiqué pour les exemplaires perdus ou endommagés."
 }

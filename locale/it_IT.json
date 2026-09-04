@@ -7287,5 +7287,17 @@
   "Importa / esporta": "Importa / esporta",
   "Pseudonimo:": "Pseudonimo:",
   "Tipologia": "Tipologia",
-  "Tutte le tipologie": "Tutte le tipologie"
+  "Tutte le tipologie": "Tutte le tipologie",
+  "MaintenanceService errore recupero email accodate": "MaintenanceService errore recupero email accodate",
+  "Prenotazione assegnata, in attesa di approvazione": "Prenotazione assegnata, in attesa di approvazione",
+  "Inviata quando una prenotazione ottiene una copia e attende l'approvazione del prestito.": "Inviata quando una prenotazione ottiene una copia e attende l'approvazione del prestito.",
+  "Copia persa o danneggiata": "Copia persa o danneggiata",
+  "Inviata quando un prestito viene chiuso dichiarando la copia persa o danneggiata.": "Inviata quando un prestito viene chiuso dichiarando la copia persa o danneggiata.",
+  "Data di chiusura del prestito": "Data di chiusura del prestito",
+  "Esito registrato per la copia fisica": "Esito registrato per la copia fisica",
+  "Note registrate dall'operatore": "Note registrate dall'operatore",
+  "Importo addebitato per la copia": "Importo addebitato per la copia",
+  "Importo non valido: usa un valore positivo con al massimo due decimali.": "Importo non valido: usa un valore positivo con al massimo due decimali.",
+  "Importo addebitato": "Importo addebitato",
+  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Facoltativo; viene registrato e comunicato per copie perse o danneggiate."
 }

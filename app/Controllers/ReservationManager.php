@@ -160,6 +160,8 @@ class ReservationManager
         // App-timezone "today" (not PHP UTC) so MySQL-stored dates and the
         // eligibility comparison agree across the midnight boundary (#157).
         $today = \App\Support\DateHelper::today();
+        $maxLoans = max(0, (int) ((new \App\Models\SettingsRepository($this->db))
+            ->get('loans', 'max_active_loans_per_user', '0') ?? 0));
         $ownTransaction = $this->beginTransactionIfNeeded();
 
         try {
@@ -207,20 +209,32 @@ class ReservationManager
                 WHERE r.libro_id = ? AND r.stato = 'attiva'
                 AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
                 AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
+                AND (? <= 0 OR (
+                    SELECT COUNT(*)
+                    FROM prestiti cap
+                    WHERE cap.utente_id = r.utente_id
+                      AND cap.attivo = 1
+                      AND cap.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
+                ) < ?)
                 ORDER BY r.queue_position ASC
                 LIMIT 1
                 FOR UPDATE
             ");
-            $stmt->bind_param('isss', $bookId, $today, $today, $today);
+            $stmt->bind_param('isssii', $bookId, $today, $today, $today, $maxLoans, $maxLoans);
             $stmt->execute();
             $result = $stmt->get_result();
             $nextReservation = $result ? $result->fetch_assoc() : null;
             $stmt->close();
 
             if ($nextReservation !== null) {
+                $promotedUserId = (int) $nextReservation['utente_id'];
+                $userLock = $this->db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
+                $userLock->bind_param('i', $promotedUserId);
+                $userLock->execute();
+                $userLock->close();
                 $eligibilityError = \App\Support\LoanEligibility::checkUser(
                     $this->db,
-                    (int) $nextReservation['utente_id']
+                    $promotedUserId
                 );
                 if ($eligibilityError !== null) {
                     \App\Support\SecureLogger::info('Promozione prenotazione saltata: utente non idoneo', [
@@ -230,6 +244,23 @@ class ReservationManager
                         'motivo' => $eligibilityError,
                     ]);
                     $nextReservation = null;
+                } elseif ($maxLoans > 0) {
+                    // The SQL predicate avoids head-of-line blocking; this
+                    // second check under the user lock closes the race with
+                    // approvals for other books.
+                    $countStmt = $this->db->prepare("
+                        SELECT COUNT(*) AS c
+                        FROM prestiti
+                        WHERE utente_id = ? AND attivo = 1
+                          AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
+                    ");
+                    $countStmt->bind_param('i', $promotedUserId);
+                    $countStmt->execute();
+                    $activeCount = (int) ($countStmt->get_result()->fetch_assoc()['c'] ?? 0);
+                    $countStmt->close();
+                    if ($activeCount >= $maxLoans) {
+                        $nextReservation = null;
+                    }
                 }
             }
 
@@ -614,19 +645,33 @@ class ReservationManager
      */
     private function updateQueuePositions($bookId, int $completedPosition)
     {
+        // Two-phase move avoids transient duplicate positions regardless of
+        // MySQL's row-update order; the DB trigger enforces uniqueness among
+        // active queue rows on every individual row transition.
         $stmt = $this->db->prepare("
             UPDATE prenotazioni
-            SET queue_position = queue_position - 1
+            SET queue_position = queue_position + 1000000
             WHERE libro_id = ? AND stato = 'attiva' AND queue_position > ?
         ");
         $stmt->bind_param('ii', $bookId, $completedPosition);
         $stmt->execute();
+        $stmt->close();
+
+        $threshold = $completedPosition + 1000000;
+        $stmt = $this->db->prepare("
+            UPDATE prenotazioni
+            SET queue_position = queue_position - 1000001
+            WHERE libro_id = ? AND stato = 'attiva' AND queue_position > ?
+        ");
+        $stmt->bind_param('ii', $bookId, $threshold);
+        $stmt->execute();
+        $stmt->close();
     }
 
     /**
      * Send notification email when reservation book becomes available
      *
-     * Sends the 'reservation_book_available' email template to the user.
+     * Sends the truthful 'reservation_awaiting_approval' email template.
      * Updates the notifica_inviata flag only on successful send.
      *
      * @param array{id: int, libro_id: int, email: string, nome: string, cognome: string, data_inizio_richiesta: string, data_fine_richiesta: string} $reservation Reservation data with user info
@@ -1101,6 +1146,15 @@ class ReservationManager
         $sel->close();
 
         $pos = 0;
+        $shift = $this->db->prepare("
+            UPDATE prenotazioni
+            SET queue_position = queue_position + 1000000
+            WHERE libro_id = ? AND stato = 'attiva' AND queue_position IS NOT NULL
+        ");
+        $shift->bind_param('i', $bookId);
+        $shift->execute();
+        $shift->close();
+
         $upd = $this->db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
         foreach ($ids as $id) {
             $pos++;

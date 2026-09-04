@@ -270,6 +270,14 @@ return [
 <p>We hope you enjoyed the read. See you soon at the library!</p>
 <p>Best regards,<br>The library team</p>',
     ],
+    'loan_copy_outcome' => [
+        'subject' => '⚠️ Update about your borrowed copy',
+        'body' => '<h2>Loan update</h2><p>Hi {{utente_nome}},</p><p>The loan below was closed with an outcome concerning the physical copy:</p><div style="background-color:#fff7ed;padding:15px;border-left:4px solid #f59e0b"><p><strong>Book:</strong> {{libro_titolo}}</p><p><strong>Outcome:</strong> {{esito_copia}}</p><p><strong>Closed on:</strong> {{data_chiusura}}</p><p><strong>Notes:</strong> {{note}}</p><p><strong>Recorded charge:</strong> {{sanzione}}</p></div><p>Please contact the library if you have any questions.</p>',
+    ],
+    'reservation_awaiting_approval' => [
+        'subject' => '📚 Copy assigned — wait for pickup confirmation',
+        'body' => '<h2>A copy has been assigned to your reservation</h2><p>Hi {{utente_nome}},</p><p>Your reservation reached the front of the queue and a copy has been allocated for {{data_inizio}} - {{data_fine}}.</p><p><strong>Book:</strong> {{libro_titolo}} — {{libro_autore}} ({{libro_isbn}})</p><div style="background-color:#fef3c7;padding:15px;border-left:4px solid #f59e0b"><p><strong>Please do not visit the library yet.</strong></p><p>The request still needs approval. We will send another email with the pickup deadline when the book is ready.</p></div><p><a href="{{book_url}}">View book</a> · <a href="{{profile_url}}">My loans</a></p>',
+    ],
     'reservation_book_available' => [
         'subject' => '📚 Your reserved book is ready for pickup!',
         'body' => '<h2>Your book is ready for pickup!</h2>

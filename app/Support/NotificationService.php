@@ -23,6 +23,17 @@ class NotificationService {
      */
     private bool $notificationColumnsEnsured = false;
 
+    /** Templates already backed by their own durable sent/claim state. */
+    private const DEDICATED_RETRY_TEMPLATES = [
+        'loan_expiring_warning',
+        'loan_overdue_notification',
+        'loan_recall_notification',
+        'wishlist_book_available',
+        'reservation_book_available',
+        'reservation_awaiting_approval',
+        'loan_pickup_ready',
+    ];
+
     public function __construct(mysqli $db) {
         $this->db = $db;
         $this->emailService = new EmailService($db);
@@ -1896,7 +1907,10 @@ class NotificationService {
      * Send reservation book available notification
      */
     public function sendReservationBookAvailable(string $email, array $variables): bool {
-        return $this->sendWithRetry($email, 'reservation_book_available', $variables);
+        // Promotion creates a pending request; it is not yet collectible. Use a
+        // distinct template so legacy/custom "ready for pickup" text cannot send
+        // the reader to the library before an administrator approves the loan.
+        return $this->sendWithRetry($email, 'reservation_awaiting_approval', $variables);
     }
 
     /**
@@ -1937,6 +1951,69 @@ class NotificationService {
             return $this->sendWithRetry($loan['utente_email'], 'loan_returned', $variables);
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan returned notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /** Notify the borrower when a loan is closed as lost or damaged. */
+    public function sendLoanCopyOutcomeNotification(int $loanId): bool
+    {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.stato, p.data_restituzione, p.note, p.sanzione,
+                       l.titolo AS libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
+                       u.email AS utente_email
+                FROM prestiti p
+                -- CI-SOFT-DELETE-EXEMPT: terminal outcome notices include archived titles.
+                JOIN libri l ON l.id = p.libro_id
+                JOIN utenti u ON u.id = p.utente_id
+                WHERE p.id = ? AND p.stato IN ('perso','danneggiato')
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $loan = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$loan || empty($loan['utente_email'])) {
+                return false;
+            }
+
+            $email = (string) $loan['utente_email'];
+            $locale = $this->resolveRecipientLocale($email);
+            $language = substr($locale, 0, 2);
+            $amount = (float) ($loan['sanzione'] ?? 0);
+            $outcomes = [
+                'it' => ['perso' => 'Perso', 'danneggiato' => 'Danneggiato'],
+                'en' => ['perso' => 'Lost', 'danneggiato' => 'Damaged'],
+                'de' => ['perso' => 'Verloren', 'danneggiato' => 'Beschädigt'],
+                'fr' => ['perso' => 'Perdu', 'danneggiato' => 'Endommagé'],
+                'da' => ['perso' => 'Bortkommet', 'danneggiato' => 'Beskadiget'],
+            ];
+            $noNotes = ['it' => 'Nessuna', 'en' => 'None', 'de' => 'Keine', 'fr' => 'Aucune', 'da' => 'Ingen'];
+            $variables = [
+                'utente_nome' => (string) $loan['utente_nome'],
+                'libro_titolo' => (string) $loan['libro_titolo'],
+                'esito_copia' => $outcomes[$language][(string) $loan['stato']]
+                    ?? $outcomes['it'][(string) $loan['stato']],
+                // data_restituzione is the canonical close date for every
+                // terminal circulation outcome, including lost/damaged.
+                'data_chiusura' => $this->formatEmailDate(
+                    (string) ($loan['data_restituzione'] ?: DateHelper::today()),
+                    false,
+                    $locale
+                ),
+                'note' => trim((string) ($loan['note'] ?? '')) ?: ($noNotes[$language] ?? $noNotes['it']),
+                'sanzione' => number_format(
+                    $amount,
+                    2,
+                    in_array(substr($locale, 0, 2), ['it', 'de', 'fr', 'da'], true) ? ',' : '.',
+                    ''
+                ) . ' €',
+            ];
+
+            return $this->sendWithRetry($email, 'loan_copy_outcome', $variables);
+        } catch (\Throwable $e) {
+            SecureLogger::error('Failed to send lost/damaged copy notification: ' . $e->getMessage());
             return false;
         }
     }
@@ -2032,26 +2109,77 @@ class NotificationService {
      * @param int $retryDelayMs Delay between retries in milliseconds (default: 1000)
      * @return bool True if email was sent successfully
      */
-    private function sendWithRetry(string $email, string $template, array $variables, int $maxRetries = 3, int $retryDelayMs = 1000): bool {
+    private function sendWithRetry(
+        string $email,
+        string $template,
+        array $variables,
+        int $maxRetries = 3,
+        int $retryDelayMs = 1000,
+        bool $persistFailure = true
+    ): bool {
+        // #360: render every attempt in the recipient's preferred language.
+        $recipientLocale = $this->resolveRecipientLocale($email);
+        $outboxId = null;
+        $outboxClaimToken = null;
+        if (
+            $persistFailure
+            && !in_array($template, self::DEDICATED_RETRY_TEMPLATES, true)
+            && EmailOutboxSchema::ensure($this->db)
+        ) {
+            try {
+                $outboxClaimToken = bin2hex(random_bytes(16));
+                $claimedAt = gmdate('Y-m-d H:i:s');
+                $json = json_encode($variables, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+                $queue = $this->db->prepare("
+                    INSERT INTO email_delivery_outbox
+                        (recipient_email, template_name, variables_json, available_at, claim_token, claimed_at)
+                    VALUES (?, ?, ?, UTC_TIMESTAMP(), ?, ?)
+                ");
+                $queue->bind_param('sssss', $email, $template, $json, $outboxClaimToken, $claimedAt);
+                $queue->execute();
+                $outboxId = (int) $this->db->insert_id;
+                $queue->close();
+            } catch (\Throwable $e) {
+                SecureLogger::warning('Unable to persist email before delivery', [
+                    'template' => $template,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         // Circuit-breaker: if the SMTP server is unreachable, don't run the full retry cycle
         // (maxRetries attempts + 1s sleeps) for every recipient in a batch — they would all
         // fail the same way, hanging the run. Mailer::isSmtpReachable() probes once per
         // request (cached) and logs a single warning, so a down SMTP costs one short probe
         // instead of N × maxRetries connection timeouts.
         if (!\App\Support\Mailer::isSmtpReachable()) {
+            if ($outboxId !== null && $outboxClaimToken !== null) {
+                $this->releaseQueuedEmail($outboxId, $outboxClaimToken, 'SMTP unreachable', 300);
+            }
             return false;
         }
 
         $lastError = '';
 
-        // #360: recipient's preferred language (utenti.locale) instead of the
-        // installation locale; resolveRecipientLocale falls back to the
-        // installation locale, so nothing changes for users without one.
-        $recipientLocale = $this->resolveRecipientLocale($email);
-
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             try {
                 if ($this->emailService->sendTemplate($email, $template, $variables, $recipientLocale)) {
+                    if ($outboxId !== null) {
+                        try {
+                            $delete = $this->db->prepare('DELETE FROM email_delivery_outbox WHERE id = ? AND claim_token = ?');
+                            $delete->bind_param('is', $outboxId, $outboxClaimToken);
+                            $delete->execute();
+                            $delete->close();
+                        } catch (\Throwable $cleanupError) {
+                            // Delivery already happened: never retry in this
+                            // request merely because acknowledgement cleanup
+                            // failed (that would create an immediate duplicate).
+                            SecureLogger::warning('Delivered email outbox cleanup failed', [
+                                'outbox_id' => $outboxId,
+                                'error' => $cleanupError->getMessage(),
+                            ]);
+                        }
+                    }
                     if ($attempt > 1) {
                         SecureLogger::info("Email to {$email} succeeded on attempt {$attempt}");
                     }
@@ -2070,7 +2198,123 @@ class NotificationService {
         }
 
         SecureLogger::warning("Email to {$email} failed after {$maxRetries} attempts. Last error: {$lastError}");
+        if ($outboxId !== null && $outboxClaimToken !== null) {
+            $this->releaseQueuedEmail($outboxId, $outboxClaimToken, $lastError, 300);
+        }
         return false;
+    }
+
+    private function releaseQueuedEmail(int $outboxId, string $claimToken, string $error, int $delaySeconds): void
+    {
+        try {
+            $retryAt = gmdate('Y-m-d H:i:s', time() + max(0, $delaySeconds));
+            $update = $this->db->prepare("
+                UPDATE email_delivery_outbox
+                SET attempts = attempts + 1, available_at = ?, last_error = ?,
+                    claim_token = NULL, claimed_at = NULL
+                WHERE id = ? AND claim_token = ?
+            ");
+            $update->bind_param('ssis', $retryAt, $error, $outboxId, $claimToken);
+            $update->execute();
+            $update->close();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Unable to release failed email outbox row', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Retry terminal circulation emails persisted by sendWithRetry().
+     * Claims are leased, so hourly and daily maintenance may safely overlap.
+     */
+    public function retryQueuedEmailDeliveries(int $limit = 50): int
+    {
+        if ($limit <= 0 || !EmailOutboxSchema::ensure($this->db)) {
+            return 0;
+        }
+
+        $limit = min($limit, 250);
+        $staleBefore = gmdate('Y-m-d H:i:s', time() - 900);
+        $select = $this->db->prepare("
+            SELECT id
+            FROM email_delivery_outbox
+            WHERE available_at <= UTC_TIMESTAMP()
+              AND (claim_token IS NULL OR claimed_at < ?)
+            ORDER BY available_at, id
+            LIMIT ?
+        ");
+        $select->bind_param('si', $staleBefore, $limit);
+        $select->execute();
+        $ids = array_map(
+            static fn (array $row): int => (int) $row['id'],
+            $select->get_result()->fetch_all(MYSQLI_ASSOC)
+        );
+        $select->close();
+
+        $sent = 0;
+        foreach ($ids as $id) {
+            $token = bin2hex(random_bytes(16));
+            $claimedAt = gmdate('Y-m-d H:i:s');
+            $claim = $this->db->prepare("
+                UPDATE email_delivery_outbox
+                SET claim_token = ?, claimed_at = ?
+                WHERE id = ? AND available_at <= UTC_TIMESTAMP()
+                  AND (claim_token IS NULL OR claimed_at < ?)
+            ");
+            $claim->bind_param('ssis', $token, $claimedAt, $id, $staleBefore);
+            $claim->execute();
+            $claimed = $claim->affected_rows === 1;
+            $claim->close();
+            if (!$claimed) {
+                continue;
+            }
+
+            $rowStmt = $this->db->prepare("
+                SELECT recipient_email, template_name, variables_json, attempts
+                FROM email_delivery_outbox
+                WHERE id = ? AND claim_token = ?
+            ");
+            $rowStmt->bind_param('is', $id, $token);
+            $rowStmt->execute();
+            $row = $rowStmt->get_result()->fetch_assoc();
+            $rowStmt->close();
+            if (!$row) {
+                continue;
+            }
+
+            $variables = json_decode((string) $row['variables_json'], true);
+            $ok = is_array($variables) && $this->sendWithRetry(
+                (string) $row['recipient_email'],
+                (string) $row['template_name'],
+                $variables,
+                1,
+                0,
+                false
+            );
+            if ($ok) {
+                $delete = $this->db->prepare('DELETE FROM email_delivery_outbox WHERE id = ? AND claim_token = ?');
+                $delete->bind_param('is', $id, $token);
+                $delete->execute();
+                $delete->close();
+                $sent++;
+                continue;
+            }
+
+            $attempts = (int) $row['attempts'] + 1;
+            $delay = min(86400, 300 * (2 ** min($attempts, 8)));
+            $retryAt = gmdate('Y-m-d H:i:s', time() + $delay);
+            $error = is_array($variables) ? 'delivery failed' : 'invalid variables_json';
+            $release = $this->db->prepare("
+                UPDATE email_delivery_outbox
+                SET attempts = ?, available_at = ?, claim_token = NULL,
+                    claimed_at = NULL, last_error = ?
+                WHERE id = ? AND claim_token = ?
+            ");
+            $release->bind_param('issis', $attempts, $retryAt, $error, $id, $token);
+            $release->execute();
+            $release->close();
+        }
+
+        return $sent;
     }
 
     /**

@@ -16,6 +16,11 @@ BEGIN
     DECLARE application_today DATE;
     SET application_today = COALESCE(@pinakes_application_date, CURRENT_DATE());
 
+    IF NEW.data_prestito > NEW.data_scadenza THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'La data di inizio del prestito supera la scadenza.';
+    END IF;
+
     -- I7: la copia di un prestito deve appartenere al libro del prestito stesso
     -- (vale anche per righe chiuse: previene il decoupling libro_id/copia_id, #fix/loan-state-bugs BUG2).
     IF NEW.copia_id IS NOT NULL
@@ -79,6 +84,13 @@ BEGIN
     -- connection variable; direct SQL writes fall back to the database date.
     DECLARE application_today DATE;
     SET application_today = COALESCE(@pinakes_application_date, CURRENT_DATE());
+
+    IF NEW.data_prestito > NEW.data_scadenza
+       AND (NOT (OLD.data_prestito <=> NEW.data_prestito)
+            OR NOT (OLD.data_scadenza <=> NEW.data_scadenza)) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'La data di inizio del prestito supera la scadenza.';
+    END IF;
 
     -- I7: la copia di un prestito deve appartenere al libro del prestito stesso
     -- (vale anche per righe chiuse: previene il decoupling libro_id/copia_id, #fix/loan-state-bugs BUG2).
@@ -180,6 +192,86 @@ BEGIN
             SIGNAL SQLSTATE '45000'
                 SET MESSAGE_TEXT = 'Esiste già un prestito attivo e sovrapposto per questa copia.';
         END IF;
+    END IF;
+END$$
+DELIMITER ;
+
+-- Reservation queue integrity. Application writes serialize on libri first;
+-- these guards also reject malformed imports and direct administrative SQL.
+DROP TRIGGER IF EXISTS `trg_check_prenotazione_before_insert`;
+DELIMITER $$
+CREATE TRIGGER `trg_check_prenotazione_before_insert`
+BEFORE INSERT ON `prenotazioni`
+FOR EACH ROW
+BEGIN
+    IF NEW.data_inizio_richiesta IS NOT NULL
+       AND NEW.data_fine_richiesta IS NOT NULL
+       AND NEW.data_inizio_richiesta > NEW.data_fine_richiesta THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Intervallo della prenotazione non valido.';
+    END IF;
+    IF NEW.queue_position IS NOT NULL AND NEW.queue_position <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'La posizione in coda deve essere positiva.';
+    END IF;
+    IF NEW.stato = 'attiva' AND EXISTS (
+        SELECT 1 FROM prenotazioni r
+        WHERE r.libro_id = NEW.libro_id AND r.utente_id = NEW.utente_id
+          AND r.stato = 'attiva'
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Esiste già una prenotazione attiva per utente e libro.';
+    END IF;
+    IF NEW.stato = 'attiva' AND NEW.queue_position IS NOT NULL AND EXISTS (
+        SELECT 1 FROM prenotazioni r
+        WHERE r.libro_id = NEW.libro_id AND r.queue_position = NEW.queue_position
+          AND r.stato = 'attiva'
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Posizione in coda già occupata per questo libro.';
+    END IF;
+END$$
+DELIMITER ;
+
+DROP TRIGGER IF EXISTS `trg_check_prenotazione_before_update`;
+DELIMITER $$
+CREATE TRIGGER `trg_check_prenotazione_before_update`
+BEFORE UPDATE ON `prenotazioni`
+FOR EACH ROW
+BEGIN
+    IF (NOT (OLD.data_inizio_richiesta <=> NEW.data_inizio_richiesta)
+        OR NOT (OLD.data_fine_richiesta <=> NEW.data_fine_richiesta))
+       AND NEW.data_inizio_richiesta IS NOT NULL
+       AND NEW.data_fine_richiesta IS NOT NULL
+       AND NEW.data_inizio_richiesta > NEW.data_fine_richiesta THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Intervallo della prenotazione non valido.';
+    END IF;
+    IF NOT (OLD.queue_position <=> NEW.queue_position)
+       AND NEW.queue_position IS NOT NULL AND NEW.queue_position <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'La posizione in coda deve essere positiva.';
+    END IF;
+    IF NEW.stato = 'attiva'
+       AND (OLD.stato <> 'attiva' OR OLD.libro_id <> NEW.libro_id OR OLD.utente_id <> NEW.utente_id)
+       AND EXISTS (
+           SELECT 1 FROM prenotazioni r
+           WHERE r.id <> NEW.id AND r.libro_id = NEW.libro_id
+             AND r.utente_id = NEW.utente_id AND r.stato = 'attiva'
+       ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Esiste già una prenotazione attiva per utente e libro.';
+    END IF;
+    IF NEW.stato = 'attiva' AND NEW.queue_position IS NOT NULL
+       AND (OLD.stato <> 'attiva' OR OLD.libro_id <> NEW.libro_id
+            OR NOT (OLD.queue_position <=> NEW.queue_position))
+       AND EXISTS (
+           SELECT 1 FROM prenotazioni r
+           WHERE r.id <> NEW.id AND r.libro_id = NEW.libro_id
+             AND r.queue_position = NEW.queue_position AND r.stato = 'attiva'
+       ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Posizione in coda già occupata per questo libro.';
     END IF;
 END$$
 DELIMITER ;

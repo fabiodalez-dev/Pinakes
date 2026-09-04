@@ -281,6 +281,14 @@ return [
 <p>Vi håber, du nød læsningen. Vi ses snart på biblioteket!</p>
 <p>Med venlig hilsen,<br>Bibliotekets team</p>',
     ],
+    'loan_copy_outcome' => [
+        'subject' => '⚠️ Opdatering om dit lånte eksemplar',
+        'body' => '<h2>Låneopdatering</h2><p>Hej {{utente_nome}},</p><p>Lånet er lukket med følgende resultat for det fysiske eksemplar:</p><div style="background-color:#fff7ed;padding:15px;border-left:4px solid #f59e0b"><p><strong>Bog:</strong> {{libro_titolo}}</p><p><strong>Resultat:</strong> {{esito_copia}}</p><p><strong>Lukket den:</strong> {{data_chiusura}}</p><p><strong>Noter:</strong> {{note}}</p><p><strong>Registreret beløb:</strong> {{sanzione}}</p></div><p>Kontakt biblioteket, hvis du har spørgsmål.</p>',
+    ],
+    'reservation_awaiting_approval' => [
+        'subject' => '📚 Eksemplar tildelt — afvent afhentningsbekræftelse',
+        'body' => '<h2>Et eksemplar er tildelt din reservation</h2><p>Hej {{utente_nome}},</p><p>Din reservation står nu først i køen, og et eksemplar er afsat til {{data_inizio}} - {{data_fine}}.</p><p><strong>Bog:</strong> {{libro_titolo}} — {{libro_autore}} ({{libro_isbn}})</p><div style="background-color:#fef3c7;padding:15px;border-left:4px solid #f59e0b"><p><strong>Kom ikke på biblioteket endnu.</strong></p><p>Anmodningen skal stadig godkendes. Du får en ny e-mail med afhentningsfristen, når bogen er klar.</p></div><p><a href="{{book_url}}">Se bogen</a> · <a href="{{profile_url}}">Mine lån</a></p>',
+    ],
     'reservation_book_available' => [
         'subject' => '📚 Reserveret bog klar til afhentning!',
         'body' => '<h2>Din bog er klar til afhentning!</h2>

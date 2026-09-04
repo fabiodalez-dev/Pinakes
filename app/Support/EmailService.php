@@ -38,6 +38,7 @@ class EmailService {
         'request_date' => 'data_richiesta',
         'registration_date' => 'data_registrazione',
         'availability_date' => 'data_disponibilita',
+        'closed_at' => 'data_chiusura',
 
         // Numeric fields
         'days_remaining' => 'giorni_rimasti',
@@ -46,6 +47,7 @@ class EmailService {
         'loan_id' => 'prestito_id',
         'stars' => 'stelle',
         'recall_number' => 'numero_sollecito',
+        'penalty' => 'sanzione',
 
         // Review fields
         'review_date' => 'data_recensione',
@@ -55,6 +57,7 @@ class EmailService {
 
         // Other fields
         'reason' => 'motivo',
+        'copy_outcome' => 'esito_copia',
         'rejection_reason' => 'motivo_rifiuto',
         'verify_section' => 'sezione_verifica',
         'calendar_links' => 'sezione_calendario',

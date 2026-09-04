@@ -341,6 +341,28 @@ HTML,
 <p><em>La prenotazione è stata convertita in un prestito in attesa di conferma del ritiro.</em></p>
 HTML,
             ],
+            'reservation_awaiting_approval' => [
+                'label' => __('Prenotazione assegnata, in attesa di approvazione'),
+                'description' => __("Inviata quando una prenotazione ottiene una copia e attende l'approvazione del prestito."),
+                'subject' => '📚 Copia assegnata — attendi la conferma di ritiro',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'libro_autore', 'libro_isbn', 'data_inizio', 'data_fine', 'book_url', 'profile_url'],
+                'body' => <<<'HTML'
+<h2>Una copia è stata assegnata alla tua prenotazione</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>La tua prenotazione è arrivata al primo posto e una copia è stata riservata per il periodo richiesto.</p>
+<div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
+    <h3 style="color: #1e40af; margin: 0 0 10px 0;">{{libro_titolo}}</h3>
+    <p style="margin: 5px 0;"><strong>Autore:</strong> {{libro_autore}}</p>
+    <p style="margin: 5px 0;"><strong>ISBN:</strong> {{libro_isbn}}</p>
+    <p style="margin: 5px 0;"><strong>Periodo richiesto:</strong> {{data_inizio}} - {{data_fine}}</p>
+</div>
+<div style="background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Attendi la conferma prima di recarti in biblioteca</strong></p>
+    <p>La richiesta deve ancora essere approvata. Riceverai un'altra email con la scadenza di ritiro quando il libro sarà effettivamente pronto.</p>
+</div>
+<p style="text-align: center;"><a href="{{book_url}}" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 5px;">Vedi libro</a><a href="{{profile_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 5px;">I miei prestiti</a></p>
+HTML,
+            ],
             'loan_pickup_ready' => [
                 'label' => __('Pronto per il ritiro'),
                 'description' => __("Inviata quando un prestito è stato approvato e il libro è pronto per il ritiro."),
@@ -417,6 +439,25 @@ HTML,
 </div>
 <p>Speriamo che la lettura ti sia piaciuta. A presto in biblioteca!</p>
 <p>Cordiali saluti,<br>Il team della biblioteca</p>
+HTML,
+            ],
+            'loan_copy_outcome' => [
+                'label' => __('Copia persa o danneggiata'),
+                'description' => __("Inviata quando un prestito viene chiuso dichiarando la copia persa o danneggiata."),
+                'subject' => '⚠️ Aggiornamento sulla copia in prestito',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'esito_copia', 'data_chiusura', 'note', 'sanzione'],
+                'body' => <<<'HTML'
+<h2>Aggiornamento sul tuo prestito</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Il prestito seguente è stato chiuso con un esito relativo alla copia fisica:</p>
+<div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Esito:</strong> {{esito_copia}}</p>
+    <p><strong>Data chiusura:</strong> {{data_chiusura}}</p>
+    <p><strong>Note:</strong> {{note}}</p>
+    <p><strong>Importo registrato:</strong> {{sanzione}}</p>
+</div>
+<p>Per chiarimenti o per concordare la gestione dell'importo, contatta la biblioteca.</p>
 HTML,
             ],
             'reservation_expired' => [
@@ -666,10 +707,12 @@ HTML,
             'data_recensione'        => __('Data della recensione'),
             'data_registrazione'     => __('Data di registrazione dell\'utente'),
             'data_restituzione'      => __('Data di restituzione del libro'),
+            'data_chiusura'           => __('Data di chiusura del prestito'),
             'data_richiesta'         => __('Data della richiesta'),
             'data_scadenza'          => __('Data di scadenza del prestito'),
             'descrizione_recensione' => __('Testo della recensione'),
             'email'                  => __('Indirizzo email dell\'utente'),
+            'esito_copia'             => __('Esito registrato per la copia fisica'),
             'giorni_prestito'        => __('Durata del prestito in giorni'),
             'giorni_rimasti'         => __('Giorni rimanenti alla scadenza'),
             'giorni_ritardo'         => __('Giorni di ritardo nella restituzione'),
@@ -680,6 +723,7 @@ HTML,
             'login_url'              => __('Link alla pagina di accesso'),
             'motivo'                 => __('Motivo'),
             'motivo_rifiuto'         => __('Motivo del rifiuto'),
+            'note'                   => __('Note registrate dall\'operatore'),
             'nome'                   => __('Nome dell\'utente'),
             'numero_sollecito'       => __('Numero progressivo del sollecito inviato'),
             'pickup_deadline'        => __('Scadenza per il ritiro del libro'),
@@ -689,6 +733,7 @@ HTML,
             'reset_url'              => __('Link per reimpostare la password'),
             'rinnovi_rimanenti'      => __('Numero di rinnovi ancora disponibili'),
             'scadenza_ritiro'        => __('Scadenza entro cui ritirare il libro'),
+            'sanzione'               => __('Importo addebitato per la copia'),
             'sezione_calendario'     => __('Sezione con i link per aggiungere il prestito al calendario (Google Calendar e file .ics)'),
             'sezione_verifica'       => __('Sezione di verifica dell\'account'),
             'stelle'                 => __('Valutazione in stelle'),

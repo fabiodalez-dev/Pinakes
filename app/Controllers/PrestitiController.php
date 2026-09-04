@@ -1321,9 +1321,10 @@ class PrestitiController
                    CONCAT(utenti.nome, ' ', utenti.cognome) as utente_nome,
                    utenti.email as utente_email, utenti.telefono as utente_telefono,
                    prestiti.data_prestito, prestiti.data_scadenza, prestiti.data_restituzione,
-                   prestiti.stato, prestiti.note
+                   prestiti.stato, prestiti.note, prestiti.sanzione
             FROM prestiti
-            LEFT JOIN libri ON prestiti.libro_id = libri.id AND libri.deleted_at IS NULL
+            -- CI-SOFT-DELETE-EXEMPT: active loans on archived titles must remain returnable.
+            LEFT JOIN libri ON prestiti.libro_id = libri.id
             LEFT JOIN utenti ON prestiti.utente_id = utenti.id
             WHERE prestiti.id = ?
               AND prestiti.attivo = 1
@@ -1366,6 +1367,20 @@ class PrestitiController
         if (!in_array($nuovo_stato, $allowed_status)) {
             return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=invalid_status')->withStatus(302);
         }
+
+        // Optional assessed amount for copies declared lost/damaged. Accept a
+        // decimal comma from Italian keyboards, but reject negative, malformed
+        // or oversized values rather than silently coercing them.
+        $penaltyRaw = str_replace(',', '.', trim((string) ($data['sanzione'] ?? '0')));
+        if (!in_array($nuovo_stato, ['perso', 'danneggiato'], true)) {
+            $penaltyRaw = '0';
+        } elseif ($penaltyRaw === '') {
+            $penaltyRaw = '0';
+        }
+        if (preg_match('/^(?:0|[1-9]\d{0,7})(?:\.\d{1,2})?$/D', $penaltyRaw) !== 1) {
+            return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=invalid_penalty')->withStatus(302);
+        }
+        $sanzione = number_format((float) $penaltyRaw, 2, '.', '');
 
         // La riparazione NON è un esito di prestito: `prestiti.stato` non ha stati
         // 'manutenzione'/'in_restauro'. Un rientro-con-riparazione chiude il prestito
@@ -1451,8 +1466,8 @@ class PrestitiController
             $ritardo = ($loan_stato === 'restituito' && $scadenza !== '' && $scadenza < $data_restituzione) ? 1 : 0;
 
             // Aggiorna il prestito (state-guard sull'attivo per evitare doppie restituzioni)
-            $stmt = $db->prepare("UPDATE prestiti SET stato = ?, data_restituzione = ?, note = ?, attivo = 0, restituito_in_ritardo = ? WHERE id = ? AND attivo = 1");
-            $stmt->bind_param("sssii", $loan_stato, $data_restituzione, $note, $ritardo, $id);
+            $stmt = $db->prepare("UPDATE prestiti SET stato = ?, data_restituzione = ?, note = ?, sanzione = ?, attivo = 0, restituito_in_ritardo = ? WHERE id = ? AND attivo = 1");
+            $stmt->bind_param("ssssii", $loan_stato, $data_restituzione, $note, $sanzione, $ritardo, $id);
             $stmt->execute();
             $loanAffected = $stmt->affected_rows;
             $stmt->close();
@@ -1589,6 +1604,12 @@ class PrestitiController
                 } catch (\Throwable $e) {
                     SecureLogger::warning('Loan returned notification failed', ['loan_id' => $id, 'error' => $e->getMessage()]);
                 }
+            } elseif (in_array($loan_stato, ['perso', 'danneggiato'], true)) {
+                try {
+                    (new NotificationService($db))->sendLoanCopyOutcomeNotification($id);
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Lost/damaged copy notification failed', ['loan_id' => $id, 'error' => $e->getMessage()]);
+                }
             }
             $_SESSION['success_message'] = __('Prestito aggiornato correttamente.');
             $successUrl = $redirectTo ?? (url('/admin/loans') . '?updated=1');
@@ -1634,15 +1655,16 @@ class PrestitiController
 
         // Resolve the active loan for this copy code. numero_inventario is UNIQUE and
         // only one loan per copy can be active at a time, so at most one row is
-        // expected; the ambiguity guard is defence-in-depth. `copie` has no
-        // deleted_at — the soft-delete guard lives on the joined `libri` row.
+        // expected; the ambiguity guard is defence-in-depth. Archived titles
+        // remain returnable: soft deletion controls discovery/lending, never
+        // the physical return of a copy already outside the library.
         $stmt = $db->prepare("
             SELECT p.id
             FROM prestiti p
             JOIN copie c ON c.id = p.copia_id
+            -- CI-SOFT-DELETE-EXEMPT: barcode return must close loans for archived titles.
             JOIN libri l ON l.id = c.libro_id
             WHERE c.numero_inventario = ?
-              AND l.deleted_at IS NULL
               AND p.attivo = 1
               AND p.stato IN ('in_corso','in_ritardo')
         ");

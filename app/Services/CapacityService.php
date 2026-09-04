@@ -40,6 +40,8 @@ use mysqli;
  */
 final class CapacityService
 {
+    private ?int $maxActiveLoansPerUser = null;
+
     public function __construct(private mysqli $db) {}
 
     /**
@@ -332,15 +334,35 @@ final class CapacityService
         // only stops such legacy holds from silently vanishing from the occupancy peak
         // (they never promote either, so they'd otherwise allow overbooking their copy).
         $rStart = 'COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione))';
+        // A reservation belonging to a currently ineligible patron is paused,
+        // not allowed to consume scarce capacity and starve eligible readers.
+        // The same applies while the patron is already at the configured active
+        // loan limit. The reservation stays active and regains its FIFO priority
+        // automatically once the account becomes eligible again.
+        $today = \App\Support\DateHelper::today();
+        $maxLoans = $this->maxActiveLoansPerUser();
         $sql = "SELECT GREATEST($rStart, ?) AS s, LEAST($rEnd, ?) AS e
                 FROM prenotazioni r
+                JOIN utenti u ON u.id = r.utente_id
                 WHERE r.libro_id = ?
                   AND r.stato = 'attiva'
+                  AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
                   AND $rStart IS NOT NULL
                   AND $rStart <= ?
                   AND $rEnd >= ?";
-        $types = 'ssiss';
-        $params = [$start, $end, $libroId, $end, $start];
+        $types = 'ssisss';
+        $params = [$start, $end, $libroId, $today, $end, $start];
+        if ($maxLoans > 0) {
+            $sql .= " AND (
+                        SELECT COUNT(*)
+                        FROM prestiti cap
+                        WHERE cap.utente_id = r.utente_id
+                          AND cap.attivo = 1
+                          AND cap.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
+                      ) < ?";
+            $types .= 'i';
+            $params[] = $maxLoans;
+        }
         if ($excludeReservationId !== null) {
             $sql .= ' AND r.id <> ?';
             $types .= 'i';
@@ -362,6 +384,16 @@ final class CapacityService
             $params[] = $excludeReservationsAfterQueuePos;
         }
         return $this->fetchIntervals($sql, $types, $params);
+    }
+
+    private function maxActiveLoansPerUser(): int
+    {
+        if ($this->maxActiveLoansPerUser === null) {
+            $value = (new \App\Models\SettingsRepository($this->db))
+                ->get('loans', 'max_active_loans_per_user', '0');
+            $this->maxActiveLoansPerUser = max(0, (int) ($value ?? 0));
+        }
+        return $this->maxActiveLoansPerUser;
     }
 
     /**
