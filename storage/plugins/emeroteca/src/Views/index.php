@@ -47,9 +47,9 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
 <div id="emeroteca-admin-index" class="emeroteca-admin">
     <div class="emt-page-header">
         <div>
-        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <div>
             <h1 class="text-2xl font-bold text-gray-900"><?= __("Emeroteca") ?></h1>
-            <p class="text-sm text-gray-500">
+            <p class="mt-1 text-sm text-gray-500">
                 <?= __("Gestione di riviste, giornali e periodici: testate, annate e fascicoli.") ?>
             </p>
         </div>
