@@ -337,10 +337,19 @@ $checks['integrity repair has one final canonical availability write'] =
 
 // 25. Peripheral writers that bypass the main controllers still keep
 //     copies/commitments and the derived libri projection in one transaction.
-$checks['expired-reservation cron recalculates before commit'] =
-    str_contains($expiredCron, 'recalculateBookAvailability($libroId, insideTransaction: true)')
-    && strpos($expiredCron, 'recalculateBookAvailability($libroId, insideTransaction: true)')
-        < strrpos($expiredCron, '$db->commit()');
+// Il cron non duplica più la logica: DELEGA a MaintenanceService::
+// checkExpiredReservations(), che è l'unico percorso (email+audit garantiti).
+// L'invariante "recalc prima del commit" ora vive nel metodo delegato.
+$expiredSweepMethod = $extractMethod($maintenanceService, 'public function checkExpiredReservations(');
+$checks['expired-reservation cron delegates to the single MaintenanceService sweep'] =
+    str_contains($expiredCron, '->checkExpiredReservations()')
+    && !str_contains($expiredCron, 'UPDATE prestiti')
+    && !str_contains($expiredCron, 'recalculateBookAvailability');
+$checks['expired-reservation sweep recalculates before commit'] =
+    $expiredSweepMethod !== ''
+    && str_contains($expiredSweepMethod, 'recalculateBookAvailability($libroId, true)')
+    && strpos($expiredSweepMethod, 'recalculateBookAvailability($libroId, true)')
+        < strrpos($expiredSweepMethod, '$this->db->commit()');
 $checks['demo seed never authors book state and recalculates before commit'] =
     !str_contains($demoSeed, "genere_id=?, stato='disponibile'")
     && str_contains($demoSeed, 'recalculateBookAvailability($bookId, insideTransaction: true)')

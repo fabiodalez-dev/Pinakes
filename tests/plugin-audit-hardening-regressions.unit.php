@@ -52,9 +52,16 @@ auditOk(
     str_contains($loanSwal, "'cancelPickupReason' => __('Ritiro annullato')"),
     'pickup cancellation dialog submits a neutral reason'
 );
+// Dalla review 0781 (M1) il motivo passa SEMPRE da translateInLocale — anche
+// quello fornito dal chiamante, non solo il fallback: il ternario sta DENTRO
+// la chiamata. L'assert verifica fallback neutro + wrapping nel locale del
+// destinatario (e il ternario su !== '' preserva la stringa "0").
 auditOk(
-    str_contains($notifications, "\$reason !== ''")
-        && str_contains($notifications, "\$this->translateInLocale('Ritiro annullato', \$recipientLocale)"),
+    str_contains($notifications, "\$reason !== '' ? \$reason : 'Ritiro annullato'")
+        && preg_match(
+            '/translateInLocale\(\s*\$reason !== \'\' \? \$reason : \'Ritiro annullato\',\s*\$recipientLocale\s*\)/',
+            $notifications
+        ) === 1,
     'pickup cancellation email fallback is neutral, recipient-localized and preserves "0"'
 );
 auditOk(
