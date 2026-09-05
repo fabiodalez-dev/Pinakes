@@ -28,8 +28,10 @@ try {
     $db->set_charset('utf8mb4');
     DateHelper::synchronizeDatabaseSession($db);
 } catch (Throwable $e) {
-    echo 'SKIP: database not reachable (' . $e->getMessage() . ")\n";
-    exit(0);
+    // Fail hard, come i test migration fratelli: un DB assente trasformerebbe
+    // l'intera coverage 0.7.80 in un verde finto.
+    fwrite(STDERR, 'FAIL: database unreachable — outbox behavioural test is mandatory: ' . $e->getMessage() . "\n");
+    exit(1);
 }
 
 $email = 'zz-outbox-0780-' . bin2hex(random_bytes(5)) . '@test.local';
@@ -89,6 +91,16 @@ $check((int) ($after['attempts'] ?? 0) === 2 && $after['claim_token'] === null &
 $cleanup();
 $remaining = (int) $db->query("SELECT COUNT(*) FROM email_delivery_outbox WHERE recipient_email = '" . $db->real_escape_string($email) . "'")->fetch_row()[0];
 $check($remaining === 0, 'test outbox row is cleaned up');
+
+// Il probe portabile della transazione (rimpiazzo del MariaDB-only
+// @@session.in_transaction) deve funzionare su MySQL: dentro una
+// transazione esplicita rileva true, fuori false, senza eccezioni.
+$probe = new ReflectionMethod(EmailOutboxSchema::class, 'hasActiveTransaction');
+$check($probe->invoke(null, $db) === false, 'transaction probe reports false outside a transaction');
+$db->begin_transaction();
+$check($probe->invoke(null, $db) === true, 'transaction probe detects an explicit begin_transaction (portable, no MariaDB-only variable)');
+$db->rollback();
+$check($probe->invoke(null, $db) === false, 'transaction probe returns false again after rollback');
 $db->close();
 
 echo "\nPassed: {$passed}   Failed: {$failed}\n";

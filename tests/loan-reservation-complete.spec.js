@@ -1227,7 +1227,7 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
     // MaintenanceService runs the expiry sweeps BEFORE activateScheduledLoans,
     // so the row is marked scaduto before activation could ever touch it.
     const pastScadenza = dateISO(-5);
-    const futurePrestito = dateISO(-10); // past start < past scadenza → trigger-valid
+    const pastPrestito = dateISO(-10); // past start < past scadenza → trigger-valid
 
     const copiaRaw21 = dbQuery(`SELECT id FROM copie WHERE libro_id=${testBookId} AND stato='disponibile' LIMIT 1`);
     const copia21 = copiaRaw21 ? parseInt(copiaRaw21, 10) : null;
@@ -1235,7 +1235,7 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
     dbQuery(`
       INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo, created_at)
       VALUES (${testBookId}, ${copia21 || 'NULL'}, ${testUserId},
-              '${futurePrestito}', '${pastScadenza}', 'prenotato', 1, NOW())
+              '${pastPrestito}', '${pastScadenza}', 'prenotato', 1, NOW())
     `);
     const expiredLoanId21 = parseInt(
       dbQuery(

@@ -2,6 +2,29 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.80]
+
+Circulation hardening: database-level integrity for the loan/reservation lifecycle, durable circulation emails, and richer lost/damaged handling ([PR #415](https://github.com/fabiodalez-dev/Pinakes/pull/415)).
+
+### Added
+
+- **Durable email outbox.** Failed terminal circulation notifications land in the new `email_delivery_outbox` table (migration `migrate_0.7.80.sql`, plus a runtime-compatible creator for mixed-version deployments) and are retried with claim tokens and exponential backoff; permanently undeliverable rows are discarded after 10 attempts and logged, so dead rows neither pile up nor retain recipient data forever. Transaction-safe on both MySQL and MariaDB.
+- **Two new circulation emails**, shipped in all five locales (code templates, installer seeds and settings editor): *reservation assigned — awaiting approval* (the reader is told a copy is allocated but must wait for the pickup email) and *loan closed with a lost/damaged copy*, including the outcome, closing date, notes and the charged amount formatted with the configured `app.currency`.
+- **Assessed amount on lost/damaged returns.** The return form gains an optional charge field (decimal-comma tolerant, validated server-side) recorded on the loan and included in the outcome email.
+
+### Changed
+
+- **Database triggers now guard the circulation invariants**: a loan start after its due date, non-positive or duplicate active queue positions, double active reservations for the same user and book, and invalid reservation windows are rejected at the source — protecting against malformed imports and direct SQL as well as application bugs. Every queue reorder (user/admin/approval/NCIP cancellations, integrity repair, ReservationManager) moves rows through a dynamically-computed temporary range first, so reorders can never trip the new guards mid-flight, even with legacy NULL positions or leftovers from interrupted runs.
+- Expiry sweeps and scheduled-loan activation were hardened around the new invariants; barcode returns accept active loans on archived titles without violating the soft-delete rule.
+
+### Fixed
+
+- The transaction probe guarding outbox creation used a MariaDB-only system variable and silently disabled the outbox on MySQL; it now uses the portable autocommit + savepoint probe.
+
+### Testing
+
+- New behavioural suites: `circulation-hardening-0780` (22 checks), `email-outbox-0780` (8), `migration-0.7.80` (real-file sandbox, idempotency); `loan-edge-cases` grew to 68 scenarios and its fixtures now satisfy the triggers they exercise; adversarial reproductions for the queue-reorder collision cases.
+
 ## [0.7.79]
 
 The Emeroteca reaches the Android app (re-cut of the unpublished 0.7.78: its tag-triggered build died on the npm registry's retired audit endpoint before any asset was produced, and tags are immutable — same recovery as 0.7.74/0.7.75) ([PR #411](https://github.com/fabiodalez-dev/Pinakes/pull/411)).

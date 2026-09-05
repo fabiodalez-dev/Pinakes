@@ -41,7 +41,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.79 — latest
+### v0.7.80 — latest
+
+**Circulation hardening** ([PR #415](https://github.com/fabiodalez-dev/Pinakes/pull/415)): the reservation and loan lifecycle gets database-level guardrails and durable notifications. New triggers reject malformed circulation data at the source (loan start after due date, duplicate or non-positive active queue positions, double active reservations per user and book) while every queue reorder became collision-free; two new emails keep readers informed (copy assigned & awaiting approval; loan closed with a lost/damaged copy, including the charged amount in the configured currency); a durable **email outbox** (`migrate_0.7.80.sql`) queues failed terminal notifications and retries them with backoff and a hard cap, so a down SMTP no longer loses circulation emails. Lost/damaged returns can record an assessed amount from the return form.
+
+### v0.7.79
 
 **The Emeroteca reaches the Android app** ([PR #411](https://github.com/fabiodalez-dev/Pinakes/pull/411)): the emeroteca plugin (now 1.3.0) exposes a read-only mobile API — `/api/v1/periodicals/*` — reusing the Mobile API plugin's authentication, quota and HTTPS middleware. Mastheads with cursor pagination and search, volume years with holdings, issues with per-copy state, article-level tables of contents, and issue PDFs only when publicly enabled. The bridge is inert unless BOTH plugins are active, and the [Android app](https://github.com/fabiodalez-dev/Pinakes-Android) (from release 1.5.0) shows its new Emeroteca section only after probing the capability — no server upgrade means the section simply never appears. No core migration.
 
