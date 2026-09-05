@@ -278,6 +278,26 @@ if ($trgSql === '') {
     throw new RuntimeException('Cannot capture trg_check_prenotazione_before_insert for the legacy-duplicate fixture');
 }
 $db->query('DROP TRIGGER trg_check_prenotazione_before_insert');
+// Ripristino idempotente anche sul percorso di uscita FATALE (timeout, OOM,
+// kill): il finally copre solo le eccezioni — senza shutdown hook un fatal
+// error lascerebbe lo schema di test senza il trigger, in silenzio, per
+// tutte le esecuzioni successive.
+register_shutdown_function(static function () use ($db, $trgSql): void {
+    try {
+        if ($db->query("SHOW TRIGGERS LIKE 'prenotazioni'") !== false) {
+            $exists = false;
+            $res = $db->query("SELECT TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = 'trg_check_prenotazione_before_insert'");
+            if ($res && $res->fetch_row()) {
+                $exists = true;
+            }
+            if (!$exists) {
+                $db->query($trgSql);
+            }
+        }
+    } catch (Throwable) {
+        // Connessione già chiusa a fine run: il finally ha già ripristinato.
+    }
+});
 try {
     $stmt = $db->prepare(
         "INSERT INTO prenotazioni (libro_id, utente_id, data_inizio_richiesta, data_fine_richiesta, queue_position, stato)
@@ -409,7 +429,8 @@ $stmt->close();
 
 $integrity = new DataIntegrity($db);
 $fixResult = $integrity->fixDataInconsistencies();
-$check($fixResult['errors'] === [] || $fixResult['errors'] === null, '17 fixDataInconsistencies completes without errors');
+$check(array_key_exists('errors', $fixResult) && ($fixResult['errors'] ?? []) === [],
+    '17 fixDataInconsistencies completes without errors');
 $stateQ2 = (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$resQ2}")->fetch_assoc()['stato'];
 $check($stateQ2 === 'annullata', '18 the duplicate reservation (same user, same book) is cancelled by the repair');
 $evQ = $auditEvent($bookQ, 'reservation.cancelled', $resQ2);

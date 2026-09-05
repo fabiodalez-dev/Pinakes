@@ -205,9 +205,12 @@ $noMailUserId = (int) $db->insert_id;
 $stmt->close();
 
 $card2 = 'ZZMD' . strtoupper($run);
+// Locale persistita DIVERSA dal fallback di installazione (de_DE): così il
+// check D prova che il sender legge la locale del destinatario dal DB, non
+// che risolve due volte lo stesso fallback (asserzione tautologica).
 $stmt = $db->prepare(
-    "INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato, email_verificata)
-     VALUES (?, 'HasMail', 'Coherence', ?, ?, 'standard', 'attivo', 1)"
+    "INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato, email_verificata, locale)
+     VALUES (?, 'HasMail', 'Coherence', ?, ?, 'standard', 'attivo', 1, 'de_DE')"
 );
 $stmt->bind_param('sss', $card2, $emailWith, $password);
 $stmt->execute();
@@ -256,12 +259,14 @@ $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 $vars = json_decode((string) ($row['variables_json'] ?? ''), true);
-// Valore atteso risolto nel VERO locale del destinatario (stessa via del
-// sender), non pinnato sull'italiano: su un install non-it il catalogo
-// traduce e il confronto letterale fallirebbe pur essendo tutto corretto.
-$expectedNoCharge = $service->translateInLocale('Nessun addebito', $service->resolveRecipientLocale($emailWith));
+// Valore atteso risolto nella locale PERSISTITA del destinatario (de_DE,
+// impostata nel fixture, diversa dal fallback): se il sender ignorasse
+// utenti.locale il confronto fallirebbe — niente doppio resolver tautologico.
+$expectedNoCharge = $service->translateInLocale('Nessun addebito', 'de_DE');
 $check(is_array($vars) && ($vars['sanzione'] ?? null) === $expectedNoCharge,
-    "zero penalty produces sanzione = '{$expectedNoCharge}' (recipient locale)");
+    "zero penalty produces sanzione = '{$expectedNoCharge}' (persisted de_DE locale)");
+$check($expectedNoCharge !== 'Nessun addebito',
+    'the de_DE catalog actually translates the no-charge string (guard against a tautological pass)');
 $check(is_array($vars) && !preg_match('/\d/', (string) ($vars['sanzione'] ?? '')),
     'zero penalty never renders as a numeric amount');
 
@@ -282,6 +287,12 @@ $vars = json_decode((string) ($row['variables_json'] ?? ''), true);
 // oppure 12.50 (en) sono entrambi formati corretti dello stesso importo.
 $check(is_array($vars) && preg_match('/12[.,]50/', (string) ($vars['sanzione'] ?? '')) === 1,
     'positive penalty still renders the formatted amount');
+// E la valuta configurata deve comparire accanto all'importo: € per EUR,
+// altrimenti il codice ISO (stessa regola del sender, ConfigStore app.currency).
+$expectedCurrency = strtoupper((string) \App\Support\ConfigStore::get('app.currency', 'EUR'));
+$expectedCurrencyToken = $expectedCurrency === 'EUR' ? '€' : $expectedCurrency;
+$check(is_array($vars) && str_contains((string) ($vars['sanzione'] ?? ''), $expectedCurrencyToken),
+    "positive penalty carries the configured currency ({$expectedCurrencyToken})");
 
 // ── F. picked_up raggiunge il lettore anche a titolo archiviato (review L6) ──
 // La copia è già nelle mani dell'utente: il soft-delete governa la

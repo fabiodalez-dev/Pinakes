@@ -26,12 +26,16 @@ declare(strict_types=1);
  *  - LoanMultiplicityPolicy dedup: the 3 request entry-points (POST
  *    /user/loan, POST /user/reserve, POST /api/books/{id}/reserve) block a
  *    duplicate title/user identically with the policy ON and OFF;
- *  - reservationsPage shows an ACTIVE loan whose book was soft-deleted
- *    (CI-SOFT-DELETE-EXEMPT join + title fallback).
+ *  - reservationsPage shows an ACTIVE loan whose book was soft-deleted with
+ *    the REAL title (CI-SOFT-DELETE-EXEMPT join, single convention with the
+ *    mobile API and the email senders).
  *
  * Dates derive from DateHelper::today() (application timezone).
  *
  * Run: php tests/queue-capacity-coherence-0781.unit.php
+ * DB credentials: .env of the checkout, overridable via E2E_DB_SOCKET /
+ * E2E_DB_HOST / E2E_DB_USER / E2E_DB_PASS / E2E_DB_NAME (this is a standalone
+ * PHP suite — the /tmp/run-e2e.sh wrapper applies to the Playwright specs).
  */
 
 use App\Controllers\ReservationManager;
