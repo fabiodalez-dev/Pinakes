@@ -71,9 +71,14 @@ final class ActivityLog
         'loan.renewed' => 'Prestito rinnovato',
         'loan.cancelled' => 'Prestito annullato',
         'loan.expired' => 'Ritiro del prestito scaduto',
+        'loan.overdue' => 'Prestito in ritardo',
+        'loan.lost' => 'Copia dichiarata persa',
+        'loan.damaged' => 'Copia dichiarata danneggiata',
         'reservation.created' => 'Prenotazione creata',
         'reservation.updated' => 'Prenotazione aggiornata',
         'reservation.cancelled' => 'Prenotazione annullata',
+        'reservation.promoted' => 'Prenotazione promossa',
+        'reservation.expired' => 'Prenotazione scaduta',
     ];
 
     /** @var array<string,string> */
@@ -120,6 +125,7 @@ final class ActivityLog
         'quantita' => 'Quantità',
         'data_prestito' => 'Data prestito',
         'data_scadenza' => 'Data scadenza',
+        'sanzione' => 'Sanzione',
         'data_restituzione' => 'Data restituzione',
         'renewals' => 'Rinnovi',
         'utente_id' => 'Utente',
@@ -391,7 +397,7 @@ final class ActivityLog
             $stmt = $db->prepare(
                 'SELECT p.id, p.libro_id, p.copia_id, p.utente_id, p.data_prestito, '
                 . 'p.data_scadenza, p.data_restituzione, p.stato, p.origine, p.renewals, '
-                . 'p.note, p.attivo, p.pickup_deadline, l.titolo AS book_title '
+                . 'p.note, p.attivo, p.pickup_deadline, p.sanzione, l.titolo AS book_title '
                 . 'FROM prestiti p LEFT JOIN libri l ON l.id = p.libro_id WHERE p.id = ? LIMIT 1'
             );
             if ($stmt === false) {

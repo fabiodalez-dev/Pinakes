@@ -390,6 +390,7 @@ class MaintenanceService
      */
     public function repairInvalidReadyPickups(): int
     {
+        $today = DateHelper::today();
         $pickupColumnReset = $this->ensurePickupNotificationColumn()
             ? ",\n                        pickup_notification_sent = 0,
                         pickup_notification_claim_token = NULL,
@@ -497,12 +498,23 @@ class MaintenanceService
                     continue;
                 }
 
+                // Audit: snapshot pre-mutazione, dentro la stessa transazione
+                // dell'UPDATE (regola di progetto).
+                $beforeSnapshot = ActivityLog::loadLoanSnapshot($this->db, $loanId);
+
+                // Nota persistente della retrocessione, stessa data applicativa
+                // della decisione (pattern dei sweep gemelli).
+                $noteSuffix = "\n[System] " . __('Ritiro revocato il') . ' '
+                    . implode('/', array_reverse(explode('-', $today)))
+                    . ': ' . __('copia assegnata non disponibile, prenotazione ripristinata');
+
                 $repair = $this->db->prepare("
                     UPDATE prestiti
-                    SET stato = 'prenotato', pickup_deadline = NULL, copia_id = NULL{$pickupColumnReset}
+                    SET stato = 'prenotato', pickup_deadline = NULL, copia_id = NULL{$pickupColumnReset},
+                        note = CONCAT(COALESCE(note, ''), ?)
                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1
                 ");
-                $repair->bind_param('i', $loanId);
+                $repair->bind_param('si', $noteSuffix, $loanId);
                 $repair->execute();
                 $changed = $repair->affected_rows;
                 $repair->close();
@@ -510,6 +522,16 @@ class MaintenanceService
                     $this->db->rollback();
                     continue;
                 }
+
+                // Evento audit con operatore SYSTEM: lo sweep non ha sessione.
+                ActivityLog::recordLoanEvent(
+                    $this->db,
+                    $loanId,
+                    'loan.updated',
+                    $beforeSnapshot,
+                    source: 'sweep',
+                    operatorId: ActivityLog::SYSTEM_OPERATOR
+                );
 
                 // The demotion just unpinned the copy: without a committing loan
                 // a circulation state (prenotato/prestato) on the copie row is
@@ -547,6 +569,24 @@ class MaintenanceService
                 }
                 $this->db->commit();
                 $repaired++;
+
+                // B4: la revoca del ritiro non deve essere silenziosa. Invio
+                // POST-commit (stesso pattern dei sender dei sweep gemelli):
+                // un errore di invio non deve entrare nel catch esterno.
+                try {
+                    // Chiave di catalogo GREZZA (non __()): il sender la
+                    // traduce nel locale del destinatario, non della sessione.
+                    (new NotificationService($this->db))->sendPickupCancelledNotification(
+                        $loanId,
+                        'La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.'
+                    );
+                } catch (\Throwable $notifError) {
+                    SecureLogger::warning(__('Errore invio notifica revoca ritiro'), [
+                        'prestito_id' => $loanId,
+                        'error' => $notifError->getMessage(),
+                    ]);
+                }
+
                 SecureLogger::info(__('Ritiro non disponibile ripristinato come prenotato'), [
                     'prestito_id' => $loanId,
                     'libro_id' => $bookId,
@@ -1024,13 +1064,18 @@ class MaintenanceService
     {
         $today = DateHelper::today();
 
-        // Find expired reservations
+        // Find expired reservations. Oltre alle conversioni promosse
+        // (origine='prenotazione'), anche le richieste dirette e NCIP mai
+        // approvate ('richiesta'/'ncip') scadono quando la finestra è
+        // interamente passata: senza, restavano "pendenti eterni" nella coda
+        // admin. Sono copyless per costruzione; una eventuale copia pinnata è
+        // rilasciata sotto con la stessa guardia stato='prenotato'.
         $stmt = $this->db->prepare("
             SELECT id, libro_id, copia_id, utente_id
             FROM prestiti
             WHERE (
                 (stato = 'prenotato' AND attivo = 1)
-                OR (stato = 'pendente' AND attivo = 0 AND origine = 'prenotazione')
+                OR (stato = 'pendente' AND attivo = 0 AND origine IN ('prenotazione', 'richiesta', 'ncip'))
             )
             AND data_scadenza < ?
         ");
@@ -1082,7 +1127,7 @@ class MaintenanceService
                     WHERE id = ?
                       AND (
                           (stato = 'prenotato' AND attivo = 1)
-                          OR (stato = 'pendente' AND attivo = 0 AND origine = 'prenotazione')
+                          OR (stato = 'pendente' AND attivo = 0 AND origine IN ('prenotazione', 'richiesta', 'ncip'))
                       )
                       AND data_scadenza < ?
                     FOR UPDATE
@@ -1096,6 +1141,10 @@ class MaintenanceService
                     continue;
                 }
                 $copiaId = $lockedReservation['copia_id'] ? (int) $lockedReservation['copia_id'] : null;
+
+                // Audit: snapshot pre-mutazione, l'evento è registrato DENTRO la
+                // stessa transazione dell'UPDATE (regola di progetto).
+                $beforeSnapshot = ActivityLog::loadLoanSnapshot($this->db, $id);
 
                 // Build note suffix safely with bound parameter. Data nel fuso
                 // applicativo (P4): la decisione di scadenza usa $today
@@ -1117,7 +1166,7 @@ class MaintenanceService
                     WHERE id = ?
                       AND (
                           (stato = 'prenotato' AND attivo = 1)
-                          OR (stato = 'pendente' AND attivo = 0 AND origine = 'prenotazione')
+                          OR (stato = 'pendente' AND attivo = 0 AND origine IN ('prenotazione', 'richiesta', 'ncip'))
                       )
                 ");
                 $updateStmt->bind_param('si', $noteSuffix, $id);
@@ -1128,6 +1177,16 @@ class MaintenanceService
                     $this->db->rollback();
                     continue;
                 }
+
+                // Evento audit con operatore SYSTEM: lo sweep non ha sessione.
+                ActivityLog::recordLoanEvent(
+                    $this->db,
+                    $id,
+                    'reservation.expired',
+                    $beforeSnapshot,
+                    source: 'sweep',
+                    operatorId: ActivityLog::SYSTEM_OPERATOR
+                );
 
                 // If a copy was assigned, make it available (if currently 'prenotato')
                 if ($copiaId) {
@@ -1284,6 +1343,10 @@ class MaintenanceService
                 }
                 $copiaId = $lockedPickup['copia_id'] ? (int) $lockedPickup['copia_id'] : null;
 
+                // Audit: snapshot pre-mutazione, l'evento è registrato DENTRO la
+                // stessa transazione dell'UPDATE (regola di progetto).
+                $beforeSnapshot = ActivityLog::loadLoanSnapshot($this->db, $id);
+
                 // Build note suffix safely with bound parameter. Data nel fuso
                 // applicativo (P4), come sopra: stessa data della decisione
                 // basata su $today, non la TZ del processo.
@@ -1312,6 +1375,16 @@ class MaintenanceService
                     ]);
                     continue;
                 }
+
+                // Evento audit con operatore SYSTEM: lo sweep non ha sessione.
+                ActivityLog::recordLoanEvent(
+                    $this->db,
+                    $id,
+                    'loan.expired',
+                    $beforeSnapshot,
+                    source: 'sweep',
+                    operatorId: ActivityLog::SYSTEM_OPERATOR
+                );
 
                 // Copy should already be 'prenotato' during da_ritirare state
                 // But let's ensure it's available for reassignment
@@ -1421,24 +1494,79 @@ class MaintenanceService
         // applicativo e i ritardi con l'oggi della session timezone DB.
         $today = DateHelper::today();
 
-        $stmt = $this->db->prepare("
-            UPDATE prestiti
-            SET stato = 'in_ritardo'
-            WHERE stato = 'in_corso'
-            AND data_scadenza < ?
-            AND attivo = 1
-        ");
+        // Audit trail: gli id vanno raccolti (e lockati) PRIMA dell'UPDATE bulk,
+        // così ogni flip produce un evento loan.overdue con operatore SYSTEM
+        // dentro la stessa transazione della mutazione. Il FOR UPDATE serializza
+        // il set: nessuna riga può cambiare stato tra la SELECT e il flip.
+        $this->db->begin_transaction();
 
-        if (!$stmt) {
-            throw new \RuntimeException('Failed to prepare overdue loans query');
+        try {
+            $select = $this->db->prepare("
+                SELECT id FROM prestiti
+                WHERE stato = 'in_corso'
+                AND data_scadenza < ?
+                AND attivo = 1
+                FOR UPDATE
+            ");
+            if (!$select) {
+                throw new \RuntimeException('Failed to prepare overdue loans query');
+            }
+            $select->bind_param('s', $today);
+            $select->execute();
+            $result = $select->get_result();
+            $overdueIds = [];
+            while ($row = $result->fetch_assoc()) {
+                $overdueIds[] = (int) $row['id'];
+            }
+            $select->close();
+
+            if ($overdueIds === []) {
+                $this->db->commit();
+                return 0;
+            }
+
+            $beforeSnapshots = [];
+            foreach ($overdueIds as $overdueId) {
+                $beforeSnapshots[$overdueId] = ActivityLog::loadLoanSnapshot($this->db, $overdueId);
+            }
+
+            // Flip bulk (prestazioni invariate): id già serializzati dal lock,
+            // il predicato è ri-asserito per sola difesa in profondità.
+            $idList = implode(',', $overdueIds);
+            $stmt = $this->db->prepare("
+                UPDATE prestiti
+                SET stato = 'in_ritardo'
+                WHERE id IN ({$idList})
+                AND stato = 'in_corso'
+                AND data_scadenza < ?
+                AND attivo = 1
+            ");
+            if (!$stmt) {
+                throw new \RuntimeException('Failed to prepare overdue loans query');
+            }
+            $stmt->bind_param('s', $today);
+            $stmt->execute();
+            $affected = $this->db->affected_rows;
+            $stmt->close();
+
+            // Evento audit per ciascun prestito flippato (operatore SYSTEM).
+            foreach ($overdueIds as $overdueId) {
+                ActivityLog::recordLoanEvent(
+                    $this->db,
+                    $overdueId,
+                    'loan.overdue',
+                    $beforeSnapshots[$overdueId],
+                    source: 'sweep',
+                    operatorId: ActivityLog::SYSTEM_OPERATOR
+                );
+            }
+
+            $this->db->commit();
+            return $affected;
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
         }
-
-        $stmt->bind_param('s', $today);
-        $stmt->execute();
-        $affected = $this->db->affected_rows;
-        $stmt->close();
-
-        return $affected;
     }
 
     /**
