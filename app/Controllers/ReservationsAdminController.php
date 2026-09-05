@@ -281,6 +281,14 @@ class ReservationsAdminController
             // excluding this reservation itself (and the user) from the count.
             if ($stato === 'attiva') {
                 $capacity = new \App\Services\CapacityService($db);
+                // Riattivazione (non-attiva -> attiva): stesso gate di store() —
+                // senza righe in `copie` la promozione non può mai convertire la
+                // coda (seleziona solo copie fisiche), quindi la prenotazione
+                // riattivata non convertirebbe mai. Rifiuta con lo stesso errore.
+                if ($oldStato !== 'attiva' && !$capacity->hasPhysicalCopies($libroId)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=capacity_full')->withStatus(302);
+                }
                 if (!$capacity->hasFreeCapacity($libroId, $dataInizioRichiesta, $dataFineRichiesta, excludeReservationId: $id, excludeUserId: $utenteId)) {
                     $db->rollback();
                     return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=capacity_full')->withStatus(302);
@@ -322,8 +330,13 @@ class ReservationsAdminController
             // queued reservation(s) right away, exactly like every other release path
             // (LoanApproval, Prestiti, …) — otherwise the next in line waits for the
             // periodic MaintenanceService sweep and the book looks free in the meantime.
+            // Anche attiva -> attiva promuove: restringere/spostare la finestra
+            // può liberare capacità nel periodo lasciato scoperto. E anche la
+            // riattivazione (annullata/completata -> attiva): la prenotazione
+            // rientra in coda e, se c'è capacità libera, deve poter convertire
+            // subito come una appena creata — non aspettare lo sweep periodico.
             $reservationManager = null;
-            if ($oldStato === 'attiva' && $stato !== 'attiva') {
+            if ($oldStato === 'attiva' || $reactivating) {
                 $reservationManager = new \App\Controllers\ReservationManager($db);
                 $reservationManager->setExternalTransaction(true); // already inside a transaction
                 for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
@@ -362,17 +375,33 @@ class ReservationsAdminController
             );
             $db->commit();
 
+            // Post-commit: un flush fallito non deve trasformare un update già
+            // durevole in error=update_failed né sopprimere l'email di
+            // annullamento qui sotto — le email promo restano nell'outbox.
             if ($reservationManager !== null) {
-                $reservationManager->flushDeferredNotifications();
+                try {
+                    $reservationManager->flushDeferredNotifications();
+                } catch (\Throwable $flushError) {
+                    \App\Support\SecureLogger::warning(
+                        "ReservationsAdminController: deferred promotion notifications failed after update of reservation {$id}",
+                        ['error' => $flushError->getMessage()]
+                    );
+                }
             }
             if ($cancelNotification !== null && !empty($cancelNotification['email'])) {
                 try {
-                    $sent = (new \App\Support\NotificationService($db))->sendReservationCancelledNotification(
+                    $notificationService = new \App\Support\NotificationService($db);
+                    // Motivo nel locale del DESTINATARIO (#360 parity), non in
+                    // quello della sessione admin che sta annullando.
+                    $sent = $notificationService->sendReservationCancelledNotification(
                         (string) $cancelNotification['email'],
                         [
                             'utente_nome' => (string) $cancelNotification['utente_nome'],
                             'libro_titolo' => (string) $cancelNotification['titolo'],
-                            'motivo' => __('Annullata dalla biblioteca'),
+                            'motivo' => $notificationService->translateInLocale(
+                                'Annullata dalla biblioteca',
+                                $notificationService->resolveRecipientLocale((string) $cancelNotification['email'])
+                            ),
                         ]
                     );
                     if (!$sent) {
