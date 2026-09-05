@@ -577,7 +577,7 @@ $check(
     'L5: il flush post-commit delle notifiche promo è dentro un try/catch'
 );
 $maintCtrlSrc = (string) file_get_contents($root . '/app/Controllers/MaintenanceController.php');
-$circPos = strpos($maintCtrlSrc, 'runIfNeeded(1)');
+$circPos = strpos($maintCtrlSrc, 'runIfNeeded(0)');
 // Offset da $circPos: la stessa chiamata esiste anche in fixIntegrityIssues(),
 // prima nel file — qui interessa l'occorrenza DENTRO performMaintenance.
 $fixPos = $circPos === false ? false : strpos($maintCtrlSrc, '$fixResult = $integrity->fixDataInconsistencies();', $circPos);
