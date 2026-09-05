@@ -117,10 +117,13 @@ try {
         $cols[$row['COLUMN_NAME']] = $row;
     }
     $check(count($cols) === 10, 'migration creates all ten outbox columns');
-    $check(($cols['id']['COLUMN_TYPE'] ?? '') === 'bigint unsigned', 'id is bigint unsigned');
+    // MariaDB reports legacy display widths ("bigint(20) unsigned") where
+    // MySQL 8 reports "bigint unsigned": strip them before comparing.
+    $type = static fn(string $col): string => preg_replace('/\((?:\d+)\)/', '', (string) ($cols[$col]['COLUMN_TYPE'] ?? ''), 1) ?? '';
+    $check($type('id') === 'bigint unsigned', 'id is bigint unsigned');
     $check(($cols['claim_token']['COLUMN_TYPE'] ?? '') === 'char(32)' && ($cols['claim_token']['IS_NULLABLE'] ?? '') === 'YES', 'claim_token is nullable char(32)');
-    $check(($cols['attempts']['COLUMN_TYPE'] ?? '') === 'int unsigned' && ($cols['attempts']['COLUMN_DEFAULT'] ?? '') === '0', 'attempts defaults to 0');
-    $check(($cols['variables_json']['COLUMN_TYPE'] ?? '') === 'longtext', 'variables_json is longtext');
+    $check($type('attempts') === 'int unsigned' && (string) ($cols['attempts']['COLUMN_DEFAULT'] ?? '') === '0', 'attempts defaults to 0');
+    $check($type('variables_json') === 'longtext', 'variables_json is longtext');
 
     $idx = [];
     $res = $db->query("SELECT INDEX_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS cols
