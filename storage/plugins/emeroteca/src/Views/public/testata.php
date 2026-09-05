@@ -81,7 +81,7 @@ $schema = array_filter($schema, static fn($v) => $v !== null && $v !== '');
 $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <script type="application/ld+json"><?= $emerotecaSchema ?: '{}' ?></script>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
 
 <main id="emeroteca-testata" class="container emeroteca-public">
     <nav aria-label="breadcrumb" class="mb-3 text-sm text-gray-500">

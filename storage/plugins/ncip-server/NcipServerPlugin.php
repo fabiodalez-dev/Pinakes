@@ -2125,6 +2125,34 @@ class NcipServerPlugin
                     $reorder->bind_param('i', $bookId);
                     $reorder->execute();
                     $rows = $reorder->get_result();
+
+                    // Two-phase move (stesso pattern di ReservationManager):
+                    // prima le righe attive vanno su posizioni temporanee fuori
+                    // intervallo, poi si assegnano le posizioni finali — il
+                    // trigger BEFORE UPDATE rifiuta i duplicati riga per riga
+                    // durante il riordino.
+                    // Offset DINAMICO: un offset fisso può collidere con
+                    // posizioni residue già oltre l'offset; deve superare sia
+                    // il MAX attivo sia l'ultima posizione finale assegnata
+                    // (righe NULL incluse in N).
+                    $maxStmt = $this->db->prepare(
+                        "SELECT COALESCE(MAX(queue_position), 0) FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'"
+                    );
+                    $maxStmt->bind_param('i', $bookId);
+                    $maxStmt->execute();
+                    $offset = max((int) $maxStmt->get_result()->fetch_row()[0], (int) $rows->num_rows);
+                    $maxStmt->close();
+                    if ($offset > 0) {
+                        $shiftStmt = $this->db->prepare(
+                            "UPDATE prenotazioni
+                                SET queue_position = queue_position + ?
+                              WHERE libro_id = ? AND stato = 'attiva' AND queue_position IS NOT NULL"
+                        );
+                        $shiftStmt->bind_param('ii', $offset, $bookId);
+                        $shiftStmt->execute();
+                        $shiftStmt->close();
+                    }
+
                     $position = 1;
                     $setPosition = $this->db->prepare(
                         'UPDATE prenotazioni SET queue_position = ? WHERE id = ?'

@@ -101,7 +101,7 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, ics_generated: bool, errors: array} Results for each maintenance task
+     * @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, errors: array} Results for each maintenance task
      */
     public function runAll(): array
     {
@@ -118,6 +118,7 @@ class MaintenanceService
             'wishlist_notifications' => 0,
             'reservation_notifications_retried' => 0,
             'pickup_notifications_retried' => 0,
+            'queued_emails_retried' => 0,
             'ics_generated' => false,
             'errors' => []
         ];
@@ -227,6 +228,16 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'retryUnsentPickupNotifications: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore recupero notifiche ritiro'), ['error' => $e->getMessage()]);
+        }
+
+        // Terminal circulation events (return, cancellation, rejection,
+        // expiry, lost/damaged) have no natural row to rescan once committed.
+        // Retry their durable outbox after the specialised claim pipelines.
+        try {
+            $results['queued_emails_retried'] = (new NotificationService($this->db))->retryQueuedEmailDeliveries();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'retryQueuedEmailDeliveries: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore recupero email accodate'), ['error' => $e->getMessage()]);
         }
 
         // Best-effort plugin push dispatch (Mobile API): fire AFTER the email
@@ -647,6 +658,26 @@ class MaintenanceService
                     continue;
                 }
                 $loan = $lockedLoan;
+
+                // A scheduled commitment can become collectible days or weeks
+                // after approval. Recheck mutable account/card eligibility at
+                // activation and leave the row scheduled when temporarily
+                // ineligible; it can recover on a later maintenance pass.
+                $utenteId = (int) $loan['utente_id'];
+                $userLock = $this->db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
+                $userLock->bind_param('i', $utenteId);
+                $userLock->execute();
+                $userLock->close();
+                $eligibilityError = \App\Support\LoanEligibility::checkUser($this->db, $utenteId);
+                if ($eligibilityError !== null) {
+                    $this->db->rollback();
+                    SecureLogger::info('Attivazione prestito rinviata: utente non idoneo', [
+                        'prestito_id' => $loanId,
+                        'utente_id' => $utenteId,
+                        'motivo' => $eligibilityError,
+                    ]);
+                    continue;
+                }
                 $committedCopyIds = (new LoanMultiplicityPolicy($this->db))->committedCopyIds(
                     $bookId,
                     (int) $loan['utente_id'],
@@ -980,9 +1011,11 @@ class MaintenanceService
     /**
      * Check and expire reservations past their due date (Case 4)
      *
-     * Finds prestiti with stato='prenotato' where data_scadenza < today,
-     * marks them as 'scaduto', frees assigned copies, and triggers
-     * reassignment to next user in queue.
+     * Finds scheduled loans and reservation-origin pending conversions whose
+     * requested window has elapsed, marks them as 'scaduto', frees assigned
+     * copies, and triggers reassignment. Including the pending conversion is
+     * essential: otherwise a promoted but never approved request holds a
+     * physical copy forever.
      *
      * @return int Number of reservations expired
      * @throws \RuntimeException If query preparation fails
@@ -995,8 +1028,10 @@ class MaintenanceService
         $stmt = $this->db->prepare("
             SELECT id, libro_id, copia_id, utente_id
             FROM prestiti
-            WHERE stato = 'prenotato'
-            AND attivo = 1
+            WHERE (
+                (stato = 'prenotato' AND attivo = 1)
+                OR (stato = 'pendente' AND attivo = 0 AND origine = 'prenotazione')
+            )
             AND data_scadenza < ?
         ");
 
@@ -1044,7 +1079,12 @@ class MaintenanceService
                 $lockLoan = $this->db->prepare("
                     SELECT id, libro_id, copia_id, utente_id
                     FROM prestiti
-                    WHERE id = ? AND stato = 'prenotato' AND attivo = 1 AND data_scadenza < ?
+                    WHERE id = ?
+                      AND (
+                          (stato = 'prenotato' AND attivo = 1)
+                          OR (stato = 'pendente' AND attivo = 0 AND origine = 'prenotazione')
+                      )
+                      AND data_scadenza < ?
                     FOR UPDATE
                 ");
                 $lockLoan->bind_param('is', $id, $today);
@@ -1064,7 +1104,8 @@ class MaintenanceService
                 // diverso da quello effettivamente deciso.
                 $noteSuffix = "\n[System] " . __('Scaduta il') . ' ' . implode('/', array_reverse(explode('-', $today)));
 
-                // Mark as expired. Re-assert stato='prenotato' + check affected_rows
+                // Mark as expired. Re-assert the two eligible source states and
+                // check affected_rows
                 // (D14): a concurrent confirmPickup/activateScheduledLoans may have
                 // advanced this row between the SELECT and here — don't stomp it.
                 $updateStmt = $this->db->prepare("
@@ -1073,7 +1114,11 @@ class MaintenanceService
                         attivo = 0,
                         updated_at = NOW(),
                         note = CONCAT(COALESCE(note, ''), ?)
-                    WHERE id = ? AND stato = 'prenotato' AND attivo = 1
+                    WHERE id = ?
+                      AND (
+                          (stato = 'prenotato' AND attivo = 1)
+                          OR (stato = 'pendente' AND attivo = 0 AND origine = 'prenotazione')
+                      )
                 ");
                 $updateStmt->bind_param('si', $noteSuffix, $id);
                 $updateStmt->execute();

@@ -176,7 +176,15 @@ try {
         logMessage("WARNING: retryUnsentPickupNotifications failed: " . $e->getMessage());
     }
 
-    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + ($results['loan_recalls'] ?? 0) + $results['wishlist_notifications'] + $retriedNotifications + $retriedPickupNotifications;
+    $retriedQueuedEmails = 0;
+    try {
+        $retriedQueuedEmails = $notificationService->retryQueuedEmailDeliveries();
+        logMessage("- Queued circulation emails retried: " . $retriedQueuedEmails);
+    } catch (Throwable $e) {
+        logMessage("WARNING: retryQueuedEmailDeliveries failed: " . $e->getMessage());
+    }
+
+    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + ($results['loan_recalls'] ?? 0) + $results['wishlist_notifications'] + $retriedNotifications + $retriedPickupNotifications + $retriedQueuedEmails;
     logMessage("Total emails sent: {$totalSent}");
 
     // Dispatch native mobile push on the same hourly pass as email reminders.

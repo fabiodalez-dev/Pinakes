@@ -43,17 +43,16 @@ $periodicitaLabels = [
 ];
 $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
 <div id="emeroteca-admin-index" class="emeroteca-admin">
-    <div class="emt-page-header">
+    <div class="emt-page-header emt-page-header--index">
         <div>
-        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 class="text-2xl font-bold text-gray-900"><?= __("Emeroteca") ?></h1>
-            <p class="text-sm text-gray-500">
+            <h1 class="text-3xl font-bold text-gray-900"><?= __("Emeroteca") ?></h1>
+            <p class="mt-1 text-sm text-gray-600">
                 <?= __("Gestione di riviste, giornali e periodici: testate, annate e fascicoli.") ?>
             </p>
         </div>
-        <div class="flex flex-wrap items-center gap-2 mt-3">
+        <div class="flex items-center gap-2">
             <a href="<?= $e(url('/admin/periodicals/create')) ?>"
                class="btn-primary inline-flex items-center text-sm">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -61,7 +60,6 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                 </svg>
                 <?= __("Nuova testata") ?>
             </a>
-        </div>
         </div>
     </div>
 

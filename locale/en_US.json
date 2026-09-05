@@ -7287,5 +7287,17 @@
   "Importa / esporta": "Import / export",
   "Pseudonimo:": "Pen name:",
   "Tipologia": "Type",
-  "Tutte le tipologie": "All types"
+  "Tutte le tipologie": "All types",
+  "MaintenanceService errore recupero email accodate": "MaintenanceService queued email recovery error",
+  "Prenotazione assegnata, in attesa di approvazione": "Reservation assigned, awaiting approval",
+  "Inviata quando una prenotazione ottiene una copia e attende l'approvazione del prestito.": "Sent when a reservation receives a copy and awaits loan approval.",
+  "Copia persa o danneggiata": "Lost or damaged copy",
+  "Inviata quando un prestito viene chiuso dichiarando la copia persa o danneggiata.": "Sent when a loan is closed with the copy marked lost or damaged.",
+  "Data di chiusura del prestito": "Loan closing date",
+  "Esito registrato per la copia fisica": "Recorded physical-copy outcome",
+  "Note registrate dall'operatore": "Notes recorded by the operator",
+  "Importo addebitato per la copia": "Charge assessed for the copy",
+  "Importo non valido: usa un valore positivo con al massimo due decimali.": "Invalid amount: use a positive value with no more than two decimal places.",
+  "Importo addebitato": "Assessed charge",
+  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Optional; recorded and communicated for lost or damaged copies."
 }

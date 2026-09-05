@@ -44,6 +44,7 @@ $csrfToken = Csrf::ensureToken();
             <?php
             echo match ($_GET['error']) {
                 'invalid_status'   => __('Stato prestito non valido.'),
+                'invalid_penalty'  => __('Importo non valido: usa un valore positivo con al massimo due decimali.'),
                 'update_failed'    => __('Si è verificato un errore durante l\'aggiornamento del prestito.'),
                 'concurrent_retry' => __('Un\'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.'),
                 default            => __('Impossibile completare l\'operazione. Riprova più tardi.')
@@ -177,6 +178,23 @@ $csrfToken = Csrf::ensureToken();
                         class="rounded-lg border-2 border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:outline-none"
                     ><?= HtmlHelper::e($prestito['note'] ?? ''); ?></textarea>
                 </label>
+
+                <label id="sanzione-field" class="hidden flex-col gap-2">
+                    <span class="text-sm font-bold text-gray-900"><?= __("Importo addebitato") ?></span>
+                    <div class="relative">
+                        <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-gray-500">€</span>
+                        <input
+                            id="sanzione"
+                            name="sanzione"
+                            type="text"
+                            inputmode="decimal"
+                            value="<?= htmlspecialchars((string) ($prestito['sanzione'] ?? '0.00'), ENT_QUOTES, 'UTF-8'); ?>"
+                            pattern="(?:0|[1-9][0-9]{0,7})(?:[.,][0-9]{1,2})?"
+                            class="w-full rounded-lg border-2 border-gray-300 bg-white py-3 pl-9 pr-4 text-gray-900 focus:border-gray-900 focus:outline-none"
+                        >
+                    </div>
+                    <span class="text-xs text-gray-500"><?= __("Facoltativo; viene registrato e comunicato per copie perse o danneggiate.") ?></span>
+                </label>
             </div>
         </div>
 
@@ -195,3 +213,18 @@ $csrfToken = Csrf::ensureToken();
 </section>
 </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const status = document.getElementById('stato');
+    const field = document.getElementById('sanzione-field');
+    const input = document.getElementById('sanzione');
+    const sync = function () {
+        const visible = status && (status.value === 'perso' || status.value === 'danneggiato');
+        field.classList.toggle('hidden', !visible);
+        field.classList.toggle('flex', visible);
+        input.disabled = !visible;
+    };
+    status.addEventListener('change', sync);
+    sync();
+});
+</script>

@@ -43,7 +43,7 @@ $logo = (string) ($testata['logo_url'] ?? '');
 $logoSrc = $logo === '' ? '' : (str_starts_with($logo, '/') ? url($logo) : $logo);
 $currentYear = (int) date('Y');
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.3')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
 <div id="emeroteca-admin-issues" class="emeroteca-admin">
     <header class="emt-page-header">
         <nav aria-label="breadcrumb" class="text-sm text-gray-500 mb-4">

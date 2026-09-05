@@ -11,7 +11,8 @@ declare(strict_types=1);
  *    attivo=0, pickup_deadline cleared, only a held copy freed (never a copy
  *    already in prestato), availability recalculated, idempotent on re-run;
  *  - checkExpiredReservations: prenotato whose window fully passed → scaduto,
- *    copy freed, idempotent;
+ *    and reservation-origin pendente whose window passed → scaduto, copy freed,
+ *    idempotent;
  *  - waitlist promotion on expiry: the freed capacity promotes the head of the
  *    prenotazioni queue into a pendente loan and completes the reservation;
  *  - DB trigger semantics: per-copy overlap SIGNAL, disjoint windows allowed,
@@ -85,6 +86,7 @@ $cleanup = static function () use ($db, &$bookIds, &$userIds, $settings, $origin
         try { $db->query("DELETE FROM notifications WHERE user_id = {$id}"); } catch (Throwable) {}
         $db->query("DELETE FROM utenti WHERE id = {$id}");
     }
+    try { $db->query("DELETE FROM email_delivery_outbox WHERE recipient_email LIKE 'zz-sweep-%@test.local'"); } catch (Throwable) {}
     $settings->set('loans', 'allow_multiple_loans_same_book', (string) $originalMulti);
 };
 set_exception_handler(static function (Throwable $e) use ($cleanup, $db): void {
@@ -171,6 +173,24 @@ $sB = $d(-10); $eB = $d(-3);
 $stmt->bind_param('iiiss', $bookB, $copyB, $userB, $sB, $eB);
 $stmt->execute();
 $loanB = (int) $db->insert_id;
+$stmt->close();
+
+// ═════════ Fixture C: promoted reservation never approved before window end ═════════
+[$bookC, [$copyC]] = $makeBook('C', 1);
+[$userC] = $makeUser('c');
+// La copia parte OCCUPATA (prenotato, disponibili=0): lo sweep libera solo
+// copie in stato 'prenotato', quindi senza questo setup l'assert passerebbe
+// anche se la liberazione non avvenisse mai.
+$db->query("UPDATE copie SET stato = 'prenotato' WHERE id = {$copyC}");
+$db->query("UPDATE libri SET copie_disponibili = 0 WHERE id = {$bookC}");
+$stmt = $db->prepare(
+    "INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+     VALUES (?, ?, ?, ?, ?, 'pendente', 'prenotazione', 0)"
+);
+$sC = $d(-10); $eC = $d(-2);
+$stmt->bind_param('iiiss', $bookC, $copyC, $userC, $sC, $eC);
+$stmt->execute();
+$loanC = (int) $db->insert_id;
 $stmt->close();
 
 // ═════════ Fixture D: stale pickup points at a copy already physically lent ═════════
@@ -261,10 +281,13 @@ $check($loanCol($loanD, 'stato') === 'scaduto'
 
 // ═════════ 13-17: checkExpiredReservations behavior ═════════
 $processedRes = $maint->checkExpiredReservations();
-$check($processedRes >= 1, '13 checkExpiredReservations processes the fully-past scheduled loan');
+$check($processedRes >= 2, '13 checkExpiredReservations processes scheduled and pending reservation windows');
 $check($loanCol($loanB, 'stato') === 'scaduto', '14 loan B transitions prenotato → scaduto');
 $check($loanCol($loanB, 'attivo') === '0', '15 loan B is deactivated');
 $check($copyState($copyB) === 'disponibile', '16 copy B is released');
+$check($loanCol($loanC, 'stato') === 'scaduto', '16b promoted-but-unapproved reservation expires instead of holding a copy forever');
+$check($loanCol($loanC, 'attivo') === '0', '16c expired pending conversion remains inactive and terminal');
+$check($copyState($copyC) === 'disponibile', '16d its physical copy remains available for reassignment');
 $maint->checkExpiredReservations();
 $check($loanCol($loanB, 'stato') === 'scaduto', '17 reservation expiry is idempotent on re-run');
 

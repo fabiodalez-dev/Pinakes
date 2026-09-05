@@ -270,6 +270,14 @@ return [
 <p>Wir hoffen, die Lektüre hat dir gefallen. Bis bald in der Bibliothek!</p>
 <p>Mit freundlichen Grüßen,<br>Dein Bibliotheksteam</p>',
     ],
+    'loan_copy_outcome' => [
+        'subject' => '⚠️ Mitteilung zu deinem ausgeliehenen Exemplar',
+        'body' => '<h2>Aktualisierung der Ausleihe</h2><p>Hallo {{utente_nome}},</p><p>Die Ausleihe wurde mit folgendem Ergebnis für das Exemplar geschlossen:</p><div style="background-color:#fff7ed;padding:15px;border-left:4px solid #f59e0b"><p><strong>Buch:</strong> {{libro_titolo}}</p><p><strong>Ergebnis:</strong> {{esito_copia}}</p><p><strong>Abschlussdatum:</strong> {{data_chiusura}}</p><p><strong>Notizen:</strong> {{note}}</p><p><strong>Erfasster Betrag:</strong> {{sanzione}}</p></div><p>Bei Fragen wende dich bitte an die Bibliothek.</p>',
+    ],
+    'reservation_awaiting_approval' => [
+        'subject' => '📚 Exemplar zugewiesen — Abholbestätigung abwarten',
+        'body' => '<h2>Deiner Vormerkung wurde ein Exemplar zugewiesen</h2><p>Hallo {{utente_nome}},</p><p>Deine Vormerkung ist an der Reihe; ein Exemplar wurde für {{data_inizio}} - {{data_fine}} reserviert.</p><p><strong>Buch:</strong> {{libro_titolo}} — {{libro_autore}} ({{libro_isbn}})</p><div style="background-color:#fef3c7;padding:15px;border-left:4px solid #f59e0b"><p><strong>Bitte komm noch nicht in die Bibliothek.</strong></p><p>Die Anfrage muss noch genehmigt werden. Sobald das Buch abholbereit ist, erhältst du eine weitere E-Mail mit der Abholfrist.</p></div><p><a href="{{book_url}}">Buch ansehen</a> · <a href="{{profile_url}}">Meine Ausleihen</a></p>',
+    ],
     'reservation_book_available' => [
         'subject' => '📚 Vorgemerktes Buch bereit zur Abholung!',
         'body' => '<h2>Dein Buch ist bereit zur Abholung!</h2>

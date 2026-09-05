@@ -43,6 +43,13 @@
     margin-bottom: 2rem;
 }
 
+.emeroteca-admin .emt-page-header--index {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
 .emeroteca-admin .emt-page-header h1 {
     color: var(--emt-ink);
     letter-spacing: -0.025em;
@@ -207,7 +214,7 @@
 
 .emeroteca-admin :where(.btn-primary, .btn-secondary, .btn-danger, .btn-danger-outline, .ui-button) {
     min-height: 44px;
-    border-radius: 2px;
+    border-radius: var(--radius, .5rem);
     box-shadow: none;
 }
 
@@ -932,6 +939,11 @@
 @media (max-width: 640px) {
     .emeroteca-admin {
         padding: 1rem;
+    }
+
+    .emeroteca-admin .emt-page-header--index {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .emeroteca-public .emeroteca-issue-layout,

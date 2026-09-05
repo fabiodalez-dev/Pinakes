@@ -3897,6 +3897,9 @@ input:where([type='file']):focus {
 .pointer-events-none {
   pointer-events: none;
 }
+.\!visible {
+  visibility: visible !important;
+}
 .visible {
   visibility: visible;
 }
@@ -5581,6 +5584,9 @@ input:where([type='file']):focus {
 }
 .pl-5 {
   padding-left: 1.25rem;
+}
+.pl-9 {
+  padding-left: 2.25rem;
 }
 .pr-10 {
   padding-right: 2.5rem;

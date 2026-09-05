@@ -7287,5 +7287,17 @@
   "Importa / esporta": "Importieren / exportieren",
   "Pseudonimo:": "Pseudonym:",
   "Tipologia": "Typ",
-  "Tutte le tipologie": "Alle Typen"
+  "Tutte le tipologie": "Alle Typen",
+  "MaintenanceService errore recupero email accodate": "MaintenanceService-Fehler beim Wiederholen der in der Warteschlange befindlichen E-Mails",
+  "Prenotazione assegnata, in attesa di approvazione": "Vormerkung zugewiesen, Genehmigung ausstehend",
+  "Inviata quando una prenotazione ottiene una copia e attende l'approvazione del prestito.": "Wird gesendet, wenn einer Vormerkung ein Exemplar zugewiesen wurde und die Ausleihgenehmigung aussteht.",
+  "Copia persa o danneggiata": "Verlorenes oder beschädigtes Exemplar",
+  "Inviata quando un prestito viene chiuso dichiarando la copia persa o danneggiata.": "Wird gesendet, wenn eine Ausleihe mit einem verlorenen oder beschädigten Exemplar geschlossen wird.",
+  "Data di chiusura del prestito": "Abschlussdatum der Ausleihe",
+  "Esito registrato per la copia fisica": "Erfasster Zustand des Exemplars",
+  "Note registrate dall'operatore": "Vom Personal erfasste Notizen",
+  "Importo addebitato per la copia": "Für das Exemplar berechneter Betrag",
+  "Importo non valido: usa un valore positivo con al massimo due decimali.": "Ungültiger Betrag: Verwende einen positiven Wert mit höchstens zwei Dezimalstellen.",
+  "Importo addebitato": "Berechneter Betrag",
+  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Optional; wird bei verlorenen oder beschädigten Exemplaren erfasst und mitgeteilt."
 }

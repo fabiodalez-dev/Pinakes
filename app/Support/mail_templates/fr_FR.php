@@ -270,6 +270,14 @@ return [
 <p>Nous espérons que cette lecture vous a plu. À très bientôt à la bibliothèque !</p>
 <p>Cordialement,<br>L\'équipe de la bibliothèque</p>',
     ],
+    'loan_copy_outcome' => [
+        'subject' => '⚠️ Mise à jour concernant votre exemplaire emprunté',
+        'body' => '<h2>Mise à jour du prêt</h2><p>Bonjour {{utente_nome}},</p><p>Le prêt a été clôturé avec le résultat suivant pour l’exemplaire physique :</p><div style="background-color:#fff7ed;padding:15px;border-left:4px solid #f59e0b"><p><strong>Livre :</strong> {{libro_titolo}}</p><p><strong>Résultat :</strong> {{esito_copia}}</p><p><strong>Date de clôture :</strong> {{data_chiusura}}</p><p><strong>Notes :</strong> {{note}}</p><p><strong>Montant enregistré :</strong> {{sanzione}}</p></div><p>Pour toute question, contactez la bibliothèque.</p>',
+    ],
+    'reservation_awaiting_approval' => [
+        'subject' => '📚 Exemplaire attribué — attendez la confirmation de retrait',
+        'body' => '<h2>Un exemplaire a été attribué à votre réservation</h2><p>Bonjour {{utente_nome}},</p><p>Votre réservation est arrivée en tête de file ; un exemplaire a été attribué pour la période {{data_inizio}} - {{data_fine}}.</p><p><strong>Livre :</strong> {{libro_titolo}} — {{libro_autore}} ({{libro_isbn}})</p><div style="background-color:#fef3c7;padding:15px;border-left:4px solid #f59e0b"><p><strong>Ne vous rendez pas encore à la bibliothèque.</strong></p><p>La demande doit encore être approuvée. Vous recevrez un autre e-mail avec la date limite de retrait lorsque le livre sera prêt.</p></div><p><a href="{{book_url}}">Voir le livre</a> · <a href="{{profile_url}}">Mes prêts</a></p>',
+    ],
     'reservation_book_available' => [
         'subject' => '📚 Livre réservé prêt à être retiré !',
         'body' => '<h2>Votre livre est prêt à être retiré !</h2>
