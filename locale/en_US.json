@@ -5459,6 +5459,7 @@
   "Annulla prestito": "Cancel loan",
   "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date": "The loan window has already passed: cancel the pickup or change the dates",
   "Annullata dalla biblioteca": "Cancelled by the library",
+  "Annullamento effettuato su tua richiesta": "Cancellation made at your request",
   "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Cannot delete this copy: it has a loan history. You can take it out of circulation by changing its status.",
   "Annullamento effettuato correttamente.": "Cancellation completed successfully.",
   "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.": "Item not found or no longer cancellable: its status may have changed in the meantime.",
@@ -7299,5 +7300,17 @@
   "Importo addebitato per la copia": "Charge assessed for the copy",
   "Importo non valido: usa un valore positivo con al massimo due decimali.": "Invalid amount: use a positive value with no more than two decimal places.",
   "Importo addebitato": "Assessed charge",
-  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Optional; recorded and communicated for lost or damaged copies."
+  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Optional; recorded and communicated for lost or damaged copies.",
+  "Ritiro confermato": "Pickup confirmed",
+  "Inviata quando il lettore ritira fisicamente il libro e il prestito inizia.": "Sent when the reader physically picks up the book and the loan starts.",
+  "Nessun addebito": "No charge",
+  "Copia dichiarata persa": "Copy declared lost",
+  "Copia dichiarata danneggiata": "Copy declared damaged",
+  "Prenotazione promossa": "Reservation promoted",
+  "Sanzione": "Charge",
+  "Ritiro revocato il": "Pickup revoked on",
+  "copia assegnata non disponibile, prenotazione ripristinata": "assigned copy unavailable, reservation restored",
+  "Errore invio notifica revoca ritiro": "Failed to send pickup revocation notice",
+  "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "The copy assigned to your pickup is no longer available. Your reservation remains valid: you will receive a new notice as soon as a copy is ready.",
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Maintenance already running or just completed: try again in a minute."
 }

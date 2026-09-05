@@ -5459,6 +5459,7 @@
   "Annulla prestito": "Annuller udlån",
   "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date": "Udlånsvinduet er allerede udløbet: Annuller afhentningen eller rediger datoerne",
   "Annullata dalla biblioteca": "Annulleret af biblioteket",
+  "Annullamento effettuato su tua richiesta": "Annullering foretaget efter din anmodning",
   "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Kan ikke slette eksemplaret: Det har en udlånshistorik. Du kan tage det ud af cirkulation ved at ændre dets status.",
   "Annullamento effettuato correttamente.": "Annullering gennemført korrekt.",
   "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.": "Element ikke fundet eller kan ikke længere annulleres: Status kan have ændret sig i mellemtiden.",
@@ -7299,5 +7300,17 @@
   "Importo addebitato per la copia": "Beløb opkrævet for eksemplaret",
   "Importo non valido: usa un valore positivo con al massimo due decimali.": "Ugyldigt beløb: brug en positiv værdi med højst to decimaler.",
   "Importo addebitato": "Opkrævet beløb",
-  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Valgfrit; registreres og meddeles for bortkomne eller beskadigede eksemplarer."
+  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Valgfrit; registreres og meddeles for bortkomne eller beskadigede eksemplarer.",
+  "Ritiro confermato": "Afhentning bekræftet",
+  "Inviata quando il lettore ritira fisicamente il libro e il prestito inizia.": "Sendes, når læseren fysisk afhenter bogen, og lånet begynder.",
+  "Nessun addebito": "Intet gebyr",
+  "Copia dichiarata persa": "Eksemplar meldt tabt",
+  "Copia dichiarata danneggiata": "Eksemplar meldt beskadiget",
+  "Prenotazione promossa": "Reservation rykket frem",
+  "Sanzione": "Gebyr",
+  "Ritiro revocato il": "Afhentning tilbagekaldt den",
+  "copia assegnata non disponibile, prenotazione ripristinata": "tildelt eksemplar utilgængeligt, reservation gendannet",
+  "Errore invio notifica revoca ritiro": "Kunne ikke sende besked om tilbagekaldt afhentning",
+  "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "Eksemplaret tildelt din afhentning er ikke længere tilgængeligt. Din reservation er stadig gyldig: du får en ny besked, så snart et eksemplar er klar.",
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Vedligeholdelse kører allerede eller er netop afsluttet: prøv igen om et minut."
 }

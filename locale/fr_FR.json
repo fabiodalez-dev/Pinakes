@@ -5459,6 +5459,7 @@
   "Annulla prestito": "Annuler l'emprunt",
   "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date": "La fenêtre d'emprunt est déjà passée : annulez le retrait ou modifiez les dates",
   "Annullata dalla biblioteca": "Annulée par la bibliothèque",
+  "Annullamento effettuato su tua richiesta": "Annulation effectuée à votre demande",
   "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Impossible de supprimer l'exemplaire : il a un historique d'emprunts. Vous pouvez le retirer de la circulation en modifiant son statut.",
   "Annullamento effettuato correttamente.": "Annulation effectuée avec succès.",
   "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.": "Élément introuvable ou plus annulable : son statut a peut-être changé entre-temps.",
@@ -7299,5 +7300,17 @@
   "Importo addebitato per la copia": "Montant facturé pour l'exemplaire",
   "Importo non valido: usa un valore positivo con al massimo due decimali.": "Montant non valide : utilisez une valeur positive avec deux décimales au maximum.",
   "Importo addebitato": "Montant facturé",
-  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Facultatif ; enregistré et communiqué pour les exemplaires perdus ou endommagés."
+  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Facultatif ; enregistré et communiqué pour les exemplaires perdus ou endommagés.",
+  "Ritiro confermato": "Retrait confirmé",
+  "Inviata quando il lettore ritira fisicamente il libro e il prestito inizia.": "Envoyé lorsque le lecteur retire physiquement le livre et que le prêt commence.",
+  "Nessun addebito": "Aucun frais",
+  "Copia dichiarata persa": "Exemplaire déclaré perdu",
+  "Copia dichiarata danneggiata": "Exemplaire déclaré endommagé",
+  "Prenotazione promossa": "Réservation promue",
+  "Sanzione": "Frais",
+  "Ritiro revocato il": "Retrait révoqué le",
+  "copia assegnata non disponibile, prenotazione ripristinata": "exemplaire attribué indisponible, réservation rétablie",
+  "Errore invio notifica revoca ritiro": "Échec de l'envoi de l'avis de révocation du retrait",
+  "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "L'exemplaire attribué à votre retrait n'est plus disponible. Votre réservation reste valable : vous recevrez un nouvel avis dès qu'un exemplaire sera prêt.",
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Maintenance déjà en cours ou tout juste terminée : réessayez dans une minute."
 }

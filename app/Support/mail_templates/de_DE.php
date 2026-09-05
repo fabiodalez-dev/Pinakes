@@ -232,6 +232,19 @@ return [
 <p><strong>Wichtig:</strong> Bitte geben Sie das Buch bis zum neuen Fälligkeitsdatum zurück. Sie erhalten einige Tage vorher eine Erinnerung.</p>
 <p>Viel Freude beim Lesen!</p>',
     ],
+    'loan_picked_up' => [
+        'subject' => '📖 Viel Freude beim Lesen! Deine Ausleihe hat begonnen',
+        'body' => '<h2>Abholung bestätigt</h2>
+<p>Hallo {{utente_nome}},</p>
+<p>Du hast das Buch abgeholt und deine Ausleihe hat offiziell begonnen:</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Buch:</strong> {{libro_titolo}}</p>
+    <p><strong>Abholdatum:</strong> {{data_prestito}}</p>
+    <p><strong>Fälligkeitsdatum:</strong> {{data_scadenza}}</p>
+</div>
+<p><strong>Wichtig:</strong> Bitte gib das Buch bis zum Fälligkeitsdatum zurück. Du erhältst einige Tage vorher eine Erinnerung.</p>
+<p>Viel Freude beim Lesen!</p>',
+    ],
     'loan_rejected' => [
         'subject' => '❌ Deine Ausleihanfrage wurde nicht genehmigt',
         'body' => '<h2>Deine Ausleihanfrage wurde nicht genehmigt</h2>
@@ -277,27 +290,6 @@ return [
     'reservation_awaiting_approval' => [
         'subject' => '📚 Exemplar zugewiesen — Abholbestätigung abwarten',
         'body' => '<h2>Deiner Vormerkung wurde ein Exemplar zugewiesen</h2><p>Hallo {{utente_nome}},</p><p>Deine Vormerkung ist an der Reihe; ein Exemplar wurde für {{data_inizio}} - {{data_fine}} reserviert.</p><p><strong>Buch:</strong> {{libro_titolo}} — {{libro_autore}} ({{libro_isbn}})</p><div style="background-color:#fef3c7;padding:15px;border-left:4px solid #f59e0b"><p><strong>Bitte komm noch nicht in die Bibliothek.</strong></p><p>Die Anfrage muss noch genehmigt werden. Sobald das Buch abholbereit ist, erhältst du eine weitere E-Mail mit der Abholfrist.</p></div><p><a href="{{book_url}}">Buch ansehen</a> · <a href="{{profile_url}}">Meine Ausleihen</a></p>',
-    ],
-    'reservation_book_available' => [
-        'subject' => '📚 Vorgemerktes Buch bereit zur Abholung!',
-        'body' => '<h2>Dein Buch ist bereit zur Abholung!</h2>
-<p>Hallo {{utente_nome}},</p>
-<p>wir freuen uns, dir mitteilen zu können, dass das von dir vorgemerkte Buch jetzt verfügbar und bereit zur Abholung ist:</p>
-<div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
-    <h3 style="color: #1e40af; margin: 0 0 10px 0;">{{libro_titolo}}</h3>
-    <p style="margin: 5px 0;"><strong>Autor:</strong> {{libro_autore}}</p>
-    <p style="margin: 5px 0;"><strong>ISBN:</strong> {{libro_isbn}}</p>
-    <p style="margin: 5px 0;"><strong>Ausleihzeitraum:</strong> {{data_inizio}} - {{data_fine}}</p>
-</div>
-<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
-    <p><strong>📦 Nächste Schritte</strong></p>
-    <p>Komm bitte in die Bibliothek, um das Buch abzuholen. Bring einen Ausweis mit.</p>
-</div>
-<p style="text-align: center;">
-    <a href="{{book_url}}" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">📖 Buch ansehen</a>
-    <a href="{{profile_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">👤 Meine Ausleihen</a>
-</p>
-<p><em>Die Vormerkung wurde in eine Ausleihe umgewandelt, die auf die Bestätigung der Abholung wartet.</em></p>',
     ],
     'reservation_cancelled' => [
         'subject' => '❌ Reservierung storniert',

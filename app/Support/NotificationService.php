@@ -29,7 +29,6 @@ class NotificationService {
         'loan_overdue_notification',
         'loan_recall_notification',
         'wishlist_book_available',
-        'reservation_book_available',
         'reservation_awaiting_approval',
         'loan_pickup_ready',
     ];
@@ -132,8 +131,10 @@ class NotificationService {
     /**
      * Resolve a __()-translated label in the given locale without leaking the
      * switch to the caller's session (used for per-recipient email wording).
+     * Public so email-composing collaborators (ReservationReassignmentService)
+     * can localize their fallback texts in the RECIPIENT's language too.
      */
-    private function translateInLocale(string $message, string $locale): string
+    public function translateInLocale(string $message, string $locale): string
     {
         $sessionLocale = I18n::getLocale();
         I18n::setLocale($locale);
@@ -1109,12 +1110,14 @@ class NotificationService {
                     'titolo' => $wishlist['titolo'] ?? '',
                     'autore' => $wishlist['autore'] ?? ''
                 ]);
+                $recipientLocale = $this->resolveRecipientLocale((string) $wishlist['email']);
                 $variables = [
                     'utente_nome' => $wishlist['utente_nome'],
                     'libro_titolo' => $wishlist['titolo'],
-                    'libro_autore' => $wishlist['autore'] ?: 'Autore non specificato',
+                    // Fallback nel locale del DESTINATARIO, non italiano hardcoded.
+                    'libro_autore' => $wishlist['autore'] ?: $this->translateInLocale('Autore non specificato', $recipientLocale),
                     'libro_isbn' => $wishlist['isbn'] ?: 'N/A',
-                    'data_disponibilita' => $this->formatEmailDate('now', true, $this->resolveRecipientLocale((string) $wishlist['email'])),
+                    'data_disponibilita' => $this->formatEmailDate('now', true, $recipientLocale),
                     'book_url' => absoluteUrl($bookLink),
                     'wishlist_url' => absoluteUrl(RouteTranslator::route('wishlist'))
                 ];
@@ -1378,11 +1381,12 @@ class NotificationService {
      */
     public function sendLoanRenewedNotification(int $loanId, int $maxRenewals): bool {
         try {
+            // CI-SOFT-DELETE-EXEMPT: the renewal confirmation must reach the borrower even when the title was archived after the loan went out — renew()/update()/bulkExtend all extend such loans (soft-delete governs lendability, not running loans).
             $stmt = $this->db->prepare("
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                LEFT JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -1396,12 +1400,23 @@ class NotificationService {
             }
             $stmt->close();
 
+            // Utente senza email: niente invio né retry (stesso criterio dei
+            // guard warning/overdue).
+            if (trim((string) $loan['utente_email']) === '') {
+                SecureLogger::info("Loan renewed notification for loan {$loanId}: user has no email, skipped");
+                return false;
+            }
+
             $remaining = max(0, $maxRenewals - (int) ($loan['renewals'] ?? 0));
             $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
 
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
-                'libro_titolo' => $loan['libro_titolo'],
+                // Fallback per il caso limite di riga libri assente (hard delete):
+                // per i titoli archiviati la LEFT JOIN riporta comunque il titolo.
+                'libro_titolo' => trim((string) ($loan['libro_titolo'] ?? '')) !== ''
+                    ? $loan['libro_titolo']
+                    : $this->translateInLocale('Non disponibile', $recipientLocale),
                 'data_fine' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
                 'rinnovi_rimanenti' => (string) $remaining,
             ];
@@ -1410,6 +1425,57 @@ class NotificationService {
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan renewed notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * B1: conferma di ritiro — il lettore ha ritirato fisicamente il libro e il
+     * prestito è ufficialmente iniziato. Stesso pattern di
+     * sendLoanRenewedNotification (locale del destinatario, date formattate
+     * per destinatario, consegna durevole via outbox in sendWithRetry).
+     */
+    public function sendLoanPickedUpNotification(int $loanId): bool {
+        try {
+            // CI-SOFT-DELETE-EXEMPT: the pickup confirmation must reach the borrower even when the title was archived after approval — the copy is already in the user's hands, soft-delete governs lendability, not running loans (same convention as sendLoanRenewedNotification).
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                LEFT JOIN libri l ON p.libro_id = l.id
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
+                return false;
+            }
+            $stmt->close();
+
+            // Utente senza email: niente invio né retry (stesso criterio dei
+            // guard warning/overdue).
+            if (trim((string) $loan['utente_email']) === '') {
+                SecureLogger::info("Loan picked-up notification for loan {$loanId}: user has no email, skipped");
+                return false;
+            }
+
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
+
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'] ?? $this->translateInLocale('Non disponibile', $recipientLocale),
+                'data_prestito' => $this->formatEmailDate($loan['data_prestito'], false, $recipientLocale),
+                'data_scadenza' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
+            ];
+
+            return $this->sendWithRetry($loan['utente_email'], 'loan_picked_up', $variables);
+
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to send loan picked-up notification: " . $e->getMessage());
             return false;
         }
     }
@@ -1433,6 +1499,13 @@ class NotificationService {
                 return false;
             }
             $stmt->close();
+
+            // Utente senza email: niente invio né retry (stesso criterio dei
+            // guard warning/overdue).
+            if (trim((string) $loan['utente_email']) === '') {
+                SecureLogger::info("Loan approved notification for loan {$loanId}: user has no email, skipped");
+                return false;
+            }
 
             // Calculate number of days
             $startDate = new \DateTime($loan['data_prestito']);
@@ -1484,47 +1557,9 @@ class NotificationService {
         }
     }
 
-    /**
-     * Invia email di rifiuto prestito all'utente
-     */
-    public function sendLoanRejectedNotification(int $loanId, string $reason = ''): bool {
-        try {
-            $stmt = $this->db->prepare("
-                SELECT p.*, l.titolo as libro_titolo,
-                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
-                FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
-                JOIN utenti u ON p.utente_id = u.id
-                WHERE p.id = ?
-            ");
-            $stmt->bind_param('i', $loanId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-
-            if (!$loan = $result->fetch_assoc()) {
-                $stmt->close();
-                return false;
-            }
-            $stmt->close();
-
-            // The fallback reason must render in the RECIPIENT's locale, not the
-            // acting admin's session locale (same pattern as the other senders).
-            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
-            $variables = [
-                'utente_nome' => $loan['utente_nome'],
-                'libro_titolo' => $loan['libro_titolo'],
-                // !== '' (not ?:) so a literal "0" reason is preserved — same
-                // criterion as sendPickupCancelledNotification's reason handling.
-                'motivo_rifiuto' => $reason !== '' ? $reason : $this->translateInLocale('Nessun motivo specificato', $recipientLocale)
-            ];
-
-            return $this->sendWithRetry($loan['utente_email'], 'loan_rejected', $variables);
-
-        } catch (\Throwable $e) {
-            SecureLogger::error("Failed to send loan rejected notification: " . $e->getMessage());
-            return false;
-        }
-    }
+    // NOTE (0.7.81): the loan-id based sendLoanRejectedNotification(int) was
+    // removed as dead code — every rejection path deletes/closes the loan first
+    // and calls sendLoanRejectedNotificationDirect() below with preloaded data.
 
     /**
      * Invia email di rifiuto prestito con dati pre-caricati (per quando il prestito è già eliminato)
@@ -1542,7 +1577,15 @@ class NotificationService {
         string $reason = ''
     ): bool {
         try {
-            // Recipient-locale fallback, mirroring sendLoanRejectedNotification.
+            // Utente senza email: niente invio né retry (stesso criterio dei
+            // guard warning/overdue).
+            if (trim($userEmail) === '') {
+                SecureLogger::info("Loan rejected notification: user has no email, skipped");
+                return false;
+            }
+
+            // The fallback reason must render in the RECIPIENT's locale, not the
+            // acting admin's session locale (same pattern as the other senders).
             $recipientLocale = $this->resolveRecipientLocale($userEmail);
             $variables = [
                 'utente_nome' => $userName,
@@ -1824,6 +1867,13 @@ class NotificationService {
             }
             $stmt->close();
 
+            // Utente senza email: niente invio né retry (stesso criterio dei
+            // guard warning/overdue).
+            if (trim((string) $loan['utente_email']) === '') {
+                SecureLogger::info("Pickup expired notification for loan {$loanId}: user has no email, skipped");
+                return false;
+            }
+
             $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
             // The sweep NULLs pickup_deadline on the terminal 'scaduto' row (kept
             // consistent with both cancel paths), so the caller passes the elapsed
@@ -1878,6 +1928,13 @@ class NotificationService {
             }
             $stmt->close();
 
+            // Utente senza email: niente invio né retry (stesso criterio dei
+            // guard warning/overdue).
+            if (trim((string) $loan['utente_email']) === '') {
+                SecureLogger::info("Pickup cancelled notification for loan {$loanId}: user has no email, skipped");
+                return false;
+            }
+
             $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
 
             if ($terminalState === 'scaduto') {
@@ -1896,11 +1953,14 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                // Preserve every explicitly supplied value, including "0". Only
-                // an actually empty reason receives a recipient-localized fallback.
-                'motivo' => $reason !== ''
-                    ? $reason
-                    : $this->translateInLocale('Ritiro annullato', $recipientLocale),
+                // Il motivo passa SEMPRE da translateInLocale nel locale del
+                // destinatario: le chiavi di catalogo (stringhe base italiane)
+                // vengono tradotte, il testo già reso passa invariato. Così i
+                // chiamanti CLI/cron non iniettano il locale di sessione.
+                'motivo' => $this->translateInLocale(
+                    $reason !== '' ? $reason : 'Ritiro annullato',
+                    $recipientLocale
+                ),
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_cancelled', $variables);
@@ -2011,16 +2071,20 @@ class NotificationService {
                     $locale
                 ),
                 'note' => trim((string) ($loan['note'] ?? '')) ?: ($noNotes[$language] ?? $noNotes['it']),
-                'sanzione' => number_format(
-                    $amount,
-                    2,
-                    in_array(substr($locale, 0, 2), ['it', 'de', 'fr', 'da'], true) ? ',' : '.',
-                    ''
-                    // Valuta configurata (app.currency, come i prezzi dei
-                    // libri): simbolo per EUR, codice ISO per il resto.
-                ) . (strtoupper((string) ConfigStore::get('app.currency', 'EUR')) === 'EUR'
-                    ? ' €'
-                    : ' ' . strtoupper((string) ConfigStore::get('app.currency', 'EUR'))),
+                // Importo zero: nessuna cifra "0,00 €" né inviti a saldare —
+                // il placeholder diventa un testo localizzato esplicito.
+                'sanzione' => $amount <= 0.0
+                    ? $this->translateInLocale('Nessun addebito', $locale)
+                    : number_format(
+                        $amount,
+                        2,
+                        in_array(substr($locale, 0, 2), ['it', 'de', 'fr', 'da'], true) ? ',' : '.',
+                        ''
+                        // Valuta configurata (app.currency, come i prezzi dei
+                        // libri): simbolo per EUR, codice ISO per il resto.
+                    ) . (strtoupper((string) ConfigStore::get('app.currency', 'EUR')) === 'EUR'
+                        ? ' €'
+                        : ' ' . strtoupper((string) ConfigStore::get('app.currency', 'EUR'))),
             ];
 
             return $this->sendWithRetry($email, 'loan_copy_outcome', $variables);

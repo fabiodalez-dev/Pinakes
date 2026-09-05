@@ -232,6 +232,19 @@ return [
 <p><strong>Important:</strong> Please return the book by the new due date. You will receive a reminder a few days before.</p>
 <p>Happy reading!</p>',
     ],
+    'loan_picked_up' => [
+        'subject' => '📖 Happy reading! Your loan has started',
+        'body' => '<h2>Pickup confirmed</h2>
+<p>Hi {{utente_nome}},</p>
+<p>You picked up the book and your loan has officially started:</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Book:</strong> {{libro_titolo}}</p>
+    <p><strong>Pickup date:</strong> {{data_prestito}}</p>
+    <p><strong>Due date:</strong> {{data_scadenza}}</p>
+</div>
+<p><strong>Important:</strong> Please return the book by the due date. You will receive a reminder a few days before.</p>
+<p>Happy reading!</p>',
+    ],
     'loan_rejected' => [
         'subject' => '❌ Your loan request was not approved',
         'body' => '<h2>Your loan request was not approved</h2>
@@ -277,27 +290,6 @@ return [
     'reservation_awaiting_approval' => [
         'subject' => '📚 Copy assigned — wait for pickup confirmation',
         'body' => '<h2>A copy has been assigned to your reservation</h2><p>Hi {{utente_nome}},</p><p>Your reservation reached the front of the queue and a copy has been allocated for {{data_inizio}} - {{data_fine}}.</p><p><strong>Book:</strong> {{libro_titolo}} — {{libro_autore}} ({{libro_isbn}})</p><div style="background-color:#fef3c7;padding:15px;border-left:4px solid #f59e0b"><p><strong>Please do not visit the library yet.</strong></p><p>The request still needs approval. We will send another email with the pickup deadline when the book is ready.</p></div><p><a href="{{book_url}}">View book</a> · <a href="{{profile_url}}">My loans</a></p>',
-    ],
-    'reservation_book_available' => [
-        'subject' => '📚 Your reserved book is ready for pickup!',
-        'body' => '<h2>Your book is ready for pickup!</h2>
-<p>Hi {{utente_nome}},</p>
-<p>We\'re happy to let you know that the book you reserved is now available and ready for pickup:</p>
-<div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
-    <h3 style="color: #1e40af; margin: 0 0 10px 0;">{{libro_titolo}}</h3>
-    <p style="margin: 5px 0;"><strong>Author:</strong> {{libro_autore}}</p>
-    <p style="margin: 5px 0;"><strong>ISBN:</strong> {{libro_isbn}}</p>
-    <p style="margin: 5px 0;"><strong>Loan period:</strong> {{data_inizio}} - {{data_fine}}</p>
-</div>
-<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
-    <p><strong>📦 Next steps</strong></p>
-    <p>Come to the library to pick up your book. Please bring a valid ID.</p>
-</div>
-<p style="text-align: center;">
-    <a href="{{book_url}}" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">📖 View Book</a>
-    <a href="{{profile_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">👤 My Loans</a>
-</p>
-<p><em>Your reservation has been converted into a loan pending pickup confirmation.</em></p>',
     ],
     'reservation_cancelled' => [
         'subject' => '❌ Reservation cancelled',
