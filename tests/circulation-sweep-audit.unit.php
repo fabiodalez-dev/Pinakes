@@ -464,6 +464,24 @@ foreach ($labels as $event => $expected) {
 }
 $check($labelsOk, '23 the event-label registry resolves every new sweep event type');
 
+// ═════════ 24-25: runAll() è protetto da un lock per l'INTERA esecuzione ═════════
+// Review #416: il claim timestamp di runIfNeeded() marca l'inizio ma non la
+// durata — due sweep sovrapposti duplicherebbero le email. Il lock GET_LOCK
+// (connection-scoped, auto-rilasciato) deve far saltare un runAll() mentre
+// un'altra connessione lo tiene, e ripartire appena rilasciato.
+$dbB = $socket !== '' && file_exists($socket)
+    ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
+    : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
+$dbB->query("SELECT GET_LOCK(CONCAT('pinakes_maintenance_', DATABASE()), 0)");
+$lockedRun = (new MaintenanceService($db))->runAll();
+$check(($lockedRun['skipped'] ?? false) === true && ($lockedRun['reason'] ?? '') === 'in_progress',
+    '24 runAll() skips with reason=in_progress while another connection holds the lock');
+$dbB->query("SELECT RELEASE_LOCK(CONCAT('pinakes_maintenance_', DATABASE()))");
+$dbB->close();
+$freeRun = (new MaintenanceService($db))->runAll();
+$check(($freeRun['skipped'] ?? false) !== true,
+    '25 runAll() executes again as soon as the lock is released');
+
 $cleanup();
 $db->close();
 
