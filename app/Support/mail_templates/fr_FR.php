@@ -232,6 +232,19 @@ return [
 <p><strong>Important :</strong> Pensez à rendre le livre avant la nouvelle date d\'échéance. Vous recevrez un rappel quelques jours avant.</p>
 <p>Bonne lecture !</p>',
     ],
+    'loan_picked_up' => [
+        'subject' => '📖 Bonne lecture ! Votre prêt a commencé',
+        'body' => '<h2>Retrait confirmé</h2>
+<p>Bonjour {{utente_nome}},</p>
+<p>Vous avez retiré le livre et votre prêt a officiellement commencé :</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Livre :</strong> {{libro_titolo}}</p>
+    <p><strong>Date de retrait :</strong> {{data_prestito}}</p>
+    <p><strong>Date d\'échéance :</strong> {{data_scadenza}}</p>
+</div>
+<p><strong>Important :</strong> Pensez à rendre le livre avant la date d\'échéance. Vous recevrez un rappel quelques jours avant.</p>
+<p>Bonne lecture !</p>',
+    ],
     'loan_rejected' => [
         'subject' => '❌ Votre demande de prêt n\'a pas été approuvée',
         'body' => '<h2>Votre demande de prêt n\'a pas été approuvée</h2>
@@ -277,27 +290,6 @@ return [
     'reservation_awaiting_approval' => [
         'subject' => '📚 Exemplaire attribué — attendez la confirmation de retrait',
         'body' => '<h2>Un exemplaire a été attribué à votre réservation</h2><p>Bonjour {{utente_nome}},</p><p>Votre réservation est arrivée en tête de file ; un exemplaire a été attribué pour la période {{data_inizio}} - {{data_fine}}.</p><p><strong>Livre :</strong> {{libro_titolo}} — {{libro_autore}} ({{libro_isbn}})</p><div style="background-color:#fef3c7;padding:15px;border-left:4px solid #f59e0b"><p><strong>Ne vous rendez pas encore à la bibliothèque.</strong></p><p>La demande doit encore être approuvée. Vous recevrez un autre e-mail avec la date limite de retrait lorsque le livre sera prêt.</p></div><p><a href="{{book_url}}">Voir le livre</a> · <a href="{{profile_url}}">Mes prêts</a></p>',
-    ],
-    'reservation_book_available' => [
-        'subject' => '📚 Livre réservé prêt à être retiré !',
-        'body' => '<h2>Votre livre est prêt à être retiré !</h2>
-<p>Bonjour {{utente_nome}},</p>
-<p>Nous avons le plaisir de vous informer que le livre que vous aviez réservé est désormais disponible et prêt à être retiré :</p>
-<div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
-    <h3 style="color: #1e40af; margin: 0 0 10px 0;">{{libro_titolo}}</h3>
-    <p style="margin: 5px 0;"><strong>Auteur :</strong> {{libro_autore}}</p>
-    <p style="margin: 5px 0;"><strong>ISBN :</strong> {{libro_isbn}}</p>
-    <p style="margin: 5px 0;"><strong>Période de prêt :</strong> {{data_inizio}} - {{data_fine}}</p>
-</div>
-<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
-    <p><strong>📦 Prochaines étapes</strong></p>
-    <p>Rendez-vous à la bibliothèque pour retirer le livre. Munissez-vous d\'une pièce d\'identité.</p>
-</div>
-<p style="text-align: center;">
-    <a href="{{book_url}}" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">📖 Voir le livre</a>
-    <a href="{{profile_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">👤 Mes prêts</a>
-</p>
-<p><em>La réservation a été convertie en prêt, en attente de confirmation du retrait.</em></p>',
     ],
     'reservation_cancelled' => [
         'subject' => '❌ Réservation annulée',

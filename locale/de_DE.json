@@ -5459,6 +5459,7 @@
   "Annulla prestito": "Ausleihe stornieren",
   "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date": "Das Ausleihfenster ist bereits verstrichen: Stornieren Sie die Abholung oder ändern Sie die Termine",
   "Annullata dalla biblioteca": "Von der Bibliothek storniert",
+  "Annullamento effettuato su tua richiesta": "Stornierung auf deinen Wunsch",
   "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Das Exemplar kann nicht gelöscht werden: Es hat eine Ausleihhistorie. Sie können es aus dem Verkehr ziehen, indem Sie seinen Status ändern.",
   "Annullamento effettuato correttamente.": "Stornierung erfolgreich durchgeführt.",
   "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.": "Element nicht gefunden oder nicht mehr stornierbar: Der Status könnte sich inzwischen geändert haben.",
@@ -7299,5 +7300,18 @@
   "Importo addebitato per la copia": "Für das Exemplar berechneter Betrag",
   "Importo non valido: usa un valore positivo con al massimo due decimali.": "Ungültiger Betrag: Verwende einen positiven Wert mit höchstens zwei Dezimalstellen.",
   "Importo addebitato": "Berechneter Betrag",
-  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Optional; wird bei verlorenen oder beschädigten Exemplaren erfasst und mitgeteilt."
+  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Optional; wird bei verlorenen oder beschädigten Exemplaren erfasst und mitgeteilt.",
+  "Ritiro confermato": "Abholung bestätigt",
+  "Inviata quando il lettore ritira fisicamente il libro e il prestito inizia.": "Wird gesendet, wenn die Leserin oder der Leser das Buch abholt und die Ausleihe beginnt.",
+  "Nessun addebito": "Keine Gebühr",
+  "Copia dichiarata persa": "Exemplar als verloren gemeldet",
+  "Copia dichiarata danneggiata": "Exemplar als beschädigt gemeldet",
+  "Prenotazione promossa": "Vormerkung aufgerückt",
+  "Sanzione": "Gebühr",
+  "Ritiro revocato il": "Abholung widerrufen am",
+  "copia assegnata non disponibile, prenotazione ripristinata": "zugewiesenes Exemplar nicht verfügbar, Vormerkung wiederhergestellt",
+  "Errore invio notifica revoca ritiro": "Fehler beim Senden der Widerrufsbenachrichtigung",
+  "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "Das für deine Abholung zugewiesene Exemplar ist nicht mehr verfügbar. Deine Vormerkung bleibt gültig: Du erhältst eine neue Benachrichtigung, sobald ein Exemplar bereitsteht.",
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Wartung läuft bereits oder wurde gerade abgeschlossen: Versuche es in einer Minute erneut.",
+  "Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.": "Die Wartung läuft bereits in einer anderen Sitzung: versuche es gleich noch einmal."
 }

@@ -241,6 +241,19 @@ return [
 <p><strong>Vigtigt:</strong> Husk at aflevere bogen inden den nye afleveringsdato. Du modtager en påmindelse nogle dage før.</p>
 <p>God læselyst!</p>',
     ],
+    'loan_picked_up' => [
+        'subject' => '📖 God læselyst! Dit lån er begyndt',
+        'body' => '<h2>Afhentning bekræftet</h2>
+<p>Hej {{utente_nome}},</p>
+<p>Du har afhentet bogen, og dit lån er officielt begyndt:</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Bog:</strong> {{libro_titolo}}</p>
+    <p><strong>Afhentningsdato:</strong> {{data_prestito}}</p>
+    <p><strong>Afleveringsdato:</strong> {{data_scadenza}}</p>
+</div>
+<p><strong>Vigtigt:</strong> Husk at aflevere bogen inden afleveringsdatoen. Du modtager en påmindelse nogle dage før.</p>
+<p>God læselyst!</p>',
+    ],
     'loan_rejected' => [
         'subject' => '❌ Din udlånsanmodning er ikke blevet godkendt',
         'body' => '<h2>Din udlånsanmodning er ikke blevet godkendt</h2>
@@ -288,27 +301,6 @@ return [
     'reservation_awaiting_approval' => [
         'subject' => '📚 Eksemplar tildelt — afvent afhentningsbekræftelse',
         'body' => '<h2>Et eksemplar er tildelt din reservation</h2><p>Hej {{utente_nome}},</p><p>Din reservation står nu først i køen, og et eksemplar er afsat til {{data_inizio}} - {{data_fine}}.</p><p><strong>Bog:</strong> {{libro_titolo}} — {{libro_autore}} ({{libro_isbn}})</p><div style="background-color:#fef3c7;padding:15px;border-left:4px solid #f59e0b"><p><strong>Kom ikke på biblioteket endnu.</strong></p><p>Anmodningen skal stadig godkendes. Du får en ny e-mail med afhentningsfristen, når bogen er klar.</p></div><p><a href="{{book_url}}">Se bogen</a> · <a href="{{profile_url}}">Mine lån</a></p>',
-    ],
-    'reservation_book_available' => [
-        'subject' => '📚 Reserveret bog klar til afhentning!',
-        'body' => '<h2>Din bog er klar til afhentning!</h2>
-<p>Hej {{utente_nome}},</p>
-<p>Vi er glade for at kunne informere dig om, at bogen, du havde reserveret, nu er tilgængelig og klar til afhentning:</p>
-<div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
-    <h3 style="color: #1e40af; margin: 0 0 10px 0;">{{libro_titolo}}</h3>
-    <p style="margin: 5px 0;"><strong>Forfatter:</strong> {{libro_autore}}</p>
-    <p style="margin: 5px 0;"><strong>ISBN:</strong> {{libro_isbn}}</p>
-    <p style="margin: 5px 0;"><strong>Lånperiode:</strong> {{data_inizio}} - {{data_fine}}</p>
-</div>
-<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
-    <p><strong>📦 Næste skridt</strong></p>
-    <p>Kom forbi biblioteket for at hente bogen. Husk at medbringe et gyldigt legitimationsdokument.</p>
-</div>
-<p style="text-align: center;">
-    <a href="{{book_url}}" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">📖 Se Bog</a>
-    <a href="{{profile_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">👤 Mine Lån</a>
-</p>
-<p><em>Reservationen er blevet konverteret til et lån, der afventer bekræftelse af afhentning.</em></p>',
     ],
     'reservation_cancelled' => [
         'subject' => '❌ Reservation annulleret',

@@ -281,9 +281,19 @@ $check($cancelBlock !== '' && str_contains($cancelBlock, 'deleted_at IS NULL'),
     '24b its notification fetch keeps the standard soft-delete filter (consistent with the gate)');
 
 // ── 25-26. Recipient-locale reason fallback (rejected-loan emails) ───────────
-$check(substr_count($notifSrc, "translateInLocale('Nessun motivo specificato'") >= 2
-    && !str_contains($notifSrc, "__('Nessun motivo specificato')"),
-    '25 both reject senders localize the fallback reason in the RECIPIENT locale');
+// 0.7.81: the loan-id based sendLoanRejectedNotification(int) was removed as
+// dead code, so exactly ONE reject sender (the Direct one, the only live path)
+// must localize the fallback reason in the recipient locale.
+// L'assert è ANCORATO al corpo del sender Direct (dalla firma alla funzione
+// successiva), non all'intero file: una chiamata in un altro sender o in un
+// commento non deve far passare il check per sbaglio.
+$directAt = strpos($notifSrc, 'function sendLoanRejectedNotificationDirect(');
+$directEnd = $directAt === false ? false : strpos($notifSrc, 'function ', $directAt + 10);
+$directBody = $directAt === false ? '' : substr($notifSrc, $directAt, ($directEnd === false ? strlen($notifSrc) : $directEnd) - $directAt);
+$check($directBody !== ''
+    && substr_count($directBody, "translateInLocale('Nessun motivo specificato'") === 1
+    && !str_contains($directBody, "__('Nessun motivo specificato')"),
+    '25 the reject sender localizes the fallback reason in the RECIPIENT locale (inside the Direct body)');
 
 $ref = new ReflectionMethod(NotificationService::class, 'translateInLocale');
 $plainSvc = new NotificationService($db);

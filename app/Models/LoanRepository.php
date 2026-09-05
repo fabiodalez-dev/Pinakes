@@ -149,10 +149,14 @@ class LoanRepository
      * ancora coincidere con la riga bloccata. In questo modo un CheckIn NCIP non
      * può chiudere un prestito riassegnato durante la finestra TOCTOU.
      *
+     * $source finisce nell'evento audit loan.returned: i chiamanti di protocollo
+     * (es. NCIP CheckInItem) passano il proprio canale, il default 'manual'
+     * preserva il comportamento storico dei percorsi admin.
+     *
      * @return bool false se il prestito non esiste, non è chiudibile o non
      *              corrisponde più all'identità attesa.
      */
-    public function close(int $id, ?int $expectedBookId = null, ?int $expectedUserId = null): bool
+    public function close(int $id, ?int $expectedBookId = null, ?int $expectedUserId = null, string $source = 'manual'): bool
     {
         // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
         // lettura NON bloccante PRIMA di begin_transaction() (lock-first, MVCC),
@@ -288,7 +292,7 @@ class LoanRepository
 
             // Recorded inside the transaction (atomic with the close); the
             // helper swallows its own failures and cannot abort the commit.
-            \App\Support\ActivityLog::recordLoanEvent($this->db, $id, 'loan.returned', $activityBefore, source: 'manual');
+            \App\Support\ActivityLog::recordLoanEvent($this->db, $id, 'loan.returned', $activityBefore, source: $source);
 
             $this->db->commit();
 

@@ -294,6 +294,10 @@ class ReservationManager
                     ? (int) $nextReservation['queue_position']
                     : null;
                 if ($this->isDateRangeAvailable($bookId, $startDate, $endDate, (int) $nextReservation['id'], $headQueuePos)) {
+                    // Snapshot per l'audit PRIMA del claim (riga già lockata FOR
+                    // UPDATE): così il diff attiva -> completata è coerente.
+                    $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($this->db, (int) $nextReservation['id']);
+
                     // Claim the reservation FIRST with a state-guarded UPDATE.
                     // The `AND stato = 'attiva'` guard + affected_rows check is the
                     // last line of defense: if a competitor cancelled/changed this
@@ -356,6 +360,19 @@ class ReservationManager
                     } else {
                         $this->reorderQueuePositions($bookId);
                     }
+
+                    // Audit della promozione DENTRO la transazione (stesso
+                    // pattern degli altri eventi circolazione): operatore SYSTEM,
+                    // source 'promotion'. recordReservationEvent assorbe i propri
+                    // errori e non può abortire la promozione.
+                    \App\Support\ActivityLog::recordReservationEvent(
+                        $this->db,
+                        (int) $nextReservation['id'],
+                        'reservation.promoted',
+                        $activityBefore,
+                        source: 'promotion',
+                        operatorId: \App\Support\ActivityLog::SYSTEM_OPERATOR
+                    );
 
                     $this->commitIfOwned($ownTransaction);
 
@@ -764,7 +781,9 @@ class ReservationManager
             $variables = [
                 'utente_nome' => $reservation['nome'],
                 'libro_titolo' => $book['titolo'],
-                'libro_autore' => $book['autore'] ?: 'Autore non specificato',
+                // Fallback tradotto nel locale del DESTINATARIO (#360 parity),
+                // come le date qui sotto: la stringa era hardcoded in italiano.
+                'libro_autore' => $book['autore'] ?: $notificationService->translateInLocale('Autore non specificato', $recipientLocale),
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
                 'data_inizio' => $notificationService->formatEmailDate((string) $reservation['data_inizio_richiesta'], false, $recipientLocale),
                 'data_fine' => $notificationService->formatEmailDate((string) $reservation['data_fine_richiesta'], false, $recipientLocale),
@@ -1040,6 +1059,14 @@ class ReservationManager
             $expiring = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
             $selectStmt->close();
 
+            // Snapshot pre-UPDATE per l'audit di ogni riga espirata (righe già
+            // lockate): il diff attiva -> annullata deve partire dallo stato vero.
+            $expiryAuditBefore = [];
+            foreach ($expiring as $row) {
+                $expiryAuditBefore[(int) $row['id']] =
+                    \App\Support\ActivityLog::loadReservationSnapshot($this->db, (int) $row['id']);
+            }
+
             // Dati utente/titolo per le notifiche, letti ora (prima dell'UPDATE)
             // con le righe già lockate. Libri soft-deleted esclusi: la prenotazione
             // viene comunque annullata ma senza email (convenzione deleted_at).
@@ -1087,6 +1114,21 @@ class ReservationManager
             $cancelledCount = $this->db->affected_rows;
             $stmt->close();
 
+            // Audit DENTRO la transazione: ogni scadenza automatica lascia un
+            // evento `reservation.expired` con operatore SYSTEM e source 'sweep'
+            // (parità con gli altri sweep di circolazione). Il helper assorbe i
+            // propri errori: un audit fallito non annulla lo sweep.
+            foreach ($expiring as $row) {
+                \App\Support\ActivityLog::recordReservationEvent(
+                    $this->db,
+                    (int) $row['id'],
+                    'reservation.expired',
+                    $expiryAuditBefore[(int) $row['id']] ?? [],
+                    source: 'sweep',
+                    operatorId: \App\Support\ActivityLog::SYSTEM_OPERATOR
+                );
+            }
+
             // Reorder queue positions for affected books and refresh their
             // availability (#157): a today-covering active reservation absorbs a
             // copy, so a book freed purely by an expired reservation would keep
@@ -1101,6 +1143,35 @@ class ReservationManager
             }
 
             $this->commitIfOwned($ownTransaction);
+
+            // La capacità liberata dalle scadenze deve promuovere SUBITO la coda
+            // dei libri interessati, senza dipendere dall'ordine dei task di
+            // runAll (che potrebbe aver già processato questi libri prima dello
+            // sweep). Con transazione propria (già committata sopra) ogni
+            // processBookAvailability apre/chiude la sua; con transazione
+            // ESTERNA gira dentro quella del chiamante e in caso di errore
+            // rilancia (il proprietario fa rollback), mentre le notifiche
+            // restano differite fino al flush post-commit del chiamante.
+            foreach ($affectedBooks as $bookId) {
+                try {
+                    for ($promoGuard = 0; $promoGuard < 1000 && $this->processBookAvailability($bookId); $promoGuard++) {
+                        // promuovi finché la capacità liberata converte la prossima prenotazione
+                    }
+                } catch (\Throwable $promoError) {
+                    if (!$ownTransaction) {
+                        // Transazione del chiamante: rilancia, il proprietario
+                        // deciderà il rollback.
+                        throw $promoError;
+                    }
+                    // Transazione propria GIÀ committata: un errore di
+                    // promozione non deve sopprimere le email di scadenza
+                    // dovute per annullamenti ormai persistiti.
+                    \App\Support\SecureLogger::warning('Promozione post-scadenza fallita', [
+                        'libro_id' => $bookId,
+                        'error' => $promoError->getMessage(),
+                    ]);
+                }
+            }
 
             // Notifiche di scadenza (M11), MAI dentro la transazione: se la
             // possediamo l'abbiamo appena committata e inviamo subito; se è

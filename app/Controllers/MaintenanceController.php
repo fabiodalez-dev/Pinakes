@@ -99,8 +99,22 @@ class MaintenanceController
             // activations, expirations, overdue transitions, email notifications
             // and ICS. Previously the admin button only repaired counters, so it
             // looked successful while leaving loans/notifications untouched.
-            $circulation = (new MaintenanceService($db))->runAll();
+            // runIfNeeded(0) riusa il claim atomico cross-sessione su
+            // system_settings con cooldown ZERO: due click SIMULTANEI (stesso
+            // secondo, anche da due sessioni admin) eseguono lo sweep una sola
+            // volta, ma una ripetizione sequenziale del bottone riesegue
+            // sempre — l'admin che preme "esegui manutenzione" deve ottenere
+            // la manutenzione (con cooldown 1' le email del sweep sparivano
+            // per un minuto intero, visto dal vivo nella suite email E2E che
+            // preme il bottone quattro volte di fila).
+            // Il claim protegge SOLO la parte circolazione (sweep/email, la
+            // stessa del cron): la riparazione dati dei punti 2-3 — che
+            // runAll() NON copre — gira COMUNQUE, mai un successo a vuoto.
+            $circulation = (new MaintenanceService($db))->runIfNeeded(0);
             $results['circulation'] = $circulation;
+            if (($circulation['skipped'] ?? false) === true) {
+                $results['circulation_note'] = __("Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.");
+            }
 
             // 2. Correggi inconsistenze. fixDataInconsistencies() già esegue al suo
             // interno recalculateAllBookAvailability() (e ne somma 'updated' in

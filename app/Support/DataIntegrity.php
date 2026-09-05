@@ -1009,6 +1009,9 @@ class DataIntegrity {
      */
     public function fixDataInconsistencies(): array {
         $results = ['fixed' => 0, 'errors' => []];
+        // Notifiche raccolte durante la transazione, inviate/flushate POST-commit.
+        $expiredQueueEmails = [];
+        $repairReservationManager = null;
 
         try {
             $this->db->begin_transaction();
@@ -1049,36 +1052,139 @@ class DataIntegrity {
             // 4. Annulla solo prenotazioni duplicate dello stesso utente sullo stesso libro.
             // Non cancellare sovrapposizioni tra utenti diversi: con più copie possono
             // essere legittime e vanno valutate con controllo di capacità, non riga-riga.
-            $stmt = $this->db->prepare("
-                UPDATE prenotazioni r2
+            // Select-then-update (non più bulk cieco): il repair non deve essere
+            // silenzioso — ogni annullamento produce un evento audit
+            // reservation.cancelled con source 'repair' e operatore SYSTEM,
+            // dentro la stessa transazione della mutazione.
+            $dupStmt = $this->db->prepare("
+                SELECT DISTINCT r2.id, r2.libro_id
+                FROM prenotazioni r2
                 JOIN prenotazioni r1
                   ON r1.libro_id = r2.libro_id
                  AND r1.utente_id = r2.utente_id
                  AND r1.id < r2.id
-                SET r2.stato = 'annullata'
                 WHERE r1.stato = 'attiva'
                   AND r2.stato = 'attiva'
             ");
-            $stmt->execute();
-            $results['fixed'] += $this->db->affected_rows;
-            $stmt->close();
+            $dupStmt->execute();
+            $dupResult = $dupStmt->get_result();
+            $duplicateRows = $dupResult ? $dupResult->fetch_all(MYSQLI_ASSOC) : [];
+            $dupStmt->close();
+
+            $repairAffectedBooks = [];
+            $cancelOne = $this->db->prepare("
+                UPDATE prenotazioni SET stato = 'annullata' WHERE id = ? AND stato = 'attiva'
+            ");
+            foreach ($duplicateRows as $dup) {
+                $dupId = (int) $dup['id'];
+                $beforeSnapshot = ActivityLog::loadReservationSnapshot($this->db, $dupId);
+                $cancelOne->bind_param('i', $dupId);
+                $cancelOne->execute();
+                if ($cancelOne->affected_rows === 1) {
+                    $results['fixed']++;
+                    $repairAffectedBooks[(int) $dup['libro_id']] = true;
+                    ActivityLog::recordReservationEvent(
+                        $this->db,
+                        $dupId,
+                        'reservation.cancelled',
+                        $beforeSnapshot,
+                        source: 'repair',
+                        operatorId: ActivityLog::SYSTEM_OPERATOR
+                    );
+                }
+            }
+            $cancelOne->close();
 
             // 5. Annulla prenotazioni scadute — orologio APPLICATIVO (DateHelper),
             // stesso clock di ReservationManager::cancelExpiredReservations e del
             // check n.8 sopra: con NOW() del server la stessa riga poteva risultare
             // scaduta per un percorso e valida per l'altro a cavallo di mezzanotte.
-            $stmt = $this->db->prepare("
-                UPDATE prenotazioni
-                SET stato = 'annullata'
+            // Select-then-update anche qui: evento audit + email reservation_expired
+            // al lettore (raccolta ora, invio POST-commit — il repair non ha un
+            // canale differito proprio).
+            $appNow = \App\Support\DateHelper::now();
+            $expStmt = $this->db->prepare("
+                SELECT id, libro_id, data_scadenza_prenotazione
+                FROM prenotazioni
                 WHERE stato = 'attiva'
                 AND data_scadenza_prenotazione IS NOT NULL
                 AND data_scadenza_prenotazione < ?
             ");
-            $appNow = \App\Support\DateHelper::now();
-            $stmt->bind_param('s', $appNow);
-            $stmt->execute();
-            $results['fixed'] += $this->db->affected_rows;
-            $stmt->close();
+            $expStmt->bind_param('s', $appNow);
+            $expStmt->execute();
+            $expResult = $expStmt->get_result();
+            $expiredRows = $expResult ? $expResult->fetch_all(MYSQLI_ASSOC) : [];
+            $expStmt->close();
+
+            if ($expiredRows !== []) {
+                // Dati destinatario letti PRIMA dell'UPDATE. Libri soft-deleted
+                // esclusi dalla sola email (convenzione deleted_at, come il
+                // percorso gemello M11 in ReservationManager).
+                $infoStmt = $this->db->prepare("
+                    SELECT u.email, u.nome, l.titolo
+                    FROM prenotazioni r
+                    JOIN utenti u ON r.utente_id = u.id
+                    JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
+                    WHERE r.id = ?
+                ");
+                $expireOne = $this->db->prepare("
+                    UPDATE prenotazioni SET stato = 'annullata' WHERE id = ? AND stato = 'attiva'
+                ");
+                foreach ($expiredRows as $exp) {
+                    $expId = (int) $exp['id'];
+                    $beforeSnapshot = ActivityLog::loadReservationSnapshot($this->db, $expId);
+
+                    $infoStmt->bind_param('i', $expId);
+                    $infoStmt->execute();
+                    $infoResult = $infoStmt->get_result();
+                    $info = $infoResult ? $infoResult->fetch_assoc() : null;
+
+                    $expireOne->bind_param('i', $expId);
+                    $expireOne->execute();
+                    if ($expireOne->affected_rows !== 1) {
+                        continue;
+                    }
+                    $results['fixed']++;
+                    $repairAffectedBooks[(int) $exp['libro_id']] = true;
+                    // reservation.expired, non .cancelled: la causa è la
+                    // scadenza (stesso evento del percorso gemello in
+                    // ReservationManager); .cancelled resta ai duplicati sopra.
+                    ActivityLog::recordReservationEvent(
+                        $this->db,
+                        $expId,
+                        'reservation.expired',
+                        $beforeSnapshot,
+                        source: 'repair',
+                        operatorId: ActivityLog::SYSTEM_OPERATOR
+                    );
+                    if ($info && !empty($info['email'])) {
+                        $expiredQueueEmails[] = [
+                            'email' => (string) $info['email'],
+                            'variables' => [
+                                'utente_nome' => (string) $info['nome'],
+                                'libro_titolo' => (string) $info['titolo'],
+                                // Raw: formattata da sendQueueReservationExpiredNotification()
+                                'data_scadenza' => (string) $exp['data_scadenza_prenotazione'],
+                            ],
+                        ];
+                    }
+                }
+                $expireOne->close();
+                $infoStmt->close();
+            }
+
+            // Promozione post-repair: la capacità liberata dagli annullamenti
+            // non deve restare inerte fino al prossimo evento di circolazione.
+            // Stesso loop "finché converte" dei release-path di MaintenanceService.
+            if ($repairAffectedBooks !== []) {
+                $repairReservationManager = new \App\Controllers\ReservationManager($this->db);
+                $repairReservationManager->setExternalTransaction(true);
+                foreach (array_keys($repairAffectedBooks) as $repairBookId) {
+                    for ($promoGuard = 0; $promoGuard < 1000 && $repairReservationManager->processBookAvailability($repairBookId); $promoGuard++) {
+                        // continua finché la capacità liberata converte la prossima prenotazione in coda
+                    }
+                }
+            }
 
             // 6. Riordina queue_position per prenotazioni attive (elimina gaps)
             $bookIds = [];
@@ -1160,6 +1266,35 @@ class DataIntegrity {
             $results['errors'] = array_merge($results['errors'], $availabilityResult['errors']);
 
             $this->db->commit();
+
+            // Notifiche POST-commit, ognuna isolata: un errore di invio non deve
+            // entrare nel catch esterno (che farebbe rollback su una transazione
+            // già committata). Prima il flush delle promozioni differite, poi le
+            // email reservation_expired delle prenotazioni scadute annullate.
+            if ($repairReservationManager !== null) {
+                try {
+                    $repairReservationManager->flushDeferredNotifications();
+                } catch (\Throwable $flushErr) {
+                    SecureLogger::warning('Flush notifiche differite post-repair fallito', ['error' => $flushErr->getMessage()]);
+                }
+            }
+            if ($expiredQueueEmails !== []) {
+                $notificationService = new NotificationService($this->db);
+                foreach ($expiredQueueEmails as $expiredEmail) {
+                    try {
+                        // Il sender può fallire anche senza eccezione (return
+                        // false): va loggato comunque, come nel gemello
+                        // ReservationManager::flushDeferredNotifications().
+                        if (!$notificationService->sendQueueReservationExpiredNotification($expiredEmail['email'], $expiredEmail['variables'])) {
+                            SecureLogger::warning('Invio notifica scadenza prenotazione post-repair fallito (send=false)', [
+                                'email_hash' => hash('sha256', (string) $expiredEmail['email']),
+                            ]);
+                        }
+                    } catch (\Throwable $notifErr) {
+                        SecureLogger::warning('Invio notifica scadenza prenotazione post-repair fallito', ['error' => $notifErr->getMessage()]);
+                    }
+                }
+            }
 
         } catch (\Throwable $e) {
             $this->db->rollback();

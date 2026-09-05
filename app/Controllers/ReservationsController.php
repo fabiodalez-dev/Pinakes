@@ -354,22 +354,16 @@ class ReservationsController
             }
             $stmt->close();
 
-            // Check for existing active loan from this user for this book (any active state)
-            // Note: 'pendente' has attivo=0, other active states have attivo=1
-            // This check is inside transaction after lock to prevent TOCTOU race condition
-            $dupStmt = $this->db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND (
-                (attivo = 0 AND stato = 'pendente')
-                OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-            ) FOR UPDATE");
-            $dupStmt->bind_param('ii', $bookId, $userId);
-            $dupStmt->execute();
-            if ($dupStmt->get_result()->fetch_assoc()) {
-                $dupStmt->close();
+            // Check for existing active loan from this user for this book:
+            // predicato unico in LoanMultiplicityPolicy (dedup dei 3 entry-point,
+            // dentro la transazione dopo il lock per evitare il TOCTOU).
+            // operationWillBindCopy=false — la richiesta non vincola una copia,
+            // quindi vale la regola storica per-titolo con policy ON e OFF.
+            if ((new \App\Support\LoanMultiplicityPolicy($this->db))->hasBlockingLoan($bookId, $userId, false)) {
                 $this->db->rollback();
                 $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai già un prestito attivo o in attesa per questo libro')]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
-            $dupStmt->close();
 
             $dupReservationStmt = $this->db->prepare("
                 SELECT id

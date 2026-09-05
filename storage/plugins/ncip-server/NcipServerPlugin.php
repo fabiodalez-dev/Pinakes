@@ -885,7 +885,11 @@ class NcipServerPlugin
 
         $ambiguousLoan = false;
         $loanLookupFailed = false;
-        $loan = $this->findActiveLoan($itemId, $checkInUserId, $ambiguousLoan, $loanLookupFailed);
+        // anyOrigin=true: il partner ha la copia in mano; i prestiti origine
+        // ncip hanno priorità, un prestito di altra origine viene chiuso solo
+        // se è l'UNICO attivo (l'ItemId è a livello titolo, non copia: con
+        // più candidati la chiusura sarebbe arbitraria → problem di ambiguità).
+        $loan = $this->findActiveLoan($itemId, $checkInUserId, $ambiguousLoan, $loanLookupFailed, anyOrigin: true);
         if ($loanLookupFailed) {
             return $this->xmlResponse(
                 $response,
@@ -1003,7 +1007,9 @@ class NcipServerPlugin
             $problemType = match ($failureReason) {
                 'not_found'                => 'unknown-item',
                 'identity_changed'         => 'item-not-checked-out',
-                'ineligible_state'         => 'item-not-renewable',
+                // 'overdue': prestito scaduto per data (o in ritardo) — parità
+                // con il rifiuto loan_overdue di PrestitiController::renew().
+                'ineligible_state', 'overdue' => 'item-not-renewable',
                 'user_ineligible'          => 'user-ineligible-to-renew',
                 'max_renewals'             => 'maximum-renewals-exceeded',
                 'no_capacity', 'overlap'   => 'item-not-renewable',
@@ -1573,25 +1579,31 @@ class NcipServerPlugin
         int $bookId,
         ?int $userId,
         bool &$ambiguous,
-        bool &$databaseError
+        bool &$databaseError,
+        bool $anyOrigin = false
     ): ?array
     {
         $ambiguous = false;
         $databaseError = false;
-        // Con più prestiti NCIP aperti dello stesso titolo (utenti diversi su
-        // copie diverse) il solo libro_id è ambiguo. Leggine al massimo due:
-        // senza UserId due righe devono produrre un errore, mai una mutazione
-        // arbitraria; con UserId basta la singola riga filtrata.
+        // L'ItemId NCIP identifica il TITOLO, non la copia: con più prestiti
+        // attivi sullo stesso titolo il solo libro_id è ambiguo e non deve
+        // MAI produrre una chiusura arbitraria.
+        // $anyOrigin=true (CheckInItem): priorità deterministica ai prestiti
+        // origine ncip (comportamento storico); in loro assenza un prestito
+        // di altra origine viene scelto SOLO se è l'unico attivo sul titolo
+        // (con UserId: l'unico di quell'utente) — due candidati nella classe
+        // considerata sono sempre un errore di ambiguità, anche con UserId
+        // (multiplicity opt-in permette due copie allo stesso utente).
         $userFilter = $userId !== null ? ' AND utente_id = ?' : '';
-        $limit = $userId !== null ? 1 : 2;
+        $originFilter = $anyOrigin ? '' : " AND origine = 'ncip'";
         $stmt = null;
         try {
             $stmt = $this->db->prepare(
-                "SELECT id, libro_id, utente_id, data_scadenza
+                "SELECT id, libro_id, utente_id, data_scadenza, origine
                    FROM prestiti
-                  WHERE libro_id = ? AND origine = 'ncip' AND attivo = 1
+                  WHERE libro_id = ?{$originFilter} AND attivo = 1
                     AND stato IN ('in_corso','in_ritardo'){$userFilter}
-                  ORDER BY data_prestito DESC, id DESC LIMIT {$limit}"
+                  ORDER BY (origine = 'ncip') DESC, data_prestito DESC, id DESC LIMIT 3"
             );
             if ($stmt === false) {
                 throw new \RuntimeException('prepare failed: ' . $this->db->error);
@@ -1606,14 +1618,24 @@ class NcipServerPlugin
             if (!($res instanceof \mysqli_result)) {
                 throw new \RuntimeException('result retrieval failed: ' . $stmt->error);
             }
-            $row = $res->fetch_assoc();
-            if ($userId === null && $row !== null && $res->fetch_assoc() !== null) {
-                $ambiguous = true;
-                $stmt->close();
-                return null;
+            $rows = [];
+            while (($r = $res->fetch_assoc()) !== null) {
+                $rows[] = $r;
             }
             $stmt->close();
-            return is_array($row) ? $row : null;
+            if ($rows === []) {
+                return null;
+            }
+            // Classe di scelta: i prestiti origine ncip hanno priorità
+            // (l'ORDER BY li mette in testa); il fallback any-origin è
+            // ammesso solo quando la classe scelta contiene UNA riga.
+            $ncipRows = array_values(array_filter($rows, static fn(array $r): bool => ($r['origine'] ?? '') === 'ncip'));
+            $candidates = $ncipRows !== [] ? $ncipRows : $rows;
+            if (count($candidates) > 1) {
+                $ambiguous = true;
+                return null;
+            }
+            return $candidates[0];
         } catch (\Throwable $e) {
             if ($stmt instanceof \mysqli_stmt) {
                 try {
@@ -1806,15 +1828,21 @@ class NcipServerPlugin
                 throw new \RuntimeException('Failed to recalculate book availability');
             }
 
+            // Recorded inside the transaction (atomic with the insert), come
+            // PrestitiController::store(): the helper swallows its own failures
+            // and cannot abort the commit.
+            \App\Support\ActivityLog::recordLoanEvent(
+                $this->db,
+                (int) $loanId,
+                'loan.created',
+                action: 'inserimento',
+                source: 'ncip'
+            );
+
             $this->db->commit();
-            try {
-                (new \App\Support\NotificationService($this->db))->sendLoanApprovedNotification((int) $loanId);
-            } catch (\Throwable $notificationError) {
-                SecureLogger::warning('[NcipServer] checkout notification failed', [
-                    'loan_id' => (int) $loanId,
-                    'error' => $notificationError->getMessage(),
-                ]);
-            }
+            // NIENTE email di approvazione qui: il prestito nasce 'in_corso',
+            // il libro è già in mano al lettore al banco del partner — stessa
+            // scelta deliberata di store() desk per la consegna immediata.
             return $loanId > 0 ? $loanId : null;
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -2073,10 +2101,15 @@ class NcipServerPlugin
 
             $loanId = null;
             $reservationId = null;
+            $activityBefore = [];
+            $reservationRecipient = null;
             if ($lockedLoans !== []) {
                 $lockedLoan = $lockedLoans[0];
                 $loanId = (int) $lockedLoan['id'];
                 $resolvedUserId = (int) $lockedLoan['utente_id'];
+
+                // Snapshot audit della riga bloccata, PRIMA della mutazione.
+                $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($this->db, $loanId);
 
                 // Repeat every lifecycle/identity predicate in the write itself.
                 $update = $this->db->prepare(
@@ -2097,6 +2130,28 @@ class NcipServerPlugin
                 $lockedReservation = $lockedReservations[0];
                 $reservationId = (int) $lockedReservation['id'];
                 $resolvedUserId = (int) $lockedReservation['utente_id'];
+
+                // Snapshot audit della riga bloccata, PRIMA della mutazione.
+                $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($this->db, $reservationId);
+
+                // Coordinate del destinatario raccolte sotto lock: servono per
+                // l'email post-commit (la prenotazione annullata non è più
+                // interrogabile come 'attiva' dopo l'UPDATE).
+                // CI-SOFT-DELETE-EXEMPT: the cancellation notice must reach the
+                // borrower even when the title was archived meanwhile.
+                $recipientStmt = $this->db->prepare(
+                    "SELECT u.email, CONCAT(u.nome, ' ', u.cognome) AS utente_nome, l.titolo
+                       FROM prenotazioni r
+                       JOIN utenti u ON u.id = r.utente_id
+                       LEFT JOIN libri l ON l.id = r.libro_id
+                      WHERE r.id = ?"
+                );
+                if ($recipientStmt !== false) {
+                    $recipientStmt->bind_param('i', $reservationId);
+                    $recipientStmt->execute();
+                    $reservationRecipient = $recipientStmt->get_result()->fetch_assoc() ?: null;
+                    $recipientStmt->close();
+                }
 
                 $update = $this->db->prepare(
                     "UPDATE prenotazioni
@@ -2185,6 +2240,27 @@ class NcipServerPlugin
                 return ['status' => 'not_found'];
             }
 
+            // Evento audit DENTRO la transazione (atomico con l'annullamento),
+            // stesso pattern di cancelReservation/cancelPickup; l'helper ingoia
+            // i propri errori e non può abortire il commit.
+            if ($loanId !== null) {
+                \App\Support\ActivityLog::recordLoanEvent(
+                    $this->db,
+                    $loanId,
+                    'loan.cancelled',
+                    $activityBefore,
+                    source: 'ncip'
+                );
+            } else {
+                \App\Support\ActivityLog::recordReservationEvent(
+                    $this->db,
+                    (int) $reservationId,
+                    'reservation.cancelled',
+                    $activityBefore,
+                    source: 'ncip'
+                );
+            }
+
             if (!$this->insertTransactionRecord('CancelRequestItem', $loanId, null, $reservationId)) {
                 throw new \RuntimeException('Failed to audit NCIP request cancellation.');
             }
@@ -2201,6 +2277,38 @@ class NcipServerPlugin
                         'error' => $notificationError->getMessage(),
                     ]);
                 }
+            }
+
+            // Email al lettore DOPO il commit, try/catch isolato: un errore di
+            // invio non deve far fallire un annullamento già committato (stesso
+            // contratto di cancelReservation/cancelPickup in LoanApprovalController).
+            try {
+                $notificationService = new \App\Support\NotificationService($this->db);
+                if ($loanId !== null) {
+                    // Motivo vuoto = fallback localizzato nel locale del
+                    // destinatario dentro il sender stesso.
+                    $notificationService->sendPickupCancelledNotification($loanId);
+                } elseif ($reservationRecipient !== null && (string) ($reservationRecipient['email'] ?? '') !== '') {
+                    $notificationService->sendReservationCancelledNotification(
+                        (string) $reservationRecipient['email'],
+                        [
+                            'utente_nome' => (string) ($reservationRecipient['utente_nome'] ?? ''),
+                            'libro_titolo' => (string) ($reservationRecipient['titolo'] ?? ''),
+                            // Locale del DESTINATARIO, non della sessione/CLI.
+                            'motivo' => $notificationService->translateInLocale(
+                                'Annullata dalla biblioteca',
+                                $notificationService->resolveRecipientLocale((string) $reservationRecipient['email'])
+                            ),
+                        ]
+                    );
+                }
+            } catch (\Throwable $notificationError) {
+                SecureLogger::warning('[NcipServer] cancellation notification failed', [
+                    'book_id' => $bookId,
+                    'loan_id' => $loanId,
+                    'reservation_id' => $reservationId,
+                    'error' => $notificationError->getMessage(),
+                ]);
             }
 
             return [
@@ -2307,7 +2415,8 @@ class NcipServerPlugin
             $closed = (new \App\Models\LoanRepository($this->db))->close(
                 $loanId,
                 $expectedBookId,
-                $expectedUserId
+                $expectedUserId,
+                'ncip'
             );
         } catch (\Throwable $e) {
             SecureLogger::error('[NcipServer] closeLoan failed: ' . $e->getMessage());
@@ -2323,6 +2432,33 @@ class NcipServerPlugin
             // un check-in riuscito in un false (che farebbe imboccare al
             // chiamante il ramo idempotente saltando logTransaction()).
             SecureLogger::error('[NcipServer] return notification failed: ' . $e->getMessage());
+        }
+        try {
+            // Post-return wishlist gate, stesso contratto post-commit dei
+            // percorsi di restituzione admin (PrestitiController::close): se il
+            // rientro ha lasciato copie disponibili, gli iscritti alla wishlist
+            // vanno avvisati anche quando il rientro arriva via NCIP.
+            $bookStmt = $this->db->prepare(
+                'SELECT p.libro_id, l.copie_disponibili
+                   FROM prestiti p
+                   JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+                  WHERE p.id = ?'
+            );
+            if ($bookStmt !== false) {
+                $bookStmt->bind_param('i', $loanId);
+                $bookStmt->execute();
+                $book = $bookStmt->get_result()->fetch_assoc();
+                $bookStmt->close();
+                if ($book && (int) $book['copie_disponibili'] > 0) {
+                    (new \App\Support\NotificationService($this->db))
+                        ->notifyWishlistBookAvailability((int) $book['libro_id']);
+                }
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[NcipServer] wishlist check after check-in failed', [
+                'loan_id' => $loanId,
+                'error' => $e->getMessage(),
+            ]);
         }
         return true;
     }
@@ -2410,6 +2546,20 @@ class NcipServerPlugin
                 $failureReason = 'ineligible_state';
                 return null;
             }
+            // Parità con PrestitiController::renew() (#366 residual): un prestito
+            // in_corso la cui data_scadenza è già passata è scaduto anche se il
+            // sweep non l'ha ancora marcato in_ritardo. Rinnovarlo calcolerebbe
+            // la nuova scadenza da una data passata E riarmerebbe i flag di
+            // notifica, duplicando l'email di ritardo. Stesso rifiuto.
+            if ((string) $loan['data_scadenza'] < \App\Support\DateHelper::today()) {
+                $this->db->rollback();
+                $failureReason = 'overdue';
+                return null;
+            }
+            // Snapshot audit DOPO il FOR UPDATE e le guardie di stato, come
+            // renew(): preso prima potrebbe catturare una transizione
+            // concorrente e attribuire male il diff.
+            $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($this->db, $loanId);
 
             $userLock = $this->db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
             $userLock->bind_param('i', $expectedUserId);
@@ -2474,10 +2624,13 @@ class NcipServerPlugin
             }
 
             $renewals = (int) $loan['renewals'] + 1;
+            // recall_count/last_recall_at azzerati come renew()/update()/bulkExtend:
+            // la nuova scadenza riparte con il proprio ciclo di solleciti.
             $update = $this->db->prepare(
                 'UPDATE prestiti
                  SET data_scadenza = ?, renewals = ?, pickup_deadline = NULL,
-                     warning_sent = 0, overdue_notification_sent = 0, updated_at = NOW()
+                     warning_sent = 0, overdue_notification_sent = 0,
+                     recall_count = 0, last_recall_at = NULL, updated_at = NOW()
                  WHERE id = ?'
             );
             $update->bind_param('sii', $newDueDate, $renewals, $loanId);
@@ -2487,7 +2640,30 @@ class NcipServerPlugin
                 throw new \RuntimeException($error);
             }
             $update->close();
+
+            // Dentro la transazione (atomico con l'UPDATE), pattern di renew():
+            // l'helper ingoia i propri errori e non può abortire il commit.
+            \App\Support\ActivityLog::recordLoanEvent(
+                $this->db,
+                $loanId,
+                'loan.renewed',
+                $activityBefore,
+                source: 'ncip'
+            );
+
             $this->db->commit();
+
+            // Conferma al lettore con la NUOVA scadenza, DOPO il commit — stesso
+            // contratto post-commit di PrestitiController::renew().
+            try {
+                (new \App\Support\NotificationService($this->db))
+                    ->sendLoanRenewedNotification($loanId, $maxRenewals);
+            } catch (\Throwable $notificationError) {
+                SecureLogger::warning('[NcipServer] renew notification failed', [
+                    'loan_id' => $loanId,
+                    'error' => $notificationError->getMessage(),
+                ]);
+            }
             return $newDueDate;
         } catch (\Throwable $e) {
             $this->db->rollback();
