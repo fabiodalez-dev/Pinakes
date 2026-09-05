@@ -7312,5 +7312,6 @@
   "copia assegnata non disponibile, prenotazione ripristinata": "assigned copy unavailable, reservation restored",
   "Errore invio notifica revoca ritiro": "Failed to send pickup revocation notice",
   "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "The copy assigned to your pickup is no longer available. Your reservation remains valid: you will receive a new notice as soon as a copy is ready.",
-  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Maintenance already running or just completed: try again in a minute."
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Maintenance already running or just completed: try again in a minute.",
+  "Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.": "Maintenance is already running in another session: try again in a moment."
 }

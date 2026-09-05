@@ -101,9 +101,48 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, errors: array} Results for each maintenance task
+     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
      */
     public function runAll(): array
+    {
+        // Lock condiviso per l'INTERA esecuzione (review #416): il claim
+        // timestamp di runIfNeeded() marca l'inizio ma non protegge la durata —
+        // due sweep sovrapposti potrebbero selezionare gli stessi prestiti
+        // prima che l'altro aggiorni i flag (doppie email). GET_LOCK è
+        // connection-scoped e viene auto-rilasciato se la connessione muore:
+        // nessun lock stantio da recuperare. Nome scoping per-database, così
+        // più installazioni sullo stesso server MySQL non si bloccano a vicenda.
+        // Copre OGNI punto d'ingresso: bottone admin, login-hook e cron.
+        $haveLock = null; // true = acquisito, false = occupato, null = indeterminabile (fail-open)
+        try {
+            $lockRes = $this->db->query("SELECT GET_LOCK(CONCAT('pinakes_maintenance_', DATABASE()), 0)");
+            $lockRow = $lockRes instanceof \mysqli_result ? $lockRes->fetch_row() : null;
+            if (is_array($lockRow)) {
+                $haveLock = ((int) ($lockRow[0] ?? 0)) === 1;
+            }
+        } catch (\Throwable $lockError) {
+            // Fail-open come il claim di runIfNeeded(): la manutenzione è
+            // idempotente, meglio un run in più che nessun run.
+            SecureLogger::warning(__('MaintenanceService lock non determinabile'), ['error' => $lockError->getMessage()]);
+        }
+        if ($haveLock === false) {
+            return ['skipped' => true, 'reason' => 'in_progress'];
+        }
+        try {
+            return $this->runAllLocked();
+        } finally {
+            if ($haveLock === true) {
+                try {
+                    $this->db->query("SELECT RELEASE_LOCK(CONCAT('pinakes_maintenance_', DATABASE()))");
+                } catch (\Throwable) {
+                    // Connessione già chiusa: il lock è rilasciato dal server.
+                }
+            }
+        }
+    }
+
+    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, errors: array} */
+    private function runAllLocked(): array
     {
         $results = [
             'scheduled_loans_activated' => 0,

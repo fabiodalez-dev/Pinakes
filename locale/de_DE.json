@@ -7312,5 +7312,6 @@
   "copia assegnata non disponibile, prenotazione ripristinata": "zugewiesenes Exemplar nicht verfügbar, Vormerkung wiederhergestellt",
   "Errore invio notifica revoca ritiro": "Fehler beim Senden der Widerrufsbenachrichtigung",
   "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "Das für deine Abholung zugewiesene Exemplar ist nicht mehr verfügbar. Deine Vormerkung bleibt gültig: Du erhältst eine neue Benachrichtigung, sobald ein Exemplar bereitsteht.",
-  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Wartung läuft bereits oder wurde gerade abgeschlossen: Versuche es in einer Minute erneut."
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Wartung läuft bereits oder wurde gerade abgeschlossen: Versuche es in einer Minute erneut.",
+  "Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.": "Die Wartung läuft bereits in einer anderen Sitzung: versuche es gleich noch einmal."
 }

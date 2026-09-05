@@ -7312,5 +7312,6 @@
   "copia assegnata non disponibile, prenotazione ripristinata": "tildelt eksemplar utilgængeligt, reservation gendannet",
   "Errore invio notifica revoca ritiro": "Kunne ikke sende besked om tilbagekaldt afhentning",
   "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "Eksemplaret tildelt din afhentning er ikke længere tilgængeligt. Din reservation er stadig gyldig: du får en ny besked, så snart et eksemplar er klar.",
-  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Vedligeholdelse kører allerede eller er netop afsluttet: prøv igen om et minut."
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Vedligeholdelse kører allerede eller er netop afsluttet: prøv igen om et minut.",
+  "Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.": "Vedligeholdelsen kører allerede i en anden session: prøv igen om et øjeblik."
 }

@@ -7312,5 +7312,6 @@
   "copia assegnata non disponibile, prenotazione ripristinata": "copia assegnata non disponibile, prenotazione ripristinata",
   "Errore invio notifica revoca ritiro": "Errore invio notifica revoca ritiro",
   "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.",
-  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Manutenzione già in corso o appena completata: riprova tra un minuto."
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Manutenzione già in corso o appena completata: riprova tra un minuto.",
+  "Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.": "Manutenzione già in corso in un'altra sessione: riprova tra qualche istante."
 }

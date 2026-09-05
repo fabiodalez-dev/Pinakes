@@ -7312,5 +7312,6 @@
   "copia assegnata non disponibile, prenotazione ripristinata": "exemplaire attribué indisponible, réservation rétablie",
   "Errore invio notifica revoca ritiro": "Échec de l'envoi de l'avis de révocation du retrait",
   "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "L'exemplaire attribué à votre retrait n'est plus disponible. Votre réservation reste valable : vous recevrez un nouvel avis dès qu'un exemplaire sera prêt.",
-  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Maintenance déjà en cours ou tout juste terminée : réessayez dans une minute."
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Maintenance déjà en cours ou tout juste terminée : réessayez dans une minute.",
+  "Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.": "La maintenance est déjà en cours dans une autre session : réessayez dans un instant."
 }

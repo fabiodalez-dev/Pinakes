@@ -113,7 +113,7 @@ class MaintenanceController
             $circulation = (new MaintenanceService($db))->runIfNeeded(0);
             $results['circulation'] = $circulation;
             if (($circulation['skipped'] ?? false) === true) {
-                $results['circulation_note'] = __("Manutenzione già in corso o appena completata: riprova tra un minuto.");
+                $results['circulation_note'] = __("Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.");
             }
 
             // 2. Correggi inconsistenze. fixDataInconsistencies() già esegue al suo
