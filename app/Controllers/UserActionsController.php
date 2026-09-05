@@ -34,7 +34,7 @@ class UserActionsController
                 FROM prestiti pr
                 LEFT JOIN libri l ON l.id = pr.libro_id
                 WHERE pr.utente_id = ? AND pr.stato = 'pendente'
-                  AND (l.id IS NOT NULL OR pr.copia_id IS NOT NULL)
+                  AND (l.deleted_at IS NULL OR pr.copia_id IS NOT NULL)
                 ORDER BY pr.created_at DESC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('i', $uid);

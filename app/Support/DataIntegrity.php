@@ -1282,7 +1282,14 @@ class DataIntegrity {
                 $notificationService = new NotificationService($this->db);
                 foreach ($expiredQueueEmails as $expiredEmail) {
                     try {
-                        $notificationService->sendQueueReservationExpiredNotification($expiredEmail['email'], $expiredEmail['variables']);
+                        // Il sender può fallire anche senza eccezione (return
+                        // false): va loggato comunque, come nel gemello
+                        // ReservationManager::flushDeferredNotifications().
+                        if (!$notificationService->sendQueueReservationExpiredNotification($expiredEmail['email'], $expiredEmail['variables'])) {
+                            SecureLogger::warning('Invio notifica scadenza prenotazione post-repair fallito (send=false)', [
+                                'email_hash' => hash('sha256', (string) $expiredEmail['email']),
+                            ]);
+                        }
                     } catch (\Throwable $notifErr) {
                         SecureLogger::warning('Invio notifica scadenza prenotazione post-repair fallito', ['error' => $notifErr->getMessage()]);
                     }

@@ -1484,10 +1484,17 @@ class MaintenanceService
      * Bulk updates all active loans that have passed their due date,
      * changing status from 'in_corso' to 'in_ritardo'.
      *
+     * @param bool $insideTransaction True when the caller already manages a
+     *                                transaction: begin/commit/rollback are
+     *                                skipped (begin_transaction() nested in
+     *                                mysqli produces an implicit commit that
+     *                                would chiudere le modifiche del chiamante).
+     *                                Stesso pattern di
+     *                                DataIntegrity::validateAndUpdateLoan().
      * @return int Number of loans marked as overdue
      * @throws \RuntimeException If query preparation fails
      */
-    public function updateOverdueLoans(): int
+    public function updateOverdueLoans(bool $insideTransaction = false): int
     {
         // "Oggi" nel timezone applicativo come parametro bound (M9): con CURDATE()
         // lo stesso runAll() valutava le scadenze prenotazione con l'oggi
@@ -1498,7 +1505,9 @@ class MaintenanceService
         // così ogni flip produce un evento loan.overdue con operatore SYSTEM
         // dentro la stessa transazione della mutazione. Il FOR UPDATE serializza
         // il set: nessuna riga può cambiare stato tra la SELECT e il flip.
-        $this->db->begin_transaction();
+        if (!$insideTransaction) {
+            $this->db->begin_transaction();
+        }
 
         try {
             $select = $this->db->prepare("
@@ -1521,7 +1530,9 @@ class MaintenanceService
             $select->close();
 
             if ($overdueIds === []) {
-                $this->db->commit();
+                if (!$insideTransaction) {
+                    $this->db->commit();
+                }
                 return 0;
             }
 
@@ -1561,10 +1572,16 @@ class MaintenanceService
                 );
             }
 
-            $this->db->commit();
+            if (!$insideTransaction) {
+                $this->db->commit();
+            }
             return $affected;
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            // Transazione esterna: il rollback spetta al chiamante — qui si
+            // rilancia soltanto, senza toccare le sue modifiche.
+            if (!$insideTransaction) {
+                $this->db->rollback();
+            }
             throw $e;
         }
     }
