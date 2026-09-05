@@ -61,8 +61,11 @@ final class ActionsController
 
     /**
      * Own loans: pending requests, active (scheduled/holding/overdue), and the
-     * most recent concluded history. Every JOIN on `libri` carries
-     * `AND l.deleted_at IS NULL`. Scoped to the authenticated user only.
+     * most recent concluded history. Pending and concluded JOINs on `libri`
+     * carry `AND l.deleted_at IS NULL`; ACTIVE loans are deliberately exempt
+     * (M3) — the borrower still holds the copy of an archived title and keeps
+     * receiving overdue recalls for it, so the app must keep showing it.
+     * Scoped to the authenticated user only.
      */
     public function myLoans(Request $request, ResponseInterface $response): ResponseInterface
     {
@@ -88,10 +91,12 @@ final class ActionsController
             }
 
             // Active loans (scheduled / to-pickup / in-progress / overdue).
+            // CI-SOFT-DELETE-EXEMPT: an ACTIVE loan on an archived title must stay visible — the user still holds the copy and receives overdue recalls for it (M3). LEFT JOIN + COALESCE keep the row (with its real title, still present on soft-deleted rows) even if the book row ever vanished.
             $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.data_restituzione,
-                           pr.stato, pr.renewals, pr.created_at, l.titolo, l.copertina_url
+                           pr.stato, pr.renewals, pr.created_at,
+                           COALESCE(l.titolo, '') AS titolo, l.copertina_url
                     FROM prestiti pr
-                    JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
+                    LEFT JOIN libri l ON l.id = pr.libro_id
                     WHERE pr.utente_id = ? AND pr.attivo = 1
                       AND pr.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
                     ORDER BY pr.data_prestito ASC";

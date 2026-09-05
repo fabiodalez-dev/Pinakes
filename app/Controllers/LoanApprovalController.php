@@ -1098,6 +1098,16 @@ class LoanApprovalController
             \App\Support\ActivityLog::recordLoanEvent($db, $loanId, 'loan.picked_up', $activityBefore, source: 'pickup');
             $db->commit();
 
+            // Conferma di ritiro al lettore DOPO il commit (outbox + locale del
+            // destinatario nel sender): il ritiro era l'unica transizione del
+            // ciclo di vita senza email di conferma.
+            try {
+                (new \App\Support\NotificationService($db))->sendLoanPickedUpNotification($loanId);
+            } catch (\Throwable $notifError) {
+                \App\Support\SecureLogger::warning("[confirmPickup] Notification error for loan {$loanId}: " . $notifError->getMessage());
+                // Don't fail - pickup already committed
+            }
+
             $response->getBody()->write(json_encode([
                 'success' => true,
                 'message' => __('Ritiro confermato con successo')
@@ -1677,7 +1687,7 @@ class LoanApprovalController
             $reorderStmt = $db->prepare("
                 SELECT id FROM prenotazioni
                 WHERE libro_id = ? AND stato = 'attiva'
-                ORDER BY queue_position ASC
+                ORDER BY queue_position ASC, id ASC
                 FOR UPDATE
             ");
             $reorderStmt->bind_param('i', $libroId);
@@ -1755,10 +1765,15 @@ class LoanApprovalController
             // di invio non deve far fallire l'annullamento già committato.
             try {
                 $notificationService = new \App\Support\NotificationService($db);
+                // Fallback del motivo nel locale del DESTINATARIO (#360 parity),
+                // non in quello della sessione admin che sta annullando.
                 $notificationService->sendReservationCancelledNotification($userEmail, [
                     'utente_nome' => $userName,
                     'libro_titolo' => $bookTitle,
-                    'motivo' => $reason ?: __('Annullata dalla biblioteca')
+                    'motivo' => $reason !== '' ? $reason : $notificationService->translateInLocale(
+                        'Annullata dalla biblioteca',
+                        $notificationService->resolveRecipientLocale($userEmail)
+                    )
                 ]);
             } catch (\Throwable $notifError) {
                 \App\Support\SecureLogger::warning("[cancelReservation] Notification error for reservation {$reservationId}: " . $notifError->getMessage());
