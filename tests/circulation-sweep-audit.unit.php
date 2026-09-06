@@ -427,10 +427,28 @@ $stmt->execute();
 $resX = (int) $db->insert_id;
 $stmt->close();
 
+// A new overdue transition must be audited even when the repair runs first.
+$db->query("UPDATE prestiti SET stato = 'in_corso' WHERE id = {$loanO}");
+$db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$bookO}");
+// Caller-owned transactions must retain ownership of both state and audit.
+$db->begin_transaction();
+$maint->updateOverdueLoans(insideTransaction: true);
+$check($auditEvent($bookO, 'loan.overdue', $loanO) !== null,
+    'repair prerequisite: overdue event exists inside the caller transaction');
+$db->rollback();
+$check($loanCol($loanO, 'stato') === 'in_corso'
+    && $auditEvent($bookO, 'loan.overdue', $loanO) === null,
+    'caller rollback removes both overdue transition and its audit');
+
 $integrity = new DataIntegrity($db);
 $fixResult = $integrity->fixDataInconsistencies();
 $check(array_key_exists('errors', $fixResult) && ($fixResult['errors'] ?? []) === [],
     '17 fixDataInconsistencies completes without errors');
+$repairOverdue = $auditEvent($bookO, 'loan.overdue', $loanO);
+$check($loanCol($loanO, 'stato') === 'in_ritardo' && $repairOverdue !== null
+    && $repairOverdue['utente_id'] === null,
+    'repair-first overdue transition records a SYSTEM loan.overdue event');
+
 $stateQ2 = (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$resQ2}")->fetch_assoc()['stato'];
 $check($stateQ2 === 'annullata', '18 the duplicate reservation (same user, same book) is cancelled by the repair');
 $evQ = $auditEvent($bookQ, 'reservation.cancelled', $resQ2);
@@ -464,6 +482,59 @@ foreach ($labels as $event => $expected) {
 }
 $check($labelsOk, '23 the event-label registry resolves every new sweep event type');
 
+// Scheduled activation also has an atomic SYSTEM event with the state diff.
+[$bookReady, [$copyReady]] = $makeBook('READY', 1);
+[$userReady] = $makeUser('ready');
+$readyStart = $d(0); $readyEnd = $d(10);
+$stmt = $db->prepare("INSERT INTO prestiti
+    (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo)
+    VALUES (?, ?, ?, ?, ?, 'prenotato', 'diretto', 1)");
+$stmt->bind_param('iiiss', $bookReady, $copyReady, $userReady, $readyStart, $readyEnd);
+$stmt->execute();
+$loanReady = (int) $db->insert_id;
+$stmt->close();
+$maint->activateScheduledLoans();
+$readyEvent = $auditEvent($bookReady, 'loan.updated', $loanReady);
+$check($loanCol($loanReady, 'stato') === 'da_ritirare' && $readyEvent !== null
+    && $readyEvent['utente_id'] === null && $readyEvent['meta']['source'] === 'sweep',
+    'scheduled activation records a SYSTEM sweep event');
+$readyDiff = $db->query("SELECT dati_precedenti, dati_nuovi FROM log_modifiche
+    WHERE tabella = 'libri' AND record_id = {$bookReady} ORDER BY id DESC LIMIT 1")->fetch_assoc();
+$readyBefore = json_decode((string) ($readyDiff['dati_precedenti'] ?? ''), true);
+$readyAfter = json_decode((string) ($readyDiff['dati_nuovi'] ?? ''), true);
+$check(($readyBefore['stato'] ?? '') === 'prenotato'
+    && ($readyAfter['stato'] ?? '') === 'da_ritirare'
+    && ($readyAfter['pickup_deadline'] ?? null) === $loanCol($loanReady, 'pickup_deadline'),
+    'activation audit preserves the state transition and assigned deadline');
+$readyAuditCount = (int) $db->query("SELECT COUNT(*) FROM log_modifiche
+    WHERE tabella = 'libri' AND record_id = {$bookReady}")->fetch_row()[0];
+$maint->activateScheduledLoans();
+$check((int) $db->query("SELECT COUNT(*) FROM log_modifiche
+    WHERE tabella = 'libri' AND record_id = {$bookReady}")->fetch_row()[0] === $readyAuditCount,
+    'repeated activation does not duplicate the audit');
+
+// A zero cooldown always reaches the execution lock, even with a fresh marker.
+final class ZeroCooldownProbe extends MaintenanceService {
+    public int $calls = 0;
+    public function runAll(): array { $this->calls++; return ['ran' => true]; }
+}
+$db->begin_transaction();
+$stamp = (string) time();
+$stmt = $db->prepare("INSERT INTO system_settings (category, setting_key, setting_value)
+    VALUES ('maintenance', 'last_run', ?)
+    ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+$stmt->bind_param('s', $stamp);
+$stmt->execute();
+$stmt->close();
+$_SESSION['maintenance_last_run'] = (int) $stamp;
+$probe = new ZeroCooldownProbe($db);
+$probe->runIfNeeded(0);
+$probe->runIfNeeded(0);
+$check($probe->calls === 2, 'zero cooldown permits consecutive manual runs with a fresh marker');
+$check(($probe->runIfNeeded(60)['reason'] ?? '') === 'cooldown' && $probe->calls === 2,
+    'positive cooldown still suppresses automatic runs');
+$db->rollback();
+
 // ═════════ 24-25: runAll() è protetto da un lock per l'INTERA esecuzione ═════════
 // Review #416: il claim timestamp di runIfNeeded() marca l'inizio ma non la
 // durata — due sweep sovrapposti duplicherebbero le email. Il lock GET_LOCK
@@ -473,7 +544,7 @@ $dbB = $socket !== '' && file_exists($socket)
     ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
     : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
 $dbB->query("SELECT GET_LOCK(CONCAT('pinakes_maintenance_', DATABASE()), 0)");
-$lockedRun = (new MaintenanceService($db))->runAll();
+$lockedRun = (new MaintenanceService($db))->runIfNeeded(0);
 $check(($lockedRun['skipped'] ?? false) === true && ($lockedRun['reason'] ?? '') === 'in_progress',
     '24 runAll() skips with reason=in_progress while another connection holds the lock');
 $dbB->query("SELECT RELEASE_LOCK(CONCAT('pinakes_maintenance_', DATABASE()))");

@@ -1026,18 +1026,10 @@ class DataIntegrity {
             $lockBooks->get_result()->fetch_all(MYSQLI_NUM);
             $lockBooks->close();
 
-            // 3. Aggiorna prestiti in ritardo
-            $stmt = $this->db->prepare("
-                UPDATE prestiti SET stato = 'in_ritardo'
-                WHERE stato = 'in_corso'
-                AND data_scadenza < ?
-                AND attivo = 1
-            ");
-            $today = \App\Support\DateHelper::today();
-            $stmt->bind_param('s', $today);
-            $stmt->execute();
-            $results['fixed'] += $this->db->affected_rows;
-            $stmt->close();
+            // Reuse the audited transition without committing this repair's
+            // transaction or losing the book locks acquired above.
+            $results['fixed'] += (new MaintenanceService($this->db))
+                ->updateOverdueLoans(insideTransaction: true);
 
             // 3b. Correggi tutti gli stati terminali che hanno ancora attivo=1.
             $stmt = $this->db->prepare("

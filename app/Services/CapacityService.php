@@ -353,28 +353,23 @@ final class CapacityService
         $types = 'ssisss';
         $params = [$start, $end, $libroId, $today, $end, $start];
         if ($maxLoans > 0) {
-            // F3: il cap va valutato sulla FINESTRA della prenotazione, non su
-            // "adesso". Un utente oggi al limite con prestiti che scadono prima
-            // di [R_START, R_END] sarà di nuovo sotto-cap quando la finestra
-            // inizia: la sua prenotazione deve OCCUPARE capacità, altrimenti il
-            // gate lascia passare un nuovo impegno che si sovrappone alla sua
-            // promessa (overbooking). Contiamo quindi solo gli impegni che si
-            // sovrappongono alla finestra prenotata; in_ritardo e in_corso già
-            // scaduti per data sono open-ended (la copia è ancora fuori) e
-            // sovrappongono qualunque finestra futura. Il gate di PROMOZIONE
-            // (ReservationManager) resta NOW-based: lì la finestra è già iniziata.
+            // Future reservations reserve capacity against overlapping commitments.
+            // Once their window starts, promotion and approval enforce the total
+            // active-loan cap (including future scheduled loans). Use that same
+            // predicate here: an unpromotable head must not block the next reader.
             $sql .= " AND (
                         SELECT COUNT(*)
                         FROM prestiti cap
                         WHERE cap.utente_id = r.utente_id
                           AND cap.attivo = 1
                           AND cap.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
-                          AND cap.data_prestito <= $rEnd
+                          AND ($rStart <= ? OR (cap.data_prestito <= $rEnd
                           AND (cap.stato = 'in_ritardo'
                                OR (cap.stato = 'in_corso' AND cap.data_scadenza < ?)
-                               OR cap.data_scadenza >= $rStart)
+                               OR cap.data_scadenza >= $rStart)))
                       ) < ?";
-            $types .= 'si';
+            $types .= 'ssi';
+            $params[] = $today;
             $params[] = $today;
             $params[] = $maxLoans;
         }

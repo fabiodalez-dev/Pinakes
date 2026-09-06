@@ -47,6 +47,12 @@ class MaintenanceService
      */
     public function runIfNeeded(int $cooldownMinutes = 60): array
     {
+        // Manual runs bypass the timestamp claim; runAll() still serializes
+        // the full execution, including two clicks within the same second.
+        if ($cooldownMinutes <= 0) {
+            return $this->runAll();
+        }
+
         $cacheKey = 'maintenance_last_run';
         $now = time();
         $cooldownSeconds = $cooldownMinutes * 60;
@@ -917,6 +923,8 @@ class MaintenanceService
                     $pickupDeadline = $loan['data_scadenza'];
                 }
 
+                $beforeSnapshot = ActivityLog::loadLoanSnapshot($this->db, $loanId);
+
                 // Update loan status to da_ritirare with pickup deadline
                 // State guard: only update if still in 'prenotato' state (prevents race with confirmPickup)
                 $updateStmt = $this->db->prepare("
@@ -949,6 +957,15 @@ class MaintenanceService
                 if (!$integrity->recalculateBookAvailability((int) $loan['libro_id'], true)) {
                     throw new \RuntimeException('Failed to recalculate availability while activating a scheduled loan.');
                 }
+
+                ActivityLog::recordLoanEvent(
+                    $this->db,
+                    $loanId,
+                    'loan.updated',
+                    $beforeSnapshot,
+                    source: 'sweep',
+                    operatorId: ActivityLog::SYSTEM_OPERATOR
+                );
 
                 $this->db->commit();
                 $activatedCount++;

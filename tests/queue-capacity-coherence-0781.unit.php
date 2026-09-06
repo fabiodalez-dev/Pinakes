@@ -312,6 +312,27 @@ $check(
     'F3c: in_ritardo open-ended conta contro qualunque finestra futura -> prenotazione esclusa'
 );
 
+// Started window: the same total cap as promotion/approval must apply, even
+// when the blocking loan is scheduled beyond this reservation's end.
+[$bookHead] = $makeBook('HEAD', 1);
+[$bookLater, [$copyLater]] = $makeBook('LATER', 1);
+[$userHead] = $makeUser('head');
+[$userNext] = $makeUser('next');
+$mkLoan($bookLater, $copyLater, $userHead, $d(60), $d(90), 'prenotato', 1);
+$headId = $mkReservation($bookHead, $userHead, $d(0), $d(30), 'attiva', 1);
+$nextId = $mkReservation($bookHead, $userNext, $d(0), $d(30), 'attiva', 2);
+$check($capacity->occupiedCount($bookHead, $d(0), $d(30)) === 1,
+    'F3d: started reservation at total cap does not consume capacity');
+$db->begin_transaction();
+$headManager = new ReservationManager($db);
+$headManager->setExternalTransaction(true);
+$check($headManager->processBookAvailability($bookHead),
+    'F3d: eligible second reader is promoted despite a paused head');
+$check($reservationCol($headId, 'stato') === 'attiva'
+    && $reservationCol($nextId, 'stato') === 'completata',
+    'F3d: paused head retains its place while the next reader receives the copy');
+$db->rollback(); // discard promotion and its deferred notifications
+
 // Ripristina il cap per non influenzare i blocchi successivi.
 if ($origMaxLoans === null) {
     $settings->delete('loans', 'max_active_loans_per_user');
