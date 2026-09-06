@@ -1550,7 +1550,7 @@ class MaintenanceService
      * @return int Number of loans marked as overdue
      * @throws \RuntimeException If query preparation fails
      */
-    public function updateOverdueLoans(bool $insideTransaction = false): int
+    public function updateOverdueLoans(bool $insideTransaction = false, string $source = 'sweep'): int
     {
         // "Oggi" nel timezone applicativo come parametro bound (M9): con CURDATE()
         // lo stesso runAll() valutava le scadenze prenotazione con l'oggi
@@ -1623,7 +1623,7 @@ class MaintenanceService
                     $overdueId,
                     'loan.overdue',
                     $beforeSnapshots[$overdueId],
-                    source: 'sweep',
+                    source: $source,
                     operatorId: ActivityLog::SYSTEM_OPERATOR
                 );
             }

@@ -1029,7 +1029,7 @@ class DataIntegrity {
             // Reuse the audited transition without committing this repair's
             // transaction or losing the book locks acquired above.
             $results['fixed'] += (new MaintenanceService($this->db))
-                ->updateOverdueLoans(insideTransaction: true);
+                ->updateOverdueLoans(insideTransaction: true, source: 'repair');
 
             // 3b. Correggi tutti gli stati terminali che hanno ancora attivo=1.
             $stmt = $this->db->prepare("
