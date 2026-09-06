@@ -446,8 +446,9 @@ $check(array_key_exists('errors', $fixResult) && ($fixResult['errors'] ?? []) ==
     '17 fixDataInconsistencies completes without errors');
 $repairOverdue = $auditEvent($bookO, 'loan.overdue', $loanO);
 $check($loanCol($loanO, 'stato') === 'in_ritardo' && $repairOverdue !== null
-    && $repairOverdue['utente_id'] === null,
-    'repair-first overdue transition records a SYSTEM loan.overdue event');
+    && $repairOverdue['utente_id'] === null
+    && ($repairOverdue['meta']['source'] ?? '') === 'repair',
+    'repair-first overdue transition records a SYSTEM loan.overdue event with source=repair');
 
 $stateQ2 = (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$resQ2}")->fetch_assoc()['stato'];
 $check($stateQ2 === 'annullata', '18 the duplicate reservation (same user, same book) is cancelled by the repair');
@@ -534,6 +535,9 @@ $check($probe->calls === 2, 'zero cooldown permits consecutive manual runs with 
 $check(($probe->runIfNeeded(60)['reason'] ?? '') === 'cooldown' && $probe->calls === 2,
     'positive cooldown still suppresses automatic runs');
 $db->rollback();
+// Il fast-path di sessione NON viene rollbackato col marker DB: senza questo
+// unset un futuro check con runIfNeeded(60) verrebbe soppresso in silenzio.
+unset($_SESSION['maintenance_last_run']);
 
 // ═════════ 24-25: runAll() è protetto da un lock per l'INTERA esecuzione ═════════
 // Review #416: il claim timestamp di runIfNeeded() marca l'inizio ma non la
@@ -546,7 +550,7 @@ $dbB = $socket !== '' && file_exists($socket)
 $dbB->query("SELECT GET_LOCK(CONCAT('pinakes_maintenance_', DATABASE()), 0)");
 $lockedRun = (new MaintenanceService($db))->runIfNeeded(0);
 $check(($lockedRun['skipped'] ?? false) === true && ($lockedRun['reason'] ?? '') === 'in_progress',
-    '24 runAll() skips with reason=in_progress while another connection holds the lock');
+    '24 runIfNeeded(0) skips with reason=in_progress while another connection holds the lock');
 $dbB->query("SELECT RELEASE_LOCK(CONCAT('pinakes_maintenance_', DATABASE()))");
 $dbB->close();
 $freeRun = (new MaintenanceService($db))->runAll();

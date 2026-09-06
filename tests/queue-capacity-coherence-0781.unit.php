@@ -333,6 +333,40 @@ $check($reservationCol($headId, 'stato') === 'attiva'
     'F3d: paused head retains its place while the next reader receives the copy');
 $db->rollback(); // discard promotion and its deferred notifications
 
+// Controllo POSITIVO gemello: due prenotazioni iniziate di utenti SOTTO cap
+// devono occupare entrambe — protegge il predicato da una futura
+// semplificazione (es. "finestra iniziata -> mai occupare") che
+// reintrodurrebbe l'overbooking pur lasciando verde F3d.
+[$bookBoth] = $makeBook('BOTH', 2);
+[$userP1] = $makeUser('bothp1');
+[$userP2] = $makeUser('bothp2');
+$mkReservation($bookBoth, $userP1, $d(0), $d(30), 'attiva', 1);
+$mkReservation($bookBoth, $userP2, $d(0), $d(30), 'attiva', 2);
+$check($capacity->occupiedCount($bookBoth, $d(0), $d(30)) === 2,
+    'F3e: started reservations of under-cap readers BOTH consume capacity');
+
+// Riga LEGACY (data_inizio_richiesta NULL, deadline futura): il gate di
+// promozione la considera promuovibile OGGI, quindi anche il cap deve usare
+// il conteggio totale — con un utente al cap non deve occupare (review Opus
+// MEDIO-2: col predicato rStart<=today la deadline futura la lasciava nel
+// ramo overlap e congelava la coda).
+[$bookLeg] = $makeBook('LEG', 1);
+[$bookLegB, [$copyLegB]] = $makeBook('LEGB', 1);
+[$userLeg] = $makeUser('leg');
+[$userLegNext] = $makeUser('legnext');
+$mkLoan($bookLegB, $copyLegB, $userLeg, $d(60), $d(90), 'prenotato', 1);
+$legRow = $db->prepare(
+    "INSERT INTO prenotazioni (libro_id, utente_id, queue_position, stato, data_prenotazione, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta)
+     VALUES (?, ?, 1, 'attiva', NOW(), ?, NULL, NULL)"
+);
+$legDeadline = $d(10) . ' 23:59:59';
+$legRow->bind_param('iis', $bookLeg, $userLeg, $legDeadline);
+$legRow->execute();
+$legRow->close();
+$mkReservation($bookLeg, $userLegNext, $d(0), $d(30), 'attiva', 2);
+$check($capacity->occupiedCount($bookLeg, $d(0), $d(30)) === 1,
+    'F3f: only the under-cap next reader occupies — the legacy NULL-start head at cap does not freeze the queue');
+
 // Ripristina il cap per non influenzare i blocchi successivi.
 if ($origMaxLoans === null) {
     $settings->delete('loans', 'max_active_loans_per_user');
