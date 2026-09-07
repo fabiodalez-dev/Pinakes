@@ -155,6 +155,7 @@ $mailUserId = 0;
 $cleanup = static function () use ($db, &$bookId, &$noMailUserId, &$mailUserId, $emailWith): void {
     try {
         if ($bookId > 0) {
+            $db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$bookId}");
             $db->query("DELETE FROM prestiti WHERE libro_id = {$bookId}");
             $db->query("DELETE FROM copie WHERE libro_id = {$bookId}");
             $db->query("DELETE FROM libri WHERE id = {$bookId}");
@@ -317,6 +318,42 @@ try {
 } finally {
     $db->query("UPDATE libri SET deleted_at = NULL WHERE id = {$bookId}");
 }
+// G. Confirm a pickup two days after the scheduled start through the real controller.
+echo "G. pickup confirmation records the actual event date in the outbox\n";
+$scheduledStart = (new DateTimeImmutable($start))->modify('-2 days')->format('Y-m-d');
+$db->query("UPDATE copie SET stato = 'prenotato' WHERE id = {$copyId}");
+$db->query("UPDATE prestiti SET stato = 'da_ritirare', attivo = 1, data_restituzione = NULL,
+    data_prestito = '{$scheduledStart}', pickup_deadline = '{$start}' WHERE id = {$archivedLoan}");
+$db->query("DELETE FROM email_delivery_outbox WHERE recipient_email = '" . $db->real_escape_string($emailWith) . "'");
+$pickupRequest = (new \Slim\Psr7\Factory\ServerRequestFactory())
+    ->createServerRequest('POST', '/admin/loans/confirm-pickup')
+    ->withParsedBody(['loan_id' => $archivedLoan]);
+$pickupController = new \App\Controllers\LoanApprovalController();
+$pickupResponse = $pickupController->confirmPickup($pickupRequest, new \Slim\Psr7\Response(), $db);
+$pickupResult = json_decode((string) $pickupResponse->getBody(), true);
+$check(($pickupResult['success'] ?? false) === true, 'delayed pickup succeeds through the real controller');
+$readPickupEmail = static function () use ($db, $emailWith): array {
+    $stmt = $db->prepare("SELECT variables_json FROM email_delivery_outbox WHERE recipient_email = ? AND template_name = 'loan_picked_up' ORDER BY id DESC LIMIT 1");
+    $stmt->bind_param('s', $emailWith);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return json_decode((string) ($row['variables_json'] ?? '{}'), true) ?: [];
+};
+$pickupVars = $readPickupEmail();
+$check(($pickupVars['data_prestito'] ?? '') === $service->formatEmailDate($start, false, 'de_DE'),
+    'queued pickup date is the actual confirmation day in the recipient locale');
+$check($db->query("SELECT data_prestito FROM prestiti WHERE id = {$archivedLoan}")->fetch_row()[0] === $scheduledStart,
+    'pickup email does not alter the scheduled loan window');
+$secondPickup = $pickupController->confirmPickup($pickupRequest, new \Slim\Psr7\Response(), $db);
+$check($secondPickup->getStatusCode() === 400, 'a repeated pickup does not confirm the same loan again');
+$queuedCount = $db->query("SELECT COUNT(*) FROM email_delivery_outbox WHERE template_name = 'loan_picked_up' AND recipient_email = '" . $db->real_escape_string($emailWith) . "'")->fetch_row()[0];
+$check((int) $queuedCount === 1, 'a repeated pickup does not queue a second confirmation');
+// Simulate a sender invoked after midnight with the previously captured event date.
+$capturedDate = (new DateTimeImmutable($start))->modify('-1 day')->format('Y-m-d');
+$service->sendLoanPickedUpNotification($archivedLoan, $capturedDate);
+$check(($readPickupEmail()['data_prestito'] ?? '') === $service->formatEmailDate($capturedDate, false, 'de_DE'),
+    'outbox preserves the supplied event date for delayed delivery');
 
 $cleanup();
 $db->close();

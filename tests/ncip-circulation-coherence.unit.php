@@ -300,11 +300,8 @@ $cTx = (int) $db->query(
 )->fetch_row()[0];
 $check($cTx === 1, '12 NCIP transaction log records the check-in');
 
-// ── C2. CheckInItem: priorità NCIP e guardia di ambiguità (review A1) ───────
-// L'ItemId NCIP identifica il TITOLO: con più prestiti attivi sullo stesso
-// titolo la scelta deve essere deterministica (classe ncip prima) e MAI
-// arbitraria (due candidati nella stessa classe = rifiuto per ambiguità).
-echo "C2. CheckInItem: NCIP-priority class and ambiguity guard\n";
+// ── C2. Mixed-origin ambiguity and identical request retries ─────────────
+echo "C2. CheckInItem: ambiguity across all origins and safe retries\n";
 [$gBookId, $gCopy1] = $makeBook();
 $gCopy2 = (int) (new CopyRepository($db))->create($gBookId, 'ZZNC-' . $run . '-G2', 'disponibile');
 $gUserN = $makeUser();
@@ -321,13 +318,33 @@ $gXml = new SimpleXMLElement(
 );
 $gResponse = $handleCheckIn->invoke($ncip, $request, new SlimResponse(), $gXml, $staffCaller);
 $gBody = (string) $gResponse->getBody();
-$check(
-    str_contains($gBody, 'CheckInItemResponse') && !str_contains($gBody, '<Problem>'),
-    '12a mixed-origin title: check-in without UserId succeeds'
+$check(str_contains($gBody, '<Problem>'), '12a mixed-origin title requires an unambiguous identity');
+$gRetry = $handleCheckIn->invoke($ncip, $request, new SlimResponse(), $gXml, $staffCaller);
+$check(str_contains((string) $gRetry->getBody(), '<Problem>'), '12b identical unscoped retry is also refused');
+$check($loanRow($gLoanNcip)['stato'] === 'in_corso' && $loanRow($gLoanMan)['stato'] === 'in_corso',
+    '12c neither loan nor its copy is released by ambiguous retries');
+
+$gScopedXml = new SimpleXMLElement(
+    '<NCIPMessage><CheckInItem>'
+    . "<ItemId><ItemIdentifierValue>{$gBookId}</ItemIdentifierValue></ItemId>"
+    . "<UserId><UserIdentifierValue>{$gUserN}</UserIdentifierValue></UserId>"
+    . '</CheckInItem></NCIPMessage>'
 );
-$check($loanRow($gLoanNcip)['stato'] === 'restituito', '12b the NCIP loan is the one closed (priority class beats recency)');
-$gManRow = $loanRow($gLoanMan);
-$check($gManRow['stato'] === 'in_corso' && (int) $gManRow['attivo'] === 1, '12c the newer manual loan stays untouched');
+// UserId still cannot distinguish two copies held by the same borrower.
+$db->query("UPDATE prestiti SET utente_id = {$gUserN} WHERE id = {$gLoanMan}");
+$gSameUser = $handleCheckIn->invoke($ncip, $request, new SlimResponse(), $gScopedXml, $staffCaller);
+$check(str_contains((string) $gSameUser->getBody(), '<Problem>'),
+    '12c1 UserId does not bypass mixed-origin ambiguity for multiple copies');
+$db->query("UPDATE prestiti SET utente_id = {$gUserM} WHERE id = {$gLoanMan}");
+$gScoped = $handleCheckIn->invoke($ncip, $request, new SlimResponse(), $gScopedXml, $staffCaller);
+$check(!str_contains((string) $gScoped->getBody(), '<Problem>') && $loanRow($gLoanNcip)['stato'] === 'restituito',
+    '12c2 explicit borrower closes only the identified NCIP loan');
+$gScopedRetry = $handleCheckIn->invoke($ncip, $request, new SlimResponse(), $gScopedXml, $staffCaller);
+$check(str_contains((string) $gScopedRetry->getBody(), 'item-not-checked-out'),
+    '12c3 identical scoped retry finds no further loan for that borrower');
+$check($loanRow($gLoanMan)['stato'] === 'in_corso' && (int) $loanRow($gLoanMan)['attivo'] === 1
+    && $db->query("SELECT stato FROM copie WHERE id = {$gCopy2}")->fetch_row()[0] === 'prestato',
+    '12c4 retry preserves the other borrower loan and physically unreturned copy');
 
 [$hBookId, $hCopy1] = $makeBook();
 $hCopy2 = (int) (new CopyRepository($db))->create($hBookId, 'ZZNC-' . $run . '-H2', 'disponibile');
