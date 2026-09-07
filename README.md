@@ -41,7 +41,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.80 — latest
+### v0.7.81 — latest
+
+**Circulation coherence** ([PR #416](https://github.com/fabiodalez-dev/Pinakes/pull/416)): a full review of the reservation/loan system across states, queues, emails, audit and NCIP parity, with every finding fixed. A new **pickup confirmation email** closes the last silent lifecycle transition (and reports the actual pickup day); self-cancellations now confirm by email; every autonomous sweep and repair leaves a SYSTEM audit event with truthful provenance, including lost/damaged outcomes with the penalty in the configured currency. Queues no longer freeze behind an unpromotable head (capacity shares the promotion gate's exact predicate), maintenance holds a database lock for its whole run while the manual button always runs, stale pending requests finally expire, and NCIP check-in refuses ambiguous multi-loan matches instead of closing an arbitrary copy. Every motivo reaches the reader in their own language. ~200 new behavioural checks; no migration.
+
+### v0.7.80
 
 **Circulation hardening** ([PR #415](https://github.com/fabiodalez-dev/Pinakes/pull/415)): the reservation and loan lifecycle gets database-level guardrails and durable notifications. New triggers reject malformed circulation data at the source (loan start after due date, duplicate or non-positive active queue positions, double active reservations per user and book) while every queue reorder became collision-free; two new emails keep readers informed (copy assigned & awaiting approval; loan closed with a lost/damaged copy, including the charged amount in the configured currency); a durable **email outbox** (`migrate_0.7.80.sql`) queues failed terminal notifications and retries them with backoff and a hard cap, so a down SMTP no longer loses circulation emails. Lost/damaged returns can record an assessed amount from the return form.
 
