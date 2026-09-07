@@ -45,8 +45,9 @@ jobs:
 
       - name: Validate YAML structure with yamllint
         run: |
-          python3 -m pip install --disable-pip-version-check --no-input yamllint==1.37.1
-          yamllint .github .yamllint.yml
+          python3 -m venv "$RUNNER_TEMP/yamllint"
+          "$RUNNER_TEMP/yamllint/bin/pip" install --disable-pip-version-check --no-input yamllint==1.37.1
+          "$RUNNER_TEMP/yamllint/bin/yamllint" .github .yamllint.yml
 
       - name: Analyze maintained shell scripts with ShellCheck
         run: |
