@@ -1102,7 +1102,7 @@ class LoanApprovalController
             // destinatario nel sender): il ritiro era l'unica transizione del
             // ciclo di vita senza email di conferma.
             try {
-                (new \App\Support\NotificationService($db))->sendLoanPickedUpNotification($loanId);
+                (new \App\Support\NotificationService($db))->sendLoanPickedUpNotification($loanId, $today);
             } catch (\Throwable $notifError) {
                 \App\Support\SecureLogger::warning("[confirmPickup] Notification error for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail - pickup already committed

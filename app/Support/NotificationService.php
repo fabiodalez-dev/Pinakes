@@ -1434,8 +1434,14 @@ class NotificationService {
      * prestito è ufficialmente iniziato. Stesso pattern di
      * sendLoanRenewedNotification (locale del destinatario, date formattate
      * per destinatario, consegna durevole via outbox in sendWithRetry).
+     *
+     * @param string|null $pickupDate Application-local event date (Y-m-d),
+     *                                captured by the caller before commit.
      */
-    public function sendLoanPickedUpNotification(int $loanId): bool {
+    public function sendLoanPickedUpNotification(int $loanId, ?string $pickupDate = null): bool {
+        // Capture the event date, not the scheduled loan start. The formatted
+        // value is persisted in the outbox so later delivery retries retain it.
+        $pickupDate ??= DateHelper::today();
         try {
             // CI-SOFT-DELETE-EXEMPT: the pickup confirmation must reach the borrower even when the title was archived after approval — the copy is already in the user's hands, soft-delete governs lendability, not running loans (same convention as sendLoanRenewedNotification).
             $stmt = $this->db->prepare("
@@ -1468,7 +1474,7 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'] ?? $this->translateInLocale('Non disponibile', $recipientLocale),
-                'data_prestito' => $this->formatEmailDate($loan['data_prestito'], false, $recipientLocale),
+                'data_prestito' => $this->formatEmailDate($pickupDate, false, $recipientLocale),
                 'data_scadenza' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
             ];
 
