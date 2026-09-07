@@ -652,6 +652,42 @@ class CopyRepository
     }
 
     /**
+     * Stati "curati" fuori circolazione: impostati deliberatamente da un
+     * operatore (o da un esito di restituzione) e mai sovrascrivibili da un
+     * rilascio implicito. Stessa lista del guard di
+     * LoanApprovalController::returnLoan().
+     *
+     * @var list<string>
+     */
+    public const CURATED_OUT_OF_CIRCULATION = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
+
+    /**
+     * Riporta una copia a 'disponibile' SOLO se non è parcheggiata in uno
+     * stato curato fuori circolazione: una restituzione non deve rimettere in
+     * giro una copia che l'operatore ha segnato persa/danneggiata/in
+     * riparazione mentre il prestito era aperto (drift). Va chiamato DENTRO
+     * una transazione: legge lo stato con FOR UPDATE.
+     *
+     * @return string Lo stato effettivo della copia dopo la chiamata
+     *                ('disponibile' oppure lo stato curato preservato).
+     */
+    public function releaseToAvailable(int $id): string
+    {
+        $stmt = $this->db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $current = (string) ($row['stato'] ?? '');
+        if ($row && in_array($current, self::CURATED_OUT_OF_CIRCULATION, true)) {
+            return $current;
+        }
+        $this->updateStatus($id, 'disponibile');
+        return 'disponibile';
+    }
+
+    /**
      * Aggiorna lo stato di una copia
      */
     public function updateStatus(int $id, string $stato): bool

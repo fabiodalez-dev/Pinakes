@@ -275,6 +275,26 @@ HTML,
 <p>Buona lettura!</p>
 HTML,
             ],
+            // B1: conferma di ritiro — il lettore ha ritirato fisicamente il
+            // libro e il prestito è ufficialmente iniziato.
+            'loan_picked_up' => [
+                'label' => __('Ritiro confermato'),
+                'description' => __("Inviata quando il lettore ritira fisicamente il libro e il prestito inizia."),
+                'subject' => '📖 Buona lettura! Il tuo prestito è iniziato',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_prestito', 'data_scadenza'],
+                'body' => <<<'HTML'
+<h2>Ritiro confermato</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Hai ritirato il libro e il tuo prestito è ufficialmente iniziato:</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Data ritiro:</strong> {{data_prestito}}</p>
+    <p><strong>Data scadenza:</strong> {{data_scadenza}}</p>
+</div>
+<p><strong>Importante:</strong> Ricorda di restituire il libro entro la data di scadenza. Riceverai un promemoria alcuni giorni prima.</p>
+<p>Buona lettura!</p>
+HTML,
+            ],
             'loan_rejected' => [
                 'label' => __('Prestito rifiutato'),
                 'description' => __("Inviata all'utente quando un amministratore rifiuta una richiesta di prestito."),
@@ -315,32 +335,11 @@ HTML,
 <p><em>Per approvare o rifiutare questa recensione, accedi al pannello admin.</em></p>
 HTML,
             ],
-            'reservation_book_available' => [
-                'label' => __('Libro prenotato disponibile'),
-                'description' => __("Inviata quando un libro prenotato diventa disponibile e viene convertito in prestito pendente."),
-                'subject' => '📚 Libro prenotato pronto per il ritiro!',
-                'placeholders' => ['utente_nome', 'libro_titolo', 'libro_autore', 'libro_isbn', 'data_inizio', 'data_fine', 'book_url', 'profile_url'],
-                'body' => <<<'HTML'
-<h2>Il tuo libro è pronto per il ritiro!</h2>
-<p>Ciao {{utente_nome}},</p>
-<p>Siamo lieti di informarti che il libro che avevi prenotato è ora disponibile e pronto per il ritiro:</p>
-<div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
-    <h3 style="color: #1e40af; margin: 0 0 10px 0;">{{libro_titolo}}</h3>
-    <p style="margin: 5px 0;"><strong>Autore:</strong> {{libro_autore}}</p>
-    <p style="margin: 5px 0;"><strong>ISBN:</strong> {{libro_isbn}}</p>
-    <p style="margin: 5px 0;"><strong>Periodo prestito:</strong> {{data_inizio}} - {{data_fine}}</p>
-</div>
-<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
-    <p><strong>📦 Prossimi passi</strong></p>
-    <p>Recati in biblioteca per ritirare il libro. Porta con te un documento di identità.</p>
-</div>
-<p style="text-align: center;">
-    <a href="{{book_url}}" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">📖 Vedi Libro</a>
-    <a href="{{profile_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">👤 I miei Prestiti</a>
-</p>
-<p><em>La prenotazione è stata convertita in un prestito in attesa di conferma del ritiro.</em></p>
-HTML,
-            ],
+            // NOTE: the legacy 'reservation_book_available' template was removed
+            // from this registry (0.7.81): no sender references it anymore
+            // (promotion uses 'reservation_awaiting_approval'), so it is no
+            // longer listed in the settings editor nor re-seeded. Historical DB
+            // rows from old installs stay in email_templates and are harmless.
             'reservation_awaiting_approval' => [
                 'label' => __('Prenotazione assegnata, in attesa di approvazione'),
                 'description' => __("Inviata quando una prenotazione ottiene una copia e attende l'approvazione del prestito."),
@@ -457,7 +456,7 @@ HTML,
     <p><strong>Note:</strong> {{note}}</p>
     <p><strong>Importo registrato:</strong> {{sanzione}}</p>
 </div>
-<p>Per chiarimenti o per concordare la gestione dell'importo, contatta la biblioteca.</p>
+<p>Per qualsiasi chiarimento contatta la biblioteca.</p>
 HTML,
             ],
             'reservation_expired' => [

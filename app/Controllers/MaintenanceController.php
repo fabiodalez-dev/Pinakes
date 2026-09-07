@@ -99,8 +99,15 @@ class MaintenanceController
             // activations, expirations, overdue transitions, email notifications
             // and ICS. Previously the admin button only repaired counters, so it
             // looked successful while leaving loans/notifications untouched.
-            $circulation = (new MaintenanceService($db))->runAll();
+            // No timestamp cooldown for an explicit manual run. runAll()'s
+            // execution lock rejects concurrent sweeps, while allowing a new
+            // run immediately after completion, even within the same second.
+            // Data repair below still runs when circulation is already busy.
+            $circulation = (new MaintenanceService($db))->runIfNeeded(0);
             $results['circulation'] = $circulation;
+            if (($circulation['skipped'] ?? false) === true) {
+                $results['circulation_note'] = __("Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.");
+            }
 
             // 2. Correggi inconsistenze. fixDataInconsistencies() già esegue al suo
             // interno recalculateAllBookAvailability() (e ne somma 'updated' in

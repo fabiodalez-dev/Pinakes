@@ -37,8 +37,11 @@ $check(str_contains($pickup, 'LoanEligibility::checkUser') && str_contains($pick
 $maintenance = file_get_contents($root . '/app/Support/MaintenanceService.php');
 $expire = $method((string) $maintenance, 'checkExpiredReservations');
 $activate = $method((string) $maintenance, 'activateScheduledLoans');
-$check(str_contains($expire, "stato = 'pendente'") && str_contains($expire, "origine = 'prenotazione'"),
-    'promoted but unapproved reservation loans expire when their window passes');
+// 0.7.81: expiry copre anche le richieste dirette e NCIP mai processate,
+// non più solo le promozioni da coda (origine IN, non origine =).
+$check(str_contains($expire, "stato = 'pendente'")
+    && str_contains($expire, "origine IN ('prenotazione', 'richiesta', 'ncip')"),
+    'promoted-but-unapproved AND stale direct/NCIP pending requests expire when their window passes');
 $check(str_contains($activate, 'LoanEligibility::checkUser'),
     'scheduled activation rechecks borrower eligibility');
 $check(str_contains((string) $maintenance, 'retryQueuedEmailDeliveries'),

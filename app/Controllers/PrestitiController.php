@@ -1259,6 +1259,29 @@ class PrestitiController
 
             \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $activityBefore, source: 'manual');
             $db->commit();
+
+            // Estensione manuale della scadenza su un prestito già fuori
+            // (in_corso/in_ritardo): informa il lettore come fa renew() — prima
+            // questa era l'unica estensione silenziosa. Post-commit e try/catch:
+            // un invio fallito non deve invalidare l'update già durevole. Solo
+            // quando la scadenza è davvero cambiata IN AVANTI; riprogrammare un
+            // 'prenotato'/'da_ritirare' non è un rinnovo.
+            // Scelta deliberata: l'edit amministrativo NON incrementa
+            // numero_rinnovi e NON applica il tetto max_renewals — è un
+            // override del bibliotecario (correzione data, proroga d'ufficio),
+            // non un rinnovo del lettore; solo renew() consuma il contatore.
+            if ($newScadenza > $oldScadenza
+                && in_array((string) $locked['stato'], ['in_corso', 'in_ritardo'], true)) {
+                try {
+                    $maxRenewals = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_renewals', '3') ?? 3);
+                    if ($maxRenewals < 0) {
+                        $maxRenewals = 3;
+                    }
+                    (new NotificationService($db))->sendLoanRenewedNotification($id, $maxRenewals);
+                } catch (\Throwable $notifError) {
+                    SecureLogger::warning('Loan update renewal notification failed', ['loan_id' => $id, 'error' => $notifError->getMessage()]);
+                }
+            }
         } catch (\mysqli_sql_exception $e) {
             $db->rollback();
             // A trigger SIGNAL (e.g. I7) surfaces here under STRICT mode — never a 500.
@@ -1494,7 +1517,19 @@ class PrestitiController
             // (updateStatus ha firma int non-nullable: un copia_id nullo darebbe TypeError).
             if ($copia_id !== null) {
                 $copyRepo = new \App\Models\CopyRepository($db);
-                $copyRepo->updateStatus((int) $copia_id, $copia_stato);
+                if ($copia_stato === 'disponibile') {
+                    // Stesso guard del gemello JSON returnLoan (LoanApprovalController):
+                    // una copia parcheggiata dall'operatore in uno stato curato fuori
+                    // circolazione non va forzata a 'disponibile' da una semplice
+                    // restituzione. releaseToAvailable() ritorna lo stato EFFETTIVO,
+                    // così i rami a valle (wishlist/riassegnazione/promozione vs
+                    // riassegnazione degli hold dalla copia morta) vedono la verità.
+                    $copia_stato = $copyRepo->releaseToAvailable((int) $copia_id);
+                } else {
+                    // Esito esplicito del form (perso/danneggiato/manutenzione/
+                    // in_restauro): la volontà dell'operatore vince sempre.
+                    $copyRepo->updateStatus((int) $copia_id, $copia_stato);
+                }
             }
 
             $integrity = new DataIntegrity($db);
@@ -1560,7 +1595,16 @@ class PrestitiController
                 throw new \RuntimeException('Failed to recalculate availability after loan return.');
             }
 
-            \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.returned', $activityBefore, source: 'manual');
+            // Evento feed dedicato per gli esiti perso/danneggiato (review 0.7.81):
+            // registrarli come 'loan.returned' ("Prestito restituito") era
+            // fuorviante — il libro NON è tornato. Stessa transazione, stesso
+            // snapshot pre-lock (che include la sanzione) del caso restituito.
+            $activityEvent = match ($loan_stato) {
+                'perso'       => 'loan.lost',
+                'danneggiato' => 'loan.damaged',
+                default       => 'loan.returned',
+            };
+            \App\Support\ActivityLog::recordLoanEvent($db, $id, $activityEvent, $activityBefore, source: 'manual');
             $db->commit();
 
             // Send deferred notifications after commit. Each action is isolated
@@ -1805,6 +1849,9 @@ class PrestitiController
         }
 
         $today = \App\Support\DateHelper::today();
+        // Prestiti effettivamente estesi, per le conferme email POST-commit
+        // (stesso contratto di renew(): mai inviare dentro la transazione).
+        $extendedLoanIds = [];
         $db->begin_transaction();
         try {
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -1914,6 +1961,7 @@ class PrestitiController
                 }
                 if ($applied > 0) {
                     \App\Support\ActivityLog::recordLoanEvent($db, (int) $loan['id'], 'loan.renewed', $activityBefore, source: 'manual');
+                    $extendedLoanIds[] = (int) $loan['id'];
                 }
                 $extended += $applied;
             }
@@ -1924,6 +1972,26 @@ class PrestitiController
             $db->rollback();
             SecureLogger::error('Bulk loan extend failed: ' . $e->getMessage());
             return $response->withHeader('Location', $backUrl . '?error=bulk_extend_failed')->withStatus(302);
+        }
+
+        // Conferma al lettore per OGNI prestito esteso (review 0.7.81): il bulk
+        // era l'unico path di estensione senza email. Post-commit e try/catch
+        // PER prestito: un invio fallito non ferma né il batch (già durevole)
+        // né le conferme degli altri prestiti.
+        if ($extendedLoanIds !== []) {
+            $settingsRepo = new \App\Models\SettingsRepository($db);
+            $maxRenewals = (int) ($settingsRepo->get('loans', 'max_renewals', '3') ?? 3);
+            if ($maxRenewals < 0) {
+                $maxRenewals = 3;
+            }
+            $notifier = new NotificationService($db);
+            foreach ($extendedLoanIds as $extendedLoanId) {
+                try {
+                    $notifier->sendLoanRenewedNotification($extendedLoanId, $maxRenewals);
+                } catch (\Throwable $notifError) {
+                    SecureLogger::warning('Bulk extend renewal notification failed', ['loan_id' => $extendedLoanId, 'error' => $notifError->getMessage()]);
+                }
+            }
         }
 
         return $response->withHeader('Location', $backUrl . '?bulk_extended=' . (int) $extended . '&days=' . $days)->withStatus(302);
@@ -2101,15 +2169,16 @@ class PrestitiController
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima (come store e
             // approveLoan), poi il prestito. $libroId proviene dalla lettura iniziale del
             // prestito (il libro di un prestito non cambia mai).
-            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            // CI-SOFT-DELETE-EXEMPT: renewing an ACTIVE loan must work on an archived title too — the copy is physically out and update()/bulkExtend already extend the same loan; soft-delete governs lendability, not loans already running.
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
             $lockBookStmt->bind_param('i', $libroId);
             $lockBookStmt->execute();
             $lockedBook = $lockBookStmt->get_result()->fetch_assoc();
             $lockBookStmt->close();
 
-            // Soft-deleted or absent book: the FOR UPDATE returned no row. Stop
-            // before renewing a loan for a title removed from the catalogue
-            // (libri queries must honour deleted_at IS NULL).
+            // Book row genuinely missing (hard delete — FK should prevent it):
+            // nothing to lock, stop. Soft-deleted titles pass: the loan is
+            // already out and all the other guards below still apply.
             if (!$lockedBook) {
                 $db->rollback();
                 $errorUrl = $redirectTo ?? url('/admin/loans');
@@ -2354,6 +2423,7 @@ class PrestitiController
                     p.stato,
                     p.renewals,
                     p.note,
+                    p.sanzione,
                     c.numero_inventario AS copia_inventario,
                     CONCAT(staff.nome, ' ', staff.cognome) AS processed_by_name
                 FROM prestiti p
@@ -2406,7 +2476,8 @@ class PrestitiController
             __('Rinnovi'),
             __('N. Inventario'),
             __('Elaborato da'),
-            __('Note')
+            __('Note'),
+            __('Sanzione')
         ]);
 
         // Status translations (shared helper in helpers.php)
@@ -2426,7 +2497,10 @@ class PrestitiController
                 $loan['renewals'] ?? 0,
                 $loan['copia_inventario'] ?? '',
                 $loan['processed_by_name'] ?? '',
-                $loan['note'] ?? ''
+                $loan['note'] ?? '',
+                // Importo addebitato per copie perse/danneggiate, come registrato
+                // (decimale con punto, neutro rispetto al locale del CSV).
+                $loan['sanzione'] ?? '0.00'
             ]);
         }
 

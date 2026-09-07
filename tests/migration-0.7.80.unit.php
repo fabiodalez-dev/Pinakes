@@ -42,6 +42,8 @@ try {
 $suffix = bin2hex(random_bytes(5));
 $table = 'zz_m80_outbox_' . $suffix;
 $resTable = 'zz_m80_pren_' . $suffix;
+$installTable = 'zz_m80_install_' . $suffix;
+$runtimeTable = 'zz_m80_runtime_' . $suffix;
 $migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.80.sql');
 $migration = preg_replace('/^\s*--.*$/m', '', $migration) ?? $migration;
 $migration = str_replace('`email_delivery_outbox`', "`{$table}`", $migration);
@@ -52,9 +54,11 @@ $runMigration = static function () use ($db, $migration): void {
         $db->query($statement);
     }
 };
-$cleanup = static function () use ($db, $table, $resTable): void {
+$cleanup = static function () use ($db, $table, $resTable, $installTable, $runtimeTable): void {
     $db->query("DROP TABLE IF EXISTS `{$table}`");
     $db->query("DROP TABLE IF EXISTS `{$resTable}`");
+    $db->query("DROP TABLE IF EXISTS `{$installTable}`");
+    $db->query("DROP TABLE IF EXISTS `{$runtimeTable}`");
 };
 
 $passed = 0;
@@ -155,11 +159,55 @@ try {
     // fresh-install schema.sql and the runtime creator in EmailOutboxSchema.
     $schemaSql = (string) file_get_contents($root . '/installer/database/schema.sql');
     $runtime = (string) file_get_contents($root . '/app/Support/EmailOutboxSchema.php');
-    foreach (array_keys($cols) as $col) {
-        $check(
-            str_contains($schemaSql, $col) && str_contains($runtime, $col),
-            "column {$col} exists in schema.sql and EmailOutboxSchema too"
-        );
+    // Execute only each source's outbox DDL against disposable tables. Let
+    // the same database engine normalize equivalent SQL spelling (including
+    // MariaDB display widths and implicit NULL/default/collation clauses).
+    $outboxDdl = static function (string $source, string $target): string {
+        if (preg_match(
+            '/CREATE TABLE(?: IF NOT EXISTS)?\s+`?email_delivery_outbox`?\s*\(.*?\)\s*ENGINE=[^;"\r\n]+/s',
+            $source,
+            $match
+        ) !== 1) {
+            throw new RuntimeException('Cannot locate the complete outbox CREATE TABLE statement');
+        }
+        return str_replace('email_delivery_outbox', $target, $match[0]);
+    };
+    $definition = static function (string $name) use ($db): string {
+        $ddl = (string) $db->query("SHOW CREATE TABLE `{$name}`")->fetch_row()[1];
+        // Ignore only fixture identity and the next generated ID (the migration
+        // table contains a test row). Keep AUTO_INCREMENT on the id column,
+        // column order/types/defaults/nullability/collations and all index options.
+        $ddl = str_replace("CREATE TABLE `{$name}`", 'CREATE TABLE `outbox`', $ddl);
+        // MySQL can retain an explicitly declared column charset in SHOW CREATE
+        // while omitting the inherited equivalent. Remove only declarations
+        // equal to this table's default; preserve different charsets/collations.
+        if (preg_match('/\bDEFAULT CHARSET=(\w+)/', $ddl, $charset) === 1) {
+            $ddl = str_replace(' CHARACTER SET ' . $charset[1] . ' ', ' ', $ddl);
+        }
+        return preg_replace('/ AUTO_INCREMENT=\d+\b/', '', $ddl) ?? $ddl;
+    };
+    $db->query($outboxDdl($schemaSql, $installTable));
+    $runtimeDdl = $outboxDdl($runtime, $runtimeTable);
+    $db->query($runtimeDdl);
+    $expectedDefinition = $definition($table);
+    $check($definition($installTable) === $expectedDefinition,
+        'complete clean-install outbox definition matches the migration');
+    $check($definition($runtimeTable) === $expectedDefinition,
+        'complete runtime outbox definition matches the migration');
+
+    // Negative controls: identical column names must not hide schema drift.
+    foreach ([
+        'column type' => 'MODIFY recipient_email VARCHAR(254) NOT NULL',
+        'column default' => 'ALTER attempts SET DEFAULT 7',
+        'nullability' => 'MODIFY claimed_at DATETIME NOT NULL',
+        'column collation' => 'MODIFY claim_token CHAR(32) CHARACTER SET ascii COLLATE ascii_general_ci DEFAULT NULL',
+        'index order' => 'DROP INDEX idx_email_outbox_due, ADD INDEX idx_email_outbox_due (claim_token, available_at)',
+    ] as $change => $alter) {
+        $db->query("ALTER TABLE `{$runtimeTable}` {$alter}");
+        $check($definition($runtimeTable) !== $expectedDefinition,
+            "schema comparison detects divergent {$change} with unchanged column names");
+        $db->query("DROP TABLE `{$runtimeTable}`");
+        $db->query($runtimeDdl);
     }
 
     $version = json_decode((string) file_get_contents($root . '/version.json'), true);

@@ -21,12 +21,20 @@ class UserActionsController
         }
         $uid = (int) $user['id'];
 
-        // Richieste di prestito in sospeso
+        // Richieste di prestito in sospeso.
+        // CI-SOFT-DELETE-EXEMPT: un 'pendente' promosso dalla coda TIENE una copia
+        // (copia_id) anche se il libro è stato archiviato nel frattempo — i
+        // solleciti per quell'impegno continuano (deliberato), quindi l'utente
+        // deve poterlo vedere e annullare, col titolo REALE (stessa
+        // convenzione di mobile ed email — CI-SOFT-DELETE-EXEMPT: impegno
+        // proprio dell'utente); le richieste nude su libri archiviati, che
+        // non impegnano nulla, restano nascoste dal predicato sotto.
         $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.stato, pr.created_at,
                        l.titolo, l.copertina_url
                 FROM prestiti pr
-                JOIN libri l ON l.id = pr.libro_id
-                WHERE pr.utente_id = ? AND pr.stato = 'pendente' AND l.deleted_at IS NULL
+                LEFT JOIN libri l ON l.id = pr.libro_id
+                WHERE pr.utente_id = ? AND pr.stato = 'pendente'
+                  AND (l.deleted_at IS NULL OR pr.copia_id IS NOT NULL)
                 ORDER BY pr.created_at DESC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('i', $uid);
@@ -34,17 +42,25 @@ class UserActionsController
         $res = $stmt->get_result();
         $pendingRequests = [];
         while ($r = $res->fetch_assoc()) {
+            $r['titolo'] = $r['titolo'] ?? __('Titolo non disponibile');
             $pendingRequests[] = $r;
         }
         $stmt->close();
 
-        // Prestiti in corso (include prenotato=scheduled, in_corso=active, in_ritardo=overdue)
+        // Prestiti in corso (include prenotato=scheduled, in_corso=active, in_ritardo=overdue).
+        // CI-SOFT-DELETE-EXEMPT: un prestito ATTIVO resta un impegno reale anche
+        // dopo l'archiviazione del libro — le email di sollecito/scadenza per
+        // quel prestito continuano (deliberato), quindi nasconderlo qui faceva
+        // ricevere solleciti per un prestito invisibile. Il filtro deleted_at
+        // e col titolo REALE (convenzione unica con mobile ed email —
+        // CI-SOFT-DELETE-EXEMPT: prestito proprio dell'utente, che per
+        // quel titolo riceve anche i solleciti).
         $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.stato,
                        l.titolo, l.copertina_url,
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) as has_review
                 FROM prestiti pr
-                JOIN libri l ON l.id = pr.libro_id
-                WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo') AND l.deleted_at IS NULL
+                LEFT JOIN libri l ON l.id = pr.libro_id
+                WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
                 ORDER BY pr.data_prestito ASC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('ii', $uid, $uid);
@@ -52,6 +68,7 @@ class UserActionsController
         $res = $stmt->get_result();
         $activePrestiti = [];
         while ($r = $res->fetch_assoc()) {
+            $r['titolo'] = $r['titolo'] ?? __('Titolo non disponibile');
             $activePrestiti[] = $r;
         }
         $stmt->close();
@@ -178,7 +195,7 @@ class UserActionsController
             // bloccante, quindi un'approvazione/annullamento concorrente può
             // averne cambiato lo stato (o, TOCTOU, il libro) nel frattempo.
             $stmt = $db->prepare("
-                SELECT id, copia_id, stato, libro_id
+                SELECT id, copia_id, stato, libro_id, pickup_deadline
                 FROM prestiti
                 WHERE id = ? AND utente_id = ? AND (
                     (attivo = 0 AND stato = 'pendente')
@@ -201,17 +218,30 @@ class UserActionsController
             // capture a concurrent transition and misattribute the diff.
             $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $loanId);
 
-            // Mark as cancelled
-            $cancelNote = "\n[User] Annullato dall'utente";
+            // Parità con lo sweep e con cancelPickup admin (#366/#381): se il
+            // termine di ritiro è GIÀ trascorso, l'esito vero è la scadenza, non
+            // un annullamento volontario — l'utente sta solo chiudendo per primo
+            // ciò che il cron avrebbe chiuso come 'scaduto'. Solo 'da_ritirare'
+            // porta una deadline attiva; prenotato/pendente restano 'annullato'.
+            $todayApp = \App\Support\DateHelper::today();
+            $pickupDeadline = !empty($loan['pickup_deadline']) ? (string) $loan['pickup_deadline'] : null;
+            $pickupExpired = (string) $loan['stato'] === 'da_ritirare'
+                && $pickupDeadline !== null
+                && $pickupDeadline < $todayApp;
+            $terminalState = $pickupExpired ? 'scaduto' : 'annullato';
+
+            $cancelNote = $pickupExpired
+                ? "\n[User] Ritiro scaduto (chiuso dall'utente)"
+                : "\n[User] Annullato dall'utente";
             // pickup_deadline = NULL: a 'da_ritirare' loan carries a deadline;
             // clear it on cancel so the expiry cron / PickupDeadlineBackfill (#366)
             // cannot act on a dead deadline.
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'annullato', attivo = 0, pickup_deadline = NULL, updated_at = NOW(), note = CONCAT(COALESCE(note, ''), ?)
+                SET stato = ?, attivo = 0, pickup_deadline = NULL, updated_at = NOW(), note = CONCAT(COALESCE(note, ''), ?)
                 WHERE id = ?
             ");
-            $updateStmt->bind_param('si', $cancelNote, $loanId);
+            $updateStmt->bind_param('ssi', $terminalState, $cancelNote, $loanId);
             $updateStmt->execute();
             $updateStmt->close();
 
@@ -255,10 +285,12 @@ class UserActionsController
                 throw new \RuntimeException('Failed to recalculate availability after loan cancellation.');
             }
 
+            // 'scaduto' è un esito distinto (deadline trascorsa), non un
+            // annullamento volontario: stesso split di cancelPickup admin.
             \App\Support\ActivityLog::recordLoanEvent(
                 $db,
                 $loanId,
-                'loan.cancelled',
+                $terminalState === 'scaduto' ? 'loan.expired' : 'loan.cancelled',
                 $activityBefore,
                 source: 'user',
                 operatorId: $uid
@@ -277,6 +309,35 @@ class UserActionsController
                 $reservationManager->flushDeferredNotifications();
             } catch (\Throwable $e) {
                 SecureLogger::warning('Failed to flush reservation notifications after loan cancellation', ['error' => $e->getMessage()]);
+            }
+
+            // Conferma al lettore DOPO il commit (decisione di prodotto): solo
+            // per pickup/hold ('prenotato'/'da_ritirare'), come il gemello admin
+            // cancelPickup. Ramo scaduto -> stessa email di scadenza del flusso
+            // admin (template loan_pickup_expired, il motivo lì non è usato);
+            // ramo volontario -> loan_pickup_cancelled con motivo tradotto nel
+            // locale del destinatario. Una richiesta 'pendente' annullata non
+            // ha email dedicata (parità con rejectLoan che copre l'altro esito).
+            if (in_array((string) $loan['stato'], ['prenotato', 'da_ritirare'], true)) {
+                try {
+                    $notificationService = $this->createNotificationService($db);
+                    if ($terminalState === 'scaduto') {
+                        $notificationService->sendPickupCancelledNotification($loanId, '', 'scaduto', $pickupDeadline);
+                    } else {
+                        $emailStmt = $db->prepare('SELECT email FROM utenti WHERE id = ?');
+                        $emailStmt->bind_param('i', $uid);
+                        $emailStmt->execute();
+                        $userEmail = (string) ($emailStmt->get_result()->fetch_assoc()['email'] ?? '');
+                        $emailStmt->close();
+                        $motivo = $notificationService->translateInLocale(
+                            'Annullamento effettuato su tua richiesta',
+                            $notificationService->resolveRecipientLocale($userEmail)
+                        );
+                        $notificationService->sendPickupCancelledNotification($loanId, $motivo, 'annullato');
+                    }
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Failed to send self-service pickup cancellation email', ['loan_id' => $loanId, 'error' => $e->getMessage()]);
+                }
             }
 
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);
@@ -354,6 +415,21 @@ class UserActionsController
             // capture a concurrent transition and misattribute the diff.
             $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $rid);
 
+            // Dati per la conferma email post-commit (stesso fetch del gemello
+            // admin LoanApprovalController::cancelReservation).
+            // CI-SOFT-DELETE-EXEMPT: the self-service cancellation notice needs the (possibly archived) book title for the affected user.
+            $notifyStmt = $db->prepare("
+                SELECT u.email, CONCAT(u.nome, ' ', u.cognome) AS utente_nome, l.titolo
+                FROM prenotazioni r
+                JOIN utenti u ON u.id = r.utente_id
+                JOIN libri l ON l.id = r.libro_id
+                WHERE r.id = ?
+            ");
+            $notifyStmt->bind_param('i', $rid);
+            $notifyStmt->execute();
+            $cancelNotification = $notifyStmt->get_result()->fetch_assoc() ?: null;
+            $notifyStmt->close();
+
             // Cancel the reservation
             $stmt = $db->prepare("UPDATE prenotazioni SET stato='annullata' WHERE id=? AND utente_id=?");
             $stmt->bind_param('ii', $rid, $uid);
@@ -366,7 +442,7 @@ class UserActionsController
             $reorderStmt = $db->prepare("
                 SELECT id FROM prenotazioni
                 WHERE libro_id = ? AND stato = 'attiva'
-                ORDER BY queue_position ASC
+                ORDER BY queue_position ASC, id ASC
                 FOR UPDATE
             ");
             $reorderStmt->bind_param('i', $libroId);
@@ -434,6 +510,25 @@ class UserActionsController
                 $reservationManager->flushDeferredNotifications();
             } catch (\Throwable $e) {
                 SecureLogger::warning('Failed to flush reservation notifications after user cancellation', ['error' => $e->getMessage()]);
+            }
+
+            // Conferma al lettore DOPO il commit (decisione di prodotto): stesso
+            // template del gemello admin, con motivo tradotto nel SUO locale.
+            if ($cancelNotification !== null && trim((string) ($cancelNotification['email'] ?? '')) !== '') {
+                try {
+                    $notificationService = $this->createNotificationService($db);
+                    $recipientEmail = (string) $cancelNotification['email'];
+                    $notificationService->sendReservationCancelledNotification($recipientEmail, [
+                        'utente_nome' => (string) $cancelNotification['utente_nome'],
+                        'libro_titolo' => (string) $cancelNotification['titolo'],
+                        'motivo' => $notificationService->translateInLocale(
+                            'Annullamento effettuato su tua richiesta',
+                            $notificationService->resolveRecipientLocale($recipientEmail)
+                        ),
+                    ]);
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Failed to send self-service reservation cancellation email', ['reservation_id' => $rid, 'error' => $e->getMessage()]);
+                }
             }
 
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);
@@ -538,6 +633,15 @@ class UserActionsController
             $stmt->execute();
             $stmt->close();
 
+            // Lo spostamento/restringimento della finestra può liberare capacità
+            // nel periodo lasciato scoperto: promuovi subito la coda come ogni
+            // altro percorso di rilascio, invece di aspettare la manutenzione.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // promuovi finché la capacità liberata converte la prossima prenotazione
+            }
+
             // Recalculate book availability
             $integrity = new \App\Support\DataIntegrity($db);
             if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
@@ -553,6 +657,13 @@ class UserActionsController
                 operatorId: $uid
             );
             $db->commit();
+
+            // Notifiche differite dalla promozione (P2): dopo il commit.
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $e) {
+                SecureLogger::warning('Failed to flush reservation notifications after reservation date change', ['error' => $e->getMessage()]);
+            }
 
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?updated=1')->withStatus(302);
 
@@ -633,21 +744,14 @@ class UserActionsController
                 return $this->back($response, ['loan_error' => 'not_available']);
             }
 
-            // Check for existing active loan from this user for this book (any active state)
-            // Note: 'pendente' has attivo=0, other active states have attivo=1
-            $dupStmt = $db->prepare("SELECT id FROM prestiti WHERE libro_id = ? AND utente_id = ? AND (
-                (attivo = 0 AND stato = 'pendente')
-                OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-            ) LIMIT 1");
-            $dupStmt->bind_param('ii', $libroId, $utenteId);
-            $dupStmt->execute();
-            $dupResult = $dupStmt->get_result();
-            if ($dupResult->fetch_assoc()) {
-                $dupStmt->close();
+            // Check for existing active loan from this user for this book:
+            // predicato unico in LoanMultiplicityPolicy (dedup dei 3 entry-point).
+            // operationWillBindCopy=false — la richiesta non vincola una copia,
+            // quindi vale la regola storica per-titolo con policy ON e OFF.
+            if ((new \App\Support\LoanMultiplicityPolicy($db))->hasBlockingLoan($libroId, $utenteId, false)) {
                 $db->rollback();
                 return $this->back($response, ['loan_error' => 'duplicate']);
             }
-            $dupStmt->close();
 
             $dupReservationStmt = $db->prepare("
                 SELECT id
@@ -880,25 +984,13 @@ class UserActionsController
             }
             $dupStmt->close();
 
-            $dupLoanStmt = $db->prepare("
-                SELECT id
-                FROM prestiti
-                WHERE libro_id = ? AND utente_id = ? AND (
-                    (attivo = 0 AND stato = 'pendente')
-                    OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
-                )
-                LIMIT 1
-                FOR UPDATE
-            ");
-            $dupLoanStmt->bind_param('ii', $libroId, $utenteId);
-            $dupLoanStmt->execute();
-            $dupLoanResult = $dupLoanStmt->get_result();
-            if ($dupLoanResult->fetch_assoc()) {
-                $dupLoanStmt->close();
+            // Prestito aperto sullo stesso titolo: predicato unico in
+            // LoanMultiplicityPolicy (dedup). operationWillBindCopy=false — una
+            // prenotazione in coda non vincola una copia, regola storica sempre.
+            if ((new \App\Support\LoanMultiplicityPolicy($db))->hasBlockingLoan($libroId, $utenteId, false)) {
                 $db->rollback();
                 return $this->back($response, ['reserve_error' => 'duplicate']);
             }
-            $dupLoanStmt->close();
 
             // Revalidate under the user lock so a concurrent suspension/card
             // expiry cannot race the pre-transaction eligibility check.

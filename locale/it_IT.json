@@ -5459,6 +5459,7 @@
   "Annulla prestito": "Annulla prestito",
   "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date": "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date",
   "Annullata dalla biblioteca": "Annullata dalla biblioteca",
+  "Annullamento effettuato su tua richiesta": "Annullamento effettuato su tua richiesta",
   "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.",
   "Annullamento effettuato correttamente.": "Annullamento effettuato correttamente.",
   "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.": "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.",
@@ -7299,5 +7300,18 @@
   "Importo addebitato per la copia": "Importo addebitato per la copia",
   "Importo non valido: usa un valore positivo con al massimo due decimali.": "Importo non valido: usa un valore positivo con al massimo due decimali.",
   "Importo addebitato": "Importo addebitato",
-  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Facoltativo; viene registrato e comunicato per copie perse o danneggiate."
+  "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.": "Facoltativo; viene registrato e comunicato per copie perse o danneggiate.",
+  "Ritiro confermato": "Ritiro confermato",
+  "Inviata quando il lettore ritira fisicamente il libro e il prestito inizia.": "Inviata quando il lettore ritira fisicamente il libro e il prestito inizia.",
+  "Nessun addebito": "Nessun addebito",
+  "Copia dichiarata persa": "Copia dichiarata persa",
+  "Copia dichiarata danneggiata": "Copia dichiarata danneggiata",
+  "Prenotazione promossa": "Prenotazione promossa",
+  "Sanzione": "Sanzione",
+  "Ritiro revocato il": "Ritiro revocato il",
+  "copia assegnata non disponibile, prenotazione ripristinata": "copia assegnata non disponibile, prenotazione ripristinata",
+  "Errore invio notifica revoca ritiro": "Errore invio notifica revoca ritiro",
+  "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.": "La copia assegnata al tuo ritiro non è più disponibile. La tua prenotazione resta valida: riceverai un nuovo avviso appena una copia sarà pronta.",
+  "Manutenzione già in corso o appena completata: riprova tra un minuto.": "Manutenzione già in corso o appena completata: riprova tra un minuto.",
+  "Manutenzione già in corso in un'altra sessione: riprova tra qualche istante.": "Manutenzione già in corso in un'altra sessione: riprova tra qualche istante."
 }

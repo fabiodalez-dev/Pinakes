@@ -353,14 +353,31 @@ final class CapacityService
         $types = 'ssisss';
         $params = [$start, $end, $libroId, $today, $end, $start];
         if ($maxLoans > 0) {
+            // Future reservations reserve capacity against overlapping commitments.
+            // Once they become promotable, promotion and approval enforce the total
+            // active-loan cap (including future scheduled loans). Use the SHARED
+            // promotable-now predicate (not a bare rStart <= today): for legacy
+            // rows with data_inizio_richiesta NULL the COALESCE'd rStart is the
+            // FUTURE deadline, but the promotion gate considers them promotable
+            // today — the two predicates must stay identical by construction, or
+            // an unpromotable-at-cap legacy head would keep occupying capacity
+            // and freeze the queue (the very bug this branch fixes).
             $sql .= " AND (
                         SELECT COUNT(*)
                         FROM prestiti cap
                         WHERE cap.utente_id = r.utente_id
                           AND cap.attivo = 1
                           AND cap.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
+                          AND (" . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
+                          OR (cap.data_prestito <= $rEnd
+                          AND (cap.stato = 'in_ritardo'
+                               OR (cap.stato = 'in_corso' AND cap.data_scadenza < ?)
+                               OR cap.data_scadenza >= $rStart)))
                       ) < ?";
-            $types .= 'i';
+            $types .= 'sssi';
+            $params[] = $today;
+            $params[] = $today;
+            $params[] = $today;
             $params[] = $maxLoans;
         }
         if ($excludeReservationId !== null) {

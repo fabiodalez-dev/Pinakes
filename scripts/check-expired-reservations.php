@@ -4,8 +4,7 @@
  * Run daily or hourly via cron
  */
 
-use App\Services\ReservationReassignmentService;
-use App\Support\DataIntegrity;
+use App\Support\MaintenanceService;
 use Dotenv\Dotenv;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -46,118 +45,15 @@ if ($db->connect_error) {
 
 echo "[" . date('Y-m-d H:i:s') . "] Starting expired reservations check...\n";
 
-// Find expired reservations (prestiti with stato='prenotato' and data_scadenza < TODAY)
-// attivi=1. "Today" must be the app timezone (DateHelper), not the PHP process tz —
-// the rest of the loan pipeline compares against app-tz dates, so a raw date() here
-// would skip/early-expire reservations in the pre-midnight local offset window.
-$today = \App\Support\DateHelper::today();
+// Delegate to the SINGLE production sweep instead of duplicating its logic:
+// MaintenanceService::checkExpiredReservations() covers scheduled loans AND
+// never-approved pending conversions (origine prenotazione/richiesta/ncip),
+// frees pinned copies with the state guard, promotes the freed capacity,
+// records SYSTEM audit events and sends the reservation_expired email —
+// guarantees the old inline copy of this loop silently lacked.
+$maintenanceService = new MaintenanceService($db);
+$expiredCount = $maintenanceService->checkExpiredReservations();
 
-$stmt = $db->prepare("
-    SELECT id, libro_id, copia_id, utente_id
-    FROM prestiti
-    WHERE stato = 'prenotato'
-    AND attivo = 1
-    AND data_scadenza < ?
-");
-$stmt->bind_param('s', $today);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$expiredCount = 0;
-
-while ($reservation = $result->fetch_assoc()) {
-    $reassignmentService = new ReservationReassignmentService($db);
-    $reassignmentService->setExternalTransaction(true);
-
-    $id = (int) $reservation['id'];
-    $libroId = (int) $reservation['libro_id'];
-    $copiaId = $reservation['copia_id'] ? (int) $reservation['copia_id'] : null;
-    $utenteId = (int) $reservation['utente_id'];
-
-    echo "Expiring reservation #{$id}...\n";
-
-    $db->begin_transaction();
-    try {
-        // Canonical lock order libri → prestiti → copie: take the book row lock
-        // FIRST, before claiming the prestiti row and the copie row below (and
-        // before reassignOnReturn re-locks the same book row, reentrantly). Without
-        // this, a concurrent MaintenanceService/web-maintenance run that locks libri
-        // first and then this loan row would deadlock against us.
-        $lockBook = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
-        $lockBook->bind_param('i', $libroId);
-        $lockBook->execute();
-        $lockBook->get_result();
-        $lockBook->close();
-
-        // Mark as expired — mark-then-act: the state guard + affected_rows check make
-        // this idempotent, so a concurrent run (or a row whose state changed since the
-        // SELECT) does NOT re-free the copy and re-run reassignment.
-        $updateStmt = $db->prepare("
-            UPDATE prestiti
-            SET stato = 'scaduto',
-                attivo = 0,
-                updated_at = NOW(),
-                note = CONCAT(COALESCE(note, ''), '\n[System] Scaduta il ', DATE_FORMAT(CURDATE(), '%d/%m/%Y'))
-            WHERE id = ? AND stato = 'prenotato' AND attivo = 1
-        ");
-        $updateStmt->bind_param('i', $id);
-        $updateStmt->execute();
-        $claimed = $updateStmt->affected_rows === 1;
-        $updateStmt->close();
-
-        if (!$claimed) {
-            // Already expired/changed by another run — skip without touching the copy.
-            $db->rollback();
-            continue;
-        }
-
-        // If a copy was assigned, make it available (if currently 'prenotato')
-        if ($copiaId) {
-            // Check current copy status
-            $checkCopy = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
-            $checkCopy->bind_param('i', $copiaId);
-            $checkCopy->execute();
-            $copyState = $checkCopy->get_result()->fetch_assoc();
-            $checkCopy->close();
-
-            if ($copyState && $copyState['stato'] === 'prenotato') {
-                // Update copy to available
-                $updateCopy = $db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ?");
-                $updateCopy->bind_param('i', $copiaId);
-                $updateCopy->execute();
-                $updateCopy->close();
-
-                // Trigger reassignment logic for this copy
-                // This will find the next reservation in line and assign the copy to it
-                $reassignmentService->reassignOnReturn($copiaId);
-            }
-        }
-
-        // reassignOnReturn() is intentionally a no-op when nobody is waiting.
-        // The released copy and expired commitment still change the canonical
-        // book projection, so derive it before the same transaction commits.
-        if (!(new DataIntegrity($db))->recalculateBookAvailability($libroId, insideTransaction: true)) {
-            throw new RuntimeException("Failed to recalculate availability for libro_id={$libroId}");
-        }
-
-        $db->commit();
-        $expiredCount++;
-
-        // Send deferred notifications after commit (in separate try/catch
-        // since rollback is meaningless after a successful commit)
-        try {
-            $reassignmentService->flushDeferredNotifications();
-        } catch (\Throwable $notifyEx) {
-            echo "Warning: failed to send notifications for reservation #{$id}: " . $notifyEx->getMessage() . "\n";
-        }
-
-    } catch (\Throwable $e) {
-        $db->rollback();
-        echo "Error expiring reservation #{$id}: " . $e->getMessage() . "\n";
-    }
-}
-
-$stmt->close();
 $db->close();
 
 echo "[" . date('Y-m-d H:i:s') . "] Completed. Expired {$expiredCount} reservations.\n";

@@ -115,6 +115,13 @@ require_once __DIR__ . '/../partials/loan-status-badge.php';
             <span class="font-semibold text-gray-600"><?= __("Solleciti Inviati:") ?></span>
             <span class="text-gray-800"><?= htmlspecialchars((string) ($prestito['recall_count'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?></span>
           </div>
+          <?php if ((float) ($prestito['sanzione'] ?? 0) > 0): ?>
+          <div>
+            <span class="font-semibold text-gray-600"><?= __("Sanzione") ?>:</span>
+            <?php $sanzioneCurrency = strtoupper((string) \App\Support\ConfigStore::get('app.currency', 'EUR')); ?>
+            <span class="text-gray-800"><?= htmlspecialchars(($sanzioneCurrency === 'EUR' ? '€' : $sanzioneCurrency) . ' ' . number_format((float) $prestito['sanzione'], 2, ',', '.'), ENT_QUOTES, 'UTF-8'); ?></span>
+          </div>
+          <?php endif; ?>
           <?php if (!empty($prestito['last_recall_at'])): ?>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Ultimo Sollecito:") ?></span>

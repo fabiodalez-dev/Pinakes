@@ -767,11 +767,13 @@ class ReservationReassignmentService
         $bookLink = book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore' => $author['nome'] ?? '']);
 
         // #360 parity: date nella lingua del destinatario, non d/m/Y hard-coded.
+        // I fallback testuali seguono lo stesso criterio: locale del
+        // DESTINATARIO (translateInLocale), non quello della sessione corrente.
         $recipientLocale = $this->notificationService->resolveRecipientLocale((string) $data['email']);
         $variables = [
-            'utente_nome' => $data['utente_nome'] ?: __('Utente'),
-            'libro_titolo' => $data['libro_titolo'] ?: __('Libro'),
-            'libro_autore' => $author['nome'] ?? __('Autore sconosciuto'),
+            'utente_nome' => $data['utente_nome'] ?: $this->notificationService->translateInLocale('Utente', $recipientLocale),
+            'libro_titolo' => $data['libro_titolo'] ?: $this->notificationService->translateInLocale('Libro', $recipientLocale),
+            'libro_autore' => $author['nome'] ?? $this->notificationService->translateInLocale('Autore sconosciuto', $recipientLocale),
             'libro_isbn' => $isbn,
             'data_inizio' => $data['data_prestito'] ? $this->notificationService->formatEmailDate((string) $data['data_prestito'], false, $recipientLocale) : '',
             'data_fine' => $data['data_scadenza'] ? $this->notificationService->formatEmailDate((string) $data['data_scadenza'], false, $recipientLocale) : '',
@@ -821,11 +823,21 @@ class ReservationReassignmentService
             return;
         }
 
+        // Chiave sorgente (italiana) del motivo: la versione per l'EMAIL viene
+        // resa nel locale del DESTINATARIO via translateInLocale, quella per la
+        // notifica in-app degli admin resta nel locale di sessione (sotto).
+        $reasonSource = match ($reason) {
+            'lost_copy' => 'La copia assegnata è stata segnalata come persa o danneggiata',
+            'expired' => 'La prenotazione è scaduta',
+            default => 'La copia non è più disponibile'
+        };
         $reasonText = match ($reason) {
             'lost_copy' => __('La copia assegnata è stata segnalata come persa o danneggiata'),
             'expired' => __('La prenotazione è scaduta'),
             default => __('La copia non è più disponibile')
         };
+        $recipientLocale = $this->notificationService->resolveRecipientLocale((string) $data['email']);
+        $reasonForEmail = $this->notificationService->translateInLocale($reasonSource, $recipientLocale);
 
         // Email all'utente la cui copia è diventata indisponibile (GAP-3).
         // Eseguito in modo differito (questo metodo è chiamato da
@@ -837,7 +849,7 @@ class ReservationReassignmentService
             $sent = $this->notificationService->sendCopyUnavailableNotification($data['email'], [
                 'utente_nome' => $data['utente_nome'],
                 'libro_titolo' => $data['libro_titolo'],
-                'motivo' => $reasonText,
+                'motivo' => $reasonForEmail,
             ]);
             if ($sent === false) {
                 SecureLogger::warning(__('Email copia non disponibile non inviata'), [

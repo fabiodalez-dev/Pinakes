@@ -94,7 +94,9 @@ if ($cancelPos === false || $processPos === false || $cancelPos > $processPos) {
 }
 
 $maintenanceController = readFileOrFail($root . '/app/Controllers/MaintenanceController.php');
-assertContainsText('new MaintenanceService($db))->runAll()', $maintenanceController, 'Admin maintenance must execute circulation lifecycle and notifications');
+// 0.7.81: il bottone admin passa dal claim atomico (runIfNeeded) invece del
+// runAll() diretto, così due run paralleli non duplicano il lavoro.
+assertContainsText('new MaintenanceService($db))->runIfNeeded(', $maintenanceController, 'Admin maintenance must execute circulation lifecycle via the atomic claim');
 
 $copyRepository = readFileOrFail($root . '/app/Models/CopyRepository.php');
 assertContainsText('getScheduleByBookId', $copyRepository, 'CopyRepository must keep calendar commitments separate from physical copy rows');
