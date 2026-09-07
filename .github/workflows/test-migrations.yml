@@ -25,8 +25,15 @@ jobs:
   # version is silently ignored by the updater (version_compare guard).
   verify-versions:
     name: Verify migration versions ≤ release
-    runs-on: ubuntu-latest
+    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
+    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
     steps:
+      - name: Prepare disposable Linux runner
+        if: runner.environment == 'self-hosted'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
+
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
@@ -62,7 +69,8 @@ jobs:
   # assertion is the real pass/fail gate.
   test-full-chain:
     name: Full migration chain (schema → all migrations)
-    runs-on: ubuntu-latest
+    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
+    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
 
     services:
       mysql:
@@ -79,6 +87,12 @@ jobs:
           --health-retries=5
 
     steps:
+      - name: Prepare disposable Linux runner
+        if: runner.environment == 'self-hosted'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
+
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
@@ -196,7 +210,8 @@ jobs:
   # ─── Job 3: existing single-migration test (upgrade 0.3.x → 0.4.0) ─────────
   test-migrations:
     name: Legacy migration regression (0.3.x to 0.4.0)
-    runs-on: ubuntu-latest
+    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
+    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
 
     services:
       mysql:
@@ -213,6 +228,12 @@ jobs:
           --health-retries=5
 
     steps:
+      - name: Prepare disposable Linux runner
+        if: runner.environment == 'self-hosted'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
+
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false

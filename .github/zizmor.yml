@@ -12,6 +12,6 @@ rules:
     ignore:
       # Line-pinned on purpose: if the steps move, the finding resurfaces
       # instead of being silently masked for the whole file.
-      - ci-quality.yml:117
-      - ci-quality.yml:361
-      - release.yml:61
+      - ci-quality.yml:124
+      - ci-quality.yml:382
+      - release.yml:68
