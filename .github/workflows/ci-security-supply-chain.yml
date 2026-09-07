@@ -18,18 +18,11 @@ concurrency:
 jobs:
   workflow-security:
     name: Workflow, YAML and shell security
-    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
-    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read # Read workflow and script sources.
     steps:
-      - name: Prepare disposable Linux runner
-        if: runner.environment == 'self-hosted'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
-
       - name: Checkout without persisted credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -65,18 +58,11 @@ jobs:
   dependency-review:
     name: Dependency diff policy
     if: github.event_name == 'pull_request'
-    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
-    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read # Compare dependency manifests in the pull request.
     steps:
-      - name: Prepare disposable Linux runner
-        if: runner.environment == 'self-hosted'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
-
       - name: Reject vulnerable or forbidden new dependencies
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
@@ -89,18 +75,11 @@ jobs:
 
   repository-security:
     name: Secrets, vulnerabilities and misconfigurations
-    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
-    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read # Scan the repository and complete Git history.
     steps:
-      - name: Prepare disposable Linux runner
-        if: runner.environment == 'self-hosted'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
-
       - name: Checkout complete history without persisted credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -129,18 +108,11 @@ jobs:
 
   release-artifact:
     name: Reproducible release, SBOM and archive audit
-    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
-    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
       contents: read # Build the release from checked-out sources.
     steps:
-      - name: Prepare disposable Linux runner
-        if: runner.environment == 'self-hosted'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
-
       - name: Checkout without persisted credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:

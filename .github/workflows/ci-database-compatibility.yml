@@ -18,8 +18,7 @@ concurrency:
 jobs:
   database:
     name: ${{ matrix.database.name }} schema and behavior
-    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
-    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
       contents: read # Read application, schema and test sources.
@@ -68,12 +67,6 @@ jobs:
       CI_STRICT_TESTS: '1'
 
     steps:
-      - name: Prepare disposable Linux runner
-        if: runner.environment == 'self-hosted'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
-
       - name: Checkout without persisted credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:

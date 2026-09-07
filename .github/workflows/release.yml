@@ -14,8 +14,7 @@ concurrency:
 jobs:
   build:
     name: Verify and build release (read-only)
-    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
-    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read # Checkout and inspect the tagged source; never publish from this job.
@@ -24,12 +23,6 @@ jobs:
       pull-requests: read # Validate prereleases against the exact merge-ready PR head.
 
     steps:
-      - name: Prepare disposable Linux runner
-        if: runner.environment == 'self-hosted'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
-
       - name: Checkout complete history without persisted credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -153,8 +146,7 @@ jobs:
   publish:
     name: Attest and publish verified release
     needs: build
-    # Trusted jobs run in disposable VMs; fork PRs stay on GitHub-hosted runners.
-    runs-on: ${{ fromJSON((github.actor == github.repository_owner || github.actor == 'dependabot[bot]') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '["self-hosted","Linux","X64","fabio-ci"]' || '["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write # Create the GitHub Release and upload its assets.
@@ -162,12 +154,6 @@ jobs:
       attestations: write # Store the artifact provenance attestation.
 
     steps:
-      - name: Prepare disposable Linux runner
-        if: runner.environment == 'self-hosted'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends default-mysql-client gh jq rsync gettext zip unzip shellcheck python3-venv
-
       # The privileged job consumes only the artifact produced by the read-only
       # build job. Composer/npm lifecycle scripts and tagged repository scripts
       # therefore never execute with a contents-write or OIDC-capable token.
