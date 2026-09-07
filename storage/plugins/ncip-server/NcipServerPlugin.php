@@ -885,10 +885,9 @@ class NcipServerPlugin
 
         $ambiguousLoan = false;
         $loanLookupFailed = false;
-        // anyOrigin=true: il partner ha la copia in mano; i prestiti origine
-        // ncip hanno priorità, un prestito di altra origine viene chiuso solo
-        // se è l'UNICO attivo (l'ItemId è a livello titolo, non copia: con
-        // più candidati la chiusura sarebbe arbitraria → problem di ambiguità).
+        // ItemId identifies a title, so every origin must participate in the
+        // ambiguity check. Preferring NCIP would let an identical retry select
+        // another borrower's manual loan after the NCIP loan was closed.
         $loan = $this->findActiveLoan($itemId, $checkInUserId, $ambiguousLoan, $loanLookupFailed, anyOrigin: true);
         if ($loanLookupFailed) {
             return $this->xmlResponse(
@@ -899,7 +898,12 @@ class NcipServerPlugin
         if ($ambiguousLoan) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Multiple active loans for this item; UserId is required', 'invalid-data')
+                $this->buildProblem(
+                    $checkInUserId === null
+                        ? 'Multiple active loans for this item; UserId is required'
+                        : 'Multiple active loans for this item and user; return a specific copy through the staff interface',
+                    'invalid-data'
+                )
             );
         }
         if ($loan === null) {
@@ -1570,8 +1574,8 @@ class NcipServerPlugin
     }
 
     /**
-     * @param-out bool $ambiguous True only when UserId is absent and the title
-     *                            has more than one open NCIP loan.
+     * @param-out bool $ambiguous True when multiple open loans match the supplied
+     *                            identity, even with UserId (multiple copies).
      * @param-out bool $databaseError True when the lookup could not be completed.
      * @return array<string, mixed>|null
      */
@@ -1588,12 +1592,8 @@ class NcipServerPlugin
         // L'ItemId NCIP identifica il TITOLO, non la copia: con più prestiti
         // attivi sullo stesso titolo il solo libro_id è ambiguo e non deve
         // MAI produrre una chiusura arbitraria.
-        // $anyOrigin=true (CheckInItem): priorità deterministica ai prestiti
-        // origine ncip (comportamento storico); in loro assenza un prestito
-        // di altra origine viene scelto SOLO se è l'unico attivo sul titolo
-        // (con UserId: l'unico di quell'utente) — due candidati nella classe
-        // considerata sono sempre un errore di ambiguità, anche con UserId
-        // (multiplicity opt-in permette due copie allo stesso utente).
+        // CheckInItem accepts any origin only when the complete matching set
+        // contains a single loan. RenewItem remains scoped to NCIP loans.
         $userFilter = $userId !== null ? ' AND utente_id = ?' : '';
         $originFilter = $anyOrigin ? '' : " AND origine = 'ncip'";
         $stmt = null;
@@ -1603,7 +1603,7 @@ class NcipServerPlugin
                    FROM prestiti
                   WHERE libro_id = ?{$originFilter} AND attivo = 1
                     AND stato IN ('in_corso','in_ritardo'){$userFilter}
-                  ORDER BY (origine = 'ncip') DESC, data_prestito DESC, id DESC LIMIT 3"
+                  ORDER BY data_prestito DESC, id DESC LIMIT 2"
             );
             if ($stmt === false) {
                 throw new \RuntimeException('prepare failed: ' . $this->db->error);
@@ -1626,16 +1626,11 @@ class NcipServerPlugin
             if ($rows === []) {
                 return null;
             }
-            // Classe di scelta: i prestiti origine ncip hanno priorità
-            // (l'ORDER BY li mette in testa); il fallback any-origin è
-            // ammesso solo quando la classe scelta contiene UNA riga.
-            $ncipRows = array_values(array_filter($rows, static fn(array $r): bool => ($r['origine'] ?? '') === 'ncip'));
-            $candidates = $ncipRows !== [] ? $ncipRows : $rows;
-            if (count($candidates) > 1) {
+            if (count($rows) > 1) {
                 $ambiguous = true;
                 return null;
             }
-            return $candidates[0];
+            return $rows[0];
         } catch (\Throwable $e) {
             if ($stmt instanceof \mysqli_stmt) {
                 try {
