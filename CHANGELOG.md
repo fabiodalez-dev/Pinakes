@@ -2,6 +2,26 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.81]
+
+Circulation coherence: a full five-domain review of the reservation/loan system — states & transitions, queues & capacity, emails, audit trail, NCIP/mobile parity — with every finding fixed and covered by tests ([PR #416](https://github.com/fabiodalez-dev/Pinakes/pull/416)). No schema changes: no migration to run.
+
+### Added
+- **Pickup confirmation email** (`loan_picked_up`, seeded in all five locales): the physical pickup was the last silent lifecycle transition. The email reports the ACTUAL day the copy left the desk — captured before commit and preserved in the outbox for delayed retries — not the scheduled loan start.
+- **Self-cancellation confirmations**: cancelling a reservation or a pending request now emails the reader a confirmation.
+- **Complete audit trail for autonomous mutations**: every sweep and repair action records a SYSTEM event with truthful provenance — `loan.expired` on revoked pickups, `loan.overdue` on the bulk overdue flip (with `source=repair` when the data repair performs it), `reservation.expired` on expired holds, `reservation.promoted` on queue promotions, `loan.lost`/`loan.damaged` on returns. The loan snapshot now preserves the assessed penalty.
+
+### Fixed
+- **Queues no longer freeze behind an unpromotable head**: capacity accounting uses the same shared promotable-now predicate as the promotion gate (legacy NULL-start rows included), and only window-overlapping commitments count against future reservation windows — a loan scheduled beyond the window's end no longer blocks the next reader.
+- **Recipient-locale coherence everywhere**: every motivo and fallback (pickup cancelled, renewed title, zero-penalty "Nessun addebito", NCIP cancellations) renders in the recipient's language, never the session's; empty-address guards fire before outbox persistence.
+- **NCIP parity with the desk**: RenewItem refuses date-overdue loans and resets the recall state; CheckOutItem no longer sends a false "approved" email; CheckInItem treats any multi-loan match as an ambiguity error instead of closing an arbitrary loan (an identical retried message can no longer fall through to another borrower's copy); every event carries `source=ncip`.
+- **Maintenance is race-free and never hollow**: `runAll()` holds a database lock for its entire execution (admin button, login hook and cron all funnel through it), the manual button always runs — simultaneous presses deduplicate, sequential presses re-run — and the data repair executes even when the sweep was just claimed by another session.
+- **Stale `pendente` rows expire**: requests with `origine` `richiesta`/`ncip` whose window fully passed are closed by the sweep instead of dangling forever; expired rows repaired by DataIntegrity emit `reservation.expired`, keeping `reservation.cancelled` for duplicates.
+- Lost/damaged outcomes surface the penalty in the CSV export and the loan detail view using the configured currency; archived titles show their real name on the user's own active loans (single convention with the mobile API and the emails).
+
+### Testing
+- Five new behavioural suites against the real database (~200 checks): sweep audit (SMTP forced unreachable for deterministic outbox asserts), NCIP coherence (check-in ambiguity and retry safety), mail coherence (persisted recipient locale, currency token), queue/capacity coherence (window overlap, legacy unblock, source contracts), loan outcome visibility. Five existing suites realigned. Three independent review rounds absorbed (internal adversarial, two CodeRabbit passes).
+
 ## [0.7.80]
 
 Circulation hardening: database-level integrity for the loan/reservation lifecycle, durable circulation emails, and richer lost/damaged handling ([PR #415](https://github.com/fabiodalez-dev/Pinakes/pull/415)).
