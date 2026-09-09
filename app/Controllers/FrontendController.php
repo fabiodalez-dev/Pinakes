@@ -251,6 +251,16 @@ class FrontendController
             ? \App\Support\Hooks::apply('frontend.catalog.archive_results', [], [$searchTerm])
             : [];
 
+        // Federated-search hint: the catalogue search only reads
+        // libri.search_index, so a term that lives in a plugin's own corpus
+        // (periodicals, archives, …) would look like "no results" here. Plugins
+        // answer the search.external_suggestions filter with a link to their
+        // own search page; the core knows nothing about their tables.
+        /** @var array<int, array{label: string, url: string}> $externalSearchSuggestions */
+        $externalSearchSuggestions = $searchTerm !== ''
+            ? $this->collectExternalSearchSuggestions($searchTerm)
+            : [];
+
         // Query base without the many-to-many authors join, so one book stays
         // one row. g + gp are sufficient for filtering every supported genre
         // level; sottogenere matches directly on l.sottogenere_id.
@@ -1191,6 +1201,94 @@ class FrontendController
 
         $response->getBody()->write($content);
         return $response->withHeader('Content-Type', 'text/html')->withStatus(404);
+    }
+
+    /**
+     * Ask the plugins whether the searched term also exists in a corpus the
+     * core catalogue cannot see, and return the (validated) links to show.
+     *
+     * CONTRACT — filter `search.external_suggestions`
+     * ----------------------------------------------
+     * Registration (plugin.json hook or Hooks::add):
+     *     hook_name = 'search.external_suggestions'
+     *     callback  = fn(array $suggestions, string $term): array
+     *
+     * The listener receives the suggestions collected so far (an empty array
+     * for the first listener) plus the raw, trimmed search term, and MUST
+     * return an array of the same shape — appending its own entries rather
+     * than replacing the array. Each suggestion is:
+     *
+     *     'label' string  REQUIRED. Human-readable, already translated by the
+     *                     plugin in the visitor's locale, e.g.
+     *                     "Emeroteca (3 testate)". Plain text: the core
+     *                     escapes it, HTML is not interpreted. Max 160 chars.
+     *     'url'   string  REQUIRED. Same-origin path starting with "/", e.g.
+     *                     "/emeroteca?q=rivista". Absolute URLs and any other
+     *                     scheme (javascript:, data:, //host) are rejected.
+     *
+     * The listener MUST NOT return a suggestion when it has no match: the core
+     * renders nothing when the array is empty, which is the whole point of the
+     * hint (it appears both when the catalogue found nothing and when it found
+     * something but the plugin also has matches).
+     *
+     * Robustness: a listener that throws or returns garbage never breaks the
+     * catalogue page — the hint is simply not rendered. At most 5 suggestions
+     * are displayed.
+     *
+     * @return array<int, array{label: string, url: string}>
+     */
+    private function collectExternalSearchSuggestions(string $term): array
+    {
+        try {
+            $raw = \App\Support\Hooks::apply('search.external_suggestions', [], [$term]);
+        } catch (\Throwable $exception) {
+            \App\Support\SecureLogger::warning(
+                'FrontendController: search.external_suggestions filter failed: ' . $exception->getMessage()
+            );
+            return [];
+        }
+
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $suggestions = [];
+        foreach ($raw as $candidate) {
+            if (count($suggestions) >= 5) {
+                break;
+            }
+            if (!is_array($candidate)) {
+                continue;
+            }
+
+            $label = $candidate['label'] ?? null;
+            $url = $candidate['url'] ?? null;
+            if (!is_string($label) || !is_string($url)) {
+                continue;
+            }
+
+            $label = trim($label);
+            $url = trim($url);
+            if ($label === '' || $url === '') {
+                continue;
+            }
+            if (mb_strlen($label) > 160) {
+                $label = mb_substr($label, 0, 160);
+            }
+
+            // Same-origin relative paths only: one leading slash NOT followed
+            // by a second one, so "//evil.example" (a protocol-relative URL
+            // that browsers resolve off-site) is rejected together with
+            // javascript:/data: URLs; the character class keeps control
+            // characters and spaces out of the href.
+            if (!preg_match('{^/(?!/)[\w/\-.~%?&=:;,@!$\'()*+\[\]#]*$}', $url)) {
+                continue;
+            }
+
+            $suggestions[] = ['label' => $label, 'url' => $url];
+        }
+
+        return $suggestions;
     }
 
     private function getFilters(array $params): array
