@@ -41,7 +41,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.81 — latest
+### v0.7.82 — latest
+
+**The Emeroteca becomes a working serials desk** ([PR #419](https://github.com/fabiodalez-dev/Pinakes/pull/419)): the periodicals plugin (now 1.4.0) gains what running one actually requires. Issues carry a **barcode** — the 977 EAN-13 derived from the ISSN, with the add-on that identifies the single issue — so a scan at the desk finds the issue and offers to receive it; the ISSN is validated by checksum, and e-ISSN and ISSN-L are recorded. **Subscriptions and claims** complete the Kardex: supplier, cost, expiry with its badge, and the chase for an issue that never arrived. Possession and physical condition become separate fields, so a held-but-damaged issue no longer vanishes from the holdings count. Duplicate mastheads can be **merged** without losing an issue, holdings **export** as KBART and ACNP, issues **print as labels**, and the titles finally reach **OAI-PMH, Z39.50/SRU, the sitemap and the catalogue search**. On the core side, merging or deleting a publisher, genre or shelf now notifies the plugins that reference it — previously it detached their rows in silence. Plugin schema migrates itself; no core migration.
+
+### v0.7.81
 
 **Circulation coherence** ([PR #416](https://github.com/fabiodalez-dev/Pinakes/pull/416)): a full review of the reservation/loan system across states, queues, emails, audit and NCIP parity, with every finding fixed. A new **pickup confirmation email** closes the last silent lifecycle transition (and reports the actual pickup day); self-cancellations now confirm by email; every autonomous sweep and repair leaves a SYSTEM audit event with truthful provenance, including lost/damaged outcomes with the penalty in the configured currency. Queues no longer freeze behind an unpromotable head (capacity shares the promotion gate's exact predicate), maintenance holds a database lock for its whole run while the manual button always runs, stale pending requests finally expire, and NCIP check-in refuses ambiguous multi-loan matches instead of closing an arbitrary copy. Every motivo reaches the reader in their own language. ~200 new behavioural checks; no migration.
 
