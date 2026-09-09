@@ -42,14 +42,31 @@ if ($annoInizio !== null) {
     $anniLabel = (string) $annoFine;
 }
 
+// Possession states, twin of EmerotecaPlugin::STATI_FASCICOLO. Since the
+// 1.4.0 split 'danneggiato'/'in_restauro' are physical CONDITIONS, not
+// states: the ENUM can no longer hold them, so mapping them here only
+// produced dead entries — while the two states that were added,
+// 'reclamato' and 'scartato', fell through to the unlabelled grey
+// fallback.
 $statoBadgeClass = [
-    'posseduto'   => 'bg-emerald-100 text-emerald-800',
-    'mancante'    => 'bg-slate-100 text-slate-700',
-    'danneggiato' => 'bg-amber-50 text-amber-900',
-    'in_restauro' => 'bg-sky-100 text-sky-800',
-    'smarrito'    => 'bg-slate-100 text-slate-700',
-    'atteso'      => 'bg-gray-100 text-gray-800',
+    'posseduto' => 'bg-emerald-100 text-emerald-800',
+    'mancante'  => 'bg-slate-100 text-slate-700',
+    'atteso'    => 'bg-gray-100 text-gray-800',
+    'smarrito'  => 'bg-slate-100 text-slate-700',
+    'reclamato' => 'bg-amber-50 text-amber-900',
+    'scartato'  => 'bg-slate-100 text-slate-700',
 ];
+
+// 'scartato' = withdrawn on purpose: the library no longer holds the
+// issue, so it is not advertised to the public — it is dropped from the
+// markup here and excluded from the sitemap by
+// EmerotecaPlugin::extendSitemapEntries(). Note that the per-year counts
+// in the timeline below come from the controller and still include the
+// withdrawn issues.
+$fascicoli = array_values(array_filter(
+    $fascicoli,
+    static fn(array $f): bool => (string) ($f['stato'] ?? '') !== 'scartato'
+));
 
 // ── Schema.org Periodical (dedicated branch for SEO consumers) ────────
 $canonicalSelf = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/emeroteca/' . $testataId;
@@ -81,7 +98,7 @@ $schema = array_filter($schema, static fn($v) => $v !== null && $v !== '');
 $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <script type="application/ld+json"><?= $emerotecaSchema ?: '{}' ?></script>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
 
 <main id="emeroteca-testata" class="container emeroteca-public">
     <nav aria-label="breadcrumb" class="mb-3 text-sm text-gray-500">
@@ -223,7 +240,7 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
                                     <?php endif; ?>
                                     <?php if (!$posseduto): ?>
                                         <span class="emeroteca-cover-badge status-badge <?= $e($badge) ?>">
-                                            <?= $e($statoFascicoloLabels[$stato] ?? $stato) ?>
+                                            <?= $e(__($statoFascicoloLabels[$stato] ?? $stato)) ?>
                                         </span>
                                     <?php endif; ?>
                                 </div>

@@ -318,7 +318,35 @@
 }
 
 .emeroteca-admin .emt-issue-tile {
+    position: relative;
     min-width: 0;
+}
+
+/* Label-batch selection: the checkbox floats over the top-left corner of the
+   cover so it never pushes the tile layout around (1.4.0). */
+.emeroteca-admin .emt-issue-select {
+    position: absolute;
+    z-index: 1;
+    top: .4rem;
+    left: .4rem;
+    padding: .15rem;
+    border-radius: var(--radius, .5rem);
+    background: rgb(255 255 255 / .85);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / .1));
+}
+
+/* Kardex scan feedback line (1.4.0). Same accents as .emt-notice. */
+.emeroteca-admin .emt-scan-result {
+    margin: .5rem 0;
+    color: var(--emt-text);
+}
+
+.emeroteca-admin .emt-scan-result.is-ok {
+    color: #166534;
+}
+
+.emeroteca-admin .emt-scan-result.is-error {
+    color: #b91c1c;
 }
 
 .emeroteca-admin .emt-year {

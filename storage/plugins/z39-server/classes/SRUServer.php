@@ -48,6 +48,13 @@ class SRUServer
         'bath.isbn' => [
             'type' => 'isbn',
         ],
+        // Bath profile ISSN index (Z39.50 bib-1 Use attribute 8). Books carry
+        // an optional libri.issn; the serials arm (issue #140) resolves the
+        // same index against the emeroteca masthead ISSNs.
+        'bath.issn' => [
+            'type' => 'text',
+            'columns' => ['l.issn'],
+        ],
         'cql.anywhere' => [
             'type' => 'text',
             'columns' => [
@@ -61,6 +68,7 @@ class SRUServer
                 'l.isbn10',
                 'l.isbn13',
                 'l.ean',
+                'l.issn',
                 'l.parole_chiave',
                 'l.collana',
                 'g.nome',
@@ -84,9 +92,38 @@ class SRUServer
         ],
         'dc.identifier' => [
             'type' => 'text',
-            'columns' => ['l.isbn10', 'l.isbn13', 'l.ean'],
+            'columns' => ['l.isbn10', 'l.isbn13', 'l.ean', 'l.issn'],
         ],
     ];
+
+    /**
+     * Issue #140 — serials arm. Which CQL indexes can be resolved against the
+     * Emeroteca masthead table, and how. An index that is not listed here contributes a false leaf, preserving
+     * OR/AND/NOT semantics when book-only and serial indexes are combined.
+     *
+     * @var array<string,array<string,mixed>>
+     */
+    private array $serialIndexDefinitions = [
+        'dc.title'      => ['type' => 'text',    'columns' => ['t.titolo', 't.sottotitolo']],
+        'bath.issn'     => ['type' => 'issn'],
+        'dc.identifier' => ['type' => 'issn'],
+        'dc.publisher'  => ['type' => 'text',    'columns' => ['pe.nome']],
+        'dc.subject'    => ['type' => 'text',    'columns' => ['tg.nome']],
+        'dc.date'       => ['type' => 'numeric', 'column'  => 't.anno_inizio'],
+        'cql.anywhere'  => ['type' => 'text',    'columns' => [
+            't.titolo', 't.sottotitolo', 't.descrizione',
+            't.issn', 't.e_issn', 't.issn_l',
+            't.luogo_pubblicazione', 'pe.nome', 'tg.nome',
+        ]],
+    ];
+
+    /** Cached information_schema probes for the optional Emeroteca tables. */
+    private ?bool $serialsExposedCache = null;
+    /** @var array<string,bool> */
+    private array $tableProbeCache = [];
+    /** Cached information_schema probes for optional columns ("table.column"). */
+    /** @var array<string,bool> */
+    private array $columnProbeCache = [];
 
     // SRU namespaces
     // Sentinel "column" for secondary-publisher matching: expanded to a correlated
@@ -246,6 +283,7 @@ class SRUServer
             ['title' => 'Author', 'name' => 'dc.creator'],
             ['title' => 'Subject', 'name' => 'dc.subject'],
             ['title' => 'ISBN', 'name' => 'bath.isbn'],
+            ['title' => 'ISSN', 'name' => 'bath.issn'],
             ['title' => 'Publisher', 'name' => 'dc.publisher'],
             ['title' => 'Date', 'name' => 'dc.date'],
             ['title' => 'Identifier', 'name' => 'dc.identifier'],
@@ -343,6 +381,33 @@ class SRUServer
 
             $totalRecords = $this->executeCountQuery($sqlQuery['count']);
             $records = $this->executeDataQuery($sqlQuery['data']);
+
+            // ── Issue #140: serials tail ───────────────────────────────────
+            // Periodical mastheads live in their own table, so the result set
+            // is the CONCATENATION books-then-serials over a single SRU window:
+            // numberOfRecords covers both, and the page is filled from the
+            // serials only once the book rows for this window are exhausted.
+            // sortKeys therefore orders WITHIN the books block; the serials
+            // block always follows in (title, id) order.
+            // Absent/deactivated Emeroteca (or a query whose indexes have no
+            // serial meaning) leaves everything below untouched.
+            $serialWhere = $this->serialsExposed() ? $this->buildSerialWhereClause($ast) : null;
+            if ($serialWhere !== null) {
+                $totalSerials = $this->countSerialRecords($serialWhere);
+                if ($totalSerials > 0) {
+                    $slots = $maximumRecords - count($records);
+                    // Offset INTO the serials block: computed against the book
+                    // total BEFORE it absorbs $totalSerials.
+                    $serialOffset = max(0, ($startRecord - 1) - $totalRecords);
+                    if ($slots > 0 && $serialOffset < $totalSerials) {
+                        $records = array_merge(
+                            $records,
+                            $this->fetchSerialRecords($serialWhere, $slots, $serialOffset)
+                        );
+                    }
+                    $totalRecords += $totalSerials;
+                }
+            }
 
             // Format response
             return $this->formatSearchResponse($version, $query, $totalRecords, $startRecord, count($records), $records, $recordSchema, $maximumRecords);
@@ -731,8 +796,75 @@ class SRUServer
             case 'text':
             default:
                 $columns = $definition['columns'] ?? $this->indexDefinitions['cql.anywhere']['columns'];
+                /** @var list<string> $columns */
+                $columns = array_values(array_filter(
+                    $columns,
+                    fn (string $column): bool => $this->bookColumnAvailable($column)
+                ));
+                // Every column of this index is missing from this schema, so no
+                // book can match. '1=0' keeps the books arm a valid clause (the
+                // serials arm may still answer the same query).
+                if ($columns === []) {
+                    return '1=0';
+                }
                 return $this->buildTextMatchClause($columns, $relation, $value);
         }
+    }
+
+    /**
+     * FIX (issue #140 review): `libri.issn` is NOT part of the original schema
+     * — it arrives with migrate_0.4.7, which is exactly why the core
+     * BookRepository guards every read/write of it behind hasColumn(). This
+     * class referenced it unguarded from three index definitions
+     * (bath.issn, dc.identifier, cql.anywhere), so on an install where that
+     * migration had not run every cql.anywhere search — i.e. the default index,
+     * i.e. nearly every SRU request — would have died with
+     * "Unknown column 'l.issn' in 'where clause'".
+     *
+     * Only genuinely optional columns are probed: the rest of the index
+     * definitions reference columns the base query already JOINs on, so a
+     * blanket probe here would give false confidence without making those
+     * installs work.
+     */
+    private function bookColumnAvailable(string $column): bool
+    {
+        if ($column !== 'l.issn') {
+            return true;
+        }
+
+        return $this->columnProbe('libri', 'issn');
+    }
+
+    /** Cached information_schema existence probe for an optional column. */
+    private function columnProbe(string $table, string $column): bool
+    {
+        $key = $table . '.' . $column;
+        if (array_key_exists($key, $this->columnProbeCache)) {
+            return $this->columnProbeCache[$key];
+        }
+        $exists = false;
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('ss', $table, $column);
+                if ($stmt->execute()) {
+                    $res = $stmt->get_result();
+                    $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+                    $exists = ((int) ($row['c'] ?? 0)) > 0;
+                }
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning(
+                '[SRU Server] column probe failed for ' . $key . ': ' . $e->getMessage()
+            );
+            $exists = false;
+        }
+
+        return $this->columnProbeCache[$key] = $exists;
     }
 
     private function normalizeRelation(string $relation): string
@@ -910,6 +1042,370 @@ class SRUServer
     {
         $escaped = $this->db->real_escape_string($value);
         return str_replace(['%', '_'], ['\\%', '\\_'], $escaped);
+    }
+
+    // ── Serials (Emeroteca mastheads) — issue #140 ────────────────────────────
+
+    /**
+     * Are periodical mastheads searchable right now? Requires the Emeroteca
+     * plugin to be ACTIVE and its masthead table to exist — the same
+     * plugin-active AND table-exists gate the OAI-PMH `periodicals` set uses.
+     * Any failure degrades to "not exposed", so a missing/deactivated plugin
+     * changes nothing in the SRU behaviour.
+     */
+    private function serialsExposed(): bool
+    {
+        if ($this->serialsExposedCache !== null) {
+            return $this->serialsExposedCache;
+        }
+
+        $active = false;
+        try {
+            $stmt = $this->db->prepare("SELECT is_active FROM plugins WHERE name = 'emeroteca' LIMIT 1");
+            if ($stmt !== false) {
+                $stmt->execute();
+                $res = $stmt->get_result();
+                $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+                $stmt->close();
+                $active = (int) ($row['is_active'] ?? 0) === 1;
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[SRU Server] emeroteca activation probe failed: ' . $e->getMessage());
+            $active = false;
+        }
+
+        return $this->serialsExposedCache = ($active && $this->tableProbe('emeroteca_testate'));
+    }
+
+    /** Cached information_schema existence probe for an optional table. */
+    private function tableProbe(string $table): bool
+    {
+        if (array_key_exists($table, $this->tableProbeCache)) {
+            return $this->tableProbeCache[$table];
+        }
+        $exists = false;
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) AS c FROM information_schema.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('s', $table);
+                if ($stmt->execute()) {
+                    $res = $stmt->get_result();
+                    $exists = $res instanceof \mysqli_result
+                        && ((int) ($res->fetch_assoc()['c'] ?? 0)) > 0;
+                }
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[SRU Server] table probe failed for ' . $table . ': ' . $e->getMessage());
+        }
+
+        return $this->tableProbeCache[$table] = $exists;
+    }
+
+    /**
+     * Compile the CQL AST against the masthead table.
+     *
+     * A leaf with no serial counterpart is false for serials. Preserve it in
+     * the boolean expression: title OR author can still match a title, while
+     * title AND author cannot. Null is reserved for malformed AST nodes.
+     *
+     * @param array<string,mixed>|null $node
+     */
+    private function buildSerialWhereClause(?array $node): ?string
+    {
+        if ($node === null) {
+            return null;
+        }
+
+        switch ($node['type'] ?? '') {
+            case 'boolean':
+                $left  = $this->buildSerialWhereClause(is_array($node['left'] ?? null) ? $node['left'] : null);
+                $right = $this->buildSerialWhereClause(is_array($node['right'] ?? null) ? $node['right'] : null);
+                if ($left === null || $right === null) {
+                    return null;
+                }
+                // FIX (issue #140 review): 'NOT' removed from the allow-list.
+                // CQLParser only ever sets operator = AND|OR on a 'boolean'
+                // node (negation is its own 'not' node, handled below), so
+                // 'NOT' was unreachable — but had it ever been produced it
+                // would have compiled to `a NOT b`, which is not SQL. An
+                // allow-list must not list a value it cannot render.
+                $operator = strtoupper((string) ($node['operator'] ?? 'AND'));
+                if (!in_array($operator, ['AND', 'OR'], true)) {
+                    return null;
+                }
+                return "({$left} {$operator} {$right})";
+
+            case 'not':
+                $operand = $this->buildSerialWhereClause(is_array($node['operand'] ?? null) ? $node['operand'] : null);
+                return $operand === null ? null : "(NOT {$operand})";
+
+            case 'condition':
+                return $this->compileSerialCondition(
+                    strtolower((string) ($node['index'] ?? 'cql.anywhere')),
+                    (string) ($node['relation'] ?? '='),
+                    (string) ($node['value'] ?? '')
+                );
+
+            default:
+                return null;
+        }
+    }
+
+    /** One serial-side CQL condition; absent indexes match no serial record. */
+    private function compileSerialCondition(string $index, string $relation, string $value): ?string
+    {
+        $definition = $this->serialIndexDefinitions[$index] ?? null;
+        if ($definition === null) {
+            return '1=0';
+        }
+        $relation = $this->normalizeRelation($relation);
+        $value    = trim($value);
+
+        if ($value === '' && $definition['type'] !== 'numeric') {
+            return '1=1';
+        }
+
+        switch ($definition['type']) {
+            case 'issn':
+                return $this->compileSerialIssnClause($relation, $value);
+
+            case 'numeric':
+                return $this->compileNumericClause(
+                    (string) ($definition['column'] ?? 't.anno_inizio'),
+                    $relation,
+                    $value
+                );
+
+            case 'text':
+            default:
+                /** @var list<string> $columns */
+                $columns = array_values(array_filter(
+                    $definition['columns'] ?? [],
+                    fn (string $column): bool => $this->serialColumnAvailable($column)
+                ));
+                // Every column of this index lives on a core table the install
+                // does not have: the index has no serial meaning here.
+                if ($columns === []) {
+                    return null;
+                }
+                return $this->buildTextMatchClause($columns, $relation, $value);
+        }
+    }
+
+    /**
+     * The masthead schema legitimately degrades without the optional core
+     * registries (same guard the Emeroteca controllers apply): a column on a
+     * missing table must never reach the SQL, because its JOIN is skipped too.
+     */
+    private function serialColumnAvailable(string $column): bool
+    {
+        if (str_starts_with($column, 'pe.')) {
+            return $this->tableProbe('editori');
+        }
+        if (str_starts_with($column, 'tg.')) {
+            return $this->tableProbe('generi');
+        }
+
+        return true;
+    }
+
+    /**
+     * ISSN matching across the three masthead ISSN columns (issn, e_issn,
+     * issn_l). Hyphens and case are normalised on both sides so "1234-5678",
+     * "12345678" and "1234-567x" all resolve to the same record.
+     */
+    private function compileSerialIssnClause(string $relation, string $value): string
+    {
+        $clean = preg_replace('/[^0-9X]/i', '', strtoupper($value)) ?? '';
+        if ($clean === '') {
+            return '1=0';
+        }
+        $escaped = $this->db->real_escape_string($clean);
+
+        $columns  = ['t.issn', 't.e_issn', 't.issn_l'];
+        $normalize = static fn (string $column): string =>
+            "REPLACE(UPPER(COALESCE({$column}, '')), '-', '')";
+
+        if ($relation === '!=') {
+            $clauses = array_map(
+                static fn (string $c): string => $normalize($c) . " <> '{$escaped}'",
+                $columns
+            );
+            return '(' . implode(' AND ', $clauses) . ')';
+        }
+
+        $clauses = array_map(
+            static fn (string $c): string => $normalize($c) . " = '{$escaped}'",
+            $columns
+        );
+
+        return '(' . implode(' OR ', $clauses) . ')';
+    }
+
+    /**
+     * FROM/JOIN block shared by the serial count and data queries. The two
+     * core registries are joined only when they exist — see
+     * serialColumnAvailable(), which keeps their columns out of the WHERE in
+     * exactly the same cases.
+     */
+    private function serialBaseFrom(string $whereClause): string
+    {
+        $joins = '';
+        if ($this->tableProbe('editori')) {
+            $joins .= ' LEFT JOIN editori pe ON t.editore_id = pe.id';
+        }
+        if ($this->tableProbe('generi')) {
+            $joins .= ' LEFT JOIN generi tg ON t.genere_id = tg.id';
+        }
+
+        return "
+            FROM emeroteca_testate t
+            {$joins}
+            WHERE ({$whereClause})
+        ";
+    }
+
+    private function countSerialRecords(string $whereClause): int
+    {
+        return $this->executeCountQuery('SELECT COUNT(*) ' . $this->serialBaseFrom($whereClause));
+    }
+
+    /**
+     * One page of masthead records, already mapped into the record shape the
+     * formatters consume. Ordered by (titolo, id) so paging is stable.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function fetchSerialRecords(string $whereClause, int $limit, int $offset): array
+    {
+        // The holdings statement (MARC 362) is derived from the years table
+        // when it exists; on a partial schema the record simply carries none.
+        $hasAnnate = $this->tableProbe('emeroteca_annate');
+        $holdings = $hasAnnate && $this->tableProbe('emeroteca_fascicoli')
+            ? "(SELECT CONCAT(MIN(a.anno), '-', MAX(a.anno)) FROM emeroteca_annate a
+                 JOIN emeroteca_fascicoli f ON f.annata_id = a.id AND f.stato = 'posseduto'
+                 WHERE a.testata_id = t.id)"
+            : 'NULL';
+
+        $editoreSel = $this->tableProbe('editori') ? 'pe.nome' : 'NULL';
+        $genereSel  = $this->tableProbe('generi')  ? 'tg.nome' : 'NULL';
+
+        $sql = "SELECT t.*, {$editoreSel} AS editore_nome, {$genereSel} AS genere_nome,
+                       {$holdings} AS annate_range "
+            . $this->serialBaseFrom($whereClause)
+            . ' ORDER BY t.titolo ASC, t.id ASC LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
+
+        try {
+            $result = $this->db->query($sql);
+        } catch (\mysqli_sql_exception $e) {
+            throw new \Z39Server\Exceptions\DatabaseException($e->getMessage(), (int) $e->getCode(), $e);
+        }
+        if (!($result instanceof \mysqli_result)) {
+            return [];
+        }
+
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
+        $result->free();
+        $declared = [];
+        if ($hasAnnate && $rows !== []) {
+            $ids = implode(',', array_map(static fn(array $row): int => (int) $row['id'], $rows));
+            // The page contains at most maximumRecords titles. Aggregate their
+            // declarations in PHP without GROUP_CONCAT's silent size ceiling.
+            // consistenza_dichiarata arrived with plugin 1.4.0: a partially
+            // migrated schema must degrade to "no declared holdings" instead of
+            // failing the whole search, which under MYSQLI_REPORT_STRICT would
+            // discard the records already loaded.
+            try {
+                $res = $this->columnProbe('emeroteca_annate', 'consistenza_dichiarata')
+                    ? $this->db->query(
+                        "SELECT testata_id, consistenza_dichiarata FROM emeroteca_annate
+                          WHERE testata_id IN ({$ids}) AND consistenza_dichiarata IS NOT NULL
+                            AND consistenza_dichiarata <> '' ORDER BY testata_id, anno, volume, id"
+                    )
+                    : null;
+                if ($res instanceof \mysqli_result) {
+                    while ($row = $res->fetch_assoc()) {
+                        $declared[(int) $row['testata_id']][] = (string) $row['consistenza_dichiarata'];
+                    }
+                    $res->free();
+                }
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::warning(
+                    '[Z39] declared holdings unavailable: ' . $e->getMessage()
+                );
+            }
+        }
+        return array_map(fn(array $row): array => $this->mapSerialRecord($row + [
+            'consistenza_dichiarata' => implode(' ; ', $declared[(int) $row['id']] ?? []),
+        ]), $rows);
+    }
+
+    /**
+     * Masthead row → record array consumed by every RecordFormatter.
+     *
+     * Field map (emeroteca_testate → record keys → MARC21 / UNIMARC):
+     *   titolo, sottotitolo        → titolo/sottotitolo   → 245 $a$b / 200 $a$e
+     *   issn, e_issn, issn_l       → issn/e_issn/issn_l   → 022 $a$l   / 011 $a
+     *   editori.nome               → editore              → 264 $b     / 210 $c
+     *   luogo_pubblicazione        → luogo_pubblicazione  → 264 $a     / 210 $a
+     *   anno_inizio / anno_fine    → anno_pubblicazione / anno_fine → 264 $c / 210 $d
+     *   periodicita                → periodicita          → 310 $a     / 326 $a
+     *   annate range + declared    → numerazione          → 362 $a     / 207 $a
+     *   lingua                     → lingua               → 041 / 101
+     *   generi.nome                → genere               → 650 / 606
+     *   descrizione                → descrizione          → 520 / 330
+     *   public masthead URL        → public_url           → 856 $u
+     *
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private function mapSerialRecord(array $row): array
+    {
+        $id = (int) ($row['id'] ?? 0);
+
+        $numbering = trim((string) ($row['annate_range'] ?? ''));
+        $declared  = trim((string) ($row['consistenza_dichiarata'] ?? ''));
+        if ($declared !== '') {
+            $numbering = $numbering === '' ? $declared : $numbering . ' ; ' . $declared;
+        }
+
+        $publicUrl = '';
+        if ($id > 0 && function_exists('absoluteUrl')) {
+            $publicUrl = (string) \absoluteUrl('/emeroteca/' . $id);
+        }
+
+        return [
+            // Namespaced control number: masthead ids share the numeric space
+            // with book ids, so the raw id alone would collide in MARC 001.
+            'id'                  => 'periodical:' . $id,
+            '_record_type'        => 'periodical',
+            'periodical_id'       => $id,
+            'titolo'              => (string) ($row['titolo'] ?? ''),
+            'sottotitolo'         => (string) ($row['sottotitolo'] ?? ''),
+            'issn'                => (string) ($row['issn'] ?? ''),
+            'e_issn'              => (string) ($row['e_issn'] ?? ''),
+            'issn_l'              => (string) ($row['issn_l'] ?? ''),
+            'editore'             => (string) ($row['editore_nome'] ?? ''),
+            'genere'              => (string) ($row['genere_nome'] ?? ''),
+            'luogo_pubblicazione' => (string) ($row['luogo_pubblicazione'] ?? ''),
+            'lingua'              => (string) ($row['lingua'] ?? ''),
+            'periodicita'         => (string) ($row['periodicita'] ?? ''),
+            'tipo_periodico'      => (string) ($row['tipo'] ?? ''),
+            'anno_pubblicazione'  => (string) ($row['anno_inizio'] ?? ''),
+            'anno_fine'           => (string) ($row['anno_fine'] ?? ''),
+            'numerazione'         => $numbering,
+            'descrizione'         => (string) ($row['descrizione'] ?? ''),
+            'stato_raccolta'      => (string) ($row['stato_raccolta'] ?? ''),
+            'public_url'          => $publicUrl,
+            // No author entities and no copies on a masthead record: keep the
+            // keys present so the shared formatter helpers short-circuit.
+            'contributors'        => [],
+            'copies'              => [],
+        ];
     }
 
     /**

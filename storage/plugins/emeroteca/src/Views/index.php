@@ -10,6 +10,9 @@
  * @var string|null $f_tipo
  * @var int|null    $f_editore
  * @var string|null $f_stato
+ * @var int|null    $page         current page (1-based)
+ * @var int|null    $total_pages
+ * @var int|null    $total        total testate matching the filters
  */
 declare(strict_types=1);
 
@@ -17,6 +20,25 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 $f_tipo    = $f_tipo    ?? '';
 $f_editore = (int) ($f_editore ?? 0);
 $f_stato   = $f_stato   ?? '';
+$page       = max(1, (int) ($page ?? 1));
+$totalPages = max(1, (int) ($total_pages ?? 1));
+$total      = (int) ($total ?? count($rows));
+
+/** Page link keeping the active filters (page param last). */
+$pageUrl = static function (int $p) use ($f_tipo, $f_editore, $f_stato): string {
+    $qs = [];
+    if ($f_tipo !== '') {
+        $qs['tipo'] = $f_tipo;
+    }
+    if ($f_editore > 0) {
+        $qs['editore'] = $f_editore;
+    }
+    if ($f_stato !== '') {
+        $qs['stato_raccolta'] = $f_stato;
+    }
+    $qs['page'] = $p;
+    return url('/admin/periodicals') . '?' . http_build_query($qs);
+};
 
 $tipoLabels = [
     'rivista'    => __('Rivista'),
@@ -43,7 +65,7 @@ $periodicitaLabels = [
 ];
 $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
 <div id="emeroteca-admin-index" class="emeroteca-admin">
     <div class="emt-page-header emt-page-header--index">
         <div>
@@ -53,6 +75,18 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
             </p>
         </div>
         <div class="flex items-center gap-2">
+            <a href="<?= $e(url('/admin/periodicals/export/kbart')) ?>"
+               class="btn-secondary inline-flex items-center text-sm"
+               title="<?= $e(__('Esporta le consistenze in formato KBART (TSV) per i cataloghi collettivi')) ?>">
+                <i class="fas fa-file-export mr-2" aria-hidden="true"></i>
+                <?= __("Esporta KBART") ?>
+            </a>
+            <a href="<?= $e(url('/admin/periodicals/export/acnp')) ?>"
+               class="btn-secondary inline-flex items-center text-sm"
+               title="<?= $e(__('Esporta le consistenze in formato ACNP (CSV)')) ?>">
+                <i class="fas fa-file-csv mr-2" aria-hidden="true"></i>
+                <?= __("Esporta ACNP") ?>
+            </a>
             <a href="<?= $e(url('/admin/periodicals/create')) ?>"
                class="btn-primary inline-flex items-center text-sm">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -133,11 +167,32 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
             </div>
         <?php endif; ?>
     <?php else: ?>
+        <!--
+            Duplicate merge, same UX as the core author/publisher merge: tick
+            the duplicates in the list, review the preview, confirm there.
+            The checkboxes belong to this form through the HTML `form`
+            attribute, because the rows already contain the delete POST form
+            and nesting forms is invalid markup.
+        -->
+        <form id="emt-merge-select" method="GET" action="<?= $e(url('/admin/periodicals/merge')) ?>"
+              class="emt-toolbar p-4 mb-4 flex flex-wrap items-center gap-3">
+            <span class="text-xs text-gray-600">
+                <?= __("Seleziona due testate duplicate per unirle in una sola.") ?>
+            </span>
+            <button type="submit" class="btn-secondary text-sm">
+                <i class="fas fa-code-merge mr-1" aria-hidden="true"></i>
+                <?= __("Unisci le testate selezionate") ?>
+            </button>
+        </form>
+
         <div class="emt-surface overflow-hidden">
             <div class="overflow-x-auto">
             <table class="emt-periodicals-table min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="sr-only"><?= __("Seleziona") ?></span>
+                        </th>
                         <th class="emt-col-title px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Testata") ?></th>
                         <th class="emt-col-issn px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("ISSN") ?></th>
                         <th class="emt-col-publisher px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Editore") ?></th>
@@ -158,8 +213,14 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                         $logo = (string) ($row['logo_url'] ?? '');
                         $logoSrc = $logo === '' ? '' : (str_starts_with($logo, '/') ? url($logo) : $logo);
                         $statoVal = (string) ($row['stato_raccolta'] ?? 'attiva');
+                        $nScadenza = (int) ($row['n_abbonamenti_scadenza'] ?? 0);
                         ?>
                         <tr class="hover:bg-gray-50 border-b">
+                            <td class="px-4 py-2">
+                                <input type="checkbox" name="ids[]" value="<?= $rowId ?>"
+                                       form="emt-merge-select" class="form-checkbox"
+                                       aria-label="<?= $e(sprintf(__('Seleziona «%s» per l\'unione'), (string) $row['titolo'])) ?>">
+                            </td>
                             <td class="emt-col-title px-4 py-2">
                                 <div class="flex items-center">
                                     <?php if ($logoSrc !== ''): ?>
@@ -182,6 +243,14 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                                         <span class="emt-status emt-status--<?= $e($statoVal) ?>">
                                             <i aria-hidden="true"></i><?= $e($statoLabels[$statoVal] ?? $statoVal) ?>
                                         </span>
+                                        <?php if ($nScadenza > 0): ?>
+                                            <a href="<?= $e(url('/admin/periodicals/' . $rowId . '/subscriptions')) ?>"
+                                               class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-yellow-100 text-yellow-800"
+                                               title="<?= $e(__('Abbonamenti in scadenza')) ?>">
+                                                <i class="fas fa-file-signature" aria-hidden="true"></i>
+                                                <?= sprintf(__('%d in scadenza'), $nScadenza) ?>
+                                            </a>
+                                        <?php endif; ?>
                                         <div class="emt-periodical-mobile-meta">
                                             <?php if (!empty($row['issn'])): ?><span class="font-mono"><?= $e($row['issn']) ?></span><?php endif; ?>
                                             <?php if (!empty($row['editore_nome'])): ?><span><?= $e($row['editore_nome']) ?></span><?php endif; ?>
@@ -211,6 +280,7 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                             <td class="emt-col-holdings px-4 py-2 text-sm text-gray-600 whitespace-nowrap"><?= $e($row['consistenza'] ?? '—') ?></td>
                             <td class="emt-col-actions px-4 py-2 text-right text-sm whitespace-nowrap">
                                 <a href="<?= $issuesUrl ?>" class="emt-table-action" title="<?= $e(__('Fascicoli')) ?>" aria-label="<?= $e(__('Fascicoli')) ?>"><i class="fas fa-layer-group" aria-hidden="true"></i><span class="emt-action-label"><?= __('fascicoli') ?></span></a>
+                                <a href="<?= $e(url('/admin/periodicals/' . $rowId . '/subscriptions')) ?>" class="emt-table-action" title="<?= $e(__('Abbonamenti')) ?>" aria-label="<?= $e(__('Abbonamenti')) ?>"><i class="fas fa-file-signature" aria-hidden="true"></i><span class="emt-action-label"><?= __('abbonamenti') ?></span></a>
                                 <a href="<?= $editUrl ?>" class="emt-table-action" title="<?= $e(__('Modifica')) ?>" aria-label="<?= $e(__('Modifica')) ?>"><i class="fas fa-pen" aria-hidden="true"></i><span class="emt-action-label"><?= __('modifica') ?></span></a>
                                 <form method="POST" action="<?= $deleteUrl ?>" class="inline"
                                       onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa testata con tutte le annate, i fascicoli e lo spoglio?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
@@ -224,8 +294,47 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
             </table>
             </div>
         </div>
+
+        <!-- Pagination (chrome copied verbatim from app/Views/events/index.php) -->
+        <?php if ($totalPages > 1): ?>
+          <div class="mt-8 flex items-center justify-center gap-2">
+            <?php if ($page > 1): ?>
+              <a href="<?= $e($pageUrl($page - 1)) ?>"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold">
+                <i class="fas fa-chevron-left"></i>
+                <?= __("Precedente") ?>
+              </a>
+            <?php endif; ?>
+
+            <div class="flex items-center gap-1">
+              <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                <?php if ($i == $page): ?>
+                  <span class="px-4 py-2 bg-gray-900 text-white rounded-lg font-semibold">
+                    <?= $i ?>
+                  </span>
+                <?php elseif ($i == 1 || $i == $totalPages || abs($i - $page) <= 2): ?>
+                  <a href="<?= $e($pageUrl($i)) ?>"
+                    class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold">
+                    <?= $i ?>
+                  </a>
+                <?php elseif (abs($i - $page) == 3): ?>
+                  <span class="px-2 text-gray-400">...</span>
+                <?php endif; ?>
+              <?php endfor; ?>
+            </div>
+
+            <?php if ($page < $totalPages): ?>
+              <a href="<?= $e($pageUrl($page + 1)) ?>"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold">
+                <?= __("Successivo") ?>
+                <i class="fas fa-chevron-right"></i>
+              </a>
+            <?php endif; ?>
+          </div>
+        <?php endif; ?>
+
         <p class="text-xs text-gray-500 mt-3">
-            <?= sprintf(__("Testate registrate: %d."), count($rows)) ?>
+            <?= sprintf(__("Testate registrate: %d."), $total) ?>
         </p>
     <?php endif; ?>
 </div>

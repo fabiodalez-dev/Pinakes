@@ -4,6 +4,8 @@
 /** @var array $filter_options */
 /** @var ?int $total_books */
 /** @var array<int, array<string, mixed>> $archiveResults */
+/** @var array<int, array{label: string, url: string}> $externalSearchSuggestions */
+/** @var string $searchTerm */
 /** @var int $current_page */
 
 use App\Support\HtmlHelper;
@@ -1638,6 +1640,9 @@ ob_start();
                         </select>
                     </div>
                 </div>
+
+                <?php // Federated-search hint from plugins (empty = nothing rendered). ?>
+                <?php include __DIR__ . '/partials/search-external-suggestions.php'; ?>
 
                 <!-- Books Grid -->
                 <div id="books-container">

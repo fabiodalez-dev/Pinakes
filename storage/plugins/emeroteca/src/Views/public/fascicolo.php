@@ -34,15 +34,37 @@ $anno        = (int) $fascicolo['anno'];
 $stato       = (string) $fascicolo['stato'];
 $cover       = $asset((string) ($fascicolo['copertina_url'] ?? ''));
 
+// Possession states, twin of EmerotecaPlugin::STATI_FASCICOLO. Since the
+// 1.4.0 split 'danneggiato'/'in_restauro' are physical CONDITIONS, not
+// states — the ENUM cannot hold them any more — while 'reclamato' and
+// 'scartato' were added and used to fall through to the unlabelled grey
+// fallback.
 $statoBadgeClass = [
-    'posseduto'   => 'bg-emerald-100 text-emerald-800',
-    'mancante'    => 'bg-slate-100 text-slate-700',
-    'danneggiato' => 'bg-amber-50 text-amber-900',
-    'in_restauro' => 'bg-sky-100 text-sky-800',
-    'smarrito'    => 'bg-slate-100 text-slate-700',
-    'atteso'      => 'bg-gray-100 text-gray-800',
+    'posseduto' => 'bg-emerald-100 text-emerald-800',
+    'mancante'  => 'bg-slate-100 text-slate-700',
+    'atteso'    => 'bg-gray-100 text-gray-800',
+    'smarrito'  => 'bg-slate-100 text-slate-700',
+    'reclamato' => 'bg-amber-50 text-amber-900',
+    'scartato'  => 'bg-slate-100 text-slate-700',
 ];
 $badge = $statoBadgeClass[$stato] ?? 'bg-gray-100 text-gray-800';
+
+// Physical condition (1.4.0): recorded separately from possession and,
+// until now, shown nowhere on the public side — so a reader could not
+// tell that the issue they are about to request is damaged or away for
+// restoration. Only meaningful on an issue the library actually holds.
+$condizione = trim((string) ($fascicolo['condizione'] ?? ''));
+$condizioneLabels = class_exists('EmerotecaPlugin') ? \EmerotecaPlugin::COND_FASCICOLO : [];
+$condizioneLabel = $condizione !== ''
+    ? __($condizioneLabels[$condizione] ?? $condizione)
+    : '';
+
+// 'scartato' = withdrawn on purpose: the issue is no longer part of the
+// collection. It is already excluded from the testata grid and from the
+// sitemap; reached directly it still renders (the URL may be bookmarked
+// or linked) but says so plainly and publishes no structured data, so
+// search engines are not fed a holding the library no longer has.
+$isScartato = $stato === 'scartato';
 
 // Display date: prefer the free-text cover date, else the publication
 // date formatted with the core helper when available.
@@ -117,8 +139,10 @@ if ((int) ($fascicolo['pdf_pubblico'] ?? 0) === 1 && !empty($fascicolo['pdf_path
 $schema = array_filter($schema, static fn($v) => $v !== '');
 $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
+<?php if (!$isScartato): ?>
 <script type="application/ld+json"><?= $emerotecaSchema ?: '{}' ?></script>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
+<?php endif; ?>
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
 
 <main id="emeroteca-fascicolo" class="container emeroteca-public">
     <nav aria-label="breadcrumb" class="mb-3 text-sm text-gray-500">
@@ -130,6 +154,13 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
         <span aria-hidden="true">/</span>
         <span aria-current="page"><?= $e($issueLabel . ' (' . $anno . ')') ?></span>
     </nav>
+
+    <?php if ($isScartato): ?>
+        <div class="emeroteca-notice" role="alert">
+            <strong><?= __('Fascicolo scartato') ?></strong>
+            <?= __('Questo fascicolo non fa più parte della raccolta della biblioteca.') ?>
+        </div>
+    <?php endif; ?>
 
     <div class="emeroteca-issue-layout">
         <!-- Copertina -->
@@ -151,8 +182,13 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
         <div>
             <div class="flex flex-wrap items-center gap-2 mb-2">
                 <span class="status-badge <?= $e($badge) ?>">
-                    <?= $e($statoFascicoloLabels[$stato] ?? $stato) ?>
+                    <?= $e(__($statoFascicoloLabels[$stato] ?? $stato)) ?>
                 </span>
+                <?php if ($condizioneLabel !== ''): ?>
+                    <span class="status-badge bg-amber-50 text-amber-900">
+                        <?= $e($condizioneLabel) ?>
+                    </span>
+                <?php endif; ?>
                 <?php if (!empty($fascicolo['rilegata'])): ?>
                     <span class="status-badge bg-gray-100 text-gray-800"><?= __('Annata rilegata') ?></span>
                 <?php endif; ?>
@@ -184,6 +220,10 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
                         <?php if ($fascicolo['pagine'] !== null && (int) $fascicolo['pagine'] > 0): ?>
                             <dt><?= __('Pagine') ?></dt>
                             <dd><?= $e((string) (int) $fascicolo['pagine']) ?></dd>
+                        <?php endif; ?>
+                        <?php if ($condizioneLabel !== ''): ?>
+                            <dt><?= __('Condizione') ?></dt>
+                            <dd><?= $e($condizioneLabel) ?></dd>
                         <?php endif; ?>
                         <?php if (!empty($fascicolo['supplementi'])): ?>
                             <dt><?= __('Supplementi') ?></dt>

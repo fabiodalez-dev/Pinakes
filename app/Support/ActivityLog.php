@@ -17,7 +17,10 @@ final class ActivityLog
 {
     // @include-soft-deleted: audit snapshots and historical feeds intentionally
     // retain archived books so their activity remains attributable to staff.
-    public const TYPES = ['edit', 'copy', 'import', 'enrich', 'loan'];
+    // 'plugin' marks entity events recorded by plugins via recordEntityEvent()
+    // (tabella != 'libri'); those rows never surface in the book feeds, which
+    // filter on tabella = 'libri'.
+    public const TYPES = ['edit', 'copy', 'import', 'enrich', 'loan', 'plugin'];
 
     /**
      * Sentinel for events performed by the application itself (e.g. automatic
@@ -79,6 +82,19 @@ final class ActivityLog
         'reservation.cancelled' => 'Prenotazione annullata',
         'reservation.promoted' => 'Prenotazione promossa',
         'reservation.expired' => 'Prenotazione scaduta',
+        // Plugin entity events (emeroteca — recorded via recordEntityEvent)
+        'periodical.created' => 'Testata creata',
+        'periodical.updated' => 'Testata aggiornata',
+        'periodical.deleted' => 'Testata eliminata',
+        'periodical.merged' => 'Testate unite',
+        'issue.created' => 'Fascicolo creato',
+        'issue.updated' => 'Fascicolo aggiornato',
+        'issue.deleted' => 'Fascicolo eliminato',
+        'issue.pdf_visibility' => 'Visibilità PDF fascicolo cambiata',
+        'issue.claimed' => 'Fascicolo sollecitato al fornitore',
+        'subscription.created' => 'Abbonamento creato',
+        'subscription.updated' => 'Abbonamento aggiornato',
+        'subscription.deleted' => 'Abbonamento eliminato',
     ];
 
     /** @var array<string,string> */
@@ -207,6 +223,87 @@ final class ActivityLog
         }
     }
 
+    /**
+     * Record an audit event for a plugin-owned entity (tabella != 'libri').
+     *
+     * Same log_modifiche format as recordBookEvent (metadata under
+     * `_activity` in dati_nuovi, type fixed to 'plugin') but with an
+     * arbitrary table name, e.g. 'emeroteca_testate' or
+     * 'emeroteca_fascicoli'. The book feeds (forBook/recent/operators) filter
+     * on tabella = 'libri', so plugin rows never leak into them; plugins read
+     * their own rows back filtering on their tabella and decode them with
+     * decodeRow(), whose event labels resolve via eventLabel().
+     *
+     * Audit failures never make the user operation fail. When called inside
+     * an existing transaction the INSERT participates in that transaction.
+     *
+     * @param array<string,mixed> $before
+     * @param array<string,mixed> $after
+     */
+    public static function recordEntityEvent(
+        mysqli $db,
+        string $tabella,
+        int $recordId,
+        string $event,
+        array $before = [],
+        array $after = [],
+        string $action = 'aggiornamento',
+        ?string $source = null,
+        ?int $operatorId = null
+    ): bool {
+        $tabella = trim($tabella);
+        // 50 = log_modifiche.tabella column width; 'libri' is reserved for the
+        // book-centric writers so plugin events can never pollute the book feed.
+        if (
+            $recordId <= 0
+            || $tabella === ''
+            || $tabella === 'libri'
+            || strlen($tabella) > 50
+            || preg_match('/^[A-Za-z0-9_]+$/', $tabella) !== 1
+            || !in_array($action, ['inserimento', 'aggiornamento', 'cancellazione'], true)
+        ) {
+            return false;
+        }
+
+        if ($operatorId === self::SYSTEM_OPERATOR) {
+            $operatorId = null; // system action: never attribute to the session user
+        } else {
+            $operatorId ??= self::sessionOperatorId();
+        }
+        $operatorName = self::operatorName($db, $operatorId);
+        $meta = [
+            'type' => 'plugin',
+            'event' => $event,
+            'operator_name' => $operatorName,
+            'source' => $source,
+        ];
+        $after['_activity'] = array_filter($meta, static fn(mixed $value): bool => $value !== null && $value !== '');
+
+        try {
+            $beforeJson = self::encodeSnapshot($before);
+            $afterJson = self::encodeSnapshot($after);
+            $stmt = $db->prepare(
+                'INSERT INTO log_modifiche (tabella, record_id, azione, dati_precedenti, dati_nuovi, utente_id) '
+                . 'VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException($db->error);
+            }
+            $stmt->bind_param('sisssi', $tabella, $recordId, $action, $beforeJson, $afterJson, $operatorId);
+            $ok = $stmt->execute();
+            $stmt->close();
+            return $ok;
+        } catch (\Throwable $e) {
+            SecureLogger::warning('ActivityLog entity write failed', [
+                'tabella' => $tabella,
+                'record_id' => $recordId,
+                'event' => $event,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
     /** @return array{items:list<array<string,mixed>>,page:int,pages:int,total:int} */
     public static function forBook(
         mysqli $db,
@@ -281,6 +378,7 @@ final class ActivityLog
             'import' => 'Importazione',
             'enrich' => 'Arricchimento',
             'loan' => 'Prestiti e prenotazioni',
+            'plugin' => 'Eventi plugin',
             default => 'Modifiche libro',
         };
     }
@@ -332,6 +430,7 @@ final class ActivityLog
             'import' => ['icon' => 'fa-file-import', 'badge' => 'bg-blue-100 text-blue-800'],
             'enrich' => ['icon' => 'fa-magic', 'badge' => 'bg-amber-100 text-amber-800'],
             'loan' => ['icon' => 'fa-handshake', 'badge' => 'bg-green-100 text-green-800'],
+            'plugin' => ['icon' => 'fa-puzzle-piece', 'badge' => 'bg-indigo-100 text-indigo-800'],
             default => ['icon' => 'fa-edit', 'badge' => 'bg-gray-100 text-gray-800'],
         };
     }

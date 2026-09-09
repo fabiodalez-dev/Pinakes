@@ -26,13 +26,21 @@ use Psr\Http\Message\ServerRequestInterface;
  * Supported verbs: Identify, ListMetadataFormats, ListRecords, ListIdentifiers,
  *                  GetRecord, ListSets
  * Metadata formats: oai_dc, marcxml, mods, mag, unimarc
- * Sets: books, archives (archives set only when archives plugin is active)
- * deletedRecord: persistent (tracked via oai_deleted_records + MySQL triggers)
+ * Sets: books, archives (only when the archives plugin is active),
+ *       periodicals (only when the emeroteca plugin is active)
+ * deletedRecord: persistent (tracked via oai_deleted_records +
+ *       oai_deleted_periodicals + MySQL triggers). Books and archival units
+ *       are soft-deleted (BEFORE UPDATE triggers); periodical mastheads are
+ *       hard-deleted by their plugin, so an AFTER DELETE trigger writes their
+ *       tombstone. Tombstones are only recorded from the moment the trigger
+ *       exists: mastheads deleted BEFORE this plugin version was installed
+ *       cannot be reconstructed and stay invisible to harvesters.
  * Resumption tokens: DB-backed with 24h TTL
  *
  * OAI identifier scheme:
- *   books          → oai:{host}:book:{id}
- *   archival units → oai:{host}:archival_unit:{id}
+ *   books           → oai:{host}:book:{id}
+ *   archival units  → oai:{host}:archival_unit:{id}
+ *   periodicals     → oai:{host}:periodical:{id}
  */
 class OaiPmhServerPlugin
 {
@@ -42,6 +50,16 @@ class OaiPmhServerPlugin
 
     /** Cached result of the archival_units table existence check. */
     private ?bool $archivalUnitsTableExists = null;
+
+    /** Cached result of the emeroteca_testate table existence check. */
+    private ?bool $periodicalsTableCache = null;
+
+    /**
+     * Per-request memoization of isPeriodicalsSetExposed() — same rationale
+     * as $ricExposedCache below (ListSets + ListRecords + GetRecord all hit
+     * the gate within one OAI request).
+     */
+    private ?bool $periodicalsExposedCache = null;
 
     /**
      * FIX F009: per-request memoization of isArchivesSetExposed() result.
@@ -127,7 +145,7 @@ class OaiPmhServerPlugin
     // re-create the triggers via ensureSchema()/installTriggers().
     public function onUninstall(): void
     {
-        foreach (['trg_libri_soft_delete', 'trg_archival_soft_delete'] as $trg) {
+        foreach (['trg_libri_soft_delete', 'trg_archival_soft_delete', 'trg_emeroteca_hard_delete'] as $trg) {
             if ($this->db->query("DROP TRIGGER IF EXISTS `{$trg}`") === false) {
                 SecureLogger::warning(
                     '[OaiPmhServer] onUninstall: DROP TRIGGER failed for ' . $trg
@@ -168,6 +186,33 @@ class OaiPmhServerPlugin
                 created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
                 UNIQUE KEY uq_entity (entity_type, entity_id),
+                KEY idx_datestamp (datestamp),
+                KEY idx_oai_id (oai_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+            // Issue #140 tombstones for periodical mastheads.
+            //
+            // Why a SECOND table instead of a new value in
+            // oai_deleted_records.entity_type? Because that column is an ENUM,
+            // and widening an ENUM is an ALTER that nothing would ever run on
+            // an install where this plugin is already active: PluginManager's
+            // self-heal fires on a MISSING TABLE / COLUMN / FK, never on a
+            // changed column TYPE, and the version-bump path executes the
+            // plugin's OLD class (stale-class trap documented in
+            // PluginManager::bundledSchemaIncomplete). A brand new table IS
+            // covered by expectedTables() → the self-heal creates it, and
+            // installTriggers() then attaches the AFTER DELETE trigger.
+            // Shipping the ENUM route would have produced a trigger that
+            // fails with "Data truncated for column entity_type" on exactly
+            // the installs that need it most.
+            'oai_deleted_periodicals' => "CREATE TABLE IF NOT EXISTS oai_deleted_periodicals (
+                id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                entity_id    BIGINT UNSIGNED NOT NULL,
+                oai_id       VARCHAR(255) NOT NULL,
+                datestamp    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_periodical (entity_id),
                 KEY idx_datestamp (datestamp),
                 KEY idx_oai_id (oai_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -331,6 +376,12 @@ class OaiPmhServerPlugin
         $triggers = [
             'trg_libri_soft_delete' => [
                 'table' => 'libri',
+                // Table the trigger BODY writes to. A trigger whose target
+                // table is missing does not fail at CREATE time — it fails on
+                // every DELETE/UPDATE of the watched table, i.e. it breaks
+                // another plugin's writes. Never install one blind.
+                'requires' => 'oai_deleted_records',
+                'timing' => 'BEFORE UPDATE',
                 'body' => "IF OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL THEN
                     INSERT INTO oai_deleted_records (entity_type, entity_id, oai_id, datestamp)
                     VALUES ('book', OLD.id, CONCAT('oai:pinakes:book:', OLD.id), NOW())
@@ -339,34 +390,75 @@ class OaiPmhServerPlugin
             ],
             'trg_archival_soft_delete' => [
                 'table' => 'archival_units',
+                'requires' => 'oai_deleted_records',
+                'timing' => 'BEFORE UPDATE',
                 'body' => "IF OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL THEN
                     INSERT INTO oai_deleted_records (entity_type, entity_id, oai_id, datestamp)
                     VALUES ('archival_unit', OLD.id, CONCAT('oai:pinakes:archival_unit:', OLD.id), NOW())
                     ON DUPLICATE KEY UPDATE datestamp = NOW();
                 END IF",
             ],
+            // Issue #140: emeroteca_testate is HARD-deleted (no deleted_at
+            // column, no soft-delete path — PeriodicalAdminController runs a
+            // plain DELETE both on destroy and on merge). Identify advertises
+            // deletedRecord=persistent for the whole repository, a promise
+            // OAI-PMH cannot scope per set, so a masthead that vanished had to
+            // become a tombstone or the promise was a lie for every record in
+            // the `periodicals` set.
+            //
+            // AFTER DELETE (not BEFORE UPDATE) and, deliberately, a DB trigger
+            // rather than a plugin hook: the emeroteca plugin is owned by
+            // someone else and its two delete paths would both have to call in.
+            // This mirrors what this plugin already does to `archival_units`,
+            // another plugin's table.
+            'trg_emeroteca_hard_delete' => [
+                'table' => 'emeroteca_testate',
+                'requires' => 'oai_deleted_periodicals',
+                'timing' => 'AFTER DELETE',
+                'body' => "INSERT INTO oai_deleted_periodicals (entity_id, oai_id, datestamp)
+                    VALUES (OLD.id, CONCAT('oai:pinakes:periodical:', OLD.id), NOW())
+                    ON DUPLICATE KEY UPDATE datestamp = NOW()",
+            ],
         ];
+
+        $tableExists = function (string $table): bool {
+            $escaped = $this->db->real_escape_string($table);
+            $res = $this->db->query(
+                "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$escaped}'"
+            );
+            if (!($res instanceof \mysqli_result)) {
+                return false;
+            }
+            $row = $res->fetch_assoc();
+            $res->free();
+
+            return ((int) ($row['c'] ?? 0)) > 0;
+        };
 
         foreach ($triggers as $name => $def) {
             $table = $this->db->real_escape_string($def['table']);
-            $tableExists = $this->db->query(
-                "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
-                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}'"
-            );
-            if (!($tableExists instanceof \mysqli_result)) {
+            // Watched table missing (e.g. archives or emeroteca not installed).
+            if (!$tableExists($def['table'])) {
                 continue;
             }
-            $row = $tableExists->fetch_assoc();
-            $tableExists->free();
-            if (($row['c'] ?? 0) == 0) {
-                continue; // table doesn't exist yet (e.g. archives not installed)
+            // Target table missing: installing the trigger anyway would make
+            // every DELETE/UPDATE on the watched table fail — this plugin
+            // would be breaking another plugin's writes.
+            if (!$tableExists($def['requires'])) {
+                SecureLogger::warning(
+                    '[OaiPmhServer] skipping trigger ' . $name . ': target table '
+                    . $def['requires'] . ' does not exist'
+                );
+                continue;
             }
 
             if ($this->db->query("DROP TRIGGER IF EXISTS `{$name}`") === false) {
                 SecureLogger::warning('[OaiPmhServer] DROP TRIGGER failed for ' . $name . ': ' . $this->db->error);
             }
+            $timing = $def['timing'] === 'AFTER DELETE' ? 'AFTER DELETE' : 'BEFORE UPDATE';
             $created = $this->db->query(
-                "CREATE TRIGGER `{$name}` BEFORE UPDATE ON `{$table}`
+                "CREATE TRIGGER `{$name}` {$timing} ON `{$table}`
                  FOR EACH ROW BEGIN {$def['body']}; END"
             );
             if ($created === false) {
@@ -396,7 +488,8 @@ class OaiPmhServerPlugin
         $res = $this->db->query(
             "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TRIGGERS
               WHERE TRIGGER_SCHEMA = DATABASE()
-                AND TRIGGER_NAME IN ('trg_libri_soft_delete', 'trg_archival_soft_delete')"
+                AND TRIGGER_NAME IN ('trg_libri_soft_delete', 'trg_archival_soft_delete',
+                                     'trg_emeroteca_hard_delete')"
         );
         $active = false;
         if ($res instanceof \mysqli_result) {
@@ -745,6 +838,23 @@ class OaiPmhServerPlugin
                 }
             }
         }
+        // Issue #140: mastheads are harvestable records, so they take part in
+        // the earliest-datestamp contract too (an incremental harvester uses it
+        // as the lower bound of its very first `from`).
+        if ($this->isPeriodicalsSetExposed()) {
+            $r3 = $this->db->query('SELECT MIN(created_at) AS e FROM emeroteca_testate');
+            if ($r3 instanceof \mysqli_result) {
+                $row3 = $r3->fetch_assoc();
+                $r3->free();
+                if (!empty($row3['e'])) {
+                    $ts3raw = strtotime((string) $row3['e']);
+                    if ($ts3raw !== false) {
+                        $ts3 = gmdate('Y-m-d\TH:i:s\Z', $ts3raw);
+                        if ($ts3 < $earliest) { $earliest = $ts3; }
+                    }
+                }
+            }
+        }
 
         $cfg       = \App\Support\ConfigStore::all();
         $repoName  = trim((string) ($cfg['app']['name'] ?? '')) ?: 'Pinakes';
@@ -829,6 +939,11 @@ class OaiPmhServerPlugin
             if ($entityType === 'book' && $fmt['prefix'] === 'ric-o') {
                 continue;
             }
+            // Issue #140: periodical mastheads are oai_dc-only; advertising
+            // anything else here would be answered with cannotDisseminateFormat.
+            if ($entityType === 'periodical' && $fmt['prefix'] !== 'oai_dc') {
+                continue;
+            }
             $xw->startElement('metadataFormat');
             $xw->writeElement('metadataPrefix', $fmt['prefix']);
             $xw->writeElement('schema', $fmt['schema']);
@@ -909,7 +1024,84 @@ class OaiPmhServerPlugin
             $xw->endElement();
         }
 
+        // Issue #140: periodical mastheads (emeroteca_testate) are exposed as
+        // their own set so SBN/discovery harvesters can pick up ISSN-bearing
+        // serials, which the books set structurally cannot carry. Same
+        // plugin-active AND table-exists gate as `archives`: when the
+        // Emeroteca plugin is absent or deactivated the set simply does not
+        // appear (no empty set advertised to harvesters).
+        if ($this->isPeriodicalsSetExposed()) {
+            $xw->startElement('set');
+            $xw->writeElement('setSpec', 'periodicals');
+            $xw->writeElement('setName', __('Emeroteca — Testate periodiche'));
+            $xw->endElement();
+        }
+
         $xw->endElement(); // ListSets
+    }
+
+    /**
+     * Issue #140 gate: `periodicals` setSpec exposure. Mirrors
+     * isArchivesSetExposed() exactly — the Emeroteca plugin must be ACTIVE
+     * and emeroteca_testate must exist. On PluginManager failure we degrade
+     * to the table-existence check so an in-flight upgrade cannot break OAI.
+     */
+    private function isPeriodicalsSetExposed(): bool
+    {
+        if ($this->periodicalsExposedCache !== null) {
+            return $this->periodicalsExposedCache;
+        }
+
+        $pluginActive = null;
+        try {
+            $pm = new \App\Support\PluginManager($this->db, $this->hookManager);
+            $pluginActive = $pm->isActive('emeroteca');
+        } catch (\Throwable $e) {
+            SecureLogger::warning(
+                '[OaiPmhServer] PluginManager::isActive(emeroteca) failed, '
+                . 'falling back to table-existence check: ' . $e->getMessage()
+            );
+        }
+
+        $tableExists = $this->periodicalsTableExists();
+
+        if ($pluginActive === null) {
+            $this->periodicalsExposedCache = $tableExists;
+            return $tableExists;
+        }
+        $this->periodicalsExposedCache = $pluginActive && $tableExists;
+
+        return $this->periodicalsExposedCache;
+    }
+
+    /** Cached INFORMATION_SCHEMA probe for emeroteca_testate. */
+    private function periodicalsTableExists(): bool
+    {
+        if ($this->periodicalsTableCache !== null) {
+            return $this->periodicalsTableCache;
+        }
+        $exists = false;
+        $chk = $this->db->query(
+            "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'emeroteca_testate'"
+        );
+        if ($chk instanceof \mysqli_result) {
+            $row = $chk->fetch_assoc();
+            $chk->free();
+            $exists = ((int) ($row['c'] ?? 0)) > 0;
+        }
+
+        return $this->periodicalsTableCache = $exists;
+    }
+
+    /** setSpec advertised in record headers for one internal entity name. */
+    private function setSpecForEntity(string $entity): string
+    {
+        return match ($entity) {
+            'archival_unit' => 'archives',
+            'periodical'    => 'periodicals',
+            default         => 'books',
+        };
     }
 
     /**
@@ -979,6 +1171,7 @@ class OaiPmhServerPlugin
         $tokenStr       = (string) ($params['resumptionToken'] ?? '');
 
         // Resumption token overrides all other params.
+        $tokenComposition = null;
         if ($tokenStr !== '') {
             $payload = $this->loadResumptionToken($tokenStr);
             if ($payload === null) {
@@ -986,11 +1179,12 @@ class OaiPmhServerPlugin
                     'The value of the resumptionToken argument is invalid or expired.');
                 return;
             }
-            $metadataPrefix = $payload['metadataPrefix'];
-            $from           = $payload['from'];
-            $until          = $payload['until'];
-            $set            = $payload['set'];
-            $cursor         = $payload['cursor'];
+            $metadataPrefix   = $payload['metadataPrefix'];
+            $from             = $payload['from'];
+            $until            = $payload['until'];
+            $set              = $payload['set'];
+            $cursor           = $payload['cursor'];
+            $tokenComposition = $payload['composition'];
         } else {
             $cursor = 0;
         }
@@ -1015,7 +1209,13 @@ class OaiPmhServerPlugin
             return;
         }
 
+        // `periodicals` is only a legal set while the Emeroteca bridge is
+        // exposed; otherwise it falls through to noRecordsMatch exactly like
+        // any other unknown setSpec.
         $validSets = ['', 'books', 'archives'];
+        if ($this->isPeriodicalsSetExposed()) {
+            $validSets[] = 'periodicals';
+        }
         if (!in_array($set, $validSets, true)) {
             $this->oaiError($xw, 'noRecordsMatch',
                 'No records match the specified set.');
@@ -1046,6 +1246,14 @@ class OaiPmhServerPlugin
                 'metadataPrefix=ric-o is only available for archival_unit records (set=archives).');
             return;
         }
+        // Periodical mastheads are disseminated as Dublin Core only: the
+        // MARC/UNIMARC/MODS/MAG writers here are monograph-shaped (book row
+        // columns) and MAG describes digitised objects.
+        if ($set === 'periodicals' && $metadataPrefix !== 'oai_dc') {
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'The requested metadataPrefix is not supported for periodical records in this repository.');
+            return;
+        }
 
         // Normalise date strings to MySQL DATETIME format.
         // For date-only values (YYYY-MM-DD) expand to inclusive day boundaries.
@@ -1072,7 +1280,31 @@ class OaiPmhServerPlugin
         } else {
             $fetchSet = $set;
         }
-        $records = $this->fetchRecordsPage($fetchSet, $fromMysql, $untilMysql, $cursor, self::PAGE_SIZE + 1);
+
+        // FIX (issue #140 review): a resumption token is an OFFSET into a UNION
+        // whose arms are decided by plugin-activation gates at request time.
+        // Activating or deactivating Emeroteca/Archives between two pages moves
+        // rows across the offset boundary and silently drops everything that
+        // crossed it. Bind the token to the composition it was minted against
+        // and refuse it when they disagree — the harvester restarts and gets a
+        // complete harvest instead of a quietly incomplete one.
+        $composition = $this->harvestComposition($fetchSet, $metadataPrefix);
+        if ($tokenComposition !== null && $tokenComposition !== $composition) {
+            $this->oaiError($xw, 'badResumptionToken',
+                'The resumptionToken was issued against a different repository composition '
+                . '(a content module was activated or deactivated during the harvest). '
+                . 'Restart the harvest to obtain a complete result.');
+            return;
+        }
+
+        $records = $this->fetchRecordsPage(
+            $fetchSet,
+            $fromMysql,
+            $untilMysql,
+            $cursor,
+            self::PAGE_SIZE + 1,
+            $metadataPrefix
+        );
 
         // Determine whether there's a next page.
         $hasMore = count($records) > self::PAGE_SIZE;
@@ -1087,59 +1319,116 @@ class OaiPmhServerPlugin
             return;
         }
 
+        // FIX (issue #140 review): records are rendered into a per-record
+        // buffer and only merged into the response once they are complete.
+        // A record whose metadata writer throws is discarded WHOLE — the old
+        // code tried to unwind a half-open <metadata>/<record> with two
+        // best-effort endElement() calls, which is guesswork about XMLWriter's
+        // internal depth. It also lets us count what actually got emitted:
+        // <ListRecords> with a resumptionToken and zero <record> children is
+        // rejected by the OAI-PMH XSD (record has minOccurs=1), and strict
+        // harvesters abort on it.
+        $renderPage = function (array $records) use ($metadataPrefix, $host, $identifiersOnly): array {
+            $xml     = '';
+            $emitted = 0;
+            foreach ($records as $rec) {
+                $rw = new \XMLWriter();
+                $rw->openMemory();
+                $rw->setIndent(true);
+
+                $isDeleted = ($rec['_status'] === 'deleted');
+                if (!$identifiersOnly) {
+                    $rw->startElement('record');
+                }
+                $rw->startElement('header');
+                if ($isDeleted) {
+                    $rw->writeAttribute('status', 'deleted');
+                }
+                $rw->writeElement('identifier', $this->buildOaiId($rec, $host));
+                $rw->writeElement('datestamp', $this->recordDatestamp($rec));
+                if (!$isDeleted) {
+                    // Emit setSpec only for active records.
+                    $rw->writeElement('setSpec', $this->setSpecForEntity((string) $rec['_entity']));
+                }
+                $rw->endElement(); // header
+
+                if (!$identifiersOnly && !$isDeleted) {
+                    try {
+                        $rw->startElement('metadata');
+                        $this->writeMetadata($rw, $rec, $metadataPrefix, $host);
+                        $rw->endElement(); // metadata
+                    } catch (CannotDisseminateFormatException $e) {
+                        // This record type doesn't support the requested format.
+                        // harvestArms() is supposed to keep such a record out of
+                        // the page entirely, so reaching here means the arm
+                        // policy and the writers disagree: log it, drop the
+                        // partial buffer, move on.
+                        \App\Support\SecureLogger::warning('OAI-PMH skipped record: format not disseminable', [
+                            'metadataPrefix' => $metadataPrefix,
+                            'entity'         => $rec['_entity'] ?? null,
+                            'id'             => $rec['id'] ?? null,
+                        ]);
+                        continue;
+                    } catch (\Throwable $e) {
+                        \App\Support\SecureLogger::warning('OAI-PMH skipped malformed record metadata', [
+                            'metadataPrefix' => $metadataPrefix,
+                            'entity' => $rec['_entity'] ?? null,
+                            'id' => $rec['id'] ?? null,
+                            'error' => $e->getMessage(),
+                        ]);
+                        continue;
+                    }
+                }
+
+                if (!$identifiersOnly) {
+                    $rw->endElement(); // record
+                }
+
+                $xml .= $rw->outputMemory();
+                $emitted++;
+            }
+
+            return [$xml, $emitted];
+        };
+
+        [$recordsXml, $emitted] = $renderPage($records);
+
+        // Every record on this page was unrenderable. Rather than emit a page
+        // that no XSD-validating harvester will accept, walk forward until a
+        // disseminable record or the actual end. An arbitrary cutoff would
+        // falsely signal exhaustion and hide all subsequent valid records.
+        while ($emitted === 0 && $hasMore) {
+            $cursor += self::PAGE_SIZE;
+            $records = $this->fetchRecordsPage(
+                $fetchSet,
+                $fromMysql,
+                $untilMysql,
+                $cursor,
+                self::PAGE_SIZE + 1,
+                $metadataPrefix
+            );
+            $hasMore = count($records) > self::PAGE_SIZE;
+            if ($hasMore) {
+                array_pop($records);
+            }
+            [$recordsXml, $emitted] = $renderPage($records);
+        }
+
+        if ($emitted === 0) {
+            \App\Support\SecureLogger::warning('OAI-PMH: no disseminable record on this page', [
+                'metadataPrefix' => $metadataPrefix,
+                'set'            => $fetchSet,
+                'cursor'         => $cursor,
+            ]);
+            $this->oaiError($xw, 'noRecordsMatch',
+                'The combination of the values of the from, until, set, and metadataPrefix arguments '
+                . 'results in an empty list.');
+            return;
+        }
+
         $verbElement = $identifiersOnly ? 'ListIdentifiers' : 'ListRecords';
         $xw->startElement($verbElement);
-
-        foreach ($records as $rec) {
-            $oaiId    = $this->buildOaiId($rec, $host);
-            $datestamp = $this->recordDatestamp($rec);
-            $isDeleted = ($rec['_status'] === 'deleted');
-
-            if (!$identifiersOnly) {
-                $xw->startElement('record');
-            }
-
-            $xw->startElement('header');
-            if ($isDeleted) {
-                $xw->writeAttribute('status', 'deleted');
-            }
-            $xw->writeElement('identifier', $oaiId);
-            $xw->writeElement('datestamp', $datestamp);
-            if (!$isDeleted) {
-                // Emit setSpec only for active records.
-                $setSpec = ($rec['_entity'] === 'archival_unit') ? 'archives' : 'books';
-                $xw->writeElement('setSpec', $setSpec);
-            }
-            $xw->endElement(); // header
-
-            if (!$identifiersOnly && !$isDeleted) {
-                try {
-                    $xw->startElement('metadata');
-                    $this->writeMetadata($xw, $rec, $metadataPrefix, $host);
-                    $xw->endElement(); // metadata
-                } catch (CannotDisseminateFormatException $e) {
-                    // This record type doesn't support the requested format — skip it.
-                    // The XMLWriter may have open 'metadata' and 'record' elements; close them safely.
-                    try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <metadata>
-                    try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <record>
-                    continue;
-                } catch (\Throwable $e) {
-                    \App\Support\SecureLogger::warning('OAI-PMH skipped malformed record metadata', [
-                        'metadataPrefix' => $metadataPrefix,
-                        'entity' => $rec['_entity'] ?? null,
-                        'id' => $rec['id'] ?? null,
-                        'error' => $e->getMessage(),
-                    ]);
-                    try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <metadata>
-                    try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <record>
-                    continue;
-                }
-            }
-
-            if (!$identifiersOnly) {
-                $xw->endElement(); // record
-            }
-        }
+        $xw->writeRaw($recordsXml);
 
         // Resumption token — always emit the element with cursor + expirationDate,
         // even on the last page (empty text content when no more pages).
@@ -1148,7 +1437,14 @@ class OaiPmhServerPlugin
         $xw->writeAttribute('expirationDate', gmdate('Y-m-d\TH:i:s\Z', time() + self::TOKEN_TTL));
         $xw->writeAttribute('cursor', (string) $cursor);
         if ($hasMore) {
-            $newToken = $this->saveResumptionToken($metadataPrefix, $from, $until, $set, $nextCursor);
+            $newToken = $this->saveResumptionToken(
+                $metadataPrefix,
+                $from,
+                $until,
+                $set,
+                $nextCursor,
+                $composition
+            );
             $xw->text($newToken);
         }
         $xw->endElement(); // resumptionToken
@@ -1224,6 +1520,11 @@ class OaiPmhServerPlugin
                 'metadataPrefix=ric-o is only available for archival_unit records.');
             return;
         }
+        if ($rec['_entity'] === 'periodical' && $metadataPrefix !== 'oai_dc') {
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'The requested metadataPrefix is not supported for periodical records in this repository.');
+            return;
+        }
 
         $datestamp = $this->recordDatestamp($rec);
 
@@ -1232,8 +1533,7 @@ class OaiPmhServerPlugin
         $xw->startElement('header');
         $xw->writeElement('identifier', $identifier);
         $xw->writeElement('datestamp', $datestamp);
-        $setSpec = ($rec['_entity'] === 'archival_unit') ? 'archives' : 'books';
-        $xw->writeElement('setSpec', $setSpec);
+        $xw->writeElement('setSpec', $this->setSpecForEntity((string) $rec['_entity']));
         $xw->endElement(); // header
 
         try {
@@ -1289,6 +1589,11 @@ class OaiPmhServerPlugin
     {
         if ($rec['_entity'] === 'archival_unit') {
             $this->writeArchivalUnitMetadata($xw, $rec, $metadataPrefix, $host);
+            return;
+        }
+
+        if ($rec['_entity'] === 'periodical') {
+            $this->writePeriodicalMetadata($xw, $rec, $metadataPrefix, $host);
             return;
         }
 
@@ -2379,6 +2684,172 @@ class OaiPmhServerPlugin
         return $rows;
     }
 
+    // ── Periodical (emeroteca_testate) metadata ───────────────────────────────
+
+    /**
+     * Issue #140: dispatcher for periodical mastheads. Only oai_dc is
+     * disseminable — every other writer in this class is monograph-shaped —
+     * so anything else raises cannotDisseminateFormat, consistently with the
+     * upfront gates in oaiListRecords()/oaiGetRecord().
+     *
+     * @param array<string, mixed> $rec
+     */
+    private function writePeriodicalMetadata(
+        \XMLWriter $xw,
+        array $rec,
+        string $metadataPrefix,
+        string $host = 'localhost'
+    ): void {
+        if ($metadataPrefix !== 'oai_dc') {
+            throw new CannotDisseminateFormatException($metadataPrefix);
+        }
+
+        // Batch path pre-attaches the related rows; GetRecord resolves a bare
+        // testata row and falls back to the single-row fetchers (same
+        // pre-fetch/fallback contract books use in writeMetadata()).
+        $publisher = array_key_exists('_publisher', $rec)
+            ? (is_array($rec['_publisher']) ? $rec['_publisher'] : null)
+            : (!empty($rec['editore_id']) ? $this->fetchPublisher((int) $rec['editore_id']) : null);
+        $genre = array_key_exists('_genre', $rec)
+            ? (is_array($rec['_genre']) ? $rec['_genre'] : null)
+            : (!empty($rec['genere_id']) ? $this->fetchGenre((int) $rec['genere_id']) : null);
+
+        $this->writePeriodicalOaiDc($xw, $rec, $publisher, $genre, $host);
+    }
+
+    /**
+     * Dublin Core for one periodical masthead.
+     *
+     * Field map (emeroteca_testate → oai_dc):
+     *   titolo [+ ' : ' sottotitolo]        → dc:title
+     *   descrizione                          → dc:description (tags stripped)
+     *   issn / e_issn / issn_l               → dc:identifier (urn:ISSN:…)
+     *   public masthead URL                  → dc:identifier
+     *   OAI identifier                       → dc:identifier
+     *   editori.nome (editore_id)            → dc:publisher
+     *   lingua                               → dc:language
+     *   tipo (+ constant 'Periodical')       → dc:type
+     *   anno_inizio[-anno_fine]              → dc:date
+     *   luogo_pubblicazione                  → dc:coverage
+     *   generi.nome (genere_id)              → dc:subject
+     *   periodicita                          → dc:description (frequency note)
+     *
+     * @param array<string, mixed>      $row
+     * @param array<string, mixed>|null $publisher
+     * @param array<string, mixed>|null $genre
+     */
+    private function writePeriodicalOaiDc(
+        \XMLWriter $xw,
+        array $row,
+        ?array $publisher,
+        ?array $genre,
+        string $host = 'localhost'
+    ): void {
+        $xw->startElementNs('oai_dc', 'dc', 'http://www.openarchives.org/OAI/2.0/oai_dc/');
+        $xw->writeAttributeNs('xmlns', 'dc', null, 'http://purl.org/dc/elements/1.1/');
+        $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
+        $xw->writeAttributeNs('xsi', 'schemaLocation', null,
+            'http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd');
+
+        // dc:title — subtitle joined ISBD-style, exactly like books.
+        $title = (string) ($row['titolo'] ?? '');
+        if (!empty($row['sottotitolo'])) {
+            $title .= ' : ' . (string) $row['sottotitolo'];
+        }
+        $xw->writeElementNs('dc', 'title', null, $title);
+
+        // dc:subject — the classification genre, when linked.
+        if ($genre !== null && !empty($genre['nome'])) {
+            $xw->writeElementNs('dc', 'subject', null, (string) $genre['nome']);
+        }
+
+        // dc:description — free text first, then the frequency note.
+        if (!empty($row['descrizione'])) {
+            $xw->writeElementNs('dc', 'description', null, strip_tags((string) $row['descrizione']));
+        }
+        if (!empty($row['periodicita'])) {
+            $xw->writeElementNs('dc', 'description', null, 'Periodicity: ' . (string) $row['periodicita']);
+        }
+
+        // dc:publisher
+        if ($publisher !== null && !empty($publisher['nome'])) {
+            $xw->writeElementNs('dc', 'publisher', null, (string) $publisher['nome']);
+        }
+
+        // dc:date — the run of the title. Open-ended runs keep the trailing
+        // separator so a harvester can tell "1950-" from a single-year run.
+        $start = trim((string) ($row['anno_inizio'] ?? ''));
+        $end   = trim((string) ($row['anno_fine'] ?? ''));
+        if ($start !== '') {
+            $xw->writeElementNs('dc', 'date', null, $end !== '' ? $start . '-' . $end : $start . '-');
+        } elseif ($end !== '') {
+            $xw->writeElementNs('dc', 'date', null, '-' . $end);
+        }
+
+        // dc:type — generic serial type first (harvester-facing), then the
+        // local flavour (rivista / giornale / magazine / bollettino / fanzine).
+        $xw->writeElementNs('dc', 'type', null, 'Periodical');
+        $tipo = trim((string) ($row['tipo'] ?? ''));
+        if ($tipo !== '') {
+            $xw->writeElementNs('dc', 'type', null, ucfirst($tipo));
+        }
+
+        // dc:identifier — OAI id, then every ISSN flavour as a URN, then the
+        // absolute public URL of the masthead page.
+        $xw->writeElementNs('dc', 'identifier', null,
+            'oai:' . $host . ':periodical:' . (string) ($row['id'] ?? ''));
+        $seenIssn = [];
+        foreach (['issn', 'e_issn', 'issn_l'] as $col) {
+            $issn = strtoupper(trim((string) ($row[$col] ?? '')));
+            if ($issn === '' || isset($seenIssn[$issn])) {
+                continue;
+            }
+            $seenIssn[$issn] = true;
+            $xw->writeElementNs('dc', 'identifier', null, 'urn:ISSN:' . $issn);
+        }
+        $publicUrl = $this->periodicalPublicUrl((int) ($row['id'] ?? 0), $host);
+        if ($publicUrl !== '') {
+            $xw->writeElementNs('dc', 'identifier', null, $publicUrl);
+        }
+
+        // dc:language
+        if (!empty($row['lingua'])) {
+            $xw->writeElementNs('dc', 'language', null, (string) $row['lingua']);
+        }
+
+        // dc:coverage — place of publication.
+        if (!empty($row['luogo_pubblicazione'])) {
+            $xw->writeElementNs('dc', 'coverage', null, (string) $row['luogo_pubblicazione']);
+        }
+
+        $xw->endElement(); // oai_dc:dc
+    }
+
+    /**
+     * Absolute URL of the public masthead page (/emeroteca/{id}). Prefers
+     * absoluteUrl() (canonical base, same source the RiC-O writer uses) and
+     * degrades to the OAI request host when the helper is unavailable
+     * (plugin loaded standalone, e.g. from a bare CLI harvester).
+     */
+    private function periodicalPublicUrl(int $id, string $host): string
+    {
+        if ($id <= 0) {
+            return '';
+        }
+        if (function_exists('absoluteUrl')) {
+            $url = (string) \absoluteUrl('/emeroteca/' . $id);
+            if ($url !== '') {
+                return $url;
+            }
+        }
+        if ($host === '') {
+            return '';
+        }
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+
+        return $scheme . '://' . $host . '/emeroteca/' . $id;
+    }
+
     // ── Identifier resolution ─────────────────────────────────────────────────
 
     /**
@@ -2386,8 +2857,10 @@ class OaiPmhServerPlugin
      * Accepts:
      *   oai:{host}:book:{id}
      *   oai:{host}:archival_unit:{id}
+     *   oai:{host}:periodical:{id}
      *   oai:pinakes:book:{id}         (canonical fallback)
      *   oai:pinakes:archival_unit:{id}
+     *   oai:pinakes:periodical:{id}
      *
      * @return array<string, mixed>|null
      */
@@ -2433,6 +2906,33 @@ class OaiPmhServerPlugin
             }
         }
 
+        // Try periodical masthead pattern (issue #140). Resolvable only while
+        // the Emeroteca bridge is exposed, so a deactivated plugin cannot be
+        // harvested record-by-record through GetRecord.
+        if (preg_match('/^oai:(?:pinakes|' . preg_quote($host, '/') . '):periodical:(\d+)$/i', $identifier, $m)
+            && $this->isPeriodicalsSetExposed()
+        ) {
+            $id   = (int) $m[1];
+            $stmt = $this->db->prepare(
+                'SELECT id, titolo, sottotitolo, issn, e_issn, issn_l, editore_id,
+                        luogo_pubblicazione, lingua, periodicita, tipo,
+                        anno_inizio, anno_fine, genere_id, descrizione,
+                        stato_raccolta, created_at, updated_at
+                   FROM emeroteca_testate WHERE id = ?'
+            );
+            if ($stmt === false) { return null; }
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+            $stmt->close();
+            if ($row !== null) {
+                $row['_entity'] = 'periodical';
+                $row['_status'] = 'active';
+                return $row;
+            }
+        }
+
         return null;
     }
 
@@ -2452,6 +2952,28 @@ class OaiPmhServerPlugin
         } elseif (preg_match('/^oai:(?:pinakes|' . $hostPat . '):archival_unit:(\d+)$/i', $identifier, $m)) {
             $entityType = 'archival_unit';
             $entityId   = (int) $m[1];
+        } elseif (preg_match('/^oai:(?:pinakes|' . $hostPat . '):periodical:(\d+)$/i', $identifier, $m)) {
+            // Masthead tombstones live in their own table (hard delete).
+            // Gated on exposure exactly like the active lookup: a deactivated
+            // Emeroteca must not leak deletion history either.
+            if (!$this->isPeriodicalsSetExposed() || !$this->hasPeriodicalTombstoneTable()) {
+                return null;
+            }
+            $periodicalId = (int) $m[1];
+            $stmt = $this->db->prepare(
+                'SELECT id, entity_id, oai_id, datestamp FROM oai_deleted_periodicals WHERE entity_id = ?'
+            );
+            if ($stmt === false) { return null; }
+            $stmt->bind_param('i', $periodicalId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+            $stmt->close();
+            if ($row === null) { return null; }
+            $row['_entity'] = 'periodical';
+            $row['_status'] = 'deleted';
+
+            return $row;
         } else {
             return null;
         }
@@ -2477,6 +2999,117 @@ class OaiPmhServerPlugin
 
     // ── Record page fetcher ───────────────────────────────────────────────────
 
+    /** Cached INFORMATION_SCHEMA probe for the periodical tombstone table. */
+    private ?bool $periodicalTombstoneTableCache = null;
+
+    private function hasPeriodicalTombstoneTable(): bool
+    {
+        if ($this->periodicalTombstoneTableCache !== null) {
+            return $this->periodicalTombstoneTableCache;
+        }
+        $exists = false;
+        $r = $this->db->query(
+            "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'oai_deleted_periodicals'"
+        );
+        if ($r instanceof \mysqli_result) {
+            $exists = ((int) ($r->fetch_assoc()['c'] ?? 0)) > 0;
+            $r->free();
+        }
+
+        return $this->periodicalTombstoneTableCache = $exists;
+    }
+
+    /** Cached INFORMATION_SCHEMA probe for archival_units. */
+    private function hasArchivalUnitsTable(): bool
+    {
+        if ($this->archivalUnitsTableExists === null) {
+            $r = $this->db->query(
+                "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units'"
+            );
+            $this->archivalUnitsTableExists = $r instanceof \mysqli_result
+                && ((int) ($r->fetch_assoc()['c'] ?? 0)) > 0;
+            if ($r instanceof \mysqli_result) { $r->free(); }
+        }
+
+        return $this->archivalUnitsTableExists;
+    }
+
+    /**
+     * Which entity arms take part in a harvest, given the (already resolved)
+     * fetch set and the requested metadataPrefix.
+     *
+     * The metadataPrefix is part of the answer, not decoration: an arm whose
+     * records cannot be disseminated in the requested format would enter the
+     * UNION, reach writeMetadata(), throw CannotDisseminateFormatException and
+     * be skipped one by one — and because the page is ordered by datestamp,
+     * records inserted in the same session cluster together, so a whole page
+     * could end up containing nothing but skipped records. That yields a
+     * <ListRecords> with a resumptionToken and zero <record> children, which
+     * the OAI-PMH XSD rejects (record has minOccurs=1).
+     *
+     * oaiListRecords() already resolves set='' to 'books' for the
+     * monograph-only formats before calling in, so today no such arm can
+     * enter; deciding it HERE means a future change to that mapping cannot
+     * silently reintroduce the empty page.
+     *
+     * This method is also the single source of truth for the resumption-token
+     * composition marker (see harvestComposition()).
+     *
+     * @return array{book:bool, archival_unit:bool, periodical:bool}
+     */
+    private function harvestArms(string $set, string $metadataPrefix): array
+    {
+        $unqualified = ($set === '');
+
+        return [
+            // Books carry every format except ric-o.
+            'book' => ($unqualified || $set === 'books') && $metadataPrefix !== 'ric-o',
+            // Archival units are oai_dc + ric-o only.
+            'archival_unit' => ($unqualified || $set === 'archives')
+                && ($metadataPrefix === 'oai_dc' || $metadataPrefix === 'ric-o'),
+            // Mastheads are oai_dc only, and only while Emeroteca is exposed.
+            'periodical' => ($set === 'periodicals' || ($unqualified && $metadataPrefix === 'oai_dc'))
+                && $this->isPeriodicalsSetExposed(),
+        ];
+    }
+
+    /**
+     * Fingerprint of the UNION composition a resumption token was minted
+     * against (issue #140 review).
+     *
+     * Paging is LIMIT/OFFSET over a UNION whose arms are decided at request
+     * time by plugin activation gates. Activating (or deactivating) Emeroteca
+     * or Archives mid-harvest therefore inserts or removes rows *before* the
+     * harvester's current offset, and every record shifted across that
+     * boundary is skipped — permanently, because an incremental harvester
+     * never asks for those datestamps again. Nothing in the payload used to
+     * tie a token to the shape of the result set it was computed on.
+     *
+     * The marker is stored in the token and re-derived on resume; a mismatch
+     * is answered with badResumptionToken, which makes the harvester restart
+     * the harvest (correct, complete data) instead of silently losing records.
+     */
+    private function harvestComposition(string $set, string $metadataPrefix): string
+    {
+        $arms  = $this->harvestArms($set, $metadataPrefix);
+        $parts = [];
+        foreach ($arms as $arm => $enabled) {
+            if (!$enabled) {
+                continue;
+            }
+            // The archives arm only really contributes rows when its table is
+            // present, and that too can appear mid-harvest (archives installed).
+            if ($arm === 'archival_unit' && !$this->hasArchivalUnitsTable()) {
+                continue;
+            }
+            $parts[] = $arm;
+        }
+
+        return implode('|', $parts);
+    }
+
     /**
      * Fetch up to $limit records (active + deleted) for the given set/date range.
      * Returns rows with _entity (book|archival_unit) and _status (active|deleted).
@@ -2491,26 +3124,14 @@ class OaiPmhServerPlugin
         ?string $fromMysql,
         ?string $untilMysql,
         int $cursor,
-        int $limit
+        int $limit,
+        string $metadataPrefix
     ): array {
-        $doBooks    = ($set === '' || $set === 'books');
-        $doArchives = ($set === '' || $set === 'archives');
-
-        // Check archival_units existence (cached per request to avoid repeated I_S queries).
-        $auExists = false;
-        if ($doArchives) {
-            if ($this->archivalUnitsTableExists === null) {
-                $r = $this->db->query(
-                    "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
-                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units'"
-                );
-                $this->archivalUnitsTableExists = $r !== false
-                    && $r instanceof \mysqli_result
-                    && ((int) ($r->fetch_assoc()['c'] ?? 0)) > 0;
-                if ($r instanceof \mysqli_result) { $r->free(); }
-            }
-            $auExists = $this->archivalUnitsTableExists;
-        }
+        $arms       = $this->harvestArms($set, $metadataPrefix);
+        $doBooks    = $arms['book'];
+        $doArchives = $arms['archival_unit'];
+        $doPeriodicals = $arms['periodical'];
+        $auExists   = $doArchives && $this->hasArchivalUnitsTable();
 
         // Build UNION ALL parts for page identifiers only.
         // Each part returns: _id INT, _entity VARCHAR, _status VARCHAR, _datestamp DATETIME.
@@ -2535,18 +3156,58 @@ class OaiPmhServerPlugin
                 . ' FROM archival_units WHERE ' . implode(' AND ', $w);
         }
 
-        $delW = [];
-        if ($doBooks && !$doArchives)      { $delW[] = "entity_type = 'book'"; }
-        elseif ($doArchives && !$doBooks)  { $delW[] = "entity_type = 'archival_unit'"; }
-        if ($fromMysql !== null)  { $delW[] = 'datestamp >= ?'; $types .= 's'; $vals[] = $fromMysql; }
-        if ($untilMysql !== null) { $delW[] = 'datestamp <= ?'; $types .= 's'; $vals[] = $untilMysql; }
-        $delCond = !empty($delW) ? 'WHERE ' . implode(' AND ', $delW) : '';
-        $parts[] = "SELECT id AS _id, entity_type AS _entity, 'deleted' AS _status, datestamp AS _datestamp"
-            . " FROM oai_deleted_records $delCond";
+        if ($doPeriodicals) {
+            $w = [];
+            if ($fromMysql !== null)  { $w[] = 'updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
+            if ($untilMysql !== null) { $w[] = 'updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
+            $parts[] = 'SELECT id AS _id, \'periodical\' AS _entity, \'active\' AS _status, updated_at AS _datestamp'
+                . ' FROM emeroteca_testate'
+                . ($w !== [] ? ' WHERE ' . implode(' AND ', $w) : '');
+
+            // Mastheads are hard-deleted, so their tombstones live in their own
+            // table (see schemaSteps()) and are unioned in separately. Probed,
+            // never assumed: the table arrives with this plugin version and
+            // PluginManager's self-heal may not have created it yet — a missing
+            // table must degrade to "no periodical tombstones", never break the
+            // whole ListRecords query.
+            if ($this->hasPeriodicalTombstoneTable()) {
+                $delW = [];
+                if ($fromMysql !== null)  { $delW[] = 'datestamp >= ?'; $types .= 's'; $vals[] = $fromMysql; }
+                if ($untilMysql !== null) { $delW[] = 'datestamp <= ?'; $types .= 's'; $vals[] = $untilMysql; }
+                $parts[] = "SELECT id AS _id, 'periodical' AS _entity, 'deleted' AS _status, datestamp AS _datestamp"
+                    . ' FROM oai_deleted_periodicals'
+                    . ($delW !== [] ? ' WHERE ' . implode(' AND ', $delW) : '');
+            }
+        }
+
+        // Deletion tombstones only cover the entity types the requested set
+        // actually contains. A set that tracks no deletions at all must NOT
+        // pull in the whole tombstone table — hence the explicit allow-list.
+        $delTypes = [];
+        if ($doBooks)    { $delTypes[] = 'book'; }
+        if ($doArchives) { $delTypes[] = 'archival_unit'; }
+        if ($delTypes !== []) {
+            $delW = [];
+            // FIX (issue #140 review): the filter used to be applied only when
+            // exactly ONE type was allowed, on the assumption that "two types"
+            // meant "all types". That held while the ENUM had two values; it is
+            // an accident waiting to happen, so the IN() list is now always
+            // emitted. Values come from the fixed allow-list above, never from
+            // input.
+            $delW[] = "entity_type IN ('" . implode("','", $delTypes) . "')";
+            if ($fromMysql !== null)  { $delW[] = 'datestamp >= ?'; $types .= 's'; $vals[] = $fromMysql; }
+            if ($untilMysql !== null) { $delW[] = 'datestamp <= ?'; $types .= 's'; $vals[] = $untilMysql; }
+            $parts[] = "SELECT id AS _id, entity_type AS _entity, 'deleted' AS _status, datestamp AS _datestamp"
+                . " FROM oai_deleted_records WHERE " . implode(' AND ', $delW);
+        }
+
+        if ($parts === []) {
+            return [];
+        }
 
         // UNION ALL with DB-level ORDER + LIMIT + OFFSET.
         $union   = implode(' UNION ALL ', $parts);
-        $pageSql = "SELECT _id, _entity, _status, _datestamp FROM ($union) AS _combined ORDER BY _datestamp, _id LIMIT ? OFFSET ?";
+        $pageSql = "SELECT _id, _entity, _status, _datestamp FROM ($union) AS _combined ORDER BY _datestamp, _id, _entity, _status LIMIT ? OFFSET ?";
         $types  .= 'ii';
         $vals[]  = $limit;
         $vals[]  = $cursor;
@@ -2631,11 +3292,43 @@ class OaiPmhServerPlugin
             }
         }
 
-        // Batch-fetch deleted record details.
-        $delMap = [];
+        // Batch-fetch full periodical masthead rows for the page (issue #140).
+        $perMap = [];
+        $perIds = array_values(array_map(
+            fn($r) => (int) $r['_id'],
+            array_filter($pageRefs, fn($r) => $r['_entity'] === 'periodical' && $r['_status'] === 'active')
+        ));
+        if (!empty($perIds) && $doPeriodicals) {
+            $ph  = implode(',', array_fill(0, count($perIds), '?'));
+            $sql = "SELECT id, titolo, sottotitolo, issn, e_issn, issn_l, editore_id,
+                           luogo_pubblicazione, lingua, periodicita, tipo,
+                           anno_inizio, anno_fine, genere_id, descrizione,
+                           stato_raccolta, created_at, updated_at
+                      FROM emeroteca_testate WHERE id IN ($ph)";
+            $stmt = $this->db->prepare($sql);
+            if ($stmt !== false) {
+                $stmt->bind_param(str_repeat('i', count($perIds)), ...$perIds);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($res instanceof \mysqli_result) {
+                    while ($r = $res->fetch_assoc()) { $perMap[(int) $r['id']] = $r; }
+                    $res->free();
+                }
+                $stmt->close();
+            }
+        }
+
+        // Batch-fetch deleted record details. Two tombstone tables now feed the
+        // union, and their auto-increment ids overlap, so the maps are kept
+        // apart and the assembly loop picks by _entity.
+        $delMap    = [];
+        $perDelMap = [];
         $delIds = array_values(array_map(
             fn($r) => (int) $r['_id'],
-            array_filter($pageRefs, fn($r) => $r['_status'] === 'deleted')
+            array_filter(
+                $pageRefs,
+                fn($r) => $r['_status'] === 'deleted' && $r['_entity'] !== 'periodical'
+            )
         ));
         if (!empty($delIds)) {
             $ph  = implode(',', array_fill(0, count($delIds), '?'));
@@ -2649,6 +3342,31 @@ class OaiPmhServerPlugin
                 $res = $stmt->get_result();
                 if ($res instanceof \mysqli_result) {
                     while ($r = $res->fetch_assoc()) { $delMap[(int) $r['id']] = $r; }
+                    $res->free();
+                }
+                $stmt->close();
+            }
+        }
+
+        $perDelIds = array_values(array_map(
+            fn($r) => (int) $r['_id'],
+            array_filter(
+                $pageRefs,
+                fn($r) => $r['_status'] === 'deleted' && $r['_entity'] === 'periodical'
+            )
+        ));
+        if (!empty($perDelIds)) {
+            $ph  = implode(',', array_fill(0, count($perDelIds), '?'));
+            $sql = "SELECT id, 'periodical' AS _entity, entity_id, oai_id,
+                           datestamp, datestamp AS _datestamp, 'deleted' AS _status
+                      FROM oai_deleted_periodicals WHERE id IN ($ph)";
+            $stmt = $this->db->prepare($sql);
+            if ($stmt !== false) {
+                $stmt->bind_param(str_repeat('i', count($perDelIds)), ...$perDelIds);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($res instanceof \mysqli_result) {
+                    while ($r = $res->fetch_assoc()) { $perDelMap[(int) $r['id']] = $r; }
                     $res->free();
                 }
                 $stmt->close();
@@ -2754,6 +3472,53 @@ class OaiPmhServerPlugin
             }
         }
 
+        // ── Batch-fetch related data for the periodical rows on this page ──────
+        // (issue #140) Same N+1 avoidance the book arm does: one query for the
+        // publishers and one for the genres referenced by the page's mastheads.
+        $perPublisherMap = [];
+        $perGenreMap     = [];
+        if ($perMap !== []) {
+            $perPublisherIds = array_values(array_filter(array_unique(
+                array_map(fn($pm) => (int) ($pm['editore_id'] ?? 0), $perMap)
+            )));
+            if (!empty($perPublisherIds)) {
+                $phP = implode(',', array_fill(0, count($perPublisherIds), '?'));
+                $stmtPP = $this->db->prepare("SELECT id, nome FROM editori WHERE id IN ($phP)");
+                if ($stmtPP !== false) {
+                    $stmtPP->bind_param(str_repeat('i', count($perPublisherIds)), ...$perPublisherIds);
+                    $stmtPP->execute();
+                    $resPP = $stmtPP->get_result();
+                    if ($resPP instanceof \mysqli_result) {
+                        while ($rowPP = $resPP->fetch_assoc()) {
+                            $perPublisherMap[(int) $rowPP['id']] = $rowPP;
+                        }
+                        $resPP->free();
+                    }
+                    $stmtPP->close();
+                }
+            }
+
+            $perGenreIds = array_values(array_filter(array_unique(
+                array_map(fn($pm) => (int) ($pm['genere_id'] ?? 0), $perMap)
+            )));
+            if (!empty($perGenreIds)) {
+                $phG = implode(',', array_fill(0, count($perGenreIds), '?'));
+                $stmtPG = $this->db->prepare("SELECT id, nome FROM generi WHERE id IN ($phG)");
+                if ($stmtPG !== false) {
+                    $stmtPG->bind_param(str_repeat('i', count($perGenreIds)), ...$perGenreIds);
+                    $stmtPG->execute();
+                    $resPG = $stmtPG->get_result();
+                    if ($resPG instanceof \mysqli_result) {
+                        while ($rowPG = $resPG->fetch_assoc()) {
+                            $perGenreMap[(int) $rowPG['id']] = $rowPG;
+                        }
+                        $resPG->free();
+                    }
+                    $stmtPG->close();
+                }
+            }
+        }
+
         // Batch-fetch digital_assets for all books on this page to avoid N+1 in writeBookMag().
         // ORDER BY libro_id, id + first-wins replicates fetchDigitalAsset's ORDER BY id LIMIT 1.
         $assetMap = [];
@@ -2790,7 +3555,10 @@ class OaiPmhServerPlugin
         foreach ($pageRefs as $ref) {
             $id = (int) $ref['_id'];
             if ($ref['_status'] === 'deleted') {
-                if (isset($delMap[$id])) { $result[] = $delMap[$id]; }
+                $tomb = $ref['_entity'] === 'periodical'
+                    ? ($perDelMap[$id] ?? null)
+                    : ($delMap[$id] ?? null);
+                if ($tomb !== null) { $result[] = $tomb; }
             } elseif ($ref['_entity'] === 'book' && isset($bookMap[$id])) {
                 $row = $bookMap[$id];
                 $row['_entity']    = 'book';
@@ -2812,6 +3580,14 @@ class OaiPmhServerPlugin
                 $row['_status']    = 'active';
                 $row['_datestamp'] = $row['updated_at'];
                 $result[] = $row;
+            } elseif ($ref['_entity'] === 'periodical' && isset($perMap[$id])) {
+                $row = $perMap[$id];
+                $row['_entity']    = 'periodical';
+                $row['_status']    = 'active';
+                $row['_datestamp'] = $row['updated_at'];
+                $row['_publisher'] = $perPublisherMap[(int) ($row['editore_id'] ?? 0)] ?? null;
+                $row['_genre']     = $perGenreMap[(int) ($row['genere_id'] ?? 0)] ?? null;
+                $result[] = $row;
             }
         }
 
@@ -2825,7 +3601,8 @@ class OaiPmhServerPlugin
         string $from,
         string $until,
         string $set,
-        int $cursor
+        int $cursor,
+        string $composition
     ): string {
         $token   = bin2hex(random_bytes(24));
         $payload = json_encode([
@@ -2834,6 +3611,10 @@ class OaiPmhServerPlugin
             'until'          => $until,
             'set'            => $set,
             'cursor'         => $cursor,
+            // Which UNION arms the cursor was computed against — see
+            // harvestComposition(). Without it, OFFSET paging silently skips
+            // records when a content module is toggled mid-harvest.
+            'composition'    => $composition,
         ], JSON_UNESCAPED_SLASHES);
         // FIX F063: previously computed `expires_at` with PHP `date(time()+TTL)`
         // (server local TZ from date.timezone), but loadResumptionToken()
@@ -2866,7 +3647,7 @@ class OaiPmhServerPlugin
     }
 
     /**
-     * @return array{metadataPrefix:string, from:string, until:string, set:string, cursor:int}|null
+     * @return array{metadataPrefix:string, from:string, until:string, set:string, cursor:int, composition:string}|null
      */
     private function loadResumptionToken(string $token): ?array
     {
@@ -2891,6 +3672,16 @@ class OaiPmhServerPlugin
             'until'          => (string) ($payload['until'] ?? ''),
             'set'            => (string) ($payload['set'] ?? ''),
             'cursor'         => max(0, (int) ($payload['cursor'] ?? 0)),
+            // A token minted before the composition marker existed carries no
+            // guarantee at all, so it is deliberately mapped to a value that
+            // can never match a freshly derived composition (which is a
+            // '|'-joined list of arm names, never '?'). Such a token is
+            // answered with badResumptionToken and the harvest restarts —
+            // the safe outcome for the at most 24h of in-flight tokens that
+            // straddle an upgrade.
+            'composition'    => isset($payload['composition'])
+                ? (string) $payload['composition']
+                : '?legacy',
         ];
     }
 
@@ -3030,7 +3821,11 @@ class OaiPmhServerPlugin
      */
     private function buildOaiId(array $rec, string $host): string
     {
-        $entity = ($rec['_entity'] === 'archival_unit') ? 'archival_unit' : 'book';
+        $entity = match ($rec['_entity']) {
+            'archival_unit' => 'archival_unit',
+            'periodical'    => 'periodical',
+            default         => 'book',
+        };
         // For deleted records use entity_id (stored by trigger); for active records use id.
         // Both use the same host-based namespace for OAI identifier consistency.
         $recId = $rec['_status'] === 'deleted'

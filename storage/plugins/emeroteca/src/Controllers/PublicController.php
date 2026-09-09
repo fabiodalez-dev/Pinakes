@@ -129,7 +129,7 @@ class PublicController
                               FROM emeroteca_articoli ar
                               JOIN emeroteca_fascicoli ef ON ef.id = ar.fascicolo_id
                               JOIN emeroteca_annate ea ON ea.id = ef.annata_id
-                             WHERE ea.testata_id = t.id
+                             WHERE ea.testata_id = t.id AND ef.stato <> \'scartato\'
                                AND (
                                     MATCH(ar.titolo, ar.autori, ar.keywords)
                                         AGAINST (? IN NATURAL LANGUAGE MODE)
@@ -209,13 +209,16 @@ class PublicController
             [$id]
         );
 
-        // Year timeline with per-year issue counts.
+        // Year timeline with per-year issue counts. Withdrawn issues
+        // ('scartato') are excluded from the JOIN: they left the collection,
+        // so counting them would inflate the public holdings figure — same
+        // rule the public grid and the sitemap listener apply.
         $years = $this->fetchAll(
             'SELECT a.anno,
                     COUNT(f.id) AS num_fascicoli,
                     SUM(CASE WHEN f.stato = \'posseduto\' THEN 1 ELSE 0 END) AS num_posseduti
                FROM emeroteca_annate a
-               LEFT JOIN emeroteca_fascicoli f ON f.annata_id = a.id
+               LEFT JOIN emeroteca_fascicoli f ON f.annata_id = a.id AND f.stato <> \'scartato\'
               WHERE a.testata_id = ?
               GROUP BY a.anno
               ORDER BY a.anno ASC',
@@ -244,7 +247,7 @@ class PublicController
                         a.volume, a.anno
                    FROM emeroteca_fascicoli f
                    JOIN emeroteca_annate a ON a.id = f.annata_id
-                  WHERE a.testata_id = ? AND a.anno = ?
+                  WHERE a.testata_id = ? AND a.anno = ? AND f.stato <> \'scartato\'
                   ORDER BY (f.data_pubblicazione IS NULL), f.data_pubblicazione ASC, f.id ASC',
                 'ii',
                 [$id, $selectedYear]
@@ -340,7 +343,7 @@ class PublicController
         $siblings = $this->fetchAll(
             'SELECT id, numero, titolo_fascicolo
                FROM emeroteca_fascicoli
-              WHERE annata_id = ?
+              WHERE annata_id = ? AND stato <> \'scartato\'
               ORDER BY (data_pubblicazione IS NULL), data_pubblicazione ASC, id ASC',
             'i',
             [(int) $fascicolo['annata_id']]
@@ -369,6 +372,12 @@ class PublicController
             'seoTitle' => $title . ' — ' . __('Emeroteca'),
             'seoDescription' => $title,
             'seoCanonical' => $this->baseUrl() . '/emeroteca/fascicolo/' . $id,
+            // Withdrawn: reachable for a bookmarked link, but kept out of the
+            // index — it is in no listing and in no sitemap, so indexing it
+            // would advertise a holding the library no longer has.
+            'seoRobots' => ((string) ($fascicolo['stato'] ?? '') === 'scartato')
+                ? 'noindex,follow'
+                : 'index,follow',
         ]);
     }
 
@@ -513,6 +522,12 @@ class PublicController
         $seoTitle = $title;
         $seoDescription = (string) ($data['seoDescription'] ?? __('Emeroteca'));
         $seoCanonical = (string) ($data['seoCanonical'] ?? ($this->baseUrl() . '/emeroteca'));
+        // A withdrawn issue stays reachable — the URL may be bookmarked or
+        // linked, and the page explains that the library no longer holds it —
+        // but it must not enter the index: it is absent from every listing and
+        // from the sitemap, so leaving it indexable would advertise a holding
+        // that does not exist. Links are still followed toward the masthead.
+        $seoRobots = (string) ($data['seoRobots'] ?? 'index,follow');
 
         // The current route proves the plugin is active. Pass the same flag
         // consumed by the shared frontend layout so its navigation does not

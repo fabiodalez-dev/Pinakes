@@ -344,6 +344,15 @@ foreach ([['email', 'driver_mode', 'smtp'], ['email', 'smtp_host', '127.0.0.1'],
 // la invalidano da sole. Va azzerato anche il latch connectionFailed: un
 // primo tentativo senza env DB lo lascia a true e getConnection() non
 // riprova mai più.
+// Il breaker del Mailer memorizza la raggiungibilità UNA volta per processo:
+// se un invio precedente l'ha già interrogata (col driver 'mail' non c'è nulla
+// da sondare e la risposta è "raggiungibile"), riscrivere le impostazioni non
+// basta e lo sweep proverebbe a consegnare davvero. Lo stato va forzato qui,
+// non dedotto — è la differenza fra un test deterministico e uno che passa
+// perché il runner non ha sendmail.
+$mailerProbe = new ReflectionProperty(\App\Support\Mailer::class, 'smtpReachable');
+$mailerProbe->setValue(null, false);
+
 foreach (['runtimeCache' => null, 'dbSettingsCache' => null, 'sharedConnection' => null, 'connectionFailed' => false] as $cacheProp => $resetVal) {
     $rp = new ReflectionProperty(\App\Support\ConfigStore::class, $cacheProp);
     $rp->setAccessible(true);
@@ -407,6 +416,22 @@ try {
 } catch (Throwable) {
     // outbox table missing would itself be a failure below
 }
+// Precondition, asserted rather than assumed: this check only means anything
+// while the transport is genuinely unreachable. If a concurrent suite restores
+// the mail settings mid-run (they live in the shared system_settings table),
+// the sweep delivers the message for real and consumes its outbox row — which
+// would read as a defect in the outbox instead of the environment race it is.
+$smtpStillDown = false;
+try {
+    // Ciò che conta è il breaker, non quale driver è configurato: se qualcosa
+    // lo ha rimesso in piedi durante lo sweep, l'invio è avvenuto per davvero
+    // e l'assenza della riga outbox NON sarebbe un difetto dell'outbox.
+    $smtpStillDown = !\App\Support\Mailer::isSmtpReachable();
+} catch (Throwable) {
+    // leave false: the precondition check below reports it
+}
+$check($smtpStillDown,
+    '16a precondition: the transport is still forced down (else another suite restored the mail settings)');
 $check($outboxRow !== null,
     '16 the reservation_expired email is claimed in the outbox (SMTP forced down: row must persist)');
 

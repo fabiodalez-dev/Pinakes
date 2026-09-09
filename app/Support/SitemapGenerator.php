@@ -35,6 +35,15 @@ class SitemapGenerator
     // catalogue instead of silently emitting an over-limit sitemap.
     private const MAX_TOTAL_URLS = 50000;
 
+    /**
+     * Values the sitemap protocol accepts for <changefreq>. Anything else is
+     * dropped from a plugin entry instead of producing an invalid sitemap.
+     */
+    private const VALID_CHANGEFREQ = ['always', 'hourly', 'daily', 'weekly', 'monthly', 'yearly', 'never'];
+
+    /** Sitemap protocol hard limit for a single <loc>. */
+    private const MAX_LOC_LENGTH = 2048;
+
     private mysqli $db;
     private string $baseUrl;
 
@@ -55,6 +64,7 @@ class SitemapGenerator
         'authors' => 0,
         'publishers' => 0,
         'genres' => 0,
+        'plugins' => 0,
     ];
 
     public function __construct(mysqli $db, string $baseUrl)
@@ -66,6 +76,12 @@ class SitemapGenerator
 
     /**
      * Generate sitemap XML string.
+     *
+     * Every entry — core and plugin — passes through the `sitemap.entries`
+     * filter (see applyEntriesFilter()) before the XML is written, so this one
+     * method covers all three entry points: the dynamic /sitemap.xml route
+     * (SeoController), the admin "regenerate" button and the CLI script (both
+     * of which go through saveTo(), which calls generate()).
      */
     public function generate(): string
     {
@@ -78,6 +94,7 @@ class SitemapGenerator
             'authors' => 0,
             'publishers' => 0,
             'genres' => 0,
+            'plugins' => 0,
         ];
 
         $urlset = new Urlset();
@@ -120,6 +137,8 @@ class SitemapGenerator
             }
         }
 
+        $unique = $this->applyEntriesFilter($unique);
+
         $this->stats['total'] = count($unique);
 
         foreach ($unique as $entry) {
@@ -160,6 +179,160 @@ class SitemapGenerator
     public function getStats(): array
     {
         return $this->stats;
+    }
+
+    /**
+     * Run the collected entries through the `sitemap.entries` filter so plugins
+     * can add their own public pages (the core generator only knows about
+     * static pages, CMS pages, events, books, authors, publishers and genres).
+     *
+     * CONTRACT — filter `sitemap.entries`
+     * -----------------------------------
+     * Registration (plugin.json hook or Hooks::add):
+     *     hook_name       = 'sitemap.entries'
+     *     callback        = fn(array $entries, string $baseUrl, string $defaultLocale): array
+     *
+     * The listener receives the FULL entry list built so far — it may append,
+     * modify or remove entries — and MUST return an array of the same shape.
+     * Each entry is an associative array:
+     *
+     *     'loc'        string   REQUIRED. Absolute URL. Must start with
+     *                           $baseUrl (which already contains the base path)
+     *                           so a plugin cannot advertise third-party URLs
+     *                           in this site's sitemap. `url` is accepted as an
+     *                           alias of `loc`.
+     *     'lastmod'    ?string  Optional. Anything DateTimeImmutable parses
+     *                           (e.g. a MySQL DATETIME). Unparseable values are
+     *                           dropped by applyLastMod(), entry kept.
+     *     'changefreq' ?string  Optional. One of always|hourly|daily|weekly|
+     *                           monthly|yearly|never. Anything else is dropped.
+     *     'priority'   mixed    Optional. Numeric 0.0–1.0. Anything else is
+     *                           dropped.
+     *
+     * Robustness rules (a plugin must never be able to break the sitemap):
+     *  - a listener that throws is caught here (and inside HookManager) and the
+     *    unfiltered core entries are used;
+     *  - a return value that is not an array is discarded with a warning;
+     *  - an entry without a usable `loc` is skipped with a warning;
+     *  - entries are re-keyed by `loc`, so the last entry for a URL wins;
+     *  - the MAX_TOTAL_URLS ceiling still applies after filtering.
+     *
+     * With no listener registered this is a no-op: Hooks::has() short-circuits
+     * on a null hook manager and no array is copied.
+     *
+     * @param array<string,array<string,mixed>> $unique loc => entry
+     * @return array<string,array<string,mixed>>
+     */
+    private function applyEntriesFilter(array $unique): array
+    {
+        try {
+            if (!Hooks::has('sitemap.entries')) {
+                return $unique;
+            }
+
+            $filtered = Hooks::apply(
+                'sitemap.entries',
+                array_values($unique),
+                [$this->baseUrl, $this->defaultLocale]
+            );
+        } catch (\Throwable $exception) {
+            SecureLogger::warning(
+                'SitemapGenerator: sitemap.entries filter failed, keeping core entries: ' . $exception->getMessage()
+            );
+            return $unique;
+        }
+
+        if (!is_array($filtered)) {
+            SecureLogger::warning('SitemapGenerator: sitemap.entries returned a non-array value; core entries kept');
+            return $unique;
+        }
+
+        $result = [];
+        $skipped = 0;
+        foreach ($filtered as $candidate) {
+            $entry = $this->normalizeFilteredEntry($candidate);
+            if ($entry === null) {
+                $skipped++;
+                continue;
+            }
+            if (count($result) >= self::MAX_TOTAL_URLS && !isset($result[$entry['loc']])) {
+                SecureLogger::warning(
+                    'SitemapGenerator: sitemap.entries pushed past the URL limit; extra entries dropped',
+                    ['limit' => self::MAX_TOTAL_URLS]
+                );
+                break;
+            }
+            $result[$entry['loc']] = $entry;
+        }
+
+        if ($skipped > 0) {
+            SecureLogger::warning(
+                'SitemapGenerator: sitemap.entries returned malformed entries that were discarded',
+                ['skipped' => $skipped]
+            );
+        }
+
+        $this->stats['plugins'] = count(array_diff_key($result, $unique));
+
+        return $result;
+    }
+
+    /**
+     * Validate one entry coming back from the `sitemap.entries` filter.
+     *
+     * @return array<string,mixed>|null null when the entry is unusable
+     */
+    private function normalizeFilteredEntry(mixed $candidate): ?array
+    {
+        if (!is_array($candidate)) {
+            return null;
+        }
+
+        $rawLoc = $candidate['loc'] ?? $candidate['url'] ?? null;
+        if (!is_string($rawLoc) && !is_int($rawLoc) && !is_float($rawLoc)) {
+            return null;
+        }
+
+        $loc = trim((string) $rawLoc);
+        if ($loc === '' || strlen($loc) > self::MAX_LOC_LENGTH) {
+            return null;
+        }
+
+        // No whitespace or control characters: they would either break the XML
+        // or smuggle a second URL / header into the document.
+        if (preg_match('/[\x00-\x20\x7F]/', $loc) === 1) {
+            return null;
+        }
+
+        // Same-origin only. $this->baseUrl is rtrim()-ed of its trailing slash,
+        // so requiring the "$baseUrl/" prefix also rejects sibling hosts such
+        // as https://example.com.evil/ when baseUrl is https://example.com.
+        if ($loc !== $this->baseUrl && !str_starts_with($loc, $this->baseUrl . '/')) {
+            return null;
+        }
+
+        $entry = ['loc' => $loc];
+
+        $changefreq = $candidate['changefreq'] ?? null;
+        if (is_string($changefreq) && in_array(strtolower(trim($changefreq)), self::VALID_CHANGEFREQ, true)) {
+            $entry['changefreq'] = strtolower(trim($changefreq));
+        } elseif ($changefreq !== null && $changefreq !== '') {
+            SecureLogger::warning('SitemapGenerator: sitemap.entries changefreq ignored for ' . $loc);
+        }
+
+        $priority = $candidate['priority'] ?? null;
+        if (is_numeric($priority) && (float) $priority >= 0.0 && (float) $priority <= 1.0) {
+            $entry['priority'] = (string) $priority;
+        } elseif ($priority !== null && $priority !== '') {
+            SecureLogger::warning('SitemapGenerator: sitemap.entries priority ignored for ' . $loc);
+        }
+
+        $lastmod = $candidate['lastmod'] ?? null;
+        if (is_string($lastmod) && trim($lastmod) !== '') {
+            $entry['lastmod'] = trim($lastmod);
+        }
+
+        return $entry;
     }
 
     /**

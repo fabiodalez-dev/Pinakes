@@ -6,6 +6,18 @@
 // frontend (index, testata grid, fascicolo page). Conventions follow
 // activity-feed-374.spec.js (env parsing, MYSQL_PWD-based dbQuery, skip
 // guard, console-error guard, FK-safe cleanup).
+//
+// 1.4.0 (issue #140) adds the whole new admin surface to the same serial
+// chain, in the order a librarian would actually walk it: identifiers
+// (e-ISSN / ISSN-L / barcode base derived from the ISSN), per-copy data on
+// the issue (condition, acquisition, price, barcode), the claim cycle
+// (sollecito → reclamato → received), subscriptions with their expiry
+// badge, the barcode scan lookup, the KBART/ACNP exports, the spine-label
+// PDF and finally the merge of two duplicate titles with a colliding issue
+// number. Flows that are a POST with no page of their own (labels, scan
+// lookup) are exercised with an authenticated request from INSIDE the
+// browser context (page.request shares the session cookie), which is the
+// same round trip the button makes — a fetch, not a navigation.
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
@@ -46,10 +58,57 @@ const EM_SKIP = !e2e('E2E_ADMIN_EMAIL') || !e2e('E2E_ADMIN_PASS') || !DB_USER ||
 const sqlEscape = (s) => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 const RUN = Date.now().toString(36) + 'em';
 const TITLE = `EmerotecaE2E Rivista ${RUN}`;
+// Second title, created late in the chain only to be merged into TITLE.
+const TITLE_DUP = `EmerotecaE2E Doppione ${RUN}`;
 const ANNO = 2024;
+// Hand-checked ISSNs (mod-11): both are valid, so the forms accept them and
+// barcodeBase() can derive the EAN-13 with the 977 serials prefix.
+const ISSN = '1125-3460';
+const ISSN_BARCODE_BASE = '9771125346007';
+const E_ISSN = '0002-936X';
+const ISSN_L = '0378-5955';
+// EAN-13 base + a 3-digit issue add-on: what a scanner reads off the cover.
+const ISSUE_BARCODE = `${ISSN_BARCODE_BASE}002`;
 let testataId = '';
 let annataId = '';
 let fascicoloIds = [];
+let dupTestataId = '';
+let subscriptionId = '';
+
+// Application calendar, not the runner's UTC day, and no 24h arithmetic:
+// adding absolute hours drifts by one day across a DST boundary. The shared
+// helper offsets the ISO calendar date instead.
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
+const today = () => appTodayISO();
+const inDays = (n) => appDateOffsetISO(n);
+
+// Date fields are upgraded by the shared Flatpickr initializer, which HIDES
+// the ISO input and shows a localized alternate one: page.fill() would time
+// out on an invisible element. Drive the widget API (same pattern as
+// issues-333-336-338.spec.js) so the value AND its change event match a real
+// selection, with a plain-input fallback for pages without the picker.
+async function setDateField(page, selector, iso) {
+  const input = page.locator(selector);
+  await expect(input).toBeAttached({ timeout: 10000 });
+  await input.evaluate((element, value) => {
+    const el = /** @type {HTMLInputElement & {_flatpickr?: {setDate: Function}}} */ (element);
+    if (el._flatpickr) {
+      el._flatpickr.setDate(value, true, 'Y-m-d');
+    } else {
+      el.value = value;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, iso);
+  await expect(input).toHaveValue(iso);
+}
+
+// CSRF token of the page currently open, read from the very form the button
+// would submit — the same value a real click sends.
+async function csrfToken(page) {
+  const token = await page.locator('input[name="csrf_token"]').first().inputValue();
+  expect(token, 'the page must expose a CSRF token').toBeTruthy();
+  return token;
+}
 
 async function loginAsAdmin(page) {
   await page.goto(`${BASE}/admin/dashboard`);
@@ -81,14 +140,14 @@ function attachConsoleGuard(page, errors) {
 // FK-safe cleanup: articoli → fascicoli → annate → testate, all scoped to
 // the fixture title. Tolerates missing tables (plugin never activated).
 function emCleanup() {
-  const t = sqlEscape(TITLE);
+  const titles = `'${sqlEscape(TITLE)}','${sqlEscape(TITLE_DUP)}'`;
   try {
     const files = dbQuery(
       `SELECT COALESCE(tt.logo_url,''), COALESCE(f.copertina_url,''), COALESCE(f.pdf_path,'')
        FROM emeroteca_testate tt
        LEFT JOIN emeroteca_annate a ON a.testata_id=tt.id
        LEFT JOIN emeroteca_fascicoli f ON f.annata_id=a.id
-       WHERE tt.titolo='${t}'`,
+       WHERE tt.titolo IN (${titles})`,
     ).split('\n').filter(Boolean);
     for (const row of files) {
       const [logo, cover, pdf] = row.split('\t');
@@ -102,10 +161,11 @@ function emCleanup() {
       }
     }
     dbQuery(
-      `DELETE ar FROM emeroteca_articoli ar JOIN emeroteca_fascicoli f ON ar.fascicolo_id=f.id JOIN emeroteca_annate a ON f.annata_id=a.id JOIN emeroteca_testate tt ON a.testata_id=tt.id WHERE tt.titolo='${t}';`
-      + `DELETE f FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON f.annata_id=a.id JOIN emeroteca_testate tt ON a.testata_id=tt.id WHERE tt.titolo='${t}';`
-      + `DELETE a FROM emeroteca_annate a JOIN emeroteca_testate tt ON a.testata_id=tt.id WHERE tt.titolo='${t}';`
-      + `DELETE FROM emeroteca_testate WHERE titolo='${t}';`,
+      `DELETE ar FROM emeroteca_articoli ar JOIN emeroteca_fascicoli f ON ar.fascicolo_id=f.id JOIN emeroteca_annate a ON f.annata_id=a.id JOIN emeroteca_testate tt ON a.testata_id=tt.id WHERE tt.titolo IN (${titles});`
+      + `DELETE f FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON f.annata_id=a.id JOIN emeroteca_testate tt ON a.testata_id=tt.id WHERE tt.titolo IN (${titles});`
+      + `DELETE ab FROM emeroteca_abbonamenti ab JOIN emeroteca_testate tt ON ab.testata_id=tt.id WHERE tt.titolo IN (${titles});`
+      + `DELETE a FROM emeroteca_annate a JOIN emeroteca_testate tt ON a.testata_id=tt.id WHERE tt.titolo IN (${titles});`
+      + `DELETE FROM emeroteca_testate WHERE titolo IN (${titles});`,
     );
   } catch (e) {
     // Tables absent → nothing to clean.
@@ -415,22 +475,93 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     expect(Number(rows[2])).toBe(1);
   });
 
-  test('issue detail form persists title, pages and a damaged state', async ({ page }) => {
+  test('issue detail form persists title, pages and the possession/condition split', async ({ page }) => {
     test.setTimeout(60000);
     await loginAsAdmin(page);
     await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[1]}`);
     await expect(page.locator('input[name="titolo_fascicolo"]')).toBeVisible({ timeout: 10000 });
     await page.fill('input[name="titolo_fascicolo"]', 'Numero monografico E2E');
     await page.fill('input[name="pagine"]', '96');
-    await page.selectOption('select[name="stato"]', 'danneggiato');
+    // 1.4.0 split: 'danneggiato' is no longer a possession state. A damaged
+    // copy is OWNED (stato) and damaged (condizione) — the select must not
+    // offer the old value any more, or the migration was pointless.
+    const statoValues = await page.locator('select[name="stato"] option').evaluateAll(
+      (options) => options.map((option) => option.value),
+    );
+    expect(statoValues).not.toContain('danneggiato');
+    expect(statoValues).not.toContain('in_restauro');
+    expect(statoValues).toContain('reclamato');
+    await page.selectOption('select[name="stato"]', 'posseduto');
+    await page.selectOption('select[name="condizione"]', 'danneggiato');
+    await page.selectOption('select[name="acquisizione"]', 'dono');
+    await page.fill('input[name="prezzo"]', '4,50');
+    await page.fill('input[name="barcode"]', ISSUE_BARCODE);
     await Promise.all([
       page.waitForEvent('load', { timeout: 15000 }),
       page.locator('form button[type="submit"]').first().click(),
     ]);
-    const row = dbQuery(`SELECT titolo_fascicolo, pagine, stato FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[1])}`);
-    expect(row).toContain('Numero monografico E2E');
-    expect(row).toContain('96');
-    expect(row).toContain('danneggiato');
+    const row = dbQuery(
+      `SELECT titolo_fascicolo, pagine, stato, condizione, acquisizione, prezzo, barcode
+         FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[1])}`,
+    ).split('\t');
+    expect(row[0]).toBe('Numero monografico E2E');
+    expect(row[1]).toBe('96');
+    expect(row[2]).toBe('posseduto');
+    expect(row[3]).toBe('danneggiato');
+    expect(row[4]).toBe('dono');
+    // The Italian decimal comma is normalized into DECIMAL(8,2).
+    expect(Number(row[5])).toBeCloseTo(4.5, 2);
+    expect(row[6]).toBe(ISSUE_BARCODE);
+
+    // A damaged copy still counts as owned in the holdings statement: the
+    // pre-1.4.0 bug made damaged issues silently vanish from it.
+    await page.goto(`${BASE}/admin/periodicals`);
+    const listRow = page.locator('tr', { hasText: TITLE }).first();
+    await expect(listRow).toBeVisible({ timeout: 10000 });
+    await expect(listRow).toContainText(String(ANNO));
+  });
+
+  test('testata identifiers: e-ISSN, ISSN-L and the barcode base derived from the ISSN', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    // The previous test saved a valid ISSN with the barcode field left
+    // empty: the server must have derived the EAN-13 (check digit included).
+    expect(
+      dbQuery(`SELECT COALESCE(barcode_base,'') FROM emeroteca_testate WHERE id=${Number(testataId)}`).trim(),
+    ).toBe(ISSN_BARCODE_BASE);
+
+    await page.goto(`${BASE}/admin/periodicals/edit/${testataId}`);
+    await expect(page.locator('#e_issn')).toBeVisible({ timeout: 10000 });
+    await page.fill('#e_issn', E_ISSN.toLowerCase());
+    await page.fill('#issn_l', ISSN_L);
+    await page.selectOption('#prestabile', 'consultazione');
+    await page.fill('#direttore_responsabile', 'Direttrice E2E');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
+    const row = dbQuery(
+      `SELECT e_issn, issn_l, barcode_base, prestabile, direttore_responsabile
+         FROM emeroteca_testate WHERE id=${Number(testataId)}`,
+    ).split('\t');
+    // normalize() uppercases the X check digit and re-inserts the hyphen.
+    expect(row[0]).toBe(E_ISSN);
+    expect(row[1]).toBe(ISSN_L);
+    expect(row[2]).toBe(ISSN_BARCODE_BASE);
+    expect(row[3]).toBe('consultazione');
+    expect(row[4]).toBe('Direttrice E2E');
+
+    // A malformed e-ISSN is refused by the SERVER, not only by the browser.
+    await page.goto(`${BASE}/admin/periodicals/edit/${testataId}`);
+    await page.fill('#e_issn', '0002-9360'); // right shape, wrong check digit
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
+    expect(
+      dbQuery(`SELECT COALESCE(e_issn,'') FROM emeroteca_testate WHERE id=${Number(testataId)}`).trim(),
+      'a failed checksum must not overwrite the stored e-ISSN',
+    ).toBe(E_ISSN);
   });
 
   test('cover upload through Uppy stores a served image', async ({ page }) => {
@@ -624,6 +755,356 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
     const issueLd = await page.locator('script[type="application/ld+json"]').allTextContents();
     expect(issueLd.join(' ')).toContain('PublicationIssue');
+  });
+
+  test('kardex claim: sollecito moves the issue to reclamato and counts the reminder', async ({ page }) => {
+    test.setTimeout(90000);
+    await loginAsAdmin(page);
+    // A fresh Kardex year, so the claim cycle starts from real 'atteso' rows
+    // (the ANNO+2 year was emptied by the mark-missing test).
+    await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
+    await expect(page.locator('#krd-anno')).toBeVisible({ timeout: 10000 });
+    await page.fill('#krd-anno', String(ANNO + 3));
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form:has(#krd-anno) button[type="submit"]').click(),
+    ]);
+    const claimTarget = dbQuery(
+      `SELECT f.id FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
+        WHERE a.testata_id=${Number(testataId)} AND a.anno=${ANNO + 3} AND f.stato='atteso'
+        ORDER BY CAST(f.numero AS UNSIGNED) LIMIT 1`,
+    ).trim();
+    expect(Number(claimTarget)).toBeGreaterThan(0);
+
+    await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
+    const claimForm = page.locator(
+      `form:has(input[name="action"][value="claim_issue"]):has(input[name="fascicolo_id"][value="${claimTarget}"])`,
+    );
+    await expect(claimForm.locator('button[type="submit"]')).toBeVisible({ timeout: 10000 });
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      claimForm.locator('button[type="submit"]').click(),
+    ]);
+    const claimed = dbQuery(
+      `SELECT stato, n_reclami, COALESCE(reclamato_il,'') FROM emeroteca_fascicoli WHERE id=${Number(claimTarget)}`,
+    ).trim().split('\t');
+    expect(claimed[0]).toBe('reclamato');
+    expect(Number(claimed[1])).toBe(1);
+    expect(claimed[2]).toBe(today());
+
+    // The tile carries the reminder counter, so the desk sees it at a glance.
+    const tile = page.locator('article.emt-issue-tile').filter({
+      has: page.locator(`input[name="ids[]"][value="${claimTarget}"]`),
+    });
+    await expect(tile).toContainText('solleciti: 1', { timeout: 10000 });
+
+    // A second reminder on the same issue increments the counter.
+    const claimAgain = page.locator(
+      `form:has(input[name="action"][value="claim_issue"]):has(input[name="fascicolo_id"][value="${claimTarget}"])`,
+    );
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      claimAgain.locator('button[type="submit"]').click(),
+    ]);
+    expect(
+      Number(dbQuery(`SELECT n_reclami FROM emeroteca_fascicoli WHERE id=${Number(claimTarget)}`).trim()),
+    ).toBe(2);
+
+    // Receiving a CLAIMED issue must work (it is the normal end of the
+    // cycle) and must NOT erase the claim history.
+    const receiveForm = page.locator(
+      `form:has(input[name="action"][value="receive_issue"]):has(input[name="fascicolo_id"][value="${claimTarget}"])`,
+    );
+    await expect(receiveForm.locator('button[type="submit"]')).toBeVisible({ timeout: 10000 });
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      receiveForm.locator('button[type="submit"]').click(),
+    ]);
+    const received = dbQuery(
+      `SELECT stato, n_reclami FROM emeroteca_fascicoli WHERE id=${Number(claimTarget)}`,
+    ).trim().split('\t');
+    expect(received[0]).toBe('posseduto');
+    expect(Number(received[1])).toBe(2);
+  });
+
+  test('subscriptions: create, expiry badge, edit and delete', async ({ page }) => {
+    test.setTimeout(90000);
+    await loginAsAdmin(page);
+    const listUrl = `${BASE}/admin/periodicals/${testataId}/subscriptions`;
+    await page.goto(listUrl);
+    await expect(page.locator('#ab-fornitore')).toBeVisible({ timeout: 10000 });
+    await page.fill('#ab-fornitore', 'Fornitore E2E');
+    await page.fill('#ab-costo', '129,90');
+    await page.fill('#ab-valuta', 'EUR');
+    await setDateField(page, '#ab-inizio', inDays(-300));
+    // Inside the 60-day renewal window → the list must warn.
+    await setDateField(page, '#ab-scadenza', inDays(20));
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form:has(#ab-fornitore) button[type="submit"]').click(),
+    ]);
+
+    const created = dbQuery(
+      `SELECT id, fornitore, costo, valuta, data_scadenza, attivo
+         FROM emeroteca_abbonamenti WHERE testata_id=${Number(testataId)}`,
+    ).trim().split('\t');
+    subscriptionId = created[0];
+    expect(Number(subscriptionId)).toBeGreaterThan(0);
+    expect(created[1]).toBe('Fornitore E2E');
+    expect(Number(created[2])).toBeCloseTo(129.9, 2);
+    expect(created[3]).toBe('EUR');
+    expect(created[4]).toBe(inDays(20));
+    expect(created[5]).toBe('1');
+
+    // Badge on the subscriptions page…
+    await expect(page.locator('tr', { hasText: 'Fornitore E2E' }).first()).toContainText('In scadenza');
+    // …and the aggregated counter on the periodicals index.
+    await page.goto(`${BASE}/admin/periodicals`);
+    await expect(page.locator('tr', { hasText: TITLE }).first()).toContainText('1 in scadenza');
+
+    // Edit through the dedicated form.
+    await page.goto(`${listUrl}/${subscriptionId}/edit`);
+    await expect(page.locator('#fornitore')).toHaveValue('Fornitore E2E', { timeout: 10000 });
+    await page.fill('#fornitore', 'Fornitore E2E rinnovato');
+    await page.fill('#costo', '149.00');
+    await page.check('input[name="rinnovo_automatico"]');
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
+    const edited = dbQuery(
+      `SELECT fornitore, costo, rinnovo_automatico FROM emeroteca_abbonamenti WHERE id=${Number(subscriptionId)}`,
+    ).trim().split('\t');
+    expect(edited[0]).toBe('Fornitore E2E rinnovato');
+    expect(Number(edited[1])).toBeCloseTo(149, 2);
+    expect(edited[2]).toBe('1');
+
+    // Delete from the row action (native confirm).
+    await page.goto(listUrl);
+    const deleteForm = page.locator('tr', { hasText: 'Fornitore E2E rinnovato' })
+      .first()
+      .locator('form[method="POST"]');
+    page.once('dialog', (d) => d.accept().catch(() => {}));
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      deleteForm.locator('button[type="submit"]').click(),
+    ]);
+    expect(
+      Number(dbQuery(`SELECT COUNT(*) FROM emeroteca_abbonamenti WHERE id=${Number(subscriptionId)}`).trim()),
+    ).toBe(0);
+    // With no subscription left the index badge disappears too.
+    await page.goto(`${BASE}/admin/periodicals`);
+    await expect(page.locator('tr', { hasText: TITLE }).first()).not.toContainText('in scadenza');
+  });
+
+  test('scan lookup: the barcode resolves to the issue, the base to the title', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
+    // The page ships the scanner configuration the JS reads; without it the
+    // scan box is inert whatever the endpoint answers.
+    const scanCfg = await page.evaluate(() => window.emerotecaScan || null);
+    expect(scanCfg, 'the issues page must expose window.emerotecaScan').not.toBeNull();
+    expect(Number(scanCfg.testataId)).toBe(Number(testataId));
+
+    const lookup = async (code) => {
+      const resp = await page.request.get(
+        `${BASE}/admin/periodicals/scan-lookup?code=${encodeURIComponent(code)}&testata=${Number(testataId)}`,
+      );
+      expect(resp.status()).toBe(200);
+      expect(resp.headers()['content-type']).toContain('application/json');
+      return resp.json();
+    };
+
+    // The full issue barcode (set on the issue form) → that very issue.
+    const byIssue = await lookup(ISSUE_BARCODE);
+    expect(byIssue.found).toBe(true);
+    expect(byIssue.match).toBe('issue');
+    expect(String(byIssue.issue.id)).toBe(String(fascicoloIds[1]));
+    // The issue is 'posseduto', so there is nothing to receive.
+    expect(byIssue.action).toBeFalsy();
+
+    // Scanner noise (separators pasted by hand) must not change the answer.
+    const noisy = await lookup(`977-1125-3460-07 002`);
+    expect(noisy.found).toBe(true);
+    expect(String(noisy.issue.id)).toBe(String(fascicoloIds[1]));
+
+    // The bare 13-digit base belongs to the TITLE, not to an issue.
+    const byTitle = await lookup(ISSN_BARCODE_BASE);
+    expect(byTitle.found).toBe(true);
+    expect(byTitle.match).toBe('title');
+    expect(String(byTitle.title.id)).toBe(String(testataId));
+
+    // Unknown code and garbage both answer politely instead of 500-ing.
+    const unknown = await lookup('9999999999999');
+    expect(unknown.found).toBe(false);
+    expect(unknown.match).toBe('none');
+    const garbage = await lookup('not-a-barcode');
+    expect(garbage.found).toBe(false);
+  });
+
+  test('exports: KBART and ACNP download with the right headers and content', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    // The buttons live on the index; they are plain links, so following them
+    // with an authenticated request is the same round trip.
+    await page.goto(`${BASE}/admin/periodicals`);
+    await expect(page.locator(`a[href$="/admin/periodicals/export/kbart"]`).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator(`a[href$="/admin/periodicals/export/acnp"]`).first()).toBeVisible();
+
+    const kbart = await page.request.get(`${BASE}/admin/periodicals/export/kbart?testata=${Number(testataId)}`);
+    expect(kbart.status()).toBe(200);
+    expect(kbart.headers()['content-type']).toContain('text/tab-separated-values');
+    expect(kbart.headers()['content-disposition']).toMatch(/attachment; filename="emeroteca-kbart-.*\.tsv"/);
+    const kbartBody = await kbart.text();
+    const kbartLines = kbartBody.trim().split('\n');
+    expect(kbartLines[0]).toContain('publication_title');
+    expect(kbartLines[0].split('\t').length).toBeGreaterThan(10);
+    expect(kbartBody).toContain(TITLE);
+    expect(kbartBody).toContain(ISSN);
+
+    const acnp = await page.request.get(`${BASE}/admin/periodicals/export/acnp?testata=${Number(testataId)}`);
+    expect(acnp.status()).toBe(200);
+    expect(acnp.headers()['content-type']).toContain('text/csv');
+    expect(acnp.headers()['content-disposition']).toMatch(/attachment; filename="emeroteca-acnp-.*\.csv"/);
+    const acnpBody = await acnp.text();
+    expect(acnpBody).toContain(TITLE);
+    // The holdings statement of the year with issues must be in the file.
+    expect(acnpBody).toContain(String(ANNO));
+
+    // The whole-emeroteca export answers too (no ?testata filter).
+    const all = await page.request.get(`${BASE}/admin/periodicals/export/kbart`);
+    expect(all.status()).toBe(200);
+    expect(await all.text()).toContain(TITLE);
+  });
+
+  test('labels: the selected issues print as a PDF', async ({ page }) => {
+    test.setTimeout(60000);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
+    const labelsForm = page.locator(`form[id^="emt-labels-"]`).first();
+    await expect(labelsForm).toBeVisible({ timeout: 10000 });
+    // Tick the two issues of the first annata through the real checkboxes,
+    // then post the form the button would post (the form targets _blank, so
+    // the click would open a tab with a binary body).
+    const annata = Number(annataId);
+    const token = await csrfToken(page);
+    const resp = await page.request.post(`${BASE}/admin/periodicals/${Number(testataId)}/issues/labels`, {
+      form: {
+        csrf_token: token,
+        annata_id: String(annata),
+        'ids[]': String(fascicoloIds[0]),
+      },
+    });
+    expect(resp.status()).toBe(200);
+    expect(resp.headers()['content-type']).toContain('application/pdf');
+    const pdf = await resp.body();
+    expect(pdf.slice(0, 4).toString('latin1')).toBe('%PDF');
+    expect(pdf.length).toBeGreaterThan(500);
+
+    // An empty selection is refused with a flash, not with a blank PDF.
+    const empty = await page.request.post(`${BASE}/admin/periodicals/${Number(testataId)}/issues/labels`, {
+      form: { csrf_token: await csrfToken(page), annata_id: String(annata) },
+      maxRedirects: 0,
+    });
+    expect(empty.status()).toBe(303);
+    // An id belonging to somebody else is filtered out, not printed.
+    const foreign = await page.request.post(`${BASE}/admin/periodicals/${Number(testataId)}/issues/labels`, {
+      form: { csrf_token: await csrfToken(page), annata_id: String(annata), 'ids[]': '99999999' },
+      maxRedirects: 0,
+    });
+    expect(foreign.status()).toBe(303);
+  });
+
+  test('merge: two duplicate titles are fused and no issue is lost', async ({ page }) => {
+    test.setTimeout(120000);
+    await loginAsAdmin(page);
+
+    // A second title with the SAME year and the SAME issue number as the
+    // survivor: the conflict path is the one that can lose data.
+    await page.goto(`${BASE}/admin/periodicals/create`);
+    await expect(page.locator('#titolo')).toBeVisible({ timeout: 10000 });
+    await page.fill('#titolo', TITLE_DUP);
+    await page.selectOption('#tipo', 'rivista');
+    await page.selectOption('#periodicita', 'mensile');
+    await page.locator('form button[type="submit"]:has-text("Crea testata")').click();
+    await page.waitForURL(/\/admin\/periodicals\/\d+\/issues/, { timeout: 15000 });
+    dupTestataId = String(dbQuery(
+      `SELECT id FROM emeroteca_testate WHERE titolo='${sqlEscape(TITLE_DUP)}' LIMIT 1`,
+    )).trim();
+    expect(Number(dupTestataId)).toBeGreaterThan(0);
+
+    await page.fill('#ann-anno', String(ANNO));
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form:has(input[name="action"][value="add_annata"]) button[type="submit"]').click(),
+    ]);
+    const dupAnnata = String(dbQuery(
+      `SELECT id FROM emeroteca_annate WHERE testata_id=${Number(dupTestataId)} AND anno=${ANNO} LIMIT 1`,
+    )).trim();
+    for (const numero of ['1', '9']) {
+      const numInput = page.locator(`#fsc-num-${dupAnnata}`);
+      await expect(numInput).toBeVisible({ timeout: 10000 });
+      await numInput.fill(numero);
+      await Promise.all([
+        page.waitForEvent('load', { timeout: 15000 }),
+        page.locator(`form:has(#fsc-num-${dupAnnata}) button[type="submit"]`).click(),
+      ]);
+    }
+
+    const issuesBefore = Number(dbQuery(
+      `SELECT COUNT(*) FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
+        WHERE a.testata_id IN (${Number(testataId)}, ${Number(dupTestataId)})`,
+    ).trim());
+    expect(issuesBefore).toBeGreaterThan(2);
+
+    // The index has the selection checkboxes and the GET merge form; the
+    // preview page is what they lead to.
+    await page.goto(`${BASE}/admin/periodicals`);
+    await expect(page.locator(`input[name="ids[]"][value="${testataId}"]`)).toBeVisible({ timeout: 10000 });
+    await page.goto(
+      `${BASE}/admin/periodicals/merge?ids%5B%5D=${Number(testataId)}&ids%5B%5D=${Number(dupTestataId)}`,
+    );
+    await expect(page.locator('#emeroteca-admin-merge')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#emeroteca-admin-merge')).toContainText(TITLE);
+    await expect(page.locator('#emeroteca-admin-merge')).toContainText(TITLE_DUP);
+
+    // Keep the original title, drop the duplicate.
+    await page.check(`input[name="target_id"][value="${testataId}"]`);
+    page.once('dialog', (d) => d.accept().catch(() => {}));
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 30000 }),
+      page.locator('form button[type="submit"]:has-text("Unisci le testate")').click(),
+    ]);
+
+    // The summary names what moved and what had to be renumbered.
+    const summary = page.locator('#emeroteca-admin-merge');
+    await expect(summary).toContainText('Riepilogo dell', { timeout: 15000 });
+    await expect(summary).toContainText('Fascicoli spostati');
+    await expect(summary).toContainText('Fascicoli rinumerati per conflitto: 1');
+
+    // The source title is gone, every issue survived, and the colliding one
+    // was renumbered instead of being deleted.
+    expect(
+      Number(dbQuery(`SELECT COUNT(*) FROM emeroteca_testate WHERE id=${Number(dupTestataId)}`).trim()),
+    ).toBe(0);
+    const issuesAfter = Number(dbQuery(
+      `SELECT COUNT(*) FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
+        WHERE a.testata_id=${Number(testataId)}`,
+    ).trim());
+    expect(issuesAfter, 'no fascicolo may disappear in a merge').toBe(issuesBefore);
+    const renumbered = dbQuery(
+      `SELECT numero FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
+        WHERE a.testata_id=${Number(testataId)} AND a.anno=${ANNO} AND f.numero LIKE '%-dup%'`,
+    ).trim();
+    expect(renumbered).toMatch(/^1-dup/);
+    // The issue that did NOT collide simply moved over.
+    expect(
+      Number(dbQuery(
+        `SELECT COUNT(*) FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id
+          WHERE a.testata_id=${Number(testataId)} AND a.anno=${ANNO} AND f.numero='9'`,
+      ).trim()),
+    ).toBe(1);
   });
 
   test('access control: public emeroteca is anonymous, admin is not', async ({ browser }) => {

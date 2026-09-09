@@ -13,5 +13,5 @@ rules:
       # Line-pinned on purpose: if the steps move, the finding resurfaces
       # instead of being silently masked for the whole file.
       - ci-quality.yml:117
-      - ci-quality.yml:361
+      - ci-quality.yml:362
       - release.yml:61

@@ -283,6 +283,7 @@ jobs:
       - name: PHP unit tests (standalone .unit.php)
         env:
           CI_STRICT_TESTS: '1'
+          EMU140_ALLOW_DESTRUCTIVE: '1'
           # Global-sweep suites (loan-reservation-real-world-25) refuse to run
           # without an explicitly named dedicated test database.
           E2E_DB_NAME: pinakes_test

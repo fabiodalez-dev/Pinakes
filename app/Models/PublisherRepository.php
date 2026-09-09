@@ -215,11 +215,46 @@ class PublisherRepository
         return $result;
     }
 
+    /**
+     * Notify plugin listeners of a core entity lifecycle event.
+     *
+     * Dispatches via HookManager (Hooks facade). When no plugin registered a
+     * listener for the hook (plugin_hooks/addHook), the dispatch is a cheap
+     * no-op: HookManager::doAction() early-returns on an unknown hook name
+     * (hooks are loaded once per request and cached), and Hooks::do() returns
+     * immediately when the hook system was never initialized (CLI scripts).
+     *
+     * A broken listener must never abort the surrounding data operation:
+     * HookManager already swallows per-callback exceptions, and this wrapper
+     * additionally guards the dispatch itself (e.g. hook loading failures) so
+     * an emission inside a transaction can never trigger a rollback.
+     *
+     * @param array<int,mixed> $args Positional hook arguments
+     */
+    private function emitHook(string $hookName, array $args): void
+    {
+        try {
+            \App\Support\Hooks::do($hookName, $args);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('Entity hook dispatch failed', [
+                'hook' => $hookName,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     public function delete(int $id): bool
     {
         // Snapshot the linked books BEFORE the FK is nulled / cascade fires so
         // their search_index (which embeds this publisher's name) can be rebuilt.
         $affectedBookIds = \App\Support\SearchIndexBuilder::bookIdsForPublisher($this->db, $id);
+
+        // Hook: publisher.deleting (action) — args: int $publisherId.
+        // Emitted BEFORE the row is removed so plugins referencing editori via
+        // FK ON DELETE SET NULL (e.g. emeroteca_testate.editore_id) can react
+        // (repoint/annotate) instead of losing the link silently. Listener
+        // failures never abort the delete.
+        $this->emitHook('publisher.deleting', [$id]);
 
         $stmt = $this->db->prepare('UPDATE libri SET editore_id=NULL WHERE editore_id=?');
         $stmt->bind_param('i', $id);
@@ -309,6 +344,15 @@ class PublisherRepository
         $this->db->begin_transaction();
 
         try {
+            // Hook: publisher.merging (action) — args: int $primaryId, array $duplicateIds.
+            // Emitted INSIDE the transaction, BEFORE any duplicate row is
+            // deleted, so plugins that reference editori with FK ON DELETE
+            // SET NULL (e.g. emeroteca_testate.editore_id) can repoint their
+            // rows onto the surviving primary. The plugin writes participate
+            // in this transaction; a throwing listener is swallowed (see
+            // emitHook) and never rolls the merge back.
+            $this->emitHook('publisher.merging', [$primaryId, $duplicateIds]);
+
             foreach ($duplicateIds as $duplicateId) {
                 // Update books to point to primary publisher
                 $stmt = $this->db->prepare("UPDATE libri SET editore_id = ? WHERE editore_id = ?");

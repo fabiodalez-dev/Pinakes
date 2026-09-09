@@ -21,14 +21,31 @@ $formAction = $e(url('/admin/periodicals/issue/' . $fid));
 $deleteAction = $e(url('/admin/periodicals/issue/' . $fid . '/delete'));
 $csrf = $e(\App\Support\Csrf::ensureToken());
 
+// Possession (1.4.0): condition lives in its own field below.
 $statoLabels = [
-    'posseduto'   => __('Posseduto'),
-    'mancante'    => __('Mancante'),
+    'posseduto' => __('Posseduto'),
+    'mancante'  => __('Mancante'),
+    'atteso'    => __('Atteso'),
+    'smarrito'  => __('Smarrito'),
+    'reclamato' => __('Reclamato'),
+    'scartato'  => __('Scartato'),
+];
+$condizioneLabels = [
+    'buono'       => __('Buono'),
+    'discreto'    => __('Discreto'),
     'danneggiato' => __('Danneggiato'),
     'in_restauro' => __('In restauro'),
-    'smarrito'    => __('Smarrito'),
-    'atteso'      => __('Atteso'),
 ];
+$acquisizioneLabels = [
+    'abbonamento' => __('Abbonamento'),
+    'acquisto'    => __('Acquisto'),
+    'dono'        => __('Dono'),
+    'scambio'     => __('Scambio'),
+    'deposito'    => __('Deposito'),
+];
+$nReclami = (int) ($fascicolo['n_reclami'] ?? 0);
+$reclamatoIl = (string) ($fascicolo['reclamato_il'] ?? '');
+$testataBarcode = (string) ($fascicolo['testata_barcode_base'] ?? '');
 $tipoArticoloLabels = [
     'articolo'   => __('Articolo'),
     'editoriale' => __('Editoriale'),
@@ -64,7 +81,7 @@ if ($pdfSize > 0) {
 }
 $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
 <div class="emeroteca-admin emeroteca-admin--form">
     <header class="emt-page-header">
         <nav aria-label="breadcrumb" class="text-sm text-gray-500 mb-4">
@@ -116,6 +133,7 @@ $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
                 <div>
                     <label for="stato" class="form-label">
                         <?= __("Stato") ?>
+                        <span class="text-xs text-gray-500 font-normal">(<?= __("possesso") ?>)</span>
                     </label>
                     <select name="stato" id="stato" class="form-input">
                         <?php foreach ($statoLabels as $value => $label): ?>
@@ -124,6 +142,51 @@ $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <?php if ($nReclami > 0): ?>
+                        <p class="mt-1 text-xs text-gray-500">
+                            <i class="fas fa-bell" aria-hidden="true"></i>
+                            <?= sprintf(__('solleciti: %d'), $nReclami) ?><?php if ($reclamatoIl !== ''): ?> · <?= $e(sprintf(__('Ultimo sollecito: %s'), $reclamatoIl)) ?><?php endif; ?>
+                        </p>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div>
+                    <label for="condizione" class="form-label">
+                        <?= __("Condizione") ?>
+                        <span class="text-xs text-gray-500 font-normal">(<?= __("stato fisico della copia") ?>)</span>
+                    </label>
+                    <select name="condizione" id="condizione" class="form-input">
+                        <option value="">— <?= __("Non rilevata") ?> —</option>
+                        <?php foreach ($condizioneLabels as $value => $label): ?>
+                            <option value="<?= $e($value) ?>" <?= ((string) ($fascicolo['condizione'] ?? '')) === $value ? 'selected' : '' ?>>
+                                <?= $e($label) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label for="acquisizione" class="form-label">
+                        <?= __("Acquisizione") ?>
+                    </label>
+                    <select name="acquisizione" id="acquisizione" class="form-input">
+                        <option value="">— <?= __("Non specificata") ?> —</option>
+                        <?php foreach ($acquisizioneLabels as $value => $label): ?>
+                            <option value="<?= $e($value) ?>" <?= ((string) ($fascicolo['acquisizione'] ?? '')) === $value ? 'selected' : '' ?>>
+                                <?= $e($label) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label for="prezzo" class="form-label">
+                        <?= __("Prezzo") ?>
+                    </label>
+                    <input type="text" name="prezzo" id="prezzo"
+                           value="<?= $val('prezzo') ?>" maxlength="20"
+                           inputmode="decimal" placeholder="0.00"
+                           class="form-input">
                 </div>
             </div>
 
@@ -173,6 +236,22 @@ $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
                     <input type="text" name="numero_inventario" id="numero_inventario"
                            value="<?= $val('numero_inventario') ?>" maxlength="100"
                            class="form-input">
+                </div>
+                <div>
+                    <label for="barcode" class="form-label">
+                        <?= __("Barcode") ?>
+                        <span class="text-xs text-gray-500 font-normal">(<?= __("EAN-13 977 con eventuale add-on") ?>)</span>
+                    </label>
+                    <input type="text" name="barcode" id="barcode"
+                           value="<?= $val('barcode') ?>" maxlength="18"
+                           inputmode="numeric"
+                           placeholder="<?= $e($testataBarcode !== '' ? $testataBarcode : '9770000000000') ?>"
+                           class="form-input font-mono text-sm">
+                    <?php if ($testataBarcode !== ''): ?>
+                        <p class="mt-1 text-xs text-gray-500">
+                            <?= __("Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.") ?>
+                        </p>
+                    <?php endif; ?>
                 </div>
                 <div>
                     <label for="supplementi" class="form-label">

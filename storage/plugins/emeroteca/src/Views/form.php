@@ -52,8 +52,20 @@ $periodicitaLabels = [
     'annuale'      => __('Annuale'),
     'irregolare'   => __('Irregolare'),
 ];
+$acquisizioneLabels = [
+    'abbonamento' => __('Abbonamento'),
+    'acquisto'    => __('Acquisto'),
+    'dono'        => __('Dono'),
+    'scambio'     => __('Scambio'),
+    'deposito'    => __('Deposito'),
+];
+$prestabileLabels = [
+    'escluso'       => __('Escluso dal prestito'),
+    'consultazione' => __('Solo consultazione in sede'),
+    'prestabile'    => __('Prestabile'),
+];
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.2.4')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
 <div id="emeroteca-admin-form" class="emeroteca-admin emeroteca-admin--form">
     <div class="emt-page-header">
         <div>
@@ -128,6 +140,58 @@ $periodicitaLabels = [
                            value="<?= $val('lingua') ?>" maxlength="10"
                            class="form-input">
                 </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                    <label for="e_issn" class="form-label">
+                        <?= __("e-ISSN") ?>
+                        <span class="text-xs text-gray-500 font-normal">(<?= __("edizione elettronica") ?>)</span>
+                    </label>
+                    <input type="text" name="e_issn" id="e_issn"
+                           value="<?= $val('e_issn') ?>" maxlength="9"
+                           placeholder="0000-0000"
+                           class="form-input font-mono text-sm <?= $err('e_issn') ? 'border-red-500' : '' ?>">
+                    <?php if ($err('e_issn')): ?>
+                        <p class="mt-1 text-xs text-red-600"><?= $e($err('e_issn')) ?></p>
+                    <?php endif; ?>
+                </div>
+                <div>
+                    <label for="issn_l" class="form-label">
+                        <?= __("ISSN-L") ?>
+                        <span class="text-xs text-gray-500 font-normal">(<?= __("ISSN di collegamento tra le edizioni") ?>)</span>
+                    </label>
+                    <input type="text" name="issn_l" id="issn_l"
+                           value="<?= $val('issn_l') ?>" maxlength="9"
+                           placeholder="0000-0000"
+                           class="form-input font-mono text-sm <?= $err('issn_l') ? 'border-red-500' : '' ?>">
+                    <?php if ($err('issn_l')): ?>
+                        <p class="mt-1 text-xs text-red-600"><?= $e($err('issn_l')) ?></p>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <label for="barcode_base" class="form-label">
+                    <?= __("Barcode di base") ?>
+                    <span class="text-xs text-gray-500 font-normal">(<?= __("EAN-13 con prefisso 977, 13 cifre") ?>)</span>
+                </label>
+                <div class="flex flex-wrap items-center gap-2">
+                    <input type="text" name="barcode_base" id="barcode_base"
+                           value="<?= $val('barcode_base') ?>" maxlength="13"
+                           inputmode="numeric" placeholder="9770000000000"
+                           class="form-input font-mono text-sm flex-1 <?= $err('barcode_base') ? 'border-red-500' : '' ?>">
+                    <button type="button" id="emt-barcode-derive" class="btn-secondary text-sm">
+                        <?= __("Genera dall'ISSN") ?>
+                    </button>
+                </div>
+                <?php if ($err('barcode_base')): ?>
+                    <p class="mt-1 text-xs text-red-600"><?= $e($err('barcode_base')) ?></p>
+                <?php else: ?>
+                    <p class="mt-1 text-xs text-gray-500">
+                        <?= __("Lascialo vuoto e verrà calcolato dall'ISSN al salvataggio, cifra di controllo compresa.") ?>
+                    </p>
+                <?php endif; ?>
             </div>
 
             <div class="grid grid-cols-1 gap-4 mt-4">
@@ -205,6 +269,26 @@ $periodicitaLabels = [
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div>
+                    <label for="direttore_responsabile" class="form-label">
+                        <?= __("Direttore responsabile") ?>
+                    </label>
+                    <input type="text" name="direttore_responsabile" id="direttore_responsabile"
+                           value="<?= $val('direttore_responsabile') ?>" maxlength="255"
+                           class="form-input">
+                </div>
+                <div>
+                    <label for="registrazione_tribunale" class="form-label">
+                        <?= __("Registrazione al tribunale") ?>
+                        <span class="text-xs text-gray-500 font-normal">(<?= __("es. n. 123 del 4/5/1998") ?>)</span>
+                    </label>
+                    <input type="text" name="registrazione_tribunale" id="registrazione_tribunale"
+                           value="<?= $val('registrazione_tribunale') ?>" maxlength="255"
+                           class="form-input">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
                     <label for="anno_inizio" class="form-label">
                         <?= __("Anno di inizio pubblicazione") ?>
                     </label>
@@ -266,6 +350,77 @@ $periodicitaLabels = [
                     <?php endif; ?>
                 </div>
             </div>
+        </section>
+
+        <!-- ── Gestione amministrativa ─────────────────────────────── -->
+        <section class="emt-form-section">
+            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                <?= __("Gestione amministrativa") ?>
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="prezzo_copertina" class="form-label">
+                        <?= __("Prezzo di copertina") ?>
+                    </label>
+                    <input type="text" name="prezzo_copertina" id="prezzo_copertina"
+                           value="<?= $val('prezzo_copertina') ?>" maxlength="20"
+                           inputmode="decimal" placeholder="0.00"
+                           class="form-input <?= $err('prezzo_copertina') ? 'border-red-500' : '' ?>">
+                    <?php if ($err('prezzo_copertina')): ?>
+                        <p class="mt-1 text-xs text-red-600"><?= $e($err('prezzo_copertina')) ?></p>
+                    <?php endif; ?>
+                </div>
+                <div>
+                    <label for="acquisizione_default" class="form-label">
+                        <?= __("Acquisizione predefinita") ?>
+                    </label>
+                    <select name="acquisizione_default" id="acquisizione_default"
+                            class="form-input <?= $err('acquisizione_default') ? 'border-red-500' : '' ?>">
+                        <option value="">— <?= __("Non specificata") ?> —</option>
+                        <?php foreach ($acquisizioneLabels as $value => $label): ?>
+                            <option value="<?= $e($value) ?>" <?= ((string) ($values['acquisizione_default'] ?? '')) === $value ? 'selected' : '' ?>>
+                                <?= $e($label) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if ($err('acquisizione_default')): ?>
+                        <p class="mt-1 text-xs text-red-600"><?= $e($err('acquisizione_default')) ?></p>
+                    <?php else: ?>
+                        <p class="mt-1 text-xs text-gray-500"><?= __("Proposta come canale per i nuovi fascicoli.") ?></p>
+                    <?php endif; ?>
+                </div>
+                <div>
+                    <label for="prestabile" class="form-label">
+                        <?= __("Politica di prestito") ?>
+                    </label>
+                    <select name="prestabile" id="prestabile"
+                            class="form-input <?= $err('prestabile') ? 'border-red-500' : '' ?>">
+                        <?php foreach ($prestabileLabels as $value => $label): ?>
+                            <option value="<?= $e($value) ?>" <?= ((string) ($values['prestabile'] ?? 'consultazione')) === $value ? 'selected' : '' ?>>
+                                <?= $e($label) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if ($err('prestabile')): ?>
+                        <p class="mt-1 text-xs text-red-600"><?= $e($err('prestabile')) ?></p>
+                    <?php else: ?>
+                        <p class="mt-1 text-xs text-gray-500">
+                            <?= __("Dichiarazione di policy: l'emeroteca non gestisce ancora prestiti, il dato serve al banco e alle statistiche.") ?>
+                        </p>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <?php if ($mode === 'edit'): ?>
+                <p class="mt-4 text-sm">
+                    <a href="<?= $e(url('/admin/periodicals/' . (int) $editId . '/subscriptions')) ?>"
+                       class="text-gray-700 hover:underline">
+                        <i class="fas fa-file-signature" aria-hidden="true"></i>
+                        <?= __("Gestisci gli abbonamenti di questa testata") ?>
+                    </a>
+                </p>
+            <?php endif; ?>
         </section>
 
         <!-- ── Presentazione e note ────────────────────────────────── -->
@@ -365,4 +520,26 @@ $periodicitaLabels = [
         </div>
     </form>
 </div>
+<script>
+// "Genera dall'ISSN": the EAN-13 (977 prefix + check digit) is derived
+// SERVER-SIDE at save time, by the same IssnHelper that validates the ISSN.
+// Deriving it here too would mean two implementations of the same check
+// digit, and a browser/server disagreement would store a barcode that looks
+// well-formed (13 digits) but scans as another title. So the button just
+// clears the field — which is exactly what asks the server to compute it —
+// and says so.
+(function () {
+    var button = document.getElementById('emt-barcode-derive');
+    var field = document.getElementById('barcode_base');
+    if (!button || !field) {
+        return;
+    }
+    var notice = <?= json_encode(__("Il barcode verrà calcolato dall'ISSN al salvataggio."), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    button.addEventListener('click', function () {
+        field.value = '';
+        field.placeholder = notice;
+        field.focus();
+    });
+})();
+</script>
 <script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.2.3')) ?>" defer></script>
