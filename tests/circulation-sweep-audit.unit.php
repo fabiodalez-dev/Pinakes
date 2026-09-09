@@ -407,6 +407,20 @@ try {
 } catch (Throwable) {
     // outbox table missing would itself be a failure below
 }
+// Precondition, asserted rather than assumed: this check only means anything
+// while the transport is genuinely unreachable. If a concurrent suite restores
+// the mail settings mid-run (they live in the shared system_settings table),
+// the sweep delivers the message for real and consumes its outbox row — which
+// would read as a defect in the outbox instead of the environment race it is.
+$smtpStillDown = false;
+try {
+    $smtpStillDown = strtolower((string) \App\Support\ConfigStore::get('mail.driver', 'mail')) === 'smtp'
+        && !\App\Support\Mailer::isSmtpReachable();
+} catch (Throwable) {
+    // leave false: the precondition check below reports it
+}
+$check($smtpStillDown,
+    '16a precondition: the transport is still forced down (else another suite restored the mail settings)');
 $check($outboxRow !== null,
     '16 the reservation_expired email is claimed in the outbox (SMTP forced down: row must persist)');
 
