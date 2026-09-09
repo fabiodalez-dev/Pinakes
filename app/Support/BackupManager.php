@@ -44,6 +44,14 @@ class BackupManager
     public const DEFAULT_RETENTION = 10;
 
     /**
+     * The exact shape createBackup() generates: date, time and a six-hex
+     * suffix. The rotation matches on THIS, not on the `backup_` prefix — an
+     * administrator archive named `backup_migrazione.zip` carries the prefix
+     * too, and deleting it would be exactly the loss the rotation must avoid.
+     */
+    private const GENERATED_NAME_PATTERN = '/^backup_\d{4}-\d{2}-\d{2}_\d{6}_[0-9a-f]{6}\.zip$/';
+
+    /**
      * Hard cap for the cumulative DECOMPRESSED size of a restore archive (4 GB).
      * Guards against a decompression-bomb ZIP whose compressed form passes
      * MAX_UPLOAD_BYTES but expands to exhaust disk during extraction.
@@ -79,6 +87,13 @@ class BackupManager
             if (!is_dir($this->backupPath) && !@mkdir($this->backupPath, 0755, true) && !is_dir($this->backupPath)) {
                 throw new \RuntimeException(__('Impossibile creare directory di backup'));
             }
+
+            // Serialize the whole write-then-rotate sequence. Two concurrent
+            // backups (the manual route and the pre-update one) each exclude
+            // only their OWN file from the rotation, so with a small retention
+            // they could delete each other's archive and still report success
+            // with a path that no longer exists.
+            $lockHandle = $this->acquireBackupLock();
 
             // A random suffix avoids collisions when two backups land in the
             // same second (e.g. a manual backup + the pre-restore safety backup).
@@ -138,9 +153,13 @@ class BackupManager
             // the backup meant to make updates safe was what broke them.
             // Best-effort: a rotation failure must never fail the backup itself.
             $this->pruneOldBackups($zipPath);
+            $this->releaseBackupLock($lockHandle);
 
             return ['success' => true, 'name' => $name, 'path' => $zipPath, 'size' => $size, 'error' => null];
         } catch (\Throwable $e) {
+            if (isset($lockHandle)) {
+                $this->releaseBackupLock($lockHandle);
+            }
             if ($sqlTmp !== null && is_file($sqlTmp)) {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- tempnam()-generated temp path, not user input
                 @unlink($sqlTmp);
@@ -152,6 +171,49 @@ class BackupManager
     // ---------------------------------------------------------------------
     // List / delete / download
     // ---------------------------------------------------------------------
+
+    /**
+     * Exclusive lock covering write-then-rotate. Dedicated to backups, not the
+     * update lock: a backup is legitimate while no update runs. Blocking on
+     * purpose — a queued backup is correct, a lost one is not. Returns null if
+     * the lock cannot be taken at all, in which case the backup still proceeds:
+     * failing to lock must not mean failing to back up.
+     *
+     * @return resource|null
+     */
+    private function acquireBackupLock()
+    {
+        try {
+            if (!is_dir($this->backupPath)) {
+                return null;
+            }
+            $handle = @fopen($this->backupPath . '/.rotation.lock', 'c');
+            if ($handle === false) {
+                return null;
+            }
+            if (!flock($handle, LOCK_EX)) {
+                fclose($handle);
+                return null;
+            }
+            return $handle;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** @param resource|null $handle */
+    private function releaseBackupLock($handle): void
+    {
+        if (!is_resource($handle)) {
+            return;
+        }
+        try {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        } catch (\Throwable) {
+            // nothing useful to do; the OS releases the lock with the process
+        }
+    }
 
     /**
      * Keep only the most recent automatic backups, newest first.
@@ -184,6 +246,9 @@ class BackupManager
             foreach (glob($this->backupPath . '/backup_*.zip') ?: [] as $file) {
                 if (!is_file($file) || realpath($file) === realpath($justWritten)) {
                     continue;
+                }
+                if (preg_match(self::GENERATED_NAME_PATTERN, basename($file)) !== 1) {
+                    continue; // hand-placed archive: never a rotation candidate
                 }
                 $files[$file] = (int) filemtime($file);
             }

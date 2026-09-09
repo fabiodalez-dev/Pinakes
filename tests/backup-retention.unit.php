@@ -151,13 +151,25 @@ $newest = end($seeded);
 $manual = $tmp . '/before-the-big-migration.zip';
 file_put_contents($manual, 'x');
 touch($manual, time() - 999999);
+// The dangerous case: a hand-made archive that DOES carry the generated
+// prefix. Matching on `backup_*` alone would delete it.
+$manualPrefixed = $tmp . '/backup_migrazione.zip';
+file_put_contents($manualPrefixed, 'x');
+touch($manualPrefixed, time() - 999999);
+$manualDated = $tmp . '/backup_2026-01-01_000000_prima-del-restauro.zip';
+file_put_contents($manualDated, 'x');
+touch($manualDated, time() - 999999);
 $notes = $tmp . '/README.txt';
 file_put_contents($notes, 'x');
 $manager = $makeManager($tmp, '5');
 $prune($manager, $newest);
 $check(is_file($manual), 'an administrator archive with a custom name survives the rotation');
+$check(is_file($manualPrefixed), 'a hand-made archive carrying the backup_ prefix survives too');
+$check(is_file($manualDated), 'a hand-made archive that mimics the date form but not the suffix survives');
 $check(is_file($notes), 'a non-backup file in the directory is left alone');
-$check(count(glob($tmp . '/backup_*.zip') ?: []) === 5, 'only the generated backups are rotated');
+$generated = array_filter(glob($tmp . '/backup_*.zip') ?: [], static fn(string $f): bool =>
+    preg_match('/^backup_\\d{4}-\\d{2}-\\d{2}_\\d{6}_[0-9a-f]{6}\\.zip$/', basename($f)) === 1);
+$check(count($generated) === 5, 'only the generated backups are rotated (kept ' . count($generated) . ')');
 
 foreach (glob($tmp . '/*') ?: [] as $f) {
     @unlink($f);
