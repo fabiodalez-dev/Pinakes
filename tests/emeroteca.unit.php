@@ -162,7 +162,8 @@ try {
         . implode(',', $result['failed'] ?? []) . ')');
 
     $expected = $plugin->expectedTables();
-    check(is_array($expected) && count($expected) === 4, 'expectedTables() declares exactly 4 tables');
+    // 5 since plugin 1.4.0 (emeroteca_abbonamenti joined the four originals).
+    check(is_array($expected) && count($expected) === 5, 'expectedTables() declares exactly 5 tables');
 
     $sortedExpected = array_values(array_unique(array_map('strval', $expected)));
     sort($sortedExpected);
@@ -237,22 +238,46 @@ try {
     $fixturePluginId = (int) $db->insert_id;
     $insPlugin->close();
     $plugin->setPluginId($fixturePluginId);
-    // Conta DOPO la prima attivazione e DOPO la seconda: 3+3 prova
-    // l'idempotenza; il solo conteggio finale non distingue "3 hook
-    // idempotenti" da hook registrati due volte. I 3 hook: routes,
-    // admin menu, mobile_api.openapi (bridge mobile, v1.3.0).
-    $countHooks = static function () use ($db, $fixturePluginId): int {
-        $res = $db->query("SELECT COUNT(*) AS n FROM plugin_hooks WHERE plugin_id = {$fixturePluginId}");
-        $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
-        return (int) ($row['n'] ?? -1);
+    // Si controlla l'INSIEME dei nomi hook dopo la prima attivazione e dopo
+    // la seconda: i nomi dicono quale contratto è registrato (un semplice
+    // conteggio non distingue un hook mancante da uno nuovo), e ripetere
+    // l'attivazione prova l'idempotenza — il solo stato finale non
+    // distingue "hook idempotenti" da hook registrati due volte.
+    // Gli hook: routes, admin menu, mobile_api.openapi (bridge mobile,
+    // v1.3.0) e i cinque listener sulle entità core (v1.4.0), che
+    // ripuntano editore_id/genere_id sul superstite di un merge e vietano
+    // la cancellazione di una mensola ancora usata dall'emeroteca.
+    $expectedHooks = [
+        'admin.menu.render',
+        'app.routes.register',
+        'genre.merging',
+        'mobile_api.openapi',
+        'publisher.deleting',
+        'publisher.merging',
+        'shelf.can_delete',
+        'shelf.deleted',
+    ];
+    /** @return list<string> nomi hook registrati, ordinati e con i duplicati visibili */
+    $hookNames = static function () use ($db, $fixturePluginId): array {
+        $res = $db->query(
+            "SELECT hook_name FROM plugin_hooks WHERE plugin_id = {$fixturePluginId} ORDER BY hook_name"
+        );
+        $names = [];
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_assoc()) {
+                $names[] = (string) $row['hook_name'];
+            }
+        }
+        return $names;
     };
     $plugin->onActivate();
-    $afterFirst = $countHooks();
+    $afterFirst = $hookNames();
     $plugin->onActivate();
-    $afterSecond = $countHooks();
+    $afterSecond = $hookNames();
     check(
-        $afterFirst === 3 && $afterSecond === 3,
-        'activation registers exactly three hooks and remains idempotent (3 after first run, still 3 after second)'
+        $afterFirst === $expectedHooks && $afterSecond === $expectedHooks,
+        'activation registers exactly the expected hooks and remains idempotent ('
+        . count($expectedHooks) . ' after the first run, the same after the second)'
     );
     $plugin->onDeactivate();
     $hookRowsAfter = $db->query("SELECT 1 FROM plugin_hooks WHERE plugin_id = {$fixturePluginId}");
