@@ -673,7 +673,10 @@ try {
             'git -C ' . $root . ' show ' . escapeshellarg($ref . ':storage/plugins/emeroteca/plugin.json') . ' 2>/dev/null'
         );
         $version = is_string($manifest) ? (json_decode($manifest, true)['version'] ?? '') : '';
-        if (is_string($version) && $version !== '' && version_compare($version, '1.4.0', '<')) {
+        // Exactly 1.3.0: the embedded baseline describes THAT schema. A ref
+        // shipping 1.2.x would compare it against a different one and report a
+        // mismatch that says nothing about this branch.
+        if ($version === '1.3.0') {
             $mainSrc = $candidate;
             note("1.3.0 baseline cross-checked against {$ref} (plugin {$version})");
             break;
