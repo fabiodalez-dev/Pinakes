@@ -47,7 +47,7 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     $env[trim($k)] = trim(trim($v), "\"'");
 }
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? 'fabiodal_biblioteca_user');
-$dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? 'Zd10)uwziWlK'));
+$dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
 $dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? 'fabiodal_biblioteca');
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
 
@@ -165,7 +165,7 @@ try {
     // 3. shelf.can_delete=false blocks deleteMensola; shelf.deleted fires
     // ---------------------------------------------------------------
     $resetHooks();
-    $db->query("INSERT INTO scaffali (codice, nome, lettera, descrizione) VALUES ('zzZ', 'zz_hooktest_{$RUN}', 'Z', 'zz_hooktest')");
+    $db->query("INSERT INTO scaffali (codice, nome, lettera, descrizione) VALUES ('{$RUN}', 'zz_hooktest_{$RUN}', 'Z', 'zz_hooktest')");
     $scaffaleId = (int) $db->insert_id;
     // Level 990+: far above any real shelf, avoids the UNIQUE(scaffale_id, numero_livello).
     $db->query("INSERT INTO mensole (scaffale_id, numero_livello, descrizione) VALUES ({$scaffaleId}, 990, 'zz_hooktest_{$RUN}')");

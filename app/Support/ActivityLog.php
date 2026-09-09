@@ -86,6 +86,7 @@ final class ActivityLog
         'periodical.created' => 'Testata creata',
         'periodical.updated' => 'Testata aggiornata',
         'periodical.deleted' => 'Testata eliminata',
+        'periodical.merged' => 'Testate unite',
         'issue.created' => 'Fascicolo creato',
         'issue.updated' => 'Fascicolo aggiornato',
         'issue.deleted' => 'Fascicolo eliminato',

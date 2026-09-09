@@ -71,10 +71,12 @@ class UNIMARCXMLFormatter extends RecordFormatter
             '0',
             STR_PAD_LEFT
         );
+        $endYear = (string) ($record['anno_fine'] ?? '');
+        $closedSerial = $isSerial && preg_match('/^\d{4}$/', $endYear) === 1;
         $f100 = gmdate('Ymd')   // 0-7:  date entered
-              . 'a'              // 8:    type of date = single known date
+              . ($closedSerial ? 'b' : 'a') // 8: ceased / ongoing serial (legacy books unchanged)
               . $date1           // 9-12: year 1
-              . '    '           // 13-16: year 2
+              . ($closedSerial ? $endYear : ($isSerial ? '9999' : '    ')) // 13-16: year 2
               . ' '              // 17:   target audience
               . '    '           // 18-21: illustrations
               . $langCode        // 22-24: language code

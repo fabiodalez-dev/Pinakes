@@ -7490,5 +7490,20 @@
   "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.",
   "Stato del fascicolo non valido.": "Stato del fascicolo non valido.",
   "Testata precedente ereditata dalla testata di origine: «%s».": "Testata precedente ereditata dalla testata di origine: «%s».",
-  "Codice ambiguo: risolvi dalla testata.": "Codice ambiguo: risolvi dalla testata."
+  "Codice ambiguo: risolvi dalla testata.": "Codice ambiguo: risolvi dalla testata.",
+  "Testata creata": "Testata creata",
+  "Testata aggiornata": "Testata aggiornata",
+  "Testata eliminata": "Testata eliminata",
+  "Testate unite": "Testate unite",
+  "Fascicolo creato": "Fascicolo creato",
+  "Fascicolo aggiornato": "Fascicolo aggiornato",
+  "Fascicolo eliminato": "Fascicolo eliminato",
+  "Visibilità PDF fascicolo cambiata": "Visibilità PDF fascicolo cambiata",
+  "Fascicolo sollecitato al fornitore": "Fascicolo sollecitato al fornitore",
+  "Abbonamento creato": "Abbonamento creato",
+  "Abbonamento aggiornato": "Abbonamento aggiornato",
+  "Abbonamento eliminato": "Abbonamento eliminato",
+  "Eventi plugin": "Eventi plugin",
+  "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.",
+  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Le annate con dati descrittivi discordanti restano separate con un volume distinto."
 }

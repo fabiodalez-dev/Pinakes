@@ -75,8 +75,12 @@ let fascicoloIds = [];
 let dupTestataId = '';
 let subscriptionId = '';
 
-const today = () => new Date().toISOString().slice(0, 10);
-const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+const APP_TZ = process.env.E2E_APP_TIMEZONE || 'Europe/Rome';
+const appDate = (date) => new Intl.DateTimeFormat('en-CA', {
+  timeZone: APP_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(date);
+const today = () => appDate(new Date());
+const inDays = (n) => appDate(new Date(Date.now() + n * 86400000));
 
 // Date fields are upgraded by the shared Flatpickr initializer, which HIDES
 // the ISO input and shows a localized alternate one: page.fill() would time

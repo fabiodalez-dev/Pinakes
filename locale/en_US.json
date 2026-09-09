@@ -7490,5 +7490,20 @@
   "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "If left empty, the periodical's base barcode applies to scanning and labels.",
   "Stato del fascicolo non valido.": "Invalid issue status.",
   "Testata precedente ereditata dalla testata di origine: «%s».": "Previous title inherited from the source periodical: “%s”.",
-  "Codice ambiguo: risolvi dalla testata.": "Ambiguous code: identify the issue from the periodical."
+  "Codice ambiguo: risolvi dalla testata.": "Ambiguous code: identify the issue from the periodical.",
+  "Testata creata": "Periodical created",
+  "Testata aggiornata": "Periodical updated",
+  "Testata eliminata": "Periodical deleted",
+  "Testate unite": "Periodicals merged",
+  "Fascicolo creato": "Issue created",
+  "Fascicolo aggiornato": "Issue updated",
+  "Fascicolo eliminato": "Issue deleted",
+  "Visibilità PDF fascicolo cambiata": "Issue PDF visibility changed",
+  "Fascicolo sollecitato al fornitore": "Issue claimed from supplier",
+  "Abbonamento creato": "Subscription created",
+  "Abbonamento aggiornato": "Subscription updated",
+  "Abbonamento eliminato": "Subscription deleted",
+  "Eventi plugin": "Plugin events",
+  "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Year %1$d retained separately as volume “%2$s” to preserve its descriptive data.",
+  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Years with conflicting descriptive data remain separate under a distinct volume."
 }

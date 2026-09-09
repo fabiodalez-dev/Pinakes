@@ -572,6 +572,13 @@ try {
         'an empty selection still returns a well-formed (empty-state) sheet'
     );
 
+    $exec("UPDATE emeroteca_fascicoli SET stato = 'scartato', pdf_path = 'withdrawn.pdf', pdf_pubblico = 1 WHERE id = ?", 'i', [$firstIssueId]);
+    $withdrawnLines = explode("\n", rtrim(KbartExporter::kbart($db, $testataId), "\n"));
+    $withdrawnRow = array_combine($expectedColumns, explode("\t", $withdrawnLines[1]));
+    check($withdrawnRow['coverage_depth'] === 'print' && $withdrawnRow['access_type'] === '',
+        'a withdrawn public PDF does not advertise full-text access in KBART');
+    $exec("UPDATE emeroteca_fascicoli SET stato = 'posseduto', pdf_path = NULL, pdf_pubblico = 0 WHERE id = ?", 'i', [$firstIssueId]);
+
     // ── 10. Spreadsheet formula injection ─────────────────────────────
     // RFC 4180 quoting does NOT stop Excel/LibreOffice from evaluating a cell
     // that starts with '=', '+', '-' or '@'. Both files are opened by the
@@ -719,15 +726,16 @@ try {
     $forceProbe = static function (string $class, mysqli $handle, array $tables): void {
         $prop = new \ReflectionProperty($class, 'tableCache');
         $prop->setAccessible(true);
-        $cache = $prop->getValue();
+        $cache = $prop->getValue() ?? new \WeakMap();
+        $entries = $cache[$handle] ?? [];
         foreach ($tables as $table => $exists) {
-            $key = spl_object_id($handle) . '|' . $table;
             if ($exists === null) {
-                unset($cache[$key]);
+                unset($entries[$table]);
             } else {
-                $cache[$key] = $exists;
+                $entries[$table] = $exists;
             }
         }
+        $cache[$handle] = $entries;
         $prop->setValue(null, $cache);
     };
 

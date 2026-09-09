@@ -262,53 +262,12 @@ class PeriodicalAdminController extends AbstractAdminController
     }
 
     /**
-     * The declared consistenza of a set of testate, concatenated per testata
-     * in ONE query with the very same shape as the subquery inside
-     * EmerotecaPlugin::consistenzaTestata() (empty strings skipped, annate
-     * ordered by year, '; ' separator) so the two surfaces cannot drift.
-     *
-     * A separate statement rather than a GROUP_CONCAT bolted onto the
-     * holdings aggregate: that one joins the issues, which would repeat every
-     * annata once per issue, and GROUP_CONCAT(DISTINCT …) cannot be ordered
-     * by another column.
-     *
-     * @param list<int> $ids already sanitised, non-empty
+     * @param list<int> $ids
      * @return array<int, string>
      */
     private function declaredHoldings(array $ids): array
     {
-        $out = [];
-        if ($ids === []) {
-            return $out;
-        }
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $this->db->prepare(
-            "SELECT testata_id,
-                    GROUP_CONCAT(consistenza_dichiarata ORDER BY anno SEPARATOR '; ') AS dichiarata
-               FROM emeroteca_annate
-              WHERE testata_id IN ({$placeholders})
-                AND consistenza_dichiarata IS NOT NULL
-                AND consistenza_dichiarata <> ''
-              GROUP BY testata_id"
-        );
-        if ($stmt === false) {
-            SecureLogger::error('[Emeroteca] declared holdings prepare failed: ' . $this->db->error);
-            return $out;
-        }
-        $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[Emeroteca] declared holdings failed: ' . $stmt->error);
-            $stmt->close();
-            return $out;
-        }
-        $res = $stmt->get_result();
-        if ($res instanceof \mysqli_result) {
-            while ($row = $res->fetch_assoc()) {
-                $out[(int) $row['testata_id']] = trim((string) ($row['dichiarata'] ?? ''));
-            }
-        }
-        $stmt->close();
-        return $out;
+        return \EmerotecaPlugin::declaredHoldings($this->db, $ids);
     }
 
     /**
@@ -751,8 +710,8 @@ class PeriodicalAdminController extends AbstractAdminController
     //  • Same (anno, volume) on both sides → the two annate are FUSED: the
     //    destination annata survives and the source's issues move into it.
     //    The emptied source annata is deleted only after it is verified
-    //    empty; its own metadata (serie, collocazione, note) stays with the
-    //    destination's, which is never overwritten.
+    //    empty. Empty destination metadata inherits the source values;
+    //    incompatible descriptions retain a separately numbered volume.
     //  • Same `numero` inside the fused annata → the issue that is
     //    `posseduto` KEEPS the plain number: the destination first, the
     //    source when the destination is not owned, the destination again
@@ -881,6 +840,7 @@ class PeriodicalAdminController extends AbstractAdminController
                 'fascicoli_spostati' => $summary['fascicoli_spostati'],
                 'fascicoli_rinumerati' => count($summary['rinumerati']),
                 'abbonamenti_spostati' => $summary['abbonamenti_spostati'],
+                'annate_conservate' => $summary['annate_conservate'],
                 'link_azzerati'        => array_column($summary['link_azzerati'], 'id'),
                 'precedente_ereditato' => $summary['precedente_ereditato']['id'] ?? null,
                 'precedente_scartato'  => $summary['precedente_scartato']['id'] ?? null,
@@ -901,6 +861,12 @@ class PeriodicalAdminController extends AbstractAdminController
         // operator has to re-enter by hand, so it is named here. The flash is
         // rendered (and consumed) by the very response built below.
         $notes = [];
+        foreach ($summary['annate_conservate'] as $annata) {
+            $notes[] = sprintf(
+                __('Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.'),
+                $annata['anno'], $annata['volume']
+            );
+        }
         if ($summary['link_azzerati'] !== []) {
             $notes[] = sprintf(
                 __('Collegamento alla testata precedente azzerato per evitare un ciclo: %s'),
@@ -941,6 +907,7 @@ class PeriodicalAdminController extends AbstractAdminController
      *
      * @return array{annate_spostate:int, annate_fuse:int, fascicoli_spostati:int,
      *               abbonamenti_spostati:int, testate_ricollegate:int,
+     *               annate_conservate:list<array{anno:int, volume:string}>,
      *               rinumerati:list<array{anno:int, numero:string, nuovo:string, lato:string}>,
      *               link_azzerati:list<array{id:int, titolo:string}>,
      *               precedente_ereditato:array{id:int, titolo:string}|null,
@@ -952,6 +919,7 @@ class PeriodicalAdminController extends AbstractAdminController
         $summary = [
             'annate_spostate'      => 0,
             'annate_fuse'          => 0,
+            'annate_conservate'    => [],
             'fascicoli_spostati'   => 0,
             'abbonamenti_spostati' => 0,
             'testate_ricollegate'  => 0,
@@ -995,6 +963,28 @@ class PeriodicalAdminController extends AbstractAdminController
                     );
                     $summary['annate_spostate']++;
                     $summary['fascicoli_spostati'] += $this->countIssuesInAnnata($srcAnnataId);
+                    continue;
+                }
+
+                // A year can represent uncatalogued holdings solely through its
+                // metadata. Never discard those fields when deleting the source.
+                if (!$this->mergeAnnataMetadata($srcAnnataId, $destAnnataId)) {
+                    $suffix = '-dup-' . $srcAnnataId;
+                    $newVolume = mb_substr($volume, 0, 50 - strlen($suffix)) . $suffix;
+                    for ($attempt = 2; $this->lockedAnnataId($targetId, $anno, $newVolume) !== null; $attempt++) {
+                        if ($attempt > 1000) {
+                            throw new \RuntimeException('merge: no free volume designation');
+                        }
+                        $suffix = '-dup-' . $srcAnnataId . '-' . $attempt;
+                        $newVolume = mb_substr($volume, 0, 50 - strlen($suffix)) . $suffix;
+                    }
+                    $this->exec(
+                        'UPDATE emeroteca_annate SET testata_id = ?, volume = ? WHERE id = ?',
+                        'isi', [$targetId, $newVolume, $srcAnnataId]
+                    );
+                    $summary['annate_spostate']++;
+                    $summary['fascicoli_spostati'] += $this->countIssuesInAnnata($srcAnnataId);
+                    $summary['annate_conservate'][] = ['anno' => $anno, 'volume' => $newVolume];
                     continue;
                 }
 
@@ -1139,6 +1129,52 @@ class PeriodicalAdminController extends AbstractAdminController
         }
 
         return $summary;
+    }
+
+    /**
+     * Fill empty destination metadata; incompatible descriptions need two rows.
+     * Both years are already locked by performMerge(). No data is truncated or
+     * replaced merely because the year and volume designations happen to match.
+     */
+    private function mergeAnnataMetadata(int $sourceId, int $targetId): bool
+    {
+        $fields = ['serie', 'collocazione_id', 'consistenza_dichiarata', 'copertina_url', 'note', 'rilegata'];
+        $stmt = $this->db->prepare('SELECT * FROM emeroteca_annate WHERE id IN (?, ?) FOR UPDATE');
+        if ($stmt === false) {
+            throw new \RuntimeException('merge: year metadata prepare failed: ' . $this->db->error);
+        }
+        $stmt->bind_param('ii', $sourceId, $targetId);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('merge: year metadata read failed: ' . $error);
+        }
+        $res = $stmt->get_result();
+        $rows = [];
+        while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
+            $rows[(int) $row['id']] = $row;
+        }
+        $stmt->close();
+        if (!isset($rows[$sourceId], $rows[$targetId])) {
+            throw new \RuntimeException('merge: year disappeared');
+        }
+        $values = [];
+        foreach ($fields as $field) {
+            $source = $rows[$sourceId][$field];
+            $target = $rows[$targetId][$field];
+            if ($source !== null && $source !== '' && $target !== null && $target !== ''
+                && (string) $source !== (string) $target) {
+                return false;
+            }
+            $values[] = $target === null || $target === '' ? $source : $target;
+        }
+        $values[] = $targetId;
+        $this->exec(
+            'UPDATE emeroteca_annate SET serie = ?, collocazione_id = ?, consistenza_dichiarata = ?,
+             copertina_url = ?, note = ?, rilegata = ? WHERE id = ?',
+            'sisssii', $values
+        );
+        return true;
     }
 
     /**

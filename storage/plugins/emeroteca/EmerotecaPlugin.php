@@ -2404,8 +2404,8 @@ class EmerotecaPlugin
      * The suggestion is emitted ONLY on a real match, as the contract
      * demands ("MUST NOT return a suggestion when it has no match"): two
      * existence probes with LIMIT 1, short-circuiting on the first hit,
-     * so a search that has nothing to do with periodicals costs one
-     * indexed-prefix-less LIKE and stops.
+     * using LIKE for masthead titles and the public search FULLTEXT index
+     * for article titles, restricted to non-withdrawn issues.
      *
      * @param mixed $suggestions the suggestions collected so far
      * @return mixed append-only; a non-array input is passed through
@@ -2461,27 +2461,30 @@ class EmerotecaPlugin
 
         $probes = [];
         if ($this->emerotecaTableExists('emeroteca_testate')) {
-            $probes[] = "SELECT 1 FROM emeroteca_testate
+            $probes[] = ["SELECT 1 FROM emeroteca_testate
                           WHERE titolo LIKE ? ESCAPE '\\\\'
                              OR sottotitolo LIKE ? ESCAPE '\\\\'
                              OR issn LIKE ? ESCAPE '\\\\'
-                          LIMIT 1";
+                          LIMIT 1", 'sss', [$pattern, $pattern, $pattern]];
         }
         if ($this->emerotecaTableExists('emeroteca_articoli')) {
-            $probes[] = "SELECT 1 FROM emeroteca_articoli
-                          WHERE titolo LIKE ? ESCAPE '\\\\'
-                             OR autori LIKE ? ESCAPE '\\\\'
-                             OR keywords LIKE ? ESCAPE '\\\\'
-                          LIMIT 1";
+            // This hint uses the same token search as the public article search.
+            // The FULLTEXT index avoids a full article scan on every catalogue miss.
+            $probes[] = ["SELECT 1 FROM emeroteca_articoli ar
+                          JOIN emeroteca_fascicoli f ON f.id = ar.fascicolo_id
+                          WHERE f.stato <> 'scartato'
+                            AND MATCH(ar.titolo, ar.autori, ar.keywords)
+                                AGAINST (? IN NATURAL LANGUAGE MODE)
+                          LIMIT 1", 's', [$term]];
         }
 
-        foreach ($probes as $sql) {
+        foreach ($probes as [$sql, $types, $params]) {
             $stmt = $this->db->prepare($sql);
             if ($stmt === false) {
                 SecureLogger::error('[Emeroteca] search suggestion probe prepare failed: ' . $this->db->error);
                 continue;
             }
-            $stmt->bind_param('sss', $pattern, $pattern, $pattern);
+            $stmt->bind_param($types, ...$params);
             if (!$stmt->execute()) {
                 SecureLogger::error('[Emeroteca] search suggestion probe failed: ' . $stmt->error);
                 $stmt->close();
@@ -2695,12 +2698,7 @@ class EmerotecaPlugin
             "SELECT
                 MIN(CASE WHEN f.stato = 'posseduto' THEN a.anno END) AS anno_min,
                 MAX(CASE WHEN f.stato = 'posseduto' THEN a.anno END) AS anno_max,
-                COALESCE(SUM(f.stato = 'mancante'), 0)               AS lacune,
-                (SELECT GROUP_CONCAT(a2.consistenza_dichiarata ORDER BY a2.anno SEPARATOR '; ')
-                   FROM emeroteca_annate a2
-                  WHERE a2.testata_id = ?
-                    AND a2.consistenza_dichiarata IS NOT NULL
-                    AND a2.consistenza_dichiarata <> '')              AS dichiarata
+                COALESCE(SUM(f.stato = 'mancante'), 0)               AS lacune
              FROM emeroteca_annate a
              LEFT JOIN emeroteca_fascicoli f ON f.annata_id = a.id
              WHERE a.testata_id = ?"
@@ -2709,7 +2707,7 @@ class EmerotecaPlugin
             SecureLogger::error('[Emeroteca] consistenza prepare failed: ' . $db->error);
             return '—';
         }
-        $stmt->bind_param('ii', $testataId, $testataId);
+        $stmt->bind_param('i', $testataId);
         if (!$stmt->execute()) {
             SecureLogger::error('[Emeroteca] consistenza query failed: ' . $stmt->error);
             $stmt->close();
@@ -2724,7 +2722,7 @@ class EmerotecaPlugin
         $min        = $row['anno_min'] !== null ? (int) $row['anno_min'] : null;
         $max        = $row['anno_max'] !== null ? (int) $row['anno_max'] : null;
         $lacune     = (int) $row['lacune'];
-        $dichiarata = trim((string) ($row['dichiarata'] ?? ''));
+        $dichiarata = self::declaredHoldings($db, [$testataId])[$testataId] ?? '';
 
         if ($min === null) {
             $out = '—';
@@ -2741,6 +2739,43 @@ class EmerotecaPlugin
             $out = ($out === '—') ? $dichiarata : $out . ' · ' . $dichiarata;
         }
         return $out;
+    }
+
+    /**
+     * Complete declared holdings, shared by the admin list and public summary.
+     * Concatenate in PHP so group_concat_max_len can never truncate the data.
+     * @param list<int> $ids
+     * @return array<int, string>
+     */
+    public static function declaredHoldings(mysqli $db, array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $out = [];
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $db->prepare(
+            "SELECT testata_id, consistenza_dichiarata FROM emeroteca_annate
+              WHERE testata_id IN ({$placeholders})
+                AND consistenza_dichiarata IS NOT NULL AND consistenza_dichiarata <> ''
+              ORDER BY testata_id, anno, volume, id"
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Emeroteca] declared holdings prepare failed: ' . $db->error);
+            return [];
+        }
+        $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Emeroteca] declared holdings failed: ' . $stmt->error);
+            $stmt->close();
+            return [];
+        }
+        $res = $stmt->get_result();
+        while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
+            $out[(int) $row['testata_id']][] = (string) $row['consistenza_dichiarata'];
+        }
+        $stmt->close();
+        return array_map(static fn(array $parts): string => trim(implode('; ', $parts)), $out);
     }
 
     // ── Admin menu ────────────────────────────────────────────────────

@@ -35,6 +35,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 $root = dirname(__DIR__);
+require_once __DIR__ . '/helpers/oai-metadata-fault.php';
 
 require_once $root . '/storage/plugins/emeroteca/EmerotecaPlugin.php';
 require_once $root . '/storage/plugins/emeroteca/src/Modules/MobileModule.php';
@@ -187,7 +188,18 @@ $cleanup = static function () use ($db, $titleLike, $EDITORE, $GENERE, $BOOK_TIT
     @$db->query("DELETE FROM emeroteca_testate WHERE titolo LIKE '{$like}'");
     @$db->query("DELETE FROM editori WHERE nome = '" . $db->real_escape_string($EDITORE) . "'");
     @$db->query("DELETE FROM generi  WHERE nome = '" . $db->real_escape_string($GENERE) . "'");
-    @$db->query("DELETE FROM libri WHERE titolo = '" . $db->real_escape_string($BOOK_TITLE) . "'");
+    $bookIds = [];
+    $bookRows = @$db->query("SELECT id FROM libri WHERE titolo = '" . $db->real_escape_string($BOOK_TITLE) . "' OR titolo LIKE '" . $db->real_escape_string($BOOK_TITLE) . " page %'");
+    if ($bookRows instanceof \mysqli_result) {
+        while ($bookRow = $bookRows->fetch_row()) {
+            $bookIds[] = (int) $bookRow[0];
+        }
+        $bookRows->free();
+    }
+    @$db->query("DELETE FROM libri WHERE titolo = '" . $db->real_escape_string($BOOK_TITLE) . "' OR titolo LIKE '" . $db->real_escape_string($BOOK_TITLE) . " page %'");
+    if ($bookIds !== []) {
+        @$db->query("DELETE FROM oai_deleted_records WHERE entity_type = 'book' AND entity_id IN (" . implode(',', $bookIds) . ')');
+    }
     if ($tombIds !== []) {
         @$db->query(
             'DELETE FROM oai_deleted_periodicals WHERE entity_id IN (' . implode(',', $tombIds) . ')'
@@ -684,6 +696,23 @@ try {
         'an ISBN search never returns mastheads (the serials arm ignores monograph-only indexes)'
     );
 
+    $sruOr = (new \Z39Server\SRUServer($db, $sruSettings))->handleRequest([
+        'operation' => 'searchRetrieve', 'version' => '1.2',
+        'query' => 'dc.title="' . $TITLE_MAIN . '" OR bath.isbn="9780000000000"',
+        'recordSchema' => 'dc', 'maximumRecords' => 50,
+    ]);
+    check(array_filter($textList($xpathOf($sruOr, 'SRU mixed OR'), '//*[local-name()="recordData"]//*[local-name()="title"]'),
+        static fn(string $title): bool => str_contains($title, $TITLE_MAIN)) !== [],
+        'SRU mixed OR retains matching serials when the other index is book-only');
+    $sruAnd = (new \Z39Server\SRUServer($db, $sruSettings))->handleRequest([
+        'operation' => 'searchRetrieve', 'version' => '1.2',
+        'query' => 'dc.title="' . $TITLE_MAIN . '" AND bath.isbn="9780000000000"',
+        'recordSchema' => 'dc', 'maximumRecords' => 50,
+    ]);
+    check(array_filter($textList($xpathOf($sruAnd, 'SRU mixed AND'), '//*[local-name()="recordData"]//*[local-name()="title"]'),
+        static fn(string $title): bool => str_contains($title, $TITLE_MAIN)) === [],
+        'SRU mixed AND still excludes serials without an ISBN');
+
     // Explain advertises the ISSN index.
     $explain = (new \Z39Server\SRUServer($db, $sruSettings))->handleRequest([
         'operation' => 'explain',
@@ -856,6 +885,10 @@ try {
     // A token is an OFFSET into a UNION whose arms depend on plugin
     // activation. Toggling a content module mid-harvest shifts rows across
     // the offset and silently drops whatever crossed it.
+    // Seed our own book pages: a fresh CI catalogue has fewer than PAGE_SIZE.
+    for ($i = 0; $i < 101; $i++) {
+        $exec("INSERT INTO libri (titolo, tipo_media) VALUES (?, 'libro')", 's', [$BOOK_TITLE . ' page ' . $i]);
+    }
     $setEmerotecaActive(false);
     $compPage1 = $oaiCall(['verb' => 'ListRecords', 'metadataPrefix' => 'oai_dc']);
     $xpComp1 = $xpathOf($compPage1, 'ListRecords page 1 (emeroteca off)');
@@ -935,6 +968,27 @@ try {
     check(!str_contains($bookDc, 'urn:ISSN:'), 'Dublin Core: a monograph with an ISSN emits no urn:ISSN identifier');
     $serialDc = $formatXml('dc', $serialRow);
     check(str_contains($serialDc, 'urn:ISSN:'), 'Dublin Core: a serial with the same ISSN still emits urn:ISSN');
+
+    $monographRow['numerazione'] = '1999-2020';
+    $serialRow['numerazione'] = '1999-2020';
+    $bookMods = $formatXml('mods', $monographRow);
+    check(!str_contains($bookMods, 'type="issn') && !str_contains($bookMods, 'type="numbering"'),
+        'MODS monographs emit neither serial identifiers nor serial numbering');
+    $serialMods = $formatXml('mods', $serialRow);
+    check(str_contains($serialMods, 'type="issn"') && str_contains($serialMods, 'type="issn-e"')
+        && str_contains($serialMods, 'type="issn-l"') && str_contains($serialMods, 'type="numbering"'),
+        'MODS serials retain all three ISSN types and numbering');
+    $field100 = static function (string $xml): string {
+        $doc = new \DOMDocument(); $doc->loadXML($xml);
+        return (string) (new \DOMXPath($doc))->evaluate('string(//*[local-name()="controlfield"][@tag="100"])');
+    };
+    check(substr($field100($serialUnimarc), 8, 9) === 'a19999999',
+        'UNIMARC ongoing serial has date code a and end date 9999 (IFLA 100)');
+    $closedUnimarc = $formatXml('unimarcxml', $serialRow + ['anno_fine' => 2020]);
+    check(substr($field100($closedUnimarc), 8, 9) === 'b19992020',
+        'UNIMARC ceased serial has date code b and the actual closing year');
+    check(substr($field100($bookUnimarc), 8, 9) === 'a1999    ',
+        'UNIMARC monograph date encoding is unchanged');
 
     // …and end to end, through the real SRU book query (SELECT l.*).
     $sruBook = (new \Z39Server\SRUServer($db, $sruSettings))->handleRequest([
@@ -1057,6 +1111,23 @@ try {
         is_string($realNot) && str_starts_with($realNot, '(NOT '),
         'real negation still works — it is a `not` node, which is what CQLParser emits'
     );
+    // More than six fully broken pages must not hide the first valid record.
+    // Only the test namespace's strip_tags wrapper throws; real DB paging and
+    // the production per-record XML buffering are exercised unchanged.
+    $badStamp = '2003-04-05 06:07:08';
+    for ($i = 0; $i < 601; $i++) {
+        $exec("INSERT INTO libri (titolo, descrizione, tipo_media, updated_at) VALUES (?, ?, 'libro', ?)",
+            'sss', [$BOOK_TITLE . ' page malformed ' . $i, 'zz-oai419-unrenderable:' . $i, $badStamp]);
+    }
+    $lastGood = $exec("INSERT INTO libri (titolo, tipo_media, updated_at) VALUES (?, 'libro', ?)",
+        'ss', [$BOOK_TITLE . ' page last valid', $badStamp]);
+    $afterBadPages = $oaiCall(['verb' => 'ListRecords', 'metadataPrefix' => 'oai_dc', 'set' => 'books',
+        'from' => '2003-04-05T06:07:08Z', 'until' => '2003-04-05T06:07:08Z']);
+    check($errorCode($afterBadPages, 'harvest after malformed pages') === '',
+        'OAI does not falsely terminate after six unrenderable pages');
+    check(str_contains($afterBadPages, ':book:' . $lastGood . '</identifier>'),
+        'the first valid record beyond the former skip limit reaches the harvester');
+
 } finally {
     $cleanup();
     if ($originalActive !== null) {

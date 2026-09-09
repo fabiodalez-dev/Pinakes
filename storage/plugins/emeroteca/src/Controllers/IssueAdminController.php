@@ -1175,7 +1175,11 @@ class IssueAdminController extends AbstractAdminController
         // uploads so a rejected value never orphans a stored file.
         $pagineRaw = trim((string) ($body['pagine'] ?? ''));
         $pagine = null;
-        if ($pagineRaw !== '' && preg_match('/^\d+$/', $pagineRaw) === 1) {
+        if ($pagineRaw !== '') {
+            if (preg_match('/^\d+$/', $pagineRaw) !== 1) {
+                $this->flashError(__('Numero di pagine non valido.'));
+                return $this->redirect($response, $back);
+            }
             if ((int) $pagineRaw > 32767) {
                 $this->flashError(__('Numero di pagine non valido: il massimo consentito è 32767.'));
                 return $this->redirect($response, $back);

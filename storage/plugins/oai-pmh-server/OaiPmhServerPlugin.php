@@ -77,13 +77,6 @@ class OaiPmhServerPlugin
     /** Resumption token TTL in seconds (24 hours) */
     private const TOKEN_TTL = 86400;
 
-    /**
-     * How many consecutive all-unrenderable pages ListRecords may walk past
-     * before giving up with noRecordsMatch. Bounded so a corrupted table
-     * cannot turn one request into a full-table scan.
-     */
-    private const MAX_EMPTY_PAGE_SKIPS = 5;
-
     /** MARCXchange XML container for UNIMARC records (ISO 25577). */
     private const NS_MARCXCHANGE = 'info:lc/xmlns/marcxchange-v2';
     private const SCHEMA_MARCXCHANGE = 'http://www.loc.gov/standards/iso25577/marcxchange-2-0.xsd';
@@ -1401,11 +1394,10 @@ class OaiPmhServerPlugin
         [$recordsXml, $emitted] = $renderPage($records);
 
         // Every record on this page was unrenderable. Rather than emit a page
-        // that no XSD-validating harvester will accept, walk forward a bounded
-        // number of pages looking for one that yields at least one record.
-        $skips = 0;
-        while ($emitted === 0 && $hasMore && $skips < self::MAX_EMPTY_PAGE_SKIPS) {
-            $skips++;
+        // that no XSD-validating harvester will accept, walk forward until a
+        // disseminable record or the actual end. An arbitrary cutoff would
+        // falsely signal exhaustion and hide all subsequent valid records.
+        while ($emitted === 0 && $hasMore) {
             $cursor += self::PAGE_SIZE;
             $records = $this->fetchRecordsPage(
                 $fetchSet,
@@ -3215,7 +3207,7 @@ class OaiPmhServerPlugin
 
         // UNION ALL with DB-level ORDER + LIMIT + OFFSET.
         $union   = implode(' UNION ALL ', $parts);
-        $pageSql = "SELECT _id, _entity, _status, _datestamp FROM ($union) AS _combined ORDER BY _datestamp, _id LIMIT ? OFFSET ?";
+        $pageSql = "SELECT _id, _entity, _status, _datestamp FROM ($union) AS _combined ORDER BY _datestamp, _id, _entity, _status LIMIT ? OFFSET ?";
         $types  .= 'ii';
         $vals[]  = $limit;
         $vals[]  = $cursor;

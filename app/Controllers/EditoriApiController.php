@@ -326,15 +326,16 @@ class EditoriApiController
         // references to editori (e.g. emeroteca_testate.editore_id) can
         // react. Cheap no-op when nothing listens; a broken listener never
         // aborts the bulk delete.
-        try {
-            foreach ($cleanIds as $publisherId) {
+        foreach ($cleanIds as $publisherId) {
+            try {
                 \App\Support\Hooks::do('publisher.deleting', [$publisherId]);
+            } catch (\Throwable $hookError) {
+                \App\Support\SecureLogger::warning('Entity hook dispatch failed', [
+                    'hook' => 'publisher.deleting',
+                    'publisher_id' => $publisherId,
+                    'error' => $hookError->getMessage(),
+                ]);
             }
-        } catch (\Throwable $hookError) {
-            \App\Support\SecureLogger::warning('Entity hook dispatch failed', [
-                'hook' => 'publisher.deleting',
-                'error' => $hookError->getMessage(),
-            ]);
         }
 
         // Delete the publishers

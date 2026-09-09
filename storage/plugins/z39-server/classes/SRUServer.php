@@ -98,9 +98,8 @@ class SRUServer
 
     /**
      * Issue #140 — serials arm. Which CQL indexes can be resolved against the
-     * Emeroteca masthead table, and how. An index that is NOT listed here makes
-     * buildSerialWhereClause() return null, i.e. the query simply never touches
-     * periodicals (an ISBN or shelf search must not surface serials).
+     * Emeroteca masthead table, and how. An index that is not listed here contributes a false leaf, preserving
+     * OR/AND/NOT semantics when book-only and serial indexes are combined.
      *
      * @var array<string,array<string,mixed>>
      */
@@ -1109,9 +1108,9 @@ class SRUServer
     /**
      * Compile the CQL AST against the masthead table.
      *
-     * Returns null when ANY leaf uses an index with no serial meaning
-     * (bath.isbn, dc.creator, library.*): in that case the query is a
-     * monograph query and the serials arm stays out of it entirely.
+     * A leaf with no serial counterpart is false for serials. Preserve it in
+     * the boolean expression: title OR author can still match a title, while
+     * title AND author cannot. Null is reserved for malformed AST nodes.
      *
      * @param array<string,mixed>|null $node
      */
@@ -1156,12 +1155,12 @@ class SRUServer
         }
     }
 
-    /** One serial-side CQL condition, or null when the index has no serial mapping. */
+    /** One serial-side CQL condition; absent indexes match no serial record. */
     private function compileSerialCondition(string $index, string $relation, string $value): ?string
     {
         $definition = $this->serialIndexDefinitions[$index] ?? null;
         if ($definition === null) {
-            return null;
+            return '1=0';
         }
         $relation = $this->normalizeRelation($relation);
         $value    = trim($value);
@@ -1286,22 +1285,17 @@ class SRUServer
         // The holdings statement (MARC 362) is derived from the years table
         // when it exists; on a partial schema the record simply carries none.
         $hasAnnate = $this->tableProbe('emeroteca_annate');
-        $holdings  = $hasAnnate
-            ? "(SELECT CONCAT(MIN(a.anno), '-', MAX(a.anno)) FROM emeroteca_annate a WHERE a.testata_id = t.id)"
-            : 'NULL';
-        $declared = $hasAnnate
-            ? "(SELECT GROUP_CONCAT(DISTINCT a2.consistenza_dichiarata ORDER BY a2.consistenza_dichiarata SEPARATOR ' ; ')
-                  FROM emeroteca_annate a2
-                 WHERE a2.testata_id = t.id
-                   AND a2.consistenza_dichiarata IS NOT NULL
-                   AND a2.consistenza_dichiarata <> '')"
+        $holdings = $hasAnnate && $this->tableProbe('emeroteca_fascicoli')
+            ? "(SELECT CONCAT(MIN(a.anno), '-', MAX(a.anno)) FROM emeroteca_annate a
+                 JOIN emeroteca_fascicoli f ON f.annata_id = a.id AND f.stato = 'posseduto'
+                 WHERE a.testata_id = t.id)"
             : 'NULL';
 
         $editoreSel = $this->tableProbe('editori') ? 'pe.nome' : 'NULL';
         $genereSel  = $this->tableProbe('generi')  ? 'tg.nome' : 'NULL';
 
         $sql = "SELECT t.*, {$editoreSel} AS editore_nome, {$genereSel} AS genere_nome,
-                       {$holdings} AS annate_range, {$declared} AS consistenza_dichiarata "
+                       {$holdings} AS annate_range "
             . $this->serialBaseFrom($whereClause)
             . ' ORDER BY t.titolo ASC, t.id ASC LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
 
@@ -1314,13 +1308,28 @@ class SRUServer
             return [];
         }
 
-        $records = [];
-        while ($row = $result->fetch_assoc()) {
-            $records[] = $this->mapSerialRecord($row);
-        }
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
         $result->free();
-
-        return $records;
+        $declared = [];
+        if ($hasAnnate && $rows !== []) {
+            $ids = implode(',', array_map(static fn(array $row): int => (int) $row['id'], $rows));
+            // The page contains at most maximumRecords titles. Aggregate their
+            // declarations in PHP without GROUP_CONCAT's silent size ceiling.
+            $res = $this->db->query(
+                "SELECT testata_id, consistenza_dichiarata FROM emeroteca_annate
+                  WHERE testata_id IN ({$ids}) AND consistenza_dichiarata IS NOT NULL
+                    AND consistenza_dichiarata <> '' ORDER BY testata_id, anno, volume, id"
+            );
+            if ($res instanceof \mysqli_result) {
+                while ($row = $res->fetch_assoc()) {
+                    $declared[(int) $row['testata_id']][] = (string) $row['consistenza_dichiarata'];
+                }
+                $res->free();
+            }
+        }
+        return array_map(fn(array $row): array => $this->mapSerialRecord($row + [
+            'consistenza_dichiarata' => implode(' ; ', $declared[(int) $row['id']] ?? []),
+        ]), $rows);
     }
 
     /**

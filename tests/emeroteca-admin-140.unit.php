@@ -952,6 +952,17 @@ try {
     );
     unset($_SESSION['success_message'], $_SESSION['error_message']);
 
+    // Invalid page counts reject the entire save and retain the previous value.
+    $db->query("UPDATE emeroteca_fascicoli SET pagine = 42 WHERE id = {$inheritIssue}");
+    foreach (['12a', '-5', '32768'] as $badPages) {
+        $issues->update($post('/admin/periodicals/issue/' . $inheritIssue,
+            ['numero' => '1', 'pagine' => $badPages]), $resFactory->createResponse(), ['id' => (string) $inheritIssue]);
+        check((int) ($rowById('emeroteca_fascicoli', $inheritIssue)['pagine'] ?? 0) === 42,
+            'invalid pagine ' . $badPages . ' does not erase the stored count');
+        check(($_SESSION['error_message'] ?? '') !== '', 'invalid pagine reports a validation error');
+        unset($_SESSION['success_message'], $_SESSION['error_message']);
+    }
+
     // ── 13. stato is validated, never coerced ─────────────────────────
     // It is the column that drives holdings, consistency, public catalogue
     // and claims: an unknown value must abort the save like condizione does,
@@ -1281,6 +1292,7 @@ try {
     $FAILED++;
     fwrite(STDERR, "FAIL: unexpected exception: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n");
 } finally {
+    $db->rollback();
     $cleanup();
     $db->close();
 }

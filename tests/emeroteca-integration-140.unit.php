@@ -360,6 +360,7 @@ try {
     $newFascicolo($targetYear, '2', 'mancante');
 
     $sourceYear = $newAnnata($sourceId, 2001);
+    $exec("UPDATE emeroteca_annate SET consistenza_dichiarata = 'backlog 1980-1990', serie = 'II', note = 'source note' WHERE id = ?", 'i', [$sourceYear]);
     $newFascicolo($sourceYear, '1', 'mancante');
     $newFascicolo($sourceYear, '2', 'posseduto');
     $newFascicolo($sourceYear, '3', 'posseduto');
@@ -432,6 +433,13 @@ try {
     check(
         (int) $scalar('SELECT COUNT(*) FROM emeroteca_testate WHERE id = ?', 'i', [$sourceId]) === 0,
         'the source title is gone after the merge'
+    );
+
+    check(
+        $scalar('SELECT consistenza_dichiarata FROM emeroteca_annate WHERE id = ?', 'i', [$targetYear]) === 'backlog 1980-1990'
+        && $scalar('SELECT serie FROM emeroteca_annate WHERE id = ?', 'i', [$targetYear]) === 'II'
+        && $scalar('SELECT note FROM emeroteca_annate WHERE id = ?', 'i', [$targetYear]) === 'source note',
+        'merge preserves declared holdings, series and notes of the source year'
     );
 
     // ── 3. Conflict resolution, number by number ──────────────────────
@@ -508,8 +516,8 @@ try {
     // 977-prefixed EAN-13s: one printed on the issue itself, one that only
     // exists as the title's barcode_base (the usual case — most periodicals
     // vary only the add-on from issue to issue).
-    $ISSUE_BARCODE = '9771234567003';
-    $TITLE_BASE    = '9779876543008';
+    $ISSUE_BARCODE = '977' . (string) random_int(1000000000, 4999999999);
+    $TITLE_BASE    = '977' . (string) random_int(5000000000, 9999999999);
     $scanTitle = $newTestata($T_SCAN);
     $scanYear = $newAnnata($scanTitle, 2010);
     $scanIssue = $newFascicolo($scanYear, '7', 'atteso', $ISSUE_BARCODE);
@@ -889,6 +897,26 @@ try {
         ($summaries[$cycT]['consistenza'] ?? '') === '—',
         'a title with neither holdings nor a declared consistenza still renders the "—" sentinel'
     );
+    // Conflicting year metadata must survive even with no itemized issues.
+    $metaA = $newAnnata($staffA, 2090);
+    $metaB = $newAnnata($staffB, 2090);
+    $exec("UPDATE emeroteca_annate SET consistenza_dichiarata = 'first semester', serie = 'I' WHERE id = ?", 'i', [$metaA]);
+    $exec("UPDATE emeroteca_annate SET consistenza_dichiarata = 'second semester', serie = 'II' WHERE id = ?", 'i', [$metaB]);
+    $_SESSION = ['user' => ['tipo_utente' => 'admin']];
+    $metaResponse = $periodicals->mergeSubmit(
+        $post('/admin/periodicals/merge', ['ids' => [$staffA, $staffB], 'target_id' => $staffB]),
+        $resFactory->createResponse()
+    );
+    $auditedTestataIds[] = $staffA;
+    $auditedTestataIds[] = $staffB;
+    check((int) $scalar('SELECT COUNT(*) FROM emeroteca_annate WHERE testata_id = ? AND anno = 2090', 'i', [$staffB]) === 2,
+        'conflicting year descriptions survive as two distinct volumes');
+    check($scalar('SELECT consistenza_dichiarata FROM emeroteca_annate WHERE id = ?', 'i', [$metaA]) === 'first semester'
+        && $scalar('SELECT consistenza_dichiarata FROM emeroteca_annate WHERE id = ?', 'i', [$metaB]) === 'second semester',
+        'both declared holdings statements survive the merge without truncation');
+    check(str_contains((string) $metaResponse->getBody(), '-dup-' . $metaA),
+        'the merge summary names the retained volume');
+
 } finally {
     $cleanup();
     $db->close();

@@ -7490,5 +7490,20 @@
   "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "Hvis feltet står tomt, gælder tidsskriftets basisstregkode for scanning og etiketter.",
   "Stato del fascicolo non valido.": "Ugyldig hæftestatus.",
   "Testata precedente ereditata dalla testata di origine: «%s».": "Tidligere titel overtaget fra kildetidsskriftet: »%s«.",
-  "Codice ambiguo: risolvi dalla testata.": "Tvetydig kode: find hæftet via tidsskriftet."
+  "Codice ambiguo: risolvi dalla testata.": "Tvetydig kode: find hæftet via tidsskriftet.",
+  "Testata creata": "Tidsskrift oprettet",
+  "Testata aggiornata": "Tidsskrift opdateret",
+  "Testata eliminata": "Tidsskrift slettet",
+  "Testate unite": "Tidsskrifter sammenlagt",
+  "Fascicolo creato": "Hæfte oprettet",
+  "Fascicolo aggiornato": "Hæfte opdateret",
+  "Fascicolo eliminato": "Hæfte slettet",
+  "Visibilità PDF fascicolo cambiata": "Synlighed for hæftets PDF ændret",
+  "Fascicolo sollecitato al fornitore": "Hæfte rykket hos leverandøren",
+  "Abbonamento creato": "Abonnement oprettet",
+  "Abbonamento aggiornato": "Abonnement opdateret",
+  "Abbonamento eliminato": "Abonnement slettet",
+  "Eventi plugin": "Pluginhændelser",
+  "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Årgang %1$d bevaret separat som bind »%2$s« for at bevare de beskrivende oplysninger.",
+  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Årgange med modstridende beskrivende oplysninger bevares separat med en særskilt bindbetegnelse."
 }

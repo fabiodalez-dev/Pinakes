@@ -143,10 +143,19 @@ $columnInfo = static function (string $table, string $column) use ($db): ?array 
     if (!is_array($row)) {
         return null;
     }
+    $default = $row['COLUMN_DEFAULT'];
+    if (str_contains(strtolower($db->server_info), 'mariadb') && is_string($default)) {
+        $default = $default === 'NULL' ? null : $default;
+        if ($default !== null && str_starts_with($default, "'") && str_ends_with($default, "'")) {
+            $default = str_replace("''", "'", substr($default, 1, -1));
+        }
+    }
+    $type = strtolower((string) $row['COLUMN_TYPE']);
+    $type = preg_replace('/^(tinyint|smallint|mediumint|int|bigint)\((?!1\))\d+\)/', '$1', $type);
     return [
-        'type'     => strtolower((string) $row['COLUMN_TYPE']),
+        'type'     => $type,
         'nullable' => strtoupper((string) $row['IS_NULLABLE']),
-        'default'  => $row['COLUMN_DEFAULT'] === null ? null : (string) $row['COLUMN_DEFAULT'],
+        'default'  => $default === null ? null : (string) $default,
         'extra'    => strtolower((string) $row['EXTRA']),
         'position' => (int) $row['ORDINAL_POSITION'],
     ];
@@ -748,308 +757,313 @@ try {
 
     // ══ 7. THE UPGRADE: downgrade to the real 1.3.0 schema, seed legacy
     //       rows, run the REAL ensureSchema() once ═════════════════════
-    $toDrop = [];
-    foreach ($LEGACY_130 as $table => $legacyColumns) {
-        $toDrop[$table] = array_values(array_diff(array_keys($ddlColumns[$table] ?? []), $legacyColumns));
-    }
-    check(
-        $toDrop['emeroteca_testate'] !== [] && $toDrop['emeroteca_annate'] !== [] && $toDrop['emeroteca_fascicoli'] !== [],
-        'downgrade set derived from the code is non-empty for testate/annate/fascicoli ('
-            . implode(' | ', array_map(
-                static fn (string $t): string => $t . ': ' . implode(',', $toDrop[$t]),
-                ['emeroteca_testate', 'emeroteca_annate', 'emeroteca_fascicoli']
-            )) . ')'
-    );
-
-    // 7a. protect the real data living in the columns about to be dropped.
-    foreach ($toDrop as $table => $columns) {
-        $backup($table, $columns);
-    }
-    // `stato` survives the downgrade as a column but the 1.3.0 ENUM has no
-    // 'reclamato'/'scartato': snapshot it so pre-existing rows can be put
-    // back exactly as they were.
-    @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_stato');
-    check(
-        $db->query('CREATE TABLE zz_emu140_bak_stato AS SELECT id, stato FROM emeroteca_fascicoli') !== false,
-        'downgrade: pre-existing stato values snapshotted before the ENUM reverts to the 1.3.0 list'
-    );
-    @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_abbonamenti');
-    check(
-        $db->query('CREATE TABLE zz_emu140_bak_abbonamenti AS SELECT * FROM emeroteca_abbonamenti') !== false,
-        'downgrade: emeroteca_abbonamenti rows snapshotted before the table is dropped'
-    );
-    $downgraded = true;
-
-    // 7b. tear the 1.4.0 schema down.
-    $annataFk = $fkName('emeroteca_annate', 'collocazione_id');
-    if ($annataFk !== '') {
+    if (getenv('EMU140_ALLOW_DESTRUCTIVE') === '1') {
+        $toDrop = [];
+        foreach ($LEGACY_130 as $table => $legacyColumns) {
+            $toDrop[$table] = array_values(array_diff(array_keys($ddlColumns[$table] ?? []), $legacyColumns));
+        }
         check(
-            $db->query("ALTER TABLE emeroteca_annate DROP FOREIGN KEY {$annataFk}") !== false,
-            "downgrade: FK {$annataFk} on annate.collocazione_id dropped"
+            $toDrop['emeroteca_testate'] !== [] && $toDrop['emeroteca_annate'] !== [] && $toDrop['emeroteca_fascicoli'] !== [],
+            'downgrade set derived from the code is non-empty for testate/annate/fascicoli ('
+                . implode(' | ', array_map(
+                    static fn (string $t): string => $t . ': ' . implode(',', $toDrop[$t]),
+                    ['emeroteca_testate', 'emeroteca_annate', 'emeroteca_fascicoli']
+                )) . ')'
         );
-    }
-    foreach ($indexSpecs as [$idxTable, $idxName]) {
-        if ($idxTable === 'emeroteca_abbonamenti') {
-            continue; // the whole table goes away below
+
+        // 7a. protect the real data living in the columns about to be dropped.
+        foreach ($toDrop as $table => $columns) {
+            $backup($table, $columns);
         }
-        @$db->query("ALTER TABLE {$idxTable} DROP INDEX {$idxName}");
-    }
-    foreach ($toDrop as $table => $columns) {
-        foreach ($columns as $column) {
+        // `stato` survives the downgrade as a column but the 1.3.0 ENUM has no
+        // 'reclamato'/'scartato': snapshot it so pre-existing rows can be put
+        // back exactly as they were.
+        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_stato');
+        check(
+            $db->query('CREATE TABLE zz_emu140_bak_stato AS SELECT id, stato FROM emeroteca_fascicoli') !== false,
+            'downgrade: pre-existing stato values snapshotted before the ENUM reverts to the 1.3.0 list'
+        );
+        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_abbonamenti');
+        check(
+            $db->query('CREATE TABLE zz_emu140_bak_abbonamenti AS SELECT * FROM emeroteca_abbonamenti') !== false,
+            'downgrade: emeroteca_abbonamenti rows snapshotted before the table is dropped'
+        );
+        $downgraded = true;
+
+        // 7b. tear the 1.4.0 schema down.
+        $annataFk = $fkName('emeroteca_annate', 'collocazione_id');
+        if ($annataFk !== '') {
             check(
-                $db->query("ALTER TABLE {$table} DROP COLUMN {$column}") !== false,
-                "downgrade: {$table}.{$column} dropped ({$db->error})"
+                $db->query("ALTER TABLE emeroteca_annate DROP FOREIGN KEY {$annataFk}") !== false,
+                "downgrade: FK {$annataFk} on annate.collocazione_id dropped"
             );
         }
-    }
-    check(
-        $db->query("ALTER TABLE emeroteca_fascicoli MODIFY stato {$LEGACY_STATO_ENUM} NOT NULL DEFAULT 'posseduto'") !== false,
-        'downgrade: stato ENUM reverted to the SIX members plugin 1.3.0 shipped'
-    );
-    check(
-        $db->query('ALTER TABLE emeroteca_annate MODIFY volume VARCHAR(50) NULL') !== false,
-        'downgrade: annate.volume reverted to NULLable'
-    );
-    check(
-        $db->query('DROP TABLE emeroteca_abbonamenti') !== false,
-        'downgrade: emeroteca_abbonamenti dropped (the 1.4.0 table must be created by the upgrade)'
-    );
-    // Nothing 1.4.0 must be left standing, or the migration is not exercised.
-    foreach ($toDrop as $table => $columns) {
-        foreach ($columns as $column) {
-            check($columnInfo($table, $column) === null, "downgrade: {$table}.{$column} really gone");
-        }
-    }
-    check(
-        !$tableExists('emeroteca_abbonamenti'),
-        'downgrade: the schema is now the 1.3.0 one (abbonamenti absent)'
-    );
-
-    // 7c. seed the rows a 1.3.0 installation can legitimately hold.
-    $legacyTestataId = $insertTestata($TITLE_LEGACY);
-    $legacyAnnataId  = $insertAnnata($legacyTestataId, 2020, '');
-    $fascA = $insertLegacyFascicolo($legacyAnnataId, '1', 'danneggiato'); // → posseduto + danneggiato
-    $fascB = $insertLegacyFascicolo($legacyAnnataId, '2', 'in_restauro'); // → posseduto + in_restauro
-    $fascD = $insertLegacyFascicolo($legacyAnnataId, '3', 'mancante');    // untouched
-
-    // Rows written with stato='' — reachable on any install whose session
-    // sql_mode is permissive (the ENUM stores the unnamed index-0 member,
-    // which reads back as ''). Narrowing the ENUM does NOT fail on them:
-    // MySQL copies index 0 verbatim into the narrowed type, so without an
-    // explicit repair the rows survive the upgrade OUTSIDE the member list,
-    // invisible to every stato-driven query (holdings, badges, counts).
-    // Both branches of the documented repair rule are seeded: one row with
-    // evidence of possession (an inventory number) and one bare row.
-    $prevMode = '';
-    $modeRes = $db->query('SELECT @@SESSION.sql_mode AS m');
-    if ($modeRes instanceof \mysqli_result) {
-        $prevMode = (string) ($modeRes->fetch_assoc()['m'] ?? '');
-    }
-    check($db->query("SET SESSION sql_mode=''") !== false, 'fixture: permissive sql_mode for the empty-stato rows');
-    $fascEmpty      = $insertLegacyFascicolo($legacyAnnataId, '4', '');
-    $fascEmptyOwned = $insertLegacyFascicolo($legacyAnnataId, '5', '', 'INV-' . $RUN);
-    $db->query("SET SESSION sql_mode='" . $db->real_escape_string($prevMode) . "'");
-    $probe = $db->query(
-        "SELECT COUNT(*) AS c FROM emeroteca_fascicoli WHERE id IN ({$fascEmpty},{$fascEmptyOwned}) AND stato = ''"
-    );
-    $probeVal = $probe instanceof \mysqli_result ? (int) ($probe->fetch_assoc()['c'] ?? -1) : -1;
-    check($probeVal === 2, "fixture: both rows really carry stato='' before the upgrade (got {$probeVal})");
-    pass('fixture: 5 legacy fascicoli seeded (danneggiato, in_restauro, mancante, 2× empty stato)');
-
-    // volume fixtures, including the collision the synthetic label can hit.
-    $volTestataId = $insertTestata($TITLE_VOLUME);
-    $plainNullId  = $insertAnnata($volTestataId, 2001, null);  // lone NULL → ''
-    $dupNullId1   = $insertAnnata($volTestataId, 2002, null);  // NULL twins: lower id → ''
-    $dupNullId2   = $insertAnnata($volTestataId, 2002, null);  //             higher id → 'v<id>'
-    $emptyId      = $insertAnnata($volTestataId, 2003, '');    // existing '' kept
-    $nullBesideId = $insertAnnata($volTestataId, 2003, null);  // NULL next to '' → 'v<id>'
-    // The nasty one: the synthetic label 'v<id>' is ALREADY taken inside the
-    // same UNIQUE(testata_id, anno, volume) group, so the blind
-    // UPDATE … SET volume = CONCAT('v', id) hits a duplicate-key error and
-    // the whole upgrade stops.
-    $emptyClashId = $insertAnnata($volTestataId, 2004, '');
-    $clashNullId  = $insertAnnata($volTestataId, 2004, null);
-    $takenLabelId = $insertAnnata($volTestataId, 2004, 'v' . $clashNullId);
-    pass('fixture: 8 annate seeded (lone NULL, NULL twins, NULL beside empty, synthetic-label collision)');
-
-    // 7d. THE UPGRADE.
-    $upgrade = $plugin->ensureSchema();
-    check(
-        ($upgrade['failed'] ?? ['x']) === [],
-        'UPGRADE 1.3.0 → 1.4.0 completes with no failed tables (' . implode(',', $upgrade['failed'] ?? []) . ')'
-    );
-
-    // 7e. the whole 1.4.0 schema is back, byte for byte.
-    check($tableExists('emeroteca_abbonamenti'), 'upgrade: emeroteca_abbonamenti created');
-    $assertColumnSpecs('upgraded');
-    $assertIndexes('upgraded');
-    $assertForeignKeys('upgraded');
-    $assertEnumTwins('upgraded');
-    $updatedAt = $columnInfo('emeroteca_annate', 'updated_at');
-    check(
-        $updatedAt !== null
-            && $updatedAt['nullable'] === 'YES'
-            && str_contains($updatedAt['extra'], 'on update current_timestamp'),
-        'upgrade: annate.updated_at re-added NULLable with ON UPDATE CURRENT_TIMESTAMP'
-    );
-    // Column POSITION: an ALTER with a wrong (or missing) AFTER lands the
-    // column at the end of the table and the upgraded layout drifts from
-    // the fresh-install one for good.
-    foreach ($defs as $table => $definitions) {
-        foreach ($definitions as $column => $ddl) {
-            if (preg_match('/\bAFTER\s+([A-Za-z0-9_]+)/i', $ddl, $m) !== 1) {
-                continue;
+        foreach ($indexSpecs as [$idxTable, $idxName]) {
+            if ($idxTable === 'emeroteca_abbonamenti') {
+                continue; // the whole table goes away below
             }
-            $colInfo = $columnInfo($table, $column);
-            $afterInfo = $columnInfo($table, $m[1]);
-            check(
-                $colInfo !== null && $afterInfo !== null
-                    && $colInfo['position'] === $afterInfo['position'] + 1,
-                "upgrade: {$table}.{$column} sits immediately after {$m[1]} "
-                    . '(' . ($colInfo['position'] ?? -1) . ' vs ' . ($afterInfo['position'] ?? -1) . ')'
-            );
+            @$db->query("ALTER TABLE {$idxTable} DROP INDEX {$idxName}");
         }
-    }
+        foreach ($toDrop as $table => $columns) {
+            foreach ($columns as $column) {
+                check(
+                    $db->query("ALTER TABLE {$table} DROP COLUMN {$column}") !== false,
+                    "downgrade: {$table}.{$column} dropped ({$db->error})"
+                );
+            }
+        }
+        check(
+            $db->query("ALTER TABLE emeroteca_fascicoli MODIFY stato {$LEGACY_STATO_ENUM} NOT NULL DEFAULT 'posseduto'") !== false,
+            'downgrade: stato ENUM reverted to the SIX members plugin 1.3.0 shipped'
+        );
+        check(
+            $db->query('ALTER TABLE emeroteca_annate MODIFY volume VARCHAR(50) NULL') !== false,
+            'downgrade: annate.volume reverted to NULLable'
+        );
+        check(
+            $db->query('DROP TABLE emeroteca_abbonamenti') !== false,
+            'downgrade: emeroteca_abbonamenti dropped (the 1.4.0 table must be created by the upgrade)'
+        );
+        // Nothing 1.4.0 must be left standing, or the migration is not exercised.
+        foreach ($toDrop as $table => $columns) {
+            foreach ($columns as $column) {
+                check($columnInfo($table, $column) === null, "downgrade: {$table}.{$column} really gone");
+            }
+        }
+        check(
+            !$tableExists('emeroteca_abbonamenti'),
+            'downgrade: the schema is now the 1.3.0 one (abbonamenti absent)'
+        );
 
-    // 7f. legacy stato normalization on the seeded rows.
-    $rows = [];
-    $res = $db->query(
-        "SELECT id, stato, condizione FROM emeroteca_fascicoli WHERE annata_id = {$legacyAnnataId}"
-    );
-    while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
-        $rows[(int) $row['id']] = [$row['stato'], $row['condizione']];
-    }
-    check(($rows[$fascA] ?? null) === ['posseduto', 'danneggiato'], "legacy 'danneggiato' row → stato='posseduto', condizione='danneggiato'");
-    check(($rows[$fascB] ?? null) === ['posseduto', 'in_restauro'], "legacy 'in_restauro' row → stato='posseduto', condizione='in_restauro'");
-    check(($rows[$fascD] ?? null) === ['mancante', null], "'mancante' row untouched by the normalization");
-    // The out-of-ENUM repair guesses, so its documented rule is asserted on
-    // BOTH branches: a bare placeholder is a gap, a row that describes a
-    // copy (here: an inventory number) is on the shelf.
-    check(
-        ($rows[$fascEmpty][0] ?? null) === 'mancante',
-        "bare stato='' row normalized to 'mancante' instead of being left outside the ENUM "
-            . '(got ' . var_export($rows[$fascEmpty][0] ?? null, true) . ')'
-    );
-    check(
-        ($rows[$fascEmptyOwned][0] ?? null) === 'posseduto',
-        "stato='' row carrying an inventory number normalized to 'posseduto' "
-            . '(got ' . var_export($rows[$fascEmptyOwned][0] ?? null, true) . ')'
-    );
-    $outsideEnum = $db->query(
-        "SELECT COUNT(*) AS c FROM emeroteca_fascicoli
-          WHERE stato NOT IN ('posseduto','mancante','atteso','smarrito','reclamato','scartato')"
-    );
-    check(
-        $outsideEnum instanceof \mysqli_result && (int) ($outsideEnum->fetch_assoc()['c'] ?? -1) === 0,
-        'no fascicolo is left with a stato outside the final ENUM member list'
-    );
+        // 7c. seed the rows a 1.3.0 installation can legitimately hold.
+        $legacyTestataId = $insertTestata($TITLE_LEGACY);
+        $legacyAnnataId  = $insertAnnata($legacyTestataId, 2020, '');
+        $fascA = $insertLegacyFascicolo($legacyAnnataId, '1', 'danneggiato'); // → posseduto + danneggiato
+        $fascB = $insertLegacyFascicolo($legacyAnnataId, '2', 'in_restauro'); // → posseduto + in_restauro
+        $fascD = $insertLegacyFascicolo($legacyAnnataId, '3', 'mancante');    // untouched
 
-    // 7g. volume migration, every collision shape.
-    $volAfter = $columnInfo('emeroteca_annate', 'volume');
-    check(
-        $volAfter !== null && $volAfter['nullable'] === 'NO' && $volAfter['default'] === '',
-        "annate.volume is NOT NULL DEFAULT '' after the migration"
-    );
-    $nullCount = $db->query('SELECT COUNT(*) AS c FROM emeroteca_annate WHERE volume IS NULL');
-    check(
-        $nullCount instanceof \mysqli_result && (int) ($nullCount->fetch_assoc()['c'] ?? -1) === 0,
-        'no NULL volume remains anywhere'
-    );
-    $vol = [];
-    $res = $db->query("SELECT id, volume FROM emeroteca_annate WHERE testata_id = {$volTestataId}");
-    while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
-        $vol[(int) $row['id']] = (string) $row['volume'];
-    }
-    check(count($vol) === 8, 'no annata was lost by the volume migration (8 seeded, ' . count($vol) . ' found)');
-    check(($vol[$plainNullId] ?? null) === '', "lone NULL volume collapsed to ''");
-    check(
-        ($vol[$dupNullId1] ?? null) === '',
-        "NULL twins: the LOWEST id took the empty volume (got " . var_export($vol[$dupNullId1] ?? null, true) . ')'
-    );
-    check(
-        ($vol[$dupNullId2] ?? null) === 'v' . $dupNullId2,
-        "NULL twins: the other row took the documented synthetic label 'v{$dupNullId2}' (got "
-            . var_export($vol[$dupNullId2] ?? null, true) . ')'
-    );
-    check(($vol[$emptyId] ?? null) === '', "pre-existing '' volume untouched");
-    check(
-        ($vol[$nullBesideId] ?? null) === 'v' . $nullBesideId,
-        "NULL beside an existing '' got the synthetic label 'v{$nullBesideId}' (got "
-            . var_export($vol[$nullBesideId] ?? null, true) . ')'
-    );
-    check(($vol[$emptyClashId] ?? null) === '', "collision group: the pre-existing '' row is untouched");
-    check(
-        ($vol[$takenLabelId] ?? null) === 'v' . $clashNullId,
-        "collision group: the row that already owned the label 'v{$clashNullId}' keeps it (got "
-            . var_export($vol[$takenLabelId] ?? null, true) . ')'
-    );
-    check(
-        ($vol[$clashNullId] ?? null) !== null
-            && ($vol[$clashNullId] ?? '') !== ''
-            && ($vol[$clashNullId] ?? '') !== 'v' . $clashNullId,
-        "collision group: the NULL row whose synthetic label was taken got a DIFFERENT non-empty label (got "
-            . var_export($vol[$clashNullId] ?? null, true) . ')'
-    );
-    $dupProbe = $db->query(
-        'SELECT COUNT(*) AS c FROM (
-            SELECT testata_id, anno, volume FROM emeroteca_annate
-             GROUP BY testata_id, anno, volume HAVING COUNT(*) > 1
-         ) d'
-    );
-    check(
-        $dupProbe instanceof \mysqli_result && (int) ($dupProbe->fetch_assoc()['c'] ?? -1) === 0,
-        'UNIQUE(testata_id, anno, volume) holds strictly across the whole table after the migration'
-    );
+        // Rows written with stato='' — reachable on any install whose session
+        // sql_mode is permissive (the ENUM stores the unnamed index-0 member,
+        // which reads back as ''). Narrowing the ENUM does NOT fail on them:
+        // MySQL copies index 0 verbatim into the narrowed type, so without an
+        // explicit repair the rows survive the upgrade OUTSIDE the member list,
+        // invisible to every stato-driven query (holdings, badges, counts).
+        // Both branches of the documented repair rule are seeded: one row with
+        // evidence of possession (an inventory number) and one bare row.
+        $prevMode = '';
+        $modeRes = $db->query('SELECT @@SESSION.sql_mode AS m');
+        if ($modeRes instanceof \mysqli_result) {
+            $prevMode = (string) ($modeRes->fetch_assoc()['m'] ?? '');
+        }
+        check($db->query("SET SESSION sql_mode=''") !== false, 'fixture: permissive sql_mode for the empty-stato rows');
+        $fascEmpty      = $insertLegacyFascicolo($legacyAnnataId, '4', '');
+        $fascEmptyOwned = $insertLegacyFascicolo($legacyAnnataId, '5', '', 'INV-' . $RUN);
+        $db->query("SET SESSION sql_mode='" . $db->real_escape_string($prevMode) . "'");
+        $probe = $db->query(
+            "SELECT COUNT(*) AS c FROM emeroteca_fascicoli WHERE id IN ({$fascEmpty},{$fascEmptyOwned}) AND stato = ''"
+        );
+        $probeVal = $probe instanceof \mysqli_result ? (int) ($probe->fetch_assoc()['c'] ?? -1) : -1;
+        check($probeVal === 2, "fixture: both rows really carry stato='' before the upgrade (got {$probeVal})");
+        pass('fixture: 5 legacy fascicoli seeded (danneggiato, in_restauro, mancante, 2× empty stato)');
 
-    // 7h. restore the pre-existing rows now that the schema is back.
-    @$db->query(
-        "UPDATE emeroteca_fascicoli f JOIN zz_emu140_bak_stato b ON b.id = f.id
-            SET f.stato = b.stato
-          WHERE f.annata_id <> {$legacyAnnataId}"
-    );
-    @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_stato');
-    $abbCols = [];
-    $res = $db->query(
-        "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'zz_emu140_bak_abbonamenti'
-          ORDER BY ORDINAL_POSITION"
-    );
-    while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
-        $abbCols[] = (string) $row['COLUMN_NAME'];
-    }
-    if ($abbCols !== []) {
-        $list = implode(',', $abbCols);
-        @$db->query("INSERT INTO emeroteca_abbonamenti ({$list}) SELECT {$list} FROM zz_emu140_bak_abbonamenti");
-    }
-    @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_abbonamenti');
-    foreach ($backupTables as $table => $columns) {
-        $restore($table, $columns);
-    }
-    $backupTables = [];
-    $downgraded = false;
-    pass('pre-existing dev-DB rows restored into the re-created 1.4.0 columns');
+        // volume fixtures, including the collision the synthetic label can hit.
+        $volTestataId = $insertTestata($TITLE_VOLUME);
+        $plainNullId  = $insertAnnata($volTestataId, 2001, null);  // lone NULL → ''
+        $dupNullId1   = $insertAnnata($volTestataId, 2002, null);  // NULL twins: lower id → ''
+        $dupNullId2   = $insertAnnata($volTestataId, 2002, null);  //             higher id → 'v<id>'
+        $emptyId      = $insertAnnata($volTestataId, 2003, '');    // existing '' kept
+        $nullBesideId = $insertAnnata($volTestataId, 2003, null);  // NULL next to '' → 'v<id>'
+        // The nasty one: the synthetic label 'v<id>' is ALREADY taken inside the
+        // same UNIQUE(testata_id, anno, volume) group, so the blind
+        // UPDATE … SET volume = CONCAT('v', id) hits a duplicate-key error and
+        // the whole upgrade stops.
+        $emptyClashId = $insertAnnata($volTestataId, 2004, '');
+        $clashNullId  = $insertAnnata($volTestataId, 2004, null);
+        $takenLabelId = $insertAnnata($volTestataId, 2004, 'v' . $clashNullId);
+        pass('fixture: 8 annate seeded (lone NULL, NULL twins, NULL beside empty, synthetic-label collision)');
 
-    // ── 8. partial upgrade: only the ENUM is legacy, condizione already
-    //       exists → COALESCE must not overwrite a recorded condition ──
-    check(
-        $db->query(
-            "ALTER TABLE emeroteca_fascicoli
-             MODIFY stato ENUM('posseduto','mancante','danneggiato','in_restauro','smarrito','atteso','reclamato','scartato')
-                 NOT NULL DEFAULT 'posseduto'"
-        ) !== false,
-        'fixture: stato ENUM widened to the migration intermediate (partial-upgrade shape)'
-    );
-    $coalTestataId = $insertTestata($TITLE_COAL);
-    $coalAnnataId  = $insertAnnata($coalTestataId, 2019, '');
-    $fascC = $insertFascicolo($coalAnnataId, '1', 'danneggiato', 'discreto');
-    $result3 = $plugin->ensureSchema();
-    check(($result3['failed'] ?? ['x']) === [], 'ensureSchema() re-runs the split migration without failures');
-    $res = $db->query("SELECT stato, condizione FROM emeroteca_fascicoli WHERE id = {$fascC}");
-    $rowC = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
-    check(
-        is_array($rowC) && $rowC['stato'] === 'posseduto' && $rowC['condizione'] === 'discreto',
-        'pre-existing condizione survives the normalization (COALESCE keeps discreto)'
-    );
+        // 7d. THE UPGRADE.
+        $upgrade = $plugin->ensureSchema();
+        check(
+            ($upgrade['failed'] ?? ['x']) === [],
+            'UPGRADE 1.3.0 → 1.4.0 completes with no failed tables (' . implode(',', $upgrade['failed'] ?? []) . ')'
+        );
+
+        // 7e. the whole 1.4.0 schema is back, byte for byte.
+        check($tableExists('emeroteca_abbonamenti'), 'upgrade: emeroteca_abbonamenti created');
+        $assertColumnSpecs('upgraded');
+        $assertIndexes('upgraded');
+        $assertForeignKeys('upgraded');
+        $assertEnumTwins('upgraded');
+        $updatedAt = $columnInfo('emeroteca_annate', 'updated_at');
+        check(
+            $updatedAt !== null
+                && $updatedAt['nullable'] === 'YES'
+                && str_contains($updatedAt['extra'], 'on update current_timestamp'),
+            'upgrade: annate.updated_at re-added NULLable with ON UPDATE CURRENT_TIMESTAMP'
+        );
+        // Column POSITION: an ALTER with a wrong (or missing) AFTER lands the
+        // column at the end of the table and the upgraded layout drifts from
+        // the fresh-install one for good.
+        foreach ($defs as $table => $definitions) {
+            foreach ($definitions as $column => $ddl) {
+                if (preg_match('/\bAFTER\s+([A-Za-z0-9_]+)/i', $ddl, $m) !== 1) {
+                    continue;
+                }
+                $colInfo = $columnInfo($table, $column);
+                $afterInfo = $columnInfo($table, $m[1]);
+                check(
+                    $colInfo !== null && $afterInfo !== null
+                        && $colInfo['position'] === $afterInfo['position'] + 1,
+                    "upgrade: {$table}.{$column} sits immediately after {$m[1]} "
+                        . '(' . ($colInfo['position'] ?? -1) . ' vs ' . ($afterInfo['position'] ?? -1) . ')'
+                );
+            }
+        }
+
+        // 7f. legacy stato normalization on the seeded rows.
+        $rows = [];
+        $res = $db->query(
+            "SELECT id, stato, condizione FROM emeroteca_fascicoli WHERE annata_id = {$legacyAnnataId}"
+        );
+        while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
+            $rows[(int) $row['id']] = [$row['stato'], $row['condizione']];
+        }
+        check(($rows[$fascA] ?? null) === ['posseduto', 'danneggiato'], "legacy 'danneggiato' row → stato='posseduto', condizione='danneggiato'");
+        check(($rows[$fascB] ?? null) === ['posseduto', 'in_restauro'], "legacy 'in_restauro' row → stato='posseduto', condizione='in_restauro'");
+        check(($rows[$fascD] ?? null) === ['mancante', null], "'mancante' row untouched by the normalization");
+        // The out-of-ENUM repair guesses, so its documented rule is asserted on
+        // BOTH branches: a bare placeholder is a gap, a row that describes a
+        // copy (here: an inventory number) is on the shelf.
+        check(
+            ($rows[$fascEmpty][0] ?? null) === 'mancante',
+            "bare stato='' row normalized to 'mancante' instead of being left outside the ENUM "
+                . '(got ' . var_export($rows[$fascEmpty][0] ?? null, true) . ')'
+        );
+        check(
+            ($rows[$fascEmptyOwned][0] ?? null) === 'posseduto',
+            "stato='' row carrying an inventory number normalized to 'posseduto' "
+                . '(got ' . var_export($rows[$fascEmptyOwned][0] ?? null, true) . ')'
+        );
+        $outsideEnum = $db->query(
+            "SELECT COUNT(*) AS c FROM emeroteca_fascicoli
+              WHERE stato NOT IN ('posseduto','mancante','atteso','smarrito','reclamato','scartato')"
+        );
+        check(
+            $outsideEnum instanceof \mysqli_result && (int) ($outsideEnum->fetch_assoc()['c'] ?? -1) === 0,
+            'no fascicolo is left with a stato outside the final ENUM member list'
+        );
+
+        // 7g. volume migration, every collision shape.
+        $volAfter = $columnInfo('emeroteca_annate', 'volume');
+        check(
+            $volAfter !== null && $volAfter['nullable'] === 'NO' && $volAfter['default'] === '',
+            "annate.volume is NOT NULL DEFAULT '' after the migration"
+        );
+        $nullCount = $db->query('SELECT COUNT(*) AS c FROM emeroteca_annate WHERE volume IS NULL');
+        check(
+            $nullCount instanceof \mysqli_result && (int) ($nullCount->fetch_assoc()['c'] ?? -1) === 0,
+            'no NULL volume remains anywhere'
+        );
+        $vol = [];
+        $res = $db->query("SELECT id, volume FROM emeroteca_annate WHERE testata_id = {$volTestataId}");
+        while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
+            $vol[(int) $row['id']] = (string) $row['volume'];
+        }
+        check(count($vol) === 8, 'no annata was lost by the volume migration (8 seeded, ' . count($vol) . ' found)');
+        check(($vol[$plainNullId] ?? null) === '', "lone NULL volume collapsed to ''");
+        check(
+            ($vol[$dupNullId1] ?? null) === '',
+            "NULL twins: the LOWEST id took the empty volume (got " . var_export($vol[$dupNullId1] ?? null, true) . ')'
+        );
+        check(
+            ($vol[$dupNullId2] ?? null) === 'v' . $dupNullId2,
+            "NULL twins: the other row took the documented synthetic label 'v{$dupNullId2}' (got "
+                . var_export($vol[$dupNullId2] ?? null, true) . ')'
+        );
+        check(($vol[$emptyId] ?? null) === '', "pre-existing '' volume untouched");
+        check(
+            ($vol[$nullBesideId] ?? null) === 'v' . $nullBesideId,
+            "NULL beside an existing '' got the synthetic label 'v{$nullBesideId}' (got "
+                . var_export($vol[$nullBesideId] ?? null, true) . ')'
+        );
+        check(($vol[$emptyClashId] ?? null) === '', "collision group: the pre-existing '' row is untouched");
+        check(
+            ($vol[$takenLabelId] ?? null) === 'v' . $clashNullId,
+            "collision group: the row that already owned the label 'v{$clashNullId}' keeps it (got "
+                . var_export($vol[$takenLabelId] ?? null, true) . ')'
+        );
+        check(
+            ($vol[$clashNullId] ?? null) !== null
+                && ($vol[$clashNullId] ?? '') !== ''
+                && ($vol[$clashNullId] ?? '') !== 'v' . $clashNullId,
+            "collision group: the NULL row whose synthetic label was taken got a DIFFERENT non-empty label (got "
+                . var_export($vol[$clashNullId] ?? null, true) . ')'
+        );
+        $dupProbe = $db->query(
+            'SELECT COUNT(*) AS c FROM (
+                SELECT testata_id, anno, volume FROM emeroteca_annate
+                 GROUP BY testata_id, anno, volume HAVING COUNT(*) > 1
+             ) d'
+        );
+        check(
+            $dupProbe instanceof \mysqli_result && (int) ($dupProbe->fetch_assoc()['c'] ?? -1) === 0,
+            'UNIQUE(testata_id, anno, volume) holds strictly across the whole table after the migration'
+        );
+
+        // 7h. restore the pre-existing rows now that the schema is back.
+        @$db->query(
+            "UPDATE emeroteca_fascicoli f JOIN zz_emu140_bak_stato b ON b.id = f.id
+                SET f.stato = b.stato
+              WHERE f.annata_id <> {$legacyAnnataId}"
+        );
+        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_stato');
+        $abbCols = [];
+        $res = $db->query(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'zz_emu140_bak_abbonamenti'
+              ORDER BY ORDINAL_POSITION"
+        );
+        while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
+            $abbCols[] = (string) $row['COLUMN_NAME'];
+        }
+        if ($abbCols !== []) {
+            $list = implode(',', $abbCols);
+            @$db->query("INSERT INTO emeroteca_abbonamenti ({$list}) SELECT {$list} FROM zz_emu140_bak_abbonamenti");
+        }
+        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_abbonamenti');
+        foreach ($backupTables as $table => $columns) {
+            $restore($table, $columns);
+        }
+        $backupTables = [];
+        $downgraded = false;
+        pass('pre-existing dev-DB rows restored into the re-created 1.4.0 columns');
+
+        // ── 8. partial upgrade: only the ENUM is legacy, condizione already
+        //       exists → COALESCE must not overwrite a recorded condition ──
+        check(
+            $db->query(
+                "ALTER TABLE emeroteca_fascicoli
+                 MODIFY stato ENUM('posseduto','mancante','danneggiato','in_restauro','smarrito','atteso','reclamato','scartato')
+                     NOT NULL DEFAULT 'posseduto'"
+            ) !== false,
+            'fixture: stato ENUM widened to the migration intermediate (partial-upgrade shape)'
+        );
+        $coalTestataId = $insertTestata($TITLE_COAL);
+        $coalAnnataId  = $insertAnnata($coalTestataId, 2019, '');
+        $fascC = $insertFascicolo($coalAnnataId, '1', 'danneggiato', 'discreto');
+        $result3 = $plugin->ensureSchema();
+        check(($result3['failed'] ?? ['x']) === [], 'ensureSchema() re-runs the split migration without failures');
+        $res = $db->query("SELECT stato, condizione FROM emeroteca_fascicoli WHERE id = {$fascC}");
+        $rowC = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+        check(
+            is_array($rowC) && $rowC['stato'] === 'posseduto' && $rowC['condizione'] === 'discreto',
+            'pre-existing condizione survives the normalization (COALESCE keeps discreto)'
+        );
+
+    } else {
+        echo "SKIP: migration downgrade requires EMU140_ALLOW_DESTRUCTIVE=1 on a disposable database\n";
+    }
 
     // ── 9. consistenzaTestata: stato drives counts, scartato excluded,
     //       consistenza_dichiarata APPENDED after ' · ' ────────────────

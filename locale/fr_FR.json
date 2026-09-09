@@ -7490,5 +7490,20 @@
   "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "Si le champ reste vide, le code-barres de base du titre s'applique au scan et aux étiquettes.",
   "Stato del fascicolo non valido.": "Statut du fascicule invalide.",
   "Testata precedente ereditata dalla testata di origine: «%s».": "Titre précédent hérité du titre source : « %s ».",
-  "Codice ambiguo: risolvi dalla testata.": "Code ambigu : identifiez le fascicule à partir du titre."
+  "Codice ambiguo: risolvi dalla testata.": "Code ambigu : identifiez le fascicule à partir du titre.",
+  "Testata creata": "Périodique créé",
+  "Testata aggiornata": "Périodique mis à jour",
+  "Testata eliminata": "Périodique supprimé",
+  "Testate unite": "Périodiques fusionnés",
+  "Fascicolo creato": "Numéro créé",
+  "Fascicolo aggiornato": "Numéro mis à jour",
+  "Fascicolo eliminato": "Numéro supprimé",
+  "Visibilità PDF fascicolo cambiata": "Visibilité du PDF du numéro modifiée",
+  "Fascicolo sollecitato al fornitore": "Numéro réclamé au fournisseur",
+  "Abbonamento creato": "Abonnement créé",
+  "Abbonamento aggiornato": "Abonnement mis à jour",
+  "Abbonamento eliminato": "Abonnement supprimé",
+  "Eventi plugin": "Événements des extensions",
+  "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Année %1$d conservée séparément comme volume « %2$s » pour préserver les données descriptives.",
+  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Les années dont les données descriptives sont contradictoires restent séparées sous un volume distinct."
 }

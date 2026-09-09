@@ -119,6 +119,7 @@ $csrf = $e(\App\Support\Csrf::ensureToken());
         <p class="text-sm text-yellow-800">
             <strong><?= __('Regola di risoluzione dei conflitti') ?></strong>
             <?= __('Se le due testate hanno la stessa annata, i fascicoli confluiscono in quella di destinazione. Se hanno anche lo stesso numero, il numero resta al fascicolo posseduto (prima la destinazione, poi l\'origine); l\'altro non viene eliminato ma rinumerato con il suffisso «-dup» e ti viene elencato al termine.') ?>
+            <?= __('Le annate con dati descrittivi discordanti restano separate con un volume distinto.') ?>
         </p>
     </div>
 

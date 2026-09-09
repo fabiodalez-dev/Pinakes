@@ -63,7 +63,7 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     $env[trim($k)] = trim(trim($v), "\"'");
 }
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? 'fabiodal_biblioteca_user');
-$dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? 'Zd10)uwziWlK'));
+$dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
 $dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? 'fabiodal_biblioteca');
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
 
@@ -400,6 +400,8 @@ try {
     $db->query("UPDATE plugins SET is_active = 1 WHERE id = {$fixturePluginId}");
     $hookManager->clearHooks();
 
+    $db->query("UPDATE emeroteca_testate SET updated_at = '2026-03-04 11:22:33' WHERE id = {$emerTestataId}");
+    $db->query("UPDATE emeroteca_fascicoli SET updated_at = '2026-03-04 11:22:33' WHERE id = {$emerOwnedId}");
     $generator = new SitemapGenerator($db, $BASE);
     $xmlPlugin = $generator->generate();
     $statsPlugin = $generator->getStats();
@@ -421,6 +423,14 @@ try {
         'a WITHDRAWN (scartato) fascicolo is NOT advertised in the sitemap'
     );
     check(($statsPlugin['plugins'] ?? 0) >= 3, "stats['plugins'] counts the emeroteca URLs");
+
+    $sitemapDoc = new \DOMDocument();
+    $sitemapDoc->loadXML($xmlPlugin);
+    $sitemapXPath = new \DOMXPath($sitemapDoc);
+    $lastmod = $sitemapXPath->evaluate('string(//*[local-name()="url"][*[local-name()="loc"]="'
+        . $BASE . '/emeroteca/' . $emerTestataId . '"]/*[local-name()="lastmod"])');
+    check(preg_match('/^2026-03-04T11:22:33(?:Z|[+-]\d{2}:\d{2})$/', (string) $lastmod) === 1,
+        'the core serializes the plugin MySQL timestamp as W3C Datetime');
 
     // Search hint — only on a real match.
     $htmlEmer = $renderCatalog($emerTerm);

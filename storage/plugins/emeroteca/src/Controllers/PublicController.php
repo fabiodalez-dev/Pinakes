@@ -129,7 +129,7 @@ class PublicController
                               FROM emeroteca_articoli ar
                               JOIN emeroteca_fascicoli ef ON ef.id = ar.fascicolo_id
                               JOIN emeroteca_annate ea ON ea.id = ef.annata_id
-                             WHERE ea.testata_id = t.id
+                             WHERE ea.testata_id = t.id AND ef.stato <> \'scartato\'
                                AND (
                                     MATCH(ar.titolo, ar.autori, ar.keywords)
                                         AGAINST (? IN NATURAL LANGUAGE MODE)
@@ -343,7 +343,7 @@ class PublicController
         $siblings = $this->fetchAll(
             'SELECT id, numero, titolo_fascicolo
                FROM emeroteca_fascicoli
-              WHERE annata_id = ?
+              WHERE annata_id = ? AND stato <> \'scartato\'
               ORDER BY (data_pubblicazione IS NULL), data_pubblicazione ASC, id ASC',
             'i',
             [(int) $fascicolo['annata_id']]

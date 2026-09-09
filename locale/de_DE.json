@@ -7490,5 +7490,20 @@
   "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "Wenn es leer bleibt, gilt für Scan und Etiketten der Basis-Barcode des Titels.",
   "Stato del fascicolo non valido.": "Ungültiger Heftstatus.",
   "Testata precedente ereditata dalla testata di origine: «%s».": "Vorgängertitel vom Quelltitel übernommen: „%s“.",
-  "Codice ambiguo: risolvi dalla testata.": "Mehrdeutiger Code: Bestimmen Sie das Heft über den Titel."
+  "Codice ambiguo: risolvi dalla testata.": "Mehrdeutiger Code: Bestimmen Sie das Heft über den Titel.",
+  "Testata creata": "Zeitschrift erstellt",
+  "Testata aggiornata": "Zeitschrift aktualisiert",
+  "Testata eliminata": "Zeitschrift gelöscht",
+  "Testate unite": "Zeitschriften zusammengeführt",
+  "Fascicolo creato": "Heft erstellt",
+  "Fascicolo aggiornato": "Heft aktualisiert",
+  "Fascicolo eliminato": "Heft gelöscht",
+  "Visibilità PDF fascicolo cambiata": "Sichtbarkeit der Heft-PDF geändert",
+  "Fascicolo sollecitato al fornitore": "Heft beim Lieferanten reklamiert",
+  "Abbonamento creato": "Abonnement erstellt",
+  "Abbonamento aggiornato": "Abonnement aktualisiert",
+  "Abbonamento eliminato": "Abonnement gelöscht",
+  "Eventi plugin": "Plugin-Ereignisse",
+  "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Jahrgang %1$d separat als Band „%2$s“ beibehalten, um die beschreibenden Daten zu erhalten.",
+  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Jahrgänge mit widersprüchlichen Beschreibungsdaten bleiben unter einer eigenen Bandbezeichnung getrennt."
 }

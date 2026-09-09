@@ -124,8 +124,13 @@
         var receiveId = receiveForm.querySelector('input[name="fascicolo_id"]');
         var openLink = document.getElementById('emt-scan-open');
 
+        var requestSeq = 0;
+
         function reset() {
             receiveForm.hidden = true;
+            if (receiveId) {
+                receiveId.value = '';
+            }
             if (openLink) {
                 openLink.hidden = true;
                 openLink.removeAttribute('href');
@@ -135,6 +140,7 @@
         function lookup() {
             var code = (input.value || '').trim();
             reset();
+            var seq = ++requestSeq;
             if (code === '') {
                 setStatus(status, t('empty', 'Inserisci o scansiona un codice a barre.'), 'error');
                 return;
@@ -157,6 +163,9 @@
                     return response.json();
                 })
                 .then(function (data) {
+                    if (seq !== requestSeq) {
+                        return;
+                    }
                     if (!data || !data.found) {
                         setStatus(status, (data && data.message) || t('notFound', 'Nessuna corrispondenza.'), 'error');
                         return;
@@ -183,6 +192,9 @@
                     }
                 })
                 .catch(function () {
+                    if (seq !== requestSeq) {
+                        return;
+                    }
                     setStatus(status, t('error', 'Errore durante la ricerca del codice.'), 'error');
                 });
         }
@@ -200,9 +212,16 @@
         });
         // The core scanner fills the input and dispatches 'change': a
         // successful decode therefore searches without a second tap.
-        input.addEventListener('change', function () {
-            if ((input.value || '').trim() !== '') {
-                lookup();
+        input.addEventListener('change', lookup);
+        // Editing the input invalidates a previous result even before lookup.
+        input.addEventListener('input', function () {
+            requestSeq++;
+            reset();
+            setStatus(status, '', null);
+        });
+        receiveForm.addEventListener('submit', function (event) {
+            if (receiveForm.hidden || !receiveId || receiveId.value === '') {
+                event.preventDefault();
             }
         });
     }

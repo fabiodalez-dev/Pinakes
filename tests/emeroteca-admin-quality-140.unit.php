@@ -404,6 +404,21 @@ try {
         'periodical delete with an admin session deletes the testata'
     );
     $_SESSION = [];
+    // More than 1KB of curator-written holdings must agree on both surfaces.
+    $longId = (int) $db->query("SELECT id FROM emeroteca_testate WHERE titolo = '" . $db->real_escape_string($TITLE_DECL) . "'")->fetch_assoc()['id'];
+    $parts = [];
+    for ($year = 1900; $year < 1910; $year++) {
+        $part = $year . ': ' . str_repeat('é', 120);
+        $parts[] = $part;
+        $stmt = $db->prepare("INSERT INTO emeroteca_annate (testata_id, anno, volume, consistenza_dichiarata) VALUES (?, ?, '', ?)");
+        $stmt->bind_param('iis', $longId, $year, $part); $stmt->execute(); $stmt->close();
+    }
+    $db->query('SET SESSION group_concat_max_len = 1024');
+    $declared = $periodicalController->holdingsSummary([$longId])[$longId]['consistenza'];
+    check(str_starts_with($declared, implode('; ', $parts)), 'declared holdings are complete beyond group_concat_max_len');
+    $summary = $periodicalController->holdingsSummary([$longId]);
+    check($summary[$longId]['consistenza'] === EmerotecaPlugin::consistenzaTestata($db, $longId),
+        'admin and public holdings agree without SQL truncation');
 } finally {
     $cleanup();
     $db->close();

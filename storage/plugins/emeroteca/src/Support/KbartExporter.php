@@ -166,9 +166,9 @@ final class KbartExporter
      * exporter. Keyed by handle so two mysqli connections in the same
      * process (tests) never inherit each other's schema.
      *
-     * @var array<string, bool>
+     * @var \WeakMap<mysqli, array<string, bool>>|null
      */
-    private static array $tableCache = [];
+    private static ?\WeakMap $tableCache = null;
 
     /**
      * KBART Phase II TSV export.
@@ -477,7 +477,7 @@ final class KbartExporter
               WHERE a.testata_id IN (%s)
                 AND f.pdf_path IS NOT NULL
                 AND f.pdf_path <> \'\'
-                AND f.pdf_pubblico = 1',
+                AND f.pdf_pubblico = 1 AND f.stato <> \'scartato\'',
             $testataIds
         );
         if ($stmt === null) {
@@ -765,9 +765,10 @@ final class KbartExporter
      */
     private static function tableExists(mysqli $db, string $table): bool
     {
-        $key = spl_object_id($db) . '|' . $table;
-        if (array_key_exists($key, self::$tableCache)) {
-            return self::$tableCache[$key];
+        self::$tableCache ??= new \WeakMap();
+        $tables = self::$tableCache[$db] ?? [];
+        if (array_key_exists($table, $tables)) {
+            return $tables[$table];
         }
         $exists = false;
         try {
@@ -787,7 +788,9 @@ final class KbartExporter
         } catch (\Throwable $e) {
             $exists = false;
         }
-        return self::$tableCache[$key] = $exists;
+        $tables[$table] = $exists;
+        self::$tableCache[$db] = $tables;
+        return $exists;
     }
 
     /** Stable local identifier, also used for intra-file title references. */

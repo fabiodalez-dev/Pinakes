@@ -230,22 +230,24 @@ class MODSFormatter extends RecordFormatter
         }
 
         // ISSN identifiers — print, electronic and linking (ISSN-L).
-        foreach ([
-            'issn'   => 'issn',
-            'e_issn' => 'issn-e',
-            'issn_l' => 'issn-l',
-        ] as $issnKey => $issnType) {
-            $issnValue = trim((string) ($record[$issnKey] ?? ''));
-            if ($issnValue === '') {
-                continue;
+        if ($isSerial) {
+            foreach ([
+                'issn'   => 'issn',
+                'e_issn' => 'issn-e',
+                'issn_l' => 'issn-l',
+            ] as $issnKey => $issnType) {
+                $issnValue = trim((string) ($record[$issnKey] ?? ''));
+                if ($issnValue === '') {
+                    continue;
+                }
+                $identifier = $this->doc->createElement('identifier', $this->escapeXml($issnValue));
+                $identifier->setAttribute('type', $issnType);
+                $mods->appendChild($identifier);
             }
-            $identifier = $this->doc->createElement('identifier', $this->escapeXml($issnValue));
-            $identifier->setAttribute('type', $issnType);
-            $mods->appendChild($identifier);
         }
 
         // Holdings / numbering statement of a serial.
-        if (!empty($record['numerazione'])) {
+        if ($isSerial && !empty($record['numerazione'])) {
             $numbering = $this->doc->createElement('note', $this->escapeXml((string) $record['numerazione']));
             $numbering->setAttribute('type', 'numbering');
             $mods->appendChild($numbering);
