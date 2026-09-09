@@ -16,7 +16,13 @@ declare(strict_types=1);
  *      re-check) and allowed for an admin session;
  *   4. PeriodicalAdminController::holdingsSummary() (the ONE aggregated
  *      index query) returns the same numbers/string as
- *      EmerotecaPlugin::consistenzaTestata() on a fixture with lacune.
+ *      EmerotecaPlugin::consistenzaTestata() on a fixture with lacune AND
+ *      with `consistenza_dichiarata` set — the field the two
+ *      implementations used to disagree on. The canonical rule is asserted
+ *      as a literal expected string on every surface reachable from here
+ *      (holdingsSummary, consistenzaTestata, KbartExporter::consistenzaAnnata):
+ *      the declared statement is APPENDED to the computed one after ' · ',
+ *      stands alone when nothing is computed, and the empty sentinel is '—'.
  *
  * Conventions follow tests/emeroteca.unit.php (env parsing, DB connection,
  * check()/pass() helpers, zz_* fixtures, FK-ordered cleanup).
@@ -82,12 +88,14 @@ function check(bool $cond, string $desc): void
 $pluginDir = __DIR__ . '/../storage/plugins/emeroteca';
 require_once $pluginDir . '/EmerotecaPlugin.php';
 require_once $pluginDir . '/src/Support/IssnHelper.php';
+require_once $pluginDir . '/src/Support/KbartExporter.php';
 require_once $pluginDir . '/src/Controllers/IssueAdminController.php';
 require_once $pluginDir . '/src/Controllers/PeriodicalAdminController.php';
 
 use App\Plugins\Emeroteca\Controllers\IssueAdminController;
 use App\Plugins\Emeroteca\Controllers\PeriodicalAdminController;
 use App\Plugins\Emeroteca\Support\IssnHelper;
+use App\Plugins\Emeroteca\Support\KbartExporter;
 
 // Flash helpers write to $_SESSION; in CLI initialize it explicitly.
 $_SESSION = [];
@@ -99,13 +107,15 @@ $plugin = new EmerotecaPlugin($db, $hm);
 $RUN = 'zz-eaq-' . bin2hex(random_bytes(4));
 $TITLE_AGG    = "zz EmerotecaAdminQuality Aggregate {$RUN}";
 $TITLE_EMPTY  = "zz EmerotecaAdminQuality Empty {$RUN}";
+$TITLE_DECL   = "zz EmerotecaAdminQuality Declared {$RUN}";
 $TITLE_DELETE = "zz EmerotecaAdminQuality Delete {$RUN}";
 
 /** FK-ordered cleanup (articoli → fascicoli → annate → testate). */
-$cleanup = static function () use ($db, $TITLE_AGG, $TITLE_EMPTY, $TITLE_DELETE): void {
-    $titles = "'" . $db->real_escape_string($TITLE_AGG) . "','"
-        . $db->real_escape_string($TITLE_EMPTY) . "','"
-        . $db->real_escape_string($TITLE_DELETE) . "'";
+$cleanup = static function () use ($db, $TITLE_AGG, $TITLE_EMPTY, $TITLE_DECL, $TITLE_DELETE): void {
+    $titles = implode(',', array_map(
+        static fn (string $t): string => "'" . $db->real_escape_string($t) . "'",
+        [$TITLE_AGG, $TITLE_EMPTY, $TITLE_DECL, $TITLE_DELETE]
+    ));
     @$db->query(
         "DELETE ar FROM emeroteca_articoli ar
            JOIN emeroteca_fascicoli f ON ar.fascicolo_id = f.id
@@ -233,9 +243,28 @@ try {
     $periodicalController = new PeriodicalAdminController($db, $hm);
     $issueController = new IssueAdminController($db, $hm);
 
-    // ── 3. holdingsSummary == consistenzaTestata on a gap fixture ─────
-    // 1990 posseduto, 1991 mancante, 1992 posseduto (+1 extra posseduto
-    // in 1992) → "1990–1992 · lacune: 1", 3 posseduti, 1 mancante.
+    // ── 3. holdingsSummary == consistenzaTestata on a gap fixture that
+    //       ALSO carries consistenza_dichiarata ──────────────────────────
+    // 1990 posseduto (+ declared), 1991 mancante, 1992 posseduto ×2
+    // (+ declared) → computed "1990–1992 · lacune: 1", 3 posseduti,
+    // 1 mancante, and the two declared statements appended in year order.
+    //
+    // The declared field is the whole point of this comparison: an
+    // aggregated index query that simply forgets it agrees with
+    // consistenzaTestata() on every OTHER fixture, so a test without it is
+    // green while the two surfaces disagree in front of the librarian.
+    $mkDeclared = static function (int $annataId, string $value) use ($db): void {
+        $stmt = $db->prepare('UPDATE emeroteca_annate SET consistenza_dichiarata = ? WHERE id = ?');
+        if ($stmt === false) {
+            throw new \RuntimeException('declared fixture prepare failed: ' . $db->error);
+        }
+        $stmt->bind_param('si', $value, $annataId);
+        if (!$stmt->execute()) {
+            throw new \RuntimeException('declared fixture update failed: ' . $stmt->error);
+        }
+        $stmt->close();
+    };
+
     $aggId = $mkTestata($TITLE_AGG);
     $a1990 = $mkAnnata($aggId, 1990);
     $a1991 = $mkAnnata($aggId, 1991);
@@ -244,17 +273,41 @@ try {
     $mkFascicolo($a1991, '1', 'mancante');
     $mkFascicolo($a1992, '1', 'posseduto');
     $mkFascicolo($a1992, '2', 'posseduto');
+    $DECL_1990 = 'lac. fasc. 3-4 (mai pervenuti)';
+    $DECL_1992 = 'annata rilegata completa';
+    $mkDeclared($a1990, $DECL_1990);
+    $mkDeclared($a1992, $DECL_1992);
 
     $emptyId = $mkTestata($TITLE_EMPTY);
+    // Declared-only: no fascicolo at all, one declared statement.
+    $declId = $mkTestata($TITLE_DECL);
+    $aDecl = $mkAnnata($declId, 1975);
+    $DECL_ONLY = 'consistenza da verificare a scaffale';
+    $mkDeclared($aDecl, $DECL_ONLY);
 
-    $summary = $periodicalController->holdingsSummary([$aggId, $emptyId]);
-    $expectedStr = EmerotecaPlugin::consistenzaTestata($db, $aggId);
+    // The canonical rule, written out instead of re-derived from either
+    // implementation: computed first, ' · ', then the declared statements
+    // of the testata joined by '; ' in year order.
+    $EXPECTED_AGG = '1990–1992 · lacune: 1 · ' . $DECL_1990 . '; ' . $DECL_1992;
+
+    $summary = $periodicalController->holdingsSummary([$aggId, $emptyId, $declId]);
     check(
-        isset($summary[$aggId]) && $summary[$aggId]['consistenza'] === $expectedStr,
-        "aggregated consistenza equals consistenzaTestata() ('{$expectedStr}')"
+        isset($summary[$aggId]) && $summary[$aggId]['consistenza'] === $EXPECTED_AGG,
+        "aggregated consistenza appends the declared statements after ' · ' (expected '{$EXPECTED_AGG}', got '"
+            . ($summary[$aggId]['consistenza'] ?? 'MISSING') . "')"
+    );
+    $fromPlugin = EmerotecaPlugin::consistenzaTestata($db, $aggId);
+    check(
+        $fromPlugin === $EXPECTED_AGG,
+        "consistenzaTestata() renders the same string (got '{$fromPlugin}')"
+    );
+    check(
+        $summary[$aggId]['consistenza'] === $fromPlugin,
+        'the admin list and the issues page cannot disagree on the consistenza'
     );
     check($summary[$aggId]['n_posseduti'] === 3, 'aggregated n_posseduti = 3');
     check($summary[$aggId]['n_mancanti'] === 1, 'aggregated n_mancanti = 1 (the lacuna)');
+
     $expectedEmpty = EmerotecaPlugin::consistenzaTestata($db, $emptyId);
     check(
         isset($summary[$emptyId])
@@ -264,7 +317,46 @@ try {
             && $summary[$emptyId]['n_mancanti'] === 0,
         "testata with no annate gets the same '—' default as consistenzaTestata()"
     );
+    $declFromPlugin = EmerotecaPlugin::consistenzaTestata($db, $declId);
+    check(
+        isset($summary[$declId])
+            && $summary[$declId]['consistenza'] === $DECL_ONLY
+            && $declFromPlugin === $DECL_ONLY,
+        "with nothing computed the declared statement stands alone on both surfaces (aggregated '"
+            . ($summary[$declId]['consistenza'] ?? 'MISSING') . "', plugin '{$declFromPlugin}')"
+    );
+    check(
+        $summary[$declId]['n_posseduti'] === 0 && $summary[$declId]['n_mancanti'] === 0,
+        'a declared-only testata still counts zero owned and zero missing issues'
+    );
     check($periodicalController->holdingsSummary([]) === [], 'holdingsSummary([]) is an empty map');
+
+    // ── 3b. the export surface follows the very same rule ──────────────
+    // consistenzaAnnata() is per-annata (the union catalogue wants one
+    // statement per year), so the declared string is appended to THAT
+    // year's computed holdings — never substituted for them, which used to
+    // drop every really-owned issue of the annata from the exported file.
+    $kbart1990 = KbartExporter::consistenzaAnnata($db, $a1990);
+    check(
+        $kbart1990 === '1 · ' . $DECL_1990,
+        "KbartExporter::consistenzaAnnata appends the declared statement to the computed one (expected '1 · {$DECL_1990}', got '{$kbart1990}')"
+    );
+    $kbart1991 = KbartExporter::consistenzaAnnata($db, $a1991);
+    check(
+        $kbart1991 === 'lac. 1',
+        "an annata with only a gap and no declared statement renders the computed one alone (got '{$kbart1991}')"
+    );
+    $kbartDecl = KbartExporter::consistenzaAnnata($db, $aDecl);
+    check(
+        $kbartDecl === $DECL_ONLY,
+        "an annata with no issues renders the declared statement alone (got '{$kbartDecl}')"
+    );
+    $aEmptyYear = $mkAnnata($aggId, 1993);
+    $kbartNothing = KbartExporter::consistenzaAnnata($db, $aEmptyYear);
+    check(
+        $kbartNothing === '—',
+        "an annata with neither issues nor a declared statement uses the '—' sentinel (got '{$kbartNothing}')"
+    );
 
     // ── 4. Destructive deletes: staff rejected, admin allowed ─────────
     $delId = $mkTestata($TITLE_DELETE);

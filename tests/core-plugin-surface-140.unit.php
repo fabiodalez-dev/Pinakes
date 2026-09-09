@@ -25,6 +25,19 @@ declare(strict_types=1);
  *  7. unsafe suggestions (javascript:, protocol-relative, non-string) never
  *     reach the HTML.
  *
+ * Section C then drops the fake listeners and drives the REAL ones: the
+ * emeroteca plugin is activated through its own onActivate() (so the
+ * plugin_hooks rows are the ones production writes) and the hooks are loaded
+ * from the database by the real HookManager. A filter nobody listens to is a
+ * feature that does not exist — closures alone would have passed even with the
+ * two registrations missing, which is exactly the defect this covers:
+ *
+ *  8. after activation the generated sitemap really contains /emeroteca, the
+ *     seeded testata and its owned issue — and NOT the withdrawn one;
+ *  9. a catalogue search for a term that only matches a testata renders the
+ *     emeroteca hint, while a term that matches nothing there renders none;
+ * 10. once the plugin is deactivated both disappear.
+ *
  * Test data uses zz_* names; cleanup runs in finally.
  *
  * Run:  php tests/core-plugin-surface-140.unit.php
@@ -101,6 +114,11 @@ $resetHooks = static function () use ($hookManager): void {
 $normalize = static fn(string $xml): string => (string) preg_replace('/<!--Generated on [^>]*-->/', '', $xml);
 
 $bookId = 0;
+// Section C bookkeeping, declared up front so the finally block can undo
+// whatever was reached before a failure.
+$fixturePluginId = 0;
+$emerTestataId = 0;
+$realEmerotecaActive = null;
 
 try {
     // ===============================================================
@@ -306,6 +324,137 @@ try {
     $htmlThrow = $renderCatalog($missTerm);
     check(str_contains($htmlThrow, 'id="books-container"'), 'a throwing suggestion listener still renders the catalogue page');
     check(!str_contains($htmlThrow, 'id="external-search-suggestions"'), 'no hint is rendered when the listener throws');
+
+    // ===============================================================
+    // C. The REAL emeroteca listeners, through the REAL registration
+    // ===============================================================
+    // Everything above proves the two core filters work. This section
+    // proves the plugin actually ANSWERS them: activation writes
+    // plugin_hooks rows and the HookManager loads them from the database,
+    // so a missing registerHookInDb() call fails here — a closure-based
+    // test would not notice.
+    require_once $root . '/storage/plugins/emeroteca/EmerotecaPlugin.php';
+
+    // A real, active 'emeroteca' row in the dev database would answer the
+    // filters too and make the "deactivated ⇒ gone" assertions meaningless.
+    // Park it for the duration of the test; the finally block restores it.
+    $realRow = $db->query("SELECT id, is_active FROM plugins WHERE name = 'emeroteca' LIMIT 1");
+    if ($realRow instanceof \mysqli_result && ($row = $realRow->fetch_assoc())) {
+        $realEmerotecaActive = (int) $row['is_active'];
+        $db->query("UPDATE plugins SET is_active = 0 WHERE name = 'emeroteca'");
+    }
+
+    $fixtureName = 'zz-emeroteca-' . $RUN;
+    $stmt = $db->prepare(
+        "INSERT INTO plugins (name, display_name, version, path, main_file, is_active)
+         VALUES (?, 'zz Emeroteca surface', '1.4.0', 'emeroteca', 'wrapper.php', 0)"
+    );
+    $stmt->bind_param('s', $fixtureName);
+    $stmt->execute();
+    $stmt->close();
+    $fixturePluginId = (int) $db->insert_id;
+    check($fixturePluginId > 0, 'fixture plugin row created for the emeroteca listeners');
+
+    $emerotecaPlugin = new \EmerotecaPlugin($db, $hookManager);
+    $emerotecaPlugin->setPluginId($fixturePluginId);
+    $emerotecaPlugin->onActivate();
+
+    $registered = [];
+    $hookRows = $db->query(
+        "SELECT hook_name FROM plugin_hooks WHERE plugin_id = {$fixturePluginId} ORDER BY hook_name"
+    );
+    while ($hookRows instanceof \mysqli_result && ($row = $hookRows->fetch_assoc())) {
+        $registered[] = (string) $row['hook_name'];
+    }
+    check(
+        in_array('sitemap.entries', $registered, true),
+        'onActivate() registers a sitemap.entries listener in plugin_hooks'
+    );
+    check(
+        in_array('search.external_suggestions', $registered, true),
+        'onActivate() registers a search.external_suggestions listener in plugin_hooks'
+    );
+
+    // Seed one testata with an owned issue and a withdrawn one.
+    $emerTerm = 'zzemer' . $RUN;
+    $emerTitle = 'zz Rivista ' . $emerTerm;
+    $stmt = $db->prepare("INSERT INTO emeroteca_testate (titolo, tipo) VALUES (?, 'rivista')");
+    $stmt->bind_param('s', $emerTitle);
+    $stmt->execute();
+    $stmt->close();
+    $emerTestataId = (int) $db->insert_id;
+    $db->query("INSERT INTO emeroteca_annate (testata_id, anno, volume) VALUES ({$emerTestataId}, 2030, '')");
+    $emerAnnataId = (int) $db->insert_id;
+    $db->query(
+        "INSERT INTO emeroteca_fascicoli (annata_id, numero, stato) VALUES ({$emerAnnataId}, '1', 'posseduto')"
+    );
+    $emerOwnedId = (int) $db->insert_id;
+    $db->query(
+        "INSERT INTO emeroteca_fascicoli (annata_id, numero, stato) VALUES ({$emerAnnataId}, '2', 'scartato')"
+    );
+    $emerScartatoId = (int) $db->insert_id;
+    check($emerOwnedId > 0 && $emerScartatoId > 0, 'emeroteca fixture seeded (one owned issue, one withdrawn)');
+
+    // Activate and let the HookManager pick the rows up from the database
+    // (clearHooks WITHOUT setPluginsLoadedRuntime: that is the whole point).
+    $db->query("UPDATE plugins SET is_active = 1 WHERE id = {$fixturePluginId}");
+    $hookManager->clearHooks();
+
+    $generator = new SitemapGenerator($db, $BASE);
+    $xmlPlugin = $generator->generate();
+    $statsPlugin = $generator->getStats();
+
+    check(
+        str_contains($xmlPlugin, '<loc>' . $BASE . '/emeroteca</loc>'),
+        'the REAL listener puts the /emeroteca section index in the sitemap'
+    );
+    check(
+        str_contains($xmlPlugin, '<loc>' . $BASE . '/emeroteca/' . $emerTestataId . '</loc>'),
+        'the seeded testata has its own sitemap URL'
+    );
+    check(
+        str_contains($xmlPlugin, '<loc>' . $BASE . '/emeroteca/fascicolo/' . $emerOwnedId . '</loc>'),
+        'an owned fascicolo is advertised in the sitemap'
+    );
+    check(
+        !str_contains($xmlPlugin, '<loc>' . $BASE . '/emeroteca/fascicolo/' . $emerScartatoId . '</loc>'),
+        'a WITHDRAWN (scartato) fascicolo is NOT advertised in the sitemap'
+    );
+    check(($statsPlugin['plugins'] ?? 0) >= 3, "stats['plugins'] counts the emeroteca URLs");
+
+    // Search hint — only on a real match.
+    $htmlEmer = $renderCatalog($emerTerm);
+    check(
+        str_contains($htmlEmer, 'id="external-search-suggestions"'),
+        'a catalogue search matching a testata renders the emeroteca hint'
+    );
+    check(
+        str_contains($htmlEmer, '/emeroteca?q=' . $emerTerm),
+        'the hint links to the emeroteca search for the same term'
+    );
+
+    $htmlNoMatch = $renderCatalog('zznomatch' . $RUN);
+    check(
+        !str_contains($htmlNoMatch, 'id="external-search-suggestions"'),
+        'a term that matches nothing in the emeroteca produces NO hint (append only on match)'
+    );
+
+    // Deactivate: both surfaces must go quiet.
+    $emerotecaPlugin->onDeactivate();
+    $db->query("UPDATE plugins SET is_active = 0 WHERE id = {$fixturePluginId}");
+    $hookManager->clearHooks();
+
+    $xmlOff = (new SitemapGenerator($db, $BASE))->generate();
+    check(
+        !str_contains($xmlOff, '<loc>' . $BASE . '/emeroteca</loc>')
+            && !str_contains($xmlOff, '<loc>' . $BASE . '/emeroteca/' . $emerTestataId . '</loc>'),
+        'with the plugin deactivated the emeroteca URLs leave the sitemap'
+    );
+    $htmlOff = $renderCatalog($emerTerm);
+    check(
+        !str_contains($htmlOff, 'id="external-search-suggestions"'),
+        'with the plugin deactivated the catalogue renders no emeroteca hint'
+    );
 } catch (\Throwable $e) {
     check(false, 'unexpected exception: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
 } finally {
@@ -313,6 +462,24 @@ try {
         $resetHooks();
         if ($bookId > 0) {
             $db->query("DELETE FROM libri WHERE id = {$bookId}");
+        }
+        // FK-ordered teardown of the emeroteca fixture (fascicoli →
+        // annate → testata); the plugin's own tables are left in place.
+        if ($emerTestataId > 0) {
+            @$db->query(
+                "DELETE f FROM emeroteca_fascicoli f
+                   JOIN emeroteca_annate a ON f.annata_id = a.id
+                  WHERE a.testata_id = {$emerTestataId}"
+            );
+            @$db->query("DELETE FROM emeroteca_annate WHERE testata_id = {$emerTestataId}");
+            @$db->query("DELETE FROM emeroteca_testate WHERE id = {$emerTestataId}");
+        }
+        if ($fixturePluginId > 0) {
+            @$db->query("DELETE FROM plugin_hooks WHERE plugin_id = {$fixturePluginId}");
+            @$db->query("DELETE FROM plugins WHERE id = {$fixturePluginId}");
+        }
+        if ($realEmerotecaActive !== null) {
+            $db->query("UPDATE plugins SET is_active = {$realEmerotecaActive} WHERE name = 'emeroteca'");
         }
         if (isset($tmpFile) && is_string($tmpFile) && is_file($tmpFile)) {
             @unlink($tmpFile);

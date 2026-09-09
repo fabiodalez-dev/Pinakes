@@ -879,8 +879,16 @@ try {
         'an invalid condition aborts the whole issue save (nothing is written)'
     );
 
-    // An empty barcode falls back to the testata's base.
-    $inheritTestata = $mkTestata($TITLE_KARDEX, '9770028083602');
+    // ── 12. An empty barcode is NOT back-filled with the testata's base ──
+    // The base is shared by every issue of a title and the column has a
+    // non-UNIQUE key: copying it here would give every fascicolo the same
+    // code, and a scan at the desk would resolve to whichever issue comes
+    // first — the arrival gets recorded on the wrong issue while the real one
+    // stays 'atteso' and goes into the supplier reminder. The base is already
+    // the scan lookup's third step and the label renderer's fallback, so an
+    // empty barcode still resolves to the title.
+    $TESTATA_BASE = '9770028083602';
+    $inheritTestata = $mkTestata($TITLE_KARDEX, $TESTATA_BASE);
     $inheritAnnata = $mkAnnata($inheritTestata, $currentYear - 1);
     $inheritIssue = $mkFascicolo($inheritAnnata, '1', 'posseduto');
     $issues->update(
@@ -888,10 +896,386 @@ try {
         $resFactory->createResponse(),
         ['id' => (string) $inheritIssue]
     );
+    $inheritRow = $rowById('emeroteca_fascicoli', $inheritIssue);
     check(
-        ($rowById('emeroteca_fascicoli', $inheritIssue)['barcode'] ?? '') === '9770028083602',
-        "an empty issue barcode inherits the testata's base barcode"
+        array_key_exists('barcode', $inheritRow) && $inheritRow['barcode'] === null,
+        "an empty issue barcode stays empty: it does NOT inherit the testata's base"
     );
+
+    // …and the quick-add form does not copy it either.
+    $issues->manageSubmit(
+        $post('/admin/periodicals/' . $inheritTestata . '/issues', [
+            'action' => 'add_fascicolo',
+            'annata_id' => (string) $inheritAnnata,
+            'numero' => '2',
+            'stato' => 'atteso',
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $inheritTestata]
+    );
+    $res = $db->query(
+        "SELECT id, barcode FROM emeroteca_fascicoli WHERE annata_id = {$inheritAnnata} AND numero = '2' LIMIT 1"
+    );
+    $quickAdded = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+    check(is_array($quickAdded), 'the quick-add form created the fascicolo');
+    if (is_array($quickAdded)) {
+        $auditedIssueIds[] = (int) $quickAdded['id'];
+        check(
+            $quickAdded['barcode'] === null,
+            "a fascicolo created from the quick form does NOT inherit the testata's base barcode"
+        );
+    }
+
+    // Two issues of the same title must therefore not collide on one code.
+    $res = $db->query(
+        "SELECT COUNT(*) AS c FROM emeroteca_fascicoli
+          WHERE annata_id = {$inheritAnnata} AND barcode = '{$TESTATA_BASE}'"
+    );
+    check(
+        ($res instanceof \mysqli_result ? (int) ($res->fetch_assoc()['c'] ?? -1) : -1) === 0,
+        'no fascicolo carries the shared testata base as its own barcode'
+    );
+
+    // A barcode typed by hand is still stored verbatim (EAN + add-on).
+    $issues->update(
+        $post('/admin/periodicals/issue/' . $inheritIssue, [
+            'numero' => '1',
+            'stato' => 'posseduto',
+            'barcode' => $TESTATA_BASE . '01234',
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $inheritIssue]
+    );
+    check(
+        ($rowById('emeroteca_fascicoli', $inheritIssue)['barcode'] ?? '') === $TESTATA_BASE . '01234',
+        'a hand-typed full EAN with add-on is still stored on the fascicolo'
+    );
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // ── 13. stato is validated, never coerced ─────────────────────────
+    // It is the column that drives holdings, consistency, public catalogue
+    // and claims: an unknown value must abort the save like condizione does,
+    // and an absent one must leave the issue where it is. Sliding to
+    // 'posseduto' would put a missing issue back on the shelf on paper.
+    $statoIssue = $mkFascicolo($inheritAnnata, '70', 'mancante');
+    $issues->update(
+        $post('/admin/periodicals/issue/' . $statoIssue, ['numero' => '70', 'stato' => 'inventato']),
+        $resFactory->createResponse(),
+        ['id' => (string) $statoIssue]
+    );
+    check(
+        ($rowById('emeroteca_fascicoli', $statoIssue)['stato'] ?? '') === 'mancante',
+        "an invalid stato aborts the issue save and does NOT write 'posseduto'"
+    );
+    check(($_SESSION['error_message'] ?? '') !== '', 'an invalid stato reports an explicit error');
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // The same value posted with no stato at all: the state must survive an
+    // edit of an unrelated field.
+    $issues->update(
+        $post('/admin/periodicals/issue/' . $statoIssue, ['numero' => '70', 'note' => 'zz nota scorrelata']),
+        $resFactory->createResponse(),
+        ['id' => (string) $statoIssue]
+    );
+    $row = $rowById('emeroteca_fascicoli', $statoIssue);
+    check(
+        ($row['stato'] ?? '') === 'mancante',
+        "a save with no stato in the POST keeps the current state (no slide to 'posseduto')"
+    );
+    check(($row['note'] ?? '') === 'zz nota scorrelata', 'that save did go through for the field it did change');
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // Same rule on the create paths: nothing is written.
+    $issues->manageSubmit(
+        $post('/admin/periodicals/' . $inheritTestata . '/issues', [
+            'action' => 'add_fascicolo',
+            'annata_id' => (string) $inheritAnnata,
+            'numero' => '71',
+            'stato' => 'inventato',
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $inheritTestata]
+    );
+    $res = $db->query(
+        "SELECT COUNT(*) AS c FROM emeroteca_fascicoli WHERE annata_id = {$inheritAnnata} AND numero = '71'"
+    );
+    check(
+        ($res instanceof \mysqli_result ? (int) ($res->fetch_assoc()['c'] ?? -1) : -1) === 0,
+        'an invalid stato in the quick-add form creates nothing'
+    );
+    check(($_SESSION['error_message'] ?? '') !== '', 'the quick-add form reports the invalid stato');
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    $bulkResp = $issues->bulkCreate(
+        $post('/admin/periodicals/' . $inheritTestata . '/issues/bulk', [
+            'anno' => (string) ($currentYear - 1),
+            'numero_da' => '200',
+            'numero_a' => '202',
+            'stato' => 'inventato',
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $inheritTestata]
+    );
+    $res = $db->query(
+        "SELECT COUNT(*) AS c FROM emeroteca_fascicoli
+          WHERE annata_id = {$inheritAnnata} AND numero IN ('200','201','202')"
+    );
+    check(
+        $bulkResp->getStatusCode() === 303
+            && ($res instanceof \mysqli_result ? (int) ($res->fetch_assoc()['c'] ?? -1) : -1) === 0,
+        'an invalid stato in the bulk-create form creates no series at all'
+    );
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // ── 14. The bulk claim does not overwrite a concurrent reception ──
+    // The real race, reproduced deterministically on ONE thread: the test
+    // connection opens a REPEATABLE READ transaction and pins its read view,
+    // a SECOND connection then receives one of the issues at the desk and
+    // commits. Inside the transaction the controller's SELECT still sees the
+    // issue as 'atteso' (consistent read) while its UPDATE sees the committed
+    // row (current read) — exactly the window between the two statements.
+    // Without 'AND stato = ...' in the UPDATE, the received issue is dragged
+    // back to 'reclamato': out of the holdings, into the supplier reminder.
+    $raceAnnata = $mkAnnata($kardexId, $currentYear - 5);
+    $raceStays = $mkFascicolo($raceAnnata, '1', 'atteso');   // claimed for real
+    $raceReceived = $mkFascicolo($raceAnnata, '2', 'atteso'); // received mid-flight
+
+    $conn2 = (is_string($socket) && $socket !== '' && file_exists($socket))
+        ? @new mysqli(null, $user, $pass, $name, 0, $socket)
+        : @new mysqli($env['DB_HOST'] ?? '127.0.0.1', $user, $pass, $name, (int) ($env['DB_PORT'] ?? 3306));
+    check($conn2 instanceof mysqli && $conn2->connect_errno === 0, 'a second connection is available to stage the race');
+
+    $db->query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    $db->begin_transaction();
+    // Pin the read view on this table BEFORE the other session commits.
+    $db->query('SELECT id FROM emeroteca_fascicoli WHERE annata_id = ' . $raceAnnata);
+    $conn2->query("UPDATE emeroteca_fascicoli SET stato = 'posseduto' WHERE id = " . $raceReceived);
+    $conn2->close();
+
+    $issues->manageSubmit(
+        $post('/admin/periodicals/' . $kardexId . '/issues', [
+            'action' => 'claim_overdue',
+            'annata_id' => (string) $raceAnnata,
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $kardexId]
+    );
+    $raceMessage = (string) ($_SESSION['success_message'] ?? '');
+    $db->commit();
+
+    check(
+        ($rowById('emeroteca_fascicoli', $raceReceived)['stato'] ?? '') === 'posseduto',
+        'the bulk claim does NOT reclaim an issue received between its SELECT and its UPDATE'
+    );
+    check(
+        (int) ($rowById('emeroteca_fascicoli', $raceReceived)['n_reclami'] ?? -1) === 0,
+        'that issue keeps n_reclami = 0: no reminder was counted for a copy already on the shelf'
+    );
+    check(
+        ($rowById('emeroteca_fascicoli', $raceStays)['stato'] ?? '') === 'reclamato',
+        'the issue that really was still awaited is claimed'
+    );
+    check(
+        preg_match('/(?<!\d)1(?!\d)/', $raceMessage) === 1 && preg_match('/(?<!\d)2(?!\d)/', $raceMessage) !== 1,
+        "the operator is told how many rows CHANGED (1), not how many the SELECT had picked (2): '{$raceMessage}'"
+    );
+    check(
+        $auditCount('emeroteca_fascicoli', $raceReceived, 'issue.claimed') === 0,
+        'no issue.claimed is logged for the issue the bulk claim skipped'
+    );
+    check(
+        $auditCount('emeroteca_fascicoli', $raceStays, 'issue.claimed') === 1,
+        'exactly one issue.claimed is logged for the issue the bulk claim did move'
+    );
+
+    // The bulk audit is now as rich as the per-issue one: the claim counter
+    // on both sides, not just "stato: atteso → reclamato".
+    $res = $db->query(
+        "SELECT dati_precedenti, dati_nuovi FROM log_modifiche
+          WHERE tabella = 'emeroteca_fascicoli' AND record_id = {$raceStays}
+            AND dati_nuovi LIKE '%\"event\":\"issue.claimed\"%' ORDER BY id DESC LIMIT 1"
+    );
+    $bulkAudit = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+    check(
+        is_array($bulkAudit)
+            && str_contains((string) $bulkAudit['dati_precedenti'], 'n_reclami')
+            && str_contains((string) $bulkAudit['dati_nuovi'], 'n_reclami')
+            && str_contains((string) $bulkAudit['dati_nuovi'], 'numero'),
+        'the bulk claim audits numero and the claim counter on both sides, like the single claim'
+    );
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // The UPDATE statements themselves must carry the state guard: a future
+    // refactor that drops it puts the race straight back.
+    $controllerSrc = (string) @file_get_contents(
+        __DIR__ . '/../storage/plugins/emeroteca/src/Controllers/IssueAdminController.php'
+    );
+    check(
+        preg_match(
+            "/UPDATE emeroteca_fascicoli\s+SET stato = 'reclamato'.*?WHERE id IN \(\{\\\$placeholders\}\) AND stato = 'atteso'/s",
+            $controllerSrc
+        ) === 1,
+        "the bulk claim UPDATE repeats the 'atteso' condition in its WHERE"
+    );
+    check(
+        preg_match(
+            "/UPDATE emeroteca_fascicoli\s+SET stato = 'reclamato'.*?WHERE id = \? AND stato IN \(\{\\\$claimable\}\)/s",
+            $controllerSrc
+        ) === 1,
+        'the single claim UPDATE repeats the claimable-state condition in its WHERE'
+    );
+
+    // ── 15. mark_missing / claim_overdue are admin-only ───────────────
+    // Both rewrite a whole annata in one statement with no undo: 'mancante'
+    // has no inverse action anywhere, and n_reclami is never decremented.
+    // AdminAuthMiddleware also admits staff, hence the inline re-check.
+    $staffAnnata = $mkAnnata($kardexId, $currentYear - 6);
+    $staffAwaited = $mkFascicolo($staffAnnata, '1', 'atteso');
+
+    $_SESSION = ['user' => ['tipo_utente' => 'staff']];
+    $issues->manageSubmit(
+        $post('/admin/periodicals/' . $kardexId . '/issues', [
+            'action' => 'mark_missing',
+            'annata_id' => (string) $staffAnnata,
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $kardexId]
+    );
+    check(
+        ($rowById('emeroteca_fascicoli', $staffAwaited)['stato'] ?? '') === 'atteso',
+        'mark_missing with a staff session changes nothing'
+    );
+    check(($_SESSION['error_message'] ?? '') !== '', 'mark_missing with a staff session sets the error flash');
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    $issues->manageSubmit(
+        $post('/admin/periodicals/' . $kardexId . '/issues', [
+            'action' => 'claim_overdue',
+            'annata_id' => (string) $staffAnnata,
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $kardexId]
+    );
+    $row = $rowById('emeroteca_fascicoli', $staffAwaited);
+    check(
+        ($row['stato'] ?? '') === 'atteso' && (int) ($row['n_reclami'] ?? -1) === 0,
+        'claim_overdue with a staff session claims nothing'
+    );
+    check(($_SESSION['error_message'] ?? '') !== '', 'claim_overdue with a staff session sets the error flash');
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    $_SESSION = [];
+    $issues->manageSubmit(
+        $post('/admin/periodicals/' . $kardexId . '/issues', [
+            'action' => 'mark_missing',
+            'annata_id' => (string) $staffAnnata,
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $kardexId]
+    );
+    check(
+        ($rowById('emeroteca_fascicoli', $staffAwaited)['stato'] ?? '') === 'atteso',
+        'mark_missing without any session user is refused too'
+    );
+
+    // The same two actions DO work for an admin — the guard is targeted.
+    $_SESSION = ['user' => ['tipo_utente' => 'admin']];
+    $issues->manageSubmit(
+        $post('/admin/periodicals/' . $kardexId . '/issues', [
+            'action' => 'mark_missing',
+            'annata_id' => (string) $staffAnnata,
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $kardexId]
+    );
+    check(
+        ($rowById('emeroteca_fascicoli', $staffAwaited)['stato'] ?? '') === 'mancante',
+        'mark_missing with an admin session does mark the annata missing'
+    );
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // ── 16. Current-year bulk claim, driven by the publication schedule ──
+    // Kardex issues carry no date, so before #140 the bulk claim could never
+    // reach the running subscription year — the very year reminders exist
+    // for. An undated issue of the current year is now overdue once its slot
+    // in the schedule closed more than 30 days ago; the deadline below is
+    // computed independently of the controller.
+    $schedTestata = $mkTestata($TITLE_KARDEX);
+    $db->query("UPDATE emeroteca_testate SET periodicita = 'mensile' WHERE id = " . $schedTestata);
+    $schedAnnata = $mkAnnata($schedTestata, $currentYear);
+    $schedFirst = $mkFascicolo($schedAnnata, '1', 'atteso');   // slot closes 31 Jan
+    $schedLast  = $mkFascicolo($schedAnnata, '12', 'atteso');  // slot closes 31 Dec
+    $schedOdd   = $mkFascicolo($schedAnnata, '4-5', 'atteso'); // double issue: no schedule
+
+    $firstDeadline = (new \DateTimeImmutable($currentYear . '-01-31'))->modify('+30 days')->format('Y-m-d');
+    $firstIsLate = $firstDeadline < $today;
+
+    $issues->manageSubmit(
+        $post('/admin/periodicals/' . $schedTestata . '/issues', [
+            'action' => 'claim_overdue',
+            'annata_id' => (string) $schedAnnata,
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $schedTestata]
+    );
+    check(
+        ($rowById('emeroteca_fascicoli', $schedFirst)['stato'] ?? '') === ($firstIsLate ? 'reclamato' : 'atteso'),
+        "n. 1 of a monthly is claimable in the current year once 31 Jan + 30 days has passed "
+        . "(deadline {$firstDeadline}, today {$today})"
+    );
+    check(
+        ($rowById('emeroteca_fascicoli', $schedLast)['stato'] ?? '') === 'atteso',
+        "n. 12 of a monthly is never claimed within its own year (its slot closes on 31 Dec)"
+    );
+    check(
+        ($rowById('emeroteca_fascicoli', $schedOdd)['stato'] ?? '') === 'atteso',
+        'a double issue ("4-5") has no schedule slot and is left to the per-issue claim'
+    );
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // Without a periodicita there is no schedule at all: the current year is
+    // untouched even for issues numbered 1 (already covered above for the
+    // 'irregolare'-equivalent NULL case, asserted here on the claim counter).
+    check(
+        (int) ($rowById('emeroteca_fascicoli', $currentIssue)['n_reclami'] ?? -1) === 0,
+        'a current-year issue of a testata with no periodicita is still never bulk-claimed'
+    );
+
+    // ── 17. The ordinary save no longer looks like it wipes the claims ──
+    // The "before" snapshot carries reclamato_il/n_reclami; when the "after"
+    // omitted them, every save read in the audit as if the claim history had
+    // been cleared.
+    $historyIssue = $mkFascicolo($inheritAnnata, '80', 'reclamato');
+    $db->query(
+        "UPDATE emeroteca_fascicoli SET n_reclami = 3, reclamato_il = '{$today}' WHERE id = " . $historyIssue
+    );
+    $issues->update(
+        $post('/admin/periodicals/issue/' . $historyIssue, ['numero' => '80', 'stato' => 'reclamato']),
+        $resFactory->createResponse(),
+        ['id' => (string) $historyIssue]
+    );
+    $res = $db->query(
+        "SELECT dati_precedenti, dati_nuovi FROM log_modifiche
+          WHERE tabella = 'emeroteca_fascicoli' AND record_id = {$historyIssue}
+            AND dati_nuovi LIKE '%\"event\":\"issue.updated\"%' ORDER BY id DESC LIMIT 1"
+    );
+    $saveAudit = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+    check(
+        is_array($saveAudit) && str_contains((string) $saveAudit['dati_precedenti'], 'n_reclami'),
+        'fixture: the audit "before" of an ordinary save carries the claim history'
+    );
+    check(
+        is_array($saveAudit)
+            && str_contains((string) $saveAudit['dati_nuovi'], '"n_reclami":3')
+            && str_contains((string) $saveAudit['dati_nuovi'], '"reclamato_il":"' . $today . '"'),
+        'the audit "after" carries it unchanged, so the save does not read as a wipe'
+    );
+    check(
+        (int) ($rowById('emeroteca_fascicoli', $historyIssue)['n_reclami'] ?? -1) === 3,
+        'and the claim history really is untouched on the row'
+    );
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
     $_SESSION = [];
 } catch (\Throwable $e) {
     $FAILED++;

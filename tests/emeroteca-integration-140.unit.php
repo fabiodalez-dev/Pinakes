@@ -32,7 +32,18 @@ declare(strict_types=1);
  *      disposition and a body starting with the canonical KBART / ACNP
  *      header;
  *   9. the labels route rejects an empty selection with a flash instead of a
- *      500, and returns real PDF bytes for a valid one.
+ *      500, and returns real PDF bytes for a valid one;
+ *  10. the merge NEVER welds a predecessor cycle: with S → X → T the link
+ *      that would close the loop is dropped (and named on the summary
+ *      screen) instead of being committed, no title is reachable from
+ *      itself, and the survivor is still saveable through the real form —
+ *      a committed cycle would make validate() reject it forever;
+ *  11. the survivor inherits the source's OWN predecessor when it has none,
+ *      and keeps its own (reporting the lost relation) when both differ;
+ *  12. the admin list and the issues page render the SAME consistenza on a
+ *      fixture that SETS consistenza_dichiarata — the canonical rule is
+ *      "declared APPENDED to computed after ' · ', declared alone when
+ *      nothing is computed, '—' when there is nothing at all".
  *
  * Conventions follow tests/emeroteca-admin-140.unit.php: env parsing, socket
  * connection, check()/pass() helpers, zz fixtures, FK-ordered cleanup in
@@ -134,7 +145,27 @@ $T_STAFF_A  = "zz Emeroteca Staff A {$RUN}";
 $T_STAFF_B  = "zz Emeroteca Staff B {$RUN}";
 $T_SCAN     = "zz Emeroteca Scan {$RUN}";
 $T_BASE     = "zz Emeroteca Scan Base {$RUN}";
-$TITLES = [$T_SOURCE, $T_TARGET, $T_FOLLOWER, $T_STAFF_A, $T_STAFF_B, $T_SCAN, $T_BASE];
+// Title-history fixtures (merge cycle / predecessor inheritance).
+$T_CYC_S    = "zz Emeroteca Cycle Source {$RUN}";
+$T_CYC_X    = "zz Emeroteca Cycle Mid {$RUN}";
+$T_CYC_T    = "zz Emeroteca Cycle Target {$RUN}";
+$T_INH_P    = "zz Emeroteca Inherit Prev {$RUN}";
+$T_INH_S    = "zz Emeroteca Inherit Source {$RUN}";
+$T_INH_T    = "zz Emeroteca Inherit Target {$RUN}";
+$T_KEEP_SP  = "zz Emeroteca Keep Source Prev {$RUN}";
+$T_KEEP_TP  = "zz Emeroteca Keep Target Prev {$RUN}";
+$T_KEEP_S   = "zz Emeroteca Keep Source {$RUN}";
+$T_KEEP_T   = "zz Emeroteca Keep Target {$RUN}";
+// Consistenza fixtures (declared consistenza on the annate).
+$T_DECL     = "zz Emeroteca Consistenza {$RUN}";
+$T_DECL_ONLY = "zz Emeroteca Consistenza Solo Dichiarata {$RUN}";
+$TITLES = [
+    $T_SOURCE, $T_TARGET, $T_FOLLOWER, $T_STAFF_A, $T_STAFF_B, $T_SCAN, $T_BASE,
+    $T_CYC_S, $T_CYC_X, $T_CYC_T,
+    $T_INH_P, $T_INH_S, $T_INH_T,
+    $T_KEEP_SP, $T_KEEP_TP, $T_KEEP_S, $T_KEEP_T,
+    $T_DECL, $T_DECL_ONLY,
+];
 
 /** Ids that received an audit row and must be cleaned out of log_modifiche. */
 $auditedTestataIds = [];
@@ -651,6 +682,213 @@ try {
             'the label response is served as a named PDF'
         );
     }
+
+    // ── 10. Title history: the merge must not weld a cycle ─────────────
+    //
+    // S → X → T: X continues FROM the source, the SURVIVOR continues from X.
+    // Repointing X at the survivor blindly (the old single UPDATE guarded
+    // only the one-hop "T precedes itself" case) leaves X ⇄ T committed, and
+    // from that moment neither title can be saved again: validate() rejects
+    // every edit of both, forever, and only manual SQL gets them out.
+    $prevOf = static function (int $id) use ($scalar): ?int {
+        $v = $scalar('SELECT testata_precedente_id FROM emeroteca_testate WHERE id = ?', 'i', [$id]);
+        return ($v === null || $v === '') ? null : (int) $v;
+    };
+    /** True when the predecessor chain of $id comes back to $id within 100 hops. */
+    $reachesItself = static function (int $id) use ($prevOf): bool {
+        $current = $id;
+        for ($hop = 0; $hop < 100; $hop++) {
+            $next = $prevOf($current);
+            if ($next === null) {
+                return false;
+            }
+            if ($next === $id) {
+                return true;
+            }
+            $current = $next;
+        }
+        // Ran out of hops without terminating: a loop by any other name.
+        return true;
+    };
+    $setPrev = static function (int $id, ?int $prev) use ($exec): void {
+        $exec(
+            'UPDATE emeroteca_testate SET testata_precedente_id = ? WHERE id = ?',
+            'ii',
+            [$prev, $id]
+        );
+    };
+
+    $cycS = $newTestata($T_CYC_S);
+    $cycX = $newTestata($T_CYC_X);
+    $cycT = $newTestata($T_CYC_T);
+    $auditedTestataIds[] = $cycS;
+    $auditedTestataIds[] = $cycT;
+    $setPrev($cycX, $cycS);
+    $setPrev($cycT, $cycX);
+
+    $_SESSION = ['user' => ['tipo_utente' => 'admin']];
+    $cycleResponse = $periodicals->mergeSubmit(
+        $post('/admin/periodicals/merge', [
+            'ids'       => [(string) $cycS, (string) $cycT],
+            'target_id' => (string) $cycT,
+        ]),
+        $resFactory->createResponse()
+    );
+    $cycleHtml = (string) $cycleResponse->getBody();
+    check(
+        !$reachesItself($cycT) && !$reachesItself($cycX),
+        'after the merge no title is reachable from itself within 100 hops'
+    );
+    check(
+        $prevOf($cycX) === null,
+        'the follower link that would have closed the loop is dropped, not committed'
+    );
+    check(
+        $prevOf($cycT) === $cycX,
+        'the survivor keeps its own predecessor untouched'
+    );
+    check(
+        str_contains($cycleHtml, $T_CYC_X),
+        'the summary screen names the title whose predecessor link was cleared'
+    );
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // …and the survivor is still EDITABLE: this is what a committed cycle
+    // takes away. A save that passes validate() redirects (303); a rejected
+    // one re-renders the form (200) with the cycle error.
+    $editResponse = $periodicals->editSubmit(
+        $post('/admin/periodicals/edit/' . $cycT, [
+            'titolo'                => $T_CYC_T,
+            'tipo'                  => 'rivista',
+            'stato_raccolta'        => 'attiva',
+            'prestabile'            => 'consultazione',
+            'testata_precedente_id' => (string) $cycX,
+        ]),
+        $resFactory->createResponse(),
+        ['id' => (string) $cycT]
+    );
+    check(
+        $editResponse->getStatusCode() === 303
+        && !str_contains((string) $editResponse->getBody(), 'ciclo'),
+        'the survivor can still be saved from the form after the merge'
+    );
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // ── 11. Title history: the source's OWN predecessor ────────────────
+    // P ← S merged into T (which has no predecessor): the survivor inherits
+    // it, otherwise the source's history dies with its row.
+    $inhP = $newTestata($T_INH_P);
+    $inhS = $newTestata($T_INH_S);
+    $inhT = $newTestata($T_INH_T);
+    $auditedTestataIds[] = $inhS;
+    $auditedTestataIds[] = $inhT;
+    $setPrev($inhS, $inhP);
+
+    $inhResponse = $periodicals->mergeSubmit(
+        $post('/admin/periodicals/merge', [
+            'ids'       => [(string) $inhS, (string) $inhT],
+            'target_id' => (string) $inhT,
+        ]),
+        $resFactory->createResponse()
+    );
+    check(
+        $prevOf($inhT) === $inhP,
+        'the survivor inherits the predecessor of the source when it has none'
+    );
+    check(
+        str_contains((string) $inhResponse->getBody(), $T_INH_P),
+        'the inherited predecessor is named on the summary screen'
+    );
+    check(!$reachesItself($inhT), 'the inherited link is not a cycle');
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // Both sides have one and they differ: the destination's wins and the
+    // dropped relation is reported instead of vanishing silently.
+    $keepSp = $newTestata($T_KEEP_SP);
+    $keepTp = $newTestata($T_KEEP_TP);
+    $keepS  = $newTestata($T_KEEP_S);
+    $keepT  = $newTestata($T_KEEP_T);
+    $auditedTestataIds[] = $keepS;
+    $auditedTestataIds[] = $keepT;
+    $setPrev($keepS, $keepSp);
+    $setPrev($keepT, $keepTp);
+
+    $keepResponse = $periodicals->mergeSubmit(
+        $post('/admin/periodicals/merge', [
+            'ids'       => [(string) $keepS, (string) $keepT],
+            'target_id' => (string) $keepT,
+        ]),
+        $resFactory->createResponse()
+    );
+    check(
+        $prevOf($keepT) === $keepTp,
+        'the destination keeps its own predecessor when both sides declare one'
+    );
+    check(
+        str_contains((string) $keepResponse->getBody(), $T_KEEP_SP),
+        'the predecessor relation lost with the source is named on the summary screen'
+    );
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+
+    // ── 12. Consistenza: one rule, two surfaces ────────────────────────
+    //
+    // The admin list (holdingsSummary) and the issues page
+    // (EmerotecaPlugin::consistenzaTestata) must render the SAME string.
+    // The fixture deliberately SETS consistenza_dichiarata on two annate —
+    // without it the comparison is vacuous, because the divergence was
+    // exactly that holdingsSummary ignored the declared consistenza.
+    $declId = $newTestata($T_DECL);
+    $decl85 = $newAnnata($declId, 1985);
+    $decl90 = $newAnnata($declId, 1990);
+    $exec(
+        'UPDATE emeroteca_annate SET consistenza_dichiarata = ? WHERE id = ?',
+        'si',
+        ['annate 1985-1989 lacunose', $decl85]
+    );
+    $exec(
+        'UPDATE emeroteca_annate SET consistenza_dichiarata = ? WHERE id = ?',
+        'si',
+        ['1990-1995 (incompleta)', $decl90]
+    );
+    $newFascicolo($decl90, '1', 'posseduto');
+    $newFascicolo($decl90, '2', 'mancante');
+
+    $canonical = \EmerotecaPlugin::consistenzaTestata($db, $declId);
+    $listed = $periodicals->holdingsSummary([$declId])[$declId]['consistenza'] ?? '';
+    check(
+        $listed === $canonical,
+        sprintf('the admin list renders the same consistenza as the issues page (%s vs %s)', $listed, $canonical)
+    );
+    check(
+        str_contains($listed, '1990')
+        && str_contains($listed, 'annate 1985-1989 lacunose; 1990-1995 (incompleta)'),
+        'the declared consistenza is APPENDED to the computed one, in year order, never substituted'
+    );
+    check(
+        str_contains($listed, ' · annate 1985-1989 lacunose'),
+        'computed and declared are joined by the canonical " · " separator'
+    );
+
+    // Nothing computable (no owned issue): the declared text stands alone,
+    // and '—' is only for the case with nothing at all.
+    $declOnlyId = $newTestata($T_DECL_ONLY);
+    $declOnlyYear = $newAnnata($declOnlyId, 1975);
+    $exec(
+        'UPDATE emeroteca_annate SET consistenza_dichiarata = ? WHERE id = ?',
+        'si',
+        ['solo la sola annata 1975', $declOnlyYear]
+    );
+    $summaries = $periodicals->holdingsSummary([$declOnlyId, $cycT]);
+    check(
+        ($summaries[$declOnlyId]['consistenza'] ?? '')
+            === \EmerotecaPlugin::consistenzaTestata($db, $declOnlyId)
+        && ($summaries[$declOnlyId]['consistenza'] ?? '') === 'solo la sola annata 1975',
+        'with nothing computed the declared consistenza stands alone on both surfaces'
+    );
+    check(
+        ($summaries[$cycT]['consistenza'] ?? '') === '—',
+        'a title with neither holdings nor a declared consistenza still renders the "—" sentinel'
+    );
 } finally {
     $cleanup();
     $db->close();

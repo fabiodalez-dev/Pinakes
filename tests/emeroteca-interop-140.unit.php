@@ -139,8 +139,33 @@ $ISSUES_CAP  = 400;
 /** Titles owned by this run (LIKE-matched so the 101 paging rows are caught). */
 $titleLike = 'zz Interop140 %' . $RUN . '%';
 
-$cleanup = static function () use ($db, $titleLike, $EDITORE, $GENERE): void {
+$BOOK_TITLE = "zz Interop140 Monografia con ISSN {$RUN}";
+$BOOK_ISSN  = '1234-5678';
+
+/**
+ * Highest emeroteca_testate id that existed BEFORE this run. Every fixture id
+ * is above it, which is what lets the cleanup reclaim tombstones left by rows
+ * the run deleted on purpose (section 11) without ever touching a tombstone
+ * that belongs to real data.
+ */
+$baseTestataId = 0;
+
+$cleanup = static function () use ($db, $titleLike, $EDITORE, $GENERE, $BOOK_TITLE, &$baseTestataId): void {
     $like = $db->real_escape_string($titleLike);
+
+    // Tombstones first: the AFTER DELETE trigger on emeroteca_testate fires for
+    // every fixture masthead this cleanup removes, so the ids have to be read
+    // BEFORE the rows disappear. Guarded — the table only exists once the
+    // oai-pmh-server plugin's ensureSchema() has run.
+    $tombIds = [];
+    $tombRes = @$db->query("SELECT id FROM emeroteca_testate WHERE titolo LIKE '{$like}'");
+    if ($tombRes instanceof \mysqli_result) {
+        while ($tombRow = $tombRes->fetch_row()) {
+            $tombIds[] = (int) $tombRow[0];
+        }
+        $tombRes->free();
+    }
+
     @$db->query(
         "DELETE ar FROM emeroteca_articoli ar
            JOIN emeroteca_fascicoli f ON ar.fascicolo_id = f.id
@@ -162,6 +187,22 @@ $cleanup = static function () use ($db, $titleLike, $EDITORE, $GENERE): void {
     @$db->query("DELETE FROM emeroteca_testate WHERE titolo LIKE '{$like}'");
     @$db->query("DELETE FROM editori WHERE nome = '" . $db->real_escape_string($EDITORE) . "'");
     @$db->query("DELETE FROM generi  WHERE nome = '" . $db->real_escape_string($GENERE) . "'");
+    @$db->query("DELETE FROM libri WHERE titolo = '" . $db->real_escape_string($BOOK_TITLE) . "'");
+    if ($tombIds !== []) {
+        @$db->query(
+            'DELETE FROM oai_deleted_periodicals WHERE entity_id IN (' . implode(',', $tombIds) . ')'
+        );
+    }
+    // Sweep: a masthead this run deleted deliberately is already gone by now,
+    // so its id never reaches $tombIds. Anything above the pre-run high-water
+    // mark with no surviving row belongs to this run.
+    if ($baseTestataId > 0) {
+        @$db->query(
+            'DELETE d FROM oai_deleted_periodicals d
+               LEFT JOIN emeroteca_testate t ON t.id = d.entity_id
+              WHERE d.entity_id > ' . (int) $baseTestataId . ' AND t.id IS NULL'
+        );
+    }
 };
 
 /** Emeroteca activation flag, restored verbatim in the finally block. */
@@ -250,6 +291,10 @@ try {
     $setEmerotecaActive(true);
 
     $cleanup(); // paranoid: a previous crashed run cannot poison this one
+
+    $baseRes = $db->query('SELECT COALESCE(MAX(id), 0) AS m FROM emeroteca_testate');
+    $baseTestataId = ($baseRes instanceof \mysqli_result) ? (int) ($baseRes->fetch_assoc()['m'] ?? 0) : 0;
+    check($baseTestataId >= 0, "pre-run masthead high-water mark recorded ({$baseTestataId})");
 
     // ── Fixtures ──────────────────────────────────────────────────────
     $exec = static function (string $sql, string $types = '', array $params = []) use ($db): int {
@@ -717,6 +762,300 @@ try {
     check(
         count(array_unique($numbers)) === $ISSUES_CAP,
         'the cap+1 probe row is dropped, not returned as a duplicate'
+    );
+
+    // ══ Adversarial-review regressions (issue #140 review) ═════════════
+    $errorCode = static function (string $xml, string $what) use ($xpathOf): string {
+        $nodes = $xpathOf($xml, $what)->query('//oai:error');
+
+        return ($nodes instanceof \DOMNodeList && $nodes->length > 0)
+            ? (string) ($nodes->item(0)->attributes?->getNamedItem('code')?->nodeValue ?? '')
+            : '';
+    };
+
+    // The window is derived from MySQL NOW(), not PHP: the OAI code compares
+    // `from` against updated_at without any TZ conversion, so a PHP-side
+    // timestamp would drift on an install where the two disagree.
+    $sinceRes = $db->query("SELECT DATE_FORMAT(NOW() - INTERVAL 10 MINUTE, '%Y-%m-%dT%H:%i:%sZ') AS s");
+    $since = ($sinceRes instanceof \mysqli_result)
+        ? (string) ($sinceRes->fetch_assoc()['s'] ?? '')
+        : '';
+    check($since !== '', "harvest window derived from MySQL NOW() ({$since})");
+
+    // A monograph that really carries an ISSN — libri.issn exists (it arrives
+    // with migrate_0.4.7) and the SRU book query pulls it in via SELECT l.*.
+    $bookId = $exec(
+        "INSERT INTO libri (titolo, issn, anno_pubblicazione, lingua, tipo_media)
+         VALUES (?, ?, 1999, 'italiano', 'libro')",
+        'ss',
+        [$BOOK_TITLE, $BOOK_ISSN]
+    );
+    check($bookId > 0, "monograph fixture with an ISSN created (id {$bookId}, ISSN {$BOOK_ISSN})");
+
+    // ── 8. Unqualified harvest: the arms must match the format ────────
+    // An unqualified ListRecords in a monograph-only format must not pull
+    // mastheads into the UNION. If it did they would reach writeMetadata(),
+    // throw cannotDisseminateFormat and be dropped one by one — and because
+    // the page is ordered by datestamp, mastheads inserted in one session
+    // cluster, so a whole page could end up with a resumptionToken and zero
+    // <record> children, which the OAI-PMH XSD rejects (record minOccurs=1).
+    foreach (['marcxml', 'mods', 'unimarc', 'mag'] as $monographFormat) {
+        $unqualified = $oaiCall([
+            'verb' => 'ListRecords',
+            'metadataPrefix' => $monographFormat,
+            'from' => $since,
+        ]);
+        $xpUnq = $xpathOf($unqualified, "ListRecords {$monographFormat} (unqualified)");
+        $unqIds = $textList($xpUnq, '//oai:ListRecords/oai:record/oai:header/oai:identifier');
+        check(
+            array_filter($unqIds, static fn (string $id): bool => str_contains($id, ':periodical:')) === [],
+            "set='' + metadataPrefix={$monographFormat} never yields a periodical record"
+        );
+        $lists = $xpUnq->query('//oai:ListRecords');
+        $listCount = $lists instanceof \DOMNodeList ? $lists->length : 0;
+        check(
+            $listCount === 0 || $unqIds !== [],
+            "set='' + metadataPrefix={$monographFormat} never emits a ListRecords page without records"
+        );
+    }
+
+    // ListIdentifiers must announce exactly what GetRecord will serve.
+    $unqIdentifiers = $oaiCall([
+        'verb' => 'ListIdentifiers',
+        'metadataPrefix' => 'marcxml',
+        'from' => $since,
+    ]);
+    $xpUnqId = $xpathOf($unqIdentifiers, 'ListIdentifiers marcxml (unqualified)');
+    $announced = $textList($xpUnqId, '//oai:ListIdentifiers/oai:header/oai:identifier');
+    check(
+        array_filter($announced, static fn (string $id): bool => str_contains($id, ':periodical:')) === [],
+        "ListIdentifiers set='' + marcxml never announces a header GetRecord would refuse"
+    );
+
+    // …while oai_dc, which mastheads DO speak, still returns them unqualified.
+    $unqDc = $oaiCall(['verb' => 'ListRecords', 'metadataPrefix' => 'oai_dc', 'from' => $since]);
+    $xpUnqDc = $xpathOf($unqDc, 'ListRecords oai_dc (unqualified)');
+    $unqDcIds = $textList($xpUnqDc, '//oai:ListRecords/oai:record/oai:header/oai:identifier');
+    check(
+        array_filter($unqDcIds, static fn (string $id): bool => str_contains($id, ':periodical:')) !== [],
+        "set='' + oai_dc still harvests mastheads (the arm guard restricts the format, not the set)"
+    );
+    // The book sorts after 100+ mastheads inserted in this same run, so the
+    // union has to be followed through its resumption tokens to see it.
+    $unqDcAll = $harvest(['verb' => 'ListRecords', 'metadataPrefix' => 'oai_dc', 'from' => $since], 8);
+    check(
+        in_array('oai:' . $host . ':book:' . $bookId, $unqDcAll['identifiers'], true)
+            && array_filter(
+                $unqDcAll['identifiers'],
+                static fn (string $id): bool => str_contains($id, ':periodical:')
+            ) !== [],
+        "set='' + oai_dc harvests books and mastheads in the same union"
+    );
+
+    // ── 9. Resumption tokens are bound to the union composition ───────
+    // A token is an OFFSET into a UNION whose arms depend on plugin
+    // activation. Toggling a content module mid-harvest shifts rows across
+    // the offset and silently drops whatever crossed it.
+    $setEmerotecaActive(false);
+    $compPage1 = $oaiCall(['verb' => 'ListRecords', 'metadataPrefix' => 'oai_dc']);
+    $xpComp1 = $xpathOf($compPage1, 'ListRecords page 1 (emeroteca off)');
+    $compTokenNodes = $xpComp1->query('//oai:resumptionToken');
+    $compToken = ($compTokenNodes instanceof \DOMNodeList && $compTokenNodes->length > 0)
+        ? trim((string) $compTokenNodes->item(0)->textContent)
+        : '';
+    check($compToken !== '', 'an unqualified oai_dc harvest issues a resumption token');
+
+    // Control: the very same token still resumes while nothing has changed.
+    $compResume = $oaiCall(['verb' => 'ListRecords', 'resumptionToken' => $compToken]);
+    check(
+        $errorCode($compResume, 'resume (unchanged)') === '',
+        'a resumption token resumes normally while the repository composition is unchanged'
+    );
+
+    // Now activate Emeroteca mid-harvest and reuse the token.
+    $setEmerotecaActive(true);
+    $compAfter = $oaiCall(['verb' => 'ListRecords', 'resumptionToken' => $compToken]);
+    $compCode = $errorCode($compAfter, 'resume (composition changed)');
+    check(
+        $compCode === 'badResumptionToken',
+        'a token reused after a content module was activated answers badResumptionToken '
+        . "(got '{$compCode}') — the harvest restarts instead of skipping records"
+    );
+
+    // A token minted with the new composition resumes cleanly.
+    $compPage1b = $oaiCall(['verb' => 'ListRecords', 'metadataPrefix' => 'oai_dc']);
+    $xpComp1b = $xpathOf($compPage1b, 'ListRecords page 1 (emeroteca on)');
+    $compTokenNodesB = $xpComp1b->query('//oai:resumptionToken');
+    $compTokenB = ($compTokenNodesB instanceof \DOMNodeList && $compTokenNodesB->length > 0)
+        ? trim((string) $compTokenNodesB->item(0)->textContent)
+        : '';
+    check($compTokenB !== '' && $compTokenB !== $compToken, 'a fresh token is minted for the new composition');
+    check(
+        $errorCode($oaiCall(['verb' => 'ListRecords', 'resumptionToken' => $compTokenB]), 'resume (fresh)') === '',
+        'the freshly minted token resumes without error'
+    );
+
+    // ── 10. ISSN fields are serial-only in the Z39.50/SRU formatters ──
+    // Direct formatter checks: a monograph record carrying an ISSN must not
+    // grow a MARC 022, a UNIMARC 011 or a urn:ISSN dc:identifier — those
+    // describe a continuing resource, and books never emitted them before
+    // the serials work.
+    $monographRow = [
+        'id'          => $bookId,
+        'titolo'      => $BOOK_TITLE,
+        'issn'        => $BOOK_ISSN,
+        'e_issn'      => '9876-5432',
+        'issn_l'      => $BOOK_ISSN,
+        'lingua'      => 'italiano',
+        'anno_pubblicazione' => 1999,
+        'tipo_media'  => 'libro',
+    ];
+    $serialRow = $monographRow;
+    $serialRow['_record_type'] = 'periodical';
+
+    $formatXml = static function (string $format, array $row): string {
+        $doc = new \DOMDocument('1.0', 'UTF-8');
+        $doc->appendChild(\Z39Server\RecordFormatter::create($format, $doc)->format($row));
+
+        return (string) $doc->saveXML();
+    };
+
+    $bookMarc = $formatXml('marcxml', $monographRow);
+    check(!str_contains($bookMarc, 'tag="022"'), 'MARCXML: a monograph with an ISSN emits no 022');
+    check(str_contains($bookMarc, '00000nam'), 'MARCXML: the monograph leader still states bibliographic level "m"');
+    $serialMarc = $formatXml('marcxml', $serialRow);
+    check(str_contains($serialMarc, 'tag="022"'), 'MARCXML: a serial with the same ISSN still emits 022');
+
+    $bookUnimarc = $formatXml('unimarcxml', $monographRow);
+    check(!str_contains($bookUnimarc, 'tag="011"'), 'UNIMARC: a monograph with an ISSN emits no 011');
+    $serialUnimarc = $formatXml('unimarcxml', $serialRow);
+    check(str_contains($serialUnimarc, 'tag="011"'), 'UNIMARC: a serial with the same ISSN still emits 011');
+
+    $bookDc = $formatXml('dc', $monographRow);
+    check(!str_contains($bookDc, 'urn:ISSN:'), 'Dublin Core: a monograph with an ISSN emits no urn:ISSN identifier');
+    $serialDc = $formatXml('dc', $serialRow);
+    check(str_contains($serialDc, 'urn:ISSN:'), 'Dublin Core: a serial with the same ISSN still emits urn:ISSN');
+
+    // …and end to end, through the real SRU book query (SELECT l.*).
+    $sruBook = (new \Z39Server\SRUServer($db, $sruSettings))->handleRequest([
+        'operation'      => 'searchRetrieve',
+        'version'        => '1.2',
+        'query'          => 'dc.title="' . $BOOK_TITLE . '"',
+        'recordSchema'   => 'marcxml',
+        'maximumRecords' => 5,
+    ]);
+    check(str_contains($sruBook, $BOOK_TITLE), 'SRU finds the monograph fixture by title');
+    check(
+        !str_contains($sruBook, 'tag="022"'),
+        'SRU marcxml: the monograph record carries no 022, exactly as before the serials work'
+    );
+
+    // ── 11. Periodical tombstones (deletedRecord=persistent) ──────────
+    $oaiPlugin  = new \App\Plugins\OaiPmhServer\OaiPmhServerPlugin($db, $hm);
+    $oaiSchema  = $oaiPlugin->ensureSchema();
+    check(($oaiSchema['failed'] ?? ['x']) === [], 'oai-pmh-server ensureSchema() reports no failed tables');
+
+    $trgRes = $db->query(
+        "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TRIGGERS
+          WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = 'trg_emeroteca_hard_delete'"
+    );
+    $trgCount = ($trgRes instanceof \mysqli_result) ? (int) ($trgRes->fetch_assoc()['c'] ?? 0) : 0;
+    check($trgCount === 1, 'the AFTER DELETE tombstone trigger is installed on emeroteca_testate');
+
+    $doomedId = $pageIds[0];
+    $doomedOaiId = 'oai:' . $host . ':periodical:' . $doomedId;
+    check(
+        $db->query('DELETE FROM emeroteca_testate WHERE id = ' . $doomedId) !== false,
+        "masthead {$doomedId} hard-deleted the way the Emeroteca admin deletes it"
+    );
+    $tombRes = $db->query('SELECT COUNT(*) AS c FROM oai_deleted_periodicals WHERE entity_id = ' . $doomedId);
+    $tombCount = ($tombRes instanceof \mysqli_result) ? (int) ($tombRes->fetch_assoc()['c'] ?? 0) : 0;
+    check($tombCount === 1, 'the hard delete left a tombstone, so deletedRecord=persistent is not a lie');
+
+    $getDeleted = $oaiCall([
+        'verb' => 'GetRecord',
+        'identifier' => $doomedOaiId,
+        'metadataPrefix' => 'oai_dc',
+    ]);
+    $xpDeleted = $xpathOf($getDeleted, 'GetRecord (deleted masthead)');
+    $deletedStatus = $xpDeleted->query('//oai:GetRecord/oai:record/oai:header/@status');
+    check(
+        $deletedStatus instanceof \DOMNodeList
+            && $deletedStatus->length === 1
+            && trim((string) $deletedStatus->item(0)->nodeValue) === 'deleted',
+        'GetRecord reports the deleted masthead with status="deleted" instead of idDoesNotExist'
+    );
+
+    $identifyXml = $oaiCall(['verb' => 'Identify']);
+    $xpIdentify = $xpathOf($identifyXml, 'Identify');
+    check(
+        $textList($xpIdentify, '//oai:Identify/oai:deletedRecord') === ['persistent'],
+        'Identify still advertises deletedRecord=persistent, now truthfully for every set'
+    );
+
+    // ── 12. SRU survives an install without libri.issn ────────────────
+    // libri.issn arrives with migrate_0.4.7 — the core BookRepository guards
+    // every use of it behind hasColumn() for exactly this reason. Referencing
+    // it unguarded from cql.anywhere (the DEFAULT index) would make nearly
+    // every SRU request die with "Unknown column 'l.issn'". Simulated by
+    // priming the probe cache, which is the branch that decides.
+    $sruProbe = new \Z39Server\SRUServer($db, $sruSettings);
+    $ref = new \ReflectionClass($sruProbe);
+    $cacheProp = $ref->getProperty('columnProbeCache');
+    $cacheProp->setAccessible(true);
+    $cacheProp->setValue($sruProbe, ['libri.issn' => false]);
+
+    $compile = $ref->getMethod('compileConditionClause');
+    $compile->setAccessible(true);
+    $anywhereSql = (string) $compile->invoke($sruProbe, 'cql.anywhere', '=', 'qualunque');
+    check(
+        !str_contains($anywhereSql, 'l.issn'),
+        'cql.anywhere drops l.issn from the WHERE clause when the column is absent'
+    );
+    check(
+        str_contains($anywhereSql, 'l.titolo'),
+        'cql.anywhere keeps every column that does exist'
+    );
+    $issnSql = (string) $compile->invoke($sruProbe, 'bath.issn', '=', '1234-5678');
+    check(
+        $issnSql === '1=0',
+        "bath.issn degrades to a no-match clause instead of invalid SQL (got '{$issnSql}')"
+    );
+    // The clause must also be executable — a syntactically valid no-match.
+    $probeRes = $db->query('SELECT COUNT(*) AS c FROM libri l WHERE l.deleted_at IS NULL AND (' . $issnSql . ')');
+    check(
+        $probeRes instanceof \mysqli_result && (int) ($probeRes->fetch_assoc()['c'] ?? -1) === 0,
+        'the degraded bath.issn clause is valid SQL and matches nothing'
+    );
+
+    // The serial boolean compiler must never accept an operator it cannot
+    // render: 'a NOT b' is not SQL.
+    $serialBool = $ref->getMethod('buildSerialWhereClause');
+    $serialBool->setAccessible(true);
+    $notNode = [
+        'type' => 'boolean',
+        'operator' => 'NOT',
+        'left'  => ['type' => 'condition', 'index' => 'dc.title', 'relation' => '=', 'value' => 'a'],
+        'right' => ['type' => 'condition', 'index' => 'dc.title', 'relation' => '=', 'value' => 'b'],
+    ];
+    check(
+        $serialBool->invoke($sruProbe, $notNode) === null,
+        "a 'boolean' node with operator NOT is rejected, not compiled to 'a NOT b'"
+    );
+    $andNode = $notNode;
+    $andNode['operator'] = 'AND';
+    $andSql = $serialBool->invoke($sruProbe, $andNode);
+    check(
+        is_string($andSql) && str_contains($andSql, ' AND '),
+        'AND/OR boolean nodes still compile on the serials arm'
+    );
+    $realNot = $serialBool->invoke($sruProbe, [
+        'type' => 'not',
+        'operand' => ['type' => 'condition', 'index' => 'dc.title', 'relation' => '=', 'value' => 'a'],
+    ]);
+    check(
+        is_string($realNot) && str_starts_with($realNot, '(NOT '),
+        'real negation still works — it is a `not` node, which is what CQLParser emits'
     );
 } finally {
     $cleanup();

