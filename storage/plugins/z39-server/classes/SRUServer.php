@@ -122,6 +122,9 @@ class SRUServer
     private ?bool $serialsExposedCache = null;
     /** @var array<string,bool> */
     private array $tableProbeCache = [];
+    /** Cached information_schema probes for optional columns ("table.column"). */
+    /** @var array<string,bool> */
+    private array $columnProbeCache = [];
 
     // SRU namespaces
     // Sentinel "column" for secondary-publisher matching: expanded to a correlated
@@ -794,8 +797,75 @@ class SRUServer
             case 'text':
             default:
                 $columns = $definition['columns'] ?? $this->indexDefinitions['cql.anywhere']['columns'];
+                /** @var list<string> $columns */
+                $columns = array_values(array_filter(
+                    $columns,
+                    fn (string $column): bool => $this->bookColumnAvailable($column)
+                ));
+                // Every column of this index is missing from this schema, so no
+                // book can match. '1=0' keeps the books arm a valid clause (the
+                // serials arm may still answer the same query).
+                if ($columns === []) {
+                    return '1=0';
+                }
                 return $this->buildTextMatchClause($columns, $relation, $value);
         }
+    }
+
+    /**
+     * FIX (issue #140 review): `libri.issn` is NOT part of the original schema
+     * — it arrives with migrate_0.4.7, which is exactly why the core
+     * BookRepository guards every read/write of it behind hasColumn(). This
+     * class referenced it unguarded from three index definitions
+     * (bath.issn, dc.identifier, cql.anywhere), so on an install where that
+     * migration had not run every cql.anywhere search — i.e. the default index,
+     * i.e. nearly every SRU request — would have died with
+     * "Unknown column 'l.issn' in 'where clause'".
+     *
+     * Only genuinely optional columns are probed: the rest of the index
+     * definitions reference columns the base query already JOINs on, so a
+     * blanket probe here would give false confidence without making those
+     * installs work.
+     */
+    private function bookColumnAvailable(string $column): bool
+    {
+        if ($column !== 'l.issn') {
+            return true;
+        }
+
+        return $this->columnProbe('libri', 'issn');
+    }
+
+    /** Cached information_schema existence probe for an optional column. */
+    private function columnProbe(string $table, string $column): bool
+    {
+        $key = $table . '.' . $column;
+        if (array_key_exists($key, $this->columnProbeCache)) {
+            return $this->columnProbeCache[$key];
+        }
+        $exists = false;
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('ss', $table, $column);
+                if ($stmt->execute()) {
+                    $res = $stmt->get_result();
+                    $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+                    $exists = ((int) ($row['c'] ?? 0)) > 0;
+                }
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning(
+                '[SRU Server] column probe failed for ' . $key . ': ' . $e->getMessage()
+            );
+            $exists = false;
+        }
+
+        return $this->columnProbeCache[$key] = $exists;
     }
 
     private function normalizeRelation(string $relation): string
@@ -1058,8 +1128,14 @@ class SRUServer
                 if ($left === null || $right === null) {
                     return null;
                 }
+                // FIX (issue #140 review): 'NOT' removed from the allow-list.
+                // CQLParser only ever sets operator = AND|OR on a 'boolean'
+                // node (negation is its own 'not' node, handled below), so
+                // 'NOT' was unreachable — but had it ever been produced it
+                // would have compiled to `a NOT b`, which is not SQL. An
+                // allow-list must not list a value it cannot render.
                 $operator = strtoupper((string) ($node['operator'] ?? 'AND'));
-                if (!in_array($operator, ['AND', 'OR', 'NOT'], true)) {
+                if (!in_array($operator, ['AND', 'OR'], true)) {
                     return null;
                 }
                 return "({$left} {$operator} {$right})";

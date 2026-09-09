@@ -64,14 +64,23 @@ class MARCXMLFormatter extends RecordFormatter
 
         // ISSN - 022 (serials). $a = ISSN of the print manifestation, a second
         // 022 carries the electronic ISSN, $l = linking ISSN (ISSN-L).
-        if (!empty($record['issn'])) {
+        //
+        // FIX (issue #140 review): gated on $isSerial. `libri.issn` is a real
+        // column (LibraryThing import, migrate_0.4.7) selected by the SRU book
+        // query via `SELECT l.*`, so without this guard every monograph that
+        // happens to carry an ISSN started shipping an 022 on a record whose
+        // leader/07 says 'm'. That is both wrong MARC and a silent behaviour
+        // change for existing SRU consumers, which never saw an 022 here
+        // before the serials work. An ISSN on a monograph is a series link,
+        // not the record's own identifier: it does not belong in 022.
+        if ($isSerial && !empty($record['issn'])) {
             $issnSubfields = [['a', (string) $record['issn']]];
             if (!empty($record['issn_l'])) {
                 $issnSubfields[] = ['l', (string) $record['issn_l']];
             }
             $recordEl->appendChild($this->createDataField('022', ' ', ' ', $issnSubfields));
         }
-        if (!empty($record['e_issn'])) {
+        if ($isSerial && !empty($record['e_issn'])) {
             $recordEl->appendChild($this->createDataField('022', ' ', ' ', [
                 ['a', (string) $record['e_issn']]
             ]));
@@ -171,8 +180,8 @@ class MARCXMLFormatter extends RecordFormatter
             $recordEl->appendChild($this->createDataField('300', ' ', ' ', $physSubfields));
         }
 
-        // Current Publication Frequency - 310 (serials)
-        if (!empty($record['periodicita'])) {
+        // Current Publication Frequency - 310 (serials only)
+        if ($isSerial && !empty($record['periodicita'])) {
             $recordEl->appendChild($this->createDataField('310', ' ', ' ', [
                 ['a', (string) $record['periodicita']]
             ]));
@@ -181,7 +190,7 @@ class MARCXMLFormatter extends RecordFormatter
         // Numbering Peculiarities / holdings statement - 362 ind1='1'
         // (unformatted note: the holdings string is human-readable, not an
         // ISBD-formatted designation).
-        if (!empty($record['numerazione'])) {
+        if ($isSerial && !empty($record['numerazione'])) {
             $recordEl->appendChild($this->createDataField('362', '1', ' ', [
                 ['a', (string) $record['numerazione']]
             ]));

@@ -123,14 +123,23 @@ class DublinCoreFormatter extends RecordFormatter
         }
 
         // ISSN identifiers (print / electronic / linking) as URNs, deduplicated.
-        $seenIssn = [];
-        foreach (['issn', 'e_issn', 'issn_l'] as $issnKey) {
-            $issn = strtoupper(trim((string) ($record[$issnKey] ?? '')));
-            if ($issn === '' || isset($seenIssn[$issn])) {
-                continue;
+        //
+        // FIX (issue #140 review): serials only. `libri.issn` is a real column
+        // that reaches this formatter through the SRU book query (SELECT l.*),
+        // so an unguarded loop added urn:ISSN identifiers to monograph records
+        // that never advertised one — a behaviour change for existing SRU/OAI
+        // consumers, on top of being the wrong claim (urn:ISSN identifies the
+        // continuing resource itself, not a book that belongs to one).
+        if ($isSerial) {
+            $seenIssn = [];
+            foreach (['issn', 'e_issn', 'issn_l'] as $issnKey) {
+                $issn = strtoupper(trim((string) ($record[$issnKey] ?? '')));
+                if ($issn === '' || isset($seenIssn[$issn])) {
+                    continue;
+                }
+                $seenIssn[$issn] = true;
+                $dcRecord->appendChild($this->createElement('identifier', 'urn:ISSN:' . $issn));
             }
-            $seenIssn[$issn] = true;
-            $dcRecord->appendChild($this->createElement('identifier', 'urn:ISSN:' . $issn));
         }
 
         // Absolute public URL of the record, when the source provides one.

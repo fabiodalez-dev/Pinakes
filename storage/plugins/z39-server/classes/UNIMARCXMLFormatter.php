@@ -92,10 +92,15 @@ class UNIMARCXMLFormatter extends RecordFormatter
 
         // 011 — ISSN ($a print, $f electronic, $y ISSN-L is not defined:
         // the linking ISSN travels in $a of a dedicated field per UNIMARC use)
+        //
+        // FIX (issue #140 review): serials only. UNIMARC 011 is the ISSN of a
+        // continuing resource; `libri.issn` exists and reaches this formatter
+        // through the SRU book query, so an unguarded block put an 011 on
+        // monograph records that never carried one before.
         $issn   = trim((string) ($record['issn'] ?? ''));
         $eIssn  = trim((string) ($record['e_issn'] ?? ''));
         $issnL  = trim((string) ($record['issn_l'] ?? ''));
-        if ($issn !== '' || $eIssn !== '' || $issnL !== '') {
+        if ($isSerial && ($issn !== '' || $eIssn !== '' || $issnL !== '')) {
             $subs011 = [];
             if ($issn !== '')  { $subs011[] = ['a', $issn]; }
             if ($eIssn !== '') { $subs011[] = ['f', $eIssn]; }
@@ -130,7 +135,7 @@ class UNIMARCXMLFormatter extends RecordFormatter
         }
 
         // 207 — Numbering of a serial: the holdings/numbering statement.
-        if (!empty($record['numerazione'])) {
+        if ($isSerial && !empty($record['numerazione'])) {
             $recordEl->appendChild($this->df('207', ' ', '0', [['a', (string) $record['numerazione']]]));
         }
 
@@ -172,8 +177,8 @@ class UNIMARCXMLFormatter extends RecordFormatter
             $recordEl->appendChild($this->df('225', '0', ' ', $subs225));
         }
 
-        // 326 — Frequency statement (continuing resources)
-        if (!empty($record['periodicita'])) {
+        // 326 — Frequency statement (continuing resources only)
+        if ($isSerial && !empty($record['periodicita'])) {
             $recordEl->appendChild($this->df('326', ' ', ' ', [['a', (string) $record['periodicita']]]));
         }
 
