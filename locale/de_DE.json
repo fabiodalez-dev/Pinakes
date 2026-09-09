@@ -7505,5 +7505,13 @@
   "Abbonamento eliminato": "Abonnement gelöscht",
   "Eventi plugin": "Plugin-Ereignisse",
   "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Jahrgang %1$d separat als Band „%2$s“ beibehalten, um die beschreibenden Daten zu erhalten.",
-  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Jahrgänge mit widersprüchlichen Beschreibungsdaten bleiben unter einer eigenen Bandbezeichnung getrennt."
+  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Jahrgänge mit widersprüchlichen Beschreibungsdaten bleiben unter einer eigenen Bandbezeichnung getrennt.",
+  "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Nicht genügend Speicherplatz für das Update: benötigt werden etwa %1$s, verfügbar sind %2$s. Geben Sie Speicherplatz frei (die automatischen Sicherungen in storage/backups sind die ersten Kandidaten) und versuchen Sie es erneut.",
+  "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Eine Testdatei von %1$s konnte nicht geschrieben werden: der verfügbare Speicher oder das Kontingent des Kontos ist erschöpft. Das Update benötigt etwa %2$s. Geben Sie Speicherplatz frei (die automatischen Sicherungen in storage/backups sind die ersten Kandidaten) und versuchen Sie es erneut.",
+  "spazio su disco o quota dell'account esauriti": "Speicherplatz oder Kontingent des Kontos erschöpft",
+  "il file di destinazione esiste e non è scrivibile": "die Zieldatei existiert und ist nicht beschreibbar",
+  "la directory di destinazione non esiste": "das Zielverzeichnis existiert nicht",
+  "la directory di destinazione non è scrivibile": "das Zielverzeichnis ist nicht beschreibbar",
+  "causa sconosciuta": "unbekannte Ursache",
+  "Errore nella copia del file: %s — %s": "Fehler beim Kopieren der Datei: %s — %s"
 }

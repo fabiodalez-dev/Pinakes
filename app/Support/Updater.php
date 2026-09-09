@@ -42,6 +42,21 @@ class Updater
      */
     private array $releaseByVersionCache = [];
 
+    /**
+     * Directories copied aside for rollback before an update — and therefore
+     * the directories whose size the space preflight has to account for. One
+     * list for both, so an addition here can never make the estimate lie.
+     */
+    private const APP_BACKUP_DIRS = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
+
+    /**
+     * Upper bound for the write probe of the space preflight. Writing the full
+     * requirement would double the cost of every update; this only has to prove
+     * the account can still write at all, which is what an exhausted quota
+     * prevents.
+     */
+    private const SPACE_PROBE_BYTES = 16 * 1024 * 1024;
+
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
         '.env',
@@ -2303,6 +2318,18 @@ class Updater
                 ));
             }
 
+            // PRE-FLIGHT (issue #422): free space. The next step copies the whole
+            // application aside for rollback, so an account that is nearly full
+            // fails MID-COPY on whatever file the loop happens to reach — an
+            // error naming a file in vendor/ that says nothing about the real
+            // cause, which is exactly how a healthy release once looked broken.
+            // Refuse here, with the numbers, instead of failing halfway.
+            $spaceError = $this->checkFreeSpaceForUpdate();
+            if ($spaceError !== null) {
+                $this->debugLog('ERROR', 'Preflight: spazio insufficiente', ['detail' => $spaceError]);
+                throw new Exception($spaceError);
+            }
+
             // Log update start
             $logId = $this->logUpdateStart($currentVersion, $targetVersion, null);
 
@@ -2419,6 +2446,157 @@ class Updater
     /**
      * Backup application files for atomic rollback
      */
+    /**
+     * Space needed by an update, in bytes: the rollback copy of the directories
+     * backupAppFiles() duplicates, plus a margin for the new files landing
+     * alongside the old ones during the copy.
+     */
+    private function estimateUpdateSpace(): int
+    {
+        $total = 0;
+        foreach (self::APP_BACKUP_DIRS as $dir) {
+            $total += $this->directorySize($this->rootPath . '/' . $dir);
+        }
+        // 30% margin: the copy writes new files before the old ones are gone,
+        // and a partially-fitting update is the failure mode being prevented.
+        return (int) ($total * 1.3);
+    }
+
+    /** Size of a directory in bytes; 0 when it does not exist or cannot be read. */
+    private function directorySize(string $path): int
+    {
+        if (!is_dir($path)) {
+            return 0;
+        }
+        $bytes = 0;
+        try {
+            $it = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            foreach ($it as $file) {
+                if ($file instanceof \SplFileInfo && $file->isFile()) {
+                    $bytes += (int) $file->getSize();
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->debugLog('DEBUG', 'Impossibile misurare directory', ['path' => $path, 'error' => $e->getMessage()]);
+        }
+        return $bytes;
+    }
+
+    /**
+     * Refuse the update when the space it needs is not there. Returns the
+     * message to show, or null when there is room.
+     *
+     * Two checks, because neither alone is enough on shared hosting:
+     * disk_free_space() sees the FILESYSTEM, which on a cPanel account can
+     * report tens of gigabytes free while the account's own quota is exhausted;
+     * and a real write proves what the account can actually do right now. The
+     * probe is capped — it is meant to detect "cannot write at all", not to
+     * reserve the full amount, which would double the cost of every update.
+     */
+    private function checkFreeSpaceForUpdate(): ?string
+    {
+        $needed = $this->estimateUpdateSpace();
+        if ($needed <= 0) {
+            return null; // nothing measurable to copy: let the update proceed
+        }
+
+        $free = @disk_free_space($this->rootPath);
+        if (is_float($free) && $free > 0 && $free < $needed) {
+            return sprintf(
+                __('Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
+                $this->formatBytes($needed),
+                $this->formatBytes((int) $free)
+            );
+        }
+
+        $probeBytes = (int) min($needed, self::SPACE_PROBE_BYTES);
+        if (!$this->canWriteBytes($probeBytes)) {
+            return sprintf(
+                __('Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell\'account sono esauriti. L\'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
+                $this->formatBytes($probeBytes),
+                $this->formatBytes($needed)
+            );
+        }
+
+        $this->debugLog('INFO', 'Preflight spazio superato', [
+            'needed_bytes' => $needed,
+            'probe_bytes' => $probeBytes,
+            'disk_free_bytes' => is_float($free) ? (int) $free : null,
+        ]);
+        return null;
+    }
+
+    /**
+     * Write and remove a real file of the given size under storage/tmp.
+     * Sparse allocation would not do: a hole consumes no quota, and the quota
+     * is precisely what this is testing.
+     */
+    private function canWriteBytes(int $bytes): bool
+    {
+        $dir = $this->rootPath . '/storage/tmp';
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return false;
+        }
+        $probe = $dir . '/.space_probe_' . bin2hex(random_bytes(4));
+        $handle = @fopen($probe, 'wb');
+        if ($handle === false) {
+            return false;
+        }
+        $ok = true;
+        try {
+            $chunk = str_repeat('0', 1024 * 1024);
+            $written = 0;
+            while ($written < $bytes) {
+                $slice = $bytes - $written >= strlen($chunk) ? $chunk : substr($chunk, 0, $bytes - $written);
+                $result = @fwrite($handle, $slice);
+                if ($result === false || $result === 0) {
+                    $ok = false;
+                    break;
+                }
+                $written += $result;
+            }
+            if ($ok && !@fflush($handle)) {
+                $ok = false;
+            }
+        } catch (\Throwable) {
+            $ok = false;
+        } finally {
+            @fclose($handle);
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- own probe file under storage/tmp, name generated here
+            @unlink($probe);
+        }
+        return $ok;
+    }
+
+    /**
+     * Why a write to this path failed, in words an operator can act on.
+     * Checked in order of likelihood, ending with whatever PHP reported.
+     */
+    private function describeWriteFailure(string $targetPath): string
+    {
+        $dir = dirname($targetPath);
+
+        if (!$this->canWriteBytes(1024 * 1024)) {
+            return __('spazio su disco o quota dell\'account esauriti');
+        }
+        if (is_file($targetPath) && !is_writable($targetPath)) {
+            return __('il file di destinazione esiste e non è scrivibile');
+        }
+        if (!is_dir($dir)) {
+            return __('la directory di destinazione non esiste');
+        }
+        if (!is_writable($dir)) {
+            return __('la directory di destinazione non è scrivibile');
+        }
+
+        $last = error_get_last();
+        $message = $last === null ? '' : trim($last['message']);
+        return $message !== '' ? $message : __('causa sconosciuta');
+    }
+
     private function backupAppFiles(): string
     {
         $timestamp = date('Y-m-d_His');
@@ -2441,9 +2619,7 @@ class Updater
             throw new Exception(__('Impossibile creare directory di backup applicazione'));
         }
 
-        $dirsToBackup = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
-
-        foreach ($dirsToBackup as $dir) {
+        foreach (self::APP_BACKUP_DIRS as $dir) {
             $sourcePath = $this->rootPath . '/' . $dir;
             $destPath = $backupPath . '/' . $dir;
 
@@ -2473,9 +2649,7 @@ class Updater
      */
     private function restoreAppFiles(string $backupPath): void
     {
-        $dirsToRestore = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
-
-        foreach ($dirsToRestore as $dir) {
+        foreach (self::APP_BACKUP_DIRS as $dir) {
             $sourcePath = $backupPath . '/' . $dir;
             $destPath = $this->rootPath . '/' . $dir;
 
@@ -2568,8 +2742,15 @@ class Updater
                         throw new Exception(sprintf(__('Impossibile creare directory: %s'), dirname($relativePath)));
                     }
                 }
-                if (!copy(str_replace('\\', '/', $item->getPathname()), $targetPath)) {
-                    throw new Exception(sprintf(__('Errore nella copia del file: %s'), $relativePath));
+                if (!@copy(str_replace('\\', '/', $item->getPathname()), $targetPath)) {
+                    // The file name alone is misleading: the copy stops at
+                    // whatever entry it had reached when the real problem (a
+                    // full disk, a read-only target) occurred. Say why.
+                    throw new Exception(sprintf(
+                        __('Errore nella copia del file: %s — %s'),
+                        $relativePath,
+                        $this->describeWriteFailure($targetPath)
+                    ));
                 }
             }
         }

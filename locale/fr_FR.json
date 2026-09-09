@@ -7505,5 +7505,13 @@
   "Abbonamento eliminato": "Abonnement supprimé",
   "Eventi plugin": "Événements des extensions",
   "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Année %1$d conservée séparément comme volume « %2$s » pour préserver les données descriptives.",
-  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Les années dont les données descriptives sont contradictoires restent séparées sous un volume distinct."
+  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Les années dont les données descriptives sont contradictoires restent séparées sous un volume distinct.",
+  "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Espace disque insuffisant pour la mise à jour : environ %1$s sont nécessaires, %2$s disponibles. Libérez de l'espace (les sauvegardes automatiques dans storage/backups sont les premières candidates) et réessayez.",
+  "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Impossible d'écrire un fichier de test de %1$s : l'espace disponible ou le quota du compte est épuisé. La mise à jour nécessite environ %2$s. Libérez de l'espace (les sauvegardes automatiques dans storage/backups sont les premières candidates) et réessayez.",
+  "spazio su disco o quota dell'account esauriti": "espace disque ou quota du compte épuisé",
+  "il file di destinazione esiste e non è scrivibile": "le fichier de destination existe et n'est pas accessible en écriture",
+  "la directory di destinazione non esiste": "le répertoire de destination n'existe pas",
+  "la directory di destinazione non è scrivibile": "le répertoire de destination n'est pas accessible en écriture",
+  "causa sconosciuta": "cause inconnue",
+  "Errore nella copia del file: %s — %s": "Erreur lors de la copie du fichier : %s — %s"
 }

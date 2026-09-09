@@ -7505,5 +7505,13 @@
   "Abbonamento eliminato": "Abonnement slettet",
   "Eventi plugin": "Pluginhændelser",
   "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Årgang %1$d bevaret separat som bind »%2$s« for at bevare de beskrivende oplysninger.",
-  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Årgange med modstridende beskrivende oplysninger bevares separat med en særskilt bindbetegnelse."
+  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Årgange med modstridende beskrivende oplysninger bevares separat med en særskilt bindbetegnelse.",
+  "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Ikke nok diskplads til opdateringen: der kræves ca. %1$s, %2$s er tilgængelige. Frigør plads (de automatiske sikkerhedskopier i storage/backups er de første kandidater), og prøv igen.",
+  "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Kunne ikke skrive en testfil på %1$s: den tilgængelige plads eller kontoens kvote er opbrugt. Opdateringen kræver ca. %2$s. Frigør plads (de automatiske sikkerhedskopier i storage/backups er de første kandidater), og prøv igen.",
+  "spazio su disco o quota dell'account esauriti": "diskplads eller kontokvote opbrugt",
+  "il file di destinazione esiste e non è scrivibile": "destinationsfilen findes og kan ikke skrives",
+  "la directory di destinazione non esiste": "destinationsmappen findes ikke",
+  "la directory di destinazione non è scrivibile": "destinationsmappen kan ikke skrives",
+  "causa sconosciuta": "ukendt årsag",
+  "Errore nella copia del file: %s — %s": "Fejl ved kopiering af filen: %s — %s"
 }

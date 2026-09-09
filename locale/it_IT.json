@@ -7505,5 +7505,13 @@
   "Abbonamento eliminato": "Abbonamento eliminato",
   "Eventi plugin": "Eventi plugin",
   "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.",
-  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Le annate con dati descrittivi discordanti restano separate con un volume distinto."
+  "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Le annate con dati descrittivi discordanti restano separate con un volume distinto.",
+  "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.",
+  "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.",
+  "spazio su disco o quota dell'account esauriti": "spazio su disco o quota dell'account esauriti",
+  "il file di destinazione esiste e non è scrivibile": "il file di destinazione esiste e non è scrivibile",
+  "la directory di destinazione non esiste": "la directory di destinazione non esiste",
+  "la directory di destinazione non è scrivibile": "la directory di destinazione non è scrivibile",
+  "causa sconosciuta": "causa sconosciuta",
+  "Errore nella copia del file: %s — %s": "Errore nella copia del file: %s — %s"
 }
