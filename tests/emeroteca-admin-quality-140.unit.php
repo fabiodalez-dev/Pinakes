@@ -410,8 +410,20 @@ try {
     for ($year = 1900; $year < 1910; $year++) {
         $part = $year . ': ' . str_repeat('é', 120);
         $parts[] = $part;
+        // This suite runs with MYSQLI_REPORT_OFF: prepare()/execute() return
+        // false instead of throwing, so an unchecked failure would fatal on
+        // bind_param() or silently skip the row and hide its cause.
         $stmt = $db->prepare("INSERT INTO emeroteca_annate (testata_id, anno, volume, consistenza_dichiarata) VALUES (?, ?, '', ?)");
-        $stmt->bind_param('iis', $longId, $year, $part); $stmt->execute(); $stmt->close();
+        if ($stmt === false) {
+            throw new RuntimeException('seed prepare failed: ' . $db->error);
+        }
+        $stmt->bind_param('iis', $longId, $year, $part);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new RuntimeException('seed execute failed: ' . $err);
+        }
+        $stmt->close();
     }
     $db->query('SET SESSION group_concat_max_len = 1024');
     $declared = $periodicalController->holdingsSummary([$longId])[$longId]['consistenza'];

@@ -1315,16 +1315,28 @@ class SRUServer
             $ids = implode(',', array_map(static fn(array $row): int => (int) $row['id'], $rows));
             // The page contains at most maximumRecords titles. Aggregate their
             // declarations in PHP without GROUP_CONCAT's silent size ceiling.
-            $res = $this->db->query(
-                "SELECT testata_id, consistenza_dichiarata FROM emeroteca_annate
-                  WHERE testata_id IN ({$ids}) AND consistenza_dichiarata IS NOT NULL
-                    AND consistenza_dichiarata <> '' ORDER BY testata_id, anno, volume, id"
-            );
-            if ($res instanceof \mysqli_result) {
-                while ($row = $res->fetch_assoc()) {
-                    $declared[(int) $row['testata_id']][] = (string) $row['consistenza_dichiarata'];
+            // consistenza_dichiarata arrived with plugin 1.4.0: a partially
+            // migrated schema must degrade to "no declared holdings" instead of
+            // failing the whole search, which under MYSQLI_REPORT_STRICT would
+            // discard the records already loaded.
+            try {
+                $res = $this->columnProbe('emeroteca_annate', 'consistenza_dichiarata')
+                    ? $this->db->query(
+                        "SELECT testata_id, consistenza_dichiarata FROM emeroteca_annate
+                          WHERE testata_id IN ({$ids}) AND consistenza_dichiarata IS NOT NULL
+                            AND consistenza_dichiarata <> '' ORDER BY testata_id, anno, volume, id"
+                    )
+                    : null;
+                if ($res instanceof \mysqli_result) {
+                    while ($row = $res->fetch_assoc()) {
+                        $declared[(int) $row['testata_id']][] = (string) $row['consistenza_dichiarata'];
+                    }
+                    $res->free();
                 }
-                $res->free();
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::warning(
+                    '[Z39] declared holdings unavailable: ' . $e->getMessage()
+                );
             }
         }
         return array_map(fn(array $row): array => $this->mapSerialRecord($row + [

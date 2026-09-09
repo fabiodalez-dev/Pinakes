@@ -1138,7 +1138,13 @@ class PeriodicalAdminController extends AbstractAdminController
      */
     private function mergeAnnataMetadata(int $sourceId, int $targetId): bool
     {
-        $fields = ['serie', 'collocazione_id', 'consistenza_dichiarata', 'copertina_url', 'note', 'rilegata'];
+        // Descriptive fields only: a mismatch between two of these means the
+        // years describe different things and must not be fused. `rilegata` is
+        // deliberately NOT among them — it is a NOT NULL boolean where 0 is a
+        // legitimate value ('not bound'), so comparing it would read 1 vs 0 as a
+        // descriptive conflict and split an otherwise identical year into a
+        // duplicate volume. It is merged below with a logical OR instead.
+        $fields = ['serie', 'collocazione_id', 'consistenza_dichiarata', 'copertina_url', 'note'];
         $stmt = $this->db->prepare('SELECT * FROM emeroteca_annate WHERE id IN (?, ?) FOR UPDATE');
         if ($stmt === false) {
             throw new \RuntimeException('merge: year metadata prepare failed: ' . $this->db->error);
@@ -1168,6 +1174,9 @@ class PeriodicalAdminController extends AbstractAdminController
             }
             $values[] = $target === null || $target === '' ? $source : $target;
         }
+        // Bound wins: if either year is bound the surviving one is bound, since
+        // the physical volume exists once the issues are together.
+        $values[] = ((int) $rows[$sourceId]['rilegata'] === 1 || (int) $rows[$targetId]['rilegata'] === 1) ? 1 : 0;
         $values[] = $targetId;
         $this->exec(
             'UPDATE emeroteca_annate SET serie = ?, collocazione_id = ?, consistenza_dichiarata = ?,

@@ -903,12 +903,14 @@ try {
     $exec("UPDATE emeroteca_annate SET consistenza_dichiarata = 'first semester', serie = 'I' WHERE id = ?", 'i', [$metaA]);
     $exec("UPDATE emeroteca_annate SET consistenza_dichiarata = 'second semester', serie = 'II' WHERE id = ?", 'i', [$metaB]);
     $_SESSION = ['user' => ['tipo_utente' => 'admin']];
+    // Registered BEFORE the call: mergeSubmit() writes its audit rows during
+    // the request, so an exception afterwards would leave them uncleaned.
+    $auditedTestataIds[] = $staffA;
+    $auditedTestataIds[] = $staffB;
     $metaResponse = $periodicals->mergeSubmit(
         $post('/admin/periodicals/merge', ['ids' => [$staffA, $staffB], 'target_id' => $staffB]),
         $resFactory->createResponse()
     );
-    $auditedTestataIds[] = $staffA;
-    $auditedTestataIds[] = $staffB;
     check((int) $scalar('SELECT COUNT(*) FROM emeroteca_annate WHERE testata_id = ? AND anno = 2090', 'i', [$staffB]) === 2,
         'conflicting year descriptions survive as two distinct volumes');
     check($scalar('SELECT consistenza_dichiarata FROM emeroteca_annate WHERE id = ?', 'i', [$metaA]) === 'first semester'

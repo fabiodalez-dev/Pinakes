@@ -372,6 +372,12 @@ class PublicController
             'seoTitle' => $title . ' — ' . __('Emeroteca'),
             'seoDescription' => $title,
             'seoCanonical' => $this->baseUrl() . '/emeroteca/fascicolo/' . $id,
+            // Withdrawn: reachable for a bookmarked link, but kept out of the
+            // index — it is in no listing and in no sitemap, so indexing it
+            // would advertise a holding the library no longer has.
+            'seoRobots' => ((string) ($fascicolo['stato'] ?? '') === 'scartato')
+                ? 'noindex,follow'
+                : 'index,follow',
         ]);
     }
 
@@ -516,6 +522,12 @@ class PublicController
         $seoTitle = $title;
         $seoDescription = (string) ($data['seoDescription'] ?? __('Emeroteca'));
         $seoCanonical = (string) ($data['seoCanonical'] ?? ($this->baseUrl() . '/emeroteca'));
+        // A withdrawn issue stays reachable — the URL may be bookmarked or
+        // linked, and the page explains that the library no longer holds it —
+        // but it must not enter the index: it is absent from every listing and
+        // from the sitemap, so leaving it indexable would advertise a holding
+        // that does not exist. Links are still followed toward the masthead.
+        $seoRobots = (string) ($data['seoRobots'] ?? 'index,follow');
 
         // The current route proves the plugin is active. Pass the same flag
         // consumed by the shared frontend layout so its navigation does not

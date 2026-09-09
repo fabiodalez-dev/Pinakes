@@ -75,12 +75,12 @@ let fascicoloIds = [];
 let dupTestataId = '';
 let subscriptionId = '';
 
-const APP_TZ = process.env.E2E_APP_TIMEZONE || 'Europe/Rome';
-const appDate = (date) => new Intl.DateTimeFormat('en-CA', {
-  timeZone: APP_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
-}).format(date);
-const today = () => appDate(new Date());
-const inDays = (n) => appDate(new Date(Date.now() + n * 86400000));
+// Application calendar, not the runner's UTC day, and no 24h arithmetic:
+// adding absolute hours drifts by one day across a DST boundary. The shared
+// helper offsets the ISO calendar date instead.
+const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
+const today = () => appTodayISO();
+const inDays = (n) => appDateOffsetISO(n);
 
 // Date fields are upgraded by the shared Flatpickr initializer, which HIDES
 // the ISO input and shows a localized alternate one: page.fill() would time
