@@ -7474,5 +7474,21 @@
   "possesso": "vorhanden",
   "solleciti: %d": "Reklamationen: %d",
   "stato fisico della copia": "physischer Zustand des Exemplars",
-  "«%1$s» è stata unita in «%2$s».": "„%1$s“ wurde in „%2$s“ zusammengeführt."
+  "«%1$s» è stata unita in «%2$s».": "„%1$s“ wurde in „%2$s“ zusammengeführt.",
+  "Codice ambiguo: %1$d fascicoli hanno questo codice a barre. Apri la testata «%2$s» e scegli il fascicolo.": "Mehrdeutiger Code: %1$d Hefte haben diesen Barcode. Öffnen Sie den Titel „%2$s“ und wählen Sie das Heft.",
+  "Codice ambiguo: %d fascicoli di testate diverse hanno questo codice a barre. Individua il fascicolo a mano.": "Mehrdeutiger Code: %d Hefte verschiedener Titel haben diesen Barcode. Suchen Sie das Heft von Hand.",
+  "Collegamento alla testata precedente azzerato per evitare un ciclo: %s": "Verknüpfung zum Vorgängertitel zurückgesetzt, um einen Zyklus zu vermeiden: %s",
+  "Emeroteca (testate e spoglio degli articoli)": "Zeitschriftensammlung (Zeitschriftentitel und Aufsatzerschließung)",
+  "Errore durante la generazione delle etichette.": "Fehler beim Erzeugen der Etiketten.",
+  "Errore durante la preparazione delle etichette.": "Fehler beim Vorbereiten der Etiketten.",
+  "Fascicolo scartato": "Ausgesondertes Heft",
+  "I fascicoli selezionati non sono più disponibili.": "Die ausgewählten Hefte sind nicht mehr verfügbar.",
+  "Il fascicolo ha cambiato stato nel frattempo: nessun sollecito è stato registrato.": "Das Heft hat inzwischen seinen Status geändert: Es wurde keine Reklamation erfasst.",
+  "Nessun fascicolo valido nella selezione.": "Kein gültiges Heft in der Auswahl.",
+  "Questo fascicolo non fa più parte della raccolta della biblioteca.": "Dieses Heft gehört nicht mehr zum Bestand der Bibliothek.",
+  "Relazione non conservata: la testata di origine era preceduta da «%s»; la testata di destinazione mantiene la propria.": "Beziehung nicht übernommen: Dem Quelltitel ging „%s“ voraus; der Zieltitel behält seinen eigenen.",
+  "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "Wenn es leer bleibt, gilt für Scan und Etiketten der Basis-Barcode des Titels.",
+  "Stato del fascicolo non valido.": "Ungültiger Heftstatus.",
+  "Testata precedente ereditata dalla testata di origine: «%s».": "Vorgängertitel vom Quelltitel übernommen: „%s“.",
+  "Codice ambiguo: risolvi dalla testata.": "Mehrdeutiger Code: Bestimmen Sie das Heft über den Titel."
 }

@@ -522,6 +522,7 @@ $currentYear = (int) date('Y');
         i18n: {
             empty: <?= json_encode(__('Inserisci o scansiona un codice a barre.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
             searching: <?= json_encode(__('Ricerca in corso...'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            ambiguous: <?= json_encode(__('Codice ambiguo: risolvi dalla testata.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
             notFound: <?= json_encode(__('Nessuna corrispondenza per questo codice a barre.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
             error: <?= json_encode(__('Errore durante la ricerca del codice.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
         }

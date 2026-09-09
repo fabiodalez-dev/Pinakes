@@ -7474,5 +7474,21 @@
   "possesso": "possédé",
   "solleciti: %d": "réclamations : %d",
   "stato fisico della copia": "état physique de l'exemplaire",
-  "«%1$s» è stata unita in «%2$s».": "« %1$s » a été fusionné dans « %2$s »."
+  "«%1$s» è stata unita in «%2$s».": "« %1$s » a été fusionné dans « %2$s ».",
+  "Codice ambiguo: %1$d fascicoli hanno questo codice a barre. Apri la testata «%2$s» e scegli il fascicolo.": "Code ambigu : %1$d fascicules portent ce code-barres. Ouvrez le titre « %2$s » et choisissez le fascicule.",
+  "Codice ambiguo: %d fascicoli di testate diverse hanno questo codice a barre. Individua il fascicolo a mano.": "Code ambigu : %d fascicules de titres différents portent ce code-barres. Repérez le fascicule à la main.",
+  "Collegamento alla testata precedente azzerato per evitare un ciclo: %s": "Lien vers le titre précédent réinitialisé pour éviter un cycle : %s",
+  "Emeroteca (testate e spoglio degli articoli)": "Hémérothèque (titres de périodiques et dépouillement des articles)",
+  "Errore durante la generazione delle etichette.": "Erreur lors de la génération des étiquettes.",
+  "Errore durante la preparazione delle etichette.": "Erreur lors de la préparation des étiquettes.",
+  "Fascicolo scartato": "Fascicule éliminé",
+  "I fascicoli selezionati non sono più disponibili.": "Les fascicules sélectionnés ne sont plus disponibles.",
+  "Il fascicolo ha cambiato stato nel frattempo: nessun sollecito è stato registrato.": "Le fascicule a changé de statut entre-temps : aucune réclamation n'a été enregistrée.",
+  "Nessun fascicolo valido nella selezione.": "Aucun fascicule valide dans la sélection.",
+  "Questo fascicolo non fa più parte della raccolta della biblioteca.": "Ce fascicule ne fait plus partie de la collection de la bibliothèque.",
+  "Relazione non conservata: la testata di origine era preceduta da «%s»; la testata di destinazione mantiene la propria.": "Relation non conservée : le titre source était précédé de « %s » ; le titre de destination conserve le sien.",
+  "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "Si le champ reste vide, le code-barres de base du titre s'applique au scan et aux étiquettes.",
+  "Stato del fascicolo non valido.": "Statut du fascicule invalide.",
+  "Testata precedente ereditata dalla testata di origine: «%s».": "Titre précédent hérité du titre source : « %s ».",
+  "Codice ambiguo: risolvi dalla testata.": "Code ambigu : identifiez le fascicule à partir du titre."
 }

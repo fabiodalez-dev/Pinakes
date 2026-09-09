@@ -182,7 +182,7 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
         <div>
             <div class="flex flex-wrap items-center gap-2 mb-2">
                 <span class="status-badge <?= $e($badge) ?>">
-                    <?= $e($statoFascicoloLabels[$stato] ?? $stato) ?>
+                    <?= $e(__($statoFascicoloLabels[$stato] ?? $stato)) ?>
                 </span>
                 <?php if ($condizioneLabel !== ''): ?>
                     <span class="status-badge bg-amber-50 text-amber-900">

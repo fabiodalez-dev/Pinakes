@@ -240,7 +240,7 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
                                     <?php endif; ?>
                                     <?php if (!$posseduto): ?>
                                         <span class="emeroteca-cover-badge status-badge <?= $e($badge) ?>">
-                                            <?= $e($statoFascicoloLabels[$stato] ?? $stato) ?>
+                                            <?= $e(__($statoFascicoloLabels[$stato] ?? $stato)) ?>
                                         </span>
                                     <?php endif; ?>
                                 </div>

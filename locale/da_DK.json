@@ -7474,5 +7474,21 @@
   "possesso": "ejet",
   "solleciti: %d": "reklamationer: %d",
   "stato fisico della copia": "eksemplarets fysiske tilstand",
-  "«%1$s» è stata unita in «%2$s».": "»%1$s« er blevet flettet ind i »%2$s«."
+  "«%1$s» è stata unita in «%2$s».": "»%1$s« er blevet flettet ind i »%2$s«.",
+  "Codice ambiguo: %1$d fascicoli hanno questo codice a barre. Apri la testata «%2$s» e scegli il fascicolo.": "Tvetydig kode: %1$d hæfter har denne stregkode. Åbn tidsskriftet »%2$s«, og vælg hæftet.",
+  "Codice ambiguo: %d fascicoli di testate diverse hanno questo codice a barre. Individua il fascicolo a mano.": "Tvetydig kode: %d hæfter fra forskellige tidsskrifter har denne stregkode. Find hæftet manuelt.",
+  "Collegamento alla testata precedente azzerato per evitare un ciclo: %s": "Henvisningen til den tidligere titel er nulstillet for at undgå en cyklus: %s",
+  "Emeroteca (testate e spoglio degli articoli)": "Tidsskriftssamling (tidsskriftstitler og artikelregistrering)",
+  "Errore durante la generazione delle etichette.": "Fejl under generering af etiketterne.",
+  "Errore durante la preparazione delle etichette.": "Fejl under forberedelse af etiketterne.",
+  "Fascicolo scartato": "Kasseret hæfte",
+  "I fascicoli selezionati non sono più disponibili.": "De valgte hæfter er ikke længere tilgængelige.",
+  "Il fascicolo ha cambiato stato nel frattempo: nessun sollecito è stato registrato.": "Hæftet har skiftet status i mellemtiden: der blev ikke registreret nogen reklamation.",
+  "Nessun fascicolo valido nella selezione.": "Intet gyldigt hæfte i markeringen.",
+  "Questo fascicolo non fa più parte della raccolta della biblioteca.": "Dette hæfte er ikke længere en del af bibliotekets samling.",
+  "Relazione non conservata: la testata di origine era preceduta da «%s»; la testata di destinazione mantiene la propria.": "Relationen blev ikke bevaret: kildetidsskriftet blev forudgået af »%s«; måltidsskriftet beholder sit eget.",
+  "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "Hvis feltet står tomt, gælder tidsskriftets basisstregkode for scanning og etiketter.",
+  "Stato del fascicolo non valido.": "Ugyldig hæftestatus.",
+  "Testata precedente ereditata dalla testata di origine: «%s».": "Tidligere titel overtaget fra kildetidsskriftet: »%s«.",
+  "Codice ambiguo: risolvi dalla testata.": "Tvetydig kode: find hæftet via tidsskriftet."
 }

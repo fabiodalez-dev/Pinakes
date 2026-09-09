@@ -7474,5 +7474,21 @@
   "possesso": "possesso",
   "solleciti: %d": "solleciti: %d",
   "stato fisico della copia": "stato fisico della copia",
-  "«%1$s» è stata unita in «%2$s».": "«%1$s» è stata unita in «%2$s»."
+  "«%1$s» è stata unita in «%2$s».": "«%1$s» è stata unita in «%2$s».",
+  "Codice ambiguo: %1$d fascicoli hanno questo codice a barre. Apri la testata «%2$s» e scegli il fascicolo.": "Codice ambiguo: %1$d fascicoli hanno questo codice a barre. Apri la testata «%2$s» e scegli il fascicolo.",
+  "Codice ambiguo: %d fascicoli di testate diverse hanno questo codice a barre. Individua il fascicolo a mano.": "Codice ambiguo: %d fascicoli di testate diverse hanno questo codice a barre. Individua il fascicolo a mano.",
+  "Collegamento alla testata precedente azzerato per evitare un ciclo: %s": "Collegamento alla testata precedente azzerato per evitare un ciclo: %s",
+  "Emeroteca (testate e spoglio degli articoli)": "Emeroteca (testate e spoglio degli articoli)",
+  "Errore durante la generazione delle etichette.": "Errore durante la generazione delle etichette.",
+  "Errore durante la preparazione delle etichette.": "Errore durante la preparazione delle etichette.",
+  "Fascicolo scartato": "Fascicolo scartato",
+  "I fascicoli selezionati non sono più disponibili.": "I fascicoli selezionati non sono più disponibili.",
+  "Il fascicolo ha cambiato stato nel frattempo: nessun sollecito è stato registrato.": "Il fascicolo ha cambiato stato nel frattempo: nessun sollecito è stato registrato.",
+  "Nessun fascicolo valido nella selezione.": "Nessun fascicolo valido nella selezione.",
+  "Questo fascicolo non fa più parte della raccolta della biblioteca.": "Questo fascicolo non fa più parte della raccolta della biblioteca.",
+  "Relazione non conservata: la testata di origine era preceduta da «%s»; la testata di destinazione mantiene la propria.": "Relazione non conservata: la testata di origine era preceduta da «%s»; la testata di destinazione mantiene la propria.",
+  "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.",
+  "Stato del fascicolo non valido.": "Stato del fascicolo non valido.",
+  "Testata precedente ereditata dalla testata di origine: «%s».": "Testata precedente ereditata dalla testata di origine: «%s».",
+  "Codice ambiguo: risolvi dalla testata.": "Codice ambiguo: risolvi dalla testata."
 }

@@ -7474,5 +7474,21 @@
   "possesso": "held",
   "solleciti: %d": "claims: %d",
   "stato fisico della copia": "physical condition of the copy",
-  "«%1$s» è stata unita in «%2$s».": "“%1$s” has been merged into “%2$s”."
+  "«%1$s» è stata unita in «%2$s».": "“%1$s” has been merged into “%2$s”.",
+  "Codice ambiguo: %1$d fascicoli hanno questo codice a barre. Apri la testata «%2$s» e scegli il fascicolo.": "Ambiguous code: %1$d issues have this barcode. Open the periodical “%2$s” and choose the issue.",
+  "Codice ambiguo: %d fascicoli di testate diverse hanno questo codice a barre. Individua il fascicolo a mano.": "Ambiguous code: %d issues from different periodicals have this barcode. Find the issue manually.",
+  "Collegamento alla testata precedente azzerato per evitare un ciclo: %s": "Link to the previous title cleared to avoid a cycle: %s",
+  "Emeroteca (testate e spoglio degli articoli)": "Periodicals (serial titles and article indexing)",
+  "Errore durante la generazione delle etichette.": "Error while generating the labels.",
+  "Errore durante la preparazione delle etichette.": "Error while preparing the labels.",
+  "Fascicolo scartato": "Discarded issue",
+  "I fascicoli selezionati non sono più disponibili.": "The selected issues are no longer available.",
+  "Il fascicolo ha cambiato stato nel frattempo: nessun sollecito è stato registrato.": "The issue changed status in the meantime: no claim was recorded.",
+  "Nessun fascicolo valido nella selezione.": "No valid issue in the selection.",
+  "Questo fascicolo non fa più parte della raccolta della biblioteca.": "This issue is no longer part of the library's collection.",
+  "Relazione non conservata: la testata di origine era preceduta da «%s»; la testata di destinazione mantiene la propria.": "Relation not kept: the source periodical was preceded by “%s”; the target periodical keeps its own.",
+  "Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.": "If left empty, the periodical's base barcode applies to scanning and labels.",
+  "Stato del fascicolo non valido.": "Invalid issue status.",
+  "Testata precedente ereditata dalla testata di origine: «%s».": "Previous title inherited from the source periodical: “%s”.",
+  "Codice ambiguo: risolvi dalla testata.": "Ambiguous code: identify the issue from the periodical."
 }
