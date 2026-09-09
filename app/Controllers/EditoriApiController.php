@@ -320,6 +320,23 @@ class EditoriApiController
         }
         $checkStmt->close();
 
+        // Hook: publisher.deleting (action) — args: int $publisherId. Same
+        // contract as PublisherRepository::delete(): emitted once per id
+        // BEFORE the DELETE so plugins holding FK ON DELETE SET NULL
+        // references to editori (e.g. emeroteca_testate.editore_id) can
+        // react. Cheap no-op when nothing listens; a broken listener never
+        // aborts the bulk delete.
+        try {
+            foreach ($cleanIds as $publisherId) {
+                \App\Support\Hooks::do('publisher.deleting', [$publisherId]);
+            }
+        } catch (\Throwable $hookError) {
+            \App\Support\SecureLogger::warning('Entity hook dispatch failed', [
+                'hook' => 'publisher.deleting',
+                'error' => $hookError->getMessage(),
+            ]);
+        }
+
         // Delete the publishers
         $sql = "DELETE FROM editori WHERE id IN ($placeholders)";
         $stmt = $db->prepare($sql);

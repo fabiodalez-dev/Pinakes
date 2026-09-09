@@ -155,10 +155,44 @@ class CollocazioneController
             return $response->withHeader('Location', url('/admin/placement'))->withStatus(302);
         }
 
+        // Hook: shelf.can_delete (filter) — value: bool, args: int $mensolaId.
+        // The libri check above only sees core books: a mensola occupied
+        // solely by plugin records (e.g. emeroteca fascicoli) would otherwise
+        // be deletable, silently orphaning them. Any listener returning false
+        // vetoes the delete. Cheap no-op (returns the initial true) when no
+        // plugin listens; a broken listener must not block the core, so a
+        // dispatch failure falls back to "allowed" and only an explicit
+        // false blocks.
+        $canDelete = true;
+        try {
+            $canDelete = \App\Support\Hooks::apply('shelf.can_delete', true, [$id]) !== false;
+        } catch (\Throwable $hookError) {
+            \App\Support\SecureLogger::warning('Entity hook dispatch failed', [
+                'hook' => 'shelf.can_delete',
+                'error' => $hookError->getMessage(),
+            ]);
+        }
+        if (!$canDelete) {
+            $_SESSION['error_message'] = __('Impossibile eliminare: la mensola è in uso');
+            return $response->withHeader('Location', url('/admin/placement'))->withStatus(302);
+        }
+
         // Delete mensola
         $stmt = $db->prepare("DELETE FROM mensole WHERE id = ?");
         $stmt->bind_param('i', $id);
         $stmt->execute();
+
+        // Hook: shelf.deleted (action) — args: int $mensolaId. Emitted after
+        // the row is gone so plugins can refresh caches/derived data. Never
+        // fails the request.
+        try {
+            \App\Support\Hooks::do('shelf.deleted', [$id]);
+        } catch (\Throwable $hookError) {
+            \App\Support\SecureLogger::warning('Entity hook dispatch failed', [
+                'hook' => 'shelf.deleted',
+                'error' => $hookError->getMessage(),
+            ]);
+        }
 
         $_SESSION['success_message'] = __('Mensola eliminata');
         return $response->withHeader('Location', url('/admin/placement'))->withStatus(302);

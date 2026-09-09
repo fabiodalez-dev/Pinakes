@@ -601,6 +601,22 @@ class GenereRepository
                 throw new \RuntimeException('Errore nel ripuntamento delle mensole al genere di destinazione');
             }
 
+            // Hook: genre.merging (action) — args: int $primaryId, array $duplicateIds.
+            // Emitted INSIDE the transaction, after the core repointing but
+            // BEFORE the source genre row is deleted, so plugins referencing
+            // generi via FK (typically ON DELETE SET NULL) can repoint their
+            // own rows onto the surviving target genre. Dispatch is a cheap
+            // no-op when no plugin listens; a throwing listener is swallowed
+            // by HookManager/this guard and never rolls the merge back.
+            try {
+                \App\Support\Hooks::do('genre.merging', [$targetId, [$sourceId]]);
+            } catch (\Throwable $hookError) {
+                \App\Support\SecureLogger::warning('Entity hook dispatch failed', [
+                    'hook' => 'genre.merging',
+                    'error' => $hookError->getMessage(),
+                ]);
+            }
+
             // Delete source genre
             $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
             $stmt->bind_param('i', $sourceId);
