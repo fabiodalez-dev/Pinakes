@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Models\SettingsRepository;
 use mysqli;
 use ZipArchive;
 
@@ -34,6 +35,13 @@ class BackupManager
 
     /** Hard cap for an uploaded restore archive (2 GB). */
     public const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+
+    /**
+     * Automatic backups kept by the rotation. Ten covers several releases of
+     * rollback history while bounding the directory: unbounded growth is what
+     * filled a real installation's quota and broke its next update.
+     */
+    public const DEFAULT_RETENTION = 10;
 
     /**
      * Hard cap for the cumulative DECOMPRESSED size of a restore archive (4 GB).
@@ -123,6 +131,14 @@ class BackupManager
 
             $size = is_file($zipPath) ? (int) filesize($zipPath) : 0;
 
+            // Rotate: a backup is written before every update, and nothing used
+            // to remove the old ones. On a real installation that meant 73 files
+            // and 300 MB accumulated in three months, until the disk filled and
+            // the NEXT update failed while copying the app aside for rollback —
+            // the backup meant to make updates safe was what broke them.
+            // Best-effort: a rotation failure must never fail the backup itself.
+            $this->pruneOldBackups($zipPath);
+
             return ['success' => true, 'name' => $name, 'path' => $zipPath, 'size' => $size, 'error' => null];
         } catch (\Throwable $e) {
             if ($sqlTmp !== null && is_file($sqlTmp)) {
@@ -136,6 +152,60 @@ class BackupManager
     // ---------------------------------------------------------------------
     // List / delete / download
     // ---------------------------------------------------------------------
+
+    /**
+     * Keep only the most recent automatic backups, newest first.
+     *
+     * Only files matching the generated `backup_*.zip` name are considered, so
+     * anything an administrator dropped in the directory by hand is left alone,
+     * and the backup just written is never a candidate for deletion.
+     *
+     * The count comes from `backup.retention_count` (0 disables the rotation
+     * entirely, for setups that archive elsewhere); the default keeps enough
+     * history to roll back several releases without unbounded growth.
+     */
+    private function pruneOldBackups(string $justWritten): void
+    {
+        try {
+            $keep = self::DEFAULT_RETENTION;
+            try {
+                $configured = (new SettingsRepository($this->db))->get('backup', 'retention_count', (string) self::DEFAULT_RETENTION);
+                if (is_string($configured) && $configured !== '' && ctype_digit($configured)) {
+                    $keep = (int) $configured;
+                }
+            } catch (\Throwable) {
+                // settings unreachable: fall back to the default rather than skip
+            }
+            if ($keep <= 0) {
+                return;
+            }
+
+            $files = [];
+            foreach (glob($this->backupPath . '/backup_*.zip') ?: [] as $file) {
+                if (!is_file($file) || realpath($file) === realpath($justWritten)) {
+                    continue;
+                }
+                $files[$file] = (int) filemtime($file);
+            }
+            arsort($files);
+
+            // The freshly written file counts against the quota too.
+            $slots = max(0, $keep - 1);
+            $stale = array_slice(array_keys($files), $slots);
+            $removed = 0;
+            foreach ($stale as $file) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- glob-matched backup_*.zip under storage/backups, not user input
+                if (@unlink($file)) {
+                    $removed++;
+                }
+            }
+            if ($removed > 0) {
+                SecureLogger::info('BackupManager: rotated old backups', ['removed' => $removed, 'kept' => $keep]);
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning('BackupManager: backup rotation failed', ['error' => $e->getMessage()]);
+        }
+    }
 
     /**
      * @return array<int, array{name: string, path: string, size: int, date: string, contents: string, created_at: int}>
