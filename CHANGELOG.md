@@ -2,6 +2,13 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.83]
+
+Same content as 0.7.82, whose tag could not be reused after the release was pulled, plus the fix below. Upgrading from 0.7.81 goes straight here.
+
+### Fixed
+- **Automatic backups are now rotated.** A backup is written before every update and nothing ever removed the old ones: on a live installation that meant 73 files and about 300 MB accumulated in three months, until the account ran out of space and the *next* update failed while copying the application aside for rollback — the backup meant to make updates safe was what broke them. The failure surfaced as a copy error on whichever file the process happened to reach, which said nothing about the cause. The ten most recent automatic backups are kept (`backup.retention_count`, 0 disables the rotation); archives placed in the directory by hand are never touched, and a rotation failure can never fail the backup itself.
+
 ## [0.7.82]
 
 The Emeroteca becomes a working serials desk, and the core gains the extension points it was missing ([PR #419](https://github.com/fabiodalez-dev/Pinakes/pull/419)). The bundled plugin goes to **1.4.0**; its schema migrates itself on upgrade. No core migration.
