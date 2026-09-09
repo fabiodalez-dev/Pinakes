@@ -209,13 +209,16 @@ class PublicController
             [$id]
         );
 
-        // Year timeline with per-year issue counts.
+        // Year timeline with per-year issue counts. Withdrawn issues
+        // ('scartato') are excluded from the JOIN: they left the collection,
+        // so counting them would inflate the public holdings figure — same
+        // rule the public grid and the sitemap listener apply.
         $years = $this->fetchAll(
             'SELECT a.anno,
                     COUNT(f.id) AS num_fascicoli,
                     SUM(CASE WHEN f.stato = \'posseduto\' THEN 1 ELSE 0 END) AS num_posseduti
                FROM emeroteca_annate a
-               LEFT JOIN emeroteca_fascicoli f ON f.annata_id = a.id
+               LEFT JOIN emeroteca_fascicoli f ON f.annata_id = a.id AND f.stato <> \'scartato\'
               WHERE a.testata_id = ?
               GROUP BY a.anno
               ORDER BY a.anno ASC',
@@ -244,7 +247,7 @@ class PublicController
                         a.volume, a.anno
                    FROM emeroteca_fascicoli f
                    JOIN emeroteca_annate a ON a.id = f.annata_id
-                  WHERE a.testata_id = ? AND a.anno = ?
+                  WHERE a.testata_id = ? AND a.anno = ? AND f.stato <> \'scartato\'
                   ORDER BY (f.data_pubblicazione IS NULL), f.data_pubblicazione ASC, f.id ASC',
                 'ii',
                 [$id, $selectedYear]

@@ -50,6 +50,15 @@ use TCPDFBarcode;
  */
 final class IssueLabelRenderer
 {
+    /**
+     * Per-connection cache of the optional core tables probed by the label
+     * query. Keyed by handle so two mysqli connections in the same process
+     * (tests) never inherit each other's schema.
+     *
+     * @var array<string, bool>
+     */
+    private static array $tableCache = [];
+
     /** Printable sheet geometry (mm). */
     private const SHEET_WIDTH = 210.0;
     private const SHEET_HEIGHT = 297.0;
@@ -177,8 +186,20 @@ final class IssueLabelRenderer
      * Load the printable fields of the requested issues, in the order the
      * caller asked for them.
      *
+     * `mensole` / `scaffali` are core tables the plugin explicitly tolerates
+     * missing (same probe as PublicController::fascicolo): joining them
+     * unconditionally made the whole statement fail on such an install, the
+     * renderer returned [] and the operator was told "no issues selected"
+     * about a selection that was perfectly valid. The shelfmark degrades to
+     * empty instead — a label without a shelfmark is still a usable label.
+     *
+     * A REAL query failure now throws: an empty list must mean "no such
+     * issues", never "the query broke", or the caller cannot tell the two
+     * apart (review #140).
+     *
      * @param  list<int>|array<int, int> $issueIds
      * @return list<array<string, mixed>>
+     * @throws RuntimeException when the label query itself fails.
      */
     private static function fetchLabels(mysqli $db, array $issueIds): array
     {
@@ -193,27 +214,34 @@ final class IssueLabelRenderer
             return [];
         }
 
+        $hasMensole = self::tableExists($db, 'mensole');
+        $hasScaffali = $hasMensole && self::tableExists($db, 'scaffali');
+
+        $shelfSelect = $hasScaffali ? 's.codice AS scaffale_codice' : 'NULL AS scaffale_codice';
+        $levelSelect = $hasMensole ? 'm.numero_livello' : 'NULL AS numero_livello';
+        $shelfJoin = $hasMensole ? ' LEFT JOIN mensole m ON m.id = f.collocazione_id' : '';
+        $shelfJoin .= $hasScaffali ? ' LEFT JOIN scaffali s ON s.id = m.scaffale_id' : '';
+
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $stmt = $db->prepare(
             "SELECT f.id, f.numero, f.numero_progressivo, f.titolo_fascicolo, f.data_copertina,
                     f.data_pubblicazione, f.numero_inventario, f.barcode,
                     a.anno, a.volume, a.serie,
                     t.titolo AS testata_titolo, t.barcode_base,
-                    s.codice AS scaffale_codice, m.numero_livello
+                    {$shelfSelect}, {$levelSelect}
                FROM emeroteca_fascicoli f
                JOIN emeroteca_annate a ON a.id = f.annata_id
-               JOIN emeroteca_testate t ON t.id = a.testata_id
-               LEFT JOIN mensole m ON m.id = f.collocazione_id
-               LEFT JOIN scaffali s ON s.id = m.scaffale_id
+               JOIN emeroteca_testate t ON t.id = a.testata_id{$shelfJoin}
               WHERE f.id IN ({$placeholders})"
         );
         if ($stmt === false) {
-            return [];
+            throw new RuntimeException('Emeroteca label query could not be prepared: ' . $db->error);
         }
         $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
         if (!$stmt->execute()) {
+            $error = $stmt->error;
             $stmt->close();
-            return [];
+            throw new RuntimeException('Emeroteca label query failed: ' . $error);
         }
         $res = $stmt->get_result();
         $byId = [];
@@ -555,6 +583,37 @@ final class IssueLabelRenderer
             'columns' => max(1, $columns),
             'rows' => max(1, $rows),
         ];
+    }
+
+    /**
+     * True when a core table the label query can live without is present.
+     * Mirrors AbstractAdminController::tableExists(), cached per connection.
+     */
+    private static function tableExists(mysqli $db, string $table): bool
+    {
+        $key = spl_object_id($db) . '|' . $table;
+        if (array_key_exists($key, self::$tableCache)) {
+            return self::$tableCache[$key];
+        }
+        $exists = false;
+        try {
+            $stmt = $db->prepare(
+                'SELECT COUNT(*) AS c FROM information_schema.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('s', $table);
+                if ($stmt->execute()) {
+                    $res = $stmt->get_result();
+                    $exists = $res instanceof mysqli_result
+                        && ((int) ($res->fetch_assoc()['c'] ?? 0)) > 0;
+                }
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            $exists = false;
+        }
+        return self::$tableCache[$key] = $exists;
     }
 
     private static function truncate(string $value, int $max): string

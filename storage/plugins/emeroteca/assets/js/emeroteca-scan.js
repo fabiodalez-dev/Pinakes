@@ -57,6 +57,47 @@
 
     // ── Scan lookup ──────────────────────────────────────────────────
 
+    /**
+     * Accept only a same-origin ABSOLUTE PATH as a link target.
+     *
+     * The server builds these with url(), which always returns a path
+     * beginning with a single '/'. Assigning whatever JSON came back straight
+     * to .href would honour 'javascript:', 'data:' and protocol-relative
+     * '//evil.tld' URLs, so anything that is not "one slash then a path" is
+     * dropped and the link simply stays hidden.
+     * Returns '' when the value is not usable.
+     */
+    function safePath(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        var path = value.trim();
+        if (path.charAt(0) !== '/') {
+            return '';
+        }
+        // '//host' is protocol-relative, '/\host' is treated as such by browsers.
+        if (path.charAt(1) === '/' || path.charAt(1) === '\\') {
+            return '';
+        }
+        // A control character in a URL is never legitimate here.
+        if (/[\u0000-\u001F\u007F]/.test(path)) {
+            return '';
+        }
+        return path;
+    }
+
+    function showLink(openLink, rawUrl) {
+        if (!openLink) {
+            return;
+        }
+        var href = safePath(rawUrl);
+        if (href === '') {
+            return;
+        }
+        openLink.href = href;
+        openLink.hidden = false;
+    }
+
     function setStatus(box, message, tone) {
         box.textContent = message;
         box.classList.remove('is-error', 'is-ok');
@@ -120,19 +161,25 @@
                         setStatus(status, (data && data.message) || t('notFound', 'Nessuna corrispondenza.'), 'error');
                         return;
                     }
+                    // A code matching several issues is NOT a result: the
+                    // receive form stays closed and the operator is pointed at
+                    // the title, so nothing is received on a guessed issue.
+                    if (data.match === 'ambiguous') {
+                        setStatus(status, data.message || t('ambiguous', 'Codice ambiguo: risolvi dalla testata.'), 'error');
+                        if (data.title) {
+                            showLink(openLink, data.title.url);
+                        }
+                        return;
+                    }
                     setStatus(status, data.message || '', 'ok');
                     if (data.match === 'issue' && data.issue) {
-                        if (openLink && data.issue.url) {
-                            openLink.href = data.issue.url;
-                            openLink.hidden = false;
-                        }
+                        showLink(openLink, data.issue.url);
                         if (data.action === 'receive' && receiveId) {
                             receiveId.value = String(data.issue.id);
                             receiveForm.hidden = false;
                         }
-                    } else if (data.match === 'title' && data.title && openLink && data.title.url) {
-                        openLink.href = data.title.url;
-                        openLink.hidden = false;
+                    } else if (data.match === 'title' && data.title) {
+                        showLink(openLink, data.title.url);
                     }
                 })
                 .catch(function () {

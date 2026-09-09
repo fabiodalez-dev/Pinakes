@@ -197,6 +197,14 @@ class EmerotecaPlugin
             $this->registerHookInDb('genre.merging',       'onGenreMerging',        10);
             $this->registerHookInDb('shelf.can_delete',    'onShelfCanDelete',      10);
             $this->registerHookInDb('shelf.deleted',       'onShelfDeleted',        10);
+            // Public discoverability (1.4.0). Without these two the
+            // emeroteca is a section of the site nobody can reach from
+            // outside it: its pages are absent from /sitemap.xml, and a
+            // catalogue search for a periodical is a dead end because the
+            // core only reads libri.search_index. The core exposes the two
+            // filters; registering them is what makes them do anything.
+            $this->registerHookInDb('sitemap.entries',             'extendSitemapEntries', 10);
+            $this->registerHookInDb('search.external_suggestions', 'suggestEmerotecaSearch', 10);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -309,29 +317,45 @@ class EmerotecaPlugin
      * One sentinel column per table, declared to PluginManager's
      * boot-time self-heal (expectedColumnsMissing). Cheap: one
      * information_schema probe per entry per boot. Future additive
-     * column migrations must be appended here (ncip-server pattern).
+     * column migrations must be appended to additiveColumnDefs(), which
+     * is enumerated below (ncip-server pattern).
+     *
+     * The hardcoded list holds ONLY the columns that are not additive
+     * migrations (they ship in the fresh-install DDLs and have no entry
+     * in additiveColumnDefs); everything else is derived from that map.
+     * Both lists are then de-duplicated by table+column, so a column
+     * that later becomes additive cannot be probed twice per boot — the
+     * pdf_* quartet used to be listed in both places and cost four
+     * redundant information_schema round trips on every boot.
      *
      * @return list<array{table:string, column:string}>
      */
     public function expectedColumns(): array
     {
-        $out = [
+        $sentinels = [
             ['table' => 'emeroteca_testate',   'column' => 'stato_raccolta'],
             ['table' => 'emeroteca_annate',    'column' => 'rilegata'],
             ['table' => 'emeroteca_fascicoli', 'column' => 'stato'],
             ['table' => 'emeroteca_fascicoli', 'column' => 'collocazione_id'],
-            ['table' => 'emeroteca_fascicoli', 'column' => 'pdf_path'],
-            ['table' => 'emeroteca_fascicoli', 'column' => 'pdf_nome_originale'],
-            ['table' => 'emeroteca_fascicoli', 'column' => 'pdf_dimensione'],
-            ['table' => 'emeroteca_fascicoli', 'column' => 'pdf_pubblico'],
             ['table' => 'emeroteca_articoli',  'column' => 'keywords'],
         ];
         // 1.4.0 additive columns: every one declared so the boot-time
         // self-heal re-runs ensureSchema when any is missing.
         foreach (self::additiveColumnDefs() as $table => $definitions) {
             foreach (array_keys($definitions) as $column) {
-                $out[] = ['table' => $table, 'column' => $column];
+                $sentinels[] = ['table' => $table, 'column' => $column];
             }
+        }
+
+        $out = [];
+        $seen = [];
+        foreach ($sentinels as $sentinel) {
+            $key = $sentinel['table'] . '.' . $sentinel['column'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $out[] = $sentinel;
         }
         return $out;
     }
@@ -387,9 +411,18 @@ class EmerotecaPlugin
     /**
      * Execute the DDL for the four emeroteca tables, then add the FKs
      * towards the optional core tables (editori, generi) when those
-     * exist. CREATE TABLE failures are logged and reported via the
-     * returned 'failed' list without throwing — onActivate()/onInstall()
-     * inspect it and abort with a RuntimeException.
+     * exist. Failures are logged and reported via the returned 'failed'
+     * list without throwing — onActivate()/onInstall() inspect it and
+     * abort with a RuntimeException that names the table.
+     *
+     * NOTE on error style: config/container.php arms
+     * `mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT)`, so in
+     * production a failing statement THROWS mysqli_sql_exception and the
+     * `=== false` / `!execute()` branches inside the migration helpers
+     * never run. Every step is therefore wrapped here as well, so a
+     * failure lands in `failed` (naming the table the operator has to
+     * look at) instead of escaping as a raw mysqli exception from a
+     * boot-time self-heal.
      *
      * @return array{created: list<string>, failed: list<string>}
      */
@@ -398,6 +431,48 @@ class EmerotecaPlugin
         $steps = self::schemaSteps();
         $created = [];
         $failed = [];
+
+        /**
+         * Run one migration step for $table, recording the table as
+         * failed when the step returns false OR throws.
+         *
+         * @param callable():bool $step
+         */
+        $runStep = function (string $table, string $label, callable $step) use (&$failed): void {
+            if (in_array($table, $failed, true)) {
+                return;
+            }
+            try {
+                if (!$step()) {
+                    $failed[] = $table;
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::error(
+                    '[Emeroteca] ' . $label . ' migration failed on ' . $table . ': ' . $e->getMessage()
+                );
+                $failed[] = $table;
+            }
+        };
+
+        /**
+         * Same, for the steps that report a list of affected tables.
+         *
+         * @param callable():list<string> $step
+         * @param list<string>            $ownedTables blamed when the step throws
+         */
+        $runListStep = function (string $label, array $ownedTables, callable $step) use (&$failed): void {
+            try {
+                $stepFailed = $step();
+            } catch (\Throwable $e) {
+                SecureLogger::error('[Emeroteca] ' . $label . ' migration threw: ' . $e->getMessage());
+                $stepFailed = $ownedTables;
+            }
+            foreach ($stepFailed as $table) {
+                if (!in_array($table, $failed, true)) {
+                    $failed[] = $table;
+                }
+            }
+        };
 
         foreach ($steps as $table => $ddl) {
             try {
@@ -423,40 +498,50 @@ class EmerotecaPlugin
         // idempotent so activation and PluginManager's boot-time self-heal
         // converge to the same schema.
         foreach (self::additiveColumnDefs() as $table => $definitions) {
-            if (!in_array($table, $failed, true) && !$this->ensureAdditiveColumns($table, $definitions)) {
-                $failed[] = $table;
-            }
+            $runStep($table, 'additive column', fn(): bool => $this->ensureAdditiveColumns($table, $definitions));
         }
 
         // 1.4.0: possession/condition split. MUST run after the additive
         // step above (it writes into the new `condizione` column).
-        if (!in_array('emeroteca_fascicoli', $failed, true) && !$this->ensureStatoCondizioneSplit()) {
-            $failed[] = 'emeroteca_fascicoli';
-        }
+        $runStep('emeroteca_fascicoli', 'stato/condizione split', fn(): bool => $this->ensureStatoCondizioneSplit());
+
+        // 1.4.0: rows whose `stato` is outside the ENUM (the empty
+        // index-0 slot). Runs AFTER the split — and unconditionally, not
+        // only on the narrowing path — because a fresh install already at
+        // the final ENUM can grow such rows too (see the method).
+        $runStep('emeroteca_fascicoli', 'out-of-set stato', fn(): bool => $this->ensureStatoInSet());
 
         // 1.4.0: annate.volume NULL → '' + NOT NULL DEFAULT ''.
-        if (!in_array('emeroteca_annate', $failed, true) && !$this->ensureAnnateVolumeNotNull()) {
-            $failed[] = 'emeroteca_annate';
-        }
+        $runStep('emeroteca_annate', 'volume NOT NULL', fn(): bool => $this->ensureAnnateVolumeNotNull());
 
         // FKs towards core tables (editori, generi, mensole) are added after
         // the CREATE (and after the additive columns, which introduce
         // emeroteca_annate.collocazione_id) so an install where those tables
         // are missing degrades to a schema without the FK instead of failing
         // activation.
-        if (!in_array('emeroteca_testate', $failed, true) && !$this->ensureCoreForeignKeys()) {
-            $failed[] = 'emeroteca_testate';
-        }
-        if (!in_array('emeroteca_fascicoli', $failed, true) && !$this->ensureIssueNumberIndex()) {
-            $failed[] = 'emeroteca_fascicoli';
-        }
+        //
+        // The failure is attributed to the table the FK actually belongs to:
+        // the mensole constraints live on emeroteca_fascicoli and
+        // emeroteca_annate, and blaming emeroteca_testate for them sent the
+        // operator looking for a problem on a table that is perfectly fine.
+        $runListStep(
+            'core foreign key',
+            ['emeroteca_testate', 'emeroteca_annate', 'emeroteca_fascicoli'],
+            fn(): array => $this->ensureCoreForeignKeys()
+        );
+        $runStep('emeroteca_fascicoli', 'issue-number index', fn(): bool => $this->ensureIssueNumberIndex());
 
         // 1.4.0 plain (non-unique) lookup indexes.
-        foreach ($this->ensureAdditiveIndexes() as $table) {
-            if (!in_array($table, $failed, true)) {
-                $failed[] = $table;
-            }
-        }
+        $runListStep(
+            'lookup index',
+            ['emeroteca_testate', 'emeroteca_fascicoli'],
+            fn(): array => $this->ensureAdditiveIndexes()
+        );
+
+        // 1.4.0 data repair: fascicoli that inherited their testata's
+        // barcode_base. Runs last — it needs both the barcode columns
+        // (additive step) and consistent tables.
+        $runStep('emeroteca_fascicoli', 'inherited barcode', fn(): bool => $this->ensureFascicoloBarcodeNotInherited());
 
         return ['created' => $created, 'failed' => $failed];
     }
@@ -627,6 +712,155 @@ class EmerotecaPlugin
     }
 
     /**
+     * 1.4.0 — repair fascicoli whose `stato` sits OUTSIDE the ENUM.
+     *
+     * MySQL gives an ENUM an extra, unnamed index-0 member that reads
+     * back as the empty string. It is reached whenever an INSERT/UPDATE
+     * writes a value the ENUM does not know while strict mode is off —
+     * exactly the configuration of the cPanel/CloudLinux hosts this
+     * project runs on in production, where `sql_mode=''` is common.
+     *
+     * Those rows survive everything ensureStatoCondizioneSplit() does:
+     * its normalization UPDATEs only match 'danneggiato'/'in_restauro',
+     * and an ENUM→ENUM MODIFY copies index 0 verbatim into the narrowed
+     * type. The damage is silent and real — the public badge renders
+     * grey with no label, and consistenzaTestata() counts the issue
+     * neither as owned (stato='posseduto') nor as a gap
+     * (stato='mancante'), so the fascicolo simply vanishes from the
+     * holdings statement. The migration is the only place positioned to
+     * see and fix them.
+     *
+     * Normalization rule (documented on purpose, since it guesses):
+     *   - 'posseduto' when the row carries any evidence of possession —
+     *     an inventory number, a barcode, a shelf location, a stored
+     *     PDF, a recorded physical condition, an acquisition channel or
+     *     a price. Someone described a copy the library holds.
+     *   - 'mancante' otherwise: an empty placeholder row is a hole in
+     *     the collection, and claiming it as owned would overstate the
+     *     holdings. 'mancante' is also the conservative choice — it is
+     *     visible as a gap, so a librarian notices and corrects it.
+     *
+     * Runs on every ensureSchema() (activation + PluginManager's
+     * boot-time self-heal) behind a COUNT probe, so the normal case
+     * costs one cheap query and writes nothing.
+     */
+    private function ensureStatoInSet(): bool
+    {
+        // `stato = ''` is how the out-of-ENUM index-0 slot compares; it
+        // can never match a legitimate member, on either the legacy or
+        // the final member list.
+        $probe = $this->db->query("SELECT COUNT(*) AS c FROM emeroteca_fascicoli WHERE stato = ''");
+        if ($probe === false) {
+            SecureLogger::error('[Emeroteca] out-of-set stato probe failed: ' . $this->db->error);
+            return false;
+        }
+        $count = $probe instanceof \mysqli_result ? (int) ($probe->fetch_assoc()['c'] ?? 0) : 0;
+        if ($probe instanceof \mysqli_result) {
+            $probe->free();
+        }
+        if ($count === 0) {
+            return true;
+        }
+
+        if ($this->db->query(
+            "UPDATE emeroteca_fascicoli
+                SET stato = CASE
+                        WHEN (numero_inventario IS NOT NULL AND numero_inventario <> '')
+                          OR (barcode IS NOT NULL AND barcode <> '')
+                          OR collocazione_id IS NOT NULL
+                          OR (pdf_path IS NOT NULL AND pdf_path <> '')
+                          OR condizione IS NOT NULL
+                          OR acquisizione IS NOT NULL
+                          OR prezzo IS NOT NULL
+                        THEN 'posseduto'
+                        ELSE 'mancante'
+                    END
+              WHERE stato = ''"
+        ) === false) {
+            SecureLogger::error('[Emeroteca] out-of-set stato normalization failed: ' . $this->db->error);
+            return false;
+        }
+
+        SecureLogger::warning(
+            '[Emeroteca] stato migration: normalized ' . $count
+            . ' fascicolo(i) whose stato was outside the ENUM (empty index-0 slot, written with sql_mode=\'\'); '
+            . 'rows with possession data became \'posseduto\', the others \'mancante\''
+        );
+        return true;
+    }
+
+    /**
+     * 1.4.0 — clear the barcodes fascicoli INHERITED from their testata.
+     *
+     * An earlier build of the issue form pre-filled `barcode` with the
+     * testata's `barcode_base` and saved it as if it were the issue's
+     * own code. `barcode_base` is the EAN-13 of the SERIAL (the 977
+     * prefix), shared by every issue of the title: an issue is
+     * identified by that base PLUS its add-on. So each polluted row
+     * carries a code that is not unique to it, and a scan at the desk
+     * resolves to whichever of them the query returns first — the wrong
+     * issue, silently. The form no longer copies the base, but the rows
+     * already written keep misresolving until they are cleaned.
+     *
+     * Exactly the rows whose barcode EQUALS the barcode_base of their
+     * OWN testata are reset to NULL. A legitimate issue barcode is the
+     * base plus its add-on, so it differs from the base and is left
+     * alone; a code that happens to equal ANOTHER title's base is not
+     * evidence of the copy bug and is not touched either — the JOIN
+     * walks fascicolo → annata → testata, so the comparison is always
+     * against the issue's own title.
+     *
+     * Guarded like the other steps: a COUNT probe first, so on a clean
+     * install (and on every boot afterwards) this costs one query and
+     * writes nothing — the repair effectively runs once.
+     */
+    private function ensureFascicoloBarcodeNotInherited(): bool
+    {
+        $matchClause =
+            "FROM emeroteca_fascicoli f
+               JOIN emeroteca_annate a ON a.id = f.annata_id
+               JOIN emeroteca_testate t ON t.id = a.testata_id
+              WHERE f.barcode IS NOT NULL
+                AND t.barcode_base IS NOT NULL
+                AND f.barcode = t.barcode_base";
+
+        $probe = $this->db->query("SELECT COUNT(*) AS c {$matchClause}");
+        if ($probe === false) {
+            SecureLogger::error('[Emeroteca] inherited-barcode probe failed: ' . $this->db->error);
+            return false;
+        }
+        $count = $probe instanceof \mysqli_result ? (int) ($probe->fetch_assoc()['c'] ?? 0) : 0;
+        if ($probe instanceof \mysqli_result) {
+            $probe->free();
+        }
+        if ($count === 0) {
+            return true;
+        }
+
+        // Multi-table UPDATE with the same JOIN as the probe, so the set
+        // of affected rows is exactly the set that was counted.
+        if ($this->db->query(
+            "UPDATE emeroteca_fascicoli f
+               JOIN emeroteca_annate a ON a.id = f.annata_id
+               JOIN emeroteca_testate t ON t.id = a.testata_id
+                SET f.barcode = NULL
+              WHERE f.barcode IS NOT NULL
+                AND t.barcode_base IS NOT NULL
+                AND f.barcode = t.barcode_base"
+        ) === false) {
+            SecureLogger::error('[Emeroteca] inherited-barcode cleanup failed: ' . $this->db->error);
+            return false;
+        }
+
+        SecureLogger::warning(
+            '[Emeroteca] barcode migration: cleared ' . $count
+            . ' fascicolo barcode(s) that were copies of their testata barcode_base '
+            . '(a serial base is not an issue barcode — scanning one resolved to the wrong fascicolo)'
+        );
+        return true;
+    }
+
+    /**
      * 1.4.0 — emeroteca_annate.volume becomes NOT NULL DEFAULT ''.
      *
      * NULL volumes compare distinct inside UNIQUE(testata_id, anno,
@@ -635,8 +869,18 @@ class EmerotecaPlugin
      *   - a NULL row becomes '' only when its (testata_id, anno) group has
      *     no '' row yet and it is the lowest-id NULL row of the group;
      *   - any leftover NULL row (a duplicate the unique key only admitted
-     *     via NULL) gets the synthetic label 'v<id>' — keeping the annata
-     *     and its fascicoli is worth more than a pretty volume name.
+     *     via NULL) gets a synthetic label — keeping the annata and its
+     *     fascicoli is worth more than a pretty volume name.
+     *
+     * The synthetic label is NOT written blind: 'v14' is a perfectly
+     * plausible volume a librarian may already have typed by hand, so a
+     * bare `volume = CONCAT('v', id)` can hit uq_emeroteca_annata
+     * (testata_id, anno, volume) with ER_DUP_ENTRY. That failure is
+     * terminal: ensureSchema() reports emeroteca_annate failed,
+     * onActivate() throws, PluginManager rolls the version back and the
+     * next boot repeats the same error forever. So each candidate is
+     * probed inside its own (testata_id, anno) group before the UPDATE,
+     * with a bounded ladder of fallbacks, and every rename is logged.
      * Idempotent: skipped entirely once IS_NULLABLE = 'NO'.
      */
     private function ensureAnnateVolumeNotNull(): bool
@@ -680,10 +924,7 @@ class EmerotecaPlugin
             SecureLogger::error('[Emeroteca] volume NULL normalization failed: ' . $this->db->error);
             return false;
         }
-        if ($this->db->query(
-            "UPDATE emeroteca_annate SET volume = CONCAT('v', id) WHERE volume IS NULL"
-        ) === false) {
-            SecureLogger::error('[Emeroteca] volume duplicate-NULL fallback failed: ' . $this->db->error);
+        if (!$this->labelLeftoverNullVolumes()) {
             return false;
         }
         if ($this->db->query(
@@ -693,6 +934,178 @@ class EmerotecaPlugin
             return false;
         }
         return true;
+    }
+
+    /**
+     * Give every annata whose `volume` is still NULL a synthetic, unique
+     * label inside its own (testata_id, anno) group.
+     *
+     * Called by ensureAnnateVolumeNotNull() once the "lone NULL → ''"
+     * pass has run: what remains are duplicates that only existed
+     * because NULLs compare distinct in a UNIQUE key.
+     *
+     * Collision handling — the point of this method. 'v14' is a label a
+     * librarian can (and does) type by hand, so the previous blanket
+     * `SET volume = CONCAT('v', id)` could hit uq_emeroteca_annata and
+     * abort the whole activation permanently. Each row therefore probes
+     * a bounded ladder of candidates inside its group and takes the
+     * first free one:
+     *
+     *   v<id>  →  v<id>-2 … v<id>-20  →  v<id>-<random hex> (×5)
+     *
+     * A candidate is checked with a prepared SELECT and the UPDATE is
+     * still allowed to fail (a concurrent writer): on failure the next
+     * candidate is tried, so no single collision is fatal.
+     *
+     * @return bool false only when a row could not be labelled at all,
+     *         which the caller reports as a failed emeroteca_annate.
+     */
+    private function labelLeftoverNullVolumes(): bool
+    {
+        $leftovers = $this->db->query(
+            'SELECT id, testata_id, anno FROM emeroteca_annate WHERE volume IS NULL ORDER BY id'
+        );
+        if ($leftovers === false) {
+            SecureLogger::error('[Emeroteca] leftover NULL volume probe failed: ' . $this->db->error);
+            return false;
+        }
+        /** @var list<array{id:int, testata_id:int, anno:int}> $rows */
+        $rows = [];
+        if ($leftovers instanceof \mysqli_result) {
+            while ($row = $leftovers->fetch_assoc()) {
+                $rows[] = [
+                    'id'         => (int) $row['id'],
+                    'testata_id' => (int) $row['testata_id'],
+                    'anno'       => (int) $row['anno'],
+                ];
+            }
+            $leftovers->free();
+        }
+        if ($rows === []) {
+            return true;
+        }
+
+        $probe = $this->db->prepare(
+            'SELECT 1 FROM emeroteca_annate
+              WHERE testata_id = ? AND anno = ? AND volume = ? LIMIT 1'
+        );
+        $update = $this->db->prepare(
+            'UPDATE emeroteca_annate SET volume = ? WHERE id = ? AND volume IS NULL'
+        );
+        if ($probe === false || $update === false) {
+            if ($probe !== false) {
+                $probe->close();
+            }
+            if ($update !== false) {
+                $update->close();
+            }
+            SecureLogger::error('[Emeroteca] leftover NULL volume prepare failed: ' . $this->db->error);
+            return false;
+        }
+
+        $renamed = [];
+        $ok = true;
+        try {
+            foreach ($rows as $row) {
+                $label = null;
+                foreach ($this->syntheticVolumeCandidates($row['id']) as $candidate) {
+                    // VARCHAR(50): a truncated candidate would silently
+                    // collide with another truncated one.
+                    if (mb_strlen($candidate) > 50) {
+                        continue;
+                    }
+                    $probe->bind_param('iis', $row['testata_id'], $row['anno'], $candidate);
+                    if (!$probe->execute()) {
+                        SecureLogger::error('[Emeroteca] volume candidate probe failed: ' . $probe->error);
+                        $ok = false;
+                        break;
+                    }
+                    $probeResult = $probe->get_result();
+                    $taken = $probeResult instanceof \mysqli_result && $probeResult->fetch_row() !== null;
+                    if ($probeResult instanceof \mysqli_result) {
+                        $probeResult->free();
+                    }
+                    if ($taken) {
+                        continue;
+                    }
+                    // The UPDATE is allowed to lose the race. Under
+                    // MYSQLI_REPORT_ERROR (armed by config/container.php)
+                    // a duplicate key THROWS instead of returning false,
+                    // so both shapes have to fall through to the next
+                    // candidate — otherwise the exception would escape
+                    // and the migration would fail on the very collision
+                    // this ladder exists to absorb.
+                    try {
+                        $update->bind_param('si', $candidate, $row['id']);
+                        $written = $update->execute();
+                    } catch (\Throwable $updateError) {
+                        SecureLogger::warning(
+                            '[Emeroteca] volume label "' . $candidate . '" rejected for annata #'
+                            . $row['id'] . ': ' . $updateError->getMessage()
+                        );
+                        continue;
+                    }
+                    if (!$written) {
+                        SecureLogger::warning(
+                            '[Emeroteca] volume label "' . $candidate . '" rejected for annata #'
+                            . $row['id'] . ': ' . $update->error
+                        );
+                        continue;
+                    }
+                    $label = $candidate;
+                    break;
+                }
+                if ($label === null) {
+                    if ($ok) {
+                        SecureLogger::error(
+                            '[Emeroteca] could not find a free synthetic volume label for annata #' . $row['id']
+                            . ' (testata ' . $row['testata_id'] . ', anno ' . $row['anno'] . ')'
+                        );
+                    }
+                    $ok = false;
+                    continue;
+                }
+                $renamed[] = '#' . $row['id'] . ' → "' . $label . '"';
+            }
+        } finally {
+            $probe->close();
+            $update->close();
+        }
+
+        if ($renamed !== []) {
+            SecureLogger::warning(
+                '[Emeroteca] volume migration: ' . count($renamed)
+                . ' annata(e) with a duplicate NULL volume received a synthetic label: '
+                . implode(', ', array_slice($renamed, 0, 50))
+                . (count($renamed) > 50 ? ' …' : '')
+            );
+        }
+        return $ok;
+    }
+
+    /**
+     * Candidate synthetic volume labels for one annata, most readable
+     * first. Deterministic head ('v<id>', then 'v<id>-2'…'v<id>-20') so
+     * a re-run of the migration converges on the same label; random tail
+     * as the last resort when a library really uses that whole range.
+     *
+     * @return list<string>
+     */
+    private function syntheticVolumeCandidates(int $annataId): array
+    {
+        $candidates = ['v' . $annataId];
+        for ($i = 2; $i <= 20; $i++) {
+            $candidates[] = 'v' . $annataId . '-' . $i;
+        }
+        for ($i = 0; $i < 5; $i++) {
+            try {
+                $suffix = bin2hex(random_bytes(4));
+            } catch (\Throwable $e) {
+                $suffix = substr(md5($annataId . '-' . $i . '-' . microtime(true)), 0, 8);
+            }
+            $candidates[] = 'v' . $annataId . '-' . $suffix;
+        }
+        return $candidates;
     }
 
     /**
@@ -815,22 +1228,26 @@ class EmerotecaPlugin
     }
 
     /**
-     * Add the emeroteca_testate FKs towards editori/generi when the core
-     * table exists and the FK is missing. Where the core table is absent
-     * (partial/headless installs) the constraint is skipped with a
-     * warning — the column stays a plain nullable INT. Detects each FK
-     * by column + referenced table via KEY_COLUMN_USAGE, nulls out
-     * orphan rows first, then ALTERs it in with ON DELETE SET NULL.
-     * Idempotent, safe to re-run from onActivate/onInstall.
+     * Add the FKs towards the optional core tables (editori/generi on
+     * emeroteca_testate, mensole on emeroteca_fascicoli and
+     * emeroteca_annate) when the core table exists and the FK is
+     * missing. Where the core table is absent (partial/headless
+     * installs) the constraint is skipped with a warning — the column
+     * stays a plain nullable INT. Detects each FK by column + referenced
+     * table via KEY_COLUMN_USAGE, nulls out orphan rows first, then
+     * ALTERs it in with ON DELETE SET NULL. Idempotent, safe to re-run
+     * from onActivate/onInstall.
      * All table/column names below are static literals — no user input.
      *
-     * @return bool True when every applicable FK is present (or was
-     *              added / legitimately skipped); false on probe or
-     *              ALTER failure so the caller reports a partial schema.
+     * @return list<string> The emeroteca tables whose FK migration
+     *         failed (empty on success). Returning the OWNING table —
+     *         not a fixed one — is what lets ensureSchema() name the
+     *         table the operator actually has to look at: three of the
+     *         four constraints do not live on emeroteca_testate.
      */
-    private function ensureCoreForeignKeys(): bool
+    private function ensureCoreForeignKeys(): array
     {
-        $ok = true;
+        $failed = [];
         foreach (self::coreForeignKeyDefs() as $fk) {
             try {
                 if (!$this->coreTableExists($fk['ref_table'])) {
@@ -842,7 +1259,7 @@ class EmerotecaPlugin
                 }
             } catch (\Throwable $e) {
                 SecureLogger::error('[Emeroteca] ' . $e->getMessage());
-                $ok = false;
+                $failed[] = $fk['table'];
                 continue;
             }
 
@@ -855,14 +1272,14 @@ class EmerotecaPlugin
             );
             if ($stmt === false) {
                 SecureLogger::error('[Emeroteca] FK probe prepare failed: ' . $this->db->error);
-                $ok = false;
+                $failed[] = $fk['table'];
                 continue;
             }
             $stmt->bind_param('sss', $fk['table'], $fk['column'], $fk['ref_table']);
             if (!$stmt->execute()) {
                 SecureLogger::error('[Emeroteca] FK probe failed for ' . $fk['column'] . ': ' . $stmt->error);
                 $stmt->close();
-                $ok = false;
+                $failed[] = $fk['table'];
                 continue;
             }
             $res = $stmt->get_result();
@@ -881,7 +1298,7 @@ class EmerotecaPlugin
                  WHERE t.{$fk['column']} IS NOT NULL AND r.{$fk['ref_col']} IS NULL"
             ) === false) {
                 SecureLogger::error('[Emeroteca] Orphan cleanup for ' . $fk['column'] . ' failed: ' . $this->db->error);
-                $ok = false;
+                $failed[] = $fk['table'];
                 continue;
             }
 
@@ -890,10 +1307,10 @@ class EmerotecaPlugin
                       FOREIGN KEY ({$fk['column']}) REFERENCES {$fk['ref_table']} ({$fk['ref_col']}) ON DELETE SET NULL";
             if ($this->db->query($alter) === false) {
                 SecureLogger::error('[Emeroteca] Adding FK ' . $fk['name'] . ' failed: ' . $this->db->error);
-                $ok = false;
+                $failed[] = $fk['table'];
             }
         }
-        return $ok;
+        return array_values(array_unique($failed));
     }
 
     /**
@@ -1158,6 +1575,24 @@ class EmerotecaPlugin
         $adminMiddleware = new \App\Middleware\AdminAuthMiddleware();
         $csrfMiddleware  = new \App\Middleware\CsrfMiddleware();
 
+        // Throttles for the three routes a client can hammer (1.4.0).
+        // Layering matches the core admin routes in app/Routes/web.php and
+        // book-club's ApiModule: ->add($rate)->add($adminMiddleware), so
+        // authentication stays the OUTER middleware and the budget is only
+        // spent by requests that already passed it.
+        //
+        // scan-lookup is a legitimately high-frequency operation — one
+        // request per barcode while a librarian receives a pile of issues
+        // at the desk — so the ceiling is generous enough never to get in
+        // the way of real work while still stopping a runaway scanner or
+        // an enumeration sweep over the code space.
+        $scanRateMiddleware = new \App\Middleware\RateLimitMiddleware(120, 300, 'emeroteca_scan_lookup');
+        // The two exports are the opposite: rare, and heavy — without
+        // ?testata they walk the entire emeroteca and buffer the document
+        // in memory, so a handful of concurrent requests is a memory
+        // problem. One shared action key, so the budget covers the pair.
+        $exportRateMiddleware = new \App\Middleware\RateLimitMiddleware(10, 300, 'emeroteca_export');
+
         $admin  = 'App\\Plugins\\Emeroteca\\Controllers\\PeriodicalAdminController';
         $issues = 'App\\Plugins\\Emeroteca\\Controllers\\IssueAdminController';
         $subs   = 'App\\Plugins\\Emeroteca\\Controllers\\SubscriptionAdminController';
@@ -1228,7 +1663,7 @@ class EmerotecaPlugin
             ResponseInterface $response
         ) use ($plugin, $export): ResponseInterface {
             return $plugin->dispatch($export, 'kbart', $request, $response);
-        })->add($adminMiddleware);
+        })->add($exportRateMiddleware)->add($adminMiddleware);
 
         // GET /admin/periodicals/export/acnp[?testata=ID] — ACNP CSV
         $app->get('/admin/periodicals/export/acnp', function (
@@ -1236,7 +1671,7 @@ class EmerotecaPlugin
             ResponseInterface $response
         ) use ($plugin, $export): ResponseInterface {
             return $plugin->dispatch($export, 'acnp', $request, $response);
-        })->add($adminMiddleware);
+        })->add($exportRateMiddleware)->add($adminMiddleware);
 
         // GET /admin/periodicals/scan-lookup?code=… — JSON barcode lookup
         // for the Kardex scanner. Read-only by design: a GET never receives
@@ -1246,7 +1681,7 @@ class EmerotecaPlugin
             ResponseInterface $response
         ) use ($plugin, $export): ResponseInterface {
             return $plugin->dispatch($export, 'scanLookup', $request, $response);
-        })->add($adminMiddleware);
+        })->add($scanRateMiddleware)->add($adminMiddleware);
 
         // ── Admin — merge of duplicate testate (1.4.0) ───────────────
 
@@ -1836,6 +2271,289 @@ class EmerotecaPlugin
                 SecureLogger::error('[Emeroteca] shelf.deleted listener error: ' . $e->getMessage());
             }
         }
+    }
+
+    // ── Public-discoverability listeners (1.4.0) ──────────────────────
+    //
+    // Both run on PUBLIC, unauthenticated requests of the core (the
+    // sitemap generator and the catalogue page), on installs where the
+    // emeroteca tables may not exist at all — the plugin ships disabled
+    // and a half-finished activation leaves the schema partial. So every
+    // method here probes before it queries and NEVER throws: the core
+    // catches, but a listener that throws costs the whole sitemap (the
+    // core falls back to the unfiltered entries) or the search hint.
+
+    /** Sitemap ceilings, well under the core's own MAX_TOTAL_URLS (50k). */
+    private const SITEMAP_MAX_TESTATE   = 5000;
+    private const SITEMAP_MAX_FASCICOLI = 20000;
+
+    /** @var array<string,bool> per-instance table-existence cache */
+    private array $tableProbeCache = [];
+
+    /**
+     * Listener for the `sitemap.entries` FILTER (contract in
+     * App\Support\SitemapGenerator::applyEntriesFilter): append the
+     * plugin's public pages to the site sitemap, which otherwise only
+     * knows about core entities and would leave the whole emeroteca
+     * invisible to crawlers.
+     *
+     * Added, in this order:
+     *   - /emeroteca                     the section index (weekly, 0.6),
+     *                                    lastmod = newest testata change;
+     *   - /emeroteca/{id}                one per testata (monthly, 0.5);
+     *   - /emeroteca/fascicolo/{id}      the issues the public frontend
+     *                                    actually links (yearly, 0.3).
+     *
+     * Only `stato='posseduto'` issues are advertised: those are the only
+     * ones testata.php turns into a link, and a withdrawn ('scartato'),
+     * missing or merely expected issue is not a page worth a crawl
+     * budget — publishing a 'scartato' issue would also advertise
+     * material the library no longer holds.
+     *
+     * `loc` MUST start with the $baseUrl the generator passes (it
+     * already contains the base path); anything else is discarded by the
+     * core as an off-site URL.
+     *
+     * @param mixed $entries the entry list assembled so far
+     * @return mixed the same list plus this plugin's entries; the input
+     *         is returned untouched when it is not an array, so the
+     *         core's own "non-array ⇒ keep core entries" guard fires
+     *         instead of this listener silently emptying the sitemap
+     */
+    public function extendSitemapEntries($entries, string $baseUrl = '', string $defaultLocale = ''): mixed
+    {
+        if (!is_array($entries)) {
+            return $entries;
+        }
+        try {
+            $base = rtrim($baseUrl, '/');
+            if ($base === '' || !$this->emerotecaTableExists('emeroteca_testate')) {
+                return $entries;
+            }
+
+            $testate = $this->fetchRows(
+                'SELECT id, updated_at FROM emeroteca_testate ORDER BY id LIMIT ' . self::SITEMAP_MAX_TESTATE
+            );
+
+            // Index lastmod: the most recent change to any testata, so
+            // the section page ages with its content.
+            $indexLastmod = null;
+            foreach ($testate as $testata) {
+                $stamp = isset($testata['updated_at']) ? (string) $testata['updated_at'] : '';
+                if ($stamp !== '' && ($indexLastmod === null || $stamp > $indexLastmod)) {
+                    $indexLastmod = $stamp;
+                }
+            }
+
+            $entries[] = array_filter([
+                'loc'        => $base . '/emeroteca',
+                'lastmod'    => $indexLastmod,
+                'changefreq' => 'weekly',
+                'priority'   => '0.6',
+            ], static fn($value): bool => $value !== null);
+
+            foreach ($testate as $testata) {
+                $id = (int) ($testata['id'] ?? 0);
+                if ($id <= 0) {
+                    continue;
+                }
+                $entries[] = array_filter([
+                    'loc'        => $base . '/emeroteca/' . $id,
+                    'lastmod'    => isset($testata['updated_at']) ? (string) $testata['updated_at'] : null,
+                    'changefreq' => 'monthly',
+                    'priority'   => '0.5',
+                ], static fn($value): bool => $value !== null);
+            }
+
+            if ($this->emerotecaTableExists('emeroteca_fascicoli')) {
+                $fascicoli = $this->fetchRows(
+                    "SELECT id, updated_at FROM emeroteca_fascicoli
+                      WHERE stato = 'posseduto'
+                      ORDER BY id LIMIT " . self::SITEMAP_MAX_FASCICOLI
+                );
+                foreach ($fascicoli as $fascicolo) {
+                    $id = (int) ($fascicolo['id'] ?? 0);
+                    if ($id <= 0) {
+                        continue;
+                    }
+                    $entries[] = array_filter([
+                        'loc'        => $base . '/emeroteca/fascicolo/' . $id,
+                        'lastmod'    => isset($fascicolo['updated_at']) ? (string) $fascicolo['updated_at'] : null,
+                        'changefreq' => 'yearly',
+                        'priority'   => '0.3',
+                    ], static fn($value): bool => $value !== null);
+                }
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] sitemap.entries listener error: ' . $e->getMessage());
+        }
+        return $entries;
+    }
+
+    /**
+     * Listener for the `search.external_suggestions` FILTER (contract in
+     * App\Controllers\FrontendController::collectExternalSearchSuggestions):
+     * point a catalogue search at the emeroteca when the term matches
+     * something there.
+     *
+     * The catalogue only reads `libri.search_index`, so searching for a
+     * periodical title or an indexed article gives "nessun risultato"
+     * even though the library holds it — a dead end the visitor has no
+     * way out of. This appends ONE link to /emeroteca?q=<term>.
+     *
+     * The suggestion is emitted ONLY on a real match, as the contract
+     * demands ("MUST NOT return a suggestion when it has no match"): two
+     * existence probes with LIMIT 1, short-circuiting on the first hit,
+     * so a search that has nothing to do with periodicals costs one
+     * indexed-prefix-less LIKE and stops.
+     *
+     * @param mixed $suggestions the suggestions collected so far
+     * @return mixed append-only; a non-array input is passed through
+     *         untouched (the core discards it) rather than replaced
+     */
+    public function suggestEmerotecaSearch($suggestions, string $term = ''): mixed
+    {
+        if (!is_array($suggestions)) {
+            return $suggestions;
+        }
+        try {
+            $needle = trim($term);
+            // One- or zero-character terms would drag a full LIKE '%x%'
+            // scan over every testata and article for a hint nobody can
+            // act on; the cap mirrors PublicController::index().
+            if (mb_strlen($needle) < 2) {
+                return $suggestions;
+            }
+            $needle = mb_substr($needle, 0, 200);
+
+            if (!$this->emerotecaMatches($needle)) {
+                return $suggestions;
+            }
+
+            $path = function_exists('url') ? (string) url('/emeroteca') : '/emeroteca';
+            if ($path === '' || $path[0] !== '/' || str_starts_with($path, '//')) {
+                // The core rejects anything that is not a single-slash
+                // same-origin path; do not hand it a URL it will drop.
+                $path = '/emeroteca';
+            }
+
+            $suggestions[] = [
+                'label' => function_exists('__')
+                    ? (string) __('Emeroteca (testate e spoglio degli articoli)')
+                    : 'Emeroteca (testate e spoglio degli articoli)',
+                'url'   => $path . '?q=' . rawurlencode($needle),
+            ];
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] search.external_suggestions listener error: ' . $e->getMessage());
+        }
+        return $suggestions;
+    }
+
+    /**
+     * True when at least one testata or one indexed article matches the
+     * term. Two separate LIMIT 1 probes rather than a UNION so each is
+     * guarded by its own table probe: on a degraded install one table
+     * can exist without the other.
+     */
+    private function emerotecaMatches(string $term): bool
+    {
+        $pattern = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+
+        $probes = [];
+        if ($this->emerotecaTableExists('emeroteca_testate')) {
+            $probes[] = "SELECT 1 FROM emeroteca_testate
+                          WHERE titolo LIKE ? ESCAPE '\\\\'
+                             OR sottotitolo LIKE ? ESCAPE '\\\\'
+                             OR issn LIKE ? ESCAPE '\\\\'
+                          LIMIT 1";
+        }
+        if ($this->emerotecaTableExists('emeroteca_articoli')) {
+            $probes[] = "SELECT 1 FROM emeroteca_articoli
+                          WHERE titolo LIKE ? ESCAPE '\\\\'
+                             OR autori LIKE ? ESCAPE '\\\\'
+                             OR keywords LIKE ? ESCAPE '\\\\'
+                          LIMIT 1";
+        }
+
+        foreach ($probes as $sql) {
+            $stmt = $this->db->prepare($sql);
+            if ($stmt === false) {
+                SecureLogger::error('[Emeroteca] search suggestion probe prepare failed: ' . $this->db->error);
+                continue;
+            }
+            $stmt->bind_param('sss', $pattern, $pattern, $pattern);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[Emeroteca] search suggestion probe failed: ' . $stmt->error);
+                $stmt->close();
+                continue;
+            }
+            $res = $stmt->get_result();
+            $hit = $res instanceof \mysqli_result && $res->fetch_row() !== null;
+            if ($res instanceof \mysqli_result) {
+                $res->free();
+            }
+            $stmt->close();
+            if ($hit) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Table-existence probe for the listeners above: cached per request
+     * and, unlike coreTableExists(), it never throws — these run on
+     * public pages where an exception would cost the whole sitemap or
+     * the catalogue hint.
+     */
+    private function emerotecaTableExists(string $table): bool
+    {
+        if (array_key_exists($table, $this->tableProbeCache)) {
+            return $this->tableProbeCache[$table];
+        }
+        $exists = false;
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) AS c FROM information_schema.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('s', $table);
+                if ($stmt->execute()) {
+                    $res = $stmt->get_result();
+                    $exists = $res instanceof \mysqli_result
+                        && ((int) ($res->fetch_assoc()['c'] ?? 0)) > 0;
+                }
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] listener table probe failed for ' . $table . ': ' . $e->getMessage());
+        }
+        return $this->tableProbeCache[$table] = $exists;
+    }
+
+    /**
+     * Run a parameterless SELECT and return its rows. Used only with the
+     * static SQL literals above (the LIMITs are class constants), never
+     * with user input.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function fetchRows(string $sql): array
+    {
+        $rows = [];
+        $res = $this->db->query($sql);
+        if ($res === false) {
+            SecureLogger::error('[Emeroteca] listener query failed: ' . $this->db->error);
+            return [];
+        }
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $res->free();
+        }
+        return $rows;
     }
 
     /**

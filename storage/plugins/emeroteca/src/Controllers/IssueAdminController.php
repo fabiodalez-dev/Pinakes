@@ -38,6 +38,15 @@ class IssueAdminController extends AbstractAdminController
     private const MAX_RECLAMI = 255;
 
     /**
+     * Days of slack granted to an undated issue of the CURRENT year before a
+     * bulk claim considers it late (review #140). It absorbs postal delay and
+     * the ordinary drift of a publication schedule, on the principle that a
+     * reminder sent too early costs more credibility with the supplier than
+     * one sent a month late costs the library.
+     */
+    private const CLAIM_GRACE_DAYS = 30;
+
+    /**
      * States a fascicolo can be claimed from: it was expected and never
      * arrived ('atteso'), or it was already claimed once and still has not
      * ('reclamato' — a second reminder is normal practice).
@@ -348,27 +357,45 @@ class IssueAdminController extends AbstractAdminController
             return;
         }
         $dataPubOrNull = $dataPub === '' ? null : $dataPub;
-        $stato = trim((string) ($body['stato'] ?? 'posseduto'));
-        if (!array_key_exists($stato, \EmerotecaPlugin::STATI_FASCICOLO)) {
+        // stato is validated, never coerced (review #140): it is the most
+        // consequential column of the row (holdings, consistency, public
+        // catalogue, claims), so an unknown value is an explicit error like
+        // condizione/acquisizione/prezzo — not a silent slide into the most
+        // optimistic state. Omitted entirely it is the documented default of
+        // the quick form, which is harmless on a brand-new row.
+        $stato = trim((string) ($body['stato'] ?? ''));
+        if ($stato === '') {
             $stato = 'posseduto';
+        } elseif (!array_key_exists($stato, \EmerotecaPlugin::STATI_FASCICOLO)) {
+            $this->flashError(__('Stato del fascicolo non valido.'));
+            return;
         }
-        // Barcode and acquisition channel inherit the testata's defaults when
-        // the quick form leaves them out: the base EAN-13 is the same for
-        // every issue of a title (only the add-on differs), and typing the
-        // same acquisition channel on every fascicolo is busywork.
+        // The acquisition channel inherits the testata's default: typing the
+        // same channel on every fascicolo is busywork.
+        //
+        // The barcode does NOT inherit barcode_base (review #140). That base
+        // is the title's shared 977 EAN-13 and the column carries a
+        // non-UNIQUE key, so copying it here would give EVERY fascicolo of a
+        // title the same code: a scan at the desk would resolve to whichever
+        // issue comes first (ExportAdminController::findIssueByBarcode orders
+        // by id) — normally n. 1 — and the operator would record the arrival
+        // on the wrong issue, leaving the real one 'atteso' and bound for the
+        // supplier reminder. Nothing is lost by leaving it empty: the base is
+        // already the third resolution step of the scan lookup and the
+        // fallback of the label renderer. The column stays hand-fillable with
+        // the FULL EAN including the add-on, which does identify the issue.
         $defaults = $this->testataDefaults($annataId);
-        $barcode = $defaults['barcode_base'];
         $acquisizione = $defaults['acquisizione_default'];
         $stmt = $this->db->prepare(
-            'INSERT INTO emeroteca_fascicoli (annata_id, numero, data_pubblicazione, stato, barcode, acquisizione)
-             VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO emeroteca_fascicoli (annata_id, numero, data_pubblicazione, stato, acquisizione)
+             VALUES (?, ?, ?, ?, ?)'
         );
         if ($stmt === false) {
             SecureLogger::error('[Emeroteca] addFascicolo prepare failed: ' . $this->db->error);
             $this->flashError(__('Errore durante la creazione del fascicolo.'));
             return;
         }
-        $stmt->bind_param('isssss', $annataId, $numero, $dataPubOrNull, $stato, $barcode, $acquisizione);
+        $stmt->bind_param('issss', $annataId, $numero, $dataPubOrNull, $stato, $acquisizione);
         if (!$stmt->execute()) {
             $duplicate = (int) $stmt->errno === 1062;
             SecureLogger::error('[Emeroteca] addFascicolo insert failed: ' . $stmt->error);
@@ -391,7 +418,6 @@ class IssueAdminController extends AbstractAdminController
                 'numero'             => $numero,
                 'data_pubblicazione' => $dataPubOrNull,
                 'stato'              => $stato,
-                'barcode'            => $barcode,
                 'acquisizione'       => $acquisizione,
             ],
             'inserimento',
@@ -496,10 +522,17 @@ class IssueAdminController extends AbstractAdminController
      * n_reclami counts how many have been sent.
      *
      * Eligible states are 'atteso' and 'reclamato' (a second reminder is
-     * ordinary practice). The pre-check is a SELECT rather than reading
-     * affected_rows, because a re-claim on the same day changes only
-     * n_reclami — and once that hits MAX_RECLAMI the UPDATE would touch
-     * nothing and be misreported as "issue not found".
+     * ordinary practice). The SELECT probe supplies the "before" snapshot of
+     * the audit, but it does NOT authorise the write on its own: the eligible
+     * states are repeated in the UPDATE's WHERE (review #140), so an issue
+     * received at the desk between the probe and the UPDATE is not dragged
+     * back to 'reclamato' — that would take a fascicolo physically on the
+     * shelf out of the holdings and send a reminder for a copy already owned.
+     *
+     * affected_rows alone cannot drive the outcome: a re-claim on the same day
+     * with n_reclami already at MAX_RECLAMI writes identical values and MySQL
+     * reports zero changed rows. Zero is therefore disambiguated by re-reading
+     * the row — still claimable means a harmless no-op, gone means the race.
      */
     private function claimIssue(int $testataId, int $fascicoloId): void
     {
@@ -511,10 +544,11 @@ class IssueAdminController extends AbstractAdminController
         // Application timezone, not the DB session one: near midnight
         // CURDATE() and the library's "today" can disagree by a day.
         $today = DateHelper::today();
+        $claimable = "'" . implode("','", self::CLAIMABLE) . "'";
         $stmt = $this->db->prepare(
             "UPDATE emeroteca_fascicoli
                 SET stato = 'reclamato', reclamato_il = ?, n_reclami = LEAST(n_reclami + 1, ?)
-              WHERE id = ?"
+              WHERE id = ? AND stato IN ({$claimable})"
         );
         if ($stmt === false) {
             SecureLogger::error('[Emeroteca] claimIssue prepare failed: ' . $this->db->error);
@@ -529,7 +563,20 @@ class IssueAdminController extends AbstractAdminController
             $this->flashError(__('Errore durante il sollecito del fascicolo.'));
             return;
         }
+        $changed = $stmt->affected_rows > 0;
         $stmt->close();
+
+        if (!$changed) {
+            if ($this->claimableIssue($testataId, $fascicoloId) === null) {
+                $this->flashError(__('Il fascicolo ha cambiato stato nel frattempo: nessun sollecito è stato registrato.'));
+                return;
+            }
+            // Idempotent repeat within the same day at MAX_RECLAMI: nothing
+            // changed, so nothing is audited, but the operator's intent was
+            // honoured — the issue IS claimed today.
+            $this->flashSuccess(sprintf(__('Fascicolo n. %s sollecitato al fornitore.'), $current['numero']));
+            return;
+        }
 
         ActivityLog::recordEntityEvent(
             $this->db,
@@ -547,42 +594,64 @@ class IssueAdminController extends AbstractAdminController
     /**
      * Bulk claim of every overdue awaited issue of ONE annata.
      *
-     * "Overdue" means the issue should already be on the shelf: its
-     * data_pubblicazione is in the past or — when the date is unknown, which
-     * is the norm for Kardex-generated issues — the whole annata belongs to a
-     * closed year. The current year is never bulk-claimed: its issues are
-     * simply not out yet.
+     * "Overdue" means the issue should already be on the shelf:
+     *   - its data_pubblicazione is in the past; or
+     *   - the date is unknown (the norm for Kardex-generated issues) and the
+     *     annata belongs to a closed year; or
+     *   - the date is unknown, the annata IS the current year, but the issue's
+     *     own slot in the publication schedule closed more than
+     *     CLAIM_GRACE_DAYS ago (review #140). Without this last rule the bulk
+     *     claim could never cover the running subscription year — precisely
+     *     the year reminders exist for — because Kardex issues carry no date.
+     *     It is deliberately narrow: it needs a known periodicita and a purely
+     *     numeric numero, so a double issue ("1-2") or an irregular title is
+     *     left to the per-issue claim rather than guessed at.
      *
      * Scope is deliberately ONE annata and ONLY stato='atteso' (never a
      * blanket re-claim of everything already claimed): a bulk that re-sends
      * reminders for issues claimed yesterday is how a library annoys its
-     * supplier into ignoring the real ones.
+     * supplier into ignoring the real ones. That same condition is repeated in
+     * the UPDATE's WHERE, so an issue received at the desk while this request
+     * was in flight is not dragged back out of the holdings, and the operator
+     * is told how many rows really changed rather than how many the SELECT
+     * had picked.
      */
     private function claimOverdue(int $testataId, int $annataId): void
     {
+        // AdminAuthMiddleware also admits staff: a bulk claim rewrites a whole
+        // annata in one statement and n_reclami is never decremented anywhere,
+        // so there is no undo. Re-check the role inline, like delete().
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $this->flashError(__('Operazione riservata agli amministratori.'));
+            return;
+        }
         if (!$this->annataBelongsTo($annataId, $testataId)) {
             $this->flashError(__('Annata non trovata per questa testata.'));
             return;
         }
         $today = DateHelper::today();
-        $currentYear = (int) substr($today, 0, 4);
+        $testata = $this->fetchTestata($testataId);
+        $periodicita = (string) ($testata['periodicita'] ?? '');
 
-        $ids = [];
+        // Every awaited issue of the annata, with the fields the audit "before"
+        // snapshot needs; the overdue decision itself is taken in PHP so the
+        // schedule rule above stays readable. One annata is at most a year of
+        // a daily (366 rows).
+        /** @var array<int, array<string, mixed>> $candidates */
+        $candidates = [];
         $stmt = $this->db->prepare(
-            "SELECT f.id
+            "SELECT f.id, f.numero, f.stato, f.n_reclami, f.reclamato_il,
+                    f.data_pubblicazione, a.anno
                FROM emeroteca_fascicoli f
                JOIN emeroteca_annate a ON f.annata_id = a.id
-              WHERE f.annata_id = ?
-                AND f.stato = 'atteso'
-                AND ((f.data_pubblicazione IS NOT NULL AND f.data_pubblicazione < ?)
-                     OR (f.data_pubblicazione IS NULL AND a.anno < ?))"
+              WHERE f.annata_id = ? AND f.stato = 'atteso'"
         );
         if ($stmt === false) {
             SecureLogger::error('[Emeroteca] claimOverdue prepare failed: ' . $this->db->error);
             $this->flashError(__('Errore durante il sollecito dei fascicoli.'));
             return;
         }
-        $stmt->bind_param('isi', $annataId, $today, $currentYear);
+        $stmt->bind_param('i', $annataId);
         if (!$stmt->execute()) {
             SecureLogger::error('[Emeroteca] claimOverdue select failed: ' . $stmt->error);
             $stmt->close();
@@ -592,21 +661,24 @@ class IssueAdminController extends AbstractAdminController
         $res = $stmt->get_result();
         if ($res instanceof \mysqli_result) {
             while ($row = $res->fetch_assoc()) {
-                $ids[] = (int) $row['id'];
+                if ($this->isOverdue($row, $periodicita, $today)) {
+                    $candidates[(int) $row['id']] = $row;
+                }
             }
         }
         $stmt->close();
 
-        if ($ids === []) {
+        if ($candidates === []) {
             $this->flashError(__('Nessun fascicolo atteso scaduto in questa annata.'));
             return;
         }
 
+        $ids = array_keys($candidates);
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $update = $this->db->prepare(
             "UPDATE emeroteca_fascicoli
                 SET stato = 'reclamato', reclamato_il = ?, n_reclami = LEAST(n_reclami + 1, ?)
-              WHERE id IN ({$placeholders})"
+              WHERE id IN ({$placeholders}) AND stato = 'atteso'"
         );
         if ($update === false) {
             SecureLogger::error('[Emeroteca] claimOverdue update prepare failed: ' . $this->db->error);
@@ -622,21 +694,157 @@ class IssueAdminController extends AbstractAdminController
             $this->flashError(__('Errore durante il sollecito dei fascicoli.'));
             return;
         }
+        $claimed = (int) $update->affected_rows;
         $update->close();
 
-        foreach ($ids as $claimedId) {
+        if ($claimed === 0) {
+            $this->flashError(__('Nessun fascicolo atteso scaduto in questa annata.'));
+            return;
+        }
+
+        // Audit as richly as the per-issue path (review #140): which issue,
+        // from which state, with the claim counter before and after. Only the
+        // rows that really moved are logged — the post-update re-read tells
+        // them apart from the ones a concurrent receive took away.
+        foreach ($this->claimedAfterBulk($ids, $today) as $claimedId => $after) {
+            $before = $candidates[$claimedId] ?? null;
+            if ($before === null) {
+                continue;
+            }
             ActivityLog::recordEntityEvent(
                 $this->db,
                 'emeroteca_fascicoli',
                 $claimedId,
                 'issue.claimed',
-                ['stato' => 'atteso'],
-                ['stato' => 'reclamato', 'reclamato_il' => $today, 'bulk' => true],
+                [
+                    'numero'       => (string) $before['numero'],
+                    'stato'        => (string) $before['stato'],
+                    'n_reclami'    => (int) $before['n_reclami'],
+                    'reclamato_il' => $before['reclamato_il'] === null ? null : (string) $before['reclamato_il'],
+                ],
+                [
+                    'numero'       => (string) $before['numero'],
+                    'stato'        => (string) $after['stato'],
+                    'n_reclami'    => (int) $after['n_reclami'],
+                    'reclamato_il' => $after['reclamato_il'] === null ? null : (string) $after['reclamato_il'],
+                    'bulk'         => true,
+                ],
                 'aggiornamento',
                 'admin'
             );
         }
-        $this->flashSuccess(sprintf(__('%d fascicoli attesi scaduti sollecitati al fornitore.'), count($ids)));
+        $this->flashSuccess(sprintf(__('%d fascicoli attesi scaduti sollecitati al fornitore.'), $claimed));
+    }
+
+    /**
+     * Is this awaited issue late enough to deserve a supplier reminder?
+     *
+     * @param array<string, mixed> $row id/numero/data_pubblicazione/anno of an
+     *                                  awaited fascicolo
+     */
+    private function isOverdue(array $row, string $periodicita, string $today): bool
+    {
+        $dataPub = $row['data_pubblicazione'] === null ? '' : (string) $row['data_pubblicazione'];
+        if ($dataPub !== '') {
+            return $dataPub < $today;
+        }
+        $anno = (int) $row['anno'];
+        $currentYear = (int) substr($today, 0, 4);
+        if ($anno < $currentYear) {
+            return true;
+        }
+        if ($anno !== $currentYear) {
+            return false; // a future annata is not late, it is early
+        }
+        $numero = trim((string) $row['numero']);
+        if ($periodicita === '' || preg_match('/^\d{1,4}$/', $numero) !== 1) {
+            return false;
+        }
+        $due = $this->scheduledIssueDate($periodicita, $anno, (int) $numero);
+        if ($due === null) {
+            return false;
+        }
+        try {
+            $deadline = (new \DateTimeImmutable($due))
+                ->modify('+' . self::CLAIM_GRACE_DAYS . ' days')
+                ->format('Y-m-d');
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] claim schedule deadline failed: ' . $e->getMessage());
+            return false;
+        }
+        return $deadline < $today;
+    }
+
+    /**
+     * Day the n-th issue of a year closes its slot, for a known periodicita:
+     * the year is split into as many equal slots as the Kardex expects issues,
+     * and issue n is due by the end of slot n. A monthly's n. 1 is therefore
+     * due by 31 January, its n. 12 by 31 December.
+     *
+     * Null when the periodicita is unknown/irregolare or the number falls
+     * outside the year's expected run — no schedule, no deadline, no claim.
+     */
+    private function scheduledIssueDate(string $periodicita, int $anno, int $numero): ?string
+    {
+        $perYear = self::kardexIssuesForYear($periodicita, $anno);
+        if ($perYear === null || $perYear < 1 || $numero < 1 || $numero > $perYear) {
+            return null;
+        }
+        try {
+            $start = new \DateTimeImmutable(sprintf('%04d-01-01', $anno));
+            $daysInYear = (int) $start->format('L') === 1 ? 366 : 365;
+            $slotEnd = (int) ceil($numero * $daysInYear / $perYear);
+            return $start->modify('+' . ($slotEnd - 1) . ' days')->format('Y-m-d');
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] claim schedule date failed: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Re-read the issues a bulk claim targeted and keep the ones that really
+     * carry today's claim. The bulk UPDATE reports how many rows changed but
+     * not which, and a row a concurrent receive pulled out of 'atteso' must
+     * not be written into the log as claimed.
+     *
+     * @param  list<int> $ids
+     * @return array<int, array{stato:string, n_reclami:int, reclamato_il:?string}>
+     */
+    private function claimedAfterBulk(array $ids, string $today): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT id, stato, n_reclami, reclamato_il
+               FROM emeroteca_fascicoli
+              WHERE id IN ({$placeholders}) AND stato = 'reclamato' AND reclamato_il = ?"
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Emeroteca] claimOverdue audit re-read prepare failed: ' . $this->db->error);
+            return [];
+        }
+        $params = [...$ids, $today];
+        $stmt->bind_param(str_repeat('i', count($ids)) . 's', ...$params);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Emeroteca] claimOverdue audit re-read failed: ' . $stmt->error);
+            $stmt->close();
+            return [];
+        }
+        $out = [];
+        $res = $stmt->get_result();
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_assoc()) {
+                $out[(int) $row['id']] = [
+                    'stato'        => (string) $row['stato'],
+                    'n_reclami'    => (int) $row['n_reclami'],
+                    'reclamato_il' => $row['reclamato_il'] === null ? null : (string) $row['reclamato_il'],
+                ];
+            }
+        }
+        $stmt->close();
+        return $out;
     }
 
     /**
@@ -678,9 +886,20 @@ class IssueAdminController extends AbstractAdminController
         ];
     }
 
-    /** End-of-year: every 'atteso' of an annata becomes 'mancante'. */
+    /**
+     * End-of-year: every 'atteso' of an annata becomes 'mancante'.
+     *
+     * Destructive and one-way: a whole annata changes state in a single
+     * statement and no action anywhere brings a 'mancante' back to 'atteso'.
+     * AdminAuthMiddleware also admits staff, so the role is re-checked inline
+     * (internal security scan 2026-07-25), like delete() and claimOverdue().
+     */
     private function markMissing(int $testataId, int $annataId): void
     {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $this->flashError(__('Operazione riservata agli amministratori.'));
+            return;
+        }
         if (!$this->annataBelongsTo($annataId, $testataId)) {
             $this->flashError(__('Annata non trovata per questa testata.'));
             return;
@@ -729,9 +948,13 @@ class IssueAdminController extends AbstractAdminController
         $anno = (int) trim((string) ($body['anno'] ?? ''));
         $da   = (int) trim((string) ($body['numero_da'] ?? ''));
         $a    = (int) trim((string) ($body['numero_a'] ?? ''));
-        $stato = trim((string) ($body['stato'] ?? 'posseduto'));
-        if (!array_key_exists($stato, \EmerotecaPlugin::STATI_FASCICOLO)) {
+        // Validated, not coerced (review #140): see addFascicolo.
+        $stato = trim((string) ($body['stato'] ?? ''));
+        if ($stato === '') {
             $stato = 'posseduto';
+        } elseif (!array_key_exists($stato, \EmerotecaPlugin::STATI_FASCICOLO)) {
+            $this->flashError(__('Stato del fascicolo non valido.'));
+            return $this->redirect($response, $back);
         }
         if ($anno < self::ANNO_MIN || $anno > self::ANNO_MAX) {
             $this->flashError(sprintf(__('Anno non plausibile (atteso tra %d e %d).'), self::ANNO_MIN, self::ANNO_MAX));
@@ -930,9 +1153,22 @@ class IssueAdminController extends AbstractAdminController
             return $this->redirect($response, $back);
         }
         $dataPubOrNull = $dataPub === '' ? null : $dataPub;
-        $stato = trim((string) ($body['stato'] ?? 'posseduto'));
-        if (!array_key_exists($stato, \EmerotecaPlugin::STATI_FASCICOLO)) {
-            $stato = 'posseduto';
+        // stato is the most consequential column of the row: it drives the
+        // holdings, the consistency string, the public catalogue and the
+        // claims. It is therefore validated like its neighbours (condizione,
+        // acquisizione, prezzo) and NEVER coerced (review #140) — an unknown
+        // value aborts the save instead of sliding the issue into the most
+        // optimistic state. Absent from the POST it keeps the state the row
+        // already has: editing an unrelated field must not silently turn a
+        // 'mancante' fascicolo into a 'posseduto' one.
+        $statoRaw = trim((string) ($body['stato'] ?? ''));
+        if ($statoRaw === '') {
+            $stato = (string) ($fascicolo['stato'] ?? 'posseduto');
+        } elseif (array_key_exists($statoRaw, \EmerotecaPlugin::STATI_FASCICOLO)) {
+            $stato = $statoRaw;
+        } else {
+            $this->flashError(__('Stato del fascicolo non valido.'));
+            return $this->redirect($response, $back);
         }
         // Pages column is SMALLINT: values over 32767 are an explicit
         // validation error, not a silent NULL (#140). Checked before the
@@ -974,15 +1210,22 @@ class IssueAdminController extends AbstractAdminController
         }
         // Barcode: EAN-13 (13 digits) plus an optional add-on that encodes
         // the issue — up to 18 characters in total, which is why the column
-        // is wider than a plain EAN-13. Left empty it falls back to the
-        // testata's base, so a scanner at least resolves the title.
+        // is wider than a plain EAN-13.
+        //
+        // Left empty it STAYS empty (review #140). It used to be back-filled
+        // with the testata's barcode_base, which handed every fascicolo of a
+        // title the same code: the column has a non-UNIQUE key, so a scan at
+        // the desk resolved to whichever issue came first — normally n. 1 —
+        // and the operator recorded the arrival on the wrong issue while the
+        // real one stayed 'atteso' and went into the supplier reminder.
+        // Nothing is lost: the base is already the third resolution step of
+        // the scan lookup and the fallback of the label renderer, so an empty
+        // barcode still resolves to the title. What belongs HERE is the full
+        // EAN with its add-on, which genuinely identifies the issue.
         $barcode = mb_substr(trim(strip_tags((string) ($body['barcode'] ?? ''))), 0, 18);
         if ($barcode !== '' && preg_match('/^\d{8,18}$/', $barcode) !== 1) {
             $this->flashError(__('Barcode non valido: sono ammesse solo cifre (EAN-13 con eventuale add-on).'));
             return $this->redirect($response, $back);
-        }
-        if ($barcode === '') {
-            $barcode = (string) ($this->testataDefaults((int) $fascicolo['annata_id'])['barcode_base'] ?? '');
         }
         $barcodeOrNull = $barcode === '' ? null : $barcode;
 
@@ -1075,8 +1318,12 @@ class IssueAdminController extends AbstractAdminController
         $supplementi       = $str('supplementi', 500);
         $note              = $str('note', 65535);
 
+        // Never nest: begin_transaction() inside a caller's transaction
+        // implicitly commits it, and an unconditional rollback() would undo
+        // work this method does not own (review #140).
+        $ownsTx = !$this->hasActiveTransaction();
         try {
-            if (!$this->db->begin_transaction()) {
+            if ($ownsTx && !$this->db->begin_transaction()) {
                 throw new \RuntimeException('could not start issue-save transaction');
             }
             $stmt = $this->db->prepare(
@@ -1126,9 +1373,21 @@ class IssueAdminController extends AbstractAdminController
             }
             $stmt->close();
             $this->replaceArticles($id, $body);
-            $this->db->commit();
+            if ($ownsTx) {
+                $this->db->commit();
+            }
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            if ($ownsTx) {
+                try {
+                    $this->db->rollback();
+                } catch (\Throwable $rollbackError) {
+                    SecureLogger::error('[Emeroteca] issue save rollback failed: ' . $rollbackError->getMessage());
+                }
+            }
+            // When a caller owns the transaction the undo is the caller's:
+            // rolling back here would discard work outside this save. As a
+            // route handler this branch cannot be reached — the log line is
+            // the trace if it ever is.
             SecureLogger::error('[Emeroteca] atomic issue save failed: ' . $e->getMessage());
             if ($newCoverUploaded) {
                 $this->deleteUploadedCover($copertinaUrl);
@@ -1168,6 +1427,12 @@ class IssueAdminController extends AbstractAdminController
                 'condizione'         => $condizioneOrNull,
                 'acquisizione'       => $acquisizioneOrNull,
                 'prezzo'             => $prezzo,
+                // Carried through unchanged so the diff does not read as if
+                // every save wiped the claim history (review #140): the
+                // "before" snapshot has them, this form does not touch them,
+                // and a field present on one side only looks like a deletion.
+                'reclamato_il'       => $fascicolo['reclamato_il'] ?? null,
+                'n_reclami'          => $fascicolo['n_reclami'] ?? null,
                 'supplementi'        => $supplementi,
                 'pdf_pubblico'       => $pdfPubblico,
             ]),
@@ -1257,6 +1522,54 @@ class IssueAdminController extends AbstractAdminController
     }
 
     // ── Internals ─────────────────────────────────────────────────────
+
+    /**
+     * Detect both autocommit(false) and an explicit begin_transaction() (the
+     * latter leaves @@autocommit enabled), using the same disposable savepoint
+     * probe as App\Models\GenereRepository.
+     *
+     * PRIVATE COPY of PeriodicalAdminController::hasActiveTransaction() — that
+     * one is the original and the two must stay identical. It lives on the
+     * concrete sibling class rather than on the shared
+     * AbstractAdminController, which belongs to another workstream; when the
+     * probe is eventually promoted to the parent, delete both copies rather
+     * than letting them drift.
+     */
+    private function hasActiveTransaction(): bool
+    {
+        $result = $this->db->query('SELECT @@autocommit AS ac');
+        if ($result instanceof \mysqli_result) {
+            $row = $result->fetch_assoc();
+            $result->free();
+            if ((int) ($row['ac'] ?? 1) === 0) {
+                return true;
+            }
+        }
+
+        $probe = 'pinakes_emeroteca_probe_' . bin2hex(random_bytes(6));
+        $probeCreated = false;
+        try {
+            if (!$this->db->query("SAVEPOINT {$probe}")) {
+                return false;
+            }
+            $probeCreated = true;
+            if (!$this->db->query("ROLLBACK TO SAVEPOINT {$probe}")) {
+                return false;
+            }
+            return true;
+        } catch (\mysqli_sql_exception) {
+            return false;
+        } finally {
+            if ($probeCreated) {
+                try {
+                    $this->db->query("RELEASE SAVEPOINT {$probe}");
+                } catch (\mysqli_sql_exception) {
+                    // The caller still owns its transaction; a failed cleanup
+                    // of this disposable probe must not change that.
+                }
+            }
+        }
+    }
 
     /**
      * Reduce a fascicolo row (or the freshly validated values) to the fields
@@ -1408,8 +1721,11 @@ class IssueAdminController extends AbstractAdminController
     {
         $created = 0;
         $skipped = 0;
+        // See update(): never nest, never roll back a transaction owned by a
+        // caller (review #140).
+        $ownsTx = !$this->hasActiveTransaction();
         try {
-            if (!$this->db->begin_transaction()) {
+            if ($ownsTx && !$this->db->begin_transaction()) {
                 throw new \RuntimeException('could not start bulk-create transaction');
             }
             // Serialize generators for the same annata. Without this parent-row
@@ -1468,9 +1784,17 @@ class IssueAdminController extends AbstractAdminController
                 $created++;
             }
             $ins->close();
-            $this->db->commit();
+            if ($ownsTx) {
+                $this->db->commit();
+            }
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            if ($ownsTx) {
+                try {
+                    $this->db->rollback();
+                } catch (\Throwable $rollbackError) {
+                    SecureLogger::error('[Emeroteca] bulk-create rollback failed: ' . $rollbackError->getMessage());
+                }
+            }
             SecureLogger::error('[Emeroteca] insertNumberedIssues: ' . $e->getMessage());
             return [0, 0, false];
         }

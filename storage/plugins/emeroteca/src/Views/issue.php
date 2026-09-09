@@ -249,7 +249,7 @@ $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
                            class="form-input font-mono text-sm">
                     <?php if ($testataBarcode !== ''): ?>
                         <p class="mt-1 text-xs text-gray-500">
-                            <?= __("Se lasciato vuoto viene usato il barcode di base della testata.") ?>
+                            <?= __("Se lasciato vuoto, per la scansione e le etichette vale il barcode di base della testata.") ?>
                         </p>
                     <?php endif; ?>
                 </div>

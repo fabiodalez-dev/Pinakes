@@ -170,11 +170,15 @@ class PeriodicalAdminController extends AbstractAdminController
     }
 
     /**
-     * Aggregated holdings for a set of testate in ONE query (review #140):
-     * counts of posseduti/mancanti plus the year range of owned issues,
-     * from which the same consistenza string as
-     * EmerotecaPlugin::consistenzaTestata() is derived. Every requested id
-     * gets an entry (zero counts and '—' when the testata has no annate).
+     * Aggregated holdings for a set of testate in TWO queries (review #140):
+     * counts of posseduti/mancanti plus the year range of owned issues, and
+     * the declared consistenza of their annate. From those the same
+     * consistenza string as EmerotecaPlugin::consistenzaTestata() is derived
+     * — same canonical rule everywhere: the DECLARED consistenza is APPENDED
+     * to the computed one (never replaces it) after a ' · ', it stands alone
+     * when nothing is computed, and '—' is the sentinel for "nothing at all".
+     * Every requested id gets an entry (zero counts and '—' when the testata
+     * has no annate).
      *
      * @param array<int, int> $testataIds
      * @return array<int, array{n_posseduti:int, n_mancanti:int, consistenza:string}>
@@ -238,6 +242,69 @@ class PeriodicalAdminController extends AbstractAdminController
                     'n_mancanti'  => $lacune,
                     'consistenza' => $consistenza,
                 ];
+            }
+        }
+        $stmt->close();
+
+        // The declared consistenza is APPENDED, exactly like
+        // consistenzaTestata() does: it documents holdings the issue records
+        // do not carry yet, so dropping the computed part would hide what IS
+        // recorded (and the admin list would disagree with the issues page).
+        foreach ($this->declaredHoldings($ids) as $id => $dichiarata) {
+            if (!isset($out[$id]) || $dichiarata === '') {
+                continue;
+            }
+            $out[$id]['consistenza'] = $out[$id]['consistenza'] === '—'
+                ? $dichiarata
+                : $out[$id]['consistenza'] . ' · ' . $dichiarata;
+        }
+        return $out;
+    }
+
+    /**
+     * The declared consistenza of a set of testate, concatenated per testata
+     * in ONE query with the very same shape as the subquery inside
+     * EmerotecaPlugin::consistenzaTestata() (empty strings skipped, annate
+     * ordered by year, '; ' separator) so the two surfaces cannot drift.
+     *
+     * A separate statement rather than a GROUP_CONCAT bolted onto the
+     * holdings aggregate: that one joins the issues, which would repeat every
+     * annata once per issue, and GROUP_CONCAT(DISTINCT …) cannot be ordered
+     * by another column.
+     *
+     * @param list<int> $ids already sanitised, non-empty
+     * @return array<int, string>
+     */
+    private function declaredHoldings(array $ids): array
+    {
+        $out = [];
+        if ($ids === []) {
+            return $out;
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT testata_id,
+                    GROUP_CONCAT(consistenza_dichiarata ORDER BY anno SEPARATOR '; ') AS dichiarata
+               FROM emeroteca_annate
+              WHERE testata_id IN ({$placeholders})
+                AND consistenza_dichiarata IS NOT NULL
+                AND consistenza_dichiarata <> ''
+              GROUP BY testata_id"
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Emeroteca] declared holdings prepare failed: ' . $this->db->error);
+            return $out;
+        }
+        $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Emeroteca] declared holdings failed: ' . $stmt->error);
+            $stmt->close();
+            return $out;
+        }
+        $res = $stmt->get_result();
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_assoc()) {
+                $out[(int) $row['testata_id']] = trim((string) ($row['dichiarata'] ?? ''));
             }
         }
         $stmt->close();
@@ -814,6 +881,9 @@ class PeriodicalAdminController extends AbstractAdminController
                 'fascicoli_spostati' => $summary['fascicoli_spostati'],
                 'fascicoli_rinumerati' => count($summary['rinumerati']),
                 'abbonamenti_spostati' => $summary['abbonamenti_spostati'],
+                'link_azzerati'        => array_column($summary['link_azzerati'], 'id'),
+                'precedente_ereditato' => $summary['precedente_ereditato']['id'] ?? null,
+                'precedente_scartato'  => $summary['precedente_scartato']['id'] ?? null,
             ],
             'aggiornamento',
             'admin'
@@ -826,7 +896,33 @@ class PeriodicalAdminController extends AbstractAdminController
             $this->deleteManagedImageIfUnreferenced($sourceLogo);
         }
 
-        $this->flashSuccess(__('Testate unite con successo.'));
+        // The title-history repairs belong on the summary SCREEN, not only in
+        // the audit log: a link the merge had to drop is a relation the
+        // operator has to re-enter by hand, so it is named here. The flash is
+        // rendered (and consumed) by the very response built below.
+        $notes = [];
+        if ($summary['link_azzerati'] !== []) {
+            $notes[] = sprintf(
+                __('Collegamento alla testata precedente azzerato per evitare un ciclo: %s'),
+                implode(', ', array_map(
+                    static fn(array $t): string => (string) $t['titolo'],
+                    $summary['link_azzerati']
+                ))
+            );
+        }
+        if ($summary['precedente_ereditato'] !== null) {
+            $notes[] = sprintf(
+                __('Testata precedente ereditata dalla testata di origine: «%s».'),
+                (string) $summary['precedente_ereditato']['titolo']
+            );
+        }
+        if ($summary['precedente_scartato'] !== null) {
+            $notes[] = sprintf(
+                __('Relazione non conservata: la testata di origine era preceduta da «%s»; la testata di destinazione mantiene la propria.'),
+                (string) $summary['precedente_scartato']['titolo']
+            );
+        }
+        $this->flashSuccess(trim(__('Testate unite con successo.') . ' ' . implode(' ', $notes)));
         return $this->renderView($response, 'merge', [
             'mode'             => 'done',
             'testate'          => [$target],
@@ -845,7 +941,10 @@ class PeriodicalAdminController extends AbstractAdminController
      *
      * @return array{annate_spostate:int, annate_fuse:int, fascicoli_spostati:int,
      *               abbonamenti_spostati:int, testate_ricollegate:int,
-     *               rinumerati:list<array{anno:int, numero:string, nuovo:string, lato:string}>}
+     *               rinumerati:list<array{anno:int, numero:string, nuovo:string, lato:string}>,
+     *               link_azzerati:list<array{id:int, titolo:string}>,
+     *               precedente_ereditato:array{id:int, titolo:string}|null,
+     *               precedente_scartato:array{id:int, titolo:string}|null}
      * @throws \RuntimeException on any inconsistency — the caller rolls back.
      */
     private function performMerge(int $sourceId, int $targetId): array
@@ -857,11 +956,18 @@ class PeriodicalAdminController extends AbstractAdminController
             'abbonamenti_spostati' => 0,
             'testate_ricollegate'  => 0,
             'rinumerati'           => [],
+            'link_azzerati'        => [],
+            'precedente_ereditato' => null,
+            'precedente_scartato'  => null,
         ];
 
         $ownsTx = !$this->hasActiveTransaction();
-        if ($ownsTx) {
-            $this->db->begin_transaction();
+        if ($ownsTx && !$this->db->begin_transaction()) {
+            // Never assume the transaction opened: under MYSQLI_REPORT_OFF a
+            // failure here is silent, every statement below would run in
+            // autocommit and the rollback that protects the issue-count
+            // invariant would be a no-op — with the source already deleted.
+            throw new \RuntimeException('merge: begin_transaction failed: ' . $this->db->error);
         }
         try {
             // Lock both titles for the whole operation, lowest id first so two
@@ -892,7 +998,23 @@ class PeriodicalAdminController extends AbstractAdminController
                     continue;
                 }
 
-                // Collision on (anno, volume): fuse the issues one by one.
+                // Collision on (anno, volume). First the cheap half in ONE
+                // statement: every source issue whose number is still free in
+                // the destination changes owner at once. The unique key
+                // (annata_id, numero) guarantees at most one candidate per
+                // number on either side, so no duplicate can be created and
+                // the two row sets are disjoint (different annata_id).
+                $summary['fascicoli_spostati'] += $this->exec(
+                    'UPDATE emeroteca_fascicoli src
+                       LEFT JOIN emeroteca_fascicoli dst
+                              ON dst.annata_id = ? AND dst.numero = src.numero
+                        SET src.annata_id = ?
+                      WHERE src.annata_id = ? AND dst.id IS NULL',
+                    'iii',
+                    [$destAnnataId, $destAnnataId, $srcAnnataId]
+                );
+
+                // What is left genuinely collides: fuse those one by one.
                 foreach ($this->lockedIssues($srcAnnataId) as $issue) {
                     $srcIssueId = (int) $issue['id'];
                     $numero = (string) $issue['numero'];
@@ -964,22 +1086,30 @@ class PeriodicalAdminController extends AbstractAdminController
                 [$targetId, $sourceId]
             );
 
-            // Title history: other titles that continued FROM the source now
-            // continue from the survivor. ON DELETE SET NULL would otherwise
-            // erase the link when the source row goes.
-            $summary['testate_ricollegate'] = $this->exec(
-                'UPDATE emeroteca_testate SET testata_precedente_id = ?
-                  WHERE testata_precedente_id = ? AND id <> ?',
-                'iii',
-                [$targetId, $sourceId, $targetId]
-            );
-            // …except the survivor itself, which cannot precede itself.
+            // Title history, in this order:
+            //   1. the survivor cannot precede itself, so a link from the
+            //      survivor to the source goes first — and going first also
+            //      keeps the cycle walks below off the doomed row;
+            //   2. the survivor INHERITS the source's own predecessor when it
+            //      has none, otherwise that relation is reported as lost;
+            //   3. the titles that continued FROM the source are repointed at
+            //      the survivor, one by one, each checked against the whole
+            //      predecessor chain — a link that would close a cycle is
+            //      dropped instead, never committed.
             $this->exec(
                 'UPDATE emeroteca_testate SET testata_precedente_id = NULL
                   WHERE id = ? AND testata_precedente_id = ?',
                 'ii',
                 [$targetId, $sourceId]
             );
+
+            $inherited = $this->inheritPredecessor($sourceId, $targetId);
+            $summary['precedente_ereditato'] = $inherited['ereditato'];
+            $summary['precedente_scartato']  = $inherited['scartato'];
+
+            $relinked = $this->relinkFollowers($sourceId, $targetId);
+            $summary['testate_ricollegate'] = $relinked['ricollegate'];
+            $summary['link_azzerati']       = $relinked['azzerati'];
 
             $leftover = $this->countAnnate($sourceId);
             if ($leftover !== 0) {
@@ -1009,6 +1139,156 @@ class PeriodicalAdminController extends AbstractAdminController
         }
 
         return $summary;
+    }
+
+    /**
+     * The survivor inherits the source's predecessor when it has none of its
+     * own: the source row is about to disappear and with it the only record
+     * of what THAT title continued from.
+     *
+     * Refused (and reported as a lost relation) when the survivor already
+     * declares a different predecessor — the operator chose that title as the
+     * survivor, so its own history wins — or when inheriting would close a
+     * predecessor cycle.
+     *
+     * @return array{ereditato:array{id:int, titolo:string}|null,
+     *               scartato:array{id:int, titolo:string}|null}
+     */
+    private function inheritPredecessor(int $sourceId, int $targetId): array
+    {
+        $out = ['ereditato' => null, 'scartato' => null];
+
+        $source = $this->titleRow($sourceId);
+        $sourcePrev = $source['precedente'] ?? null;
+        if ($sourcePrev === null || $sourcePrev === $targetId || $sourcePrev === $sourceId) {
+            return $out;
+        }
+        $prev = $this->titleRow($sourcePrev);
+        if ($prev === null) {
+            return $out;
+        }
+        $label = ['id' => $prev['id'], 'titolo' => $prev['titolo']];
+
+        $target = $this->titleRow($targetId);
+        $targetPrev = $target['precedente'] ?? null;
+        if ($targetPrev !== null) {
+            // Same predecessor on both sides: nothing gained, nothing lost.
+            if ($targetPrev !== $sourcePrev) {
+                $out['scartato'] = $label;
+            }
+            return $out;
+        }
+        if ($this->wouldCreateTitleCycle($targetId, $sourcePrev)) {
+            $out['scartato'] = $label;
+            return $out;
+        }
+        $this->exec(
+            'UPDATE emeroteca_testate SET testata_precedente_id = ? WHERE id = ?',
+            'ii',
+            [$sourcePrev, $targetId]
+        );
+        $out['ereditato'] = $label;
+        return $out;
+    }
+
+    /**
+     * Repoint at the survivor every OTHER title that continued from the
+     * source (ON DELETE SET NULL would erase the link when the source row
+     * goes), row by row instead of in one blind UPDATE.
+     *
+     * The blind version only ruled out the one-hop cycle "the survivor
+     * precedes itself" and happily committed longer ones: with S → X → T
+     * (X continues from the source, the survivor continues from X) it left
+     * X ⇄ T, which no form can undo afterwards because validate() rejects
+     * every save that touches either title. So each candidate is walked
+     * through the same wouldCreateTitleCycle() the form uses, and a link that
+     * would close a cycle is set to NULL and reported instead.
+     *
+     * @return array{ricollegate:int, azzerati:list<array{id:int, titolo:string}>}
+     */
+    private function relinkFollowers(int $sourceId, int $targetId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, titolo FROM emeroteca_testate
+              WHERE testata_precedente_id = ? AND id <> ? ORDER BY id FOR UPDATE'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException('merge: followers lock prepare failed: ' . $this->db->error);
+        }
+        $stmt->bind_param('ii', $sourceId, $targetId);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('merge: followers lock failed: ' . $error);
+        }
+        $followers = [];
+        $res = $stmt->get_result();
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_assoc()) {
+                $followers[] = $row;
+            }
+        }
+        $stmt->close();
+
+        $out = ['ricollegate' => 0, 'azzerati' => []];
+        foreach ($followers as $follower) {
+            $id = (int) $follower['id'];
+            // Walks the survivor's predecessor chain: true when the follower
+            // is already an ancestor of the survivor, i.e. exactly when the
+            // new link would close the loop.
+            if ($this->wouldCreateTitleCycle($id, $targetId)) {
+                $this->exec(
+                    'UPDATE emeroteca_testate SET testata_precedente_id = NULL WHERE id = ?',
+                    'i',
+                    [$id]
+                );
+                $out['azzerati'][] = ['id' => $id, 'titolo' => (string) $follower['titolo']];
+                continue;
+            }
+            $out['ricollegate'] += $this->exec(
+                'UPDATE emeroteca_testate SET testata_precedente_id = ? WHERE id = ?',
+                'ii',
+                [$targetId, $id]
+            );
+        }
+        return $out;
+    }
+
+    /**
+     * Identity + predecessor of one title, read inside the merge transaction.
+     * No FOR UPDATE: the two merged rows are already locked by lockTestate()
+     * and locking a third, arbitrary row (the predecessor) would only add a
+     * deadlock surface for no gain.
+     *
+     * @return array{id:int, titolo:string, precedente:int|null}|null
+     */
+    private function titleRow(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, titolo, testata_precedente_id FROM emeroteca_testate WHERE id = ? LIMIT 1'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException('merge: title probe prepare failed: ' . $this->db->error);
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('merge: title probe failed: ' . $error);
+        }
+        $res = $stmt->get_result();
+        $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if (!is_array($row)) {
+            return null;
+        }
+        return [
+            'id'         => (int) $row['id'],
+            'titolo'     => (string) $row['titolo'],
+            'precedente' => $row['testata_precedente_id'] !== null
+                ? (int) $row['testata_precedente_id']
+                : null,
+        ];
     }
 
     /**
