@@ -28,6 +28,10 @@ class MODSFormatter extends RecordFormatter
         $mods = $this->doc->createElementNS(self::NS_MODS, 'mods');
         $mods->setAttribute('version', '3.6');
 
+        // Issue #140: Emeroteca mastheads reuse this formatter, flagged by
+        // _record_type; serial-only elements below key off it.
+        $isSerial = ($record['_record_type'] ?? '') === 'periodical';
+
         // Title Info
         if (!empty($record['titolo'])) {
             $titleInfo = $this->doc->createElement('titleInfo');
@@ -60,9 +64,20 @@ class MODSFormatter extends RecordFormatter
             $role->appendChild($roleTerm);
         }
 
-        // Type of Resource (derived from tipo_media, mirroring MediaLabels)
-        $typeOfResource = $this->doc->createElement('typeOfResource', $this->typeOfResource($record['tipo_media'] ?? null));
+        // Type of Resource (derived from tipo_media, mirroring MediaLabels).
+        // A masthead is always textual continuing material.
+        $typeOfResource = $this->doc->createElement(
+            'typeOfResource',
+            $isSerial ? 'text' : $this->typeOfResource($record['tipo_media'] ?? null)
+        );
         $mods->appendChild($typeOfResource);
+
+        // Genre — marcgt 'periodical' for serials, on top of the local genre.
+        if ($isSerial) {
+            $serialGenre = $this->doc->createElement('genre', 'periodical');
+            $serialGenre->setAttribute('authority', 'marcgt');
+            $mods->appendChild($serialGenre);
+        }
 
         // Genre
         if (!empty($record['genere'])) {
@@ -75,6 +90,15 @@ class MODSFormatter extends RecordFormatter
         $originInfo = $this->doc->createElement('originInfo');
         $mods->appendChild($originInfo);
 
+        // Place of publication (mastheads carry luogo_pubblicazione)
+        if (!empty($record['luogo_pubblicazione'])) {
+            $place = $this->doc->createElement('place');
+            $originInfo->appendChild($place);
+            $placeTerm = $this->doc->createElement('placeTerm', $this->escapeXml((string) $record['luogo_pubblicazione']));
+            $placeTerm->setAttribute('type', 'text');
+            $place->appendChild($placeTerm);
+        }
+
         // Publisher (repeatable: primary + co-publishers, #143)
         foreach ($this->publisherNames($record) as $publisherName) {
             $publisher = $this->doc->createElement('publisher', $this->escapeXml($publisherName));
@@ -82,8 +106,33 @@ class MODSFormatter extends RecordFormatter
         }
 
         if (!empty($record['anno_pubblicazione'])) {
-            $dateIssued = $this->doc->createElement('dateIssued', $this->escapeXml((string) $record['anno_pubblicazione']));
-            $originInfo->appendChild($dateIssued);
+            // A serial's run is expressed as start/end points, not one date.
+            if ($isSerial) {
+                $start = $this->doc->createElement('dateIssued', $this->escapeXml((string) $record['anno_pubblicazione']));
+                $start->setAttribute('point', 'start');
+                $start->setAttribute('encoding', 'marc');
+                $originInfo->appendChild($start);
+                if (!empty($record['anno_fine'])) {
+                    $end = $this->doc->createElement('dateIssued', $this->escapeXml((string) $record['anno_fine']));
+                    $end->setAttribute('point', 'end');
+                    $end->setAttribute('encoding', 'marc');
+                    $originInfo->appendChild($end);
+                }
+            } else {
+                $dateIssued = $this->doc->createElement('dateIssued', $this->escapeXml((string) $record['anno_pubblicazione']));
+                $originInfo->appendChild($dateIssued);
+            }
+        }
+
+        // Continuing-resource statements
+        if ($isSerial) {
+            // A periodical is 'continuing' whether or not the run has closed —
+            // the closing year is carried by dateIssued@point="end" above.
+            $originInfo->appendChild($this->doc->createElement('issuance', 'continuing'));
+            if (!empty($record['periodicita'])) {
+                $frequency = $this->doc->createElement('frequency', $this->escapeXml((string) $record['periodicita']));
+                $originInfo->appendChild($frequency);
+            }
         }
 
         if (!empty($record['edizione'])) {
@@ -180,6 +229,28 @@ class MODSFormatter extends RecordFormatter
             $mods->appendChild($identifier);
         }
 
+        // ISSN identifiers — print, electronic and linking (ISSN-L).
+        foreach ([
+            'issn'   => 'issn',
+            'e_issn' => 'issn-e',
+            'issn_l' => 'issn-l',
+        ] as $issnKey => $issnType) {
+            $issnValue = trim((string) ($record[$issnKey] ?? ''));
+            if ($issnValue === '') {
+                continue;
+            }
+            $identifier = $this->doc->createElement('identifier', $this->escapeXml($issnValue));
+            $identifier->setAttribute('type', $issnType);
+            $mods->appendChild($identifier);
+        }
+
+        // Holdings / numbering statement of a serial.
+        if (!empty($record['numerazione'])) {
+            $numbering = $this->doc->createElement('note', $this->escapeXml((string) $record['numerazione']));
+            $numbering->setAttribute('type', 'numbering');
+            $mods->appendChild($numbering);
+        }
+
         // Related Item (Series)
         if (!empty($record['collana'])) {
             $relatedItem = $this->doc->createElement('relatedItem');
@@ -203,6 +274,17 @@ class MODSFormatter extends RecordFormatter
                 $number = $this->doc->createElement('number', $this->escapeXml($record['numero_serie']));
                 $detail->appendChild($number);
             }
+        }
+
+        // Location (public record URL)
+        if (!empty($record['public_url'])) {
+            $location = $this->doc->createElement('location');
+            $mods->appendChild($location);
+
+            $url = $this->doc->createElement('url', $this->escapeXml((string) $record['public_url']));
+            $url->setAttribute('displayLabel', 'Catalogue record');
+            $url->setAttribute('access', 'object in context');
+            $location->appendChild($url);
         }
 
         // Location (URL for cover image)

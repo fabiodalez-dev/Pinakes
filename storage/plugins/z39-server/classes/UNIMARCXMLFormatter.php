@@ -40,8 +40,16 @@ class UNIMARCXMLFormatter extends RecordFormatter
         $recordEl = $this->doc->createElementNS(self::NS_MARCXCHANGE, 'record');
         $recordEl->setAttribute('type', 'Bibliographic');
 
-        // Leader — 'nam': text language material, monograph
-        $recordEl->appendChild($this->doc->createElement('leader', '00000nam a2200000 u 4500'));
+        // Issue #140: Emeroteca mastheads reuse this formatter, flagged by
+        // _record_type; serial-only fields (011/207/326) key off it.
+        $isSerial = ($record['_record_type'] ?? '') === 'periodical';
+
+        // Leader — 'nam': text language material, monograph.
+        // 'nas' for a serial (position 7 = bibliographic level 's').
+        $recordEl->appendChild($this->doc->createElement(
+            'leader',
+            $isSerial ? '00000nas a2200000 u 4500' : '00000nam a2200000 u 4500'
+        ));
 
         // 001 — Control number (local book ID)
         $recordEl->appendChild($this->cf('001', (string) ($record['id'] ?? '')));
@@ -82,6 +90,19 @@ class UNIMARCXMLFormatter extends RecordFormatter
             $recordEl->appendChild($this->df('010', ' ', ' ', [['a', $isbn]]));
         }
 
+        // 011 — ISSN ($a print, $f electronic, $y ISSN-L is not defined:
+        // the linking ISSN travels in $a of a dedicated field per UNIMARC use)
+        $issn   = trim((string) ($record['issn'] ?? ''));
+        $eIssn  = trim((string) ($record['e_issn'] ?? ''));
+        $issnL  = trim((string) ($record['issn_l'] ?? ''));
+        if ($issn !== '' || $eIssn !== '' || $issnL !== '') {
+            $subs011 = [];
+            if ($issn !== '')  { $subs011[] = ['a', $issn]; }
+            if ($eIssn !== '') { $subs011[] = ['f', $eIssn]; }
+            if ($issnL !== '') { $subs011[] = ['g', $issnL]; }
+            $recordEl->appendChild($this->df('011', ' ', ' ', $subs011));
+        }
+
         // 101 — Language of document
         $recordEl->appendChild($this->df('101', '0', ' ', [['a', $langCode]]));
 
@@ -108,13 +129,27 @@ class UNIMARCXMLFormatter extends RecordFormatter
             $recordEl->appendChild($this->df('205', ' ', ' ', [['a', (string) $record['edizione']]]));
         }
 
+        // 207 — Numbering of a serial: the holdings/numbering statement.
+        if (!empty($record['numerazione'])) {
+            $recordEl->appendChild($this->df('207', ' ', '0', [['a', (string) $record['numerazione']]]));
+        }
+
         // 210 — Publication, distribution, manufacture
         $subs210 = [];
+        // $a — place of publication (mastheads carry luogo_pubblicazione).
+        if (!empty($record['luogo_pubblicazione'])) {
+            $subs210[] = ['a', (string) $record['luogo_pubblicazione']];
+        }
         // Repeatable $c — primary publisher plus co-publishers (#143)
         foreach ($this->publisherNames($record) as $publisherName) {
             $subs210[] = ['c', $publisherName];
         }
-        if ($year !== '') {
+        if ($year !== '' && $isSerial) {
+            // Serials state the run, not a single year.
+            $subs210[] = ['d', !empty($record['anno_fine'])
+                ? $year . '-' . (string) $record['anno_fine']
+                : $year . '-'];
+        } elseif ($year !== '') {
             $subs210[] = ['d', $year];
         }
         if ($subs210 !== []) {
@@ -135,6 +170,11 @@ class UNIMARCXMLFormatter extends RecordFormatter
                 $subs225[] = ['v', (string) $record['numero_serie']];
             }
             $recordEl->appendChild($this->df('225', '0', ' ', $subs225));
+        }
+
+        // 326 — Frequency statement (continuing resources)
+        if (!empty($record['periodicita'])) {
+            $recordEl->appendChild($this->df('326', ' ', ' ', [['a', (string) $record['periodicita']]]));
         }
 
         // 330 — Abstract / summary
@@ -180,6 +220,11 @@ class UNIMARCXMLFormatter extends RecordFormatter
                 ['a', $contributor['nome']],
                 ['4', UnimarcLibriParser::relatorForRole($contributor['ruolo'])],
             ]));
+        }
+
+        // 856 — Electronic location and access (public record URL)
+        if (!empty($record['public_url'])) {
+            $recordEl->appendChild($this->df('856', '4', ' ', [['u', (string) $record['public_url']]]));
         }
 
         // 801 — Originating source

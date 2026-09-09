@@ -29,6 +29,10 @@ class DublinCoreFormatter extends RecordFormatter
         $dcRecord = $this->doc->createElementNS(self::NS_OAI_DC, 'oai_dc:dc');
         $dcRecord->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:dc', self::NS_DC);
 
+        // Issue #140: Emeroteca mastheads share this pipeline, flagged by
+        // _record_type — the serial-only elements below key off it.
+        $isSerial = ($record['_record_type'] ?? '') === 'periodical';
+
         // Title - dc:title
         if (!empty($record['titolo'])) {
             $title = $record['titolo'];
@@ -70,14 +74,36 @@ class DublinCoreFormatter extends RecordFormatter
             $dcRecord->appendChild($this->createElement('publisher', $publisher));
         }
 
-        // Date - dc:date
+        // Frequency note — Dublin Core has no frequency element, so a serial's
+        // periodicity travels as a qualified description.
+        if ($isSerial && !empty($record['periodicita'])) {
+            $dcRecord->appendChild($this->createElement('description', 'Periodicity: ' . (string) $record['periodicita']));
+        }
+
+        // Date - dc:date. Serials state the run of the title, keeping the
+        // trailing separator open while publication continues.
         if (!empty($record['anno_pubblicazione'])) {
-            $dcRecord->appendChild($this->createElement('date', (string) $record['anno_pubblicazione']));
+            $date = (string) $record['anno_pubblicazione'];
+            if ($isSerial) {
+                $date = !empty($record['anno_fine']) ? $date . '-' . (string) $record['anno_fine'] : $date . '-';
+            }
+            $dcRecord->appendChild($this->createElement('date', $date));
+        } elseif ($isSerial && !empty($record['anno_fine'])) {
+            $dcRecord->appendChild($this->createElement('date', '-' . (string) $record['anno_fine']));
         }
 
         // Type - dc:type (DCMI Type derived from tipo_media, mirroring how
-        // MediaLabels maps media type for the web/Schema.org)
-        $dcRecord->appendChild($this->createElement('type', $this->dcmiType($record['tipo_media'] ?? null)));
+        // MediaLabels maps media type for the web/Schema.org). Serials add the
+        // generic 'Periodical' plus the local flavour (rivista, giornale, …).
+        if ($isSerial) {
+            $dcRecord->appendChild($this->createElement('type', 'Text'));
+            $dcRecord->appendChild($this->createElement('type', 'Periodical'));
+            if (!empty($record['tipo_periodico'])) {
+                $dcRecord->appendChild($this->createElement('type', ucfirst((string) $record['tipo_periodico'])));
+            }
+        } else {
+            $dcRecord->appendChild($this->createElement('type', $this->dcmiType($record['tipo_media'] ?? null)));
+        }
 
         // Format - dc:format
         if (!empty($record['formato'])) {
@@ -96,9 +122,30 @@ class DublinCoreFormatter extends RecordFormatter
             $dcRecord->appendChild($this->createElement('identifier', 'EAN:' . $record['ean']));
         }
 
+        // ISSN identifiers (print / electronic / linking) as URNs, deduplicated.
+        $seenIssn = [];
+        foreach (['issn', 'e_issn', 'issn_l'] as $issnKey) {
+            $issn = strtoupper(trim((string) ($record[$issnKey] ?? '')));
+            if ($issn === '' || isset($seenIssn[$issn])) {
+                continue;
+            }
+            $seenIssn[$issn] = true;
+            $dcRecord->appendChild($this->createElement('identifier', 'urn:ISSN:' . $issn));
+        }
+
+        // Absolute public URL of the record, when the source provides one.
+        if (!empty($record['public_url'])) {
+            $dcRecord->appendChild($this->createElement('identifier', (string) $record['public_url']));
+        }
+
         // Language - dc:language
         if (!empty($record['lingua'])) {
             $dcRecord->appendChild($this->createElement('language', $record['lingua']));
+        }
+
+        // Coverage - dc:coverage (place of publication, serials)
+        if (!empty($record['luogo_pubblicazione'])) {
+            $dcRecord->appendChild($this->createElement('coverage', (string) $record['luogo_pubblicazione']));
         }
 
         // Coverage - dc:coverage (Dewey classification)

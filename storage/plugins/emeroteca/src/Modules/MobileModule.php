@@ -447,7 +447,12 @@ final class MobileModule
 
             // A single annata is bounded in the real world (a daily is ~365
             // issues), so a hard cap replaces cursor pagination here.
-            $cap = self::ISSUES_CAP;
+            // Fetch cap+1 so the cap being hit is DETECTED rather than silently
+            // swallowed: the extra row is dropped before mapping and only sets
+            // meta.truncated (additive field — the response shape is unchanged
+            // for existing clients).
+            $cap   = self::ISSUES_CAP;
+            $fetch = $cap + 1;
             $stmt = $this->db->prepare(
                 "SELECT id, numero, numero_progressivo, titolo_fascicolo, data_copertina,
                         data_pubblicazione, pagine, stato, copertina_url, pdf_pubblico, pdf_path
@@ -466,16 +471,26 @@ final class MobileModule
                     500
                 );
             }
-            $stmt->bind_param('ii', $yearId, $cap);
+            $stmt->bind_param('ii', $yearId, $fetch);
             $stmt->execute();
             $res = $stmt->get_result();
-            $items = [];
+            $rows = [];
             while ($res !== false && ($f = $res->fetch_assoc()) !== null) {
-                $items[] = $this->mapIssueItem($f);
+                $rows[] = $f;
             }
             $stmt->close();
 
-            $meta = ['count' => count($items)];
+            $truncated = count($rows) > $cap;
+            if ($truncated) {
+                $rows = array_slice($rows, 0, $cap);
+            }
+            $items = array_map(fn (array $f): array => $this->mapIssueItem($f), $rows);
+
+            $meta = [
+                'count'     => count($items),
+                'limit'     => $cap,
+                'truncated' => $truncated,
+            ];
 
             $etag = $this->payloadEtag('periodical-issues:' . $yearId, [$items, $meta]);
             if ($this->notModified($request, $etag)) {
@@ -668,7 +683,7 @@ final class MobileModule
                 ],
             ],
             '/periodicals/{id}' => ['get' => ['tags' => $tag, 'summary' => 'Masthead detail: bibliographic data, holdings summary, years (annate).', 'security' => $sec, 'parameters' => [$idParam('id')], 'responses' => $ok('Masthead detail')]],
-            '/periodicals/years/{id}/issues' => ['get' => ['tags' => $tag, 'summary' => 'Issues of one year (annata), ordered by sequence/number.', 'security' => $sec, 'parameters' => [$idParam('id')], 'responses' => $ok('Issue list')]],
+            '/periodicals/years/{id}/issues' => ['get' => ['tags' => $tag, 'summary' => 'Issues of one year (annata), ordered by sequence/number.', 'description' => 'Un-paginated listing capped at ' . self::ISSUES_CAP . ' issues. meta.limit reports the cap and meta.truncated is true when the year holds more issues than the cap returns.', 'security' => $sec, 'parameters' => [$idParam('id')], 'responses' => $ok('Issue list')]],
             '/periodicals/issues/{id}' => ['get' => ['tags' => $tag, 'summary' => 'Issue detail: masthead, year, articles index, public PDF link when opted in.', 'security' => $sec, 'parameters' => [$idParam('id')], 'responses' => $ok('Issue detail')]],
         ];
 

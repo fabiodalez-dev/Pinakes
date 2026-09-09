@@ -27,11 +27,19 @@ class MARCXMLFormatter extends RecordFormatter
         // Create record element
         $recordEl = $this->doc->createElementNS(self::NS_MARC, 'record');
 
+        // Issue #140: periodical mastheads (Emeroteca) travel through the same
+        // pipeline as books, flagged by _record_type. Serial-only fields
+        // (022/310/362) and the serial bibliographic level are driven by it.
+        $isSerial = ($record['_record_type'] ?? '') === 'periodical';
+
         // Leader (required in MARC) — exactly 24 characters: '00000nam a2200000 a 4500'
         // Positions: 0-4 logical record length, 5 status, 6 type, 7 bibl.level,
         // 8 ctrl type, 9 char encoding, 10-16 data/base offsets, 17 encoding level,
         // 18 desc.cataloging form, 19 multipart, 20-23 entry map.
-        $leaderStr = '00000nam a2200000 a 4500'; // strlen === 24
+        // Position 7 (bibliographic level): 'm' monograph, 's' serial.
+        $leaderStr = $isSerial
+            ? '00000nas a2200000 a 4500'
+            : '00000nam a2200000 a 4500'; // strlen === 24
         $leader = $this->doc->createElement('leader', $leaderStr);
         $recordEl->appendChild($leader);
 
@@ -52,6 +60,21 @@ class MARCXMLFormatter extends RecordFormatter
                     ['a', (string) $record[$isbnField]]
                 ]));
             }
+        }
+
+        // ISSN - 022 (serials). $a = ISSN of the print manifestation, a second
+        // 022 carries the electronic ISSN, $l = linking ISSN (ISSN-L).
+        if (!empty($record['issn'])) {
+            $issnSubfields = [['a', (string) $record['issn']]];
+            if (!empty($record['issn_l'])) {
+                $issnSubfields[] = ['l', (string) $record['issn_l']];
+            }
+            $recordEl->appendChild($this->createDataField('022', ' ', ' ', $issnSubfields));
+        }
+        if (!empty($record['e_issn'])) {
+            $recordEl->appendChild($this->createDataField('022', ' ', ' ', [
+                ['a', (string) $record['e_issn']]
+            ]));
         }
 
         // EAN - 024
@@ -114,12 +137,23 @@ class MARCXMLFormatter extends RecordFormatter
         // Publication, Distribution, Manufacture, and Copyright Notice - 264
         // FIX 6: field 260 is obsolete; 264 ind2='1' = production/publication
         $pubSubfields = [];
+        // $a — place of publication (mastheads carry luogo_pubblicazione).
+        if (!empty($record['luogo_pubblicazione'])) {
+            $pubSubfields[] = ['a', (string) $record['luogo_pubblicazione']];
+        }
         // Repeatable $b — primary publisher plus co-publishers (#143)
         foreach ($this->publisherNames($record) as $publisherName) {
             $pubSubfields[] = ['b', $publisherName];
         }
         if (!empty($record['anno_pubblicazione'])) {
-            $pubSubfields[] = ['c', (string) $record['anno_pubblicazione']];
+            // Serials state the run, not a single publication year.
+            $pubDate = (string) $record['anno_pubblicazione'];
+            if ($isSerial) {
+                $pubDate = !empty($record['anno_fine'])
+                    ? $pubDate . '-' . (string) $record['anno_fine']
+                    : $pubDate . '-';
+            }
+            $pubSubfields[] = ['c', $pubDate];
         }
         if (!empty($pubSubfields)) {
             $recordEl->appendChild($this->createDataField('264', ' ', '1', $pubSubfields));
@@ -135,6 +169,22 @@ class MARCXMLFormatter extends RecordFormatter
         }
         if (!empty($physSubfields)) {
             $recordEl->appendChild($this->createDataField('300', ' ', ' ', $physSubfields));
+        }
+
+        // Current Publication Frequency - 310 (serials)
+        if (!empty($record['periodicita'])) {
+            $recordEl->appendChild($this->createDataField('310', ' ', ' ', [
+                ['a', (string) $record['periodicita']]
+            ]));
+        }
+
+        // Numbering Peculiarities / holdings statement - 362 ind1='1'
+        // (unformatted note: the holdings string is human-readable, not an
+        // ISBD-formatted designation).
+        if (!empty($record['numerazione'])) {
+            $recordEl->appendChild($this->createDataField('362', '1', ' ', [
+                ['a', (string) $record['numerazione']]
+            ]));
         }
 
         // Series - 490
@@ -171,6 +221,14 @@ class MARCXMLFormatter extends RecordFormatter
                     ]));
                 }
             }
+        }
+
+        // Electronic Location - 856 ind1='4' (HTTP) ind2='0' (resource itself)
+        if (!empty($record['public_url'])) {
+            $recordEl->appendChild($this->createDataField('856', '4', '0', [
+                ['u', (string) $record['public_url']],
+                ['y', 'Catalogue record']
+            ]));
         }
 
         // Electronic Location - 856
@@ -301,18 +359,38 @@ class MARCXMLFormatter extends RecordFormatter
     {
         // 008 field is 40 characters
         $field = str_repeat(' ', 40);
+        $isSerial = ($record['_record_type'] ?? '') === 'periodical';
 
         // Date entered (positions 0-5): current date YYMMDD
         $dateEntered = date('ymd');
         $field = substr_replace($field, $dateEntered, 0, 6);
 
-        // Date type (position 6): s = single date
-        $field = substr_replace($field, 's', 6, 1);
+        // Date type (position 6): s = single date. Serials use 'c' (continuing,
+        // still published) or 'd' (dead, ceased publication).
+        $dateType = 's';
+        if ($isSerial) {
+            $dateType = !empty($record['anno_fine']) ? 'd' : 'c';
+        }
+        $field = substr_replace($field, $dateType, 6, 1);
 
         // Date 1 (positions 7-10): publication year (zero-padded)
         if (!empty($record['anno_pubblicazione'])) {
             $year = str_pad((string) $record['anno_pubblicazione'], 4, '0', STR_PAD_LEFT);
             $field = substr_replace($field, $year, 7, 4);
+        }
+
+        // Date 2 (positions 11-14): serials only — closing year, or 9999 while
+        // the title is still running.
+        if ($isSerial) {
+            $date2 = !empty($record['anno_fine'])
+                ? str_pad((string) $record['anno_fine'], 4, '0', STR_PAD_LEFT)
+                : '9999';
+            $field = substr_replace($field, $date2, 11, 4);
+
+            // Continuing resources 008/18 frequency, /19 regularity, /21 type.
+            $field = substr_replace($field, $this->frequencyCode((string) ($record['periodicita'] ?? '')), 18, 1);
+            $field = substr_replace($field, ($record['periodicita'] ?? '') === 'irregolare' ? 'x' : 'r', 19, 1);
+            $field = substr_replace($field, 'p', 21, 1); // p = periodical
         }
 
         // Place of publication (positions 15-17)
@@ -325,6 +403,27 @@ class MARCXMLFormatter extends RecordFormatter
         }
 
         return $field;
+    }
+
+    /**
+     * MARC 008/18 frequency code for a continuing resource, mapped from the
+     * emeroteca_testate.periodicita ENUM. Unknown/empty → '|' (no attempt to
+     * code), which is the MARC-sanctioned fill value.
+     */
+    private function frequencyCode(string $frequency): string
+    {
+        return match (strtolower(trim($frequency))) {
+            'quotidiano'   => 'd',
+            'settimanale'  => 'w',
+            'quindicinale' => 'e',
+            'mensile'      => 'm',
+            'bimestrale'   => 'b',
+            'trimestrale'  => 'q',
+            'semestrale'   => 'f',
+            'annuale'      => 'a',
+            'irregolare'   => '|',
+            default        => '|',
+        };
     }
 
     /**
