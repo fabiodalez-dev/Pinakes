@@ -2,6 +2,24 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.82]
+
+The Emeroteca becomes a working serials desk, and the core gains the extension points it was missing ([PR #419](https://github.com/fabiodalez-dev/Pinakes/pull/419)). The bundled plugin goes to **1.4.0**; its schema migrates itself on upgrade. No core migration.
+
+### Added
+- **Barcodes at the desk.** A masthead now carries the EAN-13 base derived from its ISSN (the 977 prefix) and an issue carries its own barcode with the add-on that identifies it, both indexed. The Kardex has a scanner — the same self-hosted one the copy tracking uses — that resolves a scan to the issue and offers to receive it. The ISSN itself is validated by checksum, not merely by shape: a mistyped one used to be accepted and would have produced a barcode pointing at another journal. e-ISSN and ISSN-L are recorded too.
+- **Claims and subscriptions**, the part of the Kardex that was missing: a subscriptions table (supplier, cost, dates, renewal, badged when expiring), the acquisition mode and price on the issue, and a claim workflow with its counters and dates — including a bulk claim over a volume year that never touches the current year and never re-claims what it already claimed.
+- **Exports and labels**: KBART TSV and an ACNP-style CSV of the holdings, and issue labels with their barcode through the same machinery as copy labels.
+- **Merging duplicate mastheads**, in one transaction: volume years fold together, colliding issue numbers are resolved by a documented rule where the held copy keeps the plain number and the loser is renumbered rather than dropped, subscriptions and title history follow the survivor, and the transaction refuses to commit unless the issue count afterwards equals the sum before.
+- **Periodicals reach the outside world**: an OAI-PMH set in Dublin Core, serial records in all four Z39.50/SRU formats with a Bath ISSN index, entries in the sitemap, and a hint in the catalogue search pointing at the section that actually holds what the reader looked for.
+- **Core extension points**: `sitemap.entries` and `search.external_suggestions` filters, `publisher.merging`/`publisher.deleting`/`genre.merging` actions with a `shelf.can_delete` veto, and `ActivityLog::recordEntityEvent()` so plugins can audit their own tables.
+
+### Fixed
+- **Merging two publishers no longer silently detaches what a plugin attached to them.** The core repointed only its own tables before deleting the duplicate, so every masthead linked to it lost its publisher without an error or a log line; the same applied to genres, and a shelf occupied only by issues could be deleted. Listeners now run inside those transactions, before the delete.
+- **Possession and physical condition are separate fields.** They shared one column, so an issue that was held but damaged silently left the holdings count — the consistency statement lied. The upgrade migrates the legacy rows without losing any, and withdrawn issues now leave the public catalogue and its counts.
+- **The declared holdings statement means the same thing everywhere.** Three implementations disagreed: the list ignored it, the issues page appended it, and the export replaced everything with it — so the file sent to union catalogues silently lost the issues actually held.
+- Publishing or revoking an issue PDF is finally auditable, exported cells cannot carry spreadsheet formulas, an ISSN is validated before being exported rather than merely reformatted, and the admin list no longer runs one query per row.
+
 ## [0.7.81]
 
 Circulation coherence: a full five-domain review of the reservation/loan system — states & transitions, queues & capacity, emails, audit trail, NCIP/mobile parity — with every finding fixed and covered by tests ([PR #416](https://github.com/fabiodalez-dev/Pinakes/pull/416)). No schema changes: no migration to run.

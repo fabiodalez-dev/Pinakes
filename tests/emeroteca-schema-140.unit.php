@@ -654,13 +654,33 @@ try {
         }
     }
 
-    // ── 2d. the embedded 1.3.0 baseline still matches origin/main ──────
+    // ── 2d. the embedded 1.3.0 baseline still matches the released source ──
+    // Anchored to a ref that actually SHIPS 1.3.0, not to origin/main: once
+    // this branch is merged main carries 1.4.0 and comparing against it would
+    // fail for the wrong reason. Candidate refs are probed in order and the
+    // plugin version is verified before the comparison is trusted.
     $root = escapeshellarg(dirname(__DIR__));
-    $mainSrc = @shell_exec(
-        'git -C ' . $root . ' show origin/main:storage/plugins/emeroteca/EmerotecaPlugin.php 2>/dev/null'
-    );
+    $mainSrc = null;
+    foreach (['v0.7.81', 'origin/main'] as $ref) {
+        $candidate = @shell_exec(
+            'git -C ' . $root . ' show ' . escapeshellarg($ref . ':storage/plugins/emeroteca/EmerotecaPlugin.php') . ' 2>/dev/null'
+        );
+        if (!is_string($candidate) || trim($candidate) === '') {
+            continue;
+        }
+        // Only a ref whose manifest predates 1.4.0 can serve as the baseline.
+        $manifest = @shell_exec(
+            'git -C ' . $root . ' show ' . escapeshellarg($ref . ':storage/plugins/emeroteca/plugin.json') . ' 2>/dev/null'
+        );
+        $version = is_string($manifest) ? (json_decode($manifest, true)['version'] ?? '') : '';
+        if (is_string($version) && $version !== '' && version_compare($version, '1.4.0', '<')) {
+            $mainSrc = $candidate;
+            note("1.3.0 baseline cross-checked against {$ref} (plugin {$version})");
+            break;
+        }
+    }
     if (!is_string($mainSrc) || trim($mainSrc) === '') {
-        note('origin/main not resolvable (shallow clone?) — embedded 1.3.0 baseline not cross-checked');
+        note('no ref shipping plugin < 1.4.0 is resolvable (shallow clone?) — embedded 1.3.0 baseline not cross-checked');
     } else {
         foreach ($LEGACY_130 as $table => $legacyColumns) {
             if (preg_match('/CREATE TABLE IF NOT EXISTS ' . preg_quote($table, '/') . ' \(.*?\n\s*SQL;/s', $mainSrc, $m) !== 1) {
