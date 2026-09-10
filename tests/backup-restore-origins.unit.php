@@ -1,6 +1,17 @@
 <?php
 declare(strict_types=1);
 
+namespace App\Support {
+    // Fail one selected operation regardless of uid/mode-bit enforcement.
+    function unlink(string $path): bool
+    {
+        if ($path === ($GLOBALS['backupFailedUnlink'] ?? null)) {
+            return false;
+        }
+        return \unlink($path);
+    }
+}
+namespace {
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 use App\Support\BackupManager;
@@ -64,6 +75,13 @@ try {
     $legacy = $root . '/storage/backups/update_2026-01-01_000000';
     mkdir($legacy);
     file_put_contents($legacy . '/database.sql', 'x');
+    $GLOBALS['backupFailedUnlink'] = $legacy . '/database.sql';
+    $result = $manager->deleteBackup(basename($legacy));
+    $check(!$result['success'] && $result['error'] !== null, 'an injected recursive deletion failure is reported, including under root');
+    $check(is_file($legacy . '/database.sql'), 'the failed child prevents removal of the legacy directory');
+    unset($GLOBALS['backupFailedUnlink']);
+
+    // Also exercise real mode-bit enforcement when the operating system applies it.
     chmod($legacy, 0555);
     if (!is_writable($legacy)) {
         $result = $manager->deleteBackup(basename($legacy));
@@ -76,7 +94,9 @@ try {
     $result = $manager->deleteBackup(basename($archive));
     $check($result['success'] && !is_file($archive), 'archive deletion succeeds and removes the file');
 } finally {
+    unset($GLOBALS['backupFailedUnlink']);
     $cleanup($root);
 }
 echo "Passed: $passed Failed: $failed\n";
 exit($failed ? 1 : 0);
+}
