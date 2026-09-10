@@ -1,4 +1,6 @@
 {
+  "Origine backup non valida": "Ungültiger Sicherungsursprung",
+  "Impossibile eliminare il backup. Verifica i permessi e riprova.": "Die Sicherung kann nicht gelöscht werden. Prüfen Sie die Berechtigungen und versuchen Sie es erneut.",
   "Importa UNIMARC (MARCXchange)": "UNIMARC importieren (MARCXchange)",
   "Incolla un record UNIMARC/MARCXchange, oppure carica un file .xml, per precompilare il form dal record esportato.": "Fügen Sie einen UNIMARC/MARCXchange-Datensatz ein oder laden Sie eine .xml-Datei hoch, um das Formular aus dem exportierten Datensatz vorauszufüllen.",
   "Incolla o carica un record UNIMARC.": "Fügen Sie einen UNIMARC-Datensatz ein oder laden Sie ihn hoch.",

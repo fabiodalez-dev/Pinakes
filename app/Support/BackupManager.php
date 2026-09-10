@@ -72,6 +72,7 @@ class BackupManager
     public const ORIGIN_AUTO = 'auto';
     public const ORIGIN_MANUAL = 'manual';
     public const ORIGIN_SAFETY = 'safety';
+    public const ORIGIN_UPLOAD = 'upload';
 
     /**
      * The pre-0.7.x layout: a directory holding a single database.sql, written
@@ -127,6 +128,9 @@ class BackupManager
     public function createBackup(string $scope = 'full', string $origin = self::ORIGIN_AUTO): array
     {
         $scope = $scope === 'db' ? 'db' : 'full';
+        if (!in_array($origin, [self::ORIGIN_AUTO, self::ORIGIN_MANUAL, self::ORIGIN_SAFETY], true)) {
+            return ['success' => false, 'name' => null, 'path' => null, 'size' => 0, 'error' => __('Origine backup non valida')];
+        }
         $sqlTmp = null;
 
         try {
@@ -327,8 +331,9 @@ class BackupManager
             }
             arsort($entries);
 
-            // The freshly written file counts against the quota too.
-            $slots = max(0, $keep - 1);
+            // Only a newly written automatic backup occupies a retention slot.
+            $automatic = preg_match(self::GENERATED_NAME_PATTERN, basename($justWritten)) === 1;
+            $slots = max(0, $keep - ($automatic ? 1 : 0));
             $stale = array_slice(array_keys($entries), $slots);
             $removed = 0;
             $removedLegacy = 0;
@@ -368,7 +373,7 @@ class BackupManager
     private static function originFromName(string $name): string
     {
         if (preg_match('/^backup_\\d{4}-\\d{2}-\\d{2}_\\d{6}_[0-9a-f]{6}_([a-z]+)\\.zip$/', $name, $m) === 1) {
-            return in_array($m[1], [self::ORIGIN_MANUAL, self::ORIGIN_SAFETY], true) ? $m[1] : self::ORIGIN_AUTO;
+            return in_array($m[1], [self::ORIGIN_MANUAL, self::ORIGIN_SAFETY, self::ORIGIN_UPLOAD], true) ? $m[1] : self::ORIGIN_AUTO;
         }
         return self::ORIGIN_AUTO;
     }
@@ -377,7 +382,7 @@ class BackupManager
     private static function backupDateLabel(string $name): string
     {
         $base = pathinfo($name, PATHINFO_FILENAME);
-        $base = preg_replace('/_(?:' . self::ORIGIN_MANUAL . '|' . self::ORIGIN_SAFETY . ')$/', '', $base) ?? $base;
+        $base = preg_replace('/_(?:' . self::ORIGIN_MANUAL . '|' . self::ORIGIN_SAFETY . '|' . self::ORIGIN_UPLOAD . ')$/', '', $base) ?? $base;
         return str_replace(['backup_', '_'], ['', ' '], $base);
     }
 
@@ -401,7 +406,9 @@ class BackupManager
                 // Manifest first, filename as the fallback: archives written
                 // before origins existed carry neither, and default to auto —
                 // which is what they were.
-                'origin' => (string) ($manifest['origin'] ?? self::originFromName($name)),
+                'origin' => self::originFromName($name) === self::ORIGIN_UPLOAD
+                    ? self::ORIGIN_UPLOAD
+                    : (string) ($manifest['origin'] ?? self::originFromName($name)),
                 'created_at' => (int) filemtime($file),
             ];
         }
@@ -436,10 +443,13 @@ class BackupManager
         }
         try {
             if (is_dir($target)) {
-                $this->deleteDirectory($target);
+                $deleted = $this->deleteDirectory($target);
             } else {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- $target validated by resolveBackup() (no traversal, realpath under storage/backups)
-                @unlink($target);
+                $deleted = @unlink($target);
+            }
+            if (!$deleted) {
+                return ['success' => false, 'error' => __('Impossibile eliminare il backup. Verifica i permessi e riprova.')];
             }
             return ['success' => true, 'error' => null];
         } catch (\Throwable $e) {
@@ -519,7 +529,7 @@ class BackupManager
         // Same naming scheme as createBackup() so the uploaded archive is listed
         // and deletable like any other backup; the random suffix avoids the
         // same-second collision a plain timestamp would allow.
-        $dest = $this->backupPath . '/' . self::backupFileName(date('Y-m-d_His'), self::ORIGIN_SAFETY);
+        $dest = $this->backupPath . '/' . self::backupFileName(date('Y-m-d_His'), self::ORIGIN_UPLOAD);
         if (!@rename($tmpPath, $dest) && !@copy($tmpPath, $dest)) {
             return ['success' => false, 'safety_backup' => null, 'error' => __('Impossibile salvare il file caricato')];
         }
@@ -636,7 +646,7 @@ class BackupManager
         try {
             // 1. Safety backup of the current state (always full) — the rollback
             //    path, since MySQL DDL can't run inside a transaction.
-            $safety = $this->createBackup('full');
+            $safety = $this->createBackup('full', self::ORIGIN_SAFETY);
             if (!$safety['success']) {
                 throw new \RuntimeException(__('Impossibile creare il backup di sicurezza pre-ripristino') . ': ' . (string) $safety['error']);
             }

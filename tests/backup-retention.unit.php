@@ -346,6 +346,26 @@ $prune($manager, end($zips));
 $check(is_dir($impostor), 'a legacy-named directory without database.sql is not a rotation candidate');
 $check(is_file($impostor . '/note.txt'), 'and whatever it contained is still there');
 
+echo "J. a newly written preserved backup does not consume automatic slots\n";
+foreach ([BackupManager::ORIGIN_MANUAL, BackupManager::ORIGIN_SAFETY, BackupManager::ORIGIN_UPLOAD] as $origin) {
+    $originDir = $tmp . '/origin_' . $origin;
+    mkdir($originDir);
+    $autos = [];
+    for ($i = 1; $i <= 3; $i++) {
+        $auto = $originDir . '/' . $nameFor->invoke(null, '2026-01-0' . $i . '_000000', BackupManager::ORIGIN_AUTO);
+        file_put_contents($auto, 'x');
+        touch($auto, time() - (4 - $i) * 3600);
+        $autos[] = $auto;
+    }
+    $preserved = $originDir . '/' . $nameFor->invoke(null, '2026-02-01_000000', $origin);
+    file_put_contents($preserved, 'x');
+    $manager = $makeManager($originDir, '1');
+    $prune($manager, $preserved);
+    $check(is_file(end($autos)), $origin . ': the newest automatic backup survives at retention 1');
+    $check(!is_file($autos[0]) && !is_file($autos[1]), $origin . ': older automatic backups still rotate');
+    $check(is_file($preserved), $origin . ': the newly written preserved backup survives');
+}
+
 // Teardown belongs at the END, after the last section. It restores the SHARED
 // system_settings.retention_count that $makeManager() overwrites — leave it and
 // the next suite to run rotates at whatever number this file last set.
