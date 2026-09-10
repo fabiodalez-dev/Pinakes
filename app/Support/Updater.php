@@ -1858,6 +1858,14 @@ class Updater
      */
     public function performUpdateFromFile(string $uploadTempPath): array
     {
+        // Same refusal as the automatic route: the manual upload is the fallback
+        // an operator reaches for next, and it rewrites the same container layer.
+        $imageBlock = $this->officialImageUpdateBlock();
+        if ($imageBlock !== null) {
+            $this->debugLog('INFO', 'Aggiornamento manuale rifiutato: immagine Docker ufficiale');
+            return ['success' => false, 'error' => $imageBlock, 'backup_path' => null];
+        }
+
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
         $lockHandle = null;
 
@@ -2843,6 +2851,32 @@ class Updater
      * full volume it would report "no space" for a missing directory.
      */
     /**
+     * Refuse an in-app update on the official Docker image.
+     *
+     * On that image the upgrade path is to move the container to the new image,
+     * not to rewrite the code in place. The reason is not that the files resist
+     * — they are chowned to www-data and perfectly writable — but that only HALF
+     * of what an update changes survives a container recreate: the schema
+     * migrations land in the database volume and persist, while the new code
+     * lives in the container layer and is thrown away. Recreating from the old
+     * image then runs old code against a migrated schema, silently.
+     *
+     * Keyed on the official-image marker, NOT on ContainerRuntime::detected().
+     * Container-ness is the wrong predicate: community images keep the code in a
+     * writable volume where an in-app update is legitimate and survives, and
+     * this project has no business refusing theirs. We answer for our image.
+     *
+     * @return string|null the message to show, or null when the update may run
+     */
+    private function officialImageUpdateBlock(): ?string
+    {
+        if (!ContainerRuntime::officialImage()) {
+            return null;
+        }
+        return __('Questa è l\'immagine Docker ufficiale di Pinakes: l\'aggiornamento dall\'applicazione è disattivato di proposito. Il codice verrebbe riscritto solo nel layer del container e andrebbe perso alla prima ricreazione, mentre le migrazioni del database resterebbero applicate — lasciando codice vecchio su uno schema nuovo. Aggiorna spostando il container sulla nuova immagine: "docker compose pull && docker compose up -d".');
+    }
+
+    /**
      * Refuse an extraction that provably will not fit, before it writes an entry.
      *
      * The early gate sizes the package from its COMPRESSED bytes, because that is
@@ -3437,11 +3471,15 @@ class Updater
      * PHP and are reported for manual fixing (or for the CLI upgrade path).
      *
      * True when the app is running inside a container (Docker/Podman/Kubernetes).
-     * On the official image the app files are baked in and owned by the image, so
-     * the in-app updater cannot (and must not) overwrite them — the operator moves
-     * the container to the new image instead. Detection is best-effort across the
-     * common signals; a false negative only falls back to the generic permission
-     * message, never a wrong action.
+     * This only picks the WORDING of a permission failure that has already
+     * happened; it decides nothing. Note that the official image does NOT reach
+     * here: its files are chowned to www-data and perfectly writable, and the
+     * in-app update is refused earlier and for a different reason — see
+     * officialImageUpdateBlock(). What lands here is a hardened deployment (a
+     * read-only rootfs, a :ro bind mount, a mismatched uid) or a community image
+     * whose code volume is currently read-only. Detection is best-effort across
+     * the common signals; a false negative only falls back to the generic
+     * permission message, never a wrong action.
      */
     private function isRunningInContainer(): bool
     {
@@ -4610,6 +4648,14 @@ class Updater
      */
     public function performUpdate(string $targetVersion): array
     {
+        // Before the lock and before maintenance mode: there is no reason to take
+        // the site down for an update that is refused outright.
+        $imageBlock = $this->officialImageUpdateBlock();
+        if ($imageBlock !== null) {
+            $this->debugLog('INFO', 'Aggiornamento in-app rifiutato: immagine Docker ufficiale');
+            return ['success' => false, 'error' => $imageBlock, 'backup_path' => null];
+        }
+
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
         $lockHandle = null;
 

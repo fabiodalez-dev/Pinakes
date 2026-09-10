@@ -392,5 +392,66 @@ if ($freeBefore !== null) {
 }
 $check(count(glob($root . '/storage/tmp/.space_probe_*') ?: []) === 0, 'the probe file is removed after the check');
 
+echo "H. the official Docker image refuses the in-app update\n";
+
+// The upgrade path on that image is to move the container to the new image. An
+// in-app update there would write the code into the container layer, which is
+// discarded on the next recreate, while the schema migrations land in the
+// database volume and persist — old code on a new schema, silently.
+$runtimeSrc = (string) file_get_contents($root . '/app/Support/ContainerRuntime.php');
+$check(str_contains($runtimeSrc, 'public static function officialImage(): bool'),
+    'ContainerRuntime exposes the official-image marker');
+$check(preg_match('/function officialImage\(\): bool\s*\{\s*return is_file\(self::OFFICIAL_IMAGE_MARKER\);/', $runtimeSrc) === 1,
+    'officialImage() keys on the marker alone');
+
+// The distinction is the whole point: detected() is true for ANY container,
+// including community images with a writable code volume where an in-app update
+// is legitimate. Blocking on container-ness would refuse someone else's setup.
+$blockBody = $bodyOf($src, 'private function officialImageUpdateBlock(): ?string');
+$check($blockBody !== '' && str_contains($blockBody, 'ContainerRuntime::officialImage()'),
+    'the refusal keys on the official image');
+$check($blockBody !== '' && !str_contains($blockBody, 'ContainerRuntime::detected()'),
+    'the refusal does NOT key on container-ness (community images stay free to update)');
+
+// Both entry points, and before the lock: no reason to put the site into
+// maintenance for an update that is refused outright.
+foreach ([
+    'public function performUpdate(string $targetVersion): array',
+    'public function performUpdateFromFile(string $uploadTempPath): array',
+] as $signature) {
+    $body = $bodyOf($src, $signature);
+    $blockAt = strpos($body, 'officialImageUpdateBlock(');
+    $lockAt = strpos($body, 'flock(');
+    $maintAt = strpos($body, 'enableMaintenanceMode(');
+    $label = str_contains($signature, 'FromFile') ? 'performUpdateFromFile' : 'performUpdate';
+    $check($blockAt !== false && $lockAt !== false && $maintAt !== false
+        && $blockAt < $lockAt && $blockAt < $maintAt,
+        "{$label}: the image refusal precedes the lock and maintenance mode");
+}
+
+// On a normal install the marker is absent, so nothing is blocked.
+$check($call($updater, 'officialImageUpdateBlock') === null,
+    'a non-container install is never refused by the image check');
+
+// The message ships in every locale: an operator hitting this needs it in their
+// own language, and it is the only instruction they get.
+$blockKey = "Questa \u{e8} l'immagine Docker ufficiale di Pinakes";
+$missing = [];
+foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $loc) {
+    $data = json_decode((string) file_get_contents($root . "/locale/{$loc}.json"), true);
+    $found = false;
+    foreach ((array) $data as $k => $v) {
+        if (is_string($k) && str_starts_with($k, $blockKey) && is_string($v) && trim($v) !== '') {
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {
+        $missing[] = $loc;
+    }
+}
+$check($missing === [], 'the refusal message is translated in all five locales'
+    . ($missing === [] ? '' : ' — missing in ' . implode(', ', $missing)));
+
 echo PHP_EOL . "Passed: {$passed}   Failed: {$failed}" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);
