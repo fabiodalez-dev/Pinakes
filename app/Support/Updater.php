@@ -42,6 +42,65 @@ class Updater
      */
     private array $releaseByVersionCache = [];
 
+    /**
+     * Directories copied aside for rollback before an update — and therefore
+     * the directories whose size the space preflight has to account for. One
+     * list for both, so an addition here can never make the estimate lie.
+     */
+    private const APP_BACKUP_DIRS = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
+
+    /**
+     * Size above which the write probe switches from streaming every byte to
+     * touching one byte per filesystem block. Below it the payload is small
+     * enough that a dense write costs nothing; above it, streaming the whole
+     * requirement through PHP is what would risk a timeout on shared hosting.
+     * It is NOT a cap on what the probe may prove — see probeWrite().
+     */
+    private const SPACE_PROBE_BYTES = 16 * 1024 * 1024;
+
+    /**
+     * Stride of the large-size probe: one byte written every N bytes. A hole
+     * consumes no quota but a touched block does, so a stride no larger than
+     * the filesystem block size allocates the WHOLE range while writing a
+     * thousandth of it. 1 KiB is at or below every block size in practice.
+     */
+    private const SPACE_PROBE_STRIDE = 1024;
+
+    /**
+     * Coarse free-space floor for the cheap advisory checks.
+     *
+     * ONE value, so the constructor's sanity check and the requirements panel
+     * cannot drift apart from each other or from the real requirement. It is
+     * deliberately NOT the authority on whether an update fits — that is
+     * checkFreeSpaceForUpdate(), which measures the tree and proves the
+     * quota with a real write. This is only a floor below which nothing is
+     * worth attempting.
+     */
+    private const MIN_FREE_SPACE_BYTES = 200 * 1024 * 1024;
+
+    /**
+     * Probe size for the requirements panel, which renders far more often than
+     * an update runs. It answers "can this account write at all", not "can it
+     * write what the update needs" — that is the gate's question, and the gate
+     * keeps the full-size probe.
+     */
+    private const PANEL_PROBE_BYTES = 1024 * 1024;
+
+    /**
+     * Memoised write-probe verdicts for this update run, keyed by the number of
+     * bytes asked for. describeWriteFailure() is called once per failing file —
+     * inside a bundled-plugin loop that does not re-throw — and must not write a
+     * probe onto the very disk it is diagnosing twenty times over.
+     * @var array<string, string>
+     */
+    private array $probeVerdicts = [];
+
+    /** Free-space shortfall seen at construction: advisory, never fatal. */
+    private ?string $spaceWarning = null;
+
+    /** Per-instance memo for estimateUpdateSpace(): the walk is not free. */
+    private ?int $estimateCache = null;
+
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
         '.env',
@@ -123,11 +182,19 @@ class Updater
             $issues[] = "Né cURL né allow_url_fopen disponibili";
         }
 
-        // Check disk space (need at least 200MB free)
+        // Free space is ADVISORY here, never fatal. Constructing an Updater to
+        // INSPECT state (the admin updates page builds one on every render) must
+        // not throw over a condition that only matters when installing — an
+        // uncaught throw here costs the operator the very page that would tell
+        // them what is wrong. checkFreeSpaceForUpdate() is the authority at
+        // install time; this only records the shortfall for the panel to show.
         $freeSpace = @disk_free_space($this->rootPath);
-        if ($freeSpace !== false && $freeSpace < 200 * 1024 * 1024) {
-            $issues[] = sprintf("Spazio disco insufficiente: %s disponibili, servono almeno 200MB",
-                $this->formatBytes((float)$freeSpace));
+        if ($freeSpace !== false && $freeSpace < self::MIN_FREE_SPACE_BYTES) {
+            $this->spaceWarning = sprintf(
+                __('Spazio su disco basso: %1$s disponibili, sotto il minimo di %2$s.'),
+                $this->formatBytes((float) $freeSpace),
+                $this->formatBytes((float) self::MIN_FREE_SPACE_BYTES)
+            );
         }
 
         // Load GitHub API token from settings (if configured)
@@ -146,7 +213,8 @@ class Updater
             'openssl_available' => extension_loaded('openssl'),
             'zip_available' => class_exists('ZipArchive'),
             'free_space_mb' => $freeSpace !== false ? round($freeSpace / 1024 / 1024) : 'unknown',
-            'pre_flight_issues' => $issues ?: 'none'
+            'pre_flight_issues' => $issues ?: 'none',
+            'space_warning' => $this->spaceWarning ?? 'none'
         ]);
 
         if (!empty($issues)) {
@@ -1203,12 +1271,15 @@ class Updater
             // Create temp directory
             if (!is_dir($this->tempPath)) {
                 $this->debugLog('DEBUG', 'Creazione directory temporanea', ['path' => $this->tempPath]);
-                if (!mkdir($this->tempPath, 0755, true) && !is_dir($this->tempPath)) {
+                if (!@mkdir($this->tempPath, 0755, true) && !is_dir($this->tempPath)) {
+                    // Describe first: debugLog() writes to disk and would replace
+                    // the mkdir error that error_get_last() has to report.
+                    $cause = $this->describeWriteFailure($this->tempPath);
                     $this->debugLog('ERROR', 'Impossibile creare directory temporanea', [
                         'path' => $this->tempPath,
-                        'error' => error_get_last()
+                        'error' => $cause
                     ]);
-                    throw new Exception(__('Impossibile creare directory temporanea'));
+                    throw new Exception(__('Impossibile creare directory temporanea') . ' — ' . $cause);
                 }
             }
 
@@ -1409,11 +1480,19 @@ class Updater
             $bytesWritten = file_put_contents($zipPath, $fileContent);
 
             if ($bytesWritten === false) {
+                // Describe first: debugLog() writes to disk and would replace
+                // the file_put_contents() error that error_get_last() has to
+                // report. Name the cause because on a full account this is the
+                // FIRST write to fail, and "Download fallito" alone sends the
+                // operator looking for a corrupt release instead of free space.
+                $cause = $this->describeWriteFailure($zipPath);
                 $this->debugLog('ERROR', 'Impossibile salvare file', [
                     'path' => $zipPath,
-                    'error' => error_get_last()
+                    'error' => $cause
                 ]);
-                throw new Exception(__('Impossibile salvare il file di aggiornamento'));
+                throw new Exception(
+                    __('Impossibile salvare il file di aggiornamento') . ' — ' . $cause
+                );
             }
 
             $this->debugLog('INFO', 'File salvato', [
@@ -1487,6 +1566,12 @@ class Updater
                 }
             }
 
+            $extractSpaceError = $this->extractionSpaceError($zip, $extractPath);
+            if ($extractSpaceError !== null) {
+                $zip->close();
+                throw new Exception($extractSpaceError);
+            }
+
             $extractionSuccess = $zip->extractTo($extractPath);
 
             // If extraction failed, try fallback to storage/tmp
@@ -1545,15 +1630,30 @@ class Updater
                     throw new Exception(__('Impossibile riaprire il file ZIP'));
                 }
 
+                $extractSpaceError = $this->extractionSpaceError($zip, $extractPath);
+                if ($extractSpaceError !== null) {
+                    $zip->close();
+                    throw new Exception($extractSpaceError);
+                }
                 $extractionSuccess = $zip->extractTo($extractPath);
             }
 
             if (!$extractionSuccess) {
+                // Describe FIRST, before anything else in this branch. Two
+                // things would otherwise destroy the evidence: $zip->close()
+                // flushes the archive and can raise its own error, and
+                // debugLog() writes to disk — either replaces the extraction
+                // error that error_get_last() has to report. It also has to
+                // run before the cleanup below deletes the extraction path and
+                // the ZIP, since once they are gone the probe can no longer
+                // see the state that produced the failure.
+                $cause = $this->describeWriteFailure($extractPath);
+                $zipStatus = $zip->status;
                 $zip->close();
                 $this->debugLog('ERROR', 'Estrazione fallita definitivamente', [
                     'destination' => $extractPath,
-                    'zip_status' => $zip->status,
-                    'last_error' => error_get_last()
+                    'zip_status' => $zipStatus,
+                    'last_error' => $cause
                 ]);
                 // Clean up
                 if (is_dir($extractPath)) {
@@ -1561,7 +1661,7 @@ class Updater
                 }
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                 @unlink($zipPath);
-                throw new Exception(__('Estrazione del pacchetto fallita'));
+                throw new Exception(__('Estrazione del pacchetto fallita') . ' — ' . $cause);
             }
             $zip->close();
 
@@ -1663,6 +1763,30 @@ class Updater
     }
 
     /**
+     * Size in bytes of the installable pinakes-*.zip asset of a release, or 0
+     * when it cannot be determined. Used by the early space gate to account for
+     * the download and its extraction; getReleaseByVersion() is memoised, so
+     * asking here costs no extra GitHub round trip.
+     */
+    private function releaseAssetBytes(string $version): int
+    {
+        $release = $this->getReleaseByVersion($version);
+        if (!is_array($release) || !isset($release['assets']) || !is_array($release['assets'])) {
+            return 0;
+        }
+        foreach ($release['assets'] as $asset) {
+            if (!is_array($asset) || !isset($asset['name']) || !is_string($asset['name'])) {
+                continue;
+            }
+            if (preg_match('/pinakes.*\.zip$/i', $asset['name']) && isset($asset['size'])) {
+                $size = (int) $asset['size'];
+                return $size > 0 ? $size : 0;
+            }
+        }
+        return 0;
+    }
+
+    /**
      * Save uploaded update package to temp directory
      * @return array{success: bool, path: string|null, error: string|null}
      */
@@ -1674,8 +1798,11 @@ class Updater
             // Create temp directory for uploaded package
             $uploadTempPath = $this->rootPath . '/storage/tmp/manual_update_' . bin2hex(random_bytes(16));
 
-            if (!mkdir($uploadTempPath, 0755, true)) {
-                throw new Exception(__('Impossibile creare directory temporanea per upload'));
+            if (!@mkdir($uploadTempPath, 0755, true) && !is_dir($uploadTempPath)) {
+                throw new Exception(
+                    __('Impossibile creare directory temporanea per upload')
+                    . ' — ' . $this->describeWriteFailure($uploadTempPath)
+                );
             }
 
             $this->debugLog('DEBUG', 'Directory temporanea creata', ['path' => $uploadTempPath]);
@@ -1736,6 +1863,14 @@ class Updater
      */
     public function performUpdateFromFile(string $uploadTempPath): array
     {
+        // Same refusal as the automatic route: the manual upload is the fallback
+        // an operator reaches for next, and it rewrites the same container layer.
+        $imageBlock = $this->officialImageUpdateBlock();
+        if ($imageBlock !== null) {
+            $this->debugLog('INFO', 'Aggiornamento manuale rifiutato: immagine Docker ufficiale');
+            return ['success' => false, 'error' => $imageBlock, 'backup_path' => null];
+        }
+
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
         $lockHandle = null;
 
@@ -1849,6 +1984,19 @@ class Updater
         $result = null;
 
         try {
+            // PRE-FLIGHT (issue #422): same early gate as the automatic route.
+            // This is the path an operator reaches for AFTER the automatic
+            // update failed, so it is the one most likely to run on an account
+            // that is already short of room; it had no space check at all
+            // before the backup and the extraction.
+            $uploadedZip = $uploadTempPath . '/update.zip';
+            $uploadedBytes = is_file($uploadedZip) ? (int) filesize($uploadedZip) : 0;
+            $spaceError = $this->checkFreeSpaceForUpdate($uploadedBytes > 0 ? $uploadedBytes * 4 : 0, null, true);
+            if ($spaceError !== null) {
+                $this->debugLog('ERROR', 'Preflight iniziale: spazio insufficiente', ['detail' => $spaceError]);
+                throw new Exception($spaceError);
+            }
+
             // Step 1: Backup
             $this->debugLog('INFO', '>>> STEP 1: Creazione backup <<<');
             $backupResult = $this->createBackup();
@@ -1859,15 +2007,18 @@ class Updater
 
             // Step 2: Extract uploaded ZIP
             $this->debugLog('INFO', '>>> STEP 2: Estrazione pacchetto caricato <<<');
-            $zipPath = $uploadTempPath . '/update.zip';
+            $zipPath = $uploadedZip;
 
             if (!file_exists($zipPath)) {
                 throw new Exception(__('Pacchetto caricato non trovato'));
             }
 
             $extractPath = $uploadTempPath . '/extracted';
-            if (!mkdir($extractPath, 0755, true)) {
-                throw new Exception(__('Impossibile creare directory di estrazione'));
+            if (!@mkdir($extractPath, 0755, true) && !is_dir($extractPath)) {
+                throw new Exception(
+                    __('Impossibile creare directory di estrazione')
+                    . ' — ' . $this->describeWriteFailure($extractPath)
+                );
             }
 
             $zip = new ZipArchive();
@@ -1888,9 +2039,22 @@ class Updater
                 }
             }
 
-            if (!$zip->extractTo($extractPath)) {
+            $extractSpaceError = $this->extractionSpaceError($zip, $extractPath);
+            if ($extractSpaceError !== null) {
                 $zip->close();
-                throw new Exception(__('Estrazione del pacchetto fallita'));
+                throw new Exception($extractSpaceError);
+            }
+
+            if (!$zip->extractTo($extractPath)) {
+                // Describe before close(): flushing the archive can raise an
+                // error of its own and replace the extraction failure that
+                // error_get_last() has to report. An extraction that runs out
+                // of room says nothing about the package; say which it was.
+                $cause = $this->describeWriteFailure($extractPath);
+                $zip->close();
+                throw new Exception(
+                    __('Estrazione del pacchetto fallita') . ' — ' . $cause
+                );
             }
             $zip->close();
 
@@ -2303,6 +2467,18 @@ class Updater
                 ));
             }
 
+            // PRE-FLIGHT (issue #422): free space. The next step copies the whole
+            // application aside for rollback, so an account that is nearly full
+            // fails MID-COPY on whatever file the loop happens to reach — an
+            // error naming a file in vendor/ that says nothing about the real
+            // cause, which is exactly how a healthy release once looked broken.
+            // Refuse here, with the numbers, instead of failing halfway.
+            $spaceError = $this->checkFreeSpaceForUpdate(0, $sourcePath);
+            if ($spaceError !== null) {
+                $this->debugLog('ERROR', 'Preflight: spazio insufficiente', ['detail' => $spaceError]);
+                throw new Exception($spaceError);
+            }
+
             // Log update start
             $logId = $this->logUpdateStart($currentVersion, $targetVersion, null);
 
@@ -2419,6 +2595,420 @@ class Updater
     /**
      * Backup application files for atomic rollback
      */
+    /**
+     * Space needed by an update, in bytes: the rollback copy of the directories
+     * backupAppFiles() duplicates, plus a margin for the new files landing
+     * alongside the old ones during the copy.
+     */
+    private function estimateUpdateSpace(): int
+    {
+        if ($this->estimateCache !== null) {
+            return $this->estimateCache;
+        }
+        $total = 0;
+        foreach (self::APP_BACKUP_DIRS as $dir) {
+            $total += $this->directorySize($this->rootPath . '/' . $dir);
+        }
+        // 30% margin: the copy writes new files before the old ones are gone,
+        // and a partially-fitting update is the failure mode being prevented.
+        return $this->estimateCache = (int) ($total * 1.3);
+    }
+
+    /**
+     * The same figure, cheap enough to put on a page that renders often.
+     *
+     * estimateUpdateSpace() walks APP_BACKUP_DIRS — around 5.000 files once
+     * vendor/ is included. That is a fair price to pay before an update, and the
+     * wrong price to pay on every render of the updates panel, which is exactly
+     * the page an operator reloads while trying to free space.
+     *
+     * Cached against the installed version, because the version is what changes
+     * when those directories change: an update replaces the tree AND bumps
+     * version.json, so the next read after an update misses and recomputes once.
+     * A rebuild of public/assets without a version bump would leave the number
+     * stale, which is a development scenario, not a production one — and the
+     * gate never reads this, it always measures for real.
+     */
+    private function cachedUpdateSpaceEstimate(): int
+    {
+        $version = $this->getCurrentVersion();
+        $settings = new SettingsRepository($this->db);
+        $cached = $settings->get('updater', 'space_estimate', null);
+
+        if (is_string($cached) && $cached !== '') {
+            $parts = explode(':', $cached, 2);
+            if (count($parts) === 2 && $parts[0] === $version && ctype_digit($parts[1])) {
+                return (int) $parts[1];
+            }
+        }
+
+        $estimate = $this->estimateUpdateSpace();
+        $settings->set('updater', 'space_estimate', $version . ':' . $estimate);
+        return $estimate;
+    }
+
+    /** Size of a directory in bytes; 0 when it does not exist or cannot be read. */
+    private function directorySize(string $path): int
+    {
+        if (!is_dir($path)) {
+            return 0;
+        }
+        $bytes = 0;
+        try {
+            $it = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            foreach ($it as $file) {
+                if ($file instanceof \SplFileInfo && $file->isFile()) {
+                    $bytes += (int) $file->getSize();
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->debugLog('DEBUG', 'Impossibile misurare directory', ['path' => $path, 'error' => $e->getMessage()]);
+        }
+        return $bytes;
+    }
+
+    /**
+     * Refuse the update when the space it needs is not there. Returns the
+     * message to show, or null when there is room.
+     *
+     * Two checks, because neither alone is enough on shared hosting:
+     * disk_free_space() sees the FILESYSTEM, which on a cPanel account can
+     * report tens of gigabytes free while the account's own quota is exhausted;
+     * and a real allocation proves what the account can actually do right now.
+     * The allocation is for the WHOLE requirement — proving that 16 MB can be
+     * written says nothing about an account with 50 MB of headroom facing a
+     * 120 MB update, which is precisely the failure this gate exists to stop.
+     *
+     * @param int $extraBytes Space the caller knows it is about to consume on
+     *        top of the rollback copy (the release ZIP and its extracted tree,
+     *        the pre-update backup archive). 0 when there is nothing to add.
+     */
+    private function checkFreeSpaceForUpdate(int $extraBytes = 0, ?string $sourcePath = null, bool $beforeBackup = false): ?string
+    {
+        $requirements = $this->installationSpaceRequirements($sourcePath);
+        $tmp = $this->rootPath . '/storage/tmp';
+        $requirements[$tmp] = ($requirements[$tmp] ?? 0) + $this->estimateUpdateSpace() + max(0, $extraBytes);
+        if ($beforeBackup) {
+            // The SQL dump and its ZIP coexist. Full backups also include uploads.
+            $dumpBytes = 0;
+            $result = $this->db->query("SELECT COALESCE(SUM(data_length + index_length), 0) AS bytes
+                FROM information_schema.tables WHERE table_schema = DATABASE()");
+            if ($result instanceof \mysqli_result) {
+                $row = $result->fetch_assoc();
+                $dumpBytes = (int) ceil((float) ($row['bytes'] ?? 0) * 1.5);
+                $result->free();
+            }
+            $archiveBytes = max(1024 * 1024, $dumpBytes);
+            if ((new SettingsRepository($this->db))->get('backup', 'pre_update_include_files', '0') === '1') {
+                $archiveBytes += $this->directorySize($this->rootPath . '/public/uploads')
+                    + $this->directorySize($this->rootPath . '/storage/uploads/plugins');
+            }
+            $backup = $this->rootPath . '/storage/backups';
+            $requirements[$backup] = ($requirements[$backup] ?? 0) + (int) ceil($archiveBytes * 1.1);
+            $systemTmp = sys_get_temp_dir();
+            $requirements[$systemTmp] = ($requirements[$systemTmp] ?? 0) + max(1024 * 1024, $dumpBytes);
+        }
+        return $this->checkSpaceRequirements($requirements);
+    }
+
+    /**
+     * Budget writes by destination directory, including nested mounts. Before the
+     * package is known, walk the installed application; at install time use the
+     * actual incoming tree. Budgeting complete files is deliberately conservative.
+     * @return array<string, int>
+     */
+    private function installationSpaceRequirements(?string $sourcePath): array
+    {
+        $requirements = [$this->rootPath => 4096, $this->rootPath . '/storage/backups' => 4096];
+        $trees = $sourcePath !== null ? ['' => $sourcePath] : [];
+        if ($sourcePath === null) {
+            foreach (self::APP_BACKUP_DIRS as $dir) {
+                $trees[$dir] = $this->rootPath . '/' . $dir;
+            }
+        }
+        foreach ($trees as $prefix => $tree) {
+            if (!is_dir($tree)) {
+                continue;
+            }
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($tree, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+            foreach ($iterator as $item) {
+                if ($item->isLink()) {
+                    continue;
+                }
+                $relative = ($prefix === '' ? '' : $prefix . '/')
+                    . substr(str_replace('\\', '/', $item->getPathname()), strlen($tree) + 1);
+                $target = $this->rootPath . '/' . $relative;
+                foreach ($this->skipPaths as $skip) {
+                    if (str_starts_with($relative, $skip)) {
+                        continue 2;
+                    }
+                }
+                foreach ($this->preservePaths as $preserve) {
+                    // Bundled plugin files are installed by updateBundledPlugins().
+                    if ($preserve !== 'storage/plugins' && str_starts_with($relative, $preserve) && file_exists($target)) {
+                        continue 2;
+                    }
+                }
+                if ($this->isCustomLocalePath($relative) && file_exists($target)) {
+                    continue;
+                }
+                $dir = $item->isDir() ? $target : dirname($target);
+                $bytes = $item->isDir() ? 4096 : max(4096, (int) ceil($item->getSize() / 4096) * 4096);
+                $requirements[$dir] = ($requirements[$dir] ?? 0) + $bytes;
+            }
+        }
+        return $requirements;
+    }
+
+    /**
+     * Aggregate simultaneous writes on each filesystem before probing. Missing
+     * directories use their nearest existing ancestor, where mkdir will allocate.
+     * @param array<string, int> $requirements
+     */
+    private function checkSpaceRequirements(array $requirements): ?string
+    {
+        $volumes = [];
+        foreach ($requirements as $path => $bytes) {
+            $dir = $path;
+            while (!is_dir($dir) && !file_exists($dir) && dirname($dir) !== $dir) {
+                $dir = dirname($dir);
+            }
+            $stat = @stat($dir);
+            if (!is_dir($dir) || !is_writable($dir) || $stat === false) {
+                return sprintf(
+                    __('Impossibile usare la directory di lavoro dell\'aggiornamento (%s): non esiste o non è scrivibile dall\'utente del web server. Correggi i permessi e riprova.'), $path
+                );
+            }
+            $key = (string) $stat['dev'];
+            if (!isset($volumes[$key])) {
+                $volumes[$key] = ['path' => $dir, 'bytes' => 0];
+            }
+            $volumes[$key]['bytes'] += max(0, $bytes);
+        }
+        // A previous panel/diagnostic probe cannot establish current capacity.
+        $this->probeVerdicts = [];
+        foreach ($volumes as $volume) {
+            $dir = $volume['path'];
+            $needed = $volume['bytes'];
+            $free = @disk_free_space($dir);
+            if (is_float($free) && $free < $needed) {
+                return sprintf(
+                    __('Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
+                    $this->formatBytes($needed), $this->formatBytes($free)
+                ) . ' (' . $dir . ')';
+            }
+            $verdict = $this->runWriteProbe($needed, $dir);
+            if ($verdict === 'unknown') {
+                return sprintf(__('Impossibile verificare lo spazio disponibile in %s. Controlla la configurazione del filesystem e riprova.'), $dir);
+            }
+            if ($verdict === 'unavailable') {
+                return sprintf(
+                    __('Impossibile usare la directory di lavoro dell\'aggiornamento (%s): non esiste o non è scrivibile dall\'utente del web server. Correggi i permessi e riprova.'), $dir
+                );
+            }
+            if ($verdict === 'nospace') {
+                return sprintf(
+                    __('Impossibile riservare i %1$s richiesti dall\'aggiornamento: lo spazio disponibile o la quota dell\'account sono esauriti. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
+                    $this->formatBytes($needed)
+                ) . ' (' . $dir . ')';
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Prove a complete write, or report nospace/unavailable/unknown. Large probes
+     * require a readable filesystem bound; a small sample never proves a larger
+     * requirement. Cached diagnostics are scoped to both path and byte count.
+     */
+    private function probeWrite(int $bytes, bool $fresh = false, ?string $directory = null): string
+    {
+        if ($bytes <= 0) {
+            return '';
+        }
+        $key = ($directory ?? $this->rootPath . '/storage/tmp') . ':' . $bytes;
+        if ($fresh) {
+            $this->probeVerdicts = [];
+        } elseif (isset($this->probeVerdicts[$key])) {
+            return $this->probeVerdicts[$key];
+        }
+
+        $verdict = $this->runWriteProbe($bytes, $directory);
+        $this->probeVerdicts[$key] = $verdict;
+        return $verdict;
+    }
+
+    /**
+     * The probe itself. Sparse allocation would not do: a hole consumes no
+     * quota, and the quota is precisely what this is testing.
+     *
+     * @return string '' | 'nospace' | 'unavailable' | 'unknown'
+     */
+    private function runWriteProbe(int $bytes, ?string $directory = null): string
+    {
+        $dir = $directory ?? $this->rootPath . '/storage/tmp';
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return 'unavailable';
+        }
+
+        // Self-bounding: when the filesystem itself cannot hold the request
+        // there is nothing to prove by writing, and trying would fill the
+        // volume before it could answer.
+        $free = @disk_free_space($dir);
+        if (is_float($free) && $free < $bytes) {
+            return 'nospace';
+        }
+        // Without a filesystem bound, do not attempt an arbitrarily large write
+        // or report a small sample as proof of the whole requirement.
+        $strided = $bytes > self::SPACE_PROBE_BYTES;
+        if ($strided && !is_float($free)) {
+            return 'unknown';
+        }
+
+        $probe = $dir . '/.space_probe_' . bin2hex(random_bytes(4));
+        $handle = @fopen($probe, 'wb');
+        if ($handle === false) {
+            return 'unavailable';
+        }
+        $ok = true;
+        try {
+            if ($strided) {
+                // One byte per block: every block in [0, $bytes) is allocated,
+                // so the account is charged the whole amount.
+                for ($offset = 0; $offset < $bytes; $offset += self::SPACE_PROBE_STRIDE) {
+                    if (@fseek($handle, $offset, SEEK_SET) !== 0) {
+                        $ok = false;
+                        break;
+                    }
+                    $result = @fwrite($handle, '0');
+                    if ($result === false || $result === 0) {
+                        $ok = false;
+                        break;
+                    }
+                }
+            } else {
+                $chunk = str_repeat('0', 1024 * 1024);
+                $written = 0;
+                while ($written < $bytes) {
+                    $slice = $bytes - $written >= strlen($chunk) ? $chunk : substr($chunk, 0, $bytes - $written);
+                    $result = @fwrite($handle, $slice);
+                    if ($result === false || $result === 0) {
+                        $ok = false;
+                        break;
+                    }
+                    $written += $result;
+                }
+            }
+            if ($ok && !@fflush($handle)) {
+                $ok = false;
+            }
+        } catch (\Throwable) {
+            $ok = false;
+        } finally {
+            @fclose($handle);
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- own probe file under storage/tmp, name generated here
+            @unlink($probe);
+        }
+        return $ok ? '' : 'nospace';
+    }
+
+    /**
+     * Why a write to this path failed, in words an operator can act on.
+     * Cheapest and most specific first: a broad, side-effecting probe placed
+     * first becomes the default answer for everything below it, and on a nearly
+     * full volume it would report "no space" for a missing directory.
+     */
+    /**
+     * Refuse an in-app update on the official Docker image.
+     *
+     * On that image the upgrade path is to move the container to the new image,
+     * not to rewrite the code in place. The reason is not that the files resist
+     * — they are chowned to www-data and perfectly writable — but that only HALF
+     * of what an update changes survives a container recreate: the schema
+     * migrations land in the database volume and persist, while the new code
+     * lives in the container layer and is thrown away. Recreating from the old
+     * image then runs old code against a migrated schema, silently.
+     *
+     * Keyed on the official-image marker, NOT on ContainerRuntime::detected().
+     * Container-ness is the wrong predicate: community images keep the code in a
+     * writable volume where an in-app update is legitimate and survives, and
+     * this project has no business refusing theirs. We answer for our image.
+     *
+     * @return string|null the message to show, or null when the update may run
+     */
+    private function officialImageUpdateBlock(): ?string
+    {
+        if (!ContainerRuntime::officialImage()) {
+            return null;
+        }
+        return __('Questa è l\'immagine Docker ufficiale di Pinakes: l\'aggiornamento dall\'applicazione è disattivato di proposito. Il codice verrebbe riscritto solo nel layer del container e andrebbe perso alla prima ricreazione, mentre le migrazioni del database resterebbero applicate — lasciando codice vecchio su uno schema nuovo. Aggiorna spostando il container sulla nuova immagine: "docker compose pull && docker compose up -d".');
+    }
+
+    /**
+     * Refuse an extraction that provably will not fit, before it writes an entry.
+     *
+     * The early gate sizes the package from its COMPRESSED bytes, because that is
+     * the only figure available before the download. A ZIP is free to expand well
+     * past any fixed ratio, so once the archive is open the real number is
+     * knowable and cheap: sum it and prove it. Reuses the messages the gate
+     * already owns, so this adds no new translation keys.
+     *
+     * @return string|null the message to show, or null when it fits
+     */
+    private function extractionSpaceError(ZipArchive $zip, ?string $destination = null): ?string
+    {
+        $uncompressed = 0;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            // statIndex() returns false for an unreadable entry; when it returns
+            // an array, 'size' is always present.
+            $stat = $zip->statIndex($i);
+            if ($stat !== false) {
+                $uncompressed += (int) $stat['size'];
+            }
+        }
+        if ($uncompressed <= 0) {
+            return null; // nothing measurable: let the extraction proceed
+        }
+
+        return $this->checkSpaceRequirements([
+            $destination ?? $this->rootPath . '/storage/tmp' => $uncompressed,
+        ]);
+    }
+
+    private function describeWriteFailure(string $targetPath): string
+    {
+        // error_get_last() is process-global: capture it BEFORE this function
+        // performs any I/O of its own, or the diagnosis overwrites the very
+        // error it was called to explain.
+        $last = error_get_last();
+        $dir = dirname($targetPath);
+
+        if (is_file($targetPath) && !is_writable($targetPath)) {
+            return __('il file di destinazione esiste e non è scrivibile');
+        }
+        if (!is_dir($dir)) {
+            return __('la directory di destinazione non esiste');
+        }
+        if (!is_writable($dir)) {
+            return __('la directory di destinazione non è scrivibile');
+        }
+        // Only a probe that actually ran out of room may claim a space problem;
+        // 'unavailable' means the probe could not be created, which says
+        // nothing about the failure being described.
+        if ($this->probeWrite(1024 * 1024, false, $dir) === 'nospace') {
+            return __('spazio su disco o quota dell\'account esauriti');
+        }
+
+        $message = $last === null ? '' : trim($last['message']);
+        return $message !== '' ? $message : __('causa sconosciuta');
+    }
+
     private function backupAppFiles(): string
     {
         $timestamp = date('Y-m-d_His');
@@ -2433,17 +3023,18 @@ class Updater
 
         $this->debugLog('DEBUG', 'Creazione backup app files', ['path' => $backupPath]);
 
-        if (!mkdir($backupPath, 0755, true) && !is_dir($backupPath)) {
+        if (!@mkdir($backupPath, 0755, true) && !is_dir($backupPath)) {
+            // Describe first: debugLog() writes to disk and would replace the
+            // mkdir error that error_get_last() has to report.
+            $cause = $this->describeWriteFailure($backupPath);
             $this->debugLog('ERROR', 'Impossibile creare directory backup app', [
                 'path' => $backupPath,
-                'error' => error_get_last()
+                'error' => $cause
             ]);
-            throw new Exception(__('Impossibile creare directory di backup applicazione'));
+            throw new Exception(__('Impossibile creare directory di backup applicazione') . ' — ' . $cause);
         }
 
-        $dirsToBackup = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
-
-        foreach ($dirsToBackup as $dir) {
+        foreach (self::APP_BACKUP_DIRS as $dir) {
             $sourcePath = $this->rootPath . '/' . $dir;
             $destPath = $backupPath . '/' . $dir;
 
@@ -2473,9 +3064,7 @@ class Updater
      */
     private function restoreAppFiles(string $backupPath): void
     {
-        $dirsToRestore = ['app', 'config', 'locale', 'public/assets', 'installer', 'vendor'];
-
-        foreach ($dirsToRestore as $dir) {
+        foreach (self::APP_BACKUP_DIRS as $dir) {
             $sourcePath = $backupPath . '/' . $dir;
             $destPath = $this->rootPath . '/' . $dir;
 
@@ -2514,7 +3103,11 @@ class Updater
 
         if (!is_dir($dest)) {
             if (!@mkdir($dest, 0755, true) && !is_dir($dest)) {
-                throw new Exception(sprintf(__('Impossibile creare directory: %s'), $dest));
+                throw new Exception(sprintf(
+                    __('Impossibile creare directory: %s — %s'),
+                    $dest,
+                    $this->describeWriteFailure($dest)
+                ));
             }
         }
 
@@ -2558,18 +3151,35 @@ class Updater
             if ($item->isDir()) {
                 if (!is_dir($targetPath)) {
                     if (!@mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
-                        throw new Exception(sprintf(__('Impossibile creare directory: %s'), $relativePath));
+                        // A directory is the FIRST write of any new subtree: on an
+                        // exhausted quota it fails before any copy() is reached.
+                        throw new Exception(sprintf(
+                            __('Impossibile creare directory: %s — %s'),
+                            $relativePath,
+                            $this->describeWriteFailure($targetPath)
+                        ));
                     }
                 }
             } else {
                 $parentDir = dirname($targetPath);
                 if (!is_dir($parentDir)) {
                     if (!@mkdir($parentDir, 0755, true) && !is_dir($parentDir)) {
-                        throw new Exception(sprintf(__('Impossibile creare directory: %s'), dirname($relativePath)));
+                        throw new Exception(sprintf(
+                            __('Impossibile creare directory: %s — %s'),
+                            dirname($relativePath),
+                            $this->describeWriteFailure($parentDir)
+                        ));
                     }
                 }
-                if (!copy(str_replace('\\', '/', $item->getPathname()), $targetPath)) {
-                    throw new Exception(sprintf(__('Errore nella copia del file: %s'), $relativePath));
+                if (!@copy(str_replace('\\', '/', $item->getPathname()), $targetPath)) {
+                    // The file name alone is misleading: the copy stops at
+                    // whatever entry it had reached when the real problem (a
+                    // full disk, a read-only target) occurred. Say why.
+                    throw new Exception(sprintf(
+                        __('Errore nella copia del file: %s — %s'),
+                        $relativePath,
+                        $this->describeWriteFailure($targetPath)
+                    ));
                 }
             }
         }
@@ -2924,11 +3534,15 @@ class Updater
      * PHP and are reported for manual fixing (or for the CLI upgrade path).
      *
      * True when the app is running inside a container (Docker/Podman/Kubernetes).
-     * On the official image the app files are baked in and owned by the image, so
-     * the in-app updater cannot (and must not) overwrite them — the operator moves
-     * the container to the new image instead. Detection is best-effort across the
-     * common signals; a false negative only falls back to the generic permission
-     * message, never a wrong action.
+     * This only picks the WORDING of a permission failure that has already
+     * happened; it decides nothing. Note that the official image does NOT reach
+     * here: its files are chowned to www-data and perfectly writable, and the
+     * in-app update is refused earlier and for a different reason — see
+     * officialImageUpdateBlock(). What lands here is a hardened deployment (a
+     * read-only rootfs, a :ro bind mount, a mismatched uid) or a community image
+     * whose code volume is currently read-only. Detection is best-effort across
+     * the common signals; a false negative only falls back to the generic
+     * permission message, never a wrong action.
      */
     private function isRunningInContainer(): bool
     {
@@ -3121,15 +3735,26 @@ class Updater
 
             if ($item->isDir()) {
                 if (!is_dir($targetPath)) {
-                    if (!mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
-                        throw new Exception(sprintf(__('Impossibile creare directory: %s'), $relativePath));
+                    // Suppressed: an unsuppressed warning prints absolute server
+                    // paths into the update response; the throw below is what
+                    // stops the update, and it now says why.
+                    if (!@mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
+                        throw new Exception(sprintf(
+                            __('Impossibile creare directory: %s — %s'),
+                            $relativePath,
+                            $this->describeWriteFailure($targetPath)
+                        ));
                     }
                 }
             } else {
                 $parentDir = dirname($targetPath);
                 if (!is_dir($parentDir)) {
-                    if (!mkdir($parentDir, 0755, true) && !is_dir($parentDir)) {
-                        throw new Exception(sprintf(__('Impossibile creare directory: %s'), dirname($relativePath)));
+                    if (!@mkdir($parentDir, 0755, true) && !is_dir($parentDir)) {
+                        throw new Exception(sprintf(
+                            __('Impossibile creare directory: %s — %s'),
+                            dirname($relativePath),
+                            $this->describeWriteFailure($parentDir)
+                        ));
                     }
                 }
                 // Un file di destinazione che è un SYMLINK va sostituito, mai
@@ -3141,11 +3766,26 @@ class Updater
                 // altrove sono setup legittimi.)
                 if (is_link($targetPath)) {
                     if (!@unlink($targetPath)) {
-                        throw new Exception(sprintf(__('Errore nella copia del file: %s'), $relativePath));
+                        // No copy was attempted here: reusing the copy-failure
+                        // message misattributed the failure entirely.
+                        throw new Exception(sprintf(
+                            __('Impossibile sostituire il collegamento simbolico nella destinazione: %s — %s'),
+                            $relativePath,
+                            $this->describeWriteFailure($targetPath)
+                        ));
                     }
                 }
-                if (!copy(str_replace('\\', '/', $item->getPathname()), $targetPath)) {
-                    throw new Exception(sprintf(__('Errore nella copia del file: %s'), $relativePath));
+                // This copy installs the new release, immediately after
+                // backupAppFiles() duplicated the whole tree — the fullest the
+                // account gets during an update, and the likeliest moment for a
+                // quota to run out. The file name alone is misleading: the loop
+                // stops at whatever entry it had reached. Say why.
+                if (!@copy(str_replace('\\', '/', $item->getPathname()), $targetPath)) {
+                    throw new Exception(sprintf(
+                        __('Errore nella copia del file: %s — %s'),
+                        $relativePath,
+                        $this->describeWriteFailure($targetPath)
+                    ));
                 }
             }
         }
@@ -3966,19 +4606,57 @@ class Updater
             if (!$writable) $allMet = false;
         }
 
-        $freeSpace = disk_free_space($this->rootPath);
+        // Report the SAME figure installUpdate() will enforce. A panel that
+        // advertises a smaller number than the gate is worse than no panel: it
+        // shows all-green on an install the update is about to refuse.
+        $freeSpace = @disk_free_space($this->rootPath);
         if ($freeSpace === false) {
             $freeSpace = 0;
         }
-        $minSpace = 100 * 1024 * 1024;
+        $minSpace = max(self::MIN_FREE_SPACE_BYTES, $this->cachedUpdateSpaceEstimate());
         $spaceMet = $freeSpace >= $minSpace;
         $requirements[] = [
             'name' => __('Spazio libero'),
-            'required' => '100MB',
+            'required' => $this->formatBytes((float) $minSpace),
             'current' => $freeSpace > 0 ? $this->formatBytes($freeSpace) : __('Non disponibile'),
             'met' => $spaceMet
         ];
         if (!$spaceMet) $allMet = false;
+
+        // disk_free_space() reports the FILESYSTEM. On a cPanel account it can
+        // show tens of gigabytes free while the account's own quota is exhausted
+        // — the exact condition that made a healthy release look corrupt. Only a
+        // real write answers it, so the panel gets its own probe rather than
+        // inheriting the filesystem's optimism.
+        //
+        // A SMALL one, deliberately. The panel asks "can this account write at
+        // all?", which one megabyte answers exactly as well as sixteen; the gate
+        // keeps the full-size probe because it asks the harder question, "can it
+        // write what the update needs?". Sixteen megabytes written and deleted on
+        // every render of this page is churn an operator does not need on the
+        // very screen they reload while trying to free space.
+        $quotaVerdict = $this->probeWrite(self::PANEL_PROBE_BYTES);
+        $quotaMet = $quotaVerdict === '';
+        $requirements[] = [
+            'name' => __('Quota di scrittura'),
+            'required' => $this->formatBytes((float) self::PANEL_PROBE_BYTES),
+            'current' => match ($quotaVerdict) {
+                '' => __('Scrittura riuscita'),
+                'nospace' => __('Spazio o quota esauriti'),
+                default => __('storage/tmp non utilizzabile'),
+            },
+            'met' => $quotaMet
+        ];
+        if (!$quotaMet) $allMet = false;
+
+        if ($this->spaceWarning !== null) {
+            $requirements[] = [
+                'name' => __('Avviso spazio'),
+                'required' => $this->formatBytes((float) self::MIN_FREE_SPACE_BYTES),
+                'current' => $this->spaceWarning,
+                'met' => false
+            ];
+        }
 
         return [
             'met' => $allMet,
@@ -4033,6 +4711,14 @@ class Updater
      */
     public function performUpdate(string $targetVersion): array
     {
+        // Before the lock and before maintenance mode: there is no reason to take
+        // the site down for an update that is refused outright.
+        $imageBlock = $this->officialImageUpdateBlock();
+        if ($imageBlock !== null) {
+            $this->debugLog('INFO', 'Aggiornamento in-app rifiutato: immagine Docker ufficiale');
+            return ['success' => false, 'error' => $imageBlock, 'backup_path' => null];
+        }
+
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
         $lockHandle = null;
 
@@ -4126,6 +4812,22 @@ class Updater
         $result = null;
 
         try {
+            // PRE-FLIGHT (issue #422): refuse BEFORE the first byte is written —
+            // and that includes Step 0. applySinglePatch() writes patched files
+            // straight over the tree with no rollback of its own, so a quota that
+            // runs out mid-patch leaves the application half-patched. Steps 1 and
+            // 2 then write the backup archive, the release ZIP and its extracted
+            // tree, together as much as the rollback copy the gate in
+            // installUpdate() protects. That later gate stays: it re-measures
+            // once these steps have consumed their share, which is the only
+            // measurement valid there.
+            $packageBytes = $this->releaseAssetBytes($targetVersion);
+            $spaceError = $this->checkFreeSpaceForUpdate($packageBytes > 0 ? $packageBytes * 4 : 0, null, true);
+            if ($spaceError !== null) {
+                $this->debugLog('ERROR', 'Preflight iniziale: spazio insufficiente', ['detail' => $spaceError]);
+                throw new Exception($spaceError);
+            }
+
             // Step 0: Apply pre-update patch (if available)
             $this->debugLog('INFO', '>>> STEP 0: Pre-update patch check <<<');
             $patchResult = $this->applyPreUpdatePatch($targetVersion);

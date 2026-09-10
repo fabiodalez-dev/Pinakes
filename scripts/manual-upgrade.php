@@ -22,6 +22,11 @@
 // ============================================================
 define('UPGRADE_PASSWORD', 'pinakes2026');
 define('MAX_ZIP_SIZE', 512 * 1024 * 1024); // 512 MB (aligned with scripts/.user.ini)
+// Coarse floor for an upgrade. One value, used by BOTH the disk_free_space()
+// gate and the write probe that backs it: a probe smaller than the declared
+// floor lets a quota between the two pass the check and fail on the first
+// real write.
+define('MIN_UPGRADE_FREE_BYTES', 200 * 1024 * 1024);
 
 // ============================================================
 // BOOTSTRAP
@@ -177,6 +182,191 @@ function formatBytes(float $bytes): string
         $i++;
     }
     return round($bytes, 2) . ' ' . $units[$i];
+}
+
+/**
+ * Prove that $bytes can really be written by THIS account under storage/tmp.
+ *
+ * disk_free_space() sees the FILESYSTEM: on a cPanel account it happily reports
+ * tens of gigabytes free while the account's own quota is exhausted, which is
+ * how a healthy release came to look corrupt (issue #422). Only a real
+ * allocation answers the question, so this writes real bytes — a sparse hole
+ * consumes no quota, and the quota is precisely what is being measured.
+ *
+ * Bounded by construction: a request the filesystem provably cannot hold is
+ * refused without writing anything, and above 16 MB the range is allocated by
+ * touching one byte per 1 KiB block instead of streaming every byte (the same
+ * blocks are charged, at a thousandth of the I/O). If free space is unreadable,
+ * a large request returns unknown without allocating: neither an unbounded write
+ * nor a successful 16 MB sample can safely establish the requested capacity.
+ *
+ * Deliberately duplicated from app/Support/Updater.php: this script must keep
+ * working with no autoloader and no application classes, because it is the tool
+ * used when the application itself will not boot.
+ *
+ * @return string '' when the space is there, 'nospace' when the write ran out
+ *                of room, 'unavailable' when the probe could not be created,
+ *                'unknown' when a large request cannot be bounded
+ */
+function probeWriteBytes(string $rootPath, int $bytes, ?string $directory = null): string
+{
+    if ($bytes <= 0) {
+        return '';
+    }
+    $denseLimit = 16 * 1024 * 1024;
+    $stride = 1024;
+
+    $dir = $directory ?? rtrim(str_replace('\\', '/', $rootPath), '/') . '/storage/tmp';
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+        return 'unavailable';
+    }
+
+    $free = @disk_free_space($dir);
+    if (is_float($free) && $free < $bytes) {
+        return 'nospace';
+    }
+    $strided = $bytes > $denseLimit;
+    if ($strided && !is_float($free)) {
+        return 'unknown';
+    }
+
+    $probe = $dir . '/.upgrade_probe_' . bin2hex(random_bytes(4));
+    $handle = @fopen($probe, 'wb');
+    if ($handle === false) {
+        return 'unavailable';
+    }
+    $ok = true;
+    try {
+        if ($strided) {
+            for ($offset = 0; $offset < $bytes; $offset += $stride) {
+                if (@fseek($handle, $offset, SEEK_SET) !== 0) {
+                    $ok = false;
+                    break;
+                }
+                $result = @fwrite($handle, '0');
+                if ($result === false || $result === 0) {
+                    $ok = false;
+                    break;
+                }
+            }
+        } else {
+            $chunk = str_repeat('0', 1024 * 1024);
+            $written = 0;
+            while ($written < $bytes) {
+                $slice = $bytes - $written >= strlen($chunk) ? $chunk : substr($chunk, 0, $bytes - $written);
+                $result = @fwrite($handle, $slice);
+                if ($result === false || $result === 0) {
+                    $ok = false;
+                    break;
+                }
+                $written += $result;
+            }
+        }
+        if ($ok && !@fflush($handle)) {
+            $ok = false;
+        }
+    } catch (Throwable $e) {
+        $ok = false;
+    } finally {
+        @fclose($handle);
+        @unlink($probe);
+    }
+    return $ok ? '' : 'nospace';
+}
+
+/**
+ * Verify simultaneous writes on each destination filesystem. No application
+ * bootstrap is required: this script also repairs installations that cannot boot.
+ * @param array<string, int> $requirements
+ */
+function verifyUpgradeSpace(string $rootPath, array $requirements): void
+{
+    $volumes = [];
+    foreach ($requirements as $path => $bytes) {
+        $dir = $path;
+        while (!is_dir($dir) && !file_exists($dir) && dirname($dir) !== $dir) {
+            $dir = dirname($dir);
+        }
+        $stat = @stat($dir);
+        if (!is_dir($dir) || !is_writable($dir) || $stat === false) {
+            throw new RuntimeException('Directory di aggiornamento non scrivibile: ' . $path);
+        }
+        $key = (string) $stat['dev'];
+        if (!isset($volumes[$key])) {
+            $volumes[$key] = ['path' => $dir, 'bytes' => 0];
+        }
+        $volumes[$key]['bytes'] += max(4096, $bytes);
+    }
+    foreach ($volumes as $volume) {
+        $dir = $volume['path'];
+        $required = $volume['bytes'];
+        $verdict = probeWriteBytes($rootPath, $required, $dir);
+        if ($verdict !== '') {
+            $reason = match ($verdict) {
+                'nospace' => "spazio su disco o quota dell'account insufficienti",
+                'unknown' => 'spazio disponibile non verificabile: controlla la configurazione del filesystem',
+                default => 'directory non scrivibile',
+            };
+            throw new RuntimeException('Preflight fallito in ' . $dir . ': ' . $reason
+                . ' (richiesti ' . formatBytes($required) . ').');
+        }
+    }
+}
+
+/** @return array<string, int> Space needed for the actual copy destinations. */
+function upgradeCopyRequirements(string $source, string $dest, array $preserve): array
+{
+    $requirements = [$dest => 4096];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+    foreach ($iterator as $item) {
+        if ($item->isLink()) {
+            continue;
+        }
+        $relative = substr($item->getPathname(), strlen($source) + 1);
+        foreach ($preserve as $skip) {
+            if ($relative === $skip || str_starts_with($relative, $skip . '/')) {
+                continue 2;
+            }
+        }
+        $target = $dest . '/' . $relative;
+        $dir = $item->isDir() ? $target : dirname($target);
+        $bytes = $item->isDir() ? 4096 : max(4096, (int) ceil($item->getSize() / 4096) * 4096);
+        $requirements[$dir] = ($requirements[$dir] ?? 0) + $bytes;
+    }
+    return $requirements;
+}
+
+/**
+ * Why a write to this path failed, in words an operator can act on.
+ *
+ * Cheapest and most specific first, with error_get_last() captured before this
+ * function performs any I/O of its own — it is process-global, so a diagnosis
+ * that writes first ends up reporting its own error. Same wording as the
+ * in-app updater, hardcoded in Italian like the rest of this script.
+ */
+function describeWriteFailure(string $rootPath, string $targetPath): string
+{
+    $last = error_get_last();
+    $dir = dirname($targetPath);
+
+    if (is_file($targetPath) && !is_writable($targetPath)) {
+        return 'il file di destinazione esiste e non è scrivibile';
+    }
+    if (!is_dir($dir)) {
+        return 'la directory di destinazione non esiste';
+    }
+    if (!is_writable($dir)) {
+        return 'la directory di destinazione non è scrivibile';
+    }
+    if (probeWriteBytes($rootPath, 1024 * 1024, $dir) === 'nospace') {
+        return 'spazio su disco o quota dell\'account esauriti';
+    }
+
+    $message = $last === null ? '' : trim($last['message']);
+    return $message !== '' ? $message : 'causa sconosciuta';
 }
 
 function deleteDirectory(string $dir): void
@@ -356,8 +546,11 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
             if (is_link($dstPath) || is_link($dstDir)) {
                 throw new RuntimeException('Percorso destinazione simbolico non consentito: ' . $dstPath);
             }
-            if (!is_dir($dstDir) && !mkdir($dstDir, 0755, true) && !is_dir($dstDir)) {
-                throw new RuntimeException('Impossibile creare directory destinazione: ' . $dstDir);
+            if (!is_dir($dstDir) && !@mkdir($dstDir, 0755, true) && !is_dir($dstDir)) {
+                throw new RuntimeException(
+                    'Impossibile creare directory destinazione: ' . $dstDir
+                    . ' — ' . describeWriteFailure($rootDst, $dstDir)
+                );
             }
             $rootReal = realpath($rootDst);
             $dstDirReal = realpath($dstDir);
@@ -368,8 +561,16 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
             ) {
                 throw new RuntimeException('Percorso destinazione non valido: ' . $dstPath);
             }
-            if (!copy($srcPath, $dstPath)) {
-                throw new RuntimeException('Copia file fallita: ' . $srcPath . ' -> ' . $dstPath);
+            // The file name alone is misleading: the loop stops at whatever
+            // entry it had reached when the real problem (an exhausted quota, a
+            // read-only target) occurred — that is how a healthy release came to
+            // look corrupt. Say why, and here it matters more than in the app:
+            // this script overwrites the live tree with no file rollback.
+            if (!@copy($srcPath, $dstPath)) {
+                throw new RuntimeException(
+                    'Copia file fallita: ' . $srcPath . ' -> ' . $dstPath
+                    . ' — ' . describeWriteFailure($rootDst, $dstPath)
+                );
             }
             $count++;
         }
@@ -466,10 +667,11 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             throw new RuntimeException('Estensione ZipArchive non disponibile. Contatta il provider hosting.');
         }
 
-        $freeSpace = @disk_free_space($rootPath);
-        if ($freeSpace !== false && $freeSpace < 200 * 1024 * 1024) {
-            throw new RuntimeException('Spazio disco insufficiente: ' . formatBytes((int)$freeSpace) . ' disponibili, servono almeno 200 MB.');
-        }
+        verifyUpgradeSpace($rootPath, [
+            $rootPath => 4096,
+            $rootPath . '/storage/tmp' => MIN_UPGRADE_FREE_BYTES,
+            $rootPath . '/storage/backups' => 4096,
+        ]);
 
         $writableDirs = ['storage', 'storage/tmp', 'storage/backups', 'app', 'public', 'installer'];
         foreach ($writableDirs as $dir) {
@@ -503,6 +705,37 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             mkdir($backupDir, 0775, true);
         }
         $backupFile = $backupDir . '/pre_upgrade_' . str_replace('.', '_', $currentVersion) . '_' . date('Ymd_His') . '.sql';
+
+        // The dump is redirected straight to disk with no size limit of its own,
+        // so a database larger than the coarse pre-flight floor can still exhaust
+        // the quota mid-write — and this script has no file rollback. Estimate it
+        // from information_schema and prove that much really fits first. The
+        // estimate is deliberately generous: an SQL dump is text, so it runs
+        // larger than the stored byte count it is derived from.
+        $dumpEstimate = 0;
+        $sizeRow = $db->query(
+            "SELECT COALESCE(SUM(data_length + index_length), 0) AS bytes
+               FROM information_schema.tables
+              WHERE table_schema = DATABASE()"
+        );
+        if ($sizeRow instanceof mysqli_result) {
+            $row = $sizeRow->fetch_assoc();
+            $sizeRow->free();
+            $dumpEstimate = (int) (((float) ($row['bytes'] ?? 0)) * 1.5);
+        }
+        $criticalBytes = 0;
+        foreach (['.env', 'config.local.php', 'version.json'] as $criticalFile) {
+            $criticalPath = $rootPath . '/' . $criticalFile;
+            if (is_file($criticalPath)) {
+                $criticalBytes += (int) filesize($criticalPath);
+            }
+        }
+        verifyUpgradeSpace($rootPath, [
+            $rootPath => 4096,
+            $rootPath . '/storage/tmp' => MIN_UPGRADE_FREE_BYTES,
+            $backupDir => max(0, $dumpEstimate) + $criticalBytes,
+        ]);
+        $log[] = '[OK] Spazio cumulativo per dump, backup critici e riserva verificato';
 
         $mysqldumpBin = null;
         foreach (['/usr/bin/mysqldump', '/usr/local/bin/mysqldump', '/opt/homebrew/bin/mysqldump'] as $candidate) {
@@ -592,14 +825,11 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             }
         }
         $requiredBytes = $uncompressedBytes + (100 * 1024 * 1024); // 100 MB safety margin
-        $freeSpaceNow = @disk_free_space($rootPath);
-        if ($freeSpaceNow !== false && $freeSpaceNow < $requiredBytes) {
+        try {
+            verifyUpgradeSpace($rootPath, [$tempDir => $requiredBytes]);
+        } catch (Throwable $e) {
             $zip->close();
-            throw new RuntimeException(
-                'Spazio disco insufficiente per estrazione: disponibili '
-                . formatBytes((int) $freeSpaceNow) . ', richiesti almeno '
-                . formatBytes((float) $requiredBytes)
-            );
+            throw $e;
         }
 
         if (!$zip->extractTo($tempDir)) {
@@ -670,6 +900,12 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             'config.local.php',
         ];
 
+        // Recheck after extraction, using the actual incoming files and mounts.
+        $copyRequirements = upgradeCopyRequirements($extractedRoot, $rootPath, $preservePaths);
+        $backupTarget = $rootPath . '/storage/backups';
+        $copyRequirements[$backupTarget] = ($copyRequirements[$backupTarget] ?? 0) + $criticalBytes;
+        verifyUpgradeSpace($rootPath, $copyRequirements);
+
         // 8b. Backup critical files before overwriting
         $fileBackupDir = $rootPath . '/storage/backups/pre_upgrade_files_' . date('Ymd_His');
         if (!is_dir($fileBackupDir)) {
@@ -678,8 +914,11 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         $criticalFiles = ['.env', 'config.local.php', 'version.json'];
         foreach ($criticalFiles as $cf) {
             if (is_file($rootPath . '/' . $cf)) {
-                if (!copy($rootPath . '/' . $cf, $fileBackupDir . '/' . $cf)) {
-                    throw new RuntimeException('Backup file critico fallito: ' . $cf);
+                if (!@copy($rootPath . '/' . $cf, $fileBackupDir . '/' . $cf)) {
+                    throw new RuntimeException(
+                        'Backup file critico fallito: ' . $cf
+                        . ' — ' . describeWriteFailure($rootPath, $fileBackupDir . '/' . $cf)
+                    );
                 }
             }
         }
