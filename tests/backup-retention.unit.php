@@ -98,6 +98,13 @@ $tmp = sys_get_temp_dir() . '/zz_backup_retention_' . bin2hex(random_bytes(4));
 mkdir($tmp, 0777, true);
 $cleanup = static function () use ($tmp, &$origRetention, &$setRetention): void {
     foreach (glob($tmp . '/*') ?: [] as $f) {
+        if (is_dir($f)) {
+            foreach (glob($f . '/*') ?: [] as $inner) {
+                @unlink($inner);
+            }
+            @rmdir($f);
+            continue;
+        }
         @unlink($f);
     }
     @rmdir($tmp);
@@ -194,5 +201,72 @@ $check($kept === BackupManager::DEFAULT_RETENTION,
     'the default retention applies when the setting cannot be read (kept ' . $kept . ')');
 
 $cleanup();
+echo "E. the legacy directory format is rotated too\n";
+// Pre-0.7.x updates left a directory holding a single database.sql. Nothing
+// creates them any more, but listBackups() still shows them as backups — and the
+// rotation only ever globbed backup_*.zip, so they accumulated forever. One
+// production install had 60 of them, 17 MB, spanning six months.
+foreach (glob($tmp . '/*') ?: [] as $f) {
+    if (is_dir($f)) {
+        foreach (glob($f . '/*') ?: [] as $inner) { @unlink($inner); }
+        @rmdir($f);
+    } else {
+        @unlink($f);
+    }
+}
+
+/** Seed n legacy update_ directories, oldest first. */
+$seedLegacy = static function (int $n) use ($tmp): array {
+    $paths = [];
+    for ($i = 0; $i < $n; $i++) {
+        $d = $tmp . '/update_2025-12-' . str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) . '_000000';
+        @mkdir($d, 0775, true);
+        file_put_contents($d . '/database.sql', 'x');
+        touch($d, time() - ((100 - $i) * 3600));
+        $paths[] = $d;
+    }
+    return $paths;
+};
+
+$legacy = $seedLegacy(8);
+$zips = $seed(4);
+$newest = end($zips);
+$manager = $makeManager($tmp, '5');
+$prune($manager, $newest);
+
+$survivingZips = glob($tmp . '/backup_*.zip') ?: [];
+$survivingDirs = glob($tmp . '/update_*', GLOB_ONLYDIR) ?: [];
+$check(count($survivingZips) + count($survivingDirs) === 5,
+    'both formats share one retention pool (got ' . count($survivingZips) . ' zip + ' . count($survivingDirs) . ' dir)');
+$check(in_array($newest, $survivingZips, true), 'the backup just written still survives');
+// The zips were seeded newer than every legacy directory, so with five slots the
+// four zips plus the single newest directory must be what remains.
+$check(count($survivingZips) === 4, 'the four recent archives all survive');
+$check($survivingDirs === [end($legacy)], 'only the newest legacy directory survives, by age');
+$check(!is_dir($legacy[0]), 'a rotated legacy directory is removed with its contents');
+
+echo "F. hand-placed directories are never touched\n";
+foreach (glob($tmp . '/*') ?: [] as $f) {
+    if (is_dir($f)) {
+        foreach (glob($f . '/*') ?: [] as $inner) { @unlink($inner); }
+        @rmdir($f);
+    } else {
+        @unlink($f);
+    }
+}
+$seedLegacy(6);
+// Same discipline as the archive pattern: only the EXACT generated shape is a
+// candidate. A directory an operator parked here by hand must survive whatever
+// the retention says.
+$manual = $tmp . '/update_migrazione_manuale';
+@mkdir($manual, 0775, true);
+file_put_contents($manual . '/database.sql', 'x');
+touch($manual, time() - (999 * 3600)); // older than every seeded one
+$zips = $seed(2);
+$manager = $makeManager($tmp, '2');
+$prune($manager, end($zips));
+$check(is_dir($manual), 'a hand-named directory is never a rotation candidate');
+$check(is_file($manual . '/database.sql'), 'and its contents are left alone');
+
 echo PHP_EOL . "Passed: {$passed}   Failed: {$failed}" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);

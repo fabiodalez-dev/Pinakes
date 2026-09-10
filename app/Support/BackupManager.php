@@ -52,6 +52,16 @@ class BackupManager
     private const GENERATED_NAME_PATTERN = '/^backup_\d{4}-\d{2}-\d{2}_\d{6}_[0-9a-f]{6}\.zip$/';
 
     /**
+     * The pre-0.7.x layout: a directory holding a single database.sql, written
+     * by an updater that no longer exists. Nothing creates these any more, but
+     * listBackups() still surfaces them as backups (contents: 'db'), so an
+     * operator sees them in the same list — and until now nothing pruned them.
+     * Same discipline as the pattern above: match the EXACT generated shape, so
+     * a directory someone parked there by hand is never a rotation candidate.
+     */
+    private const LEGACY_DIR_PATTERN = '/^update_\d{4}-\d{2}-\d{2}_\d{6}$/';
+
+    /**
      * Hard cap for the cumulative DECOMPRESSED size of a restore archive (4 GB).
      * Guards against a decompression-bomb ZIP whose compressed form passes
      * MAX_UPLOAD_BYTES but expands to exhaust disk during extraction.
@@ -242,7 +252,10 @@ class BackupManager
                 return;
             }
 
-            $files = [];
+            // One pool across BOTH formats, because listBackups() shows them as
+            // one list sorted by date: rotating them separately would let the
+            // operator watch a recent entry vanish while an older one survives.
+            $entries = [];
             foreach (glob($this->backupPath . '/backup_*.zip') ?: [] as $file) {
                 if (!is_file($file) || realpath($file) === realpath($justWritten)) {
                     continue;
@@ -250,22 +263,46 @@ class BackupManager
                 if (preg_match(self::GENERATED_NAME_PATTERN, basename($file)) !== 1) {
                     continue; // hand-placed archive: never a rotation candidate
                 }
-                $files[$file] = (int) filemtime($file);
+                $entries[$file] = (int) filemtime($file);
             }
-            arsort($files);
+            foreach (glob($this->backupPath . '/update_*', GLOB_ONLYDIR) ?: [] as $dir) {
+                // A symlink must never be a rotation candidate: deleteDirectory()
+                // would unlink the link, but a link is not something this class
+                // wrote and not ours to reclaim.
+                if (is_link($dir) || !is_dir($dir)) {
+                    continue;
+                }
+                if (preg_match(self::LEGACY_DIR_PATTERN, basename($dir)) !== 1) {
+                    continue; // hand-placed directory: never a rotation candidate
+                }
+                $entries[$dir] = (int) filemtime($dir);
+            }
+            arsort($entries);
 
             // The freshly written file counts against the quota too.
             $slots = max(0, $keep - 1);
-            $stale = array_slice(array_keys($files), $slots);
+            $stale = array_slice(array_keys($entries), $slots);
             $removed = 0;
-            foreach ($stale as $file) {
+            $removedLegacy = 0;
+            foreach ($stale as $path) {
+                if (is_dir($path)) {
+                    if ($this->deleteDirectory($path)) {
+                        $removed++;
+                        $removedLegacy++;
+                    }
+                    continue;
+                }
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- glob-matched backup_*.zip under storage/backups, not user input
-                if (@unlink($file)) {
+                if (@unlink($path)) {
                     $removed++;
                 }
             }
             if ($removed > 0) {
-                SecureLogger::info('BackupManager: rotated old backups', ['removed' => $removed, 'kept' => $keep]);
+                SecureLogger::info('BackupManager: rotated old backups', [
+                    'removed' => $removed,
+                    'legacy_dirs' => $removedLegacy,
+                    'kept' => $keep,
+                ]);
             }
         } catch (\Throwable $e) {
             SecureLogger::warning('BackupManager: backup rotation failed', ['error' => $e->getMessage()]);
@@ -1420,22 +1457,21 @@ class BackupManager
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function deleteDirectory(string $dir): void
+    private function deleteDirectory(string $dir): bool
     {
         // A symlinked root must not be followed either — unlink the link
         // itself, never recurse into its target (symmetric with the per-child
         // is_link guard below; is_dir() returns true through a dir symlink). (#167 review)
         if (is_link($dir)) {
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- removes the symlink, not its target
-            @unlink($dir);
-            return;
+            return @unlink($dir);
         }
         if (!is_dir($dir)) {
-            return;
+            return true; // already gone: the postcondition holds
         }
         $files = @scandir($dir);
         if ($files === false) {
-            return;
+            return false;
         }
         foreach (array_diff($files, ['.', '..']) as $file) {
             $path = $dir . '/' . $file;
@@ -1450,7 +1486,11 @@ class BackupManager
                 @unlink($path);
             }
         }
-        @rmdir($dir);
+        // The return value is what the rotation counts on. Re-checking the path
+        // afterwards would be the obvious alternative, but static analysis has
+        // already narrowed it to "a directory" and cannot see a filesystem side
+        // effect, so the helper reports its own outcome instead.
+        return @rmdir($dir);
     }
 
     private function getCurrentVersion(): string
