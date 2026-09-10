@@ -315,6 +315,14 @@ class BackupManager
                 if (preg_match(self::LEGACY_DIR_PATTERN, basename($dir)) !== 1) {
                     continue; // hand-placed directory: never a rotation candidate
                 }
+                // A generated legacy backup IS its database.sql — that is the
+                // whole content of the format. A directory carrying the name but
+                // not the dump is something else wearing our shape, and this
+                // rotation deletes recursively: reclaiming only what we can show
+                // we wrote is worth one stat() per candidate.
+                if (!is_file($dir . '/database.sql')) {
+                    continue;
+                }
                 $entries[$dir] = (int) filemtime($dir);
             }
             arsort($entries);

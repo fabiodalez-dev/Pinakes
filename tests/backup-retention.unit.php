@@ -200,7 +200,6 @@ $kept = count(glob($tmp . '/backup_*.zip') ?: []);
 $check($kept === BackupManager::DEFAULT_RETENTION,
     'the default retention applies when the setting cannot be read (kept ' . $kept . ')');
 
-$cleanup();
 echo "E. the legacy directory format is rotated too\n";
 // Pre-0.7.x updates left a directory holding a single database.sql. Nothing
 // creates them any more, but listBackups() still shows them as backups — and the
@@ -323,6 +322,34 @@ $check(($byName[$anAuto]['origin'] ?? null) === BackupManager::ORIGIN_AUTO,
 // The suffix must not leak into the date shown to the operator.
 $check(!str_contains((string) ($byName[basename($manual)]['date'] ?? ''), 'manual'),
     'the origin suffix stays out of the displayed date');
+
+echo "I. a directory wearing the name but not the content is left alone\n";
+foreach (glob($tmp . '/*') ?: [] as $f) {
+    if (is_dir($f)) {
+        foreach (glob($f . '/*') ?: [] as $inner) { @unlink($inner); }
+        @rmdir($f);
+    } else {
+        @unlink($f);
+    }
+}
+// A generated legacy backup IS its database.sql. A directory that matches the
+// name but has no dump is something else wearing our shape — and this rotation
+// deletes recursively, so getting it wrong destroys whatever is inside.
+$impostor = $tmp . '/update_2019-03-03_030303';
+@mkdir($impostor, 0775, true);
+file_put_contents($impostor . '/note.txt', 'roba mia');
+touch($impostor, time() - (999 * 3600)); // oldest of all: first to go if eligible
+$seedLegacy(4);
+$zips = $seed(2);
+$manager = $makeManager($tmp, '2');
+$prune($manager, end($zips));
+$check(is_dir($impostor), 'a legacy-named directory without database.sql is not a rotation candidate');
+$check(is_file($impostor . '/note.txt'), 'and whatever it contained is still there');
+
+// Teardown belongs at the END, after the last section. It restores the SHARED
+// system_settings.retention_count that $makeManager() overwrites — leave it and
+// the next suite to run rotates at whatever number this file last set.
+$cleanup();
 
 echo PHP_EOL . "Passed: {$passed}   Failed: {$failed}" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);
