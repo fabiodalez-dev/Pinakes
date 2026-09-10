@@ -79,6 +79,14 @@ class Updater
     private const MIN_FREE_SPACE_BYTES = 200 * 1024 * 1024;
 
     /**
+     * Probe size for the requirements panel, which renders far more often than
+     * an update runs. It answers "can this account write at all", not "can it
+     * write what the update needs" — that is the gate's question, and the gate
+     * keeps the full-size probe.
+     */
+    private const PANEL_PROBE_BYTES = 1024 * 1024;
+
+    /**
      * Memoised write-probe verdicts for this update run, keyed by the number of
      * bytes asked for. describeWriteFailure() is called once per failing file —
      * inside a bundled-plugin loop that does not re-throw — and must not write a
@@ -89,6 +97,9 @@ class Updater
 
     /** Free-space shortfall seen at construction: advisory, never fatal. */
     private ?string $spaceWarning = null;
+
+    /** Per-instance memo for estimateUpdateSpace(): the walk is not free. */
+    private ?int $estimateCache = null;
 
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
@@ -2578,13 +2589,49 @@ class Updater
      */
     private function estimateUpdateSpace(): int
     {
+        if ($this->estimateCache !== null) {
+            return $this->estimateCache;
+        }
         $total = 0;
         foreach (self::APP_BACKUP_DIRS as $dir) {
             $total += $this->directorySize($this->rootPath . '/' . $dir);
         }
         // 30% margin: the copy writes new files before the old ones are gone,
         // and a partially-fitting update is the failure mode being prevented.
-        return (int) ($total * 1.3);
+        return $this->estimateCache = (int) ($total * 1.3);
+    }
+
+    /**
+     * The same figure, cheap enough to put on a page that renders often.
+     *
+     * estimateUpdateSpace() walks APP_BACKUP_DIRS — around 5.000 files once
+     * vendor/ is included. That is a fair price to pay before an update, and the
+     * wrong price to pay on every render of the updates panel, which is exactly
+     * the page an operator reloads while trying to free space.
+     *
+     * Cached against the installed version, because the version is what changes
+     * when those directories change: an update replaces the tree AND bumps
+     * version.json, so the next read after an update misses and recomputes once.
+     * A rebuild of public/assets without a version bump would leave the number
+     * stale, which is a development scenario, not a production one — and the
+     * gate never reads this, it always measures for real.
+     */
+    private function cachedUpdateSpaceEstimate(): int
+    {
+        $version = $this->getCurrentVersion();
+        $settings = new SettingsRepository($this->db);
+        $cached = $settings->get('updater', 'space_estimate', null);
+
+        if (is_string($cached) && $cached !== '') {
+            $parts = explode(':', $cached, 2);
+            if (count($parts) === 2 && $parts[0] === $version && ctype_digit($parts[1])) {
+                return (int) $parts[1];
+            }
+        }
+
+        $estimate = $this->estimateUpdateSpace();
+        $settings->set('updater', 'space_estimate', $version . ':' . $estimate);
+        return $estimate;
     }
 
     /** Size of a directory in bytes; 0 when it does not exist or cannot be read. */
@@ -4465,7 +4512,7 @@ class Updater
         if ($freeSpace === false) {
             $freeSpace = 0;
         }
-        $minSpace = max(self::MIN_FREE_SPACE_BYTES, $this->estimateUpdateSpace());
+        $minSpace = max(self::MIN_FREE_SPACE_BYTES, $this->cachedUpdateSpaceEstimate());
         $spaceMet = $freeSpace >= $minSpace;
         $requirements[] = [
             'name' => __('Spazio libero'),
@@ -4478,13 +4525,20 @@ class Updater
         // disk_free_space() reports the FILESYSTEM. On a cPanel account it can
         // show tens of gigabytes free while the account's own quota is exhausted
         // — the exact condition that made a healthy release look corrupt. Only a
-        // real write answers it, so the panel gets its own bounded probe rather
-        // than inheriting the filesystem's optimism.
-        $quotaVerdict = $this->probeWrite(self::SPACE_PROBE_BYTES);
+        // real write answers it, so the panel gets its own probe rather than
+        // inheriting the filesystem's optimism.
+        //
+        // A SMALL one, deliberately. The panel asks "can this account write at
+        // all?", which one megabyte answers exactly as well as sixteen; the gate
+        // keeps the full-size probe because it asks the harder question, "can it
+        // write what the update needs?". Sixteen megabytes written and deleted on
+        // every render of this page is churn an operator does not need on the
+        // very screen they reload while trying to free space.
+        $quotaVerdict = $this->probeWrite(self::PANEL_PROBE_BYTES);
         $quotaMet = $quotaVerdict === '';
         $requirements[] = [
             'name' => __('Quota di scrittura'),
-            'required' => $this->formatBytes((float) self::SPACE_PROBE_BYTES),
+            'required' => $this->formatBytes((float) self::PANEL_PROBE_BYTES),
             'current' => match ($quotaVerdict) {
                 '' => __('Scrittura riuscita'),
                 'nospace' => __('Spazio o quota esauriti'),
