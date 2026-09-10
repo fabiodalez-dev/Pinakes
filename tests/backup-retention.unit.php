@@ -268,5 +268,61 @@ $prune($manager, end($zips));
 $check(is_dir($manual), 'a hand-named directory is never a rotation candidate');
 $check(is_file($manual . '/database.sql'), 'and its contents are left alone');
 
+echo "G. a backup the operator asked for is never rotated away\n";
+// The manual button and the automatic pre-update copy used to produce identical
+// names, so ten automatic backups would evict a restore point someone created on
+// purpose — usually right before doing something risky. The origin now lives in
+// the filename, which is what the rotation can see from a glob.
+foreach (glob($tmp . '/*') ?: [] as $f) {
+    if (is_dir($f)) {
+        foreach (glob($f . '/*') ?: [] as $inner) { @unlink($inner); }
+        @rmdir($f);
+    } else {
+        @unlink($f);
+    }
+}
+
+$nameFor = new ReflectionMethod(BackupManager::class, 'backupFileName');
+$nameFor->setAccessible(true);
+
+$manual = $tmp . '/' . $nameFor->invoke(null, '2025-01-01_000000', BackupManager::ORIGIN_MANUAL);
+$safety = $tmp . '/' . $nameFor->invoke(null, '2025-01-02_000000', BackupManager::ORIGIN_SAFETY);
+foreach ([$manual, $safety] as $i => $path) {
+    file_put_contents($path, 'x');
+    touch($path, time() - ((900 - $i) * 3600)); // older than every automatic one
+}
+
+$autos = $seed(12);
+$manager = $makeManager($tmp, '3');
+$prune($manager, end($autos));
+
+$check(is_file($manual), 'a backup created from the button survives the rotation');
+$check(is_file($safety), 'the safety copy taken before a restore survives too');
+$survivingAuto = array_values(array_filter(glob($tmp . '/backup_*.zip') ?: [],
+    static fn(string $f): bool => !str_contains($f, '_manual.') && !str_contains($f, '_safety.')));
+$check(count($survivingAuto) === 3,
+    'the automatic ones are still rotated to the configured count (got ' . count($survivingAuto) . ')');
+// And they must not consume the quota either: the retention counts automatic
+// copies, so a hoard of manual ones cannot starve the rolling window.
+$check(count($survivingAuto) === 3 && is_file($manual) && is_file($safety),
+    'preserved backups do not consume rotation slots');
+
+echo "H. the origin survives a round trip through the list\n";
+$listed = $manager->listBackups();
+$byName = [];
+foreach ($listed as $row) {
+    $byName[$row['name']] = $row;
+}
+$check(($byName[basename($manual)]['origin'] ?? null) === BackupManager::ORIGIN_MANUAL,
+    'the list reports a manual backup as manual');
+$check(($byName[basename($safety)]['origin'] ?? null) === BackupManager::ORIGIN_SAFETY,
+    'the list reports the safety copy as such');
+$anAuto = basename((string) end($survivingAuto));
+$check(($byName[$anAuto]['origin'] ?? null) === BackupManager::ORIGIN_AUTO,
+    'an archive with no origin recorded reads as automatic, which is what it was');
+// The suffix must not leak into the date shown to the operator.
+$check(!str_contains((string) ($byName[basename($manual)]['date'] ?? ''), 'manual'),
+    'the origin suffix stays out of the displayed date');
+
 echo PHP_EOL . "Passed: {$passed}   Failed: {$failed}" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);

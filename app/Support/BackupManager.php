@@ -52,6 +52,28 @@ class BackupManager
     private const GENERATED_NAME_PATTERN = '/^backup_\d{4}-\d{2}-\d{2}_\d{6}_[0-9a-f]{6}\.zip$/';
 
     /**
+     * Where a backup came from. Only ORIGIN_AUTO — the copy taken automatically
+     * before an update — is subject to rotation.
+     *
+     * A backup the operator ASKED for is not interchangeable with one the system
+     * took on its own: it exists because someone decided, at that moment, that
+     * this state was worth keeping, usually right before doing something risky.
+     * Letting ten automatic pre-update copies evict it turns a deliberate
+     * restore point into a rolling window, which is not what the button
+     * promises. The same holds, more strongly, for the safety copy taken before
+     * a restore: that one IS the undo.
+     *
+     * The origin is encoded in the FILENAME, not only in the manifest, because
+     * the rotation has to decide from a glob — reading a manifest means opening
+     * every archive. A non-auto name simply falls outside
+     * GENERATED_NAME_PATTERN, so it is excluded by the rule that was already
+     * there for hand-placed archives, with no second rule to keep in sync.
+     */
+    public const ORIGIN_AUTO = 'auto';
+    public const ORIGIN_MANUAL = 'manual';
+    public const ORIGIN_SAFETY = 'safety';
+
+    /**
      * The pre-0.7.x layout: a directory holding a single database.sql, written
      * by an updater that no longer exists. Nothing creates these any more, but
      * listBackups() still surfaces them as backups (contents: 'db'), so an
@@ -85,7 +107,24 @@ class BackupManager
      * @param string $scope 'full' (DB + files) or 'db' (database only)
      * @return array{success: bool, name: string|null, path: string|null, size: int, error: string|null}
      */
-    public function createBackup(string $scope = 'full'): array
+    /**
+     * Build a backup filename carrying its origin.
+     *
+     * The automatic shape is left EXACTLY as it was, so every archive already on
+     * disk keeps being recognised — and keeps being rotated. Anything else gets
+     * an origin suffix, which puts it outside GENERATED_NAME_PATTERN and thus
+     * outside the rotation, without a second exclusion rule to maintain.
+     */
+    private static function backupFileName(string $timestamp, string $origin): string
+    {
+        $suffix = bin2hex(random_bytes(3));
+        if ($origin === self::ORIGIN_AUTO) {
+            return 'backup_' . $timestamp . '_' . $suffix . '.zip';
+        }
+        return 'backup_' . $timestamp . '_' . $suffix . '_' . $origin . '.zip';
+    }
+
+    public function createBackup(string $scope = 'full', string $origin = self::ORIGIN_AUTO): array
     {
         $scope = $scope === 'db' ? 'db' : 'full';
         $sqlTmp = null;
@@ -108,7 +147,7 @@ class BackupManager
             // A random suffix avoids collisions when two backups land in the
             // same second (e.g. a manual backup + the pre-restore safety backup).
             $timestamp = date('Y-m-d_His');
-            $name = 'backup_' . $timestamp . '_' . bin2hex(random_bytes(3)) . '.zip';
+            $name = self::backupFileName($timestamp, $origin);
             $zipPath = $this->backupPath . '/' . $name;
 
             // 1. Dump the database to a temp file.
@@ -140,6 +179,7 @@ class BackupManager
                 'version' => $this->getCurrentVersion(),
                 'created_at' => date('c'),
                 'scope' => $scope,
+                'origin' => $origin,
                 'tables' => $tableCount,
                 'files' => $fileCount,
                 'database_sha256' => hash_file('sha256', $sqlTmp) ?: '',
@@ -312,6 +352,27 @@ class BackupManager
     /**
      * @return array<int, array{name: string, path: string, size: int, date: string, contents: string, created_at: int}>
      */
+    /**
+     * Origin encoded in a filename, for archives whose manifest predates it.
+     * Unknown or absent suffix means the automatic shape, which is what every
+     * archive written before this existed actually was.
+     */
+    private static function originFromName(string $name): string
+    {
+        if (preg_match('/^backup_\\d{4}-\\d{2}-\\d{2}_\\d{6}_[0-9a-f]{6}_([a-z]+)\\.zip$/', $name, $m) === 1) {
+            return in_array($m[1], [self::ORIGIN_MANUAL, self::ORIGIN_SAFETY], true) ? $m[1] : self::ORIGIN_AUTO;
+        }
+        return self::ORIGIN_AUTO;
+    }
+
+    /** Human date label, with any origin suffix stripped out of it. */
+    private static function backupDateLabel(string $name): string
+    {
+        $base = pathinfo($name, PATHINFO_FILENAME);
+        $base = preg_replace('/_(?:' . self::ORIGIN_MANUAL . '|' . self::ORIGIN_SAFETY . ')$/', '', $base) ?? $base;
+        return str_replace(['backup_', '_'], ['', ' '], $base);
+    }
+
     public function listBackups(): array
     {
         $backups = [];
@@ -327,8 +388,12 @@ class BackupManager
                 'name' => $name,
                 'path' => $file,
                 'size' => (int) filesize($file),
-                'date' => str_replace(['backup_', '_'], ['', ' '], pathinfo($name, PATHINFO_FILENAME)),
+                'date' => self::backupDateLabel($name),
                 'contents' => (string) ($manifest['scope'] ?? 'full'),
+                // Manifest first, filename as the fallback: archives written
+                // before origins existed carry neither, and default to auto —
+                // which is what they were.
+                'origin' => (string) ($manifest['origin'] ?? self::originFromName($name)),
                 'created_at' => (int) filemtime($file),
             ];
         }
@@ -343,6 +408,7 @@ class BackupManager
                 'size' => is_file($dbFile) ? (int) filesize($dbFile) : 0,
                 'date' => str_replace(['update_', '_'], ['', ' '], $name),
                 'contents' => 'db',
+                'origin' => self::ORIGIN_AUTO,
                 'created_at' => (int) filemtime($dir),
             ];
         }
@@ -445,7 +511,7 @@ class BackupManager
         // Same naming scheme as createBackup() so the uploaded archive is listed
         // and deletable like any other backup; the random suffix avoids the
         // same-second collision a plain timestamp would allow.
-        $dest = $this->backupPath . '/backup_' . date('Y-m-d_His') . '_' . bin2hex(random_bytes(3)) . '.zip';
+        $dest = $this->backupPath . '/' . self::backupFileName(date('Y-m-d_His'), self::ORIGIN_SAFETY);
         if (!@rename($tmpPath, $dest) && !@copy($tmpPath, $dest)) {
             return ['success' => false, 'safety_backup' => null, 'error' => __('Impossibile salvare il file caricato')];
         }
