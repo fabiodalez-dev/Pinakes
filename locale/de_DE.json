@@ -7513,5 +7513,9 @@
   "la directory di destinazione non esiste": "das Zielverzeichnis existiert nicht",
   "la directory di destinazione non è scrivibile": "das Zielverzeichnis ist nicht beschreibbar",
   "causa sconosciuta": "unbekannte Ursache",
-  "Errore nella copia del file: %s — %s": "Fehler beim Kopieren der Datei: %s — %s"
+  "Errore nella copia del file: %s — %s": "Fehler beim Kopieren der Datei: %s — %s",
+  "Impossibile riservare i %1$s richiesti dall'aggiornamento: lo spazio disponibile o la quota dell'account sono esauriti. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Die für das Update benötigten %1$s konnten nicht reserviert werden: Der verfügbare Speicherplatz oder das Kontingent des Kontos ist erschöpft. Geben Sie Speicherplatz frei (die automatischen Sicherungen in storage/backups sind die ersten Kandidaten) und versuchen Sie es erneut.",
+  "Impossibile usare la directory di lavoro dell'aggiornamento (%s): non esiste o non è scrivibile dall'utente del web server. Correggi i permessi e riprova.": "Das Arbeitsverzeichnis des Updates (%s) kann nicht verwendet werden: Es existiert nicht oder ist für den Benutzer des Webservers nicht beschreibbar. Korrigieren Sie die Berechtigungen und versuchen Sie es erneut.",
+  "Impossibile creare directory: %s — %s": "Verzeichnis konnte nicht erstellt werden: %s — %s",
+  "Impossibile sostituire il collegamento simbolico nella destinazione: %s — %s": "Der symbolische Link am Ziel konnte nicht ersetzt werden: %s — %s"
 }
