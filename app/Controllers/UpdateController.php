@@ -23,7 +23,38 @@ class UpdateController
         // Admin-only access check removed - relying on Middleware
 
 
-        $updater = new Updater($db);
+        // The constructor refuses to build when a genuinely fatal precondition
+        // fails (storage/tmp or storage/backups unwritable, no ZipArchive, no
+        // HTTP transport). Letting that escape turns this page — the one place
+        // that would name the problem — into a blank 500, which is the opposite
+        // of what an operator in trouble needs. Degrade to a page that says what
+        // to fix instead.
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            ob_start();
+            ?>
+            <div class="max-w-3xl mx-auto mt-10 bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 rounded-lg shadow p-6">
+                <h1 class="text-xl font-semibold text-red-700 dark:text-red-400 mb-3">
+                    <?php echo htmlspecialchars(__('Aggiornamenti non disponibili'), ENT_QUOTES, 'UTF-8'); ?>
+                </h1>
+                <p class="text-gray-700 dark:text-gray-300 mb-4">
+                    <?php echo htmlspecialchars(__('Il sistema di aggiornamento non può essere avviato perché una condizione preliminare non è soddisfatta. Correggi quanto indicato qui sotto e ricarica la pagina.'), ENT_QUOTES, 'UTF-8'); ?>
+                </p>
+                <pre class="bg-gray-100 dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200 rounded p-4 whitespace-pre-wrap"><?php
+                    echo htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+                ?></pre>
+            </div>
+            <?php
+            $content = ob_get_clean();
+
+            ob_start();
+            require __DIR__ . '/../Views/layout.php';
+            $html = ob_get_clean();
+
+            $response->getBody()->write($html);
+            return $response->withStatus(503);
+        }
 
         // Check for updates
         $updateInfo = $updater->checkForUpdates();

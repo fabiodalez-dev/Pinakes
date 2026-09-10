@@ -7517,5 +7517,13 @@
   "Impossibile riservare i %1$s richiesti dall'aggiornamento: lo spazio disponibile o la quota dell'account sono esauriti. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Impossible de réserver les %1$s requis par la mise à jour : l'espace disponible ou le quota du compte est épuisé. Libérez de l'espace (les sauvegardes automatiques dans storage/backups sont les premières candidates) et réessayez.",
   "Impossibile usare la directory di lavoro dell'aggiornamento (%s): non esiste o non è scrivibile dall'utente del web server. Correggi i permessi e riprova.": "Impossible d'utiliser le répertoire de travail de la mise à jour (%s) : il n'existe pas ou n'est pas accessible en écriture par l'utilisateur du serveur web. Corrigez les permissions et réessayez.",
   "Impossibile creare directory: %s — %s": "Impossible de créer le répertoire : %s — %s",
-  "Impossibile sostituire il collegamento simbolico nella destinazione: %s — %s": "Impossible de remplacer le lien symbolique de destination : %s — %s"
+  "Impossibile sostituire il collegamento simbolico nella destinazione: %s — %s": "Impossible de remplacer le lien symbolique de destination : %s — %s",
+  "Spazio su disco basso: %1$s disponibili, sotto il minimo di %2$s.": "Espace disque faible : %1$s disponibles, en dessous du minimum de %2$s.",
+  "Quota di scrittura": "Quota d'écriture",
+  "Scrittura riuscita": "Écriture réussie",
+  "Spazio o quota esauriti": "Espace ou quota épuisé",
+  "storage/tmp non utilizzabile": "storage/tmp inutilisable",
+  "Avviso spazio": "Avertissement d'espace",
+  "Aggiornamenti non disponibili": "Mises à jour indisponibles",
+  "Il sistema di aggiornamento non può essere avviato perché una condizione preliminare non è soddisfatta. Correggi quanto indicato qui sotto e ricarica la pagina.": "Le système de mise à jour ne peut pas démarrer car une condition préalable n'est pas remplie. Corrigez ce qui est indiqué ci-dessous et rechargez la page."
 }

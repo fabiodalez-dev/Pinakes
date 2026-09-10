@@ -22,6 +22,11 @@
 // ============================================================
 define('UPGRADE_PASSWORD', 'pinakes2026');
 define('MAX_ZIP_SIZE', 512 * 1024 * 1024); // 512 MB (aligned with scripts/.user.ini)
+// Coarse floor for an upgrade. One value, used by BOTH the disk_free_space()
+// gate and the write probe that backs it: a probe smaller than the declared
+// floor lets a quota between the two pass the check and fail on the first
+// real write.
+define('MIN_UPGRADE_FREE_BYTES', 200 * 1024 * 1024);
 
 // ============================================================
 // BOOTSTRAP
@@ -598,15 +603,18 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         }
 
         $freeSpace = @disk_free_space($rootPath);
-        if ($freeSpace !== false && $freeSpace < 200 * 1024 * 1024) {
-            throw new RuntimeException('Spazio disco insufficiente: ' . formatBytes((int)$freeSpace) . ' disponibili, servono almeno 200 MB.');
+        if ($freeSpace !== false && $freeSpace < MIN_UPGRADE_FREE_BYTES) {
+            throw new RuntimeException('Spazio disco insufficiente: ' . formatBytes((int)$freeSpace) . ' disponibili, servono almeno ' . formatBytes(MIN_UPGRADE_FREE_BYTES) . '.');
         }
         // disk_free_space() alone lies on a cPanel account whose quota is
         // exhausted: it reports the FILESYSTEM. Prove with a real write that
         // this account can still allocate, here — the last point at which a
         // refusal costs the operator nothing, because after it the DB dump and
         // the tree overwrite begin and this script has no file rollback.
-        $probeVerdict = probeWriteBytes($rootPath, 16 * 1024 * 1024);
+        // Prove the SAME amount the gate above demands: a probe smaller than the
+        // declared floor lets a quota sitting between the two pass and then fail
+        // on the first real write.
+        $probeVerdict = probeWriteBytes($rootPath, MIN_UPGRADE_FREE_BYTES);
         if ($probeVerdict === 'unavailable') {
             throw new RuntimeException('Impossibile usare storage/tmp: non esiste o non è scrivibile. Correggi i permessi prima di continuare.');
         }
@@ -646,6 +654,38 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             mkdir($backupDir, 0775, true);
         }
         $backupFile = $backupDir . '/pre_upgrade_' . str_replace('.', '_', $currentVersion) . '_' . date('Ymd_His') . '.sql';
+
+        // The dump is redirected straight to disk with no size limit of its own,
+        // so a database larger than the coarse pre-flight floor can still exhaust
+        // the quota mid-write — and this script has no file rollback. Estimate it
+        // from information_schema and prove that much really fits first. The
+        // estimate is deliberately generous: an SQL dump is text, so it runs
+        // larger than the stored byte count it is derived from.
+        $dumpEstimate = 0;
+        $sizeRow = $db->query(
+            "SELECT COALESCE(SUM(data_length + index_length), 0) AS bytes
+               FROM information_schema.tables
+              WHERE table_schema = DATABASE()"
+        );
+        if ($sizeRow instanceof mysqli_result) {
+            $row = $sizeRow->fetch_assoc();
+            $sizeRow->free();
+            $dumpEstimate = (int) (((float) ($row['bytes'] ?? 0)) * 1.5);
+        }
+        if ($dumpEstimate > 0) {
+            $dumpVerdict = probeWriteBytes($rootPath, $dumpEstimate);
+            if ($dumpVerdict === 'unavailable') {
+                throw new RuntimeException('Impossibile usare storage/tmp per verificare lo spazio del backup: non esiste o non è scrivibile. Correggi i permessi prima di continuare.');
+            }
+            if ($dumpVerdict === 'nospace') {
+                throw new RuntimeException(
+                    'Spazio insufficiente per il backup del database: servono circa '
+                    . formatBytes((float) $dumpEstimate)
+                    . '. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'
+                );
+            }
+            $log[] = '[OK] Spazio per il dump verificato (~' . formatBytes((float) $dumpEstimate) . ')';
+        }
 
         $mysqldumpBin = null;
         foreach (['/usr/bin/mysqldump', '/usr/local/bin/mysqldump', '/opt/homebrew/bin/mysqldump'] as $candidate) {

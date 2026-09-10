@@ -342,10 +342,16 @@ $check(!str_contains($cli, '__('), 'the script stays free of the translation fun
 // The helpers and every check that uses them must sit BEFORE that point: they
 // run on installations where the application itself will not boot.
 $autoloadAt = strpos($cli, 'vendor/autoload.php');
+// Presence first, THEN order. strpos() returns false when the symbol is absent,
+// and (int) false is 0, which compares below every offset — an assertion written
+// that way passes precisely when the thing it guards has disappeared.
+$probeDefAt  = strpos($cli, 'function probeWriteBytes(');
+$diagDefAt   = strpos($cli, 'function describeWriteFailure(');
+$probeUseAt  = strrpos($cli, 'probeWriteBytes($rootPath');
 $check($autoloadAt !== false
-    && (int) strpos($cli, 'function probeWriteBytes(') < $autoloadAt
-    && (int) strpos($cli, 'function describeWriteFailure(') < $autoloadAt
-    && (int) strrpos($cli, 'probeWriteBytes($rootPath') < $autoloadAt,
+    && $probeDefAt !== false && $probeDefAt < $autoloadAt
+    && $diagDefAt !== false && $diagDefAt < $autoloadAt
+    && $probeUseAt !== false && $probeUseAt < $autoloadAt,
     'probe and diagnosis are defined and used before any autoloader is required');
 $cliLines = preg_split('/\r?\n/', $cli) ?: [];
 foreach (['Copia file fallita', 'Backup file critico fallito', 'Impossibile creare directory destinazione'] as $message) {

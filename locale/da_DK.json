@@ -7517,5 +7517,13 @@
   "Impossibile riservare i %1$s richiesti dall'aggiornamento: lo spazio disponibile o la quota dell'account sono esauriti. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Kunne ikke reservere de %1$s, som opdateringen kræver: den tilgængelige plads eller kontokvoten er opbrugt. Frigør plads (de automatiske sikkerhedskopier i storage/backups er de første kandidater), og prøv igen.",
   "Impossibile usare la directory di lavoro dell'aggiornamento (%s): non esiste o non è scrivibile dall'utente del web server. Correggi i permessi e riprova.": "Opdateringens arbejdsmappe (%s) kan ikke bruges: den findes ikke eller kan ikke skrives af webserverens bruger. Ret rettighederne, og prøv igen.",
   "Impossibile creare directory: %s — %s": "Kunne ikke oprette mappe: %s — %s",
-  "Impossibile sostituire il collegamento simbolico nella destinazione: %s — %s": "Kunne ikke erstatte det symbolske link i destinationen: %s — %s"
+  "Impossibile sostituire il collegamento simbolico nella destinazione: %s — %s": "Kunne ikke erstatte det symbolske link i destinationen: %s — %s",
+  "Spazio su disco basso: %1$s disponibili, sotto il minimo di %2$s.": "Lav diskplads: %1$s tilgængelig, under minimum på %2$s.",
+  "Quota di scrittura": "Skrivekvote",
+  "Scrittura riuscita": "Skrivning lykkedes",
+  "Spazio o quota esauriti": "Plads eller kvote opbrugt",
+  "storage/tmp non utilizzabile": "storage/tmp kan ikke bruges",
+  "Avviso spazio": "Pladsadvarsel",
+  "Aggiornamenti non disponibili": "Opdateringer utilgængelige",
+  "Il sistema di aggiornamento non può essere avviato perché una condizione preliminare non è soddisfatta. Correggi quanto indicato qui sotto e ricarica la pagina.": "Opdateringssystemet kan ikke startes, fordi en forudsætning ikke er opfyldt. Ret det, der er anført nedenfor, og genindlæs siden."
 }

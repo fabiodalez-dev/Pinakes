@@ -67,6 +67,18 @@ class Updater
     private const SPACE_PROBE_STRIDE = 1024;
 
     /**
+     * Coarse free-space floor for the cheap advisory checks.
+     *
+     * ONE value, so the constructor's sanity check and the requirements panel
+     * cannot drift apart from each other or from the real requirement. It is
+     * deliberately NOT the authority on whether an update fits — that is
+     * checkFreeSpaceForUpdate(), which measures the tree and proves the
+     * quota with a real write. This is only a floor below which nothing is
+     * worth attempting.
+     */
+    private const MIN_FREE_SPACE_BYTES = 200 * 1024 * 1024;
+
+    /**
      * Memoised write-probe verdicts for this update run, keyed by the number of
      * bytes asked for. describeWriteFailure() is called once per failing file —
      * inside a bundled-plugin loop that does not re-throw — and must not write a
@@ -74,6 +86,9 @@ class Updater
      * @var array<int, string>
      */
     private array $probeVerdicts = [];
+
+    /** Free-space shortfall seen at construction: advisory, never fatal. */
+    private ?string $spaceWarning = null;
 
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
@@ -156,11 +171,19 @@ class Updater
             $issues[] = "Né cURL né allow_url_fopen disponibili";
         }
 
-        // Check disk space (need at least 200MB free)
+        // Free space is ADVISORY here, never fatal. Constructing an Updater to
+        // INSPECT state (the admin updates page builds one on every render) must
+        // not throw over a condition that only matters when installing — an
+        // uncaught throw here costs the operator the very page that would tell
+        // them what is wrong. checkFreeSpaceForUpdate() is the authority at
+        // install time; this only records the shortfall for the panel to show.
         $freeSpace = @disk_free_space($this->rootPath);
-        if ($freeSpace !== false && $freeSpace < 200 * 1024 * 1024) {
-            $issues[] = sprintf("Spazio disco insufficiente: %s disponibili, servono almeno 200MB",
-                $this->formatBytes((float)$freeSpace));
+        if ($freeSpace !== false && $freeSpace < self::MIN_FREE_SPACE_BYTES) {
+            $this->spaceWarning = sprintf(
+                __('Spazio su disco basso: %1$s disponibili, sotto il minimo di %2$s.'),
+                $this->formatBytes((float) $freeSpace),
+                $this->formatBytes((float) self::MIN_FREE_SPACE_BYTES)
+            );
         }
 
         // Load GitHub API token from settings (if configured)
@@ -179,7 +202,8 @@ class Updater
             'openssl_available' => extension_loaded('openssl'),
             'zip_available' => class_exists('ZipArchive'),
             'free_space_mb' => $freeSpace !== false ? round($freeSpace / 1024 / 1024) : 'unknown',
-            'pre_flight_issues' => $issues ?: 'none'
+            'pre_flight_issues' => $issues ?: 'none',
+            'space_warning' => $this->spaceWarning ?? 'none'
         ]);
 
         if (!empty($issues)) {
@@ -1531,6 +1555,12 @@ class Updater
                 }
             }
 
+            $extractSpaceError = $this->extractionSpaceError($zip);
+            if ($extractSpaceError !== null) {
+                $zip->close();
+                throw new Exception($extractSpaceError);
+            }
+
             $extractionSuccess = $zip->extractTo($extractPath);
 
             // If extraction failed, try fallback to storage/tmp
@@ -1983,6 +2013,12 @@ class Updater
                     $zip->close();
                     throw new Exception(__('Percorso non valido nel pacchetto'));
                 }
+            }
+
+            $extractSpaceError = $this->extractionSpaceError($zip);
+            if ($extractSpaceError !== null) {
+                $zip->close();
+                throw new Exception($extractSpaceError);
             }
 
             if (!$zip->extractTo($extractPath)) {
@@ -2759,6 +2795,48 @@ class Updater
      * first becomes the default answer for everything below it, and on a nearly
      * full volume it would report "no space" for a missing directory.
      */
+    /**
+     * Refuse an extraction that provably will not fit, before it writes an entry.
+     *
+     * The early gate sizes the package from its COMPRESSED bytes, because that is
+     * the only figure available before the download. A ZIP is free to expand well
+     * past any fixed ratio, so once the archive is open the real number is
+     * knowable and cheap: sum it and prove it. Reuses the messages the gate
+     * already owns, so this adds no new translation keys.
+     *
+     * @return string|null the message to show, or null when it fits
+     */
+    private function extractionSpaceError(ZipArchive $zip): ?string
+    {
+        $uncompressed = 0;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            // statIndex() returns false for an unreadable entry; when it returns
+            // an array, 'size' is always present.
+            $stat = $zip->statIndex($i);
+            if ($stat !== false) {
+                $uncompressed += (int) $stat['size'];
+            }
+        }
+        if ($uncompressed <= 0) {
+            return null; // nothing measurable: let the extraction proceed
+        }
+
+        $verdict = $this->probeWrite($uncompressed, true);
+        if ($verdict === 'unavailable') {
+            return sprintf(
+                __('Impossibile usare la directory di lavoro dell\'aggiornamento (%s): non esiste o non è scrivibile dall\'utente del web server. Correggi i permessi e riprova.'),
+                $this->rootPath . '/storage/tmp'
+            );
+        }
+        if ($verdict === 'nospace') {
+            return sprintf(
+                __('Impossibile riservare i %1$s richiesti dall\'aggiornamento: lo spazio disponibile o la quota dell\'account sono esauriti. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
+                $this->formatBytes($uncompressed)
+            );
+        }
+        return null;
+    }
+
     private function describeWriteFailure(string $targetPath): string
     {
         // error_get_last() is process-global: capture it BEFORE this function
@@ -4380,19 +4458,50 @@ class Updater
             if (!$writable) $allMet = false;
         }
 
-        $freeSpace = disk_free_space($this->rootPath);
+        // Report the SAME figure installUpdate() will enforce. A panel that
+        // advertises a smaller number than the gate is worse than no panel: it
+        // shows all-green on an install the update is about to refuse.
+        $freeSpace = @disk_free_space($this->rootPath);
         if ($freeSpace === false) {
             $freeSpace = 0;
         }
-        $minSpace = 100 * 1024 * 1024;
+        $minSpace = max(self::MIN_FREE_SPACE_BYTES, $this->estimateUpdateSpace());
         $spaceMet = $freeSpace >= $minSpace;
         $requirements[] = [
             'name' => __('Spazio libero'),
-            'required' => '100MB',
+            'required' => $this->formatBytes((float) $minSpace),
             'current' => $freeSpace > 0 ? $this->formatBytes($freeSpace) : __('Non disponibile'),
             'met' => $spaceMet
         ];
         if (!$spaceMet) $allMet = false;
+
+        // disk_free_space() reports the FILESYSTEM. On a cPanel account it can
+        // show tens of gigabytes free while the account's own quota is exhausted
+        // — the exact condition that made a healthy release look corrupt. Only a
+        // real write answers it, so the panel gets its own bounded probe rather
+        // than inheriting the filesystem's optimism.
+        $quotaVerdict = $this->probeWrite(self::SPACE_PROBE_BYTES);
+        $quotaMet = $quotaVerdict === '';
+        $requirements[] = [
+            'name' => __('Quota di scrittura'),
+            'required' => $this->formatBytes((float) self::SPACE_PROBE_BYTES),
+            'current' => match ($quotaVerdict) {
+                '' => __('Scrittura riuscita'),
+                'nospace' => __('Spazio o quota esauriti'),
+                default => __('storage/tmp non utilizzabile'),
+            },
+            'met' => $quotaMet
+        ];
+        if (!$quotaMet) $allMet = false;
+
+        if ($this->spaceWarning !== null) {
+            $requirements[] = [
+                'name' => __('Avviso spazio'),
+                'required' => $this->formatBytes((float) self::MIN_FREE_SPACE_BYTES),
+                'current' => $this->spaceWarning,
+                'met' => false
+            ];
+        }
 
         return [
             'met' => $allMet,
@@ -4540,6 +4649,22 @@ class Updater
         $result = null;
 
         try {
+            // PRE-FLIGHT (issue #422): refuse BEFORE the first byte is written —
+            // and that includes Step 0. applySinglePatch() writes patched files
+            // straight over the tree with no rollback of its own, so a quota that
+            // runs out mid-patch leaves the application half-patched. Steps 1 and
+            // 2 then write the backup archive, the release ZIP and its extracted
+            // tree, together as much as the rollback copy the gate in
+            // installUpdate() protects. That later gate stays: it re-measures
+            // once these steps have consumed their share, which is the only
+            // measurement valid there.
+            $packageBytes = $this->releaseAssetBytes($targetVersion);
+            $spaceError = $this->checkFreeSpaceForUpdate($packageBytes > 0 ? $packageBytes * 4 : 0);
+            if ($spaceError !== null) {
+                $this->debugLog('ERROR', 'Preflight iniziale: spazio insufficiente', ['detail' => $spaceError]);
+                throw new Exception($spaceError);
+            }
+
             // Step 0: Apply pre-update patch (if available)
             $this->debugLog('INFO', '>>> STEP 0: Pre-update patch check <<<');
             $patchResult = $this->applyPreUpdatePatch($targetVersion);
@@ -4551,21 +4676,6 @@ class Updater
                 $this->debugLog('INFO', 'Pre-update patch applicato', [
                     'patches' => $patchResult['patches']
                 ]);
-            }
-
-            // PRE-FLIGHT (issue #422): refuse BEFORE the first byte is written.
-            // Steps 1 and 2 write the backup archive, the release ZIP and its
-            // extracted tree — together as much as the rollback copy the gate in
-            // installUpdate() protects. On an account whose quota is exhausted
-            // the update used to die inside one of them with "Backup fallito" or
-            // "Download fallito" and no mention of space at all. The gate in
-            // installUpdate() stays: it re-measures once these steps have
-            // consumed their share, which is the only measurement valid there.
-            $packageBytes = $this->releaseAssetBytes($targetVersion);
-            $spaceError = $this->checkFreeSpaceForUpdate($packageBytes > 0 ? $packageBytes * 4 : 0);
-            if ($spaceError !== null) {
-                $this->debugLog('ERROR', 'Preflight iniziale: spazio insufficiente', ['detail' => $spaceError]);
-                throw new Exception($spaceError);
             }
 
             // Step 1: Backup
