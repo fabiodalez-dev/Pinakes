@@ -1445,16 +1445,18 @@ class Updater
             $bytesWritten = file_put_contents($zipPath, $fileContent);
 
             if ($bytesWritten === false) {
+                // Describe first: debugLog() writes to disk and would replace
+                // the file_put_contents() error that error_get_last() has to
+                // report. Name the cause because on a full account this is the
+                // FIRST write to fail, and "Download fallito" alone sends the
+                // operator looking for a corrupt release instead of free space.
+                $cause = $this->describeWriteFailure($zipPath);
                 $this->debugLog('ERROR', 'Impossibile salvare file', [
                     'path' => $zipPath,
-                    'error' => error_get_last()
+                    'error' => $cause
                 ]);
-                // Name the cause: on a full account this is the FIRST write to
-                // fail, and "Download fallito" alone sends the operator looking
-                // for a corrupt release instead of for free space.
                 throw new Exception(
-                    __('Impossibile salvare il file di aggiornamento')
-                    . ' — ' . $this->describeWriteFailure($zipPath)
+                    __('Impossibile salvare il file di aggiornamento') . ' — ' . $cause
                 );
             }
 
@@ -1591,16 +1593,22 @@ class Updater
             }
 
             if (!$extractionSuccess) {
+                // Describe FIRST, before anything else in this branch. Two
+                // things would otherwise destroy the evidence: $zip->close()
+                // flushes the archive and can raise its own error, and
+                // debugLog() writes to disk — either replaces the extraction
+                // error that error_get_last() has to report. It also has to
+                // run before the cleanup below deletes the extraction path and
+                // the ZIP, since once they are gone the probe can no longer
+                // see the state that produced the failure.
+                $cause = $this->describeWriteFailure($extractPath);
+                $zipStatus = $zip->status;
                 $zip->close();
                 $this->debugLog('ERROR', 'Estrazione fallita definitivamente', [
                     'destination' => $extractPath,
-                    'zip_status' => $zip->status,
-                    'last_error' => error_get_last()
+                    'zip_status' => $zipStatus,
+                    'last_error' => $cause
                 ]);
-                // Describe BEFORE the cleanup below deletes the extraction path
-                // and the ZIP: once they are gone the probe can no longer see
-                // the state that produced the failure.
-                $cause = $this->describeWriteFailure($extractPath);
                 // Clean up
                 if (is_dir($extractPath)) {
                     $this->deleteDirectory($extractPath);
@@ -1978,12 +1986,14 @@ class Updater
             }
 
             if (!$zip->extractTo($extractPath)) {
+                // Describe before close(): flushing the archive can raise an
+                // error of its own and replace the extraction failure that
+                // error_get_last() has to report. An extraction that runs out
+                // of room says nothing about the package; say which it was.
+                $cause = $this->describeWriteFailure($extractPath);
                 $zip->close();
-                // An extraction that runs out of room says nothing about the
-                // package; say which of the two it was.
                 throw new Exception(
-                    __('Estrazione del pacchetto fallita')
-                    . ' — ' . $this->describeWriteFailure($extractPath)
+                    __('Estrazione del pacchetto fallita') . ' — ' . $cause
                 );
             }
             $zip->close();

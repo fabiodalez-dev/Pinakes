@@ -210,6 +210,48 @@ $check(str_contains($reason, 'copy('),
 $reason = (string) $call($updater, 'describeWriteFailure', [$tmp . '/plain.txt']);
 $check(trim($reason) !== '', 'a cause is always reported, even when nothing obvious is wrong');
 
+// Same rule, enforced across every call site rather than one at a time. The
+// diagnosis has to be the first thing its failure branch does: error_get_last()
+// is process-global, so anything performing I/O ahead of it — debugLog(), which
+// ends in a file write, or ZipArchive::close(), which flushes — replaces the very
+// error the diagnosis exists to report. When this shipped the rule was honoured at
+// two call sites and broken at two others; without a gate the next site added
+// picks whichever neighbour it happens to copy.
+$updaterLines = preg_split('/\r?\n/', $src) ?: [];
+$outOfOrder = [];
+foreach ($updaterLines as $i => $line) {
+    if (!str_contains($line, '$this->describeWriteFailure(')) {
+        continue;
+    }
+    // Walk back to the line opening the enclosing branch.
+    $start = $i;
+    for ($j = $i - 1; $j >= 0 && ($i - $j) < 40; $j--) {
+        $t = trim($updaterLines[$j]);
+        if (str_ends_with($t, '{')
+            && (str_starts_with($t, 'if (') || str_starts_with($t, '} else') || str_starts_with($t, 'foreach ('))) {
+            $start = $j;
+            break;
+        }
+    }
+    // Comments are excluded on purpose: the branches that get this right carry a
+    // comment explaining WHY they call debugLog() second, and scanning raw text
+    // would let that explanation trip the very rule it documents.
+    $between = array_filter(
+        array_slice($updaterLines, $start + 1, max(0, $i - $start - 1)),
+        static function (string $l): bool {
+            $t = ltrim($l);
+            return $t !== '' && !str_starts_with($t, '//') && !str_starts_with($t, '*') && !str_starts_with($t, '/*');
+        }
+    );
+    $code = implode("\n", $between);
+    if (str_contains($code, 'debugLog(') || str_contains($code, '->close()')) {
+        $outOfOrder[] = $i + 1;
+    }
+}
+$check($outOfOrder === [],
+    'the diagnosis runs before any logging or teardown in every failure branch that uses it'
+    . ($outOfOrder === [] ? '' : ' — violated at line(s) ' . implode(', ', $outOfOrder)));
+
 echo "D. copyDirectory itself reports the cause, not only the helper\n";
 $copySrc = $tmp . '/pkg';
 $copyDst = $tmp . '/live';
