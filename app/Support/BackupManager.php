@@ -107,7 +107,7 @@ class BackupManager
     {
         $bytes = 1024 * 1024;
         $free = @disk_free_space($dir);
-        if (is_float($free) && $free > 0 && $free < $bytes) {
+        if (is_float($free) && $free < $bytes) {
             return true;
         }
         $probe = $dir . '/.backup_probe_' . bin2hex(random_bytes(4));

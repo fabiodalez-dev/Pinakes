@@ -92,7 +92,14 @@ class UpdateController
         // Admin-only access check removed
 
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 503);
+        }
         $updateInfo = $updater->checkForUpdates();
 
         return $this->jsonResponse($response, $updateInfo);
@@ -123,7 +130,14 @@ class UpdateController
             return $this->jsonResponse($response, ['error' => __('Versione non specificata')], 400);
         }
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 503);
+        }
 
         // Check requirements first
         $requirements = $updater->checkRequirements();
@@ -196,7 +210,14 @@ class UpdateController
         // Admin-only access check removed
 
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 503);
+        }
         $history = $updater->getUpdateHistory();
 
         return $this->jsonResponse($response, ['history' => $history]);
@@ -213,7 +234,14 @@ class UpdateController
             return $this->jsonResponse($response, ['available' => false]);
         }
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 503);
+        }
         $updateInfo = $updater->checkForUpdates();
 
         return $this->jsonResponse($response, [
@@ -654,7 +682,14 @@ class UpdateController
             ], 400);
         }
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 503);
+        }
 
         // Check requirements first
         $requirements = $updater->checkRequirements();

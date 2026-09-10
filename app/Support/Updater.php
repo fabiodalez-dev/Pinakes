@@ -91,7 +91,7 @@ class Updater
      * bytes asked for. describeWriteFailure() is called once per failing file —
      * inside a bundled-plugin loop that does not re-throw — and must not write a
      * probe onto the very disk it is diagnosing twenty times over.
-     * @var array<int, string>
+     * @var array<string, string>
      */
     private array $probeVerdicts = [];
 
@@ -1566,7 +1566,7 @@ class Updater
                 }
             }
 
-            $extractSpaceError = $this->extractionSpaceError($zip);
+            $extractSpaceError = $this->extractionSpaceError($zip, $extractPath);
             if ($extractSpaceError !== null) {
                 $zip->close();
                 throw new Exception($extractSpaceError);
@@ -1630,6 +1630,11 @@ class Updater
                     throw new Exception(__('Impossibile riaprire il file ZIP'));
                 }
 
+                $extractSpaceError = $this->extractionSpaceError($zip, $extractPath);
+                if ($extractSpaceError !== null) {
+                    $zip->close();
+                    throw new Exception($extractSpaceError);
+                }
                 $extractionSuccess = $zip->extractTo($extractPath);
             }
 
@@ -1986,7 +1991,7 @@ class Updater
             // before the backup and the extraction.
             $uploadedZip = $uploadTempPath . '/update.zip';
             $uploadedBytes = is_file($uploadedZip) ? (int) filesize($uploadedZip) : 0;
-            $spaceError = $this->checkFreeSpaceForUpdate($uploadedBytes > 0 ? $uploadedBytes * 4 : 0);
+            $spaceError = $this->checkFreeSpaceForUpdate($uploadedBytes > 0 ? $uploadedBytes * 4 : 0, null, true);
             if ($spaceError !== null) {
                 $this->debugLog('ERROR', 'Preflight iniziale: spazio insufficiente', ['detail' => $spaceError]);
                 throw new Exception($spaceError);
@@ -2034,7 +2039,7 @@ class Updater
                 }
             }
 
-            $extractSpaceError = $this->extractionSpaceError($zip);
+            $extractSpaceError = $this->extractionSpaceError($zip, $extractPath);
             if ($extractSpaceError !== null) {
                 $zip->close();
                 throw new Exception($extractSpaceError);
@@ -2468,7 +2473,7 @@ class Updater
             // error naming a file in vendor/ that says nothing about the real
             // cause, which is exactly how a healthy release once looked broken.
             // Refuse here, with the numbers, instead of failing halfway.
-            $spaceError = $this->checkFreeSpaceForUpdate();
+            $spaceError = $this->checkFreeSpaceForUpdate(0, $sourcePath);
             if ($spaceError !== null) {
                 $this->debugLog('ERROR', 'Preflight: spazio insufficiente', ['detail' => $spaceError]);
                 throw new Exception($spaceError);
@@ -2681,91 +2686,161 @@ class Updater
      *        top of the rollback copy (the release ZIP and its extracted tree,
      *        the pre-update backup archive). 0 when there is nothing to add.
      */
-    private function checkFreeSpaceForUpdate(int $extraBytes = 0): ?string
+    private function checkFreeSpaceForUpdate(int $extraBytes = 0, ?string $sourcePath = null, bool $beforeBackup = false): ?string
     {
-        $needed = $this->estimateUpdateSpace();
-        if ($needed <= 0) {
-            return null; // nothing measurable to copy: let the update proceed
+        $requirements = $this->installationSpaceRequirements($sourcePath);
+        $tmp = $this->rootPath . '/storage/tmp';
+        $requirements[$tmp] = ($requirements[$tmp] ?? 0) + $this->estimateUpdateSpace() + max(0, $extraBytes);
+        if ($beforeBackup) {
+            // The SQL dump and its ZIP coexist. Full backups also include uploads.
+            $dumpBytes = 0;
+            $result = $this->db->query("SELECT COALESCE(SUM(data_length + index_length), 0) AS bytes
+                FROM information_schema.tables WHERE table_schema = DATABASE()");
+            if ($result instanceof \mysqli_result) {
+                $row = $result->fetch_assoc();
+                $dumpBytes = (int) ceil((float) ($row['bytes'] ?? 0) * 1.5);
+                $result->free();
+            }
+            $archiveBytes = max(1024 * 1024, $dumpBytes);
+            if ((new SettingsRepository($this->db))->get('backup', 'pre_update_include_files', '0') === '1') {
+                $archiveBytes += $this->directorySize($this->rootPath . '/public/uploads')
+                    + $this->directorySize($this->rootPath . '/storage/uploads/plugins');
+            }
+            $backup = $this->rootPath . '/storage/backups';
+            $requirements[$backup] = ($requirements[$backup] ?? 0) + (int) ceil($archiveBytes * 1.1);
+            $systemTmp = sys_get_temp_dir();
+            $requirements[$systemTmp] = ($requirements[$systemTmp] ?? 0) + max(1024 * 1024, $dumpBytes);
         }
-        if ($extraBytes > 0) {
-            $needed += $extraBytes;
-        }
+        return $this->checkSpaceRequirements($requirements);
+    }
 
-        $free = @disk_free_space($this->rootPath);
-        if (is_float($free) && $free > 0 && $free < $needed) {
-            return sprintf(
-                __('Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
-                $this->formatBytes($needed),
-                $this->formatBytes((int) $free)
-            );
+    /**
+     * Budget writes by destination directory, including nested mounts. Before the
+     * package is known, walk the installed application; at install time use the
+     * actual incoming tree. Budgeting complete files is deliberately conservative.
+     * @return array<string, int>
+     */
+    private function installationSpaceRequirements(?string $sourcePath): array
+    {
+        $requirements = [$this->rootPath => 4096, $this->rootPath . '/storage/backups' => 4096];
+        $trees = $sourcePath !== null ? ['' => $sourcePath] : [];
+        if ($sourcePath === null) {
+            foreach (self::APP_BACKUP_DIRS as $dir) {
+                $trees[$dir] = $this->rootPath . '/' . $dir;
+            }
         }
+        foreach ($trees as $prefix => $tree) {
+            if (!is_dir($tree)) {
+                continue;
+            }
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($tree, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+            foreach ($iterator as $item) {
+                if ($item->isLink()) {
+                    continue;
+                }
+                $relative = ($prefix === '' ? '' : $prefix . '/')
+                    . substr(str_replace('\\', '/', $item->getPathname()), strlen($tree) + 1);
+                $target = $this->rootPath . '/' . $relative;
+                foreach ($this->skipPaths as $skip) {
+                    if (str_starts_with($relative, $skip)) {
+                        continue 2;
+                    }
+                }
+                foreach ($this->preservePaths as $preserve) {
+                    // Bundled plugin files are installed by updateBundledPlugins().
+                    if ($preserve !== 'storage/plugins' && str_starts_with($relative, $preserve) && file_exists($target)) {
+                        continue 2;
+                    }
+                }
+                if ($this->isCustomLocalePath($relative) && file_exists($target)) {
+                    continue;
+                }
+                $dir = $item->isDir() ? $target : dirname($target);
+                $bytes = $item->isDir() ? 4096 : max(4096, (int) ceil($item->getSize() / 4096) * 4096);
+                $requirements[$dir] = ($requirements[$dir] ?? 0) + $bytes;
+            }
+        }
+        return $requirements;
+    }
 
-        // Fresh probe: this gate is called again after the backup and the
-        // download have consumed disk, and a memoised verdict from before them
-        // would answer for a state that no longer exists.
-        $verdict = $this->probeWrite($needed, true);
-        if ($verdict === 'unavailable') {
-            // NOT a space problem: the working directory itself is missing or
-            // read-only. Saying "free up space" here would reproduce the exact
-            // misdiagnosis this preflight was added to remove.
-            return sprintf(
-                __('Impossibile usare la directory di lavoro dell\'aggiornamento (%s): non esiste o non è scrivibile dall\'utente del web server. Correggi i permessi e riprova.'),
-                $this->rootPath . '/storage/tmp'
-            );
+    /**
+     * Aggregate simultaneous writes on each filesystem before probing. Missing
+     * directories use their nearest existing ancestor, where mkdir will allocate.
+     * @param array<string, int> $requirements
+     */
+    private function checkSpaceRequirements(array $requirements): ?string
+    {
+        $volumes = [];
+        foreach ($requirements as $path => $bytes) {
+            $dir = $path;
+            while (!is_dir($dir) && !file_exists($dir) && dirname($dir) !== $dir) {
+                $dir = dirname($dir);
+            }
+            $stat = @stat($dir);
+            if (!is_dir($dir) || !is_writable($dir) || $stat === false) {
+                return sprintf(
+                    __('Impossibile usare la directory di lavoro dell\'aggiornamento (%s): non esiste o non è scrivibile dall\'utente del web server. Correggi i permessi e riprova.'), $path
+                );
+            }
+            $key = (string) $stat['dev'];
+            if (!isset($volumes[$key])) {
+                $volumes[$key] = ['path' => $dir, 'bytes' => 0];
+            }
+            $volumes[$key]['bytes'] += max(0, $bytes);
         }
-        if ($verdict === 'nospace') {
-            return sprintf(
-                __('Impossibile riservare i %1$s richiesti dall\'aggiornamento: lo spazio disponibile o la quota dell\'account sono esauriti. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
-                $this->formatBytes($needed)
-            );
+        // A previous panel/diagnostic probe cannot establish current capacity.
+        $this->probeVerdicts = [];
+        foreach ($volumes as $volume) {
+            $dir = $volume['path'];
+            $needed = $volume['bytes'];
+            $free = @disk_free_space($dir);
+            if (is_float($free) && $free < $needed) {
+                return sprintf(
+                    __('Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
+                    $this->formatBytes($needed), $this->formatBytes($free)
+                ) . ' (' . $dir . ')';
+            }
+            $verdict = $this->runWriteProbe($needed, $dir);
+            if ($verdict === 'unknown') {
+                return sprintf(__('Impossibile verificare lo spazio disponibile in %s. Controlla la configurazione del filesystem e riprova.'), $dir);
+            }
+            if ($verdict === 'unavailable') {
+                return sprintf(
+                    __('Impossibile usare la directory di lavoro dell\'aggiornamento (%s): non esiste o non è scrivibile dall\'utente del web server. Correggi i permessi e riprova.'), $dir
+                );
+            }
+            if ($verdict === 'nospace') {
+                return sprintf(
+                    __('Impossibile riservare i %1$s richiesti dall\'aggiornamento: lo spazio disponibile o la quota dell\'account sono esauriti. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
+                    $this->formatBytes($needed)
+                ) . ' (' . $dir . ')';
+            }
         }
-
-        $this->debugLog('INFO', 'Preflight spazio superato', [
-            'needed_bytes' => $needed,
-            'extra_bytes' => $extraBytes,
-            'disk_free_bytes' => is_float($free) ? (int) $free : null,
-        ]);
         return null;
     }
 
     /**
-     * Can this account still write $bytes under storage/tmp, and if not, why.
-     *
-     * Returns '' when it can, 'nospace' when the write itself ran out of room
-     * (a full filesystem or an exhausted account quota), and 'unavailable' when
-     * the probe could never be created at all (storage/tmp missing or not
-     * writable). Those are three different failures and must not share a
-     * message — collapsing them into a bool is what let a permission problem be
-     * reported as an exhausted quota.
-     *
-     * Bounded BY CONSTRUCTION, not by the discipline of its callers:
-     *  - a request the filesystem provably cannot hold is refused from
-     *    disk_free_space() without writing a byte, so asking for more than the
-     *    volume holds answers in microseconds instead of filling it;
-     *  - above SPACE_PROBE_BYTES the range is allocated by touching one byte per
-     *    block instead of streaming every byte — the same blocks are consumed
-     *    (a hole consumes no quota, a touched block does) at a fraction of the
-     *    I/O, so the full requirement can be proven without risking a timeout;
-     *  - when free space cannot be read at all, the write falls back to the
-     *    dense bounded form: an unreadable disk_free_space() must never turn
-     *    into a refusal, it is common on locked-down shared hosting.
-     *
-     * @param bool $fresh Re-measure instead of answering from the memo.
-     * @return string '' | 'nospace' | 'unavailable'
+     * Prove a complete write, or report nospace/unavailable/unknown. Large probes
+     * require a readable filesystem bound; a small sample never proves a larger
+     * requirement. Cached diagnostics are scoped to both path and byte count.
      */
-    private function probeWrite(int $bytes, bool $fresh = false): string
+    private function probeWrite(int $bytes, bool $fresh = false, ?string $directory = null): string
     {
         if ($bytes <= 0) {
             return '';
         }
+        $key = ($directory ?? $this->rootPath . '/storage/tmp') . ':' . $bytes;
         if ($fresh) {
             $this->probeVerdicts = [];
-        } elseif (isset($this->probeVerdicts[$bytes])) {
-            return $this->probeVerdicts[$bytes];
+        } elseif (isset($this->probeVerdicts[$key])) {
+            return $this->probeVerdicts[$key];
         }
 
-        $verdict = $this->runWriteProbe($bytes);
-        $this->probeVerdicts[$bytes] = $verdict;
+        $verdict = $this->runWriteProbe($bytes, $directory);
+        $this->probeVerdicts[$key] = $verdict;
         return $verdict;
     }
 
@@ -2773,11 +2848,11 @@ class Updater
      * The probe itself. Sparse allocation would not do: a hole consumes no
      * quota, and the quota is precisely what this is testing.
      *
-     * @return string '' | 'nospace' | 'unavailable'
+     * @return string '' | 'nospace' | 'unavailable' | 'unknown'
      */
-    private function runWriteProbe(int $bytes): string
+    private function runWriteProbe(int $bytes, ?string $directory = null): string
     {
-        $dir = $this->rootPath . '/storage/tmp';
+        $dir = $directory ?? $this->rootPath . '/storage/tmp';
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
             return 'unavailable';
         }
@@ -2786,15 +2861,14 @@ class Updater
         // there is nothing to prove by writing, and trying would fill the
         // volume before it could answer.
         $free = @disk_free_space($dir);
-        if (is_float($free) && $free > 0 && $free < $bytes) {
+        if (is_float($free) && $free < $bytes) {
             return 'nospace';
         }
-        // Free space unreadable (open_basedir, disabled function): fall back to
-        // the bounded dense write rather than refusing a legitimate update.
+        // Without a filesystem bound, do not attempt an arbitrarily large write
+        // or report a small sample as proof of the whole requirement.
         $strided = $bytes > self::SPACE_PROBE_BYTES;
         if ($strided && !is_float($free)) {
-            $bytes = self::SPACE_PROBE_BYTES;
-            $strided = false;
+            return 'unknown';
         }
 
         $probe = $dir . '/.space_probe_' . bin2hex(random_bytes(4));
@@ -2887,7 +2961,7 @@ class Updater
      *
      * @return string|null the message to show, or null when it fits
      */
-    private function extractionSpaceError(ZipArchive $zip): ?string
+    private function extractionSpaceError(ZipArchive $zip, ?string $destination = null): ?string
     {
         $uncompressed = 0;
         for ($i = 0; $i < $zip->numFiles; $i++) {
@@ -2902,20 +2976,9 @@ class Updater
             return null; // nothing measurable: let the extraction proceed
         }
 
-        $verdict = $this->probeWrite($uncompressed, true);
-        if ($verdict === 'unavailable') {
-            return sprintf(
-                __('Impossibile usare la directory di lavoro dell\'aggiornamento (%s): non esiste o non è scrivibile dall\'utente del web server. Correggi i permessi e riprova.'),
-                $this->rootPath . '/storage/tmp'
-            );
-        }
-        if ($verdict === 'nospace') {
-            return sprintf(
-                __('Impossibile riservare i %1$s richiesti dall\'aggiornamento: lo spazio disponibile o la quota dell\'account sono esauriti. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.'),
-                $this->formatBytes($uncompressed)
-            );
-        }
-        return null;
+        return $this->checkSpaceRequirements([
+            $destination ?? $this->rootPath . '/storage/tmp' => $uncompressed,
+        ]);
     }
 
     private function describeWriteFailure(string $targetPath): string
@@ -2938,7 +3001,7 @@ class Updater
         // Only a probe that actually ran out of room may claim a space problem;
         // 'unavailable' means the probe could not be created, which says
         // nothing about the failure being described.
-        if ($this->probeWrite(1024 * 1024) === 'nospace') {
+        if ($this->probeWrite(1024 * 1024, false, $dir) === 'nospace') {
             return __('spazio su disco o quota dell\'account esauriti');
         }
 
@@ -4759,7 +4822,7 @@ class Updater
             // once these steps have consumed their share, which is the only
             // measurement valid there.
             $packageBytes = $this->releaseAssetBytes($targetVersion);
-            $spaceError = $this->checkFreeSpaceForUpdate($packageBytes > 0 ? $packageBytes * 4 : 0);
+            $spaceError = $this->checkFreeSpaceForUpdate($packageBytes > 0 ? $packageBytes * 4 : 0, null, true);
             if ($spaceError !== null) {
                 $this->debugLog('ERROR', 'Preflight iniziale: spazio insufficiente', ['detail' => $spaceError]);
                 throw new Exception($spaceError);

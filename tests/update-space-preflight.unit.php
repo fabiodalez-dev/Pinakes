@@ -125,7 +125,7 @@ if ($freeBefore !== null) {
 } else {
     // disk_free_space() unreadable: the probe must degrade to a bounded write
     // rather than refusing a legitimate update, so only the bound is assertable.
-    $check(in_array($verdict, ['', 'nospace', 'unavailable'], true),
+    $check(in_array($verdict, ['nospace', 'unavailable', 'unknown'], true),
         'with free space unreadable the probe still answers a bounded verdict');
 }
 
@@ -312,7 +312,7 @@ $bodyOf = static function (string $source, string $signature): string {
 };
 $check(substr_count($src, 'checkFreeSpaceForUpdate(') >= 4,
     'the gate has a declaration and at least three call sites (' . substr_count($src, 'checkFreeSpaceForUpdate(') . ')');
-$check(str_contains($src, 'private function checkFreeSpaceForUpdate(int $extraBytes = 0)'),
+$check(str_contains($src, 'private function checkFreeSpaceForUpdate(int $extraBytes = 0,'),
     'the gate can be asked for more than the rollback copy');
 foreach ([
     'public function performUpdate(string $targetVersion): array',
@@ -328,7 +328,7 @@ foreach ([
 // The later gate must NOT be moved: it is the only measurement taken after the
 // backup and the download have consumed their share.
 $installBody = $bodyOf($src, 'public function installUpdate(string $sourcePath, string $targetVersion): array');
-$check(str_contains($installBody, 'checkFreeSpaceForUpdate()'),
+$check(str_contains($installBody, 'checkFreeSpaceForUpdate(0, $sourcePath)'),
     'installUpdate() keeps its own re-measuring gate');
 
 echo "F. the CLI fallback got the same guarantees\n";
@@ -365,19 +365,10 @@ foreach (['Copia file fallita', 'Backup file critico fallito', 'Impossibile crea
     $check($window !== '' && str_contains($window, 'describeWriteFailure('),
         '"' . $message . '" carries a cause');
 }
-$freeChecks = 0;
-$probedChecks = 0;
-foreach ($cliLines as $i => $text) {
-    if (!str_contains($text, '@disk_free_space($rootPath)')) {
-        continue;
-    }
-    $freeChecks++;
-    if (str_contains(implode("\n", array_slice($cliLines, $i, 20)), 'probeWriteBytes(')) {
-        $probedChecks++;
-    }
-}
-$check($freeChecks > 0 && $freeChecks === $probedChecks,
-    "every disk_free_space() gate is backed by a real write probe ({$probedChecks}/{$freeChecks})");
+$check(substr_count($cli, 'verifyUpgradeSpace($rootPath,') >= 4,
+    'the CLI rechecks destination capacity before backup, extraction and installation');
+$check(str_contains($cli, '$backupDir => max(0, $dumpEstimate) + $criticalBytes'),
+    'the dump and critical backups join the cumulative destination budget');
 
 echo "G. the preflight does not block a healthy installation\n";
 $verdict = $call($updater, 'checkFreeSpaceForUpdate');
