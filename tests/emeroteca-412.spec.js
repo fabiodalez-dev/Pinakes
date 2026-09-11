@@ -43,13 +43,37 @@ async function ensureEmerotecaActive(page) {
   }
   expect(active(),'emeroteca could not be activated').toBe(true);
 }
-let originalMode; let articleId; let testataId;
+// Put the plugin back the way it was found, through the real UI so onDeactivate()
+// removes the hooks too. Only when this suite switched it on: leaving it active
+// would let later specs in the shard depend on it without activating it — the
+// same hidden ordering dependency this suite used to have, the other way round.
+async function restoreEmerotecaActivation(browser) {
+  const id=Number(db("SELECT id FROM plugins WHERE name='emeroteca'")||'0');
+  const active=()=>db(`SELECT is_active FROM plugins WHERE id=${id}`)==='1';
+  if(!id || !active()) return;
+  const page=await browser.newPage();
+  try {
+    await login(page);
+    for(let attempt=0; attempt<3 && active(); attempt++) {
+      await page.goto(BASE+'/admin/plugins');
+      const button=page.locator(`[data-plugin-id="${id}"]`).first().locator('button:has-text("Disattiva")');
+      if(!await button.isVisible({timeout:3000}).catch(()=>false)) continue;
+      await button.click();
+      const confirm=page.locator('.swal2-confirm:visible');
+      if(await confirm.isVisible({timeout:3000}).catch(()=>false)) await confirm.click();
+      await expect.poll(()=>!active(),{timeout:30_000}).toBe(true).catch(()=>{});
+    }
+  } finally { await page.close(); }
+  if(active()) throw new Error('emeroteca was activated by this suite and could not be deactivated again');
+}
+let originalMode; let wasActive; let articleId; let testataId;
 test.describe.serial('Emeroteca 412 complete workflow',()=>{
   test.beforeAll(()=>{
     if(!process.env.E2E_ADMIN_EMAIL || !process.env.E2E_DB_USER) throw new Error('Run with /tmp/run-e2e.sh');
     originalMode=db("SELECT setting_value FROM plugin_settings WHERE plugin_id=(SELECT id FROM plugins WHERE name='emeroteca') AND setting_key='mode'");
+    wasActive=db("SELECT COALESCE(MAX(is_active),0) FROM plugins WHERE name='emeroteca'");
   });
-  test.afterAll(()=>{
+  test.afterAll(async({browser})=>{
     try {
       const pdf=db(`SELECT COALESCE(pdf_path,'') FROM emeroteca_contributi WHERE titolo LIKE '${marker}%'`);
       db(`DELETE FROM emeroteca_contributi WHERE titolo LIKE '${marker}%'`);
@@ -60,6 +84,7 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
       else db("DELETE FROM plugin_settings WHERE plugin_id=(SELECT id FROM plugins WHERE name='emeroteca') AND setting_key='mode'");
       for(const name of pdf.split('\n')) if(/^[a-f0-9]{40}\.pdf$/.test(name)) fs.rmSync(`storage/uploads/plugins/emeroteca/contributi/${name}`,{force:true});
     } catch(e) { console.error('Scoped cleanup failed:',e.message); }
+    if(wasActive!=='1') await restoreEmerotecaActivation(browser);
   });
   test('create, publish, attach later, import, privacy, PDF, modes and mobile layout',async({page,browser})=>{
     const errors=[];page.on('pageerror',e=>errors.push(e.message));

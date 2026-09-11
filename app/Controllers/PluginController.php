@@ -399,10 +399,11 @@ class PluginController
             try {
                 $saved = $instance->saveSettings($toSave);
             } catch (\InvalidArgumentException $e) {
-                // The input itself cannot be saved: enabling needs both values.
+                // The input itself cannot be saved. The message is the plugin's
+                // own translated reason — a missing value or a malformed URL.
                 $response->getBody()->write(json_encode([
                     'success' => false,
-                    'message' => __('Per attivare il plugin servono sia l\'URL dell\'endpoint sia la chiave API.'),
+                    'message' => $e->getMessage(),
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(422);
             } catch (\Throwable $e) {

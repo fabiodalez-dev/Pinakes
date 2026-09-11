@@ -599,6 +599,24 @@ class ApiBookScraperPlugin
     /**
      * Salva le impostazioni del plugin
      */
+    /**
+     * Whether an endpoint can actually be called.
+     *
+     * callApi() either substitutes {isbn} or appends ?isbn=, so the URL that
+     * gets validated is the one the placeholder will turn into. Only http and
+     * https: this is an address the server fetches on its own, and any other
+     * scheme is either useless here or a way to reach something it should not.
+     */
+    private static function isUsableEndpoint(string $endpoint): bool
+    {
+        $probe = str_replace('{isbn}', '9780000000000', $endpoint);
+        if (filter_var($probe, FILTER_VALIDATE_URL) === false) {
+            return false;
+        }
+        $scheme = strtolower((string) parse_url($probe, PHP_URL_SCHEME));
+        return in_array($scheme, ['http', 'https'], true) && (string) parse_url($probe, PHP_URL_HOST) !== '';
+    }
+
     public function saveSettings(array $settings): bool
     {
         if (!$this->pluginId || !$this->db) {
@@ -607,7 +625,9 @@ class ApiBookScraperPlugin
 
         // InvalidArgumentException, not RuntimeException: callers must be able
         // to tell "this input cannot be saved" from a database failure further
-        // down, which throws RuntimeException.
+        // down, which throws RuntimeException. Its message is the translated
+        // reason, meant to be shown as is — the settings page and the plugins
+        // list modal both display it, so neither has to guess which rule failed.
         //
         // Reject enabling the plugin with no effective API key. The view's HTML
         // `required` attribute does not protect a hand-built POST: without a key
@@ -622,7 +642,7 @@ class ApiBookScraperPlugin
             : '';
         $effectiveKey = $submittedKey !== '' ? $submittedKey : $this->apiKey;
         if ($enabledRequested && $effectiveKey === '') {
-            throw new \InvalidArgumentException('[ApiBookScraper] cannot enable plugin without an API key');
+            throw new \InvalidArgumentException(__('Per attivare il plugin servono sia l\'URL dell\'endpoint sia la chiave API.'));
         }
         // Same for the endpoint: registerHooks() needs both, so enabling without
         // one would save successfully and then register nothing.
@@ -630,7 +650,13 @@ class ApiBookScraperPlugin
             ? trim((string) $settings['api_endpoint'])
             : $this->apiEndpoint;
         if ($enabledRequested && $submittedEndpoint === '') {
-            throw new \InvalidArgumentException('[ApiBookScraper] cannot enable plugin without an API endpoint');
+            throw new \InvalidArgumentException(__('Per attivare il plugin servono sia l\'URL dell\'endpoint sia la chiave API.'));
+        }
+        // Presence is not enough: "invalid-endpoint" was accepted, the hooks
+        // were registered, and every lookup then failed at call time. Any
+        // non-empty endpoint must be a complete http(s) URL, disabled or not.
+        if ($submittedEndpoint !== '' && !self::isUsableEndpoint($submittedEndpoint)) {
+            throw new \InvalidArgumentException(__('L\'URL dell\'endpoint deve essere un indirizzo http:// o https:// completo.'));
         }
 
         // Wrap the settings replacement AND the hook re-registration in one
