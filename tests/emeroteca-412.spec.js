@@ -8,14 +8,40 @@ function db(sql) {
   if(process.env.E2E_DB_SOCKET) args.unshift('-S',process.env.E2E_DB_SOCKET);
   return execFileSync('mysql',args,{encoding:'utf8',env:{...process.env,MYSQL_PWD:process.env.E2E_DB_PASS}}).trim();
 }
+// /admin/plugins exists whether or not Emeroteca is active. This used to open the
+// articles page first, which 404s while the plugin is inactive: no login form
+// was found, the login was skipped, and the suite carried on unauthenticated.
 async function login(page) {
-  await page.goto(BASE+'/admin/periodicals/articles');
+  await page.goto(BASE+'/admin/plugins');
   if(await page.locator('input[name=email]').isVisible()) {
     await page.locator('input[name=email]').fill(process.env.E2E_ADMIN_EMAIL);
     await page.locator('input[name=password]').fill(process.env.E2E_ADMIN_PASS);
     await page.locator('button[type=submit]').click();
     await page.waitForURL(u=>!u.pathname.includes('accedi')&&!u.pathname.includes('login'));
   }
+}
+// Emeroteca ships inactive, and this suite never activated it: it passed only
+// while an earlier spec in the same CI shard happened to. Reshuffling the shards
+// put it after specs that never do, and every admin route 404'd. It now activates
+// the plugin itself, through the real UI so onActivate() builds the schema, with
+// the same retry-and-check-the-database loop emeroteca.spec.js uses — the
+// activation POST and its dialog race. "Attiva plugin", not "Attiva": Playwright
+// matches text by case-insensitive substring, and "Disattiva" contains it.
+async function ensureEmerotecaActive(page) {
+  const id=Number(db("SELECT id FROM plugins WHERE name='emeroteca'")||'0');
+  expect(id,'emeroteca must be registered as a bundled plugin').toBeGreaterThan(0);
+  const active=()=>db(`SELECT is_active FROM plugins WHERE id=${id}`)==='1';
+  for(let attempt=0; attempt<3 && !active(); attempt++) {
+    await page.goto(BASE+'/admin/plugins');
+    const button=page.locator(`[data-plugin-id="${id}"]`).first().locator('button:has-text("Attiva plugin")');
+    if(!await button.isVisible({timeout:3000}).catch(()=>false)) continue;
+    await button.click();
+    const confirm=page.locator('.swal2-confirm:visible');
+    if(await confirm.isVisible({timeout:3000}).catch(()=>false)) await confirm.click();
+    // Activation runs real DDL: give it the time it takes.
+    await expect.poll(active,{timeout:30_000}).toBe(true).catch(()=>{});
+  }
+  expect(active(),'emeroteca could not be activated').toBe(true);
 }
 let originalMode; let articleId; let testataId;
 test.describe.serial('Emeroteca 412 complete workflow',()=>{
@@ -29,12 +55,16 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
       db(`DELETE FROM emeroteca_contributi WHERE titolo LIKE '${marker}%'`);
       db(`DELETE FROM emeroteca_testate WHERE titolo LIKE '${marker}%'`);
       if(originalMode) db(`UPDATE plugin_settings SET setting_value='${originalMode==='simple'?'simple':'complete'}' WHERE plugin_id=(SELECT id FROM plugins WHERE name='emeroteca') AND setting_key='mode'`);
+      // A clean collection has no mode row until the administrator chooses; the
+      // mode switch this suite performs must not leave one behind.
+      else db("DELETE FROM plugin_settings WHERE plugin_id=(SELECT id FROM plugins WHERE name='emeroteca') AND setting_key='mode'");
       for(const name of pdf.split('\n')) if(/^[a-f0-9]{40}\.pdf$/.test(name)) fs.rmSync(`storage/uploads/plugins/emeroteca/contributi/${name}`,{force:true});
     } catch(e) { console.error('Scoped cleanup failed:',e.message); }
   });
   test('create, publish, attach later, import, privacy, PDF, modes and mobile layout',async({page,browser})=>{
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await login(page);
+    await ensureEmerotecaActive(page);
     await page.goto(BASE+'/admin/periodicals/articles');
     await expect(page.getByRole('heading',{name:'Articoli',exact:true})).toBeVisible();
     await page.getByRole('link',{name:'Aggiungi articolo',exact:true}).click();
