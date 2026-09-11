@@ -1,0 +1,29 @@
+<?php
+declare(strict_types=1);
+$row=$row??[]; $error=$error??null;
+$e=static fn($v)=>htmlspecialchars(is_scalar($v)?(string)$v:'',ENT_QUOTES,'UTF-8');
+$labels=['titolo'=>__('Titolo'),'autori'=>__('Autori'),'contenitore_titolo'=>__('Titolo della pubblicazione'),'data_pubblicazione_testo'=>__('Data di pubblicazione'),'anno_pubblicazione'=>__('Anno'),'volume'=>__('Volume'),'numero'=>__('Numero'),'pagine'=>__('Pagine'),'keywords'=>__('Parole chiave'),'issn'=>'ISSN','doi'=>'DOI','collocazione'=>__('Collocazione')];
+?>
+<div class="max-w-4xl mx-auto px-4 py-6">
+<a class="underline" href="<?= $e(url('/admin/periodicals/articles')) ?>"><?= __('Articoli') ?></a>
+<h1 class="text-3xl font-bold mt-4 mb-6"><?= empty($row['id'])?__('Aggiungi articolo'):__('Modifica articolo') ?></h1>
+<?php if($error): ?><p role="alert" class="p-4 mb-4 bg-red-50 text-red-800 rounded"><?= $e($error) ?></p><?php endif; ?>
+<form method="post" action="<?= $e(url('/admin/periodicals/articles/save')) ?>" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>"><input type="hidden" name="id" value="<?= (int)($row['id']??0) ?>"><input type="hidden" name="revision" value="<?= (int)($row['revision']??0) ?>">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+<?php foreach(array_diff_key($labels,array_flip(['issn','doi','collocazione'])) as $key=>$label): ?><div <?= $key==='titolo'?'class="md:col-span-2"':'' ?>><label for="article-<?= $e($key) ?>" class="form-label"><?= $e($label) ?><?= $key==='titolo'?' *':'' ?></label><input class="form-input" id="article-<?= $e($key) ?>" name="<?= $e($key) ?>" value="<?= $e($row[$key]??'') ?>" <?= $key==='titolo'?'required':'' ?> maxlength="<?= $key==='anno_pubblicazione'?4:(\App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS[$key]) ?>"><?php if($key==='data_pubblicazione_testo'): ?><p class="text-sm text-gray-600"><?= __('Puoi indicare anche solo mese e anno, per esempio giugno 2019.') ?></p><?php endif; ?></div><?php endforeach; ?>
+<?php foreach(['tipo_contributo'=>[__('Tipo di contributo'),\EmerotecaPlugin::TIPI_ARTICOLO],'contenitore_tipo'=>[__('Tipo di pubblicazione'),[''=>__('Non specificato')]+\EmerotecaPlugin::TIPI_TESTATA],'supporto'=>[__('Supporto'),['cartaceo'=>'Cartaceo','digitale'=>'Digitale','entrambi'=>'Entrambi']]] as $key=>[$label,$choices]): ?><div><label for="article-<?= $e($key) ?>" class="form-label"><?= $e($label) ?></label><select id="article-<?= $e($key) ?>" class="form-input" name="<?= $e($key) ?>"><?php foreach($choices as $value=>$text): ?><option value="<?= $e($value) ?>" <?= ($row[$key]??($key==='supporto'?'cartaceo':'articolo'))===$value?'selected':'' ?>><?= $e(__($text)) ?></option><?php endforeach; ?></select></div><?php endforeach; ?>
+</div>
+<details class="mt-6"><summary class="font-semibold py-3 cursor-pointer"><?= __('Identificativi e collocazione') ?></summary><div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-3"><?php foreach(['issn'=>'ISSN','doi'=>'DOI','collocazione'=>__('Collocazione')] as $key=>$label): ?><div><label for="article-<?= $e($key) ?>" class="form-label"><?= $e($label) ?></label><input class="form-input" id="article-<?= $e($key) ?>" name="<?= $e($key) ?>" value="<?= $e($row[$key]??'') ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS[$key] ?>"></div><?php endforeach; ?></div></details>
+<details class="mt-6"><summary class="font-semibold py-3 cursor-pointer"><?= __('Descrizione, note e PDF') ?></summary>
+<?php foreach(['abstract'=>__('Descrizione'),'note_private'=>__('Note private')] as $key=>$label): ?><label for="article-<?= $e($key) ?>" class="form-label mt-4"><?= $e($label) ?></label><textarea id="article-<?= $e($key) ?>" class="form-input" name="<?= $e($key) ?>" rows="4" maxlength="10000"><?= $e($row[$key]??'') ?></textarea><?php endforeach; ?>
+<label for="article-pdf" class="form-label mt-4"><?= __('PDF (massimo 25 MB)') ?></label><input id="article-pdf" type="file" name="pdf" accept="application/pdf,.pdf" class="form-input">
+<?php if(!empty($row['pdf_path'])): ?><p class="my-3"><a class="underline" href="<?= $e(url('/admin/periodicals/articles/'.(int)$row['id'].'/pdf')) ?>"><?= $e($row['pdf_nome_originale']) ?></a></p><label><input type="checkbox" name="remove_pdf" value="1"> <?= __('Rimuovi PDF') ?></label><?php endif; ?>
+<label class="block my-4"><input type="checkbox" name="pdf_pubblico" value="1" <?= !empty($row['pdf_pubblico'])?'checked':'' ?>> <?= __('Consenti la consultazione pubblica del PDF') ?></label>
+</details>
+<label class="block my-6"><input type="checkbox" name="pubblico" value="1" <?= !empty($row['pubblico'])?'checked':'' ?>> <?= __('Mostra l’articolo nel catalogo pubblico') ?></label>
+<div class="flex gap-3"><button class="btn-primary" type="submit"><?= __('Salva articolo') ?></button><a class="btn-secondary" href="<?= $e(url('/admin/periodicals/articles')) ?>"><?= __('Annulla') ?></a></div>
+</form>
+<?php if(!empty($row['id'])): ?><p class="text-sm text-gray-600 mt-6"><?= __('Per associare o spostare questo articolo, selezionalo dalla lista Articoli.') ?></p>
+<?php if(($_SESSION['user']['tipo_utente']??'')==='admin'): ?><details class="mt-8"><summary class="cursor-pointer text-red-700"><?= __('Elimina articolo') ?></summary><p class="my-3"><?= __('L’articolo e il suo PDF saranno eliminati. La testata rimane disponibile.') ?></p><form method="post" action="<?= $e(url('/admin/periodicals/articles/'.(int)$row['id'].'/delete')) ?>"><input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>"><input type="hidden" name="revision" value="<?= (int)$row['revision'] ?>"><button type="submit" class="btn-secondary"><?= __('Conferma eliminazione') ?></button></form></details><?php endif; endif; ?>
+</div>

@@ -150,6 +150,22 @@ class EmerotecaPlugin
      * Expose the injected HookManager (DI-wiring accessor, mirrors
      * ArchivesPlugin::getHookManager — keeps static analysis happy).
      */
+    public function hasSettingsPage(): bool { return true; }
+
+    public function getSettingsViewPath(): string { return __DIR__ . "/src/Views/settings.php"; }
+
+    public function contributionService(): \App\Plugins\Emeroteca\Services\ContributionService
+    {
+        require_once __DIR__ . "/src/Services/ContributionService.php";
+        return new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
+    }
+
+    public static function ddlContributi(): string
+    {
+        require_once __DIR__ . "/src/Services/ContributionService.php";
+        return \App\Plugins\Emeroteca\Services\ContributionService::ddl();
+    }
+
     public function getHookManager(): HookManager
     {
         return $this->hookManager;
@@ -338,6 +354,7 @@ class EmerotecaPlugin
             ['table' => 'emeroteca_fascicoli', 'column' => 'stato'],
             ['table' => 'emeroteca_fascicoli', 'column' => 'collocazione_id'],
             ['table' => 'emeroteca_articoli',  'column' => 'keywords'],
+            ['table' => 'emeroteca_contributi', 'column' => 'revision'],
         ];
         // 1.4.0 additive columns: every one declared so the boot-time
         // self-heal re-runs ensureSchema when any is missing.
@@ -374,6 +391,8 @@ class EmerotecaPlugin
     public function expectedForeignKeys(): array
     {
         $out = [
+            ['table' => 'emeroteca_contributi', 'column' => 'testata_id', 'ref_table' => 'emeroteca_testate'],
+            ['table' => 'emeroteca_contributi', 'column' => 'fascicolo_id', 'ref_table' => 'emeroteca_fascicoli'],
             ['table' => 'emeroteca_testate',     'column' => 'testata_precedente_id', 'ref_table' => 'emeroteca_testate'],
             ['table' => 'emeroteca_annate',      'column' => 'testata_id',            'ref_table' => 'emeroteca_testate'],
             ['table' => 'emeroteca_fascicoli',   'column' => 'annata_id',             'ref_table' => 'emeroteca_annate'],
@@ -405,6 +424,7 @@ class EmerotecaPlugin
             'emeroteca_fascicoli'   => self::ddlFascicoli(),
             'emeroteca_articoli'    => self::ddlArticoli(),
             'emeroteca_abbonamenti' => self::ddlAbbonamenti(),
+            'emeroteca_contributi' => self::ddlContributi(),
         ];
     }
 
@@ -428,6 +448,7 @@ class EmerotecaPlugin
      */
     public function ensureSchema(): array
     {
+        $newCollection = !$this->emerotecaTableExists('emeroteca_testate');
         $steps = self::schemaSteps();
         $created = [];
         $failed = [];
@@ -501,6 +522,8 @@ class EmerotecaPlugin
             $runStep($table, 'additive column', fn(): bool => $this->ensureAdditiveColumns($table, $definitions));
         }
 
+        $runStep('emeroteca_contributi', 'contribution foreign keys', fn(): bool => $this->ensureContributionForeignKeys());
+
         // 1.4.0: possession/condition split. MUST run after the additive
         // step above (it writes into the new `condizione` column).
         $runStep('emeroteca_fascicoli', 'stato/condizione split', fn(): bool => $this->ensureStatoCondizioneSplit());
@@ -543,7 +566,24 @@ class EmerotecaPlugin
         // (additive step) and consistent tables.
         $runStep('emeroteca_fascicoli', 'inherited barcode', fn(): bool => $this->ensureFascicoloBarcodeNotInherited());
 
+        if ($failed === []) {
+            try {
+                $mode = $newCollection ? 'simple' : 'complete';
+                $this->contributionService()->rows("INSERT IGNORE INTO plugin_settings (plugin_id,setting_key,setting_value) SELECT id,'mode',? FROM plugins WHERE name='emeroteca'", [$mode]);
+            } catch (\Throwable $e) { $failed[] = 'plugin_settings'; }
+        }
         return ['created' => $created, 'failed' => $failed];
+    }
+
+    private function ensureContributionForeignKeys(): bool
+    {
+        foreach (['testata_id'=>['fk_contributo_testata','emeroteca_testate'], 'fascicolo_id'=>['fk_contributo_fascicolo','emeroteca_fascicoli']] as $column=>[$name,$table]) {
+            $rows=$this->contributionService()->rows("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME=? AND REFERENCED_TABLE_NAME=?",[$column,$table]);
+            if ($rows===[]) {
+                if (!$this->db->query("ALTER TABLE emeroteca_contributi ADD CONSTRAINT $name FOREIGN KEY ($column) REFERENCES $table(id) ON DELETE SET NULL")) { return false; }
+            }
+        }
+        return true;
     }
 
     /**
@@ -557,7 +597,9 @@ class EmerotecaPlugin
      */
     private static function additiveColumnDefs(): array
     {
+        require_once __DIR__ . '/src/Services/ContributionService.php';
         return [
+            'emeroteca_contributi' => \App\Plugins\Emeroteca\Services\ContributionService::COLUMN_DEFINITIONS,
             'emeroteca_testate' => [
                 // 1.4.0 — serials identifiers + gestione amministrativa
                 'e_issn'                  => 'VARCHAR(9) NULL AFTER issn',
@@ -1599,6 +1641,21 @@ class EmerotecaPlugin
         $export = 'App\\Plugins\\Emeroteca\\Controllers\\ExportAdminController';
         $public = 'App\\Plugins\\Emeroteca\\Controllers\\PublicController';
 
+        $articles = 'App\\Plugins\\Emeroteca\\Controllers\\ContributionController';
+        foreach (['' => 'index', '/create' => 'form', '/{id:[0-9]+}' => 'form', '/import' => 'importForm', '/export' => 'export', '/{id:[0-9]+}/pdf' => 'pdf'] as $path => $method) {
+            $app->get('/admin/periodicals/articles' . $path, function ($rq, $rs, $args) use ($plugin, $articles, $method) {
+                return $plugin->dispatch($articles, $method, $rq, $rs, $args);
+            })->add($adminMiddleware);
+        }
+        foreach (['/save' => 'save', '/associate' => 'associate', '/import' => 'importSubmit', '/{id:[0-9]+}/delete' => 'delete', '/mode' => 'mode'] as $path => $method) {
+            $app->post('/admin/periodicals/articles' . $path, function ($rq, $rs, $args) use ($plugin, $articles, $method) {
+                return $plugin->dispatch($articles, $method, $rq, $rs, $args);
+            })->add($csrfMiddleware)->add($adminMiddleware);
+        }
+        $app->get('/emeroteca/articoli', fn($rq,$rs,$args) => $plugin->dispatch($public, 'articles', $rq,$rs,$args));
+        $app->get('/emeroteca/articolo/{id:[0-9]+}', fn($rq,$rs,$args) => $plugin->dispatch($public, 'article', $rq,$rs,$args));
+        $app->get('/emeroteca/articolo/{id:[0-9]+}/pdf', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicPdf', $rq,$rs,$args));
+
         // ── Admin — testate (periodical titles) ──────────────────────
 
         // GET /admin/periodicals — list of testate
@@ -2365,6 +2422,11 @@ class EmerotecaPlugin
                 ], static fn($value): bool => $value !== null);
             }
 
+            if ($this->emerotecaTableExists('emeroteca_contributi')) {
+                foreach ($this->fetchRows('SELECT id, updated_at FROM emeroteca_contributi WHERE pubblico=1 ORDER BY id LIMIT 10000') as $article) {
+                    $entries[] = ['loc'=>$base . '/emeroteca/articolo/' . (int)$article['id'], 'lastmod'=>$article['updated_at'], 'changefreq'=>'monthly', 'priority'=>'0.4'];
+                }
+            }
             if ($this->emerotecaTableExists('emeroteca_fascicoli')) {
                 $fascicoli = $this->fetchRows(
                     "SELECT id, updated_at FROM emeroteca_fascicoli
@@ -2467,6 +2529,7 @@ class EmerotecaPlugin
                              OR issn LIKE ? ESCAPE '\\\\'
                           LIMIT 1", 'sss', [$pattern, $pattern, $pattern]];
         }
+        if ($this->emerotecaTableExists('emeroteca_contributi') && $this->contributionService()->search($term, 0, true)['total'] > 0) { return true; }
         if ($this->emerotecaTableExists('emeroteca_articoli')) {
             // This hint uses the same token search as the public article search.
             // The FULLTEXT index avoids a full article scan on every catalogue miss.

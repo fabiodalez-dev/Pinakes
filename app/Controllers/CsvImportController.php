@@ -1042,6 +1042,11 @@ class CsvImportController
         // Remove duplicates and empty values
         $authors = array_filter(array_unique($authors));
         $autoriCombined = !empty($authors) ? implode(';', $authors) : null;
+        $recordType = strtolower(trim((string) ($row['record_type'] ?? $row['tipo_media'] ?? $row['media_type'] ?? '')));
+        if (in_array($recordType, ['article', 'articolo', 'journal_article', 'newspaper_article'], true)) {
+            throw new \InvalidArgumentException(__('Importa gli articoli dalla sezione Emeroteca. Se il plugin è inattivo, attivalo da Plugins.'));
+        }
+
 
         return [
             'id' => !empty($row['id']) ? trim($row['id']) : null,

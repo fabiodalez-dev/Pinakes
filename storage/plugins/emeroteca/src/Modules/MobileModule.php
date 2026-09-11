@@ -81,6 +81,8 @@ final class MobileModule
             $g->get('', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $module->listPeriodicals($rq, $rs))->add($quotaMw())->add($authMw());
             $g->get('/years/{id:[0-9]+}/issues', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $module->yearIssues($rq, $rs, (int) $a['id']))->add($quotaMw())->add($authMw());
             $g->get('/issues/{id:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $module->issueDetail($rq, $rs, (int) $a['id']))->add($quotaMw())->add($authMw());
+            $g->get('/articles', fn($rq,$rs) => $module->articles($rq,$rs))->add($quotaMw())->add($authMw());
+            $g->get('/articles/{id:[0-9]+}', fn($rq,$rs,$a) => $module->articles($rq,$rs,(int)$a['id']))->add($quotaMw())->add($authMw());
             $g->get('/{id:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $module->periodicalDetail($rq, $rs, (int) $a['id']))->add($quotaMw())->add($authMw());
         });
 
@@ -146,7 +148,7 @@ final class MobileModule
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        return \App\Plugins\MobileApi\Support\ResponseEnvelope::success($response, ['status' => 'ok']);
+        return \App\Plugins\MobileApi\Support\ResponseEnvelope::success($response, ['status' => 'ok', 'capabilities' => ['standalone_articles'=>true]]);
     }
 
     // ── GET /api/v1/periodicals ───────────────────────────────────────
@@ -627,6 +629,40 @@ final class MobileModule
 
     // ── OpenAPI (filter target of 'mobile_api.openapi' via EmerotecaPlugin) ──
 
+    public function articles(ServerRequestInterface $request, ResponseInterface $response, int $id=0): ResponseInterface
+    {
+        require_once __DIR__.'/../Services/ContributionService.php';
+        $service=new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
+        $q=$request->getQueryParams();
+        try {
+            if ($id) {
+                $r=$service->get($id,true);
+                if (!$r) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'not_found',__('Articolo non trovato.'),404); }
+                $items=\App\Plugins\Emeroteca\Services\ContributionService::publicData($r); $meta=[];
+            } else {
+                $cursor=(string)($q['cursor']??'');
+                if ($cursor!=='' && (!ctype_digit($cursor) || strlen($cursor)>10)) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'invalid_cursor',__('Cursore non valido.'),400); }
+                $limit=$this->clampLimit($q['limit']??20); $where='pubblico=1 AND id>?'; $params=[(int)$cursor];
+                if (!empty($q['testata_id'])) { $where.=' AND testata_id=?'; $params[]=(int)$q['testata_id']; }
+                if (is_string($q['q']??null) && $q['q']!=='') {
+                    $where.=" AND (titolo LIKE ? ESCAPE '=' OR autori LIKE ? ESCAPE '=' OR contenitore_titolo LIKE ? ESCAPE '=' OR keywords LIKE ? ESCAPE '=')";
+                    $pat='%'.strtr(mb_substr($q['q'],0,200),['='=>'==','%'=>'=%','_'=>'=_']).'%';
+                    array_push($params,$pat,$pat,$pat,$pat);
+                }
+                $rows=$service->rows('SELECT * FROM emeroteca_contributi WHERE '.$where.' ORDER BY id LIMIT '.($limit+1),$params);
+                $more=count($rows)>$limit; if ($more) { array_pop($rows); }
+                $items=array_map([\App\Plugins\Emeroteca\Services\ContributionService::class,'publicData'],$rows);
+                $meta=['next_cursor'=>$more?(string)end($rows)['id']:null,'limit'=>$limit];
+            }
+            $etag=$this->payloadEtag('standalone-articles',[$items,$meta]);
+            if ($this->notModified($request,$etag)) { return $this->notModifiedResponse($response,$etag); }
+            return \App\Plugins\MobileApi\Support\ResponseEnvelope::success($response,$items,$meta)->withHeader('ETag',$etag)->withHeader('Cache-Control','private, no-store');
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca:mobile] articles: '.$e->getMessage());
+            return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'internal_error',__('Articoli non disponibili.'),500);
+        }
+    }
+
     /**
      * Appends the bridge paths to mobile-api's OpenAPI document. Static:
      * the hook fires on the plugin instance, which passes its mysqli
@@ -666,6 +702,13 @@ final class MobileModule
         $tag = ['periodicals'];
 
         $paths = [
+            '/periodicals/articles' => ['get'=>['tags'=>$tag,'summary'=>'Public standalone articles, ordered by id.','security'=>$sec,'parameters'=>[
+                ['name'=>'cursor','in'=>'query','schema'=>['type'=>'string'],'description'=>'Opaque next_cursor from the previous response.'],
+                ['name'=>'limit','in'=>'query','schema'=>['type'=>'integer','minimum'=>1,'maximum'=>50]],
+                ['name'=>'q','in'=>'query','schema'=>['type'=>'string']],
+                ['name'=>'testata_id','in'=>'query','schema'=>['type'=>'integer']],
+            ],'responses'=>$ok('Standalone articles')]],
+            '/periodicals/articles/{id}' => ['get'=>['tags'=>$tag,'summary'=>'Public standalone article. No private notes, shelf marks or file paths.','security'=>$sec,'parameters'=>[$idParam('id')],'responses'=>$ok('Standalone article')]],
             '/periodicals/health' => ['get' => ['tags' => $tag, 'summary' => 'Bridge discovery probe: 200 {status: ok} while the emeroteca bridge is mounted.', 'security' => $sec, 'responses' => $ok('Discovery payload')]],
             '/periodicals' => [
                 'get' => [

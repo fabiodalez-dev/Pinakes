@@ -217,3 +217,5 @@ if ($vista === 'editore' || $vista === 'argomento') {
         <?php endif; ?>
     <?php endif; ?>
 </main>
+
+<?php if (isset($articleResults)): require __DIR__."/article-results.php"; endif; ?>

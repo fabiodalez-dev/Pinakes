@@ -52,6 +52,10 @@ class PeriodicalAdminController extends AbstractAdminController
     public function index(ServerRequestInterface $request, ResponseInterface $response, array $args = []): ResponseInterface
     {
         $params = (array) $request->getQueryParams();
+        require_once __DIR__ . '/../Services/ContributionService.php';
+        if (($params['view'] ?? '') !== 'titles' && (new \App\Plugins\Emeroteca\Services\ContributionService($this->db))->mode() === 'simple') {
+            return $this->redirect($response, '/admin/periodicals/articles');
+        }
         $fTipo    = isset($params['tipo']) ? trim((string) $params['tipo']) : '';
         $fEditore = isset($params['editore']) ? (int) $params['editore'] : 0;
         $fStato   = isset($params['stato_raccolta']) ? trim((string) $params['stato_raccolta']) : '';
@@ -158,6 +162,7 @@ class PeriodicalAdminController extends AbstractAdminController
         unset($row);
 
         return $this->renderView($response, 'index', [
+            'mode'=>(new \App\Plugins\Emeroteca\Services\ContributionService($this->db))->mode(),
             'rows'        => $rows,
             'editori'     => $this->fetchEditori(),
             'f_tipo'      => $fTipo,
@@ -943,6 +948,10 @@ class PeriodicalAdminController extends AbstractAdminController
             $locked = $this->lockTestate($sourceId, $targetId);
             if (count($locked) !== 2) {
                 throw new \RuntimeException('merge: one of the titles disappeared before the lock');
+            }
+
+            if ($this->tableExists('emeroteca_contributi')) {
+                $this->exec('UPDATE emeroteca_contributi SET testata_id=?,revision=revision+1 WHERE testata_id=?', 'ii', [$targetId,$sourceId]);
             }
 
             $issuesBefore = $this->countIssues($sourceId) + $this->countIssues($targetId);

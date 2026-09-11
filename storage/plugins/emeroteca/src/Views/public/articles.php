@@ -1,0 +1,5 @@
+<?php $term=$term??''; $testata=$testata??0; $rows=$rows??[]; $page=$page??1; $pages=$pages??1; $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8'); ?>
+<main class="max-w-6xl mx-auto px-4 py-10"><h1 class="text-3xl font-bold mb-6"><?= __('Articoli') ?></h1>
+<form class="flex flex-wrap gap-3" method="get"><label for="article-q" class="sr-only"><?= __('Cerca titolo, autore o pubblicazione') ?></label><input id="article-q" class="form-input" name="q" maxlength="200" value="<?= $e($term) ?>"><input type="hidden" name="testata" value="<?= (int)$testata ?>"><button class="btn-primary"><?= __('Cerca') ?></button></form>
+<?php $articleResults=['rows'=>$rows]; $q=$term; $testataId=$testata; $testata=['id'=>$testata]; require __DIR__.'/article-results.php'; ?>
+<nav class="flex gap-3" aria-label="<?= $e(__('Paginazione')) ?>"><?php for($p=max(1,$page-2);$p<=min($pages,$page+2);$p++): ?><a class="underline p-3" <?= $p===$page?'aria-current="page"':'' ?> href="<?= $e(url('/emeroteca/articoli').'?'.http_build_query(['q'=>$term,'testata'=>$testataId,'page'=>$p])) ?>"><?= $p ?></a><?php endfor; ?></nav></main>

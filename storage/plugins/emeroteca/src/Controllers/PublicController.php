@@ -162,6 +162,7 @@ class PublicController
         $rows = $this->fetchAll($sql, $bindTypes, $bindValues);
 
         return $this->renderPublic($response, 'index.php', [
+            'articleResults' => $this->contributions()->search($q,0,true),
             'rows'  => $rows,
             'q'     => $q,
             'vista' => $vista,
@@ -261,6 +262,7 @@ class PublicController
             : $title . ' — ' . __('Emeroteca');
 
         return $this->renderPublic($response, 'testata.php', [
+            'articleResults' => $this->contributions()->search('', $id, true),
             'testata'      => $testata,
             'precedente'   => $precedente,
             'successiva'   => $successiva,
@@ -490,6 +492,26 @@ class PublicController
     }
 
     // ── Rendering ─────────────────────────────────────────────────────
+
+    private function contributions(): \App\Plugins\Emeroteca\Services\ContributionService
+    {
+        require_once __DIR__ . '/../Services/ContributionService.php';
+        return new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
+    }
+
+    public function articles(ServerRequestInterface $request, ResponseInterface $response, array $args=[]): ResponseInterface
+    {
+        $q=$request->getQueryParams();
+        $term=is_string($q['q']??null)?$q['q']:'';
+        return $this->renderPublic($response,'articles.php',$this->contributions()->search($term,(int)($q['testata']??0),true,(int)($q['page']??1))+['term'=>$term,'testata'=>(int)($q['testata']??0),'seoTitle'=>__('Articoli')]);
+    }
+
+    public function article(ServerRequestInterface $request, ResponseInterface $response, array $args=[]): ResponseInterface
+    {
+        $row=$this->contributions()->get((int)($args['id']??0),true);
+        if (!$row) { return $this->renderNotFound($response)->withHeader('Cache-Control','private, no-store'); }
+        return $this->renderPublic($response,'article.php',['article'=>$row,'seoTitle'=>$row['titolo'],'seoCanonical'=>$this->baseUrl().'/emeroteca/articolo/'.(int)$row['id']])->withHeader('Cache-Control','private, no-store');
+    }
 
     /**
      * Render a public view wrapped in the site's frontend layout —

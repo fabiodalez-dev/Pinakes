@@ -26,7 +26,7 @@ $total      = (int) ($total ?? count($rows));
 
 /** Page link keeping the active filters (page param last). */
 $pageUrl = static function (int $p) use ($f_tipo, $f_editore, $f_stato): string {
-    $qs = [];
+    $qs = ['view'=>'titles'];
     if ($f_tipo !== '') {
         $qs['tipo'] = $f_tipo;
     }
@@ -67,6 +67,9 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
 <div id="emeroteca-admin-index" class="emeroteca-admin">
+<?php $mode=$mode??'complete'; require __DIR__.'/article-mode.php'; ?>
+<a class="btn-secondary mb-4 inline-flex" href="<?= $e(url('/admin/periodicals/articles')) ?>"><?= __('Articoli') ?></a>
+
     <div class="emt-page-header emt-page-header--index">
         <div>
             <h1 class="text-3xl font-bold text-gray-900"><?= __("Emeroteca") ?></h1>
