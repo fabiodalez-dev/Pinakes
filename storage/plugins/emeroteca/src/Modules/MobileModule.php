@@ -146,6 +146,7 @@ final class MobileModule
 
     // ── GET /api/v1/periodicals/health ────────────────────────────────
 
+    /** Liveness/capability probe for the mobile API bridge; advertises standalone_articles support. */
     public function health(
         ServerRequestInterface $request,
         ResponseInterface $response
@@ -306,6 +307,11 @@ final class MobileModule
 
     // ── GET /api/v1/periodicals/{id} ──────────────────────────────────
 
+    /**
+     * One masthead (testata) with its years, each carrying an issue/owned-issue count. 404s
+     * if the masthead doesn't exist. Degrades the publisher name to NULL when the core
+     * editori table isn't present, same guard as the mastheads list endpoint.
+     */
     public function periodicalDetail(
         ServerRequestInterface $request,
         ResponseInterface $response,
@@ -419,6 +425,12 @@ final class MobileModule
 
     // ── GET /api/v1/periodicals/years/{id}/issues ─────────────────────
 
+    /**
+     * The issues (fascicoli) of one annata, ordered by progressive/issue number. 404s if the
+     * annata doesn't exist. Capped at ISSUES_CAP rather than cursor-paginated, since a single
+     * annata is bounded in the real world; fetches one extra row to detect truncation rather
+     * than silently dropping it, reported via meta.truncated.
+     */
     public function yearIssues(
         ServerRequestInterface $request,
         ResponseInterface $response,
@@ -519,6 +531,12 @@ final class MobileModule
 
     // ── GET /api/v1/periodicals/issues/{id} ───────────────────────────
 
+    /**
+     * One issue (fascicolo) with its masthead, year and the spoglio articles indexed on it,
+     * ordered by page (nulls last). 404s when the issue doesn't exist. The PDF URL points at
+     * the public streaming route, never the stored pdf_path, and only when the issue opted
+     * into public visibility.
+     */
     public function issueDetail(
         ServerRequestInterface $request,
         ResponseInterface $response,
@@ -631,6 +649,13 @@ final class MobileModule
 
     // ── OpenAPI (filter target of 'mobile_api.openapi' via EmerotecaPlugin) ──
 
+    /**
+     * Standalone published articles for the mobile API: a single article by id, or a
+     * keyset-paginated (id ASC) list filtered by masthead/testata_id and free-text query
+     * (title/authors/container title/keywords/ISSN). Only pubblico=1 rows are exposed.
+     * Degrades to an empty/404 result when emeroteca_contributi doesn't exist rather than
+     * erroring, and sets an ETag for conditional-GET caching.
+     */
     public function articles(ServerRequestInterface $request, ResponseInterface $response, int $id=0): ResponseInterface
     {
         require_once __DIR__.'/../Services/ContributionService.php';

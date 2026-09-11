@@ -872,7 +872,10 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         zlib: ['z-lib.gd', 'z-lib.gl', 'z-lib.fm', '1lib.sk', 'z-library.ec', 'zliba.ru'],
     };
 
-    // XSS protection helper
+    /**
+     * XSS protection helper: escape a value for safe interpolation into HTML markup, via
+     * textContent round-trip plus quote escaping. Returns '' for null/undefined.
+     */
     function escapeHtml(str) {
         if (str === null || str === undefined) return '';
         const div = document.createElement('div');
@@ -1004,6 +1007,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         }
     };
 
+    /** Add a Z39.50 server row prefilled from one of the built-in library presets. */
     function addPresetServer(presetKey) {
         if (!presetKey || !z39PresetServers[presetKey]) return;
         const preset = z39PresetServers[presetKey];
@@ -1032,6 +1036,11 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         });
     }
 
+    /**
+     * Open the Z39.50 server settings modal for one plugin, prefilled from the trigger
+     * button's data attributes. Tolerates a corrupted `servers` JSON attribute by falling
+     * back to an empty list rather than throwing.
+     */
     function openZ39ServerModal(btn) {
         const pluginId = btn.dataset.pluginId;
         const enableServer = btn.dataset.enableServer === '1';
@@ -1058,11 +1067,13 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         z39ServerModal.classList.remove('hidden');
     }
 
+    /** Hide the Z39.50 server settings modal and clear its settings-URL field. */
     function closeZ39ServerModal() {
         z39ServerModal.classList.add('hidden');
         document.getElementById('z39SettingsUrl').value = '';
     }
 
+    /** Rebuild the Z39.50 server list UI from an array of server configs. */
     function renderZ39Servers(servers) {
         z39ServersList.innerHTML = '';
         if (servers.length === 0) {
@@ -1075,6 +1086,11 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         }
     }
 
+    /**
+     * Append one Z39.50 server row to the settings form, prefilled from `server` (or a blank
+     * default when omitted), hiding the "no servers" placeholder. All displayed values are
+     * HTML-escaped to prevent XSS since they're interpolated into markup.
+     */
     function addZ39ServerRow(server = null) {
         document.getElementById('z39NoServers').classList.add('hidden');
         server = server || { name: '', url: '', db: '', version: '1.1', syntax: 'marcxml', quote_search_terms: false, enabled: true };
@@ -1138,6 +1154,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         z39ServersList.appendChild(row);
     }
 
+    /** Show the "no servers" placeholder when every Z39.50 server row has been removed. */
     function checkEmptyServers() {
         if (document.querySelectorAll('.z39-server-row').length === 0) {
             document.getElementById('z39NoServers').classList.remove('hidden');
@@ -1261,6 +1278,11 @@ $pluginHasSettings = $pluginHasSettings ?? [];
     let selectedFile = null;
 
     // Initialize Uppy
+    /**
+     * Lazily create the self-hosted Uppy Dashboard instance used by the plugin upload modal
+     * (no-op if already initialized), wiring file-added/file-removed to the upload button's
+     * enabled state. Shows an error and bails if the Uppy globals failed to load.
+     */
     function initUppy() {
         if (uppyInstance) {
             return;
@@ -1316,6 +1338,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         });
     }
 
+    /** Show the plugin upload modal, (re)initialize Uppy, and sync the upload button's state. */
     function openUploadModal() {
         document.getElementById('uploadModal').classList.remove('hidden');
         initUppy();
@@ -1324,6 +1347,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         if (uploadBtn) uploadBtn.disabled = !selectedFile;
     }
 
+    /** Hide the plugin upload modal and tear down the Uppy instance, resetting the upload button. */
     function closeUploadModal() {
         document.getElementById('uploadModal').classList.add('hidden');
         if (uppyInstance) {
@@ -1552,6 +1576,10 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         }
     }
 
+    /**
+     * Open the Google Books plugin settings modal, prefilled from the trigger button's data
+     * attributes, and toggle the "has key" status badge accordingly.
+     */
     function openPluginSettingsModal(triggerButton) {
         const { pluginId, pluginName, hasKey, settingsUrl } = triggerButton.dataset;
         const hasApiKey = hasKey === '1';
@@ -1576,6 +1604,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         setTimeout(() => googleBooksKeyInput.focus(), 100);
     }
 
+    /** Hide the Google Books plugin settings modal and clear its form fields. */
     function closePluginSettingsModal() {
         pluginSettingsModal.classList.add('hidden');
         pluginSettingsPluginIdInput.value = '';
@@ -1652,6 +1681,11 @@ $pluginHasSettings = $pluginHasSettings ?? [];
     // API Book Scraper Modal Functions
     // ============================================================================
 
+    /**
+     * Open the API Book Scraper settings modal for one plugin instance, prefilling it from the
+     * button's data attributes. The API key field is always left empty for security; the helper
+     * text below it explains whether submitting blank keeps the existing stored key.
+     */
     function openApiBookScraperModal(button) {
         const pluginId = button.dataset.pluginId;
         const apiEndpoint = button.dataset.apiEndpoint || '';
@@ -1683,6 +1717,9 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         setTimeout(() => document.getElementById('apiEndpointInput').focus(), 100);
     }
 
+    /**
+     * Hide the API Book Scraper settings modal and reset its form fields to their defaults.
+     */
     function closeApiBookScraperModal() {
         // Hide modal
         document.getElementById('apiBookScraperModal').classList.add('hidden');
@@ -1696,6 +1733,9 @@ $pluginHasSettings = $pluginHasSettings ?? [];
         document.getElementById('apiEnabledInput').checked = false;
     }
 
+    /**
+     * Toggle the API key input between masked (password) and plain text, swapping the eye icon.
+     */
     function toggleApiKeyVisibility() {
         const input = document.getElementById('apiKeyInput');
         const icon = document.getElementById('apiKeyIcon');

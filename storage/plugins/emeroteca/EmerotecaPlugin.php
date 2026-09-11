@@ -154,14 +154,17 @@ class EmerotecaPlugin
      */
     public function hasSettingsPage(): bool { return true; }
 
+    /** Path to the settings view rendered by the admin plugin settings page. */
     public function getSettingsViewPath(): string { return __DIR__ . "/src/Views/settings.php"; }
 
+    /** Build a ContributionService bound to this plugin's DB connection, loading its class file. */
     public function contributionService(): \App\Plugins\Emeroteca\Services\ContributionService
     {
         require_once __DIR__ . "/src/Services/ContributionService.php";
         return new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
     }
 
+    /** The emeroteca_contributi CREATE TABLE DDL, delegated to ContributionService::ddl(). */
     public static function ddlContributi(): string
     {
         require_once __DIR__ . "/src/Services/ContributionService.php";
@@ -589,6 +592,14 @@ class EmerotecaPlugin
         return ['created' => $created, 'failed' => $failed];
     }
 
+    /**
+     * Add the two emeroteca_contributi FK constraints (testata_id, fascicolo_id) idempotently,
+     * probing information_schema.KEY_COLUMN_USAGE first so a constraint already present is
+     * never re-added. Both are ON DELETE SET NULL: deleting a masthead or an issue detaches
+     * the article instead of deleting it.
+     *
+     * @return bool false if either ALTER TABLE fails
+     */
     private function ensureContributionForeignKeys(): bool
     {
         foreach (['testata_id'=>['fk_contributo_testata','emeroteca_testate'], 'fascicolo_id'=>['fk_contributo_fascicolo','emeroteca_fascicoli']] as $column=>[$name,$table]) {

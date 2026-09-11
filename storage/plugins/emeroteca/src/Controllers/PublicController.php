@@ -486,6 +486,7 @@ class PublicController
         return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
     }
 
+    /** Site base URL with no trailing slash, for building canonical links. */
     private function baseUrl(): string
     {
         return rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/');
@@ -510,12 +511,14 @@ class PublicController
         return $this->contributions()->search($term, $testata, true, $page);
     }
 
+    /** Build a ContributionService bound to this controller's DB connection, loading its class file. */
     private function contributions(): \App\Plugins\Emeroteca\Services\ContributionService
     {
         require_once __DIR__ . '/../Services/ContributionService.php';
         return new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
     }
 
+    /** Public articles search/listing page. */
     public function articles(ServerRequestInterface $request, ResponseInterface $response, array $args=[]): ResponseInterface
     {
         $q=$request->getQueryParams();
@@ -523,6 +526,10 @@ class PublicController
         return $this->renderPublic($response,'articles.php',$this->articleResults($term,(int)($q['testata']??0),(int)($q['page']??1))+['term'=>$term,'testata'=>(int)($q['testata']??0),'seoTitle'=>__('Articoli'),'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli']);
     }
 
+    /**
+     * Public single-article page. 404s when emeroteca_contributi doesn't exist, the article
+     * is missing, or it isn't published (get() is called with the public-only flag).
+     */
     public function article(ServerRequestInterface $request, ResponseInterface $response, array $args=[]): ResponseInterface
     {
         $row=$this->tableExists('emeroteca_contributi') ? $this->contributions()->get((int)($args['id']??0),true) : null;

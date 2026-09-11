@@ -1060,6 +1060,15 @@ class CsvImportController
         return $value;
     }
 
+    /**
+     * Convert one raw CSV row into the normalized book field array consumed by the importer.
+     * Reverses export-time formula-injection escaping, merges primary/secondary/autori columns
+     * into a single deduplicated author list, and rejects rows whose record_type/tipo_media marks
+     * them as an article (those belong to the Emeroteca plugin, not the book catalog).
+     *
+     * @return array<string, mixed> normalized book fields keyed by column name
+     * @throws \InvalidArgumentException if the row is an article record
+     */
     private function parseCsvRow(array $row): array
     {
         // Reverse CSV formula-injection escaping applied on export. The standard

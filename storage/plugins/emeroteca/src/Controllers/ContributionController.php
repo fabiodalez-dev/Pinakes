@@ -15,10 +15,15 @@ use Psr\Http\Message\ResponseInterface as Response;
 
 final class ContributionController extends AbstractAdminController
 {
+    /** Build a ContributionService bound to this controller's DB connection. */
     private function service(): ContributionService
     {
         return new ContributionService($this->db);
     }
+    /**
+     * List/search for the admin articles view: standalone articles (source=autonomo) or the
+     * articles indexed inside owned issues, the spoglio (source=spoglio).
+     */
     public function index(Request $rq, Response $rs, array $args = []): Response
     {
         $q = $rq->getQueryParams();
@@ -72,6 +77,10 @@ final class ContributionController extends AbstractAdminController
             ->withHeader('Cache-Control', 'no-store')
             ->withHeader('X-Content-Type-Options', 'nosniff');
     }
+    /**
+     * Render the create/edit form. With an id, 404s if the article does not exist
+     * (soft-deleted or never existed); without one, renders a blank form.
+     */
     public function form(Request $rq, Response $rs, array $args = []): Response
     {
         $id = (int)($args['id'] ?? 0);
@@ -81,6 +90,13 @@ final class ContributionController extends AbstractAdminController
         }
         return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null]);
     }
+    /**
+     * Create or update a contribution, including an optional PDF upload (validated by magic
+     * bytes and finfo, not just extension) or a "remove PDF" request. On success redirects to
+     * the article; on any failure re-renders the form (HTTP 422) with the submitted values and
+     * an error message, discarding any file already moved to disk. The previous PDF is deleted
+     * only after the new row has actually been saved, so a failed save never loses the old file.
+     */
     public function save(Request $rq, Response $rs, array $args = []): Response
     {
         $body = (array)$rq->getParsedBody();
@@ -141,6 +157,10 @@ final class ContributionController extends AbstractAdminController
             return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.')]);
         }
     }
+    /**
+     * Set the plugin's workflow mode (simple/complete). Admin-only (403 otherwise); an invalid
+     * mode flashes an error instead of a bare status code, since this is a plain form POST.
+     */
     public function mode(Request $rq, Response $rs, array $args = []): Response
     {
         if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
@@ -177,6 +197,14 @@ final class ContributionController extends AbstractAdminController
         return in_array($wanted, $allowed, true) ? $wanted : '/admin/periodicals/articles';
     }
 
+    /**
+     * Two-step bulk association of contributions to a masthead/issue: a first request
+     * validates the selection and renders a preview with a token (see associatePreview()),
+     * a step=confirm request consumes that token and applies it. Admin-only (403 otherwise).
+     * The token expires after 30 minutes; a failed confirm rebuilds the preview from the
+     * still-stored selection (fresh revisions, fresh token) rather than losing it, since
+     * associate() runs in a transaction and nothing is committed on failure.
+     */
     public function associate(Request $rq, Response $rs, array $args = []): Response
     {
         if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
@@ -263,6 +291,13 @@ final class ContributionController extends AbstractAdminController
         $_SESSION['emeroteca_associate'] = self::keepRecentPending($pending);
         return $this->renderView($rs, 'article-associate', ['rows' => $rows,'token' => $token,'target_title' => $new !== '' ? $new : ($host['titolo'] ?? __('Nessuna testata')),'issue_label' => $issueLabel]);
     }
+    /**
+     * Delete a contribution, guarded by an optimistic-concurrency revision check
+     * (DELETE ... WHERE id=? AND revision=?). If the row still exists afterwards the
+     * revision didn't match — someone else modified it — so the delete is refused and
+     * the operator is sent back to the article with a flash message rather than a bare
+     * 409. Admin-only (403 otherwise); removes the associated PDF on success.
+     */
     public function delete(Request $rq, Response $rs, array $args = []): Response
     {
         if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
@@ -284,10 +319,18 @@ final class ContributionController extends AbstractAdminController
         $this->flashSuccess(__('Articolo eliminato.'));
         return $this->redirect($rs, '/admin/periodicals/articles');
     }
+    /** Render the empty CSV import form. */
     public function importForm(Request $rq, Response $rs, array $args = []): Response
     {
         return $this->renderView($rs, 'article-import', ['preview' => null,'report' => null]);
     }
+    /**
+     * Two-step CSV import: a file upload (≤5 MB) produces a preview parked in the session
+     * under a token; a subsequent request carrying that token commits the previously
+     * previewed rows. The token expires after 30 minutes. Non-validation failures are logged
+     * and flashed generically; validation failures (InvalidArgumentException) are flashed
+     * with their own message.
+     */
     public function importSubmit(Request $rq, Response $rs, array $args = []): Response
     {
         $csv = new ContributionCsv($this->service());
@@ -320,6 +363,11 @@ final class ContributionController extends AbstractAdminController
             return $this->redirect($rs, '/admin/periodicals/articles/import');
         }
     }
+    /**
+     * Stream the contributions CSV export, or just the header row when ?template=1 is
+     * requested. Admin-only (403 otherwise): the export carries note_private and
+     * collocazione even for unpublished rows.
+     */
     public function export(Request $rq, Response $rs, array $args = []): Response
     {
         // The dump carries note_private and collocazione of unpublished rows.
@@ -363,24 +411,38 @@ final class ContributionController extends AbstractAdminController
         return array_slice($pending, 0, $max, true);
     }
 
+    /** Filesystem directory where uploaded contribution PDFs are stored, outside the webroot. */
     private static function pdfDir(): string
     {
         return __DIR__.'/../../../../uploads/plugins/emeroteca/contributi';
     }
+    /**
+     * Delete a stored PDF by its generated name, silently no-op-ing if the name doesn't match
+     * the expected 40-hex-char pattern (never trusts a caller-supplied filename) or the file
+     * is already gone.
+     */
     private static function removePdf(string $name): void
     {
         if (preg_match('/^[a-f0-9]{40}\.pdf$/D', $name) && is_file(self::pdfDir().'/'.$name)) {
             unlink(self::pdfDir().'/'.$name);
         }
     }
+    /** Admin-only PDF download: any contribution, published or not. */
     public function pdf(Request $rq, Response $rs, array $args = []): Response
     {
         return $this->servePdf($rs, (int)($args['id'] ?? 0), false);
     }
+    /** Public PDF download: only contributions with pdf_pubblico set. */
     public function publicPdf(Request $rq, Response $rs, array $args = []): Response
     {
         return $this->servePdf($rs, (int)($args['id'] ?? 0), true);
     }
+    /**
+     * Stream a contribution's PDF file. Resolves the stored filename against the PDF directory
+     * via realpath() and rejects anything that escapes it (defense in depth alongside the
+     * filename pattern check), 404ing on a missing row, an unpublished PDF requested publicly,
+     * a malformed name, or a file that isn't actually there.
+     */
     private function servePdf(Response $rs, int $id, bool $public): Response
     {
         $row = $this->service()->get($id, $public);

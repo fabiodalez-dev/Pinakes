@@ -91,6 +91,9 @@ class BackupManager
      */
     private const MAX_RESTORE_DECOMPRESSED_BYTES = 4 * 1024 * 1024 * 1024;
 
+    /**
+     * @param string $rootPath project root; normalized to forward slashes and stripped of a trailing slash
+     */
     public function __construct(mysqli $db, string $rootPath)
     {
         $this->db = $db;
@@ -125,6 +128,15 @@ class BackupManager
         return 'backup_' . $timestamp . '_' . $suffix . '_' . $origin . '.zip';
     }
 
+    /**
+     * Create a backup ZIP containing the database dump and, for scope 'full', the uploaded file
+     * trees. Serializes the whole write-then-rotate sequence behind a lock so two concurrent
+     * backups can't delete each other's freshly written archive.
+     *
+     * @param string $scope 'full' (DB + files) or 'db' (database only)
+     * @param string $origin one of ORIGIN_AUTO/ORIGIN_MANUAL/ORIGIN_SAFETY
+     * @return array{success: bool, name: string|null, path: string|null, size: int, error: string|null}
+     */
     public function createBackup(string $scope = 'full', string $origin = self::ORIGIN_AUTO): array
     {
         $scope = $scope === 'db' ? 'db' : 'full';
@@ -383,6 +395,11 @@ class BackupManager
         return $entries === ['database.sql'] && is_file($dir . '/database.sql');
     }
 
+    /**
+     * Extract the origin encoded in a generated backup filename's suffix. Falls back to
+     * ORIGIN_AUTO for names without a recognized suffix, which is correct both for the
+     * automatic shape and for archives written before origins existed.
+     */
     private static function originFromName(string $name): string
     {
         if (preg_match('/^backup_\\d{4}-\\d{2}-\\d{2}_\\d{6}_[0-9a-f]{6}_([a-z]+)\\.zip$/', $name, $m) === 1) {
@@ -399,6 +416,13 @@ class BackupManager
         return str_replace(['backup_', '_'], ['', ' '], $base);
     }
 
+    /**
+     * List every backup found in storage/backups: new ZIP archives (reading scope/origin from
+     * their manifest, falling back to the filename) plus legacy update_* directories (DB-only,
+     * pre-0.7.x layout), sorted newest first.
+     *
+     * @return array<int, array{name: string, path: string, size: int, date: string, contents: string, origin: string, created_at: int}>
+     */
     public function listBackups(): array
     {
         $backups = [];
@@ -1557,6 +1581,13 @@ class BackupManager
         return is_array($decoded) ? $decoded : [];
     }
 
+    /**
+     * Recursively delete a directory, treating any symlink (the root or a child) as a leaf to
+     * unlink rather than a target to descend into.
+     *
+     * @return bool false if the directory could not be listed or the final rmdir() failed;
+     *              true if the directory was already gone
+     */
     private function deleteDirectory(string $dir): bool
     {
         // A symlinked root must not be followed either — unlink the link

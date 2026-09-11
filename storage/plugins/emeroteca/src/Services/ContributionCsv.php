@@ -9,9 +9,22 @@ require_once __DIR__ . '/ContributionService.php';
 /** CSV preview is a bounded snapshot; commit rechecks the revision of every row. */
 final class ContributionCsv
 {
+    /** @param ContributionService $service used for both lookups during preview and the actual save in commit() */
     public function __construct(private ContributionService $service)
     {
     }
+    /**
+     * Parse and validate an uploaded CSV (≤5 MB, UTF-8, ≤500 data rows) into a per-row preview:
+     * each entry carries its line number, resolved id/revision if a matching reference_key
+     * already exists, the normalized data to save, and either an error (row will be skipped by
+     * commit()) or a non-blocking warning (e.g. missing container title). Header aliases are
+     * mapped to internal field names, duplicate/unknown headers reject the whole file, and a
+     * likely duplicate (same title/authors/container/volume/issue/pages, or matching DOI) on a
+     * new row is flagged as an error rather than silently imported twice.
+     *
+     * @return array<int, array{line: int, error: string|null, id: int, revision: int|null, data: array<string, mixed>, warning: string|null}>
+     * @throws \InvalidArgumentException on a file-level problem (size, encoding, headers, row count)
+     */
     public function preview(string $csv): array
     {
         if (strlen($csv) > 5 * 1024 * 1024) {
@@ -103,6 +116,14 @@ final class ContributionCsv
         fclose($stream);
         return $out;
     }
+    /**
+     * Save every non-erroring row from a preview() result, passing along the id/revision it
+     * captured so a row whose target was changed since the preview was taken (or by a
+     * concurrent import of the same reference_key) is rejected rather than overwritten.
+     *
+     * @param array<int, array{line: int, error: string|null, id: int, revision: int|null, data: array<string, mixed>, warning: string|null}> $preview
+     * @return array<int, array{line: int, id?: int, error: string|null}>
+     */
     public function commit(array $preview): array
     {
         $report = [];
@@ -131,6 +152,12 @@ final class ContributionCsv
         };
     }
 
+    /**
+     * Dump every contribution as CSV (machine round-trip format: literal cells, not meant to be
+     * opened as a spreadsheet), keyset-paginated by id in batches of 500 so the whole table
+     * never has to be held in memory at once. record_type is derived from contenitore_tipo, not
+     * stored, and is what makes the file distinguishable from a book-catalog CSV on re-import.
+     */
     public function export(): string
     {
         $fp = fopen('php://temp', 'w+');

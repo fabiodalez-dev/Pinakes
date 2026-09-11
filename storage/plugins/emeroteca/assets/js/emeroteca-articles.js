@@ -12,11 +12,17 @@
     const placeholder = issue.options[0];
     let pending = 0;
 
+    /** Clear the issue picker back to its placeholder-only state. */
     const reset = () => {
         issue.replaceChildren(placeholder);
         issue.value = '0';
     };
 
+    /**
+     * Fetch and repopulate the issue picker for the currently selected masthead.
+     * Tracks a request counter so a slower response for a masthead the operator
+     * has since changed away from never overwrites the current option list.
+     */
     const load = async () => {
         const request = ++pending;
         reset();

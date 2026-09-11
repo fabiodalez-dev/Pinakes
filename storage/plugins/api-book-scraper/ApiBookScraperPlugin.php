@@ -617,6 +617,17 @@ class ApiBookScraperPlugin
         return in_array($scheme, ['http', 'https'], true) && (string) parse_url($probe, PHP_URL_HOST) !== '';
     }
 
+    /**
+     * Persist plugin settings and re-register hooks accordingly.
+     *
+     * Rejects enabling the plugin without both a usable endpoint and an effective API key
+     * (submitted or previously stored), since registerHooks() would otherwise silently register
+     * nothing. Settings replace + hook re-registration run in one transaction, rolled back on any
+     * failure so the DB is never left with settings saved but scrape.* hooks missing.
+     *
+     * @throws \InvalidArgumentException if enabling is requested without a usable endpoint/key
+     * @throws \RuntimeException on a database failure (transaction is rolled back first)
+     */
     public function saveSettings(array $settings): bool
     {
         if (!$this->pluginId || !$this->db) {

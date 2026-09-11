@@ -62,10 +62,16 @@ final class ContributionService
      */
     public const CSV_HEADER = ['record_type', ...self::CSV_FIELDS];
     private int $affectedRows = 0;
+    /** @param \mysqli $db connection used for every query this service issues */
     public function __construct(private \mysqli $db)
     {
     }
 
+    /**
+     * CREATE TABLE IF NOT EXISTS for emeroteca_contributi, built from COLUMN_DEFINITIONS plus
+     * its indexes and FKs. Idempotent, and the single source both the fresh-install schema and
+     * the self-heal path consume.
+     */
     public static function ddl(): string
     {
         $columns = [];
@@ -103,17 +109,26 @@ SQL;
         return $rows;
     }
 
+    /**
+     * Fetch one contribution by id, or null if it doesn't exist. With $publicOnly, also
+     * requires pubblico=1 — used by every public-facing lookup so an unpublished article is
+     * never returned outside the admin.
+     */
     public function get(int $id, bool $publicOnly = false): ?array
     {
         return $this->rows('SELECT * FROM emeroteca_contributi WHERE id = ?' . ($publicOnly ? ' AND pubblico = 1' : ''), [$id])[0] ?? null;
     }
 
+    /** The plugin's workflow mode ('simple' or 'complete'), defaulting to 'complete' when unset. */
     public function mode(): string
     {
         $row = $this->rows("SELECT s.setting_value FROM plugin_settings s JOIN plugins p ON p.id=s.plugin_id WHERE p.name='emeroteca' AND s.setting_key='mode'")[0] ?? [];
         return ($row['setting_value'] ?? '') === 'simple' ? 'simple' : 'complete';
     }
 
+    /**
+     * @throws \InvalidArgumentException if $mode is neither 'simple' nor 'complete'
+     */
     public function setMode(string $mode): void
     {
         if (!in_array($mode, ['simple','complete'], true)) {
@@ -122,6 +137,16 @@ SQL;
         $this->rows("INSERT INTO plugin_settings (plugin_id,setting_key,setting_value) SELECT id,'mode',? FROM plugins WHERE name='emeroteca' ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$mode]);
     }
 
+    /**
+     * Validate and coerce raw form/import input into the shape save() persists: trims every
+     * TEXT_FIELDS value and rejects any over its length limit, requires a non-empty titolo, checks tipo_contributo/
+     * supporto/contenitore_tipo against their allowed enums, validates and normalizes ISSN
+     * (checksum) and DOI (strips URL/prefix, requires the 10.xxxx/ shape), validates the year
+     * range, and coerces the pubblico/pdf_pubblico flags to 0/1.
+     *
+     * @return array<string, mixed>
+     * @throws \InvalidArgumentException on the first field that fails validation
+     */
     public static function normalize(array $input): array
     {
         $out = [];
@@ -355,6 +380,15 @@ SQL;
         }
     }
 
+    /**
+     * Shape one raw contribution row for public/mobile consumption: keeps only an allowlist of
+     * public columns, so internal ones (note_private, collocazione, pdf_path, reference_key,
+     * revision, pubblico, ...) never leave, casts numeric ids, and adds `kind` and `has_public_pdf` (true only when a PDF is stored
+     * AND opted into public visibility).
+     *
+     * @param array<string, mixed> $r a raw emeroteca_contributi row
+     * @return array<string, mixed>
+     */
     public static function publicData(array $r): array
     {
         $out = array_intersect_key($r, array_flip(['id','titolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','testata_id','fascicolo_id','updated_at']));
