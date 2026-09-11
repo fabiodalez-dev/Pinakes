@@ -346,6 +346,22 @@ $prune($manager, end($zips));
 $check(is_dir($impostor), 'a legacy-named directory without database.sql is not a rotation candidate');
 $check(is_file($impostor . '/note.txt'), 'and whatever it contained is still there');
 
+// The harder impostor: the right name AND a database.sql, plus something else.
+// Checking only for the dump would reclaim it, and deleteDirectory() is
+// recursive — the operator's note would go with it. A generated legacy backup
+// holds the dump and nothing more.
+$mixed = $tmp . '/update_2019-02-02_020202';
+@mkdir($mixed, 0775, true);
+file_put_contents($mixed . '/database.sql', '-- dump');
+file_put_contents($mixed . '/note.txt', 'da non perdere');
+touch($mixed, time() - (1000 * 3600)); // older still than the impostor above
+$seedLegacy(4);
+$zips = $seed(2);
+$manager = $makeManager($tmp, '2');
+$prune($manager, end($zips));
+$check(is_dir($mixed), 'a legacy directory with anything beside database.sql is not a rotation candidate');
+$check(is_file($mixed . '/note.txt') && is_file($mixed . '/database.sql'), 'and both of its files are still there');
+
 echo "J. a newly written preserved backup does not consume automatic slots\n";
 foreach ([BackupManager::ORIGIN_MANUAL, BackupManager::ORIGIN_SAFETY, BackupManager::ORIGIN_UPLOAD] as $origin) {
     $originDir = $tmp . '/origin_' . $origin;

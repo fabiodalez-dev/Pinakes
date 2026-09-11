@@ -634,6 +634,11 @@ final class MobileModule
         require_once __DIR__.'/../Services/ContributionService.php';
         $service=new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
         $q=$request->getQueryParams();
+        if (!$this->tableExists('emeroteca_contributi')) {
+            return $id
+                ? \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'not_found',__('Articolo non trovato.'),404)
+                : \App\Plugins\MobileApi\Support\ResponseEnvelope::success($response,[],['next_cursor'=>null,'limit'=>$this->clampLimit($q['limit']??20)]);
+        }
         try {
             if ($id) {
                 $r=$service->get($id,true);
@@ -656,7 +661,7 @@ final class MobileModule
             }
             $etag=$this->payloadEtag('standalone-articles',[$items,$meta]);
             if ($this->notModified($request,$etag)) { return $this->notModifiedResponse($response,$etag); }
-            return \App\Plugins\MobileApi\Support\ResponseEnvelope::success($response,$items,$meta)->withHeader('ETag',$etag)->withHeader('Cache-Control','private, no-store');
+            return \App\Plugins\MobileApi\Support\ResponseEnvelope::success($response,$items,$meta)->withHeader('ETag',$etag)->withHeader('Cache-Control','private, max-age=0, must-revalidate');
         } catch (\Throwable $e) {
             SecureLogger::error('[Emeroteca:mobile] articles: '.$e->getMessage());
             return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'internal_error',__('Articoli non disponibili.'),500);

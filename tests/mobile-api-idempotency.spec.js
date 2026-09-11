@@ -423,7 +423,15 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
             ctx.periodicalsActive = pHealth.status() === 200;
         } catch {}
         if (ctx.periodicalsActive) {
-            ctx.periodicalArticleId = dbScalar('SELECT id FROM emeroteca_contributi WHERE pubblico=1 ORDER BY id LIMIT 1') || undefined;
+            // Its own try: health does not probe the schema, so a missing table
+            // would otherwise throw here and take down ETag tests for endpoints
+            // that have nothing to do with standalone articles. Undefined lets
+            // skipIf drop only the article detail.
+            try {
+                ctx.periodicalArticleId = dbScalar('SELECT id FROM emeroteca_contributi WHERE pubblico=1 ORDER BY id LIMIT 1') || undefined;
+            } catch {
+                ctx.periodicalArticleId = undefined;
+            }
             try {
                 ctx.periodicalId = dbScalar('SELECT id FROM emeroteca_testate ORDER BY id LIMIT 1') || undefined;
                 if (ctx.periodicalId) {

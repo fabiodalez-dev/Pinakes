@@ -103,6 +103,7 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
 
     <form method="GET" action="<?= $e(url('/admin/periodicals')) ?>"
           class="emt-toolbar p-4 mb-6 flex flex-wrap items-end gap-3">
+        <input type="hidden" name="view" value="titles">
         <div class="min-w-[150px]">
             <label for="emt-tipo" class="block text-xs font-medium text-gray-600 mb-1">
                 <?= __("Tipo") ?>
@@ -150,7 +151,7 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                 <?= __("Filtra") ?>
             </button>
             <?php if ($isFiltered): ?>
-                <a href="<?= $e(url('/admin/periodicals')) ?>" class="btn-secondary">
+                <a href="<?= $e(url('/admin/periodicals?view=titles')) ?>" class="btn-secondary">
                     <?= __("Azzera") ?>
                 </a>
             <?php endif; ?>

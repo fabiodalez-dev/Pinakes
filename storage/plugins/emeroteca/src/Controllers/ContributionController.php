@@ -26,13 +26,15 @@ final class ContributionController extends AbstractAdminController
         $testata = (int)($q['testata'] ?? 0);
         $source = ($q['source'] ?? '') === 'spoglio' ? 'spoglio' : 'autonomo';
         $results = $source === 'spoglio' ? $this->service()->indexedSearch($term, $testata, (int)($q['page'] ?? 1)) : $this->service()->search($term, $testata, false, (int)($q['page'] ?? 1));
-        // The association form exists only on the standalone tab with rows to act on.
+        // The issue list feeds only the association form, which exists on the
+        // standalone tab with rows to act on. The masthead list is NOT gated: it
+        // also feeds the filter, on both tabs and on an empty result.
         $canAssociate = $source === 'autonomo' && !empty($results['rows']);
         return $this->renderView($rs, 'articles', $results + ['source' => $source,
             'term' => $term,'testata' => $testata,'mode' => $this->service()->mode(),
             'destination' => (int)($q['destination'] ?? 0),
             'issues' => $canAssociate ? $this->service()->rows("SELECT f.id,f.numero,a.anno,a.volume,t.id testata_id,t.titolo FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id JOIN emeroteca_testate t ON t.id=a.testata_id ORDER BY t.titolo,a.anno DESC,f.numero") : [],
-            'testate' => $canAssociate ? $this->service()->rows('SELECT id,titolo FROM emeroteca_testate ORDER BY titolo') : []]);
+            'testate' => $this->service()->rows('SELECT id,titolo FROM emeroteca_testate ORDER BY titolo')]);
     }
     public function form(Request $rq, Response $rs, array $args = []): Response
     {

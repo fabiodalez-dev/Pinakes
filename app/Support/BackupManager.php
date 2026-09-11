@@ -323,8 +323,10 @@ class BackupManager
                 // whole content of the format. A directory carrying the name but
                 // not the dump is something else wearing our shape, and this
                 // rotation deletes recursively: reclaiming only what we can show
-                // we wrote is worth one stat() per candidate.
-                if (!is_file($dir . '/database.sql')) {
+                // we wrote is worth one directory listing per candidate. The dump
+                // must be the ONLY entry — a note or a file an operator dropped
+                // beside it would otherwise be deleted along with the backup.
+                if (!self::isLegacyBackupDirectory($dir)) {
                     continue;
                 }
                 $entries[$dir] = (int) filemtime($dir);
@@ -370,6 +372,17 @@ class BackupManager
      * Unknown or absent suffix means the automatic shape, which is what every
      * archive written before this existed actually was.
      */
+    /** True only for a directory whose sole entry is a database.sql file. */
+    private static function isLegacyBackupDirectory(string $dir): bool
+    {
+        $entries = @scandir($dir);
+        if ($entries === false) {
+            return false;
+        }
+        $entries = array_values(array_diff($entries, ['.', '..']));
+        return $entries === ['database.sql'] && is_file($dir . '/database.sql');
+    }
+
     private static function originFromName(string $name): string
     {
         if (preg_match('/^backup_\\d{4}-\\d{2}-\\d{2}_\\d{6}_[0-9a-f]{6}_([a-z]+)\\.zip$/', $name, $m) === 1) {

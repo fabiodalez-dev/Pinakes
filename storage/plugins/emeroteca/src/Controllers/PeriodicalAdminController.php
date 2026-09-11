@@ -64,7 +64,8 @@ class PeriodicalAdminController extends AbstractAdminController
     {
         $params = (array) $request->getQueryParams();
         require_once __DIR__ . '/../Services/ContributionService.php';
-        if (($params['view'] ?? '') !== 'titles' && (new \App\Plugins\Emeroteca\Services\ContributionService($this->db))->mode() === 'simple') {
+        $mode = (new \App\Plugins\Emeroteca\Services\ContributionService($this->db))->mode();
+        if (($params['view'] ?? '') !== 'titles' && $mode === 'simple') {
             return $this->redirect($response, '/admin/periodicals/articles');
         }
         $fTipo    = isset($params['tipo']) ? trim((string) $params['tipo']) : '';
@@ -173,7 +174,7 @@ class PeriodicalAdminController extends AbstractAdminController
         unset($row);
 
         return $this->renderView($response, 'index', [
-            'mode'=>(new \App\Plugins\Emeroteca\Services\ContributionService($this->db))->mode(),
+            'mode'=>$mode,
             'rows'        => $rows,
             'editori'     => $this->fetchEditori(),
             'f_tipo'      => $fTipo,

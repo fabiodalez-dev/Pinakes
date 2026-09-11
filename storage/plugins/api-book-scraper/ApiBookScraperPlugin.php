@@ -149,8 +149,16 @@ class ApiBookScraperPlugin
         // continuously trains the reader to skip warnings, which is how the real
         // ones get missed. The genuinely abnormal case above (missing DB or plugin
         // ID) keeps its warning.
-        if (!$this->enabled || empty($this->apiEndpoint) || empty($this->apiKey)) {
-            \App\Support\SecureLogger::debug('[ApiBookScraper] Plugin not enabled or missing configuration: hooks not registered');
+        //
+        // That argument holds only while the plugin is DISABLED. Enabled with no
+        // endpoint or key is a broken configuration the operator chose to turn on
+        // and cannot see working — debug is off in production, so it must warn.
+        if (!$this->enabled) {
+            \App\Support\SecureLogger::debug('[ApiBookScraper] Plugin not enabled: hooks not registered');
+            return;
+        }
+        if (empty($this->apiEndpoint) || empty($this->apiKey)) {
+            \App\Support\SecureLogger::warning('[ApiBookScraper] Plugin enabled but API endpoint or key is missing: hooks not registered');
             return;
         }
 
@@ -611,6 +619,14 @@ class ApiBookScraperPlugin
         $effectiveKey = $submittedKey !== '' ? $submittedKey : $this->apiKey;
         if ($enabledRequested && $effectiveKey === '') {
             throw new \RuntimeException('[ApiBookScraper] cannot enable plugin without an API key');
+        }
+        // Same for the endpoint: registerHooks() needs both, so enabling without
+        // one would save successfully and then register nothing.
+        $submittedEndpoint = array_key_exists('api_endpoint', $settings)
+            ? trim((string) $settings['api_endpoint'])
+            : $this->apiEndpoint;
+        if ($enabledRequested && $submittedEndpoint === '') {
+            throw new \RuntimeException('[ApiBookScraper] cannot enable plugin without an API endpoint');
         }
 
         // Wrap the settings replacement AND the hook re-registration in one
