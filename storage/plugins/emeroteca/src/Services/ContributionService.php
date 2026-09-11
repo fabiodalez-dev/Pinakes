@@ -44,6 +44,9 @@ final class ContributionService
     public const TEXT_FIELDS = ['titolo' => 500,'autori' => 500,'tipo_contributo' => 30,'contenitore_tipo' => 30,
         'contenitore_titolo' => 255,'issn' => 9,'data_pubblicazione_testo' => 100,'volume' => 50,'numero' => 50,
         'pagine' => 100,'doi' => 255,'supporto' => 20,'keywords' => 500,'abstract' => 10000,'collocazione' => 255,'note_private' => 10000];
+    /** A reference_key the table accepts: shared by save() and the CSV preview. */
+    public const REFERENCE_KEY_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,190}$/D';
+
     public const CSV_FIELDS = ['reference_key','titolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo',
         'issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','collocazione','note_private','pubblico'];
 
@@ -132,7 +135,7 @@ SQL;
             }
             $out[$key] = $v === '' ? null : $v;
         }
-        if (!$out['titolo']) {
+        if ($out['titolo'] === null) {
             throw new \InvalidArgumentException(__('Il titolo è obbligatorio.'));
         }
         $out['tipo_contributo'] ??= 'articolo';
@@ -192,7 +195,7 @@ SQL;
             }
         } else {
             $key = $data['reference_key'] ?? bin2hex(random_bytes(16));
-            if (!is_string($key) || !preg_match('/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,190}$/D', $key)) {
+            if (!is_string($key) || !preg_match(self::REFERENCE_KEY_PATTERN, $key)) {
                 throw new \InvalidArgumentException(__('Identificatore non valido.'));
             }
             $values['reference_key'] = $key;

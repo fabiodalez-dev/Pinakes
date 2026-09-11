@@ -71,6 +71,8 @@ final class ContributionCsv
                 $key = trim((string)($data['reference_key'] ?? ''));
                 if ($key === '') {
                     $key = bin2hex(random_bytes(16));
+                } elseif (!preg_match(ContributionService::REFERENCE_KEY_PATTERN, $key)) {
+                    throw new \InvalidArgumentException(__('Identificatore non valido.'));
                 }
                 if (isset($seen[$key])) {
                     throw new \InvalidArgumentException(__('Identificatore ripetuto nel CSV.'));

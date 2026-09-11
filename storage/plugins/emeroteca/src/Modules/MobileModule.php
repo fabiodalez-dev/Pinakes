@@ -645,9 +645,9 @@ final class MobileModule
                 $limit=$this->clampLimit($q['limit']??20); $where='pubblico=1 AND id>?'; $params=[(int)$cursor];
                 if (!empty($q['testata_id'])) { $where.=' AND testata_id=?'; $params[]=(int)$q['testata_id']; }
                 if (is_string($q['q']??null) && $q['q']!=='') {
-                    $where.=" AND (titolo LIKE ? ESCAPE '=' OR autori LIKE ? ESCAPE '=' OR contenitore_titolo LIKE ? ESCAPE '=' OR keywords LIKE ? ESCAPE '=')";
+                    $where.=" AND (titolo LIKE ? ESCAPE '=' OR autori LIKE ? ESCAPE '=' OR contenitore_titolo LIKE ? ESCAPE '=' OR keywords LIKE ? ESCAPE '=' OR issn=?)";
                     $pat='%'.strtr(mb_substr($q['q'],0,200),['='=>'==','%'=>'=%','_'=>'=_']).'%';
-                    array_push($params,$pat,$pat,$pat,$pat);
+                    array_push($params,$pat,$pat,$pat,$pat,trim(mb_substr($q['q'],0,200)));
                 }
                 $rows=$service->rows('SELECT * FROM emeroteca_contributi WHERE '.$where.' ORDER BY id LIMIT '.($limit+1),$params);
                 $more=count($rows)>$limit; if ($more) { array_pop($rows); }

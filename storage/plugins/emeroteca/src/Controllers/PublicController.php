@@ -162,7 +162,7 @@ class PublicController
         $rows = $this->fetchAll($sql, $bindTypes, $bindValues);
 
         return $this->renderPublic($response, 'index.php', [
-            'articleResults' => $this->contributions()->search($q,0,true),
+            'articleResults' => $this->articleResults($q, 0),
             'rows'  => $rows,
             'q'     => $q,
             'vista' => $vista,
@@ -262,7 +262,7 @@ class PublicController
             : $title . ' — ' . __('Emeroteca');
 
         return $this->renderPublic($response, 'testata.php', [
-            'articleResults' => $this->contributions()->search('', $id, true),
+            'articleResults' => $this->articleResults('', $id),
             'testata'      => $testata,
             'precedente'   => $precedente,
             'successiva'   => $successiva,
@@ -493,6 +493,23 @@ class PublicController
 
     // ── Rendering ─────────────────────────────────────────────────────
 
+    /**
+     * Public article results, or an empty page when the table is not there.
+     *
+     * emeroteca_contributi is optional from the public side's point of view:
+     * an install whose schema step failed must still serve its mastheads and
+     * issues. The sitemap hook and the catalogue hint already degrade this way.
+     *
+     * @return array{rows: array<int, array<string, mixed>>, total: int, page: int, pages: int}
+     */
+    private function articleResults(string $term, int $testata, int $page = 1): array
+    {
+        if (!$this->tableExists('emeroteca_contributi')) {
+            return ['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1];
+        }
+        return $this->contributions()->search($term, $testata, true, $page);
+    }
+
     private function contributions(): \App\Plugins\Emeroteca\Services\ContributionService
     {
         require_once __DIR__ . '/../Services/ContributionService.php';
@@ -503,12 +520,12 @@ class PublicController
     {
         $q=$request->getQueryParams();
         $term=is_string($q['q']??null)?$q['q']:'';
-        return $this->renderPublic($response,'articles.php',$this->contributions()->search($term,(int)($q['testata']??0),true,(int)($q['page']??1))+['term'=>$term,'testata'=>(int)($q['testata']??0),'seoTitle'=>__('Articoli')]);
+        return $this->renderPublic($response,'articles.php',$this->articleResults($term,(int)($q['testata']??0),(int)($q['page']??1))+['term'=>$term,'testata'=>(int)($q['testata']??0),'seoTitle'=>__('Articoli'),'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli']);
     }
 
     public function article(ServerRequestInterface $request, ResponseInterface $response, array $args=[]): ResponseInterface
     {
-        $row=$this->contributions()->get((int)($args['id']??0),true);
+        $row=$this->tableExists('emeroteca_contributi') ? $this->contributions()->get((int)($args['id']??0),true) : null;
         if (!$row) { return $this->renderNotFound($response)->withHeader('Cache-Control','private, no-store'); }
         return $this->renderPublic($response,'article.php',['article'=>$row,'seoTitle'=>$row['titolo'],'seoCanonical'=>$this->baseUrl().'/emeroteca/articolo/'.(int)$row['id']])->withHeader('Cache-Control','private, no-store');
     }

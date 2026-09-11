@@ -26,11 +26,13 @@ final class ContributionController extends AbstractAdminController
         $testata = (int)($q['testata'] ?? 0);
         $source = ($q['source'] ?? '') === 'spoglio' ? 'spoglio' : 'autonomo';
         $results = $source === 'spoglio' ? $this->service()->indexedSearch($term, $testata, (int)($q['page'] ?? 1)) : $this->service()->search($term, $testata, false, (int)($q['page'] ?? 1));
+        // The association form exists only on the standalone tab with rows to act on.
+        $canAssociate = $source === 'autonomo' && !empty($results['rows']);
         return $this->renderView($rs, 'articles', $results + ['source' => $source,
             'term' => $term,'testata' => $testata,'mode' => $this->service()->mode(),
             'destination' => (int)($q['destination'] ?? 0),
-            'issues' => $this->service()->rows("SELECT f.id,f.numero,a.anno,a.volume,t.id testata_id,t.titolo FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id JOIN emeroteca_testate t ON t.id=a.testata_id ORDER BY t.titolo,a.anno DESC,f.numero"),
-            'testate' => $this->service()->rows('SELECT id,titolo FROM emeroteca_testate ORDER BY titolo')]);
+            'issues' => $canAssociate ? $this->service()->rows("SELECT f.id,f.numero,a.anno,a.volume,t.id testata_id,t.titolo FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id JOIN emeroteca_testate t ON t.id=a.testata_id ORDER BY t.titolo,a.anno DESC,f.numero") : [],
+            'testate' => $canAssociate ? $this->service()->rows('SELECT id,titolo FROM emeroteca_testate ORDER BY titolo') : []]);
     }
     public function form(Request $rq, Response $rs, array $args = []): Response
     {
@@ -147,52 +149,28 @@ final class ContributionController extends AbstractAdminController
             if (($b['step'] ?? '') === 'confirm') {
                 $token = (string)($b['token'] ?? '');
                 $pending = $_SESSION['emeroteca_associate'][$token] ?? null;
-                unset($_SESSION['emeroteca_associate'][$token]);
                 if (!$pending || time() - $pending['time'] > 1800) {
+                    unset($_SESSION['emeroteca_associate'][$token]);
                     throw new \InvalidArgumentException(__('Anteprima scaduta. Ripeti la selezione.'));
                 }
-                $target = $this->service()->associate($pending['revisions'], $pending['testata'], $pending['fascicolo'], $pending['new_title'], !empty($b['reassign']));
+                // The preview used to be destroyed before this call, so a failure
+                // that is only detectable here — a reassignment not yet confirmed,
+                // a selection edited meanwhile — cost the operator a selection of
+                // up to 500 articles. Nothing is committed when associate() throws
+                // (it runs in a transaction), so rebuild the preview from the
+                // stored selection instead: fresh revisions and a fresh token, so a
+                // stale-revision rejection cannot repeat on the same data.
+                unset($_SESSION['emeroteca_associate'][$token]);
+                try {
+                    $target = $this->service()->associate($pending['revisions'], $pending['testata'], $pending['fascicolo'], $pending['new_title'], !empty($b['reassign']));
+                } catch (\InvalidArgumentException $e) {
+                    $this->flashError($e->getMessage());
+                    return $this->associatePreview($rs, array_keys($pending['revisions']), (int)$pending['testata'], (string)$pending['new_title'], (int)$pending['fascicolo']);
+                }
                 $this->flashSuccess(__('Articoli associati. Citazioni e allegati conservati.'));
                 return $this->redirect($rs, '/admin/periodicals/articles'.($target ? '?testata='.$target : ''));
             }
-            $ids = $b['ids'] ?? [];
-            if (!is_array($ids) || !$ids || count($ids) > 500) {
-                throw new \InvalidArgumentException(__('Seleziona da 1 a 500 articoli.'));
-            }
-            $rows = [];
-            $revisions = [];
-            foreach (array_unique(array_map('intval', $ids)) as $id) {
-                $row = $this->service()->get($id);
-                if (!$row) {
-                    throw new \InvalidArgumentException(__('Articolo non trovato.'));
-                }
-                $row['testata_titolo'] = $row['testata_id'] ? ($this->service()->rows('SELECT titolo FROM emeroteca_testate WHERE id=?', [$row['testata_id']])[0]['titolo'] ?? '') : '';
-                $rows[] = $row;
-                $revisions[$id] = (int)$row['revision'];
-            }
-            $target = (int)($b['testata_id'] ?? 0);
-            $new = trim((string)($b['new_title'] ?? ''));
-            $host = $target ? $this->service()->rows('SELECT titolo FROM emeroteca_testate WHERE id=?', [$target])[0] ?? null : null;
-            if ($target && !$host) {
-                throw new \InvalidArgumentException(__('Testata non trovata.'));
-            }
-            if ($new !== '' && $target) {
-                throw new \InvalidArgumentException(__('Scegli una testata esistente oppure creane una.'));
-            }
-            $issue = (int)($b['fascicolo_id'] ?? 0);
-            $issueLabel = '';
-            if ($issue) {
-                $issueRow = $this->service()->rows('SELECT f.numero,a.anno,a.volume FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id WHERE f.id=? AND a.testata_id=?', [$issue,$target])[0] ?? null;
-                if (!$issueRow) {
-                    throw new \InvalidArgumentException(__('Il fascicolo non appartiene alla testata.'));
-                }
-                $issueLabel = implode(' · ', array_filter([(string)$issueRow['anno'], (string)$issueRow['volume'], (string)$issueRow['numero']]));
-            }
-            $token = bin2hex(random_bytes(20));
-            $pending = self::pendingSlot('emeroteca_associate');
-            $pending[$token] = ['time' => time(),'revisions' => $revisions,'testata' => $target,'fascicolo' => (int)($b['fascicolo_id'] ?? 0),'new_title' => $new];
-            $_SESSION['emeroteca_associate'] = self::keepRecentPending($pending);
-            return $this->renderView($rs, 'article-associate', ['rows' => $rows,'token' => $token,'target_title' => $new !== '' ? $new : ($host['titolo'] ?? __('Nessuna testata')),'issue_label' => $issueLabel]);
+            return $this->associatePreview($rs, $b['ids'] ?? [], (int)($b['testata_id'] ?? 0), trim((string)($b['new_title'] ?? '')), (int)($b['fascicolo_id'] ?? 0));
         } catch (\Throwable $e) {
             if (!$e instanceof \InvalidArgumentException) {
                 SecureLogger::error('[Emeroteca] associate: '.$e->getMessage());
@@ -200,6 +178,52 @@ final class ContributionController extends AbstractAdminController
             $this->flashError($e instanceof \InvalidArgumentException ? $e->getMessage() : __('Associazione non riuscita.'));
             return $this->redirect($rs, '/admin/periodicals/articles');
         }
+    }
+
+    /**
+     * Validate a selection and render the association preview with a new token.
+     *
+     * Shared by the first request and by a confirm that failed recoverably, so
+     * both show exactly the same checks.
+     *
+     * @param mixed $ids the submitted article ids
+     */
+    private function associatePreview(Response $rs, mixed $ids, int $target, string $new, int $issue): Response
+    {
+        if (!is_array($ids) || !$ids || count($ids) > 500) {
+            throw new \InvalidArgumentException(__('Seleziona da 1 a 500 articoli.'));
+        }
+        $rows = [];
+        $revisions = [];
+        foreach (array_unique(array_map('intval', $ids)) as $id) {
+            $row = $this->service()->get($id);
+            if (!$row) {
+                throw new \InvalidArgumentException(__('Articolo non trovato.'));
+            }
+            $row['testata_titolo'] = $row['testata_id'] ? ($this->service()->rows('SELECT titolo FROM emeroteca_testate WHERE id=?', [$row['testata_id']])[0]['titolo'] ?? '') : '';
+            $rows[] = $row;
+            $revisions[$id] = (int)$row['revision'];
+        }
+        $host = $target ? $this->service()->rows('SELECT titolo FROM emeroteca_testate WHERE id=?', [$target])[0] ?? null : null;
+        if ($target && !$host) {
+            throw new \InvalidArgumentException(__('Testata non trovata.'));
+        }
+        if ($new !== '' && $target) {
+            throw new \InvalidArgumentException(__('Scegli una testata esistente oppure creane una.'));
+        }
+        $issueLabel = '';
+        if ($issue) {
+            $issueRow = $this->service()->rows('SELECT f.numero,a.anno,a.volume FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id WHERE f.id=? AND a.testata_id=?', [$issue,$target])[0] ?? null;
+            if (!$issueRow) {
+                throw new \InvalidArgumentException(__('Il fascicolo non appartiene alla testata.'));
+            }
+            $issueLabel = implode(' · ', array_filter([(string)$issueRow['anno'], (string)$issueRow['volume'], (string)$issueRow['numero']]));
+        }
+        $token = bin2hex(random_bytes(20));
+        $pending = self::pendingSlot('emeroteca_associate');
+        $pending[$token] = ['time' => time(),'revisions' => $revisions,'testata' => $target,'fascicolo' => $issue,'new_title' => $new];
+        $_SESSION['emeroteca_associate'] = self::keepRecentPending($pending);
+        return $this->renderView($rs, 'article-associate', ['rows' => $rows,'token' => $token,'target_title' => $new !== '' ? $new : ($host['titolo'] ?? __('Nessuna testata')),'issue_label' => $issueLabel]);
     }
     public function delete(Request $rq, Response $rs, array $args = []): Response
     {
@@ -250,8 +274,11 @@ final class ContributionController extends AbstractAdminController
             $pending[$token] = ['time' => time(),'rows' => $preview];
             $_SESSION['emeroteca_csv'] = self::keepRecentPending($pending);
             return $this->renderView($rs, 'article-import', ['preview' => $preview,'token' => $token,'report' => null]);
-        } catch (\InvalidArgumentException $e) {
-            $this->flashError($e->getMessage());
+        } catch (\Throwable $e) {
+            if (!$e instanceof \InvalidArgumentException) {
+                SecureLogger::error('[Emeroteca] contribution import: '.$e->getMessage());
+            }
+            $this->flashError($e instanceof \InvalidArgumentException ? $e->getMessage() : __('Errore di sistema durante l\'importazione'));
             return $this->redirect($rs, '/admin/periodicals/articles/import');
         }
     }

@@ -2352,6 +2352,7 @@ class EmerotecaPlugin
     /** Sitemap ceilings, well under the core's own MAX_TOTAL_URLS (50k). */
     private const SITEMAP_MAX_TESTATE   = 5000;
     private const SITEMAP_MAX_FASCICOLI = 20000;
+    private const SITEMAP_MAX_CONTRIBUTI = 10000;
 
     /** @var array<string,bool> per-instance table-existence cache */
     private array $tableProbeCache = [];
@@ -2432,7 +2433,7 @@ class EmerotecaPlugin
             }
 
             if ($this->emerotecaTableExists('emeroteca_contributi')) {
-                foreach ($this->fetchRows('SELECT id, updated_at FROM emeroteca_contributi WHERE pubblico=1 ORDER BY id LIMIT 10000') as $article) {
+                foreach ($this->fetchRows('SELECT id, updated_at FROM emeroteca_contributi WHERE pubblico=1 ORDER BY id LIMIT ' . self::SITEMAP_MAX_CONTRIBUTI) as $article) {
                     $entries[] = ['loc'=>$base . '/emeroteca/articolo/' . (int)$article['id'], 'lastmod'=>$article['updated_at'], 'changefreq'=>'monthly', 'priority'=>'0.4'];
                 }
             }
@@ -2538,7 +2539,20 @@ class EmerotecaPlugin
                              OR issn LIKE ? ESCAPE '\\\\'
                           LIMIT 1", 'sss', [$pattern, $pattern, $pattern]];
         }
-        if ($this->emerotecaTableExists('emeroteca_contributi') && $this->contributionService()->search($term, 0, true)['total'] > 0) { return true; }
+        if ($this->emerotecaTableExists('emeroteca_contributi')) {
+            // Same fields as the public article search, public rows only, and a
+            // LIMIT 1 existence probe like its neighbours: this runs on every
+            // catalogue miss, and it goes through the loop below so a failure
+            // is logged instead of breaking the search that asked for a hint.
+            $probes[] = ["SELECT 1 FROM emeroteca_contributi
+                          WHERE pubblico = 1
+                            AND (titolo LIKE ? ESCAPE '\\\\'
+                                 OR autori LIKE ? ESCAPE '\\\\'
+                                 OR contenitore_titolo LIKE ? ESCAPE '\\\\'
+                                 OR keywords LIKE ? ESCAPE '\\\\'
+                                 OR issn = ?)
+                          LIMIT 1", 'sssss', [$pattern, $pattern, $pattern, $pattern, $term]];
+        }
         if ($this->emerotecaTableExists('emeroteca_articoli')) {
             // This hint uses the same token search as the public article search.
             // The FULLTEXT index avoids a full article scan on every catalogue miss.
