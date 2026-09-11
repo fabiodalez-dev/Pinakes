@@ -4,7 +4,7 @@ Verifica del 11 settembre 2026. Versioni: Pinakes **0.7.84**, Emeroteca **1.5.0*
 
 ## Risultato funzionale
 
-La modalità condivisa si modifica sia dalle impostazioni del plugin sia dall'Emeroteca. Le nuove collezioni partono in Semplice; l'aggiornamento mantiene Completa e conserva una scelta esplicita già salvata. Il cambio di modalità non converte né elimina record.
+La modalità condivisa si modifica sia dalle impostazioni del plugin sia dall'Emeroteca. Per una collezione nuova la modalità iniziale la sceglie l'amministratore, da una delle due pagine: nulla la imposta al suo posto, e fino alla scelta il plugin si comporta come Completa. L'aggiornamento mantiene Completa dove una collezione esiste già e conserva una scelta esplicita già salvata. Il cambio di modalità non converte né elimina record.
 
 Un contributo autonomo richiede solo il titolo: testata, annata e fascicolo non sono obbligatori. La citazione conserva data testuale, volume, numero e pagine. È possibile creare successivamente una testata e associarvi in blocco i contributi esistenti, con anteprima, controllo delle modifiche concorrenti e conferma esplicita delle riassegnazioni. L'associazione non dichiara il possesso di un fascicolo.
 
@@ -17,7 +17,7 @@ Sono incluse le viste amministrative e pubbliche, ricerca, spoglio precedente, P
 - `migrate_0.7.84.sql` inizializza la modalità senza sovrascrivere le preferenze esistenti.
 - Il lifecycle del plugin crea e ripara `emeroteca_contributi`, colonne e relazioni, anche al recupero di un aggiornamento interrotto.
 - Verificato l'aggiornamento attraverso la vera interfaccia amministrativa, partendo dall'archivio ufficiale 0.7.83 e usando un archivio candidato temporaneo. Conservati testata, annata, fascicolo, possesso e spoglio preesistenti; modalità finale Completa.
-- Verificata separatamente una nuova installazione e l'attivazione del plugin: modalità iniziale Semplice.
+- Verificata separatamente una nuova installazione e l'attivazione del plugin: modalità iniziale Semplice. *Superato dopo la review:* la modalità iniziale non viene più impostata automaticamente — la sceglie l'amministratore — perché la migrazione la impostava anche su installazioni in cui il plugin non era mai stato attivato, e vinceva sulla scelta. La fase `fresh` del test di upgrade asserisce ora il nuovo comportamento.
 - I test distruttivi di schema e installazione sono stati eseguiti su un'istanza MySQL temporanea dedicata. Nessuna release o tag è stato pubblicato.
 
 ## Test eseguiti

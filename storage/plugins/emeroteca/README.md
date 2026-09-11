@@ -2,7 +2,7 @@
 
 Emeroteca supports two workflows. **Simple** starts with standalone articles. **Complete** also exposes the existing mastheads, volume years, issues, Kardex and subscriptions. The same records remain available in either mode. Change the shared setting under **Plugins → Emeroteca → Settings**, or on the Periodicals/Articles page. Only administrators may change the installation-wide setting.
 
-New collections start in Simple mode. Upgrades preserve Complete mode unless a choice has already been saved. Deactivation keeps the tables and documents.
+The initial workflow is the administrator's choice, made from the Periodicals page or the plugin settings: nothing sets it for a new collection, and the plugin behaves as Complete until it is chosen, so nothing is hidden meanwhile. Upgrades keep Complete for an installation that already has a collection, and never overwrite a choice already saved. Deactivation keeps the tables and documents.
 
 ## Catalogue one article
 

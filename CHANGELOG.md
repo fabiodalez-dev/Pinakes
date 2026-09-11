@@ -5,7 +5,7 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 ## [0.7.84]
 
 ### Added
-- Emeroteca 1.5.0: Simple and Complete workflows, with one shared setting available from Plugins and Periodicals. Existing collections preserve Complete mode; new collections start in Simple mode.
+- Emeroteca 1.5.0: Simple and Complete workflows, with one shared setting available from Plugins and Periodicals. Existing collections keep Complete mode; for a new collection nothing is decided on the administrator's behalf — the initial workflow is chosen from either page, and the plugin behaves as Complete until it is.
 - Standalone articles with structured host citation, partial publication dates, non-numeric page spans, ISSN/DOI, keywords, medium, private notes and independently controlled record/PDF visibility.
 - Create a masthead after cataloguing articles and associate them in bulk through a preview. Optional issue links are checked against the masthead. Citations and attachments survive host deletion; masthead merges preserve associations.
 - CSV preview, row-level validation, revision-checked updates and lossless export/reimport. Article input in the book importer is rejected with an explicit route to Emeroteca instead of silently becoming a book.

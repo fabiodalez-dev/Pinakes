@@ -26,15 +26,51 @@ final class ContributionController extends AbstractAdminController
         $testata = (int)($q['testata'] ?? 0);
         $source = ($q['source'] ?? '') === 'spoglio' ? 'spoglio' : 'autonomo';
         $results = $source === 'spoglio' ? $this->service()->indexedSearch($term, $testata, (int)($q['page'] ?? 1)) : $this->service()->search($term, $testata, false, (int)($q['page'] ?? 1));
-        // The issue list feeds only the association form, which exists on the
-        // standalone tab with rows to act on. The masthead list is NOT gated: it
-        // also feeds the filter, on both tabs and on an empty result.
-        $canAssociate = $source === 'autonomo' && !empty($results['rows']);
+        // Issues are no longer loaded here: the association form fetches those of
+        // the chosen masthead from issueOptions(). Rendering every issue of the
+        // Kardex into one <select> on every visit grew without bound with the
+        // collection. The masthead list stays: it also feeds the filter.
         return $this->renderView($rs, 'articles', $results + ['source' => $source,
             'term' => $term,'testata' => $testata,'mode' => $this->service()->mode(),
             'destination' => (int)($q['destination'] ?? 0),
-            'issues' => $canAssociate ? $this->service()->rows("SELECT f.id,f.numero,a.anno,a.volume,t.id testata_id,t.titolo FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id JOIN emeroteca_testate t ON t.id=a.testata_id ORDER BY t.titolo,a.anno DESC,f.numero") : [],
             'testate' => $this->service()->rows('SELECT id,titolo FROM emeroteca_testate ORDER BY titolo')]);
+    }
+
+    /**
+     * The issues of one masthead, for the association form's issue picker.
+     *
+     * One masthead's holdings instead of the whole Kardex, fetched only after
+     * the operator picks the masthead. Read-only, so AdminAuthMiddleware is
+     * enough; associate() still verifies the issue belongs to the masthead,
+     * because this list is a convenience, not the guard.
+     */
+    public function issueOptions(Request $rq, Response $rs, array $args = []): Response
+    {
+        $testata = (int)($rq->getQueryParams()['testata'] ?? 0);
+        $issues = [];
+        if ($testata > 0) {
+            foreach ($this->service()->rows('SELECT f.id,f.numero,a.anno,a.volume FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id WHERE a.testata_id=? ORDER BY a.anno DESC,f.numero', [$testata]) as $f) {
+                $issues[] = ['id' => (int)$f['id'], 'label' => implode(' · ', array_filter([(string)$f['anno'], (string)$f['volume'], (string)$f['numero']], static fn ($v) => $v !== ''))];
+            }
+        }
+        return $this->json($rs, ['issues' => $issues]);
+    }
+
+    /**
+     * JSON response with the safe flags — same as ExportAdminController::json().
+     * The payload is consumed by fetch() and inserted with textContent, never as
+     * markup, but the HEX flags cost nothing and keep the body inert anyway.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function json(Response $rs, array $payload): Response
+    {
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        $rs->getBody()->write($json === false ? '{"issues":[]}' : $json);
+        return $rs
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withHeader('Cache-Control', 'no-store')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
     }
     public function form(Request $rq, Response $rs, array $args = []): Response
     {

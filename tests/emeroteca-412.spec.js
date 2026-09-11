@@ -84,6 +84,15 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await expect(page.getByRole('link',{name:marker+' Indexed',exact:true})).toBeVisible();
     await expect(page.locator('[name="ids[]"]')).toHaveCount(0);
     await page.goto(BASE+'/admin/periodicals/articles');
+    // The issue picker is fetched per masthead instead of holding the whole
+    // Kardex: this masthead has exactly one issue, so choosing it must list that
+    // one and nothing from the other mastheads; clearing it must empty the list.
+    await page.getByText('Associa gli articoli selezionati a una testata',{exact:true}).click();
+    await page.locator('#target-host').selectOption(String(testataId));
+    await expect(page.locator('#target-issue option')).toHaveCount(2);
+    await expect(page.locator('#target-issue option').nth(1)).toHaveText('2019 · 7 · 1');
+    await page.locator('#target-host').selectOption('0');
+    await expect(page.locator('#target-issue option')).toHaveCount(1);
     await publicPage.goto(BASE+`/emeroteca/${testataId}`);await expect(publicPage.getByRole('link',{name:marker+' Tyll'})).toBeVisible();
     // The chooser is radio rows now (the plugin's emt-choice pattern, shared by
     // the mastheads list, the articles list and the plugin settings page) and it

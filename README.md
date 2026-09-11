@@ -43,7 +43,7 @@ Highlights of the latest release are below. The full version-by-version history 
 
 ### v0.7.84 — latest
 
-**Emeroteca Semplice e Completa** (#412): catalog standalone articles with their publication, date, volume, issue and page range, without creating holdings. Create a masthead later and associate existing articles in bulk, preserving citations and protected PDFs. Includes CSV preview/import/export, public search and additive mobile API endpoints. Existing installations keep Complete mode; new collections start in Simple mode. Bundled plugin **1.5.0**, migration `migrate_0.7.84.sql` and idempotent plugin schema upgrade.
+**Emeroteca Semplice e Completa** (#412): catalog standalone articles with their publication, date, volume, issue and page range, without creating holdings. Create a masthead later and associate existing articles in bulk, preserving citations and protected PDFs. Includes CSV preview/import/export, public search and additive mobile API endpoints. Existing installations keep Complete mode; for a new collection the administrator chooses the initial workflow, from the Periodicals page or the plugin settings. Bundled plugin **1.5.0**, migration `migrate_0.7.84.sql` and idempotent plugin schema upgrade.
 
 ### v0.7.83
 

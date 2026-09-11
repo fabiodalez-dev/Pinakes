@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-$source=$source??'autonomo'; $destination=$destination??0; $issues=$issues??[]; $term=$term??''; $testata=$testata??0; $testate=$testate??[]; $total=$total??0; $rows=$rows??[]; $page=$page??1; $pages=$pages??1;
+$source=$source??'autonomo'; $destination=$destination??0; $term=$term??''; $testata=$testata??0; $testate=$testate??[]; $total=$total??0; $rows=$rows??[]; $page=$page??1; $pages=$pages??1;
 $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.5.0')) ?>">
@@ -23,7 +23,7 @@ $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
 <p class="text-sm text-gray-600 mb-4"><?= __('Scegli una testata o creala adesso. Citazioni, identificativi e allegati saranno conservati.') ?></p>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label for="target-host" class="form-label"><?= __('Testata esistente') ?></label><select id="target-host" name="testata_id" class="form-input"><option value="0"><?= __('Nessuna testata') ?></option><?php foreach($testate as $t): ?><option value="<?= (int)$t['id'] ?>" <?= $destination===(int)$t['id']?'selected':'' ?>><?= $e($t['titolo']) ?></option><?php endforeach; ?></select></div>
 <div><label for="new-host" class="form-label"><?= __('Oppure crea una testata') ?></label><input id="new-host" name="new_title" maxlength="255" class="form-input"></div>
-<div><label for="target-issue" class="form-label"><?= __('Fascicolo esistente (facoltativo)') ?></label><select id="target-issue" name="fascicolo_id" class="form-input"><option value="0"><?= __('Solo testata') ?></option><?php foreach($issues as $f): ?><option data-testata="<?= (int)$f['testata_id'] ?>" value="<?= (int)$f['id'] ?>"><?= $e($f['titolo'].' · '.$f['anno'].' · '.$f['volume'].' · '.$f['numero']) ?></option><?php endforeach; ?></select><p class="text-sm text-gray-600"><?= __('Deve appartenere alla testata scelta. Nessun fascicolo viene creato automaticamente.') ?></p></div></div>
+<div><label for="target-issue" class="form-label"><?= __('Fascicolo esistente (facoltativo)') ?></label><select id="target-issue" name="fascicolo_id" class="form-input" data-issues-url="<?= $e(url('/admin/periodicals/articles/issues')) ?>"><option value="0"><?= __('Solo testata') ?></option></select><p class="text-sm text-gray-600"><?= __('Deve appartenere alla testata scelta. Nessun fascicolo viene creato automaticamente.') ?></p></div></div>
 <button class="btn-primary mt-4" type="submit"><?= __('Anteprima associazione') ?></button></details><?php endif; ?>
 </form>
 <nav class="flex gap-4 mt-6" aria-label="<?= $e(__('Paginazione')) ?>"><?php for($p=max(1,$page-2);$p<=min($pages,$page+2);$p++): ?><a class="btn-secondary" <?= $p===$page?'aria-current="page"':'' ?> href="<?= $e(url('/admin/periodicals/articles').'?'.http_build_query(['page'=>$p,'q'=>$term,'testata'=>$testata,'source'=>$source,'destination'=>$destination])) ?>"><?= $p ?></a><?php endfor; ?></nav>
