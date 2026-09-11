@@ -161,6 +161,10 @@ class ApiBookScraperPlugin
             \App\Support\SecureLogger::warning('[ApiBookScraper] Plugin enabled but API endpoint or key is missing: hooks not registered');
             return;
         }
+        if (!self::isUsableEndpoint($this->apiEndpoint)) {
+            \App\Support\SecureLogger::warning('[ApiBookScraper] Plugin enabled but the API endpoint is not a complete https:// URL: hooks not registered');
+            return;
+        }
 
         // Priority 2 = second highest (after Scraping Pro)
         // API Book Scraper often has high-res covers from retail sources
@@ -462,7 +466,16 @@ class ApiBookScraperPlugin
             $url .= $separator . 'isbn=' . urlencode($isbn);
         }
 
-        // Chiamata HTTP tramite helper centralizzato (Guzzle)
+        // An install upgraded with an http:// endpoint still has its hooks in
+        // the database: say why the lookup is refused instead of letting it
+        // surface as a generic transport failure.
+        if (!self::isUsableEndpoint($this->apiEndpoint)) {
+            throw new \Exception('Endpoint non HTTPS: la chiave API non viene inviata in chiaro, imposta un indirizzo https://');
+        }
+
+        // Chiamata HTTP tramite helper centralizzato (Guzzle). https_only also
+        // pins every redirect hop to https: a 30x must not downgrade the scheme
+        // and carry X-API-Key over cleartext.
         $res = \App\Support\HttpClient::get($url, [
             'X-API-Key' => $this->apiKey,
             'Accept' => 'application/json',
@@ -471,6 +484,7 @@ class ApiBookScraperPlugin
             'timeout' => $this->timeout,
             'max_redirects' => 3,
             'verify' => true,
+            'https_only' => true,
         ]);
 
         $response = $res['body'];
@@ -597,15 +611,12 @@ class ApiBookScraperPlugin
     }
 
     /**
-     * Salva le impostazioni del plugin
-     */
-    /**
      * Whether an endpoint can actually be called.
      *
      * callApi() either substitutes {isbn} or appends ?isbn=, so the URL that
-     * gets validated is the one the placeholder will turn into. Only http and
-     * https: this is an address the server fetches on its own, and any other
-     * scheme is either useless here or a way to reach something it should not.
+     * gets validated is the one the placeholder will turn into. Only https:
+     * every request carries the API key in X-API-Key, which must never travel
+     * in cleartext — the README has always promised TLS for this plugin.
      */
     private static function isUsableEndpoint(string $endpoint): bool
     {
@@ -614,7 +625,7 @@ class ApiBookScraperPlugin
             return false;
         }
         $scheme = strtolower((string) parse_url($probe, PHP_URL_SCHEME));
-        return in_array($scheme, ['http', 'https'], true) && (string) parse_url($probe, PHP_URL_HOST) !== '';
+        return $scheme === 'https' && (string) parse_url($probe, PHP_URL_HOST) !== '';
     }
 
     /**
@@ -664,10 +675,13 @@ class ApiBookScraperPlugin
             throw new \InvalidArgumentException(__('Per attivare il plugin servono sia l\'URL dell\'endpoint sia la chiave API.'));
         }
         // Presence is not enough: "invalid-endpoint" was accepted, the hooks
-        // were registered, and every lookup then failed at call time. Any
-        // non-empty endpoint must be a complete http(s) URL, disabled or not.
-        if ($submittedEndpoint !== '' && !self::isUsableEndpoint($submittedEndpoint)) {
-            throw new \InvalidArgumentException(__('L\'URL dell\'endpoint deve essere un indirizzo http:// o https:// completo.'));
+        // were registered, and every lookup then failed at call time. A
+        // submitted endpoint must be a complete https URL, disabled or not; a
+        // stored one is checked only when enabling, so an install still holding
+        // an old http:// address can always turn the plugin off.
+        $endpointSubmitted = array_key_exists('api_endpoint', $settings);
+        if ($submittedEndpoint !== '' && ($endpointSubmitted || $enabledRequested) && !self::isUsableEndpoint($submittedEndpoint)) {
+            throw new \InvalidArgumentException(__('L\'URL dell\'endpoint deve essere un indirizzo https:// completo.'));
         }
 
         // Wrap the settings replacement AND the hook re-registration in one

@@ -1,5 +1,5 @@
 {
-  "L'URL dell'endpoint deve essere un indirizzo http:// o https:// completo.": "L’URL du point de terminaison doit être une adresse http:// ou https:// complète.",
+  "L'URL dell'endpoint deve essere un indirizzo https:// completo.": "L’URL du point de terminaison doit être une adresse https:// complète.",
   "Per attivare il plugin servono sia l'URL dell'endpoint sia la chiave API.": "Pour activer le plugin, l’URL du point de terminaison et la clé API sont toutes deux requises.",
   "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.": "Importez les articles depuis la section Emeroteca (valeur détectée : « %s »). Si le plugin est inactif, activez-le depuis Plugins.",
   "Articolo eliminato.": "Article supprimé.",

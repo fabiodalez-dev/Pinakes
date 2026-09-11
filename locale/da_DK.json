@@ -1,5 +1,5 @@
 {
-  "L'URL dell'endpoint deve essere un indirizzo http:// o https:// completo.": "Endpoint-URL'en skal være en komplet http://- eller https://-adresse.",
+  "L'URL dell'endpoint deve essere un indirizzo https:// completo.": "Endpoint-URL'en skal være en komplet https://-adresse.",
   "Per attivare il plugin servono sia l'URL dell'endpoint sia la chiave API.": "For at aktivere pluginnet kræves både endpoint-URL'en og API-nøglen.",
   "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.": "Importér artikler fra Emeroteca-sektionen (fundet værdi: \"%s\"). Hvis pluginnet er inaktivt, skal du aktivere det under Plugins.",
   "Articolo eliminato.": "Artiklen er slettet.",

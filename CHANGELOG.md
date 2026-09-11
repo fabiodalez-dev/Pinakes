@@ -11,6 +11,9 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 - CSV preview, row-level validation, revision-checked updates and lossless export/reimport. Article input in the book importer is rejected with an explicit route to Emeroteca instead of silently becoming a book.
 - Public article search and permanent detail pages, sitemap entries, and additive mobile article endpoints with cursor pagination, ETags and capability discovery. Existing issue endpoints retain their contract; displaying standalone articles in Android requires a compatible client.
 
+### Changed
+- **API Book Scraper sends its key only over HTTPS.** Every request carries the API key in `X-API-Key`, and the plugin accepted an `http://` endpoint and followed redirects down to cleartext. The endpoint must now be a complete `https://` address, and redirects can no longer downgrade the scheme — as the plugin's README has always stated. An installation that still holds an `http://` endpoint stops sending lookups to it, logs the reason, and asks for an `https://` address the next time the plugin is enabled; turning the plugin off keeps working.
+
 ### Migration
 - `migrate_0.7.84.sql` preserves the existing workflow setting without overwriting explicit choices. The bundled plugin owns `emeroteca_contributi` and upgrades it through its install/activation and boot-time self-heal paths. No changes to the core `tipo_media` enum or existing holdings.
 

@@ -1,5 +1,5 @@
 {
-  "L'URL dell'endpoint deve essere un indirizzo http:// o https:// completo.": "L'URL dell'endpoint deve essere un indirizzo http:// o https:// completo.",
+  "L'URL dell'endpoint deve essere un indirizzo https:// completo.": "L'URL dell'endpoint deve essere un indirizzo https:// completo.",
   "Per attivare il plugin servono sia l'URL dell'endpoint sia la chiave API.": "Per attivare il plugin servono sia l'URL dell'endpoint sia la chiave API.",
   "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.": "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.",
   "Articolo eliminato.": "Articolo eliminato.",
