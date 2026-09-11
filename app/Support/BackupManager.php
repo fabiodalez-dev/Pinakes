@@ -403,9 +403,12 @@ class BackupManager
                 'size' => (int) filesize($file),
                 'date' => self::backupDateLabel($name),
                 'contents' => (string) ($manifest['scope'] ?? 'full'),
-                // Manifest first, filename as the fallback: archives written
-                // before origins existed carry neither, and default to auto —
-                // which is what they were.
+                // The name wins for uploads, and only for them: an uploaded
+                // archive carries the manifest of ANOTHER installation, which
+                // would claim 'auto' and hand a restore point to the rotation.
+                // Everywhere else the manifest is the source and the name the
+                // fallback — archives written before origins existed carry
+                // neither, and default to auto, which is what they were.
                 'origin' => self::originFromName($name) === self::ORIGIN_UPLOAD
                     ? self::ORIGIN_UPLOAD
                     : (string) ($manifest['origin'] ?? self::originFromName($name)),

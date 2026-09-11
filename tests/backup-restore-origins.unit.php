@@ -81,12 +81,19 @@ try {
     $check(is_file($legacy . '/database.sql'), 'the failed child prevents removal of the legacy directory');
     unset($GLOBALS['backupFailedUnlink']);
 
-    // Also exercise real mode-bit enforcement when the operating system applies it.
+    // Also exercise real mode-bit enforcement when the operating system applies
+    // it. Running as root the bits are advisory and this cannot be provoked —
+    // which is why it is a note and not a failed assertion: the injected failure
+    // above already covers the requirement, uid and mode bits notwithstanding.
     chmod($legacy, 0555);
     if (!is_writable($legacy)) {
         $result = $manager->deleteBackup(basename($legacy));
         $check(!$result['success'] && $result['error'] !== null, 'failed recursive deletion is reported as failure');
         $check(is_file($legacy . '/database.sql'), 'failed deletion leaves the fixture available for retry');
+    } else {
+        // Indented on purpose: ci-run-unit-tests.sh reads 'SKIP:' at column 0,
+        // and this is not a skipped requirement.
+        echo "  note: mode bits are not enforced for this user; the requirement is covered by the injected failure above\n";
     }
     chmod($legacy, 0755);
     $result = $manager->deleteBackup(basename($legacy));
