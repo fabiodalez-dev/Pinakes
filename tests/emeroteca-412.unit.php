@@ -35,6 +35,20 @@ mysqli_report(MYSQLI_REPORT_ERROR|MYSQLI_REPORT_STRICT);
 $db=new Sandbox412Db($env['DB_HOST']??'localhost',getenv('E2E_DB_USER')?:$env['DB_USER'],getenv('E2E_DB_PASS')?:($env['DB_PASS']??$env['DB_PASSWORD']),getenv('E2E_DB_NAME')?:$env['DB_NAME'],(int)($env['DB_PORT']??3306),getenv('E2E_DB_SOCKET')?:($env['DB_SOCKET']??null));
 $db->prefix='zz412_'.bin2hex(random_bytes(3)).'_'; $db->set_charset('utf8mb4');
 $n=0;
+// Mirrors Updater::runMigrations() for a file without DELIMITER: drop the "--"
+// lines, then split on ';' outside single-quoted strings. Each statement goes
+// through the sandbox's query(), which is what remaps table names — multi_query()
+// would bypass it and write to the real tables.
+function migrationStatements412(string $sql): array {
+    $sql=implode("\n",array_filter(explode("\n",$sql),fn($l)=>!preg_match('/^\s*--/',$l)));
+    $out=[]; $cur=''; $in=false; $len=strlen($sql);
+    for($i=0;$i<$len;$i++){ $c=$sql[$i];
+        if($c==="'"){ if($in&&$i+1<$len&&$sql[$i+1]==="'"){$cur.="''";$i++;continue;} $in=!$in; $cur.=$c; continue; }
+        if($c===';'&&!$in){ if(trim($cur)!=='')$out[]=trim($cur); $cur=''; continue; }
+        $cur.=$c; }
+    if(trim($cur)!=='')$out[]=trim($cur);
+    return $out;
+}
 function check412(bool $v,string $label): void { global $n; if(!$v)throw new RuntimeException($label); echo 'PASS '.(++$n).' '.$label."\n"; }
 function rejects412(callable $fn,string $label): void { try{$fn();}catch(InvalidArgumentException $e){check412(true,$label);return;}throw new RuntimeException('Expected rejection: '.$label); }
 try {
@@ -43,15 +57,36 @@ try {
     $db->query("INSERT INTO plugins VALUES (1,'emeroteca')");
     foreach([EmerotecaPlugin::ddlTestate(),EmerotecaPlugin::ddlAnnate(),EmerotecaPlugin::ddlFascicoli(),EmerotecaPlugin::ddlArticoli(),EmerotecaPlugin::ddlAbbonamenti()] as $ddl){$db->query($ddl);}
     $migration=file_get_contents($root.'/installer/database/migrations/migrate_0.7.84.sql');
-    $db->query($migration);
+    $runMigration=static function() use($db,$migration): void { foreach(migrationStatements412($migration) as $st){ $db->query($st); } };
+    // mode() falls back to 'complete' when no row exists, so it cannot tell a
+    // stamped collection from an untouched one: assert on the row itself.
+    $modeRow=static fn(): string => (string)($db->query("SELECT setting_value FROM plugin_settings WHERE plugin_id=1 AND setting_key='mode'")->fetch_row()[0] ?? '');
+    $runMigration();
+    check412($modeRow()==='','migration leaves an empty collection unstamped (tables alone are not a collection)');
+    $db->query("INSERT INTO emeroteca_testate (titolo) VALUES ('Legacy')");
+    $runMigration();
     $svc=new ContributionService($db);
-    check412($svc->mode()==='complete','real migration preserves legacy complete workflow');
-    $svc->setMode('simple'); $db->query($migration);
+    check412($modeRow()==='complete','real migration preserves legacy complete workflow');
+    $svc->setMode('simple'); $runMigration();
     check412($svc->mode()==='simple','migration retry preserves explicit choice');
+    $db->query('DELETE FROM emeroteca_testate');
     check412(\App\Support\Updater::shouldRunMigration('0.7.84','0.7.83',json_decode(file_get_contents($root.'/version.json'),true)['version']),'production migration-range gate includes this migration');
     $plugin=new EmerotecaPlugin($db,new \App\Support\HookManager($db));
     $schema=$plugin->ensureSchema();
     check412($schema['failed']===[], 'real plugin upgrade completes successfully');
+    // Auto-registration runs onInstall() even for this optional, inactive
+    // plugin, building every table empty; the operator's first activation later
+    // runs ensureSchema() again in a NEW instance, with a fresh table cache that
+    // now finds the tables. That sequence must still leave the choice unmade.
+    $db->query("DELETE FROM plugin_settings WHERE plugin_id=1 AND setting_key='mode'");
+    $plugin->ensureSchema();
+    (new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->ensureSchema();
+    check412($modeRow()==='','install then first activation on an empty collection leaves the workflow for the administrator');
+    $db->query("INSERT INTO emeroteca_testate (titolo) VALUES ('Held')");
+    (new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->ensureSchema();
+    check412($modeRow()==='complete','a collection holding a masthead keeps Complete when the schema is repaired');
+    $db->query("DELETE FROM emeroteca_testate WHERE titolo='Held'");
+    $svc->setMode('simple');
     $db->query(ContributionService::ddl()); $db->query(ContributionService::ddl());
     check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','revision','created_at','updated_at'], 'fresh and repeated schema DDL');
     $base=['titolo'=>"Intertextuality in Daniel Kehlmann's Novel Tyll",'autori'=>'Marc J. Schweissinger','contenitore_titolo'=>'International Journal of Language and Literature','data_pubblicazione_testo'=>'giugno 2019','anno_pubblicazione'=>'2019','volume'=>'7','numero'=>'1','pagine'=>'138–148','pubblico'=>1];

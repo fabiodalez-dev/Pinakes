@@ -450,7 +450,12 @@ class EmerotecaPlugin
      */
     public function ensureSchema(): array
     {
-        $newCollection = !$this->emerotecaTableExists('emeroteca_testate');
+        // A collection is its mastheads, not its tables: auto-registration runs
+        // onInstall() even while this optional plugin is inactive, which builds
+        // every table empty, so "the table exists" said nothing about whether an
+        // operator ever catalogued anything. Probed without the cache the table
+        // check uses, because the answer changes as soon as a masthead is added.
+        $newCollection = !$this->emerotecaTableExists('emeroteca_testate') || !$this->emerotecaHasMastheads();
         $steps = self::schemaSteps();
         $created = [];
         $failed = [];
@@ -2595,6 +2600,18 @@ class EmerotecaPlugin
      * public pages where an exception would cost the whole sitemap or
      * the catalogue hint.
      */
+    /** True once at least one masthead exists. Never cached: see ensureSchema(). */
+    private function emerotecaHasMastheads(): bool
+    {
+        try {
+            $res = $this->db->query('SELECT 1 FROM emeroteca_testate LIMIT 1');
+            return $res instanceof \mysqli_result && $res->num_rows > 0;
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] masthead probe failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     private function emerotecaTableExists(string $table): bool
     {
         if (array_key_exists($table, $this->tableProbeCache)) {

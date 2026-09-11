@@ -1745,11 +1745,13 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                 body: formData
             });
 
-            if (!response.ok) {
+            // A refused save answers 422 with the reason in `message` (enabling
+            // needs an endpoint and a key): read it rather than collapsing every
+            // non-2xx into a generic error the operator cannot act on.
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok && !data.message) {
                 throw new Error(`HTTP ${response.status}`);
             }
-
-            const data = await response.json();
 
             if (data.success) {
                 await Swal.fire({

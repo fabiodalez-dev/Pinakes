@@ -605,6 +605,10 @@ class ApiBookScraperPlugin
             return false;
         }
 
+        // InvalidArgumentException, not RuntimeException: callers must be able
+        // to tell "this input cannot be saved" from a database failure further
+        // down, which throws RuntimeException.
+        //
         // Reject enabling the plugin with no effective API key. The view's HTML
         // `required` attribute does not protect a hand-built POST: without a key
         // saveSettings would "succeed" while registerHooks() silently registers
@@ -618,7 +622,7 @@ class ApiBookScraperPlugin
             : '';
         $effectiveKey = $submittedKey !== '' ? $submittedKey : $this->apiKey;
         if ($enabledRequested && $effectiveKey === '') {
-            throw new \RuntimeException('[ApiBookScraper] cannot enable plugin without an API key');
+            throw new \InvalidArgumentException('[ApiBookScraper] cannot enable plugin without an API key');
         }
         // Same for the endpoint: registerHooks() needs both, so enabling without
         // one would save successfully and then register nothing.
@@ -626,7 +630,7 @@ class ApiBookScraperPlugin
             ? trim((string) $settings['api_endpoint'])
             : $this->apiEndpoint;
         if ($enabledRequested && $submittedEndpoint === '') {
-            throw new \RuntimeException('[ApiBookScraper] cannot enable plugin without an API endpoint');
+            throw new \InvalidArgumentException('[ApiBookScraper] cannot enable plugin without an API endpoint');
         }
 
         // Wrap the settings replacement AND the hook re-registration in one

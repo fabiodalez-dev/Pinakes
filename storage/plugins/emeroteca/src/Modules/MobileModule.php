@@ -82,7 +82,9 @@ final class MobileModule
             $g->get('/years/{id:[0-9]+}/issues', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $module->yearIssues($rq, $rs, (int) $a['id']))->add($quotaMw())->add($authMw());
             $g->get('/issues/{id:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $module->issueDetail($rq, $rs, (int) $a['id']))->add($quotaMw())->add($authMw());
             $g->get('/articles', fn($rq,$rs) => $module->articles($rq,$rs))->add($quotaMw())->add($authMw());
-            $g->get('/articles/{id:[0-9]+}', fn($rq,$rs,$a) => $module->articles($rq,$rs,(int)$a['id']))->add($quotaMw())->add($authMw());
+            // [1-9]: articles() reads id 0 as "list", so /articles/0 used to return
+            // every public article instead of a 404.
+            $g->get('/articles/{id:[1-9][0-9]*}', fn($rq,$rs,$a) => $module->articles($rq,$rs,(int)$a['id']))->add($quotaMw())->add($authMw());
             $g->get('/{id:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $module->periodicalDetail($rq, $rs, (int) $a['id']))->add($quotaMw())->add($authMw());
         });
 

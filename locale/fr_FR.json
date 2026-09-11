@@ -1,4 +1,5 @@
 {
+  "Per attivare il plugin servono sia l'URL dell'endpoint sia la chiave API.": "Pour activer le plugin, l’URL du point de terminaison et la clé API sont toutes deux requises.",
   "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.": "Importez les articles depuis la section Emeroteca (valeur détectée : « %s »). Si le plugin est inactif, activez-le depuis Plugins.",
   "Articolo eliminato.": "Article supprimé.",
   "L’articolo è stato modificato da qualcun altro. Ricarica la pagina e riprova.": "L’article a été modifié par quelqu’un d’autre. Rechargez la page et réessayez.",
