@@ -192,8 +192,17 @@ test.describe.serial('Activity feed (#374)', () => {
     expect(Number(await page.locator('#libro_id').inputValue())).toBe(Number(bookId));
     const appLoanDate = await page.locator('#data_prestito').inputValue();
     expect(appLoanDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    await page.locator('form button[type="submit"]').first().click();
-    await page.waitForURL((url) => url.searchParams.get('created') === '1', { timeout: 20000 });
+    // The PDF auto-download removes created=1 with replaceState immediately.
+    // Assert the server redirect before waiting for the stable destination.
+    const [creationResponse] = await Promise.all([
+      page.waitForResponse((response) => response.request().method() === 'POST'
+        && new URL(response.url()).pathname.endsWith('/admin/loans/create')),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
+    expect(creationResponse.status()).toBe(302);
+    const destination = new URL(creationResponse.headers().location, BASE);
+    expect(destination.searchParams.get('created')).toBe('1');
+    await page.waitForURL((url) => url.pathname === destination.pathname, { timeout: 20000 });
 
     // DB truth: the production allocator bound OUR physical copy to the loan.
     const loanCopy = dbQuery(

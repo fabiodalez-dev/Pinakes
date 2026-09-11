@@ -52,6 +52,39 @@ class BackupManager
     private const GENERATED_NAME_PATTERN = '/^backup_\d{4}-\d{2}-\d{2}_\d{6}_[0-9a-f]{6}\.zip$/';
 
     /**
+     * Where a backup came from. Only ORIGIN_AUTO — the copy taken automatically
+     * before an update — is subject to rotation.
+     *
+     * A backup the operator ASKED for is not interchangeable with one the system
+     * took on its own: it exists because someone decided, at that moment, that
+     * this state was worth keeping, usually right before doing something risky.
+     * Letting ten automatic pre-update copies evict it turns a deliberate
+     * restore point into a rolling window, which is not what the button
+     * promises. The same holds, more strongly, for the safety copy taken before
+     * a restore: that one IS the undo.
+     *
+     * The origin is encoded in the FILENAME, not only in the manifest, because
+     * the rotation has to decide from a glob — reading a manifest means opening
+     * every archive. A non-auto name simply falls outside
+     * GENERATED_NAME_PATTERN, so it is excluded by the rule that was already
+     * there for hand-placed archives, with no second rule to keep in sync.
+     */
+    public const ORIGIN_AUTO = 'auto';
+    public const ORIGIN_MANUAL = 'manual';
+    public const ORIGIN_SAFETY = 'safety';
+    public const ORIGIN_UPLOAD = 'upload';
+
+    /**
+     * The pre-0.7.x layout: a directory holding a single database.sql, written
+     * by an updater that no longer exists. Nothing creates these any more, but
+     * listBackups() still surfaces them as backups (contents: 'db'), so an
+     * operator sees them in the same list — and until now nothing pruned them.
+     * Same discipline as the pattern above: match the EXACT generated shape, so
+     * a directory someone parked there by hand is never a rotation candidate.
+     */
+    private const LEGACY_DIR_PATTERN = '/^update_\d{4}-\d{2}-\d{2}_\d{6}$/';
+
+    /**
      * Hard cap for the cumulative DECOMPRESSED size of a restore archive (4 GB).
      * Guards against a decompression-bomb ZIP whose compressed form passes
      * MAX_UPLOAD_BYTES but expands to exhaust disk during extraction.
@@ -75,9 +108,29 @@ class BackupManager
      * @param string $scope 'full' (DB + files) or 'db' (database only)
      * @return array{success: bool, name: string|null, path: string|null, size: int, error: string|null}
      */
-    public function createBackup(string $scope = 'full'): array
+    /**
+     * Build a backup filename carrying its origin.
+     *
+     * The automatic shape is left EXACTLY as it was, so every archive already on
+     * disk keeps being recognised — and keeps being rotated. Anything else gets
+     * an origin suffix, which puts it outside GENERATED_NAME_PATTERN and thus
+     * outside the rotation, without a second exclusion rule to maintain.
+     */
+    private static function backupFileName(string $timestamp, string $origin): string
+    {
+        $suffix = bin2hex(random_bytes(3));
+        if ($origin === self::ORIGIN_AUTO) {
+            return 'backup_' . $timestamp . '_' . $suffix . '.zip';
+        }
+        return 'backup_' . $timestamp . '_' . $suffix . '_' . $origin . '.zip';
+    }
+
+    public function createBackup(string $scope = 'full', string $origin = self::ORIGIN_AUTO): array
     {
         $scope = $scope === 'db' ? 'db' : 'full';
+        if (!in_array($origin, [self::ORIGIN_AUTO, self::ORIGIN_MANUAL, self::ORIGIN_SAFETY], true)) {
+            return ['success' => false, 'name' => null, 'path' => null, 'size' => 0, 'error' => __('Origine backup non valida')];
+        }
         $sqlTmp = null;
 
         try {
@@ -98,7 +151,7 @@ class BackupManager
             // A random suffix avoids collisions when two backups land in the
             // same second (e.g. a manual backup + the pre-restore safety backup).
             $timestamp = date('Y-m-d_His');
-            $name = 'backup_' . $timestamp . '_' . bin2hex(random_bytes(3)) . '.zip';
+            $name = self::backupFileName($timestamp, $origin);
             $zipPath = $this->backupPath . '/' . $name;
 
             // 1. Dump the database to a temp file.
@@ -130,6 +183,7 @@ class BackupManager
                 'version' => $this->getCurrentVersion(),
                 'created_at' => date('c'),
                 'scope' => $scope,
+                'origin' => $origin,
                 'tables' => $tableCount,
                 'files' => $fileCount,
                 'database_sha256' => hash_file('sha256', $sqlTmp) ?: '',
@@ -242,7 +296,10 @@ class BackupManager
                 return;
             }
 
-            $files = [];
+            // One pool across BOTH formats, because listBackups() shows them as
+            // one list sorted by date: rotating them separately would let the
+            // operator watch a recent entry vanish while an older one survives.
+            $entries = [];
             foreach (glob($this->backupPath . '/backup_*.zip') ?: [] as $file) {
                 if (!is_file($file) || realpath($file) === realpath($justWritten)) {
                     continue;
@@ -250,22 +307,55 @@ class BackupManager
                 if (preg_match(self::GENERATED_NAME_PATTERN, basename($file)) !== 1) {
                     continue; // hand-placed archive: never a rotation candidate
                 }
-                $files[$file] = (int) filemtime($file);
+                $entries[$file] = (int) filemtime($file);
             }
-            arsort($files);
+            foreach (glob($this->backupPath . '/update_*', GLOB_ONLYDIR) ?: [] as $dir) {
+                // A symlink must never be a rotation candidate: deleteDirectory()
+                // would unlink the link, but a link is not something this class
+                // wrote and not ours to reclaim.
+                if (is_link($dir) || !is_dir($dir)) {
+                    continue;
+                }
+                if (preg_match(self::LEGACY_DIR_PATTERN, basename($dir)) !== 1) {
+                    continue; // hand-placed directory: never a rotation candidate
+                }
+                // A generated legacy backup IS its database.sql — that is the
+                // whole content of the format. A directory carrying the name but
+                // not the dump is something else wearing our shape, and this
+                // rotation deletes recursively: reclaiming only what we can show
+                // we wrote is worth one stat() per candidate.
+                if (!is_file($dir . '/database.sql')) {
+                    continue;
+                }
+                $entries[$dir] = (int) filemtime($dir);
+            }
+            arsort($entries);
 
-            // The freshly written file counts against the quota too.
-            $slots = max(0, $keep - 1);
-            $stale = array_slice(array_keys($files), $slots);
+            // Only a newly written automatic backup occupies a retention slot.
+            $automatic = preg_match(self::GENERATED_NAME_PATTERN, basename($justWritten)) === 1;
+            $slots = max(0, $keep - ($automatic ? 1 : 0));
+            $stale = array_slice(array_keys($entries), $slots);
             $removed = 0;
-            foreach ($stale as $file) {
+            $removedLegacy = 0;
+            foreach ($stale as $path) {
+                if (is_dir($path)) {
+                    if ($this->deleteDirectory($path)) {
+                        $removed++;
+                        $removedLegacy++;
+                    }
+                    continue;
+                }
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- glob-matched backup_*.zip under storage/backups, not user input
-                if (@unlink($file)) {
+                if (@unlink($path)) {
                     $removed++;
                 }
             }
             if ($removed > 0) {
-                SecureLogger::info('BackupManager: rotated old backups', ['removed' => $removed, 'kept' => $keep]);
+                SecureLogger::info('BackupManager: rotated old backups', [
+                    'removed' => $removed,
+                    'legacy_dirs' => $removedLegacy,
+                    'kept' => $keep,
+                ]);
             }
         } catch (\Throwable $e) {
             SecureLogger::warning('BackupManager: backup rotation failed', ['error' => $e->getMessage()]);
@@ -275,6 +365,27 @@ class BackupManager
     /**
      * @return array<int, array{name: string, path: string, size: int, date: string, contents: string, created_at: int}>
      */
+    /**
+     * Origin encoded in a filename, for archives whose manifest predates it.
+     * Unknown or absent suffix means the automatic shape, which is what every
+     * archive written before this existed actually was.
+     */
+    private static function originFromName(string $name): string
+    {
+        if (preg_match('/^backup_\\d{4}-\\d{2}-\\d{2}_\\d{6}_[0-9a-f]{6}_([a-z]+)\\.zip$/', $name, $m) === 1) {
+            return in_array($m[1], [self::ORIGIN_MANUAL, self::ORIGIN_SAFETY, self::ORIGIN_UPLOAD], true) ? $m[1] : self::ORIGIN_AUTO;
+        }
+        return self::ORIGIN_AUTO;
+    }
+
+    /** Human date label, with any origin suffix stripped out of it. */
+    private static function backupDateLabel(string $name): string
+    {
+        $base = pathinfo($name, PATHINFO_FILENAME);
+        $base = preg_replace('/_(?:' . self::ORIGIN_MANUAL . '|' . self::ORIGIN_SAFETY . '|' . self::ORIGIN_UPLOAD . ')$/', '', $base) ?? $base;
+        return str_replace(['backup_', '_'], ['', ' '], $base);
+    }
+
     public function listBackups(): array
     {
         $backups = [];
@@ -290,8 +401,17 @@ class BackupManager
                 'name' => $name,
                 'path' => $file,
                 'size' => (int) filesize($file),
-                'date' => str_replace(['backup_', '_'], ['', ' '], pathinfo($name, PATHINFO_FILENAME)),
+                'date' => self::backupDateLabel($name),
                 'contents' => (string) ($manifest['scope'] ?? 'full'),
+                // The name wins for uploads, and only for them: an uploaded
+                // archive carries the manifest of ANOTHER installation, which
+                // would claim 'auto' and hand a restore point to the rotation.
+                // Everywhere else the manifest is the source and the name the
+                // fallback — archives written before origins existed carry
+                // neither, and default to auto, which is what they were.
+                'origin' => self::originFromName($name) === self::ORIGIN_UPLOAD
+                    ? self::ORIGIN_UPLOAD
+                    : (string) ($manifest['origin'] ?? self::originFromName($name)),
                 'created_at' => (int) filemtime($file),
             ];
         }
@@ -306,6 +426,7 @@ class BackupManager
                 'size' => is_file($dbFile) ? (int) filesize($dbFile) : 0,
                 'date' => str_replace(['update_', '_'], ['', ' '], $name),
                 'contents' => 'db',
+                'origin' => self::ORIGIN_AUTO,
                 'created_at' => (int) filemtime($dir),
             ];
         }
@@ -325,10 +446,13 @@ class BackupManager
         }
         try {
             if (is_dir($target)) {
-                $this->deleteDirectory($target);
+                $deleted = $this->deleteDirectory($target);
             } else {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- $target validated by resolveBackup() (no traversal, realpath under storage/backups)
-                @unlink($target);
+                $deleted = @unlink($target);
+            }
+            if (!$deleted) {
+                return ['success' => false, 'error' => __('Impossibile eliminare il backup. Verifica i permessi e riprova.')];
             }
             return ['success' => true, 'error' => null];
         } catch (\Throwable $e) {
@@ -408,7 +532,7 @@ class BackupManager
         // Same naming scheme as createBackup() so the uploaded archive is listed
         // and deletable like any other backup; the random suffix avoids the
         // same-second collision a plain timestamp would allow.
-        $dest = $this->backupPath . '/backup_' . date('Y-m-d_His') . '_' . bin2hex(random_bytes(3)) . '.zip';
+        $dest = $this->backupPath . '/' . self::backupFileName(date('Y-m-d_His'), self::ORIGIN_UPLOAD);
         if (!@rename($tmpPath, $dest) && !@copy($tmpPath, $dest)) {
             return ['success' => false, 'safety_backup' => null, 'error' => __('Impossibile salvare il file caricato')];
         }
@@ -525,7 +649,7 @@ class BackupManager
         try {
             // 1. Safety backup of the current state (always full) — the rollback
             //    path, since MySQL DDL can't run inside a transaction.
-            $safety = $this->createBackup('full');
+            $safety = $this->createBackup('full', self::ORIGIN_SAFETY);
             if (!$safety['success']) {
                 throw new \RuntimeException(__('Impossibile creare il backup di sicurezza pre-ripristino') . ': ' . (string) $safety['error']);
             }
@@ -1420,22 +1544,21 @@ class BackupManager
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function deleteDirectory(string $dir): void
+    private function deleteDirectory(string $dir): bool
     {
         // A symlinked root must not be followed either — unlink the link
         // itself, never recurse into its target (symmetric with the per-child
         // is_link guard below; is_dir() returns true through a dir symlink). (#167 review)
         if (is_link($dir)) {
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- removes the symlink, not its target
-            @unlink($dir);
-            return;
+            return @unlink($dir);
         }
         if (!is_dir($dir)) {
-            return;
+            return true; // already gone: the postcondition holds
         }
         $files = @scandir($dir);
         if ($files === false) {
-            return;
+            return false;
         }
         foreach (array_diff($files, ['.', '..']) as $file) {
             $path = $dir . '/' . $file;
@@ -1450,7 +1573,11 @@ class BackupManager
                 @unlink($path);
             }
         }
-        @rmdir($dir);
+        // The return value is what the rotation counts on. Re-checking the path
+        // afterwards would be the obvious alternative, but static analysis has
+        // already narrowed it to "a directory" and cannot see a filesystem side
+        // effect, so the helper reports its own outcome instead.
+        return @rmdir($dir);
     }
 
     private function getCurrentVersion(): string

@@ -1,4 +1,6 @@
 {
+  "Origine backup non valida": "Ugyldig sikkerhedskopikilde",
+  "Impossibile eliminare il backup. Verifica i permessi e riprova.": "Sikkerhedskopien kunne ikke slettes. Kontrollér rettighederne, og prøv igen.",
   "Importa UNIMARC (MARCXchange)": "Importér UNIMARC (MARCXchange)",
   "Incolla un record UNIMARC/MARCXchange, oppure carica un file .xml, per precompilare il form dal record esportato.": "Indsæt en UNIMARC/MARCXchange-post, eller upload en .xml-fil, for at udfylde formularen ud fra den eksporterede post.",
   "Incolla o carica un record UNIMARC.": "Indsæt eller upload en UNIMARC-post.",

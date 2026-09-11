@@ -1,4 +1,6 @@
 {
+  "Origine backup non valida": "Invalid backup origin",
+  "Impossibile eliminare il backup. Verifica i permessi e riprova.": "Unable to delete the backup. Check permissions and try again.",
   "Importa UNIMARC (MARCXchange)": "Import UNIMARC (MARCXchange)",
   "Incolla un record UNIMARC/MARCXchange, oppure carica un file .xml, per precompilare il form dal record esportato.": "Paste a UNIMARC/MARCXchange record, or upload an .xml file, to pre-fill the form from the exported record.",
   "Incolla o carica un record UNIMARC.": "Paste or upload a UNIMARC record.",

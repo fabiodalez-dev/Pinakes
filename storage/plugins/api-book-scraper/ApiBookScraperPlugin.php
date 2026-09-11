@@ -139,9 +139,18 @@ class ApiBookScraperPlugin
             return;
         }
 
-        // Se il plugin non è abilitato, non registrare gli hooks
+        // Se il plugin non è abilitato, non registrare gli hooks.
+        //
+        // DEBUG, not warning: a plugin that is present but not configured is the
+        // normal state of every plugin the operator has not set up, and this path
+        // is reached on a schedule. On one production install it produced 8.217 of
+        // the 15.607 lines in app.log over eight months — more than half the file,
+        // for a condition that is not a problem. A warning level that fires
+        // continuously trains the reader to skip warnings, which is how the real
+        // ones get missed. The genuinely abnormal case above (missing DB or plugin
+        // ID) keeps its warning.
         if (!$this->enabled || empty($this->apiEndpoint) || empty($this->apiKey)) {
-            \App\Support\SecureLogger::warning('[ApiBookScraper] Plugin not enabled or missing configuration');
+            \App\Support\SecureLogger::debug('[ApiBookScraper] Plugin not enabled or missing configuration: hooks not registered');
             return;
         }
 
