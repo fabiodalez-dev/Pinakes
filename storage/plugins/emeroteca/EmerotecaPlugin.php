@@ -11,12 +11,14 @@ use Slim\Psr7\Stream;
 /**
  * Emeroteca plugin — periodicals management for Pinakes.
  *
- * Introduces five tables:
+ * Introduces six tables:
  *   - emeroteca_testate     : periodical titles (rivista/giornale/magazine/…)
  *   - emeroteca_annate      : yearly volumes of a title (bound or loose)
  *   - emeroteca_fascicoli   : single issues with holding status + kardex
  *   - emeroteca_articoli    : article-level indexing (spoglio) with FULLTEXT
  *   - emeroteca_abbonamenti : subscriptions (fornitore, costo, scadenza)
+ *   - emeroteca_contributi  : standalone articles, citation kept on the row
+ *                             so one can be catalogued without owning the issue
  *
  * Lifecycle mirrors the Archives plugin (storage/plugins/archives):
  * ensureSchema() is idempotent (CREATE TABLE IF NOT EXISTS) and runs from
@@ -429,7 +431,7 @@ class EmerotecaPlugin
     }
 
     /**
-     * Execute the DDL for the four emeroteca tables, then add the FKs
+     * Execute the DDL for the six emeroteca tables, then add the FKs
      * towards the optional core tables (editori, generi) when those
      * exist. Failures are logged and reported via the returned 'failed'
      * list without throwing — onActivate()/onInstall() inspect it and
@@ -566,10 +568,17 @@ class EmerotecaPlugin
         // (additive step) and consistent tables.
         $runStep('emeroteca_fascicoli', 'inherited barcode', fn(): bool => $this->ensureFascicoloBarcodeNotInherited());
 
-        if ($failed === []) {
+        // A collection that already exists keeps the workflow it has been run
+        // with, so an upgrade never changes what the operator sees. A NEW
+        // collection is deliberately left unstamped: guessing an initial
+        // workflow here decides it silently and, because both this and the
+        // migration use INSERT IGNORE, whichever runs first wins over the
+        // operator's own first choice. Unstamped is what makes the choice
+        // theirs — mode() reads 'complete' meanwhile, so nothing is hidden,
+        // and both admin pages ask them to pick.
+        if ($failed === [] && !$newCollection) {
             try {
-                $mode = $newCollection ? 'simple' : 'complete';
-                $this->contributionService()->rows("INSERT IGNORE INTO plugin_settings (plugin_id,setting_key,setting_value) SELECT id,'mode',? FROM plugins WHERE name='emeroteca'", [$mode]);
+                $this->contributionService()->rows("INSERT IGNORE INTO plugin_settings (plugin_id,setting_key,setting_value) SELECT id,'mode','complete' FROM plugins WHERE name='emeroteca'");
             } catch (\Throwable $e) { $failed[] = 'plugin_settings'; }
         }
         return ['created' => $created, 'failed' => $failed];

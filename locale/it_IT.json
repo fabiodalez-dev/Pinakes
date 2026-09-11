@@ -1,4 +1,8 @@
 {
+  "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.": "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.",
+  "Articolo eliminato.": "Articolo eliminato.",
+  "L’articolo è stato modificato da qualcun altro. Ricarica la pagina e riprova.": "L’articolo è stato modificato da qualcun altro. Ricarica la pagina e riprova.",
+  "Eliminare questo articolo e il suo PDF?": "Eliminare questo articolo e il suo PDF?",
   "Origine backup non valida": "Origine backup non valida",
   "Impossibile eliminare il backup. Verifica i permessi e riprova.": "Impossibile eliminare il backup. Verifica i permessi e riprova.",
   "Importa UNIMARC (MARCXchange)": "Importa UNIMARC (MARCXchange)",

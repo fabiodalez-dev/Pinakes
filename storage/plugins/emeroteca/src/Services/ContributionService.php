@@ -46,6 +46,18 @@ final class ContributionService
         'pagine' => 100,'doi' => 255,'supporto' => 20,'keywords' => 500,'abstract' => 10000,'collocazione' => 255,'note_private' => 10000];
     public const CSV_FIELDS = ['reference_key','titolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo',
         'issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','collocazione','note_private','pubblico'];
+
+    /**
+     * The header the template and the export carry.
+     *
+     * record_type is not a column of emeroteca_contributi — the importer reads
+     * it, derives contenitore_tipo from it and discards it. It is emitted all
+     * the same because it is the only thing that tells the BOOK importer this
+     * file is not a book: without it the guard reads nothing, accepts the file
+     * and the articles land in the catalogue as monographs. A template that
+     * cannot be refused by the importer it must never reach is not a template.
+     */
+    public const CSV_HEADER = ['record_type', ...self::CSV_FIELDS];
     private int $affectedRows = 0;
     public function __construct(private \mysqli $db)
     {
@@ -247,7 +259,13 @@ SQL;
         if (!$revisions || count($revisions) > 500) {
             throw new \InvalidArgumentException(__('Seleziona da 1 a 500 articoli.'));
         }
-        $this->db->begin_transaction();
+        // A nested begin_transaction() does not fail in mysqli: it implicitly
+        // commits the caller's transaction, so the rollback below would leave
+        // half of the reassignment on disk.
+        $ownsTransaction = !$this->hasActiveTransaction();
+        if ($ownsTransaction && !$this->db->begin_transaction()) {
+            throw new \RuntimeException('Contribution association could not start a transaction');
+        }
         try {
             if ($newTitle !== '') {
                 if ($testata || mb_strlen($newTitle) > 255) {
@@ -281,11 +299,56 @@ SQL;
                 }
                 $this->rows('UPDATE emeroteca_contributi SET testata_id=?,fascicolo_id=?,revision=revision+1 WHERE id=?', [$testata ?: null,$issue ?: null,(int)$id]);
             }
-            $this->db->commit();
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
             return $testata;
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            if ($ownsTransaction) {
+                $this->db->rollback();
+            }
             throw $e;
+        }
+    }
+
+    /**
+     * Detect both autocommit(false) and an explicit begin_transaction() (the
+     * latter leaves @@autocommit enabled), using the same disposable savepoint
+     * probe as PeriodicalAdminController::hasActiveTransaction().
+     */
+    private function hasActiveTransaction(): bool
+    {
+        $result = $this->db->query('SELECT @@autocommit AS ac');
+        if ($result instanceof \mysqli_result) {
+            $row = $result->fetch_assoc();
+            $result->free();
+            if ((int) ($row['ac'] ?? 1) === 0) {
+                return true;
+            }
+        }
+
+        $probe = 'pinakes_contributo_probe_' . bin2hex(random_bytes(6));
+        $probeCreated = false;
+        try {
+            if (!$this->db->query("SAVEPOINT {$probe}")) {
+                return false;
+            }
+            $probeCreated = true;
+            if (!$this->db->query("ROLLBACK TO SAVEPOINT {$probe}")) {
+                return false;
+            }
+            return true;
+        } catch (\mysqli_sql_exception) {
+            return false;
+        } finally {
+            if ($probeCreated) {
+                try {
+                    $this->db->query("RELEASE SAVEPOINT {$probe}");
+                } catch (\mysqli_sql_exception) {
+                    // The caller still owns its transaction; a failed cleanup
+                    // of this disposable probe must not change that.
+                }
+            }
         }
     }
 

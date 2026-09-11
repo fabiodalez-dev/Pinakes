@@ -29,10 +29,19 @@ Use **Import articles** in Emeroteca or the link from the book import page. Down
 The supported columns are:
 
 ```text
-reference_key,titolo,autori,tipo_contributo,contenitore_tipo,contenitore_titolo,issn,data_pubblicazione_testo,anno_pubblicazione,volume,numero,pagine,doi,supporto,keywords,abstract,collocazione,note_private,pubblico
+record_type,reference_key,titolo,autori,tipo_contributo,contenitore_tipo,contenitore_titolo,issn,data_pubblicazione_testo,anno_pubblicazione,volume,numero,pagine,doi,supporto,keywords,abstract,collocazione,note_private,pubblico
 ```
 
-Accepted aliases include `title`, `authors`, `container_title`, `journal_title`, `date`, `year`, `issue`, and `pages`. Optional `record_type` or `media_type` accepts `article`, `articolo`, `journal_article`, or `newspaper_article`. The last two also identify the publication type. Unknown types or columns are reported instead of discarded. Article records sent to the book importer are explicitly rejected with directions to Emeroteca.
+A filled row, for reference:
+
+```text
+record_type,titolo,autori,contenitore_titolo,anno_pubblicazione,volume,numero,pagine
+journal_article,Intertextuality in Daniel Kehlmann's Novel Tyll,"Schweissinger, Marc J.",International Journal of Language and Literature,2019,7,1,138-148
+```
+
+`journal_article` and `newspaper_article` also set the publication type, so `contenitore_tipo` can be left out. Columns you omit keep whatever the record already holds; an empty cell clears it.
+
+Accepted aliases include `title`, `authors`, `container_title`, `journal_title`, `date`, `year`, `issue`, and `pages`. Header case and separators do not matter. `record_type` (alias `media_type`) accepts `article`, `articolo`, `journal_article`, or `newspaper_article`; it leads the template and the export because it is also what lets the book importer refuse a file of articles — omit it and that guard has nothing to read. The last two also identify the publication type. Unknown types or columns are reported instead of discarded. Article records sent to the book importer are explicitly rejected with directions to Emeroteca.
 
 The export is a machine round-trip format: spreadsheet applications should import all columns as text. PDFs are uploaded separately; import never downloads arbitrary remote URLs. Associations to local mastheads can be applied in bulk after import. KBART/ACNP continue to describe actual serial holdings and do not count standalone articles as held issues.
 

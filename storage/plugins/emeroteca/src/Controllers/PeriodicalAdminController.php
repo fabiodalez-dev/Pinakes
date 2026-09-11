@@ -26,6 +26,17 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class PeriodicalAdminController extends AbstractAdminController
 {
+    /**
+     * Where every "back to the list of testate" redirect must land.
+     *
+     * The bare /admin/periodicals is NOT that place: in "simple" mode
+     * index() bounces anything without ?view=titles to the articles list,
+     * so an operator who opened the mastheads on purpose would be thrown
+     * out of them by their own save. The parameter keeps them where they
+     * were, and is harmless in the other modes.
+     */
+    public const LIST_PATH = '/admin/periodicals?view=titles';
+
     /** Hard bounds for publication years (sanity, not history pedantry). */
     private const ANNO_MIN = 1400;
     private const ANNO_MAX = 2100;
@@ -462,7 +473,7 @@ class PeriodicalAdminController extends AbstractAdminController
         $testata = $this->fetchTestata($id);
         if ($testata === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
         return $this->renderView($response, 'form', [
             'mode'    => 'edit',
@@ -487,7 +498,7 @@ class PeriodicalAdminController extends AbstractAdminController
         $existing = $this->fetchTestata($id);
         if ($existing === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
         $body = (array) $request->getParsedBody();
         [$values, $errors] = $this->validate($body, $id);
@@ -588,7 +599,7 @@ class PeriodicalAdminController extends AbstractAdminController
         }
 
         $this->flashSuccess(__('Testata aggiornata con successo.'));
-        return $this->redirect($response, '/admin/periodicals');
+        return $this->redirect($response, self::LIST_PATH);
     }
 
     /**
@@ -604,7 +615,7 @@ class PeriodicalAdminController extends AbstractAdminController
         // re-check the role inline (internal security scan 2026-07-25).
         if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
             $this->flashError(__('Operazione riservata agli amministratori.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
         $id = (int) ($args['id'] ?? 0);
         // Audit snapshot taken BEFORE the cascading DELETE: afterwards the row
@@ -662,14 +673,14 @@ class PeriodicalAdminController extends AbstractAdminController
         if ($stmt === false) {
             SecureLogger::error('[Emeroteca] delete prepare failed: ' . $this->db->error);
             $this->flashError(__('Errore durante l\'eliminazione della testata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
         $stmt->bind_param('i', $id);
         if (!$stmt->execute()) {
             SecureLogger::error('[Emeroteca] delete failed: ' . $stmt->error);
             $stmt->close();
             $this->flashError(__('Errore durante l\'eliminazione della testata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
         $deleted = $stmt->affected_rows > 0;
         $stmt->close();
@@ -695,7 +706,7 @@ class PeriodicalAdminController extends AbstractAdminController
         } else {
             $this->flashError(__('Testata non trovata.'));
         }
-        return $this->redirect($response, '/admin/periodicals');
+        return $this->redirect($response, self::LIST_PATH);
     }
 
     // ── Merge of duplicate testate ────────────────────────────────────
@@ -744,7 +755,7 @@ class PeriodicalAdminController extends AbstractAdminController
         $ids = $this->mergeIds($params['ids'] ?? []);
         if (count($ids) !== 2) {
             $this->flashError(__('Seleziona esattamente due testate da unire.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
 
         $testate = [];
@@ -752,7 +763,7 @@ class PeriodicalAdminController extends AbstractAdminController
             $row = $this->fetchTestata($id);
             if ($row === null) {
                 $this->flashError(__('Testata non trovata.'));
-                return $this->redirect($response, '/admin/periodicals');
+                return $this->redirect($response, self::LIST_PATH);
             }
             $testate[] = $row;
         }
@@ -790,7 +801,7 @@ class PeriodicalAdminController extends AbstractAdminController
         // (internal security scan 2026-07-25).
         if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
             $this->flashError(__('Operazione riservata agli amministratori.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
 
         // The pair travels as ids[] and the survivor as the target_id radio;
@@ -800,7 +811,7 @@ class PeriodicalAdminController extends AbstractAdminController
         $targetId = (int) ($body['target_id'] ?? 0);
         if (count($ids) !== 2 || !in_array($targetId, $ids, true)) {
             $this->flashError(__('Seleziona esattamente due testate da unire.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
         $sourceId = $ids[0] === $targetId ? $ids[1] : $ids[0];
 
@@ -808,7 +819,7 @@ class PeriodicalAdminController extends AbstractAdminController
         $source = $this->fetchTestata($sourceId);
         if ($target === null || $source === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
 
         try {
@@ -816,7 +827,7 @@ class PeriodicalAdminController extends AbstractAdminController
         } catch (\Throwable $e) {
             SecureLogger::error('[Emeroteca] merge failed: ' . $e->getMessage());
             $this->flashError(__('Errore durante l\'unione delle testate: nessuna modifica è stata applicata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, self::LIST_PATH);
         }
 
         // Audit AFTER the commit, so the log never records a rolled-back

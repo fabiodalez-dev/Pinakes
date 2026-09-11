@@ -67,7 +67,6 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
 <div id="emeroteca-admin-index" class="emeroteca-admin">
-<?php $mode=$mode??'complete'; require __DIR__.'/article-mode.php'; ?>
 <a class="btn-secondary mb-4 inline-flex" href="<?= $e(url('/admin/periodicals/articles')) ?>"><?= __('Articoli') ?></a>
 
     <div class="emt-page-header emt-page-header--index">
@@ -99,6 +98,8 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
             </a>
         </div>
     </div>
+
+<?php $mode=$mode??'complete'; $modeReturnTo='/admin/periodicals?view=titles'; require __DIR__.'/article-mode.php'; ?>
 
     <form method="GET" action="<?= $e(url('/admin/periodicals')) ?>"
           class="emt-toolbar p-4 mb-6 flex flex-wrap items-end gap-3">

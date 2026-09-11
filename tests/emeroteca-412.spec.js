@@ -85,10 +85,14 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await expect(page.locator('[name="ids[]"]')).toHaveCount(0);
     await page.goto(BASE+'/admin/periodicals/articles');
     await publicPage.goto(BASE+`/emeroteca/${testataId}`);await expect(publicPage.getByRole('link',{name:marker+' Tyll'})).toBeVisible();
-    await page.locator('[name=mode]').selectOption('simple');await page.getByRole('button',{name:'Salva modalità'}).click();
+    // The chooser is radio rows now (the plugin's emt-choice pattern, shared by
+    // the mastheads list, the articles list and the plugin settings page) and it
+    // returns the operator to the page they submitted from rather than to a
+    // fixed target — which is why both switches land back on the articles list.
+    await page.locator('input[name=mode][value=simple]').check();await page.getByRole('button',{name:'Salva modalità'}).click();
     await expect(page).toHaveURL(/\/admin\/periodicals\/articles/);
-    await page.locator('[name=mode]').selectOption('complete');await page.getByRole('button',{name:'Salva modalità'}).click();
-    await expect(page).toHaveURL(/\/admin\/periodicals$/);
+    await page.locator('input[name=mode][value=complete]').check();await page.getByRole('button',{name:'Salva modalità'}).click();
+    await expect(page).toHaveURL(/\/admin\/periodicals\/articles/);
     await page.goto(BASE+'/admin/periodicals/articles/import');
     await page.locator('[name=csv]').setInputFiles({name:'articles.csv',mimeType:'text/csv',buffer:Buffer.from(`titolo,media_type,container_title,pages\n${marker} Imported,journal_article,Host,iv–x\n`)});
     await page.getByRole('button',{name:'Mostra anteprima'}).click();await expect(page.getByText('Anteprima: destinazione Emeroteca')).toBeVisible();

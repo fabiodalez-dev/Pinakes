@@ -91,7 +91,14 @@ final class ContributionController extends AbstractAdminController
             if (!$e instanceof \InvalidArgumentException) {
                 SecureLogger::error('[Emeroteca] contribution save: '.$e->getMessage());
             }
-            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.')]);
+            // An unchecked box is absent from the POST body, so the stored row
+            // would win and the re-rendered form would show the article as
+            // still published: the operator would republish it by resubmitting.
+            $flags = [];
+            foreach (['pubblico','pdf_pubblico','remove_pdf'] as $flag) {
+                $flags[$flag] = empty($body[$flag]) ? 0 : 1;
+            }
+            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.')]);
         }
     }
     public function mode(Request $rq, Response $rs, array $args = []): Response
@@ -101,13 +108,40 @@ final class ContributionController extends AbstractAdminController
         }
         try {
             $this->service()->setMode((string)(((array)$rq->getParsedBody())['mode'] ?? ''));
+            $this->flashSuccess(__('Impostazioni salvate.'));
         } catch (\InvalidArgumentException $e) {
-            return $rs->withStatus(422);
+            // A bare status code leaves a blank page: this is a plain form POST.
+            $this->flashError($e->getMessage());
         }
-        return $this->redirect($rs, '/admin/periodicals');
+        return $this->redirect($rs, self::modeReturnTo($rq));
     }
+
+    /**
+     * Where to send the operator back after choosing the workflow.
+     *
+     * The chooser is required by three views — the mastheads list, the
+     * articles list and the plugin settings page — so a fixed target would
+     * always be wrong for two of them. The view posts where it was rendered;
+     * an allowlist keeps that from becoming an open redirect, and the bare
+     * mastheads path is deliberately absent because in Simple mode it only
+     * bounces on to the articles list.
+     */
+    private static function modeReturnTo(Request $rq): string
+    {
+        $allowed = [
+            '/admin/periodicals?view=titles',
+            '/admin/periodicals/articles',
+            '/admin/plugins',
+        ];
+        $wanted = (string)(((array)$rq->getParsedBody())['return_to'] ?? '');
+        return in_array($wanted, $allowed, true) ? $wanted : '/admin/periodicals/articles';
+    }
+
     public function associate(Request $rq, Response $rs, array $args = []): Response
     {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $rs->withStatus(403);
+        }
         $b = (array)$rq->getParsedBody();
         try {
             if (($b['step'] ?? '') === 'confirm') {
@@ -155,7 +189,9 @@ final class ContributionController extends AbstractAdminController
                 $issueLabel = implode(' · ', array_filter([(string)$issueRow['anno'], (string)$issueRow['volume'], (string)$issueRow['numero']]));
             }
             $token = bin2hex(random_bytes(20));
-            $_SESSION['emeroteca_associate'] = [$token => ['time' => time(),'revisions' => $revisions,'testata' => $target,'fascicolo' => (int)($b['fascicolo_id'] ?? 0),'new_title' => $new]];
+            $pending = self::pendingSlot('emeroteca_associate');
+            $pending[$token] = ['time' => time(),'revisions' => $revisions,'testata' => $target,'fascicolo' => (int)($b['fascicolo_id'] ?? 0),'new_title' => $new];
+            $_SESSION['emeroteca_associate'] = self::keepRecentPending($pending);
             return $this->renderView($rs, 'article-associate', ['rows' => $rows,'token' => $token,'target_title' => $new !== '' ? $new : ($host['titolo'] ?? __('Nessuna testata')),'issue_label' => $issueLabel]);
         } catch (\Throwable $e) {
             if (!$e instanceof \InvalidArgumentException) {
@@ -178,9 +214,12 @@ final class ContributionController extends AbstractAdminController
         $b = (array)$rq->getParsedBody();
         $this->service()->rows('DELETE FROM emeroteca_contributi WHERE id=? AND revision=?', [$id,(int)($b['revision'] ?? 0)]);
         if ($this->service()->get($id)) {
-            return $rs->withStatus(409);
+            // A bare 409 leaves a blank page: this is a plain form POST.
+            $this->flashError(__('L’articolo è stato modificato da qualcun altro. Ricarica la pagina e riprova.'));
+            return $this->redirect($rs, '/admin/periodicals/articles/'.$id);
         }
         self::removePdf((string)($row['pdf_path'] ?? ''));
+        $this->flashSuccess(__('Articolo eliminato.'));
         return $this->redirect($rs, '/admin/periodicals/articles');
     }
     public function importForm(Request $rq, Response $rs, array $args = []): Response
@@ -207,7 +246,9 @@ final class ContributionController extends AbstractAdminController
             }
             $preview = $csv->preview((string)$file->getStream());
             $token = bin2hex(random_bytes(20));
-            $_SESSION['emeroteca_csv'] = [$token => ['time' => time(),'rows' => $preview]];
+            $pending = self::pendingSlot('emeroteca_csv');
+            $pending[$token] = ['time' => time(),'rows' => $preview];
+            $_SESSION['emeroteca_csv'] = self::keepRecentPending($pending);
             return $this->renderView($rs, 'article-import', ['preview' => $preview,'token' => $token,'report' => null]);
         } catch (\InvalidArgumentException $e) {
             $this->flashError($e->getMessage());
@@ -216,13 +257,47 @@ final class ContributionController extends AbstractAdminController
     }
     public function export(Request $rq, Response $rs, array $args = []): Response
     {
+        // The dump carries note_private and collocazione of unpublished rows.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $rs->withStatus(403);
+        }
         if (($rq->getQueryParams()['template'] ?? '') === '1') {
-            $rs->getBody()->write(implode(',', ContributionService::CSV_FIELDS)."\n");
+            $rs->getBody()->write(implode(',', ContributionService::CSV_HEADER)."\n");
         } else {
             $rs->getBody()->write((new ContributionCsv($this->service()))->export());
         }
         return $rs->withHeader('Content-Type', 'text/csv; charset=UTF-8')->withHeader('Content-Disposition', 'attachment; filename="emeroteca-articoli.csv"')->withHeader('Cache-Control', 'private, no-store');
     }
+    /**
+     * Previews already parked in the session, tolerating a missing or
+     * tampered slot.
+     *
+     * @return array<string, mixed>
+     */
+    private static function pendingSlot(string $key): array
+    {
+        $slot = $_SESSION[$key] ?? null;
+        return is_array($slot) ? $slot : [];
+    }
+
+    /**
+     * Newest previews only. Replacing the whole slot would let a second tab
+     * destroy the first preview, which then reported a false expiry; keeping
+     * every preview instead would let the session grow without bound.
+     *
+     * @param  array<string, mixed> $pending
+     * @return array<string, mixed>
+     */
+    private static function keepRecentPending(array $pending, int $max = 5): array
+    {
+        uasort($pending, static function ($a, $b): int {
+            $left = is_array($a) && isset($a['time']) && is_numeric($a['time']) ? (int)$a['time'] : 0;
+            $right = is_array($b) && isset($b['time']) && is_numeric($b['time']) ? (int)$b['time'] : 0;
+            return $right <=> $left;
+        });
+        return array_slice($pending, 0, $max, true);
+    }
+
     private static function pdfDir(): string
     {
         return __DIR__.'/../../../../uploads/plugins/emeroteca/contributi';

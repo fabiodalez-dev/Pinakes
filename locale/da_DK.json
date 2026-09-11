@@ -1,4 +1,8 @@
 {
+  "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.": "Importér artikler fra Emeroteca-sektionen (fundet værdi: \"%s\"). Hvis pluginnet er inaktivt, skal du aktivere det under Plugins.",
+  "Articolo eliminato.": "Artiklen er slettet.",
+  "L’articolo è stato modificato da qualcun altro. Ricarica la pagina e riprova.": "Artiklen er ændret af en anden. Genindlæs siden, og prøv igen.",
+  "Eliminare questo articolo e il suo PDF?": "Slet denne artikel og dens PDF?",
   "Origine backup non valida": "Ugyldig sikkerhedskopikilde",
   "Impossibile eliminare il backup. Verifica i permessi e riprova.": "Sikkerhedskopien kunne ikke slettes. Kontrollér rettighederne, og prøv igen.",
   "Importa UNIMARC (MARCXchange)": "Importér UNIMARC (MARCXchange)",

@@ -119,16 +119,32 @@ final class ContributionCsv
         }
         return $report;
     }
+    /** The record_type a row should declare, mirroring the importer's own mapping. */
+    private static function recordTypeFor(string $containerType): string
+    {
+        return match ($containerType) {
+            'rivista'  => 'journal_article',
+            'giornale' => 'newspaper_article',
+            default    => 'article',
+        };
+    }
+
     public function export(): string
     {
         $fp = fopen('php://temp', 'w+');
         // Machine round-trip CSV: preserve literal cells; do not use as a spreadsheet.
-        fputcsv($fp, ContributionService::CSV_FIELDS, ',', '"', '');
+        fputcsv($fp, ContributionService::CSV_HEADER, ',', '"', '');
         $cursor = 0;
         do {
             $rows = $this->service->rows('SELECT * FROM emeroteca_contributi WHERE id>? ORDER BY id LIMIT 500', [$cursor]);
             foreach ($rows as $row) {
-                fputcsv($fp, array_map(static fn ($key) => $row[$key] ?? '', ContributionService::CSV_FIELDS), ',', '"', '');
+                // record_type round-trips the publication type AND is what makes
+                // this file refusable by the book importer. Derived, not stored.
+                $cells = [self::recordTypeFor((string)($row['contenitore_tipo'] ?? ''))];
+                foreach (ContributionService::CSV_FIELDS as $key) {
+                    $cells[] = $row[$key] ?? '';
+                }
+                fputcsv($fp, $cells, ',', '"', '');
                 $cursor = (int)$row['id'];
             }
         } while (count($rows) === 500);
