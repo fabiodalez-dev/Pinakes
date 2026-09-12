@@ -649,6 +649,7 @@ docs/prototypes/
 .playwright-mcp/
 .claude/
 .adams-reviews/
+/output/playwright/
 .installed
 .installed.backup
 

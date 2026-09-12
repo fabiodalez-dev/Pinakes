@@ -41,7 +41,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.83 — latest
+### v0.7.84 — latest
+
+**Emeroteca Semplice e Completa** (#412): catalog standalone articles with their publication, date, volume, issue and page range, without creating holdings. Create a masthead later and associate existing articles in bulk, preserving citations and protected PDFs. Includes CSV preview/import/export, public search and additive mobile API endpoints. Existing installations keep Complete mode; for a new collection the administrator chooses the initial workflow, from the Periodicals page or the plugin settings. Bundled plugin **1.5.0**, migration `migrate_0.7.84.sql` and idempotent plugin schema upgrade.
+
+### v0.7.83
 
 **Automatic backups are now rotated** — a backup was written before every update and never removed, so a busy installation slowly filled its disk until the next update failed while copying the app aside for rollback; ten are kept now, configurable. Plus everything from 0.7.82: **the Emeroteca becomes a working serials desk** ([PR #419](https://github.com/fabiodalez-dev/Pinakes/pull/419)): the periodicals plugin (now 1.4.0) gains what running one actually requires. Issues carry a **barcode** — the 977 EAN-13 derived from the ISSN, with the add-on that identifies the single issue — so a scan at the desk finds the issue and offers to receive it; the ISSN is validated by checksum, and e-ISSN and ISSN-L are recorded. **Subscriptions and claims** complete the Kardex: supplier, cost, expiry with its badge, and the chase for an issue that never arrived. Possession and physical condition become separate fields, so a held-but-damaged issue no longer vanishes from the holdings count. Duplicate mastheads can be **merged** without losing an issue, holdings **export** as KBART and ACNP, issues **print as labels**, and the titles finally reach **OAI-PMH, Z39.50/SRU, the sitemap and the catalogue search**. On the core side, merging or deleting a publisher, genre or shelf now notifies the plugins that reference it — previously it detached their rows in silence. Plugin schema migrates itself; no core migration.
 

@@ -2,6 +2,24 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.84]
+
+### Added
+- Emeroteca 1.5.0: Simple and Complete workflows, with one shared setting available from Plugins and Periodicals. Existing collections keep Complete mode; for a new collection nothing is decided on the administrator's behalf — the initial workflow is chosen from either page, and the plugin behaves as Complete until it is.
+- Standalone articles with structured host citation, partial publication dates, non-numeric page spans, ISSN/DOI, keywords, medium, private notes and independently controlled record/PDF visibility.
+- Create a masthead after cataloguing articles and associate them in bulk through a preview. Optional issue links are checked against the masthead. Citations and attachments survive host deletion; masthead merges preserve associations.
+- CSV preview, row-level validation, revision-checked updates and lossless export/reimport. Article input in the book importer is rejected with an explicit route to Emeroteca instead of silently becoming a book.
+- Public article search and permanent detail pages, sitemap entries, and additive mobile article endpoints with cursor pagination, ETags and capability discovery. Existing issue endpoints retain their contract; displaying standalone articles in Android requires a compatible client.
+
+### Changed
+- **API Book Scraper sends its key only over HTTPS.** Every request carries the API key in `X-API-Key`, and the plugin accepted an `http://` endpoint and followed redirects down to cleartext. The endpoint must now be a complete `https://` address, and redirects can no longer downgrade the scheme — as the plugin's README has always stated. An installation that still holds an `http://` endpoint stops sending lookups to it, logs the reason, and asks for an `https://` address the next time the plugin is enabled; turning the plugin off keeps working.
+
+### Migration
+- `migrate_0.7.84.sql` preserves the existing workflow setting without overwriting explicit choices. The bundled plugin owns `emeroteca_contributi` and upgrades it through its install/activation and boot-time self-heal paths. No changes to the core `tipo_media` enum or existing holdings.
+
+### Testing
+- Behavioural MySQL coverage using disposable tables for the actual migration, schema upgrade/retry, lifecycle, concurrency, privacy, typed CSV import and round-trip preservation; browser coverage for creation, attachment visibility, late masthead association, modes, imports, CSRF and responsive forms.
+
 ## [0.7.83]
 
 Same content as 0.7.82, whose tag could not be reused after the release was pulled, plus the fix below. Upgrading from 0.7.81 goes straight here.

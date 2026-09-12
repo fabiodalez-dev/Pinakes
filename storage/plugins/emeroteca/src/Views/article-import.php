@@ -1,0 +1,15 @@
+<?php $preview=$preview??null; $report=$report??null; $token=$token??''; $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8'); ?>
+<div class="max-w-6xl mx-auto px-4 py-6">
+<h1 class="text-3xl font-bold mb-5"><?= __('Importa articoli') ?></h1>
+<p class="max-w-3xl mb-4"><?= __('CSV UTF-8 separato da virgole, massimo 500 righe. La reference_key identifica gli aggiornamenti; le colonne assenti conservano i dati, le celle vuote li svuotano. Nessun fascicolo viene creato.') ?></p>
+<p class="mb-4"><a class="underline" href="<?= $e(url('/admin/periodicals/articles/export?template=1')) ?>"><?= __('Scarica il CSV come modello') ?></a> · <a class="underline" href="<?= $e(url('/admin/periodicals/articles')) ?>"><?= __('Articoli') ?></a></p>
+<p class="text-sm text-gray-600 mb-4"><?= __('Il CSV conserva i valori originali per il reimport. Nei fogli di calcolo importa le colonne come testo.') ?></p>
+<p class="text-sm text-gray-600 mb-2"><?= __('Esempio') ?></p>
+<pre class="text-xs font-mono bg-gray-50 rounded p-3 mb-4 overflow-x-auto">record_type,titolo,autori,contenitore_titolo,anno_pubblicazione,volume,numero,pagine
+journal_article,Intertextuality in Daniel Kehlmann&#039;s Novel Tyll,&quot;Schweissinger, Marc J.&quot;,International Journal of Language and Literature,2019,7,1,138-148</pre>
+<?php if($report!==null): ?><h2 class="text-xl font-semibold my-4"><?= __('Risultato importazione') ?></h2><ul><?php foreach($report as $r): ?><li class="py-2"><?= __('Riga') ?> <?= (int)$r['line'] ?>: <?= $e($r['error']??__('Salvato')) ?></li><?php endforeach; ?></ul><?php endif; ?>
+<?php if($preview!==null): ?><h2 class="text-xl font-semibold my-4"><?= __('Anteprima: destinazione Emeroteca') ?></h2><div class="overflow-x-auto"><table class="w-full text-left"><thead><tr><th><?= __('Riga') ?></th><th><?= __('Titolo') ?></th><th><?= __('Operazione') ?></th><th><?= __('Verifica') ?></th></tr></thead><tbody><?php foreach($preview as $r): ?><tr class="border-b"><td class="p-3"><?= $r['line'] ?></td><td class="p-3"><?= $e($r['data']['titolo']??'') ?></td><td class="p-3"><?= $r['id']?__('Aggiorna'):__('Crea') ?></td><td class="p-3"><?= $e($r['error']??$r['warning']??__('Pronto')) ?></td></tr><?php endforeach; ?></tbody></table></div>
+<form method="post" class="my-5"><input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>"><input type="hidden" name="token" value="<?= $e($token) ?>"><button class="btn-primary"><?= __('Importa le righe valide') ?></button></form>
+<?php else: ?><form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>"><label for="articles-csv" class="form-label"><?= __('File CSV') ?></label><input id="articles-csv" class="form-input mb-4" name="csv" type="file" accept=".csv,text/csv" required><button class="btn-primary"><?= __('Mostra anteprima') ?></button></form><?php endif; ?>
+
+</div>

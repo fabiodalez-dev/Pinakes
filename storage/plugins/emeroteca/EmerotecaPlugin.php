@@ -11,12 +11,14 @@ use Slim\Psr7\Stream;
 /**
  * Emeroteca plugin — periodicals management for Pinakes.
  *
- * Introduces five tables:
+ * Introduces six tables:
  *   - emeroteca_testate     : periodical titles (rivista/giornale/magazine/…)
  *   - emeroteca_annate      : yearly volumes of a title (bound or loose)
  *   - emeroteca_fascicoli   : single issues with holding status + kardex
  *   - emeroteca_articoli    : article-level indexing (spoglio) with FULLTEXT
  *   - emeroteca_abbonamenti : subscriptions (fornitore, costo, scadenza)
+ *   - emeroteca_contributi  : standalone articles, citation kept on the row
+ *                             so one can be catalogued without owning the issue
  *
  * Lifecycle mirrors the Archives plugin (storage/plugins/archives):
  * ensureSchema() is idempotent (CREATE TABLE IF NOT EXISTS) and runs from
@@ -150,6 +152,25 @@ class EmerotecaPlugin
      * Expose the injected HookManager (DI-wiring accessor, mirrors
      * ArchivesPlugin::getHookManager — keeps static analysis happy).
      */
+    public function hasSettingsPage(): bool { return true; }
+
+    /** Path to the settings view rendered by the admin plugin settings page. */
+    public function getSettingsViewPath(): string { return __DIR__ . "/src/Views/settings.php"; }
+
+    /** Build a ContributionService bound to this plugin's DB connection, loading its class file. */
+    public function contributionService(): \App\Plugins\Emeroteca\Services\ContributionService
+    {
+        require_once __DIR__ . "/src/Services/ContributionService.php";
+        return new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
+    }
+
+    /** The emeroteca_contributi CREATE TABLE DDL, delegated to ContributionService::ddl(). */
+    public static function ddlContributi(): string
+    {
+        require_once __DIR__ . "/src/Services/ContributionService.php";
+        return \App\Plugins\Emeroteca\Services\ContributionService::ddl();
+    }
+
     public function getHookManager(): HookManager
     {
         return $this->hookManager;
@@ -338,6 +359,7 @@ class EmerotecaPlugin
             ['table' => 'emeroteca_fascicoli', 'column' => 'stato'],
             ['table' => 'emeroteca_fascicoli', 'column' => 'collocazione_id'],
             ['table' => 'emeroteca_articoli',  'column' => 'keywords'],
+            ['table' => 'emeroteca_contributi', 'column' => 'revision'],
         ];
         // 1.4.0 additive columns: every one declared so the boot-time
         // self-heal re-runs ensureSchema when any is missing.
@@ -374,6 +396,8 @@ class EmerotecaPlugin
     public function expectedForeignKeys(): array
     {
         $out = [
+            ['table' => 'emeroteca_contributi', 'column' => 'testata_id', 'ref_table' => 'emeroteca_testate'],
+            ['table' => 'emeroteca_contributi', 'column' => 'fascicolo_id', 'ref_table' => 'emeroteca_fascicoli'],
             ['table' => 'emeroteca_testate',     'column' => 'testata_precedente_id', 'ref_table' => 'emeroteca_testate'],
             ['table' => 'emeroteca_annate',      'column' => 'testata_id',            'ref_table' => 'emeroteca_testate'],
             ['table' => 'emeroteca_fascicoli',   'column' => 'annata_id',             'ref_table' => 'emeroteca_annate'],
@@ -405,11 +429,12 @@ class EmerotecaPlugin
             'emeroteca_fascicoli'   => self::ddlFascicoli(),
             'emeroteca_articoli'    => self::ddlArticoli(),
             'emeroteca_abbonamenti' => self::ddlAbbonamenti(),
+            'emeroteca_contributi' => self::ddlContributi(),
         ];
     }
 
     /**
-     * Execute the DDL for the four emeroteca tables, then add the FKs
+     * Execute the DDL for the six emeroteca tables, then add the FKs
      * towards the optional core tables (editori, generi) when those
      * exist. Failures are logged and reported via the returned 'failed'
      * list without throwing — onActivate()/onInstall() inspect it and
@@ -428,6 +453,12 @@ class EmerotecaPlugin
      */
     public function ensureSchema(): array
     {
+        // A collection is its mastheads, not its tables: auto-registration runs
+        // onInstall() even while this optional plugin is inactive, which builds
+        // every table empty, so "the table exists" said nothing about whether an
+        // operator ever catalogued anything. Probed without the cache the table
+        // check uses, because the answer changes as soon as a masthead is added.
+        $newCollection = !$this->emerotecaTableExists('emeroteca_testate') || !$this->emerotecaHasMastheads();
         $steps = self::schemaSteps();
         $created = [];
         $failed = [];
@@ -501,6 +532,8 @@ class EmerotecaPlugin
             $runStep($table, 'additive column', fn(): bool => $this->ensureAdditiveColumns($table, $definitions));
         }
 
+        $runStep('emeroteca_contributi', 'contribution foreign keys', fn(): bool => $this->ensureContributionForeignKeys());
+
         // 1.4.0: possession/condition split. MUST run after the additive
         // step above (it writes into the new `condizione` column).
         $runStep('emeroteca_fascicoli', 'stato/condizione split', fn(): bool => $this->ensureStatoCondizioneSplit());
@@ -543,7 +576,39 @@ class EmerotecaPlugin
         // (additive step) and consistent tables.
         $runStep('emeroteca_fascicoli', 'inherited barcode', fn(): bool => $this->ensureFascicoloBarcodeNotInherited());
 
+        // A collection that already exists keeps the workflow it has been run
+        // with, so an upgrade never changes what the operator sees. A NEW
+        // collection is deliberately left unstamped: guessing an initial
+        // workflow here decides it silently and, because both this and the
+        // migration use INSERT IGNORE, whichever runs first wins over the
+        // operator's own first choice. Unstamped is what makes the choice
+        // theirs — mode() reads 'complete' meanwhile, so nothing is hidden,
+        // and both admin pages ask them to pick.
+        if ($failed === [] && !$newCollection) {
+            try {
+                $this->contributionService()->rows("INSERT IGNORE INTO plugin_settings (plugin_id,setting_key,setting_value) SELECT id,'mode','complete' FROM plugins WHERE name='emeroteca'");
+            } catch (\Throwable $e) { $failed[] = 'plugin_settings'; }
+        }
         return ['created' => $created, 'failed' => $failed];
+    }
+
+    /**
+     * Add the two emeroteca_contributi FK constraints (testata_id, fascicolo_id) idempotently,
+     * probing information_schema.KEY_COLUMN_USAGE first so a constraint already present is
+     * never re-added. Both are ON DELETE SET NULL: deleting a masthead or an issue detaches
+     * the article instead of deleting it.
+     *
+     * @return bool false if either ALTER TABLE fails
+     */
+    private function ensureContributionForeignKeys(): bool
+    {
+        foreach (['testata_id'=>['fk_contributo_testata','emeroteca_testate'], 'fascicolo_id'=>['fk_contributo_fascicolo','emeroteca_fascicoli']] as $column=>[$name,$table]) {
+            $rows=$this->contributionService()->rows("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME=? AND REFERENCED_TABLE_NAME=?",[$column,$table]);
+            if ($rows===[]) {
+                if (!$this->db->query("ALTER TABLE emeroteca_contributi ADD CONSTRAINT $name FOREIGN KEY ($column) REFERENCES $table(id) ON DELETE SET NULL")) { return false; }
+            }
+        }
+        return true;
     }
 
     /**
@@ -557,7 +622,9 @@ class EmerotecaPlugin
      */
     private static function additiveColumnDefs(): array
     {
+        require_once __DIR__ . '/src/Services/ContributionService.php';
         return [
+            'emeroteca_contributi' => \App\Plugins\Emeroteca\Services\ContributionService::COLUMN_DEFINITIONS,
             'emeroteca_testate' => [
                 // 1.4.0 — serials identifiers + gestione amministrativa
                 'e_issn'                  => 'VARCHAR(9) NULL AFTER issn',
@@ -1599,6 +1666,21 @@ class EmerotecaPlugin
         $export = 'App\\Plugins\\Emeroteca\\Controllers\\ExportAdminController';
         $public = 'App\\Plugins\\Emeroteca\\Controllers\\PublicController';
 
+        $articles = 'App\\Plugins\\Emeroteca\\Controllers\\ContributionController';
+        foreach (['' => 'index', '/create' => 'form', '/{id:[0-9]+}' => 'form', '/import' => 'importForm', '/export' => 'export', '/issues' => 'issueOptions', '/{id:[0-9]+}/pdf' => 'pdf'] as $path => $method) {
+            $app->get('/admin/periodicals/articles' . $path, function ($rq, $rs, $args) use ($plugin, $articles, $method) {
+                return $plugin->dispatch($articles, $method, $rq, $rs, $args);
+            })->add($adminMiddleware);
+        }
+        foreach (['/save' => 'save', '/associate' => 'associate', '/import' => 'importSubmit', '/{id:[0-9]+}/delete' => 'delete', '/mode' => 'mode'] as $path => $method) {
+            $app->post('/admin/periodicals/articles' . $path, function ($rq, $rs, $args) use ($plugin, $articles, $method) {
+                return $plugin->dispatch($articles, $method, $rq, $rs, $args);
+            })->add($csrfMiddleware)->add($adminMiddleware);
+        }
+        $app->get('/emeroteca/articoli', fn($rq,$rs,$args) => $plugin->dispatch($public, 'articles', $rq,$rs,$args));
+        $app->get('/emeroteca/articolo/{id:[0-9]+}', fn($rq,$rs,$args) => $plugin->dispatch($public, 'article', $rq,$rs,$args));
+        $app->get('/emeroteca/articolo/{id:[0-9]+}/pdf', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicPdf', $rq,$rs,$args));
+
         // ── Admin — testate (periodical titles) ──────────────────────
 
         // GET /admin/periodicals — list of testate
@@ -2286,6 +2368,7 @@ class EmerotecaPlugin
     /** Sitemap ceilings, well under the core's own MAX_TOTAL_URLS (50k). */
     private const SITEMAP_MAX_TESTATE   = 5000;
     private const SITEMAP_MAX_FASCICOLI = 20000;
+    private const SITEMAP_MAX_CONTRIBUTI = 10000;
 
     /** @var array<string,bool> per-instance table-existence cache */
     private array $tableProbeCache = [];
@@ -2365,6 +2448,11 @@ class EmerotecaPlugin
                 ], static fn($value): bool => $value !== null);
             }
 
+            if ($this->emerotecaTableExists('emeroteca_contributi')) {
+                foreach ($this->fetchRows('SELECT id, updated_at FROM emeroteca_contributi WHERE pubblico=1 ORDER BY id LIMIT ' . self::SITEMAP_MAX_CONTRIBUTI) as $article) {
+                    $entries[] = ['loc'=>$base . '/emeroteca/articolo/' . (int)$article['id'], 'lastmod'=>$article['updated_at'], 'changefreq'=>'monthly', 'priority'=>'0.4'];
+                }
+            }
             if ($this->emerotecaTableExists('emeroteca_fascicoli')) {
                 $fascicoli = $this->fetchRows(
                     "SELECT id, updated_at FROM emeroteca_fascicoli
@@ -2467,6 +2555,20 @@ class EmerotecaPlugin
                              OR issn LIKE ? ESCAPE '\\\\'
                           LIMIT 1", 'sss', [$pattern, $pattern, $pattern]];
         }
+        if ($this->emerotecaTableExists('emeroteca_contributi')) {
+            // Same fields as the public article search, public rows only, and a
+            // LIMIT 1 existence probe like its neighbours: this runs on every
+            // catalogue miss, and it goes through the loop below so a failure
+            // is logged instead of breaking the search that asked for a hint.
+            $probes[] = ["SELECT 1 FROM emeroteca_contributi
+                          WHERE pubblico = 1
+                            AND (titolo LIKE ? ESCAPE '\\\\'
+                                 OR autori LIKE ? ESCAPE '\\\\'
+                                 OR contenitore_titolo LIKE ? ESCAPE '\\\\'
+                                 OR keywords LIKE ? ESCAPE '\\\\'
+                                 OR issn = ?)
+                          LIMIT 1", 'sssss', [$pattern, $pattern, $pattern, $pattern, $term]];
+        }
         if ($this->emerotecaTableExists('emeroteca_articoli')) {
             // This hint uses the same token search as the public article search.
             // The FULLTEXT index avoids a full article scan on every catalogue miss.
@@ -2509,6 +2611,18 @@ class EmerotecaPlugin
      * public pages where an exception would cost the whole sitemap or
      * the catalogue hint.
      */
+    /** True once at least one masthead exists. Never cached: see ensureSchema(). */
+    private function emerotecaHasMastheads(): bool
+    {
+        try {
+            $res = $this->db->query('SELECT 1 FROM emeroteca_testate LIMIT 1');
+            return $res instanceof \mysqli_result && $res->num_rows > 0;
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] masthead probe failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     private function emerotecaTableExists(string $table): bool
     {
         if (array_key_exists($table, $this->tableProbeCache)) {

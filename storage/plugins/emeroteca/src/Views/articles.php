@@ -1,0 +1,32 @@
+<?php
+declare(strict_types=1);
+$source=$source??'autonomo'; $destination=$destination??0; $term=$term??''; $testata=$testata??0; $testate=$testate??[]; $total=$total??0; $rows=$rows??[]; $page=$page??1; $pages=$pages??1;
+$e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
+?>
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.5.0')) ?>">
+<div class="emeroteca-admin">
+<div class="emt-page-header"><div><h1 class="text-3xl font-bold"><?= __('Articoli') ?></h1><p class="text-gray-600 mt-2"><?= __('Registra un articolo, anche senza possedere la rivista completa.') ?></p></div>
+<div class="flex flex-wrap gap-2"><a class="btn-primary" href="<?= $e(url('/admin/periodicals/articles/create')) ?>"><?= __('Aggiungi articolo') ?></a><a class="btn-secondary" href="<?= $e(url('/admin/periodicals?view=titles')) ?>"><?= __('Testate') ?></a><a class="btn-secondary" href="<?= $e(url('/admin/periodicals/articles/import')) ?>"><?= __('Importa CSV') ?></a><a class="btn-secondary" href="<?= $e(url('/admin/periodicals/articles/export')) ?>"><?= __('Esporta CSV') ?></a></div></div>
+<?php $modeReturnTo='/admin/periodicals/articles'; require __DIR__.'/article-mode.php'; ?>
+<nav class="flex gap-4 mb-5" aria-label="<?= $e(__('Tipo di articolo')) ?>"><a class="underline py-2" <?= $source==='autonomo'?'aria-current="page"':'' ?> href="<?= $e(url('/admin/periodicals/articles').'?'.http_build_query(['testata'=>$testata])) ?>"><?= __('Articoli autonomi') ?></a><a class="underline py-2" <?= $source==='spoglio'?'aria-current="page"':'' ?> href="<?= $e(url('/admin/periodicals/articles').'?'.http_build_query(['source'=>'spoglio','testata'=>$testata])) ?>"><?= __('Spoglio dei fascicoli') ?></a></nav>
+<form method="get" class="flex flex-wrap gap-3 items-end mb-6">
+<input type="hidden" name="source" value="<?= $e($source) ?>"><input type="hidden" name="destination" value="<?= $destination ?>"><div><label for="article-search" class="form-label"><?= __('Cerca titolo, autore o pubblicazione') ?></label><input id="article-search" name="q" value="<?= $e($term) ?>" class="form-input" maxlength="200"></div>
+<div><label for="article-host" class="form-label"><?= __('Testata') ?></label><select id="article-host" name="testata" class="form-input"><option value="0"><?= __('Tutte') ?></option><?php foreach($testate as $t): ?><option value="<?= (int)$t['id'] ?>" <?= $testata===(int)$t['id']?'selected':'' ?>><?= $e($t['titolo']) ?></option><?php endforeach; ?></select></div><button class="btn-secondary"><?= __('Cerca') ?></button></form>
+<p class="text-sm text-gray-600 mb-3"><?= $e(sprintf(__('%d articoli'),$total)) ?></p>
+<form method="post" action="<?= $e(url('/admin/periodicals/articles/associate')) ?>">
+<input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+<div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead><tr><th class="p-3"><?= __('Seleziona') ?></th><th class="p-3"><?= __('Articolo') ?></th><th class="p-3"><?= __('Pubblicazione') ?></th><th class="p-3"><?= __('Testata associata') ?></th><th class="p-3"><?= __('Visibilità') ?></th></tr></thead><tbody>
+<?php foreach($rows as $r): ?><tr class="border-b"><td class="p-3"><?php if($source==='autonomo'): ?><input type="checkbox" name="ids[]" value="<?= (int)$r['id'] ?>" aria-label="<?= $e(__('Seleziona').' '.$r['titolo']) ?>"><?php else: ?><?= __('Spoglio') ?><?php endif; ?></td><td class="p-3"><a class="font-semibold underline" href="<?= $e(url($source==='autonomo'?'/admin/periodicals/articles/'.(int)$r['id']:'/admin/periodicals/issue/'.(int)$r['fascicolo_id'])) ?>"><?= $e($r['titolo']) ?></a><p><?= $e($r['autori']) ?></p></td><td class="p-3"><?= $e($r['contenitore_titolo']) ?><p class="text-gray-600"><?= $e(implode(' · ',array_filter([$r['data_pubblicazione_testo'],$r['volume'],$r['numero'],$r['pagine']]))) ?></p></td><td class="p-3"><?= $e($r['testata_titolo']??__('Non associato')) ?></td><td class="p-3"><?= $r['pubblico']?__('Pubblico'):__('Privato') ?></td></tr><?php endforeach; ?>
+<?php if(!$rows): ?><tr><td colspan="5" class="p-6 text-gray-600"><?= __('Nessun articolo. Aggiungi il primo o importa un CSV.') ?></td></tr><?php endif; ?>
+</tbody></table></div>
+<?php if($source==='autonomo'): ?><details class="mt-6"><summary class="font-semibold cursor-pointer py-3"><?= __('Associa gli articoli selezionati a una testata') ?></summary>
+<p class="text-sm text-gray-600 mb-4"><?= __('Scegli una testata o creala adesso. Citazioni, identificativi e allegati saranno conservati.') ?></p>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label for="target-host" class="form-label"><?= __('Testata esistente') ?></label><select id="target-host" name="testata_id" class="form-input"><option value="0"><?= __('Nessuna testata') ?></option><?php foreach($testate as $t): ?><option value="<?= (int)$t['id'] ?>" <?= $destination===(int)$t['id']?'selected':'' ?>><?= $e($t['titolo']) ?></option><?php endforeach; ?></select></div>
+<div><label for="new-host" class="form-label"><?= __('Oppure crea una testata') ?></label><input id="new-host" name="new_title" maxlength="255" class="form-input"></div>
+<div><label for="target-issue" class="form-label"><?= __('Fascicolo esistente (facoltativo)') ?></label><select id="target-issue" name="fascicolo_id" class="form-input" data-issues-url="<?= $e(url('/admin/periodicals/articles/issues')) ?>"><option value="0"><?= __('Solo testata') ?></option></select><p class="text-sm text-gray-600"><?= __('Deve appartenere alla testata scelta. Nessun fascicolo viene creato automaticamente.') ?></p></div></div>
+<button class="btn-primary mt-4" type="submit"><?= __('Anteprima associazione') ?></button></details><?php endif; ?>
+</form>
+<nav class="flex gap-4 mt-6" aria-label="<?= $e(__('Paginazione')) ?>"><?php for($p=max(1,$page-2);$p<=min($pages,$page+2);$p++): ?><a class="btn-secondary" <?= $p===$page?'aria-current="page"':'' ?> href="<?= $e(url('/admin/periodicals/articles').'?'.http_build_query(['page'=>$p,'q'=>$term,'testata'=>$testata,'source'=>$source,'destination'=>$destination])) ?>"><?= $p ?></a><?php endfor; ?></nav>
+</div>
+
+<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-articles.js?v=1.5.0')) ?>" defer></script>

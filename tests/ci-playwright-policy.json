@@ -28,6 +28,10 @@
     {
       "file": "install-french.spec.js",
       "reason": "The French fresh-install path is covered in the isolated fr_FR locale matrix; post-install execution would skip its installer assertions."
+    },
+    {
+      "file": "emeroteca-412-upgrade.spec.js",
+      "reason": "Runs in ci-real-upgrade.yml: installs the previous release from its own installer, upgrades it with the candidate package through /admin/updates, then checks a clean candidate install. The shared shards install the current branch fresh and have no older release to upgrade from."
     }
   ],
   "excluded": [

@@ -139,9 +139,30 @@ class ApiBookScraperPlugin
             return;
         }
 
-        // Se il plugin non è abilitato, non registrare gli hooks
-        if (!$this->enabled || empty($this->apiEndpoint) || empty($this->apiKey)) {
-            \App\Support\SecureLogger::warning('[ApiBookScraper] Plugin not enabled or missing configuration');
+        // Se il plugin non è abilitato, non registrare gli hooks.
+        //
+        // DEBUG, not warning: a plugin that is present but not configured is the
+        // normal state of every plugin the operator has not set up, and this path
+        // is reached on a schedule. On one production install it produced 8.217 of
+        // the 15.607 lines in app.log over eight months — more than half the file,
+        // for a condition that is not a problem. A warning level that fires
+        // continuously trains the reader to skip warnings, which is how the real
+        // ones get missed. The genuinely abnormal case above (missing DB or plugin
+        // ID) keeps its warning.
+        //
+        // That argument holds only while the plugin is DISABLED. Enabled with no
+        // endpoint or key is a broken configuration the operator chose to turn on
+        // and cannot see working — debug is off in production, so it must warn.
+        if (!$this->enabled) {
+            \App\Support\SecureLogger::debug('[ApiBookScraper] Plugin not enabled: hooks not registered');
+            return;
+        }
+        if (empty($this->apiEndpoint) || empty($this->apiKey)) {
+            \App\Support\SecureLogger::warning('[ApiBookScraper] Plugin enabled but API endpoint or key is missing: hooks not registered');
+            return;
+        }
+        if (!self::isUsableEndpoint($this->apiEndpoint)) {
+            \App\Support\SecureLogger::warning('[ApiBookScraper] Plugin enabled but the API endpoint is not a complete https:// URL: hooks not registered');
             return;
         }
 
@@ -445,7 +466,16 @@ class ApiBookScraperPlugin
             $url .= $separator . 'isbn=' . urlencode($isbn);
         }
 
-        // Chiamata HTTP tramite helper centralizzato (Guzzle)
+        // An install upgraded with an http:// endpoint still has its hooks in
+        // the database: say why the lookup is refused instead of letting it
+        // surface as a generic transport failure.
+        if (!self::isUsableEndpoint($this->apiEndpoint)) {
+            throw new \Exception('Endpoint non HTTPS: la chiave API non viene inviata in chiaro, imposta un indirizzo https://');
+        }
+
+        // Chiamata HTTP tramite helper centralizzato (Guzzle). https_only also
+        // pins every redirect hop to https: a 30x must not downgrade the scheme
+        // and carry X-API-Key over cleartext.
         $res = \App\Support\HttpClient::get($url, [
             'X-API-Key' => $this->apiKey,
             'Accept' => 'application/json',
@@ -454,6 +484,7 @@ class ApiBookScraperPlugin
             'timeout' => $this->timeout,
             'max_redirects' => 3,
             'verify' => true,
+            'https_only' => true,
         ]);
 
         $response = $res['body'];
@@ -580,7 +611,33 @@ class ApiBookScraperPlugin
     }
 
     /**
-     * Salva le impostazioni del plugin
+     * Whether an endpoint can actually be called.
+     *
+     * callApi() either substitutes {isbn} or appends ?isbn=, so the URL that
+     * gets validated is the one the placeholder will turn into. Only https:
+     * every request carries the API key in X-API-Key, which must never travel
+     * in cleartext — the README has always promised TLS for this plugin.
+     */
+    private static function isUsableEndpoint(string $endpoint): bool
+    {
+        $probe = str_replace('{isbn}', '9780000000000', $endpoint);
+        if (filter_var($probe, FILTER_VALIDATE_URL) === false) {
+            return false;
+        }
+        $scheme = strtolower((string) parse_url($probe, PHP_URL_SCHEME));
+        return $scheme === 'https' && (string) parse_url($probe, PHP_URL_HOST) !== '';
+    }
+
+    /**
+     * Persist plugin settings and re-register hooks accordingly.
+     *
+     * Rejects enabling the plugin without both a usable endpoint and an effective API key
+     * (submitted or previously stored), since registerHooks() would otherwise silently register
+     * nothing. Settings replace + hook re-registration run in one transaction, rolled back on any
+     * failure so the DB is never left with settings saved but scrape.* hooks missing.
+     *
+     * @throws \InvalidArgumentException if enabling is requested without a usable endpoint/key
+     * @throws \RuntimeException on a database failure (transaction is rolled back first)
      */
     public function saveSettings(array $settings): bool
     {
@@ -588,6 +645,12 @@ class ApiBookScraperPlugin
             return false;
         }
 
+        // InvalidArgumentException, not RuntimeException: callers must be able
+        // to tell "this input cannot be saved" from a database failure further
+        // down, which throws RuntimeException. Its message is the translated
+        // reason, meant to be shown as is — the settings page and the plugins
+        // list modal both display it, so neither has to guess which rule failed.
+        //
         // Reject enabling the plugin with no effective API key. The view's HTML
         // `required` attribute does not protect a hand-built POST: without a key
         // saveSettings would "succeed" while registerHooks() silently registers
@@ -601,7 +664,24 @@ class ApiBookScraperPlugin
             : '';
         $effectiveKey = $submittedKey !== '' ? $submittedKey : $this->apiKey;
         if ($enabledRequested && $effectiveKey === '') {
-            throw new \RuntimeException('[ApiBookScraper] cannot enable plugin without an API key');
+            throw new \InvalidArgumentException(__('Per attivare il plugin servono sia l\'URL dell\'endpoint sia la chiave API.'));
+        }
+        // Same for the endpoint: registerHooks() needs both, so enabling without
+        // one would save successfully and then register nothing.
+        $submittedEndpoint = array_key_exists('api_endpoint', $settings)
+            ? trim((string) $settings['api_endpoint'])
+            : $this->apiEndpoint;
+        if ($enabledRequested && $submittedEndpoint === '') {
+            throw new \InvalidArgumentException(__('Per attivare il plugin servono sia l\'URL dell\'endpoint sia la chiave API.'));
+        }
+        // Presence is not enough: "invalid-endpoint" was accepted, the hooks
+        // were registered, and every lookup then failed at call time. A
+        // submitted endpoint must be a complete https URL, disabled or not; a
+        // stored one is checked only when enabling, so an install still holding
+        // an old http:// address can always turn the plugin off.
+        $endpointSubmitted = array_key_exists('api_endpoint', $settings);
+        if ($submittedEndpoint !== '' && ($endpointSubmitted || $enabledRequested) && !self::isUsableEndpoint($submittedEndpoint)) {
+            throw new \InvalidArgumentException(__('L\'URL dell\'endpoint deve essere un indirizzo https:// completo.'));
         }
 
         // Wrap the settings replacement AND the hook re-registration in one

@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace App\Plugins\Emeroteca\Controllers;
 
 require_once __DIR__ . '/AbstractAdminController.php';
-// SCADENZA_GIORNI (the renewal warning window) lives there and must stay a
-// single source of truth: EmerotecaPlugin::dispatch() only loads the
-// controller it routes to, so the sibling is required explicitly.
+// SCADENZA_GIORNI (the renewal warning window) and LIST_PATH (where "back to
+// the list of testate" has to land) live there and must stay a single source
+// of truth: EmerotecaPlugin::dispatch() only loads the controller it routes
+// to, so the sibling is required explicitly.
 require_once __DIR__ . '/PeriodicalAdminController.php';
 
 use App\Support\ActivityLog;
@@ -47,7 +48,7 @@ class SubscriptionAdminController extends AbstractAdminController
         $testata = $this->fetchTestata($testataId);
         if ($testata === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
 
         return $this->renderView($response, 'subscriptions', [
@@ -71,7 +72,7 @@ class SubscriptionAdminController extends AbstractAdminController
         $testata = $this->fetchTestata($testataId);
         if ($testata === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $back = '/admin/periodicals/' . $testataId . '/subscriptions';
 
@@ -145,7 +146,7 @@ class SubscriptionAdminController extends AbstractAdminController
         $testata = $this->fetchTestata($testataId);
         if ($testata === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $existing = $this->fetchOne($subId, $testataId);
         if ($existing === null) {
@@ -174,7 +175,7 @@ class SubscriptionAdminController extends AbstractAdminController
         $testata = $this->fetchTestata($testataId);
         if ($testata === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $back = '/admin/periodicals/' . $testataId . '/subscriptions';
         $existing = $this->fetchOne($subId, $testataId);
@@ -262,7 +263,7 @@ class SubscriptionAdminController extends AbstractAdminController
         }
         if ($this->fetchTestata($testataId) === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $existing = $this->fetchOne($subId, $testataId);
         if ($existing === null) {
