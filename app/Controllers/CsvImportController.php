@@ -1098,7 +1098,13 @@ class CsvImportController
         // Remove duplicates and empty values
         $authors = array_filter(array_unique($authors));
         $autoriCombined = !empty($authors) ? implode(';', $authors) : null;
-        $recordType = strtolower(trim((string) ($row['record_type'] ?? $row['tipo_media'] ?? '')));
+        // `??` only falls through on a missing or null column, so a file that
+        // carries an empty record_type cell next to tipo_media=journal_article
+        // used to skip this check entirely and land in the book catalogue.
+        $recordType = strtolower(trim((string) ($row['record_type'] ?? '')));
+        if ($recordType === '') {
+            $recordType = strtolower(trim((string) ($row['tipo_media'] ?? '')));
+        }
         if (in_array($recordType, ['article', 'articolo', 'journal_article', 'newspaper_article'], true)) {
             throw new \InvalidArgumentException(__('Importa gli articoli dalla sezione Emeroteca (valore rilevato: "%s"). Se il plugin è inattivo, attivalo da Plugins.', $recordType));
         }

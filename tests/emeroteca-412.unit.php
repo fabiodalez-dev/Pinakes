@@ -196,7 +196,10 @@ try {
     $parse=new ReflectionMethod(\App\Controllers\CsvImportController::class,'parseCsvRow');
     foreach (['article','journal_article','newspaper_article','articolo'] as $type) {
         rejects412(fn()=>$parse->invoke(new \App\Controllers\CsvImportController(),['titolo'=>'Analytic','tipo_media'=>$type]),'book importer rejects '.$type);
+        rejects412(fn()=>$parse->invoke(new \App\Controllers\CsvImportController(),['titolo'=>'Analytic','record_type'=>'','tipo_media'=>$type]),'an empty record_type cell still reads tipo_media: '.$type);
+        rejects412(fn()=>$parse->invoke(new \App\Controllers\CsvImportController(),['titolo'=>'Analytic','record_type'=>'  '.strtoupper($type).' ']),'record_type is matched trimmed and case-insensitively: '.$type);
     }
+    check412(is_array($parse->invoke(new \App\Controllers\CsvImportController(),['titolo'=>'A book','record_type'=>'','tipo_media'=>'libro'])),'a book row with an empty record_type is still imported');
     require_once $root.'/storage/plugins/emeroteca/src/Controllers/PeriodicalAdminController.php';
     $svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Merge source')");$source=(int)$db->insert_id;
     $svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Merge destination')");$target=(int)$db->insert_id;
