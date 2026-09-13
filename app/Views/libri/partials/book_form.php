@@ -10,6 +10,9 @@ $error_message = $error_message ?? null;
 $action = $action ?? url($mode === 'edit' ? '/admin/books/update/' . (int)($book['id'] ?? 0) : '/admin/books/create');
 $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? '');
 $scrapingAvailable = Hooks::has('scrape.fetch.custom');
+// Set by LibriController; ABSENT when the form is rendered from somewhere that
+// does not resolve it, so the hint can only ever appear with a live target.
+$articleHintState = $articleHintState ?? \App\Support\PeriodicalArticlesHint::ABSENT;
 $scaffali = $scaffali ?? [];
 $mensole = $mensole ?? [];
 $libraryThingInstalled = $libraryThingInstalled ?? false;
@@ -464,6 +467,16 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                   </option>
                 <?php endforeach; ?>
               </select>
+              <?php if ($articleHintState !== \App\Support\PeriodicalArticlesHint::ABSENT): ?>
+                <p class="text-xs text-gray-500 mt-1">
+                  <?= __('Per un articolo di rivista o di giornale usa l’Emeroteca.') ?>
+                  <?php if ($articleHintState === \App\Support\PeriodicalArticlesHint::ACTIVE): ?>
+                    <a class="underline" href="<?php echo HtmlHelper::e(url('/admin/periodicals/articles/create')); ?>"><?= __('Aggiungi articolo') ?></a>
+                  <?php else: ?>
+                    <a class="underline" href="<?php echo HtmlHelper::e(url('/admin/plugins')); ?>"><?= __('Attiva plugin') ?></a>
+                  <?php endif; ?>
+                </p>
+              <?php endif; ?>
             </div>
             <div>
               <label for="formato" class="form-label"><?= __("Formato") ?></label>

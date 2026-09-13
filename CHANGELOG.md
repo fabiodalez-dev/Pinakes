@@ -12,6 +12,7 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 - Public article search and permanent detail pages, sitemap entries, and additive mobile article endpoints with cursor pagination, ETags and capability discovery. Existing issue endpoints retain their contract; displaying standalone articles in Android requires a compatible client.
 
 ### Changed
+- **The book form says where an article belongs.** `tipo_media` offers Book, Record, Audiobook, DVD and Other, so a cataloguer holding a single journal article looks there, finds nothing that fits and stops — which is how [#412](https://github.com/fabiodalez-dev/Pinakes/issues/412) started. The media-type field now carries one line pointing at the Emeroteca: it links to the article form when the plugin is active, to the plugins page when the plugin is installed but switched off, and renders nothing at all when the plugin is not installed, so it can never offer a dead end.
 - **API Book Scraper sends its key only over HTTPS.** Every request carries the API key in `X-API-Key`, and the plugin accepted an `http://` endpoint and followed redirects down to cleartext. The endpoint must now be a complete `https://` address, and redirects can no longer downgrade the scheme — as the plugin's README has always stated. An installation that still holds an `http://` endpoint stops sending lookups to it, logs the reason, and asks for an `https://` address the next time the plugin is enabled; turning the plugin off keeps working.
 
 ### Migration
