@@ -25,10 +25,20 @@
       element.textContent = data.available ? data.label : data.detail_label;
     } else if (role === 'count') {
       element.classList.remove('availability-pending');
-      element.textContent = data.copies_available + ' / ' + data.copies_total;
+      // count_label publishes owned copies, not copies in circulation (#426);
+      // the concatenation stays as the fallback for a cached older payload.
+      element.textContent = data.count_label || (data.copies_available + ' / ' + (data.copies_owned != null ? data.copies_owned : data.copies_total));
+    } else if (role === 'count-note') {
+      var note = data.count_note || '';
+      element.textContent = note;
+      element.hidden = note === '';
     } else if (role === 'action') {
       element.classList.toggle('btn-primary', data.available);
       element.classList.toggle('btn-outline-primary', !data.available);
+      // Nothing in circulation: the queue counts loanable copies and would
+      // refuse this request, so do not invite it (#426).
+      if (data.reservable === false) element.setAttribute('disabled', 'disabled');
+      else element.removeAttribute('disabled');
       var actionIcon = element.querySelector('i');
       if (actionIcon) actionIcon.className = 'fas fa-' + (data.available ? 'book-reader' : 'calendar-alt') + ' mr-2';
       var actionLabel = element.querySelector('[data-live-label]');

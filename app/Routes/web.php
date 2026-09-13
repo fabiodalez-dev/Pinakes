@@ -2068,7 +2068,7 @@ return function (App $app): void {
     $app->get('/api/books/{id:\\d+}/availability', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $bookId = (int) $args['id'];
-        $data = ['available' => false, 'copies_available' => 0, 'copies_total' => 0, 'next_due_date' => null, 'queue' => 0];
+        $data = ['available' => false, 'copies_available' => 0, 'copies_total' => 0, 'copies_owned' => 0, 'copies_out_of_circulation' => 0, 'next_due_date' => null, 'queue' => 0];
         // Copies info
         $stmt = $db->prepare("SELECT copie_disponibili, copie_totali FROM libri WHERE id = ? AND deleted_at IS NULL");
         $stmt->bind_param('i', $bookId);
@@ -2078,7 +2078,13 @@ return function (App $app): void {
         if ($row = $res->fetch_assoc()) {
             $bookFound = true;
             $data['copies_available'] = (int) ($row['copie_disponibili'] ?? 0);
+            // copies_total stays the lending capacity (copies in circulation);
+            // copies_owned is what the catalogue publishes, so a book whose only
+            // copy is under maintenance reads "0 / 1", not "0 / 0" (#426).
             $data['copies_total'] = (int) ($row['copie_totali'] ?? 0);
+            $holdings = \App\Support\CopyHoldings::forBook($db, $bookId);
+            $data['copies_owned'] = \App\Support\CopyHoldings::publishedTotal($holdings, $data['copies_total']);
+            $data['copies_out_of_circulation'] = $holdings['out'] ?? 0;
         }
         $stmt->close();
         if (!$bookFound) {

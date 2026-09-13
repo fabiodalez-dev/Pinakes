@@ -524,8 +524,13 @@ class FrontendController
                 ->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
         }
 
+        // Owned copies and the reason some are not circulating, so the hydrated
+        // counter says what the server-rendered one says (#426).
+        $holdingsById = \App\Support\CopyHoldings::forBooks($db, array_map('intval', array_keys($live)));
         $books = [];
         foreach ($live as $id => $row) {
+            $holdings = $holdingsById[(int) $id] ?? null;
+            $publishedTotal = \App\Support\CopyHoldings::publishedTotal($holdings, (int) $row['copie_totali']);
             $available = $row['copie_disponibili'] > 0;
             $state = $available ? 'available' : match ((string) $row['stato']) {
                 'prenotato' => 'reserved',
@@ -541,15 +546,28 @@ class FrontendController
             $books[(string) $id] = [
                 'available' => $available,
                 'copies_available' => $row['copie_disponibili'],
+                // copies_total keeps its meaning (copies in circulation, the
+                // lending capacity); copies_owned is what the page publishes.
                 'copies_total' => $row['copie_totali'],
+                'copies_owned' => $publishedTotal,
+                'copies_out_of_circulation' => $holdings['out'] ?? 0,
+                'count_label' => $row['copie_disponibili'] . ' / ' . $publishedTotal,
+                'count_note' => \App\Support\CopyHoldings::outOfCirculationNote($holdings) === ''
+                    ? ''
+                    : __('Copie non in circolazione') . ' — ' . \App\Support\CopyHoldings::outOfCirculationNote($holdings),
                 'state' => $state,
                 'label' => $label,
                 'detail_label' => $available
-                    ? ($row['copie_totali'] > 1
-                        ? $row['copie_disponibili'] . '/' . $row['copie_totali'] . ' ' . __('Disponibili')
+                    ? ($publishedTotal > 1
+                        ? $row['copie_disponibili'] . '/' . $publishedTotal . ' ' . __('Disponibili')
                         : __('Disponibile'))
                     : __('Non disponibile oggi'),
-                'action_label' => $available ? __('Richiedi Prestito') : __('Prenota Quando Disponibile'),
+                'reservable' => !($publishedTotal > 0 && (int) $row['copie_totali'] === 0),
+                'action_label' => $available
+                    ? __('Richiedi Prestito')
+                    : (($publishedTotal > 0 && (int) $row['copie_totali'] === 0)
+                        ? __('Momentaneamente non prenotabile')
+                        : __('Prenota Quando Disponibile')),
             ];
         }
 
@@ -769,6 +787,8 @@ class FrontendController
 
         // Render template
         $container = $this->container;
+        // What the library owns, separate from what it can lend today (#426).
+        $bookHoldings = \App\Support\CopyHoldings::forBook($db, (int) ($book['id'] ?? 0));
         ob_start();
         include __DIR__ . '/../Views/frontend/book-detail.php';
         $content = ob_get_clean();
