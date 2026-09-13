@@ -282,7 +282,7 @@ SQL;
     }
 
     /** Association never creates a holding. Null target detaches; create+associate is atomic. */
-    public function associate(array $revisions, int $testata, int $fascicolo = 0, string $newTitle = '', bool $reassign = false): int
+    public function associate(array $revisions, int $testata, int $fascicolo = 0, string $newTitle = '', bool $reassign = false, bool $detachIssues = false): int
     {
         if (!$revisions || count($revisions) > 500) {
             throw new \InvalidArgumentException(__('Seleziona da 1 a 500 articoli.'));
@@ -320,8 +320,14 @@ SQL;
                 if (!$reassign && $row['testata_id'] && (int)$row['testata_id'] !== $testata) {
                     throw new \InvalidArgumentException(__('Conferma la riassegnazione degli articoli già associati.'));
                 }
-                // Preserve an existing issue when associating again to its same masthead.
-                $issue = $fascicolo ?: ((int)$row['testata_id'] === $testata ? $row['fascicolo_id'] : null);
+                // Zero explicitly means masthead only, including when the host is
+                // unchanged — so it can drop an issue link the operator never
+                // meant to touch. Same guard as the reassignment above: on a
+                // batch of up to 500 the loss must be confirmed, not inferred.
+                if (!$fascicolo && $row['fascicolo_id'] && !$detachIssues) {
+                    throw new \InvalidArgumentException(__('Conferma la rimozione del collegamento al fascicolo per gli articoli già collocati.'));
+                }
+                $issue = $fascicolo ?: null;
                 if ((int)$row['testata_id'] === $testata && (int)$row['fascicolo_id'] === (int)$issue) {
                     continue;
                 }

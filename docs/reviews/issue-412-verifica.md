@@ -59,3 +59,18 @@ Altri controlli: PHPStan senza errori, build frontend completata, chiavi/placeho
 - Migrazione ripetibile, preferenza preservata, riparazione di colonne e chiavi esterne mancanti.
 
 La verifica riguarda questi flussi e le suite indicate; non equivale all'esecuzione indiscriminata di ogni suite del repository o al collaudo di un client Android esterno.
+
+
+## Correzioni successive alla review del 13 settembre 2026
+
+- L'import CSV rileva i duplicati anche nello stesso batch e ricontrolla la citazione al commit. Un lock per database serializza gli import concorrenti: viene preso una volta per l'intero batch, perché prenderlo a ogni riga moltiplicava l'attesa per il numero di righe (misurate 50 s per cinque righe, oltre un'ora sul massimo di 500) e l'import moriva sul tempo massimo di esecuzione invece di dire che un altro import è in corso.
+- «Solo testata» rimuove il collegamento precedente al fascicolo, previa conferma esplicita nell'anteprima (su una selezione fino a 500 articoli la perdita non può essere dedotta); senza la spunta non viene scritto nulla. Ripetere la medesima destinazione completa resta idempotente.
+- Le esportazioni grandi vengono consegnate in uno ZIP con CSV numerati, ciascuno entro 500 record e 5 MB. I piccoli export rimangono CSV singoli.
+- Le API mobile degli autonomi includono `pdf_url`, nullo per documenti non pubblici; la revoca cambia anche l'ETag.
+- Il confronto dei duplicati dentro il file ignora gli accenti come la collazione della colonna: prima li distingueva, quindi una variante accentata passava l'anteprima e veniva respinta solo al commit.
+- Il campo «Tipo Media» della scheda libro — il punto da cui parte la issue — indica ora dove va un articolo: collegamento al modulo articolo se il plugin è attivo, alla pagina Plugins se è installato ma spento, nulla se non è installato. Disinstallare il plugin cancella la sua riga, le sue impostazioni e la sua cartella, ma non le tabelle: gli articoli catalogati restano e tornano visibili alla riattivazione.
+- Suite PHP aggiornata: **112 controlli passati**. Inclusi ZIP realmente scaricabile, importabilità delle parti, duplicati (accenti compresi), revoca del PDF, import conteso da una seconda connessione e conferma richiesta per staccare i fascicoli.
+- Client Android aggiornato nel repository `pinakes-android`, branch `fix/emeroteca-standalone-articles-412`: discovery compatibile, lista/ricerca/paginazione, filtro per testata, dettaglio bibliografico, collegamenti e PDF pubblico. Le interfacce dei server precedenti rimangono disponibili.
+- Android: **166 test passati**, `assembleDebug` e `lintDebug` completati; Lint riporta zero errori. Controllo visivo delle schermate su emulatore con dati sintetici della issue, anche in italiano con caratteri al 130%. I componenti temporanei di anteprima sono stati rimossi prima della build definitiva.
+
+Non sono stati pubblicati release, APK su store, commit o commenti GitHub durante questa correzione.

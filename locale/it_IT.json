@@ -7618,7 +7618,13 @@
   "Tipo di record non supportato.": "Tipo di record non supportato.",
   "Titolo della pubblicazione": "Titolo della pubblicazione",
   "Tutte": "Tutte",
+  "Un altro import di articoli è in corso. Riprova tra qualche istante.": "Un altro import di articoli è in corso. Riprova tra qualche istante.",
+  "Conferma la rimozione del collegamento al fascicolo per gli articoli già collocati.": "Conferma la rimozione del collegamento al fascicolo per gli articoli già collocati.",
+  "Confermo la rimozione del collegamento al fascicolo per gli articoli già collocati.": "Confermo la rimozione del collegamento al fascicolo per gli articoli già collocati.",
+  "Esporta articoli": "Esporta articoli",
+  "Per un articolo di rivista o di giornale usa l’Emeroteca.": "Per un articolo di rivista o di giornale usa l’Emeroteca.",
   "Valore non valido.": "Valore non valido.",
   "Valore troppo lungo.": "Valore troppo lungo.",
-  "Verifica": "Verifica"
+  "Verifica": "Verifica",
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente."
 }

@@ -9,6 +9,9 @@ require_once __DIR__ . '/ContributionService.php';
 /** CSV preview is a bounded snapshot; commit rechecks the revision of every row. */
 final class ContributionCsv
 {
+    public const MAX_ROWS = 500;
+    public const MAX_BYTES = 5 * 1024 * 1024;
+
     /** @param ContributionService $service used for both lookups during preview and the actual save in commit() */
     public function __construct(private ContributionService $service)
     {
@@ -27,7 +30,7 @@ final class ContributionCsv
      */
     public function preview(string $csv): array
     {
-        if (strlen($csv) > 5 * 1024 * 1024) {
+        if (strlen($csv) > self::MAX_BYTES) {
             throw new \InvalidArgumentException(__('Il CSV supera 5 MB.'));
         }
         if (!mb_check_encoding($csv, 'UTF-8')) {
@@ -54,13 +57,15 @@ final class ContributionCsv
         }
         $out = [];
         $seen = [];
+        $citations = [];
+        $dois = [];
         $line = 1;
         while (($row = fgetcsv($stream, 0, ',', '"', '')) !== false) {
             ++$line;
             if ($row === [null]) {
                 continue;
             }
-            if (count($out) >= 500) {
+            if (count($out) >= self::MAX_ROWS) {
                 fclose($stream);
                 throw new \InvalidArgumentException(__('Importa al massimo 500 articoli alla volta.'));
             }
@@ -100,10 +105,13 @@ final class ContributionCsv
                 $merged = array_replace($existing ?? [], $data);
                 $item['data'] = array_replace($merged, ContributionService::normalize($merged));
                 if (!$existing) {
-                    $candidates = $this->service->rows('SELECT id FROM emeroteca_contributi WHERE titolo=? AND COALESCE(autori,\'\')=? AND COALESCE(contenitore_titolo,\'\')=? AND COALESCE(volume,\'\')=? AND COALESCE(numero,\'\')=? AND COALESCE(pagine,\'\')=? LIMIT 1', [$item['data']['titolo'],$item['data']['autori'] ?? '',$item['data']['contenitore_titolo'] ?? '',$item['data']['volume'] ?? '',$item['data']['numero'] ?? '',$item['data']['pagine'] ?? '']);
-                    if ($candidates || (!empty($item['data']['doi']) && $this->service->rows('SELECT id FROM emeroteca_contributi WHERE doi=? LIMIT 1', [$item['data']['doi']]))) {
-                        $item['error'] = __('Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.');
+                    $citation = self::citationKey($item['data']);
+                    $doi = $item['data']['doi'] ?? '';
+                    if ($this->hasDuplicate($item['data']) || isset($citations[$citation]) || ($doi !== '' && isset($dois[$doi]))) {
+                        $item['error'] = self::duplicateMessage();
                     }
+                    $citations[$citation] = true;
+                    if ($doi !== '') { $dois[$doi] = true; }
                 }
                 if (empty($item['data']['contenitore_titolo'])) {
                     $item['warning'] = __('Citazione incompleta: pubblicazione non indicata.');
@@ -126,22 +134,118 @@ final class ContributionCsv
      */
     public function commit(array $preview): array
     {
-        $report = [];
-        foreach ($preview as $row) {
-            if ($row['error']) {
-                $report[] = ['line' => $row['line'],'error' => $row['error']];
-                continue;
-            }
-            try {
-                // A retry/new concurrent import with the same identity is never overwritten.
-                $id = $this->service->save($row['data'], (int)$row['id'], $row['revision']);
-                $report[] = ['line' => $row['line'],'id' => $id,'error' => null];
-            } catch (\Throwable $e) {
-                $report[] = ['line' => $row['line'],'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Importazione non riuscita. Verifica identificatore e dati.')];
-            }
+        // One lock for the whole batch, not one per row: waiting per row
+        // multiplies the timeout by the number of rows, so a contended import of
+        // 500 rows would hold the request for well over an hour and be killed by
+        // max_execution_time instead of reporting that another import is running.
+        $lock = $this->lockName();
+        if ((int)($this->service->rows('SELECT GET_LOCK(?, 10) acquired', [$lock])[0]['acquired'] ?? 0) !== 1) {
+            throw new \InvalidArgumentException(__('Un altro import di articoli è in corso. Riprova tra qualche istante.'));
         }
-        return $report;
+        try {
+            $report = [];
+            foreach ($preview as $row) {
+                if ($row['error']) {
+                    $report[] = ['line' => $row['line'],'error' => $row['error']];
+                    continue;
+                }
+                try {
+                    // A retry/new concurrent import with the same identity is never overwritten.
+                    $id = $this->saveImportRow($row);
+                    $report[] = ['line' => $row['line'],'id' => $id,'error' => null];
+                } catch (\Throwable $e) {
+                    $report[] = ['line' => $row['line'],'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Importazione non riuscita. Verifica identificatore e dati.')];
+                }
+            }
+            return $report;
+        } finally {
+            $this->service->rows('SELECT RELEASE_LOCK(?)', [$lock]);
+        }
     }
+    private static function duplicateMessage(): string
+    {
+        return __('Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.');
+    }
+
+    /**
+     * The identity the in-batch duplicate check compares.
+     *
+     * Folded the way the column collation (utf8mb4_unicode_ci) compares, so a
+     * batch flags exactly what the commit-time query would: case AND accents are
+     * ignored. Comparing case alone let «Città» and «Citta» through the preview
+     * only to be refused at commit — the right outcome reported at the wrong
+     * moment. Without ext-intl the fold stops at case, which is what the check
+     * did before, so a missing extension can only report later, never wronger.
+     */
+    private static function citationKey(array $data): string
+    {
+        $fold = static function (string $value): string {
+            $value = mb_strtolower($value);
+            if (class_exists('\Normalizer')) {
+                $decomposed = \Normalizer::normalize($value, \Normalizer::FORM_D);
+                if (is_string($decomposed)) {
+                    $value = preg_replace('/\p{Mn}+/u', '', $decomposed) ?? $value;
+                }
+            }
+            return $value;
+        };
+        return json_encode(array_map(static fn($key) => $fold((string)($data[$key] ?? '')), ['titolo','autori','contenitore_titolo','volume','numero','pagine']), JSON_THROW_ON_ERROR);
+    }
+
+    private function hasDuplicate(array $data): bool
+    {
+        $matches = $this->service->rows("SELECT id FROM emeroteca_contributi WHERE titolo=? AND COALESCE(autori,'')=? AND COALESCE(contenitore_titolo,'')=? AND COALESCE(volume,'')=? AND COALESCE(numero,'')=? AND COALESCE(pagine,'')=? LIMIT 1", array_map(static fn($key) => $data[$key] ?? '', ['titolo','autori','contenitore_titolo','volume','numero','pagine']));
+        return $matches !== [] || (!empty($data['doi']) && $this->service->rows('SELECT id FROM emeroteca_contributi WHERE doi=? LIMIT 1', [$data['doi']]) !== []);
+    }
+
+    /** The named lock commit() holds: one per database, so two imports never interleave. */
+    private function lockName(): string
+    {
+        $database = $this->service->rows('SELECT DATABASE() name')[0]['name'];
+        return 'emeroteca_csv_' . substr(hash('sha256', (string)$database), 0, 40);
+    }
+
+    /** Runs under the commit() lock, so this recheck cannot race another import. */
+    private function saveImportRow(array $row): int
+    {
+        if (!$row['id'] && $this->hasDuplicate($row['data'])) {
+            throw new \InvalidArgumentException(self::duplicateMessage());
+        }
+        return $this->service->save($row['data'], (int)$row['id'], $row['revision']);
+    }
+
+    /** CSV files bounded by the same row and byte limits as preview(), including their header. */
+    public function exportParts(): \Generator
+    {
+        $encode = static function(array $cells): string {
+            $fp = fopen('php://temp', 'w+');
+            try {
+                fputcsv($fp, $cells, ',', '"', '');
+                rewind($fp);
+                return stream_get_contents($fp);
+            } finally { fclose($fp); }
+        };
+        $header = $encode(ContributionService::CSV_HEADER);
+        $part = $header;
+        $count = 0;
+        $cursor = 0;
+        do {
+            $rows = $this->service->rows('SELECT * FROM emeroteca_contributi WHERE id>? ORDER BY id LIMIT 500', [$cursor]);
+            foreach ($rows as $row) {
+                $line = $encode([self::recordTypeFor((string)($row['contenitore_tipo'] ?? '')), ...array_map(static fn($key) => $row[$key] ?? '', ContributionService::CSV_FIELDS)]);
+                if ($count >= self::MAX_ROWS || strlen($part) + strlen($line) > self::MAX_BYTES) {
+                    yield $part;
+                    $part = $header;
+                    $count = 0;
+                }
+                $part .= $line;
+                $count++;
+                $cursor = (int)$row['id'];
+            }
+        } while (count($rows) === 500);
+        yield $part;
+    }
+
     /** The record_type a row should declare, mirroring the importer's own mapping. */
     private static function recordTypeFor(string $containerType): string
     {
@@ -153,33 +257,17 @@ final class ContributionCsv
     }
 
     /**
-     * Dump every contribution as CSV (machine round-trip format: literal cells, not meant to be
-     * opened as a spreadsheet), keyset-paginated by id in batches of 500 so the whole table
-     * never has to be held in memory at once. record_type is derived from contenitore_tipo, not
-     * stored, and is what makes the file distinguishable from a book-catalog CSV on re-import.
+     * Combined CSV for programmatic callers. The download controller uses exportParts()
+     * so large collections produce import-sized files. Literal cells preserve round-trip
+     * values; record_type distinguishes articles from book imports.
      */
     public function export(): string
     {
-        $fp = fopen('php://temp', 'w+');
-        // Machine round-trip CSV: preserve literal cells; do not use as a spreadsheet.
-        fputcsv($fp, ContributionService::CSV_HEADER, ',', '"', '');
-        $cursor = 0;
-        do {
-            $rows = $this->service->rows('SELECT * FROM emeroteca_contributi WHERE id>? ORDER BY id LIMIT 500', [$cursor]);
-            foreach ($rows as $row) {
-                // record_type round-trips the publication type AND is what makes
-                // this file refusable by the book importer. Derived, not stored.
-                $cells = [self::recordTypeFor((string)($row['contenitore_tipo'] ?? ''))];
-                foreach (ContributionService::CSV_FIELDS as $key) {
-                    $cells[] = $row[$key] ?? '';
-                }
-                fputcsv($fp, $cells, ',', '"', '');
-                $cursor = (int)$row['id'];
-            }
-        } while (count($rows) === 500);
-        rewind($fp);
-        $csv = stream_get_contents($fp);
-        fclose($fp);
+        $csv = '';
+        foreach ($this->exportParts() as $index => $part) {
+            // Every part starts with the same single-line header.
+            $csv .= $index === 0 ? $part : substr($part, strpos($part, "\n") + 1);
+        }
         return $csv;
     }
 }

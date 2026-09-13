@@ -43,6 +43,8 @@ journal_article,Intertextuality in Daniel Kehlmann's Novel Tyll,"Schweissinger, 
 
 Accepted aliases include `title`, `authors`, `container_title`, `journal_title`, `date`, `year`, `issue`, and `pages`. Header case and separators do not matter. `record_type` (alias `media_type`) accepts `article`, `articolo`, `journal_article`, or `newspaper_article`; it leads the template and the export because it is also what lets the book importer refuse a file of articles — omit it and that guard has nothing to read. The last two also identify the publication type. Unknown types or columns are reported instead of discarded. Article records sent to the book importer are explicitly rejected with directions to Emeroteca.
 
+Exports exceeding 500 rows or 5 MB download as a ZIP of numbered CSV files. Extract and import each CSV separately; every part includes its header and fits the same import limits. Duplicate citations and DOI values are checked within the batch and again at commit, with imports serialized per database.
+
 The export is a machine round-trip format: spreadsheet applications should import all columns as text. PDFs are uploaded separately; import never downloads arbitrary remote URLs. Associations to local mastheads can be applied in bulk after import. KBART/ACNP continue to describe actual serial holdings and do not count standalone articles as held issues.
 
 ## Mobile API
@@ -53,10 +55,12 @@ When both Emeroteca and Mobile API are active:
 - `GET /api/v1/periodicals/articles` lists public standalone articles with `q`, `testata_id`, `limit` (maximum 50) and `cursor` filters. Use `meta.next_cursor` for the next page.
 - `GET /api/v1/periodicals/articles/{id}` returns a public article or 404. Private records are never exposed.
 
-The routes use the existing bearer authentication, quota and response envelope. Lists and details support ETag/304. `kind` is `autonomo`; `has_public_pdf` indicates a public document at `/emeroteca/articolo/{id}/pdf`. Existing issue API responses are unchanged. Android must implement the new endpoints to display standalone articles; its previous issue browser continues to work.
+The routes use the existing bearer authentication, quota and response envelope. Lists and details support ETag/304. `kind` is `autonomo`; `has_public_pdf` indicates a public document. `pdf_url` supplies its absolute public streaming URL (including the installation subdirectory), or null when unavailable. Clients must not construct storage paths. Existing issue API responses are unchanged. Android must implement the new endpoints to display standalone articles; its previous issue browser continues to work.
 
 ## Upgrade and verification
 
 Pinakes 0.7.84 includes `migrate_0.7.84.sql`, which preserves the workflow for existing plugin registrations. The plugin owns the table creation and repair in `ensureSchema()`, called at installation/activation and by the bundled-plugin schema recovery mechanism. The migration does not alter `libri.tipo_media` or existing holdings.
 
 Tests: `tests/emeroteca-412.unit.php` (real services, disposable MySQL tables), `tests/migration-0.7.84.unit.php` (migration-gate entry point), `tests/emeroteca-412.spec.js` (browser workflow), and `tests/emeroteca-412-upgrade.spec.js` (dedicated disposable fresh/upgrade instance). Existing Emeroteca admin, integration, export, interoperability and full application regression suites remain applicable.
+
+Choosing **Publication only** for an already associated article removes its issue link while retaining the masthead. Because a bulk selection can hold up to 500 articles, the preview asks to confirm that removal explicitly, the same way it asks before reassigning articles that already belong to another masthead; without the confirmation nothing is written. Repeating the same complete destination is idempotent.

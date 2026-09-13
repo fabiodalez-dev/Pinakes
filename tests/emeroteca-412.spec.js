@@ -148,6 +148,32 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await expect(page.locator('#target-issue option').nth(1)).toHaveText('2019 · 7 · 1');
     await page.locator('#target-host').selectOption('0');
     await expect(page.locator('#target-issue option')).toHaveCount(1);
+    // Associating to the masthead alone drops any issue link the articles
+    // already had. On a batch of up to 500 that is a loss nobody would notice,
+    // so it is confirmed like a reassignment instead of being inferred.
+    // The export delivers a ZIP of CSV parts once the collection outgrows one
+    // file, so the button no longer promises a single CSV.
+    await expect(page.getByRole('link',{name:'Esporta articoli'})).toBeVisible();
+    const issueOf=()=>db(`SELECT COALESCE(fascicolo_id,0) FROM emeroteca_contributi WHERE id=${articleId}`);
+    await page.locator(`[name="ids[]"][value="${articleId}"]`).check();
+    await page.locator('#target-host').selectOption(String(testataId));
+    await expect(page.locator('#target-issue option')).toHaveCount(2);
+    await page.locator('#target-issue').selectOption({label:'2019 · 7 · 1'});
+    await page.getByRole('button',{name:'Anteprima associazione'}).click();
+    await page.getByRole('button',{name:'Conferma associazione'}).click();
+    expect(Number(issueOf())).toBeGreaterThan(0);
+    await page.goto(BASE+'/admin/periodicals/articles');
+    await page.locator(`[name="ids[]"][value="${articleId}"]`).check();
+    await page.getByText('Associa gli articoli selezionati a una testata',{exact:true}).click();
+    await page.locator('#target-host').selectOption(String(testataId));
+    await page.getByRole('button',{name:'Anteprima associazione'}).click();
+    await page.getByRole('button',{name:'Conferma associazione'}).click();
+    await expect(page.getByText('Conferma la rimozione del collegamento al fascicolo per gli articoli già collocati.')).toBeVisible();
+    expect(Number(issueOf()),'the refused batch keeps the issue link').toBeGreaterThan(0);
+    await page.locator('[name=detach_issues]').check();
+    await page.getByRole('button',{name:'Conferma associazione'}).click();
+    expect(issueOf(),'confirmed detach removes the issue link').toBe('0');
+    expect(Number(db(`SELECT testata_id FROM emeroteca_contributi WHERE id=${articleId}`)),'the masthead survives the detach').toBe(testataId);
     await publicPage.goto(BASE+`/emeroteca/${testataId}`);await expect(publicPage.getByRole('link',{name:marker+' Tyll'})).toBeVisible();
     // The chooser is radio rows now (the plugin's emt-choice pattern, shared by
     // the mastheads list, the articles list and the plugin settings page) and it
@@ -173,6 +199,11 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
     fs.mkdirSync('output/playwright',{recursive:true});await page.screenshot({path:'output/playwright/emeroteca-412-form-mobile.png',fullPage:true});
     await page.setViewportSize({width:1440,height:1000});await page.reload();await page.screenshot({path:'output/playwright/emeroteca-412-form-desktop.png',fullPage:true});
+    // #412 begins at the book form's Tipo Media list, which has no article
+    // type: with the plugin active, that list now says where an article goes.
+    await page.goto(BASE+'/admin/books/create');
+    await expect(page.getByText('Per un articolo di rivista o di giornale usa l’Emeroteca.')).toBeVisible();
+    await expect(page.locator('a[href$="/admin/periodicals/articles/create"]')).toBeVisible();
     expect(errors).toEqual([]);await anonymous.close();
   });
 });

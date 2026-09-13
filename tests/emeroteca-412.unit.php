@@ -117,6 +117,16 @@ try {
     $holdings=EmerotecaPlugin::consistenzaTestata($db,$title);
     $svc->associate([$id=>$revision],$title,$issue);
     check412(EmerotecaPlugin::consistenzaTestata($db,$title)===$holdings,'article association never changes holdings');
+    $rev=(int)$svc->get($id)['revision'];
+    $svc->associate([$id=>$rev],$title,$issue);
+    check412((int)$svc->get($id)['revision']===$rev,'repeating a complete association is idempotent');
+    rejects412(fn()=>$svc->associate([$id=>$rev],$title,0),'masthead only refuses to drop an existing issue link unconfirmed');
+    check412((int)$svc->get($id)['fascicolo_id']===$issue,'the refused batch leaves the issue link untouched');
+    $svc->associate([$id=>$rev],$title,0,'',false,true);
+    check412($svc->get($id)['fascicolo_id']===null && (int)$svc->get($id)['testata_id']===$title,'masthead only removes the previous issue once confirmed');
+    $svc->associate([$id=>(int)$svc->get($id)['revision']],$title,0);
+    check412($svc->get($id)['fascicolo_id']===null,'an article with no issue link needs no confirmation');
+    $svc->associate([$id=>(int)$svc->get($id)['revision']],$title,$issue);
     $svc->rows('DELETE FROM emeroteca_fascicoli WHERE id=?',[$issue]);
     check412($svc->get($id)['fascicolo_id']===null && (int)$svc->get($id)['testata_id']===$title,'issue deletion preserves article and masthead association');
     $svc->rows('DELETE FROM emeroteca_testate WHERE id=?',[$title]);
@@ -175,6 +185,16 @@ try {
     check412(!str_contains((string)$response->getBody(),'Secret notes'),'mobile list excludes private notes');
     $cached=$mobile->articles($request->withHeader('If-None-Match',$response->getHeaderLine('ETag')),new \Slim\Psr7\Response());
     check412($cached->getStatusCode()===304,'mobile ETag supports conditional requests');
+    check412(array_key_exists('pdf_url',$payload['data'][0]) && $payload['data'][0]['pdf_url']===null,'mobile private PDF has no public URL');
+    $svc->rows("UPDATE emeroteca_contributi SET pdf_path=?,pdf_pubblico=1 WHERE id=?",[str_repeat('a',40).'.pdf',$id]);
+    $pdfResponse=$mobile->articles($request,new \Slim\Psr7\Response(),$id);
+    $pdfData=json_decode((string)$pdfResponse->getBody(),true)['data'];
+    check412($pdfData['has_public_pdf']===true && $pdfData['pdf_url']===absoluteUrl('/emeroteca/articolo/'.$id.'/pdf'),'mobile public PDF uses the server-resolved route');
+    check412(!str_contains((string)$pdfResponse->getBody(),str_repeat('a',40)),'mobile PDF never exposes the storage filename');
+    $svc->rows('UPDATE emeroteca_contributi SET pdf_pubblico=0 WHERE id=?',[$id]);
+    $withdrawn=$mobile->articles($request,new \Slim\Psr7\Response(),$id);
+    check412(json_decode((string)$withdrawn->getBody(),true)['data']['pdf_url']===null && $withdrawn->getHeaderLine('ETag')!==$pdfResponse->getHeaderLine('ETag'),'withdrawing PDF clears its URL and invalidates the mobile ETag');
+
     check412($mobile->articles($request,new \Slim\Psr7\Response(),$private)->getStatusCode()===404,'mobile private detail returns 404');
     check412($mobile->articles($request->withQueryParams(['cursor'=>'bad']),new \Slim\Psr7\Response())->getStatusCode()===400,'malformed cursor rejected');
     for($i=0;$i<52;$i++) { $svc->save(['titolo'=>'Page article '.$i,'pubblico'=>1]); }
@@ -214,6 +234,74 @@ try {
     $schema=$plugin->ensureSchema();
     check412($schema['failed']===[],'interrupted schema upgrade repairs missing foreign key');
     check412($plugin->ensureSchema()['failed']===[],'repeated plugin upgrade is idempotent');
+
+    $batch=$csv->preview("titolo,autori,contenitore_titolo\nBatch duplicate,Author,Journal\nBatch duplicate,Author,Journal\n");
+    check412($batch[0]['error']===null && $batch[1]['error']!==null,'preview flags duplicate citations inside the uploaded batch');
+    $committed=$csv->commit($batch);
+    check412(count(array_filter($committed,fn($r)=>$r['error']===null))===1,'a duplicate batch creates only one article');
+    $batch=$csv->preview("titolo,doi\nDOI first,10.1234/BATCH\nDOI second,https://doi.org/10.1234/batch\n");
+    check412($batch[1]['error']!==null,'normalized DOI detects duplicates within the batch');
+    // utf8mb4_unicode_ci ignores accents, so the batch check must too: otherwise
+    // the preview passes a row the commit then refuses — right answer, wrong moment.
+    $batch=$csv->preview("titolo,contenitore_titolo\nCitta e memoria,Journal\nCittà e memoria,Journal\n");
+    check412($batch[0]['error']===null && $batch[1]['error']!==null,'accents fold in the batch check as they do in the database');
+    check412(count(array_filter($csv->commit($batch),fn($r)=>$r['error']===null))===1,'only one of the two accent variants is stored');
+    $first=$csv->preview("titolo\nConcurrent import citation\n");
+    $second=$csv->preview("titolo\nConcurrent import citation\n");
+    check412($csv->commit($first)[0]['error']===null && $csv->commit($second)[0]['error']!==null,'commit rechecks a citation inserted after its preview');
+    // A second connection holding the import lock must cost ONE wait for the
+    // whole batch. Taking the lock per row multiplied the 10 s timeout by the
+    // row count: measured 50 s for five rows, so a 500-row import would sit for
+    // over an hour and die on max_execution_time instead of saying it is busy.
+    $blocker=new mysqli($env['DB_HOST']??'localhost',getenv('E2E_DB_USER')?:$env['DB_USER'],getenv('E2E_DB_PASS')?:($env['DB_PASS']??$env['DB_PASSWORD']),getenv('E2E_DB_NAME')?:$env['DB_NAME'],(int)($env['DB_PORT']??3306),getenv('E2E_DB_SOCKET')?:($env['DB_SOCKET']??null));
+    $lockName='emeroteca_csv_'.substr(hash('sha256',(string)$db->query('SELECT DATABASE() n')->fetch_row()[0]),0,40);
+    $blocker->query("SELECT GET_LOCK('".$blocker->real_escape_string($lockName)."', 5)");
+    $contended=$csv->preview("titolo\nBusy one\nBusy two\nBusy three\n");
+    $start=microtime(true); $busy=null;
+    try { $csv->commit($contended); } catch (InvalidArgumentException $e) { $busy=$e->getMessage(); }
+    $waited=microtime(true)-$start;
+    check412($busy!==null && $waited<20,'a contended import waits once for the batch, not once per row');
+    check412((int)$svc->rows("SELECT COUNT(*) n FROM emeroteca_contributi WHERE titolo LIKE 'Busy %'")[0]['n']===0,'a contended import writes nothing at all');
+    $blocker->query("SELECT RELEASE_LOCK('".$blocker->real_escape_string($lockName)."')"); $blocker->close();
+    check412(count(array_filter($csv->commit($contended),fn($r)=>$r['error']===null))===3,'the same batch imports once the lock is free');
+    $parts=iterator_to_array($csv->exportParts());
+    check412(count($parts)===1 && count($csv->preview($parts[0]))>0,'small exports remain a single reimportable CSV');
+    for($i=0;$i<501;$i++) { $svc->save(['titolo'=>'Export batch '.$i,'abstract'=>str_repeat('a',10000),'note_private'=>str_repeat('n',10000)]); }
+    $parts=iterator_to_array($csv->exportParts()); $exportCount=0;
+    check412(count($parts)>1 && count($csv->preview($parts[0]))<500,'large exports split on byte size as well as row count');
+    foreach($parts as $part) {
+        $parsed=$csv->preview($part); $exportCount+=count($parsed);
+        check412(strlen($part)<=ContributionCsv::MAX_BYTES && count($parsed)<=ContributionCsv::MAX_ROWS && !array_filter($parsed,fn($r)=>$r['error']!==null),'each exported part fits import limits and previews successfully');
+    }
+    check412($exportCount===(int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_contributi')[0]['n'],'split export contains every article exactly once');
+    $_SESSION=['user'=>['tipo_utente'=>'admin']];
+    $download=$controller->export($request,new \Slim\Psr7\Response());
+    check412($download->getHeaderLine('Content-Type')==='application/zip','large export endpoint downloads a ZIP');
+    $zipPath=tempnam(sys_get_temp_dir(),'test412_zip_');
+    try {
+        file_put_contents($zipPath,(string)$download->getBody()); $zip=new ZipArchive();
+        check412($zip->open($zipPath)===true && $zip->numFiles===count($parts),'downloaded ZIP contains all reimportable parts');
+        $zip->close();
+    } finally { unlink($zipPath); }
+    // The book form's Tipo Media hint (#412: that dropdown is where a
+    // cataloguer with one article looks first). Three states, because a link to
+    // a plugin that is not there is worse than no hint at all.
+    $hint=\App\Support\PeriodicalArticlesHint::class;
+    // The disposable plugins table is minimal; the hint reads is_active.
+    $db->query('ALTER TABLE plugins ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 0');
+    $db->query("UPDATE plugins SET is_active=1 WHERE name='emeroteca'");
+    check412($hint::state($db)===$hint::ACTIVE,'active plugin: the book form points at the article form');
+    $db->query("UPDATE plugins SET is_active=0 WHERE name='emeroteca'");
+    check412($hint::state($db)===$hint::INACTIVE,'installed but off: the book form points at Plugins');
+    $db->query("DELETE FROM plugins WHERE name='emeroteca'");
+    check412($hint::state($db)===$hint::ABSENT,'uninstalled plugin: no hint, no dead link');
+    $db->query("INSERT INTO plugins (id,name,is_active) VALUES (1,'emeroteca',1)");
+    check412($hint::state($db,sys_get_temp_dir().'/pinakes-no-plugins-'.bin2hex(random_bytes(4)))===$hint::ABSENT,'a row without its plugin directory is treated as absent');
+    check412($hint::state(null)===$hint::ABSENT,'no database connection: the book form still renders');
+    // Uninstalling removes the plugin, never the catalogued articles.
+    $before=(int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_contributi')[0]['n'];
+    (new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->onUninstall();
+    check412($before>0 && (int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_contributi')[0]['n']===$before,'uninstalling the plugin keeps the standalone articles');
     echo "SUCCESS $n behavioural checks\n";
 } finally {
     foreach(['emeroteca_contributi','emeroteca_articoli','emeroteca_abbonamenti','emeroteca_fascicoli','emeroteca_annate','emeroteca_testate','plugin_hooks','plugin_settings','plugins'] as $t) { $db->query('DROP TABLE IF EXISTS '.$t); }

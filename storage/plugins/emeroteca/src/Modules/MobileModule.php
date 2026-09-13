@@ -670,7 +670,7 @@ final class MobileModule
             if ($id) {
                 $r=$service->get($id,true);
                 if (!$r) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'not_found',__('Articolo non trovato.'),404); }
-                $items=\App\Plugins\Emeroteca\Services\ContributionService::publicData($r); $meta=[];
+                $items=$this->mapContribution($r); $meta=[];
             } else {
                 $cursor=(string)($q['cursor']??'');
                 if ($cursor!=='' && (!ctype_digit($cursor) || strlen($cursor)>10)) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'invalid_cursor',__('Cursore non valido.'),400); }
@@ -683,7 +683,7 @@ final class MobileModule
                 }
                 $rows=$service->rows('SELECT * FROM emeroteca_contributi WHERE '.$where.' ORDER BY id LIMIT '.($limit+1),$params);
                 $more=count($rows)>$limit; if ($more) { array_pop($rows); }
-                $items=array_map([\App\Plugins\Emeroteca\Services\ContributionService::class,'publicData'],$rows);
+                $items=array_map($this->mapContribution(...),$rows);
                 $meta=['next_cursor'=>$more?(string)end($rows)['id']:null,'limit'=>$limit];
             }
             $etag=$this->payloadEtag('standalone-articles',[$items,$meta]);
@@ -693,6 +693,16 @@ final class MobileModule
             SecureLogger::error('[Emeroteca:mobile] articles: '.$e->getMessage());
             return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'internal_error',__('Articoli non disponibili.'),500);
         }
+    }
+
+    /** Public article projection, including a server-resolved public PDF URL for clients. */
+    private function mapContribution(array $row): array
+    {
+        $data = \App\Plugins\Emeroteca\Services\ContributionService::publicData($row);
+        $data['pdf_url'] = $data['has_public_pdf']
+            ? absoluteUrl('/emeroteca/articolo/' . (int)$row['id'] . '/pdf')
+            : null;
+        return $data;
     }
 
     /**

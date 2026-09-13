@@ -7618,7 +7618,13 @@
   "Tipo di record non supportato.": "Unsupported record type.",
   "Titolo della pubblicazione": "Publication title",
   "Tutte": "All",
+  "Un altro import di articoli è in corso. Riprova tra qualche istante.": "Another article import is running. Try again shortly.",
+  "Conferma la rimozione del collegamento al fascicolo per gli articoli già collocati.": "Confirm removing the issue link from articles that already have one.",
+  "Confermo la rimozione del collegamento al fascicolo per gli articoli già collocati.": "I confirm removing the issue link from articles that already have one.",
+  "Esporta articoli": "Export articles",
+  "Per un articolo di rivista o di giornale usa l’Emeroteca.": "For a journal or newspaper article, use the Emeroteca.",
   "Valore non valido.": "Invalid value.",
   "Valore troppo lungo.": "Value too long.",
-  "Verifica": "Check"
+  "Verifica": "Check",
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Large exports contain multiple CSV files in a ZIP. Extract and import each CSV separately."
 }

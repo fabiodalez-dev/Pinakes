@@ -228,7 +228,7 @@ final class ContributionController extends AbstractAdminController
                 // stale-revision rejection cannot repeat on the same data.
                 unset($_SESSION['emeroteca_associate'][$token]);
                 try {
-                    $target = $this->service()->associate($pending['revisions'], $pending['testata'], $pending['fascicolo'], $pending['new_title'], !empty($b['reassign']));
+                    $target = $this->service()->associate($pending['revisions'], $pending['testata'], $pending['fascicolo'], $pending['new_title'], !empty($b['reassign']), !empty($b['detach_issues']));
                 } catch (\InvalidArgumentException $e) {
                     $this->flashError($e->getMessage());
                     return $this->associatePreview($rs, array_keys($pending['revisions']), (int)$pending['testata'], (string)$pending['new_title'], (int)$pending['fascicolo']);
@@ -346,7 +346,7 @@ final class ContributionController extends AbstractAdminController
                 return $this->renderView($rs, 'article-import', ['preview' => null,'report' => $csv->commit($pending['rows'])]);
             }
             $file = $rq->getUploadedFiles()['csv'] ?? null;
-            if (!$file || $file->getError() !== UPLOAD_ERR_OK || $file->getSize() > 5 * 1024 * 1024) {
+            if (!$file || $file->getError() !== UPLOAD_ERR_OK || $file->getSize() > ContributionCsv::MAX_BYTES) {
                 throw new \InvalidArgumentException(__('Carica un CSV fino a 5 MB.'));
             }
             $preview = $csv->preview((string)$file->getStream());
@@ -364,7 +364,7 @@ final class ContributionController extends AbstractAdminController
         }
     }
     /**
-     * Stream the contributions CSV export, or just the header row when ?template=1 is
+     * Stream a CSV export (or a ZIP of import-sized CSV parts), or the header when ?template=1 is
      * requested. Admin-only (403 otherwise): the export carries note_private and
      * collocazione even for unpublished rows.
      */
@@ -377,7 +377,41 @@ final class ContributionController extends AbstractAdminController
         if (($rq->getQueryParams()['template'] ?? '') === '1') {
             $rs->getBody()->write(implode(',', ContributionService::CSV_HEADER)."\n");
         } else {
-            $rs->getBody()->write((new ContributionCsv($this->service()))->export());
+            $parts = (new ContributionCsv($this->service()))->exportParts();
+            $first = $parts->current();
+            $parts->next();
+            if (!$parts->valid()) {
+                $rs->getBody()->write($first);
+            } else {
+                $path = tempnam(sys_get_temp_dir(), 'emeroteca_csv_');
+                if ($path === false) { throw new \RuntimeException('Export temporary file unavailable'); }
+                $zip = new \ZipArchive();
+                try {
+                    if ($zip->open($path, \ZipArchive::OVERWRITE) !== true) {
+                        throw new \RuntimeException('Export archive unavailable');
+                    }
+                    $number = 1;
+                    if (!$zip->addFromString(sprintf('emeroteca-articoli-%03d.csv', $number++), $first)) {
+                        throw new \RuntimeException('Export archive write failed');
+                    }
+                    while ($parts->valid()) {
+                        if (!$zip->addFromString(sprintf('emeroteca-articoli-%03d.csv', $number++), $parts->current())) {
+                            throw new \RuntimeException('Export archive write failed');
+                        }
+                        $parts->next();
+                    }
+                    if (!$zip->close()) { throw new \RuntimeException('Export archive close failed'); }
+                    $handle = fopen($path, 'rb');
+                    if (!$handle) { throw new \RuntimeException('Export archive read failed'); }
+                    return $rs->withBody(new \Slim\Psr7\Stream($handle))
+                        ->withHeader('Content-Type', 'application/zip')
+                        ->withHeader('Content-Disposition', 'attachment; filename="emeroteca-articoli.zip"')
+                        ->withHeader('Cache-Control', 'private, no-store');
+                } finally {
+                    // The opened stream retains the archive until the response is sent.
+                    @unlink($path);
+                }
+            }
         }
         return $rs->withHeader('Content-Type', 'text/csv; charset=UTF-8')->withHeader('Content-Disposition', 'attachment; filename="emeroteca-articoli.csv"')->withHeader('Cache-Control', 'private, no-store');
     }

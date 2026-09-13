@@ -7618,7 +7618,13 @@
   "Tipo di record non supportato.": "Posttypen understøttes ikke.",
   "Titolo della pubblicazione": "Publikationens titel",
   "Tutte": "Alle",
+  "Un altro import di articoli è in corso. Riprova tra qualche istante.": "En anden artikelimport kører. Prøv igen om lidt.",
+  "Conferma la rimozione del collegamento al fascicolo per gli articoli già collocati.": "Bekræft, at hæftetilknytningen fjernes for artikler, der allerede har en.",
+  "Confermo la rimozione del collegamento al fascicolo per gli articoli già collocati.": "Jeg bekræfter, at hæftetilknytningen fjernes for artikler, der allerede har en.",
+  "Esporta articoli": "Eksportér artikler",
+  "Per un articolo di rivista o di giornale usa l’Emeroteca.": "Brug tidsskriftssamlingen til en artikel fra et tidsskrift eller en avis.",
   "Valore non valido.": "Ugyldig værdi.",
   "Valore troppo lungo.": "Værdien er for lang.",
-  "Verifica": "Kontrol"
+  "Verifica": "Kontrol",
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Store eksporter indeholder flere CSV-filer i en ZIP-fil. Pak dem ud, og importer hver CSV-fil separat."
 }

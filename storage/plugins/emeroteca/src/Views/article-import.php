@@ -2,6 +2,7 @@
 <div class="max-w-6xl mx-auto px-4 py-6">
 <h1 class="text-3xl font-bold mb-5"><?= __('Importa articoli') ?></h1>
 <p class="max-w-3xl mb-4"><?= __('CSV UTF-8 separato da virgole, massimo 500 righe. La reference_key identifica gli aggiornamenti; le colonne assenti conservano i dati, le celle vuote li svuotano. Nessun fascicolo viene creato.') ?></p>
+<p class="mb-4"><?= __('Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.') ?></p>
 <p class="mb-4"><a class="underline" href="<?= $e(url('/admin/periodicals/articles/export?template=1')) ?>"><?= __('Scarica il CSV come modello') ?></a> · <a class="underline" href="<?= $e(url('/admin/periodicals/articles')) ?>"><?= __('Articoli') ?></a></p>
 <p class="text-sm text-gray-600 mb-4"><?= __('Il CSV conserva i valori originali per il reimport. Nei fogli di calcolo importa le colonne come testo.') ?></p>
 <p class="text-sm text-gray-600 mb-2"><?= __('Esempio') ?></p>

@@ -7618,7 +7618,13 @@
   "Tipo di record non supportato.": "Nicht unterstützter Datensatztyp.",
   "Titolo della pubblicazione": "Titel der Publikation",
   "Tutte": "Alle",
+  "Un altro import di articoli è in corso. Riprova tra qualche istante.": "Ein anderer Artikelimport läuft gerade. Bitte kurz darauf erneut versuchen.",
+  "Conferma la rimozione del collegamento al fascicolo per gli articoli già collocati.": "Bestätige das Entfernen der Heftzuordnung bei bereits zugeordneten Artikeln.",
+  "Confermo la rimozione del collegamento al fascicolo per gli articoli già collocati.": "Ich bestätige das Entfernen der Heftzuordnung bei bereits zugeordneten Artikeln.",
+  "Esporta articoli": "Artikel exportieren",
+  "Per un articolo di rivista o di giornale usa l’Emeroteca.": "Für einen Zeitschriften- oder Zeitungsartikel die Zeitschriftensammlung verwenden.",
   "Valore non valido.": "Ungültiger Wert.",
   "Valore troppo lungo.": "Wert zu lang.",
-  "Verifica": "Prüfung"
+  "Verifica": "Prüfung",
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Große Exporte enthalten mehrere CSV-Dateien in einer ZIP-Datei. Entpacke sie und importiere jede CSV-Datei einzeln."
 }
