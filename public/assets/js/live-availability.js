@@ -35,15 +35,14 @@
     } else if (role === 'action') {
       element.classList.toggle('btn-primary', data.available);
       element.classList.toggle('btn-outline-primary', !data.available);
-      // Nothing in circulation: the queue counts loanable copies and would
-      // refuse this request, so do not invite it (#426).
-      if (data.reservable === false) element.setAttribute('disabled', 'disabled');
-      else element.removeAttribute('disabled');
       var actionIcon = element.querySelector('i');
-      if (actionIcon) actionIcon.className = 'fas fa-' + (data.available ? 'book-reader' : 'calendar-alt') + ' mr-2';
+      if (actionIcon) actionIcon.className = 'fas fa-' + (data.available ? 'book-reader' : (data.reservable === false ? 'ban' : 'calendar-alt')) + ' mr-2';
       var actionLabel = element.querySelector('[data-live-label]');
       if (actionLabel) actionLabel.textContent = data.action_label;
-      element.disabled = false;
+      // Last word on the button, after the pending state is cleared: nothing in
+      // circulation means the queue would refuse the request, so do not invite
+      // it (#426). Setting it before this line was undone by the reset below.
+      element.disabled = data.reservable === false;
     } else if (role === 'related') {
       element.classList.remove('availability-pending');
       element.classList.toggle('available-badge', data.available);

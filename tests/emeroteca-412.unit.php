@@ -246,6 +246,19 @@ try {
     $batch=$csv->preview("titolo,contenitore_titolo\nCitta e memoria,Journal\nCittà e memoria,Journal\n");
     check412($batch[0]['error']===null && $batch[1]['error']!==null,'accents fold in the batch check as they do in the database');
     check412(count(array_filter($csv->commit($batch),fn($r)=>$r['error']===null))===1,'only one of the two accent variants is stored');
+    // An update can carry a known reference_key and ANOTHER article's identity:
+    // that stores the same article twice, so it is refused like a new duplicate.
+    $csv->commit($csv->preview("reference_key,titolo,doi\nupd-a,Update target A,10.5555/aaa\nupd-b,Update target B,10.5555/bbb\n"));
+    $stolen=$csv->preview("reference_key,titolo,doi\nupd-b,Update target A,10.5555/aaa\n");
+    check412($stolen[0]['error']!==null,'an update that takes another article\'s citation and DOI is refused');
+    check412(count(array_filter($csv->commit($stolen),fn($r)=>$r['error']!==null))===1,'commit refuses it too, under the lock');
+    check412((int)$svc->rows("SELECT COUNT(*) n FROM emeroteca_contributi WHERE reference_key='upd-b' AND titolo='Update target B'")[0]['n']===1,'the targeted row keeps its own citation');
+    // But a row that keeps the citation it already has must still update: this
+    // is every round trip of an export, and a collection may legitimately hold
+    // two similar citations from before the check existed.
+    $again=$csv->preview("reference_key,titolo,doi,keywords\nupd-a,Update target A,10.5555/aaa,revised\n");
+    check412($again[0]['error']===null && $csv->commit($again)[0]['error']===null,'an update that keeps its own citation still goes through');
+    check412($svc->rows("SELECT keywords FROM emeroteca_contributi WHERE reference_key='upd-a'")[0]['keywords']==='revised','and the update is actually applied');
     $first=$csv->preview("titolo\nConcurrent import citation\n");
     $second=$csv->preview("titolo\nConcurrent import citation\n");
     check412($csv->commit($first)[0]['error']===null && $csv->commit($second)[0]['error']!==null,'commit rechecks a citation inserted after its preview');

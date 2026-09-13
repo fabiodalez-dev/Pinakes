@@ -471,9 +471,9 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 <p class="text-xs text-gray-500 mt-1">
                   <?= __('Per un articolo di rivista o di giornale usa l’Emeroteca.') ?>
                   <?php if ($articleHintState === \App\Support\PeriodicalArticlesHint::ACTIVE): ?>
-                    <a class="underline" href="<?php echo HtmlHelper::e(url('/admin/periodicals/articles/create')); ?>"><?= __('Aggiungi articolo') ?></a>
+                    <a class="underline" href="<?= htmlspecialchars(url('/admin/periodicals/articles/create'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Aggiungi articolo') ?></a>
                   <?php else: ?>
-                    <a class="underline" href="<?php echo HtmlHelper::e(url('/admin/plugins')); ?>"><?= __('Attiva plugin') ?></a>
+                    <a class="underline" href="<?= htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Attiva plugin') ?></a>
                   <?php endif; ?>
                 </p>
               <?php endif; ?>

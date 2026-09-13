@@ -104,10 +104,19 @@ final class ContributionCsv
                 }
                 $merged = array_replace($existing ?? [], $data);
                 $item['data'] = array_replace($merged, ContributionService::normalize($merged));
-                if (!$existing) {
-                    $citation = self::citationKey($item['data']);
-                    $doi = $item['data']['doi'] ?? '';
-                    if ($this->hasDuplicate($item['data']) || isset($citations[$citation]) || ($doi !== '' && isset($dois[$doi]))) {
+                // Updates are checked too: a row can carry a known
+                // reference_key and the DOI or citation of a DIFFERENT article,
+                // which would store the same article twice. What is NOT checked
+                // is an update that keeps its own citation — otherwise
+                // re-importing an export would trip over rows that were already
+                // there, itself included.
+                $citation = self::citationKey($item['data']);
+                $doi = (string)($item['data']['doi'] ?? '');
+                $takesNewIdentity = !$existing
+                    || $citation !== self::citationKey($existing)
+                    || $doi !== (string)($existing['doi'] ?? '');
+                if ($takesNewIdentity) {
+                    if ($this->hasDuplicate($item['data'], (int)$item['id']) || isset($citations[$citation]) || ($doi !== '' && isset($dois[$doi]))) {
                         $item['error'] = self::duplicateMessage();
                     }
                     $citations[$citation] = true;
@@ -192,10 +201,13 @@ final class ContributionCsv
         return json_encode(array_map(static fn($key) => $fold((string)($data[$key] ?? '')), ['titolo','autori','contenitore_titolo','volume','numero','pagine']), JSON_THROW_ON_ERROR);
     }
 
-    private function hasDuplicate(array $data): bool
+    /** @param int $excludeId the row being updated, which is never a duplicate of itself */
+    private function hasDuplicate(array $data, int $excludeId = 0): bool
     {
-        $matches = $this->service->rows("SELECT id FROM emeroteca_contributi WHERE titolo=? AND COALESCE(autori,'')=? AND COALESCE(contenitore_titolo,'')=? AND COALESCE(volume,'')=? AND COALESCE(numero,'')=? AND COALESCE(pagine,'')=? LIMIT 1", array_map(static fn($key) => $data[$key] ?? '', ['titolo','autori','contenitore_titolo','volume','numero','pagine']));
-        return $matches !== [] || (!empty($data['doi']) && $this->service->rows('SELECT id FROM emeroteca_contributi WHERE doi=? LIMIT 1', [$data['doi']]) !== []);
+        $params = array_map(static fn($key) => $data[$key] ?? '', ['titolo','autori','contenitore_titolo','volume','numero','pagine']);
+        $params[] = $excludeId;
+        $matches = $this->service->rows("SELECT id FROM emeroteca_contributi WHERE titolo=? AND COALESCE(autori,'')=? AND COALESCE(contenitore_titolo,'')=? AND COALESCE(volume,'')=? AND COALESCE(numero,'')=? AND COALESCE(pagine,'')=? AND id<>? LIMIT 1", $params);
+        return $matches !== [] || (!empty($data['doi']) && $this->service->rows('SELECT id FROM emeroteca_contributi WHERE doi=? AND id<>? LIMIT 1', [$data['doi'], $excludeId]) !== []);
     }
 
     /** The named lock commit() holds: one per database, so two imports never interleave. */
@@ -208,7 +220,14 @@ final class ContributionCsv
     /** Runs under the commit() lock, so this recheck cannot race another import. */
     private function saveImportRow(array $row): int
     {
-        if (!$row['id'] && $this->hasDuplicate($row['data'])) {
+        $id = (int)$row['id'];
+        // Same rule as the preview, rechecked under the lock: a row that keeps
+        // the citation it already had is not a duplicate of itself.
+        $stored = $id ? $this->service->get($id) : null;
+        $takesNewIdentity = $stored === null
+            || self::citationKey($row['data']) !== self::citationKey($stored)
+            || (string)($row['data']['doi'] ?? '') !== (string)($stored['doi'] ?? '');
+        if ($takesNewIdentity && $this->hasDuplicate($row['data'], $id)) {
             throw new \InvalidArgumentException(self::duplicateMessage());
         }
         return $this->service->save($row['data'], (int)$row['id'], $row['revision']);
