@@ -370,29 +370,54 @@ class PluginController
                 ]
             ]));
         } elseif ($plugin['name'] === 'api-book-scraper') {
-            // API Book Scraper: endpoint, api_key, timeout, enabled
+            // Through the plugin's own saveSettings(): it is the single place that
+            // refuses enabling without an endpoint and a key, saves in one
+            // transaction and re-registers the hooks. Writing each value with
+            // setSetting() here skipped all three, so the "Configura API" modal
+            // could enable a plugin with no endpoint — or no key at all — and
+            // report success while registerHooks() registered nothing.
             $apiEndpoint = trim((string) ($settings['api_endpoint'] ?? ''));
             $apiKey = trim((string) ($settings['api_key'] ?? ''));
             $timeout = max(5, min(60, (int) ($settings['timeout'] ?? 10)));
             $enabled = isset($settings['enabled']) && $settings['enabled'] === '1';
 
-            error_log('[PluginController] API Book Scraper settings - endpoint: ' . $apiEndpoint . ', timeout: ' . $timeout . ', enabled: ' . ($enabled ? 'yes' : 'no'));
-
-            // Save all settings
-            $this->pluginManager->setSetting($pluginId, 'api_endpoint', $apiEndpoint, true);
-            // Preserve the stored API key when the field is left blank: the admin
-            // modal always clears the key input on open and tells the admin that
-            // blank means "keep the existing key". Only overwrite when a new value
-            // is actually entered, otherwise a save that just toggles enabled or
-            // changes the timeout would silently wipe the key and disable scraping.
+            $toSave = ['api_endpoint' => $apiEndpoint, 'timeout' => (string) $timeout, 'enabled' => $enabled ? '1' : '0'];
+            // A blank key keeps the stored one: the modal clears the key input on
+            // open and tells the admin that blank means "keep the existing key".
             if ($apiKey !== '') {
-                $this->pluginManager->setSetting($pluginId, 'api_key', $apiKey, true);
+                $toSave['api_key'] = $apiKey;
             }
-            $this->pluginManager->setSetting($pluginId, 'timeout', (string) $timeout, true);
-            $this->pluginManager->setSetting($pluginId, 'enabled', $enabled ? '1' : '0', true);
 
-            // Note: Plugin re-registration removed - PluginController doesn't have $db property
-            // The plugin will reload its settings on next request via PluginManager
+            $instance = $this->pluginManager->getPluginInstance($pluginId);
+            if ($instance === null || !is_callable([$instance, 'saveSettings'])) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Errore nel salvataggio delle impostazioni.'),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
+            try {
+                $saved = $instance->saveSettings($toSave);
+            } catch (\InvalidArgumentException $e) {
+                // The input itself cannot be saved. The message is the plugin's
+                // own translated reason — a missing value or a malformed URL.
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(422);
+            } catch (\Throwable $e) {
+                // A database or hook failure: saveSettings() already rolled back.
+                \App\Support\SecureLogger::error('[PluginController] api-book-scraper settings save failed: ' . $e->getMessage());
+                $saved = false;
+            }
+            if (!$saved) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Errore nel salvataggio delle impostazioni.'),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
 
             $response->getBody()->write(json_encode([
                 'success' => true,

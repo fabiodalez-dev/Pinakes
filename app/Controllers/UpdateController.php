@@ -141,7 +141,7 @@ class UpdateController
         }
 
         $scope = (($data['scope'] ?? 'full') === 'db') ? 'db' : 'full';
-        $result = (new BackupManager($db, dirname(__DIR__, 2)))->createBackup($scope);
+        $result = (new BackupManager($db, dirname(__DIR__, 2)))->createBackup($scope, BackupManager::ORIGIN_MANUAL);
 
         if ($result['success']) {
             return $this->jsonResponse($response, [

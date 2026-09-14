@@ -189,14 +189,14 @@ try {
     $ddlTables = plugin_schema_declared_tables_in_directory($pluginDir);
     check($ddlTables !== [], 'plugin-schema-source helper detects the CREATE TABLE declarations of the plugin');
 
-    // ── 2. ensureSchema creates the 4 tables and is idempotent ────────
+    // ── 2. ensureSchema creates the plugin tables and is idempotent ──
     $result = $plugin->ensureSchema();
     check(($result['failed'] ?? ['x']) === [], 'ensureSchema() reports no failed tables ('
         . implode(',', $result['failed'] ?? []) . ')');
 
     $expected = $plugin->expectedTables();
-    // 5 since plugin 1.4.0 (emeroteca_abbonamenti joined the four originals).
-    check(is_array($expected) && count($expected) === 5, 'expectedTables() declares exactly 5 tables');
+    // 6 since plugin 1.5.0 (standalone contributions joined the five originals).
+    check(is_array($expected) && count($expected) === 6, 'expectedTables() declares exactly 6 tables');
 
     $sortedExpected = array_values(array_unique(array_map('strval', $expected)));
     sort($sortedExpected);

@@ -33,6 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_api_scraper_sett
             } else {
                 $errorMessage = __('Errore nel salvataggio delle impostazioni.');
             }
+        } catch (\InvalidArgumentException $e) {
+            // The input was refused; the message says why (missing value or bad URL).
+            $errorMessage = $e->getMessage();
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('[ApiBookScraper] settings save failed: ' . $e->getMessage());
             $errorMessage = __('Errore nel salvataggio delle impostazioni.');

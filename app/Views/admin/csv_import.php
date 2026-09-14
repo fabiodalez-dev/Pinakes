@@ -103,6 +103,8 @@ ob_start();
                         <?= __("Carica File CSV") ?>
                     </h2>
 
+                    <?php $emerotecaAvailable = $emerotecaAvailable ?? false; ?>
+                    <p class="mb-4"><?= __('Per gli articoli usa l’importazione Emeroteca. Se il plugin è inattivo, attivalo da Plugins.') ?> <?php if ($emerotecaAvailable): ?><a class="underline" href="<?= htmlspecialchars(url('/admin/periodicals/articles/import'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Importa articoli') ?></a><?php else: ?><a class="underline" href="<?= htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Attiva plugin') ?></a><?php endif; ?></p>
                     <form id="uploadForm" action="<?= htmlspecialchars(url('/admin/books/import/upload'), ENT_QUOTES, 'UTF-8') ?>" method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
                         <!-- Uppy Upload Area -->

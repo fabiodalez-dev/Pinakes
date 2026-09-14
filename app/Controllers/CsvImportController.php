@@ -128,12 +128,59 @@ class CsvImportController
     }
 
     /**
+     * Whether the Emeroteca (periodicals) plugin is active, so the CSV
+     * import page can link to its article importer only when that route
+     * actually exists — otherwise it points to Plugins instead (#article
+     * link 404 fix). showImportPage() isn't routed with a mysqli connection
+     * (see web.php), so this opens its own short-lived one — same fallback
+     * pattern as ReservationsController's constructor — and queries the
+     * plugins table directly, mirroring frontend/layout.php's
+     * $publicPluginIsActive() fallback (no DI container available here).
+     */
+    private function isEmerotecaPluginActive(): bool
+    {
+        try {
+            $settings = require __DIR__ . '/../../config/settings.php';
+            $cfg = $settings['db'];
+            $db = new \mysqli(
+                $cfg['hostname'],
+                $cfg['username'],
+                $cfg['password'],
+                $cfg['database'],
+                $cfg['port'],
+                $cfg['socket'] ?? null
+            );
+            if ($db->connect_error) {
+                return false;
+            }
+            $stmt = $db->prepare('SELECT is_active FROM plugins WHERE name = ? LIMIT 1');
+            if ($stmt === false) {
+                $db->close();
+                return false;
+            }
+            $pluginName = 'emeroteca';
+            $stmt->bind_param('s', $pluginName);
+            $active = false;
+            if ($stmt->execute()) {
+                $result = $stmt->get_result();
+                $active = $result instanceof \mysqli_result && (int) ($result->fetch_assoc()['is_active'] ?? 0) === 1;
+            }
+            $stmt->close();
+            $db->close();
+            return $active;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
      * Mostra la pagina di import CSV
      */
     public function showImportPage(Request $request, Response $response): Response
     {
         ob_start();
         $title = "Import Libri da CSV";
+        $emerotecaAvailable = $this->isEmerotecaPluginActive();
         include __DIR__ . '/../Views/admin/csv_import.php';
         $content = ob_get_clean();
 
@@ -1013,6 +1060,15 @@ class CsvImportController
         return $value;
     }
 
+    /**
+     * Convert one raw CSV row into the normalized book field array consumed by the importer.
+     * Reverses export-time formula-injection escaping, merges primary/secondary/autori columns
+     * into a single deduplicated author list, and rejects rows whose record_type/tipo_media marks
+     * them as an article (those belong to the Emeroteca plugin, not the book catalog).
+     *
+     * @return array<string, mixed> normalized book fields keyed by column name
+     * @throws \InvalidArgumentException if the row is an article record
+     */
     private function parseCsvRow(array $row): array
     {
         // Reverse CSV formula-injection escaping applied on export. The standard
@@ -1042,6 +1098,17 @@ class CsvImportController
         // Remove duplicates and empty values
         $authors = array_filter(array_unique($authors));
         $autoriCombined = !empty($authors) ? implode(';', $authors) : null;
+        // `??` only falls through on a missing or null column, so a file that
+        // carries an empty record_type cell next to tipo_media=journal_article
+        // used to skip this check entirely and land in the book catalogue.
+        $recordType = strtolower(trim((string) ($row['record_type'] ?? '')));
+        if ($recordType === '') {
+            $recordType = strtolower(trim((string) ($row['tipo_media'] ?? '')));
+        }
+        if (in_array($recordType, ['article', 'articolo', 'journal_article', 'newspaper_article'], true)) {
+            throw new \InvalidArgumentException(__('Importa gli articoli dalla sezione Emeroteca (valore rilevato: "%s"). Se il plugin è inattivo, attivalo da Plugins.', $recordType));
+        }
+
 
         return [
             'id' => !empty($row['id']) ? trim($row['id']) : null,
@@ -1343,6 +1410,7 @@ class CsvImportController
             'descrizione' => ['descrizione', 'description', 'descripción', 'summary', 'riassunto', 'abstract'],
             'formato' => ['formato', 'format', 'media', 'binding', 'physical description'],
             'tipo_media' => ['tipo_media', 'media_type', 'type', 'medientyp'],
+            'record_type' => ['record_type', 'record type', 'record-type', 'recordtype'],
             'prezzo' => ['prezzo', 'price', 'precio', 'prix', 'preis', 'list price', 'purchase price'],
             'copie_totali' => ['copie_totali', 'copie', 'copies', 'quantity', 'quantità', 'cantidad'],
             'collana' => ['collana', 'series', 'collection', 'collections', 'colección', 'reihe'],

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Plugins\Emeroteca\Controllers;
 
 require_once __DIR__ . '/AbstractAdminController.php';
+// dispatch() only loads the controller it routes to: require the class that
+// owns LIST_PATH so the mastheads-list target stays in one place.
+require_once __DIR__ . '/PeriodicalAdminController.php';
 require_once __DIR__ . '/../Support/IssnHelper.php';
 require_once __DIR__ . '/../Support/KbartExporter.php';
 require_once __DIR__ . '/../Support/IssueLabelRenderer.php';
@@ -89,7 +92,7 @@ class ExportAdminController extends AbstractAdminController
             $testata = $this->fetchTestata($testataId);
             if ($testata === null) {
                 $this->flashError(__('Testata non trovata.'));
-                return $this->redirect($response, '/admin/periodicals');
+                return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
             }
         }
 
@@ -102,7 +105,7 @@ class ExportAdminController extends AbstractAdminController
             $this->flashError(__('Errore durante la generazione dell\'export.'));
             return $this->redirect(
                 $response,
-                $testataId > 0 ? '/admin/periodicals/' . $testataId . '/issues' : '/admin/periodicals'
+                $testataId > 0 ? '/admin/periodicals/' . $testataId . '/issues' : PeriodicalAdminController::LIST_PATH
             );
         }
 
@@ -165,7 +168,7 @@ class ExportAdminController extends AbstractAdminController
         $testataId = (int) ($args['id'] ?? 0);
         if ($this->fetchTestata($testataId) === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $body = (array) $request->getParsedBody();
         $back = '/admin/periodicals/' . $testataId . '/issues';

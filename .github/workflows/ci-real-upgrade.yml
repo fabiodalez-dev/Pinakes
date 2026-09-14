@@ -1,0 +1,308 @@
+name: Real Upgrade (admin UI)
+
+# The only CI job that upgrades an installed Pinakes the way an operator does:
+# install a published release from its own installer, write data, upload the
+# candidate package through /admin/updates, and check what survived. The other
+# upgrade gate (ci-upgrade-smoke.yml) proves the schema path through Updater;
+# this one proves the whole package, the file swap and the browser flow.
+#
+# The baseline is pinned rather than "latest": the scenario is an existing
+# Emeroteca collection meeting standalone articles (#412) for the first time, so
+# it must start from a release older than Emeroteca 1.5.0. Upgrading an old
+# install across several versions is also exactly what operators do.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  attestations: read # Let `gh attestation verify` check the baseline archive's provenance.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  emeroteca-412:
+    name: Emeroteca 412 — previous release upgraded through the admin UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      mysql:
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      mailpit:
+        image: axllent/mailpit:v1.21@sha256:81370195cd4a0eab9604d17c2617a7525b0486f9365555253b6c5376c6350f1a
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      BASELINE_VERSION: '0.7.83'
+      E2E_ADMIN_EMAIL: admin@pinakes.test
+      E2E_ADMIN_PASS: Test1234!
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: 3306
+      E2E_DB_USER: root
+      E2E_DB_PASS: root
+      UPGRADE_URL: http://localhost:8081
+      FRESH_URL: http://localhost:8082
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Apache, PHP module, MySQL client and mail transport
+        run: |
+          # This job never installs Google Chrome. Remove its hosted-runner
+          # apt source before the first refresh so mirror syncs cannot break CI.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update -q
+          sudo apt-get install -y apache2 libapache2-mod-php php-apcu default-mysql-client msmtp-mta
+          sudo a2enmod rewrite headers env
+          php_module="$(find /etc/apache2/mods-available -maxdepth 1 -name 'php*.load' -printf '%f\n' | sed 's/\.load$//' | sort -V | tail -n1)"
+          [ -z "${php_module}" ] || sudo a2enmod "${php_module}"
+          sudo a2dissite 000-default || true
+          sudo tee /etc/msmtprc >/dev/null <<'EOF'
+          defaults
+          account default
+          host 127.0.0.1
+          port 1025
+          tls off
+          from pinakes-ci@localhost
+          EOF
+          sudo chmod 644 /etc/msmtprc
+          # The candidate package is ~30 MB and is uploaded through the admin
+          # form, then extracted and migrated inside one request: raise the
+          # upload, memory and time limits the shared regression job keeps low.
+          while IFS= read -r conf_dir; do
+            sudo tee "${conf_dir}/99-pinakes-upgrade.ini" >/dev/null <<'EOF'
+          sendmail_path = "/usr/bin/msmtp -t"
+          upload_max_filesize = 64M
+          post_max_size = 64M
+          memory_limit = 512M
+          max_execution_time = 600
+          apc.enable=1
+          apc.enable_cli=1
+          EOF
+          done < <(find /etc/php -type d -path '*/conf.d' | sort -u)
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml, apcu
+          ini-values: apc.enable=1, apc.enable_cli=1
+          coverage: none
+
+      - name: Setup Node 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies and Chromium
+        run: |
+          composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+          npm ci --silent
+          npx playwright install chromium --with-deps
+
+      - name: Route legacy MySQL test clients to the service container
+        run: echo "${GITHUB_WORKSPACE}/scripts/ci-bin" >> "${GITHUB_PATH}"
+
+      - name: Create the two databases
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root -proot \
+            -e "CREATE DATABASE pinakes_upgrade CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+                CREATE DATABASE pinakes_fresh CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+      - name: Build the candidate package from this checkout
+        run: |
+          # Committed assets are the release assets: --skip-build packs them as
+          # they are. The package never leaves the runner.
+          mkdir -p "${RUNNER_TEMP}/candidate"
+          bash bin/build-release.sh --skip-build --output "${RUNNER_TEMP}/candidate"
+          mapfile -t zips < <(find "${RUNNER_TEMP}/candidate" -maxdepth 1 -name 'pinakes-v*.zip')
+          [ "${#zips[@]}" -eq 1 ] || { echo "Expected exactly one candidate package, found ${#zips[@]}"; exit 1; }
+          echo "CANDIDATE_ZIP=${zips[0]}" >> "${GITHUB_ENV}"
+          echo "Candidate: ${zips[0]} ($(du -h "${zips[0]}" | cut -f1))"
+
+      - name: Download and verify the baseline release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="v${BASELINE_VERSION}"
+          gh api "repos/${GH_REPO}/releases/tags/${tag}" > "${RUNNER_TEMP}/baseline-release.json"
+          zip_id=$(jq -r '[.assets[] | select(.state == "uploaded" and (.name | endswith(".zip")))] | if length == 1 then .[0].id else empty end' "${RUNNER_TEMP}/baseline-release.json")
+          zip_name=$(jq -r '[.assets[] | select(.state == "uploaded" and (.name | endswith(".zip")))] | if length == 1 then .[0].name else empty end' "${RUNNER_TEMP}/baseline-release.json")
+          sum_id=$(jq -r '[.assets[] | select(.state == "uploaded" and (.name | endswith(".zip.sha256")))] | if length == 1 then .[0].id else empty end' "${RUNNER_TEMP}/baseline-release.json")
+          sum_name=$(jq -r '[.assets[] | select(.state == "uploaded" and (.name | endswith(".zip.sha256")))] | if length == 1 then .[0].name else empty end' "${RUNNER_TEMP}/baseline-release.json")
+          if [ -z "${zip_id}" ] || [ -z "${sum_id}" ]; then
+            echo "Release ${tag} must provide exactly one ZIP and one ZIP.sha256 asset"
+            exit 1
+          fi
+          release_dir="${RUNNER_TEMP}/baseline"
+          mkdir -p "${release_dir}"
+          gh api -H "Accept: application/octet-stream" "repos/${GH_REPO}/releases/assets/${zip_id}" > "${release_dir}/${zip_name}"
+          gh api -H "Accept: application/octet-stream" "repos/${GH_REPO}/releases/assets/${sum_id}" > "${release_dir}/${sum_name}"
+          (cd "${release_dir}" && sha256sum -c "${sum_name}")
+          gh attestation verify "${release_dir}/${zip_name}" --repo "${GH_REPO}"
+          echo "BASELINE_ZIP=${release_dir}/${zip_name}" >> "${GITHUB_ENV}"
+
+      - name: Unpack both installs
+        run: |
+          unpack() {
+            local zip="$1" dest="$2" tmp
+            tmp="$(mktemp -d "${RUNNER_TEMP}/unpack.XXXXXX")"
+            unzip -q "${zip}" -d "${tmp}"
+            mapfile -t roots < <(find "${tmp}" -mindepth 1 -maxdepth 1 -type d -name 'pinakes-v*')
+            [ "${#roots[@]}" -eq 1 ] || { echo "Unexpected layout in ${zip}"; exit 1; }
+            mv "${roots[0]}" "${dest}"
+            rm -rf "${tmp}"
+          }
+          unpack "${BASELINE_ZIP}" "${RUNNER_TEMP}/pinakes-upgrade"
+          unpack "${CANDIDATE_ZIP}" "${RUNNER_TEMP}/pinakes-fresh"
+          echo "UPGRADE_ROOT=${RUNNER_TEMP}/pinakes-upgrade" >> "${GITHUB_ENV}"
+          echo "FRESH_ROOT=${RUNNER_TEMP}/pinakes-fresh" >> "${GITHUB_ENV}"
+          for root in pinakes-upgrade pinakes-fresh; do
+            printf '%s: %s\n' "${root}" "$(jq -r .version "${RUNNER_TEMP}/${root}/version.json")"
+          done
+
+      - name: Configure Apache — :8081 upgrades the baseline, :8082 is a clean candidate
+        run: |
+          site() {
+            local port="$1" root="$2"
+            cat <<EOF
+          Listen ${port}
+          <VirtualHost *:${port}>
+              ServerName localhost
+              DocumentRoot ${root}/public
+              # The install request extracts and migrates a whole package.
+              Timeout 600
+              SetEnv PINAKES_E2E_BYPASS_RATE_LIMIT 1
+              <Directory "${root}/public">
+                  Options -Indexes +FollowSymLinks
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+              ErrorLog \${APACHE_LOG_DIR}/pinakes-${port}-error.log
+              CustomLog \${APACHE_LOG_DIR}/pinakes-${port}-access.log combined
+          </VirtualHost>
+          EOF
+          }
+          { site 8081 "${UPGRADE_ROOT}"; site 8082 "${FRESH_ROOT}"; } | sudo tee /etc/apache2/sites-available/pinakes-upgrade.conf >/dev/null
+          sudo a2ensite pinakes-upgrade
+          sudo apachectl configtest
+
+      - name: Grant runtime permissions and start Apache
+        run: |
+          path="${RUNNER_TEMP}"
+          while [ "${path}" != "/" ]; do
+            sudo chmod o+x "${path}"
+            path="$(dirname "${path}")"
+          done
+          # Throwaway installs: the upgrade replaces files across the whole tree,
+          # so the web server must be able to write everywhere in it.
+          sudo chmod -R 777 "${UPGRADE_ROOT}" "${FRESH_ROOT}"
+          sudo systemctl start apache2
+          for port in 8081 8082; do
+            for _ in $(seq 1 30); do
+              curl -sf -o /dev/null "http://localhost:${port}/installer/" && continue 2
+              sleep 1
+            done
+            sudo cat "/var/log/apache2/pinakes-${port}-error.log" || true
+            echo "Installer on :${port} did not answer"
+            exit 1
+          done
+
+      - name: Install the baseline from its own installer
+        env:
+          E2E_BASE_URL: ${{ env.UPGRADE_URL }}
+          APP_URL: ${{ env.UPGRADE_URL }}
+          E2E_DB_NAME: pinakes_upgrade
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/install-baseline.json
+        run: |
+          npx playwright test tests/smoke-install.spec.js --config=tests/playwright.ci.config.js --workers=1 --grep "Installer|Login as admin"
+          node scripts/ci-audit-playwright-results.js "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
+          test -f "${UPGRADE_ROOT}/.installed" || { echo "baseline install left no .installed marker"; exit 1; }
+
+      - name: 'Phase: prepare holdings on the baseline'
+        env:
+          E2E_BASE_URL: ${{ env.UPGRADE_URL }}
+          E2E_DB_NAME: pinakes_upgrade
+          E2E_412_UPGRADE_PHASE: prepare
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/upgrade-prepare.json
+        run: |
+          npx playwright test tests/emeroteca-412-upgrade.spec.js --config=tests/playwright.ci.config.js --workers=1
+          node scripts/ci-audit-playwright-results.js "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
+
+      - name: 'Phase: upgrade through the admin UI'
+        env:
+          E2E_BASE_URL: ${{ env.UPGRADE_URL }}
+          E2E_DB_NAME: pinakes_upgrade
+          E2E_412_UPGRADE_PHASE: upgrade
+          E2E_ZIP_PATH: ${{ env.CANDIDATE_ZIP }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/upgrade-upgrade.json
+        run: |
+          npx playwright test tests/emeroteca-412-upgrade.spec.js --config=tests/playwright.ci.config.js --workers=1
+          node scripts/ci-audit-playwright-results.js "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
+
+      - name: 'Phase: verify what the upgrade preserved'
+        env:
+          E2E_BASE_URL: ${{ env.UPGRADE_URL }}
+          E2E_DB_NAME: pinakes_upgrade
+          E2E_412_UPGRADE_PHASE: verify
+          E2E_INSTALL_ROOT: ${{ env.UPGRADE_ROOT }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/upgrade-verify.json
+        run: |
+          npx playwright test tests/emeroteca-412-upgrade.spec.js --config=tests/playwright.ci.config.js --workers=1
+          node scripts/ci-audit-playwright-results.js "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
+
+      - name: Install the candidate cleanly
+        env:
+          E2E_BASE_URL: ${{ env.FRESH_URL }}
+          APP_URL: ${{ env.FRESH_URL }}
+          E2E_DB_NAME: pinakes_fresh
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/install-fresh.json
+        run: |
+          npx playwright test tests/smoke-install.spec.js --config=tests/playwright.ci.config.js --workers=1 --grep "Installer|Login as admin"
+          node scripts/ci-audit-playwright-results.js "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
+          test -f "${FRESH_ROOT}/.installed" || { echo "candidate install left no .installed marker"; exit 1; }
+
+      - name: 'Phase: first activation on a clean install'
+        env:
+          E2E_BASE_URL: ${{ env.FRESH_URL }}
+          E2E_DB_NAME: pinakes_fresh
+          E2E_412_UPGRADE_PHASE: fresh
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/upgrade-fresh.json
+        run: |
+          npx playwright test tests/emeroteca-412-upgrade.spec.js --config=tests/playwright.ci.config.js --workers=1
+          node scripts/ci-audit-playwright-results.js "${PLAYWRIGHT_JSON_OUTPUT_FILE}"
+
+      - name: Upload evidence
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: real-upgrade-${{ github.run_id }}
+          path: |
+            test-results/
+            playwright-report/
+            /var/log/apache2/pinakes-*.log
+            ${{ env.UPGRADE_ROOT }}/storage/logs/
+            ${{ env.FRESH_ROOT }}/storage/logs/
+          retention-days: 7

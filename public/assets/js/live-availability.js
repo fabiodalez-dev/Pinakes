@@ -25,15 +25,24 @@
       element.textContent = data.available ? data.label : data.detail_label;
     } else if (role === 'count') {
       element.classList.remove('availability-pending');
-      element.textContent = data.copies_available + ' / ' + data.copies_total;
+      // count_label publishes owned copies, not copies in circulation (#426);
+      // the concatenation stays as the fallback for a cached older payload.
+      element.textContent = data.count_label || (data.copies_available + ' / ' + (data.copies_owned != null ? data.copies_owned : data.copies_total));
+    } else if (role === 'count-note') {
+      var note = data.count_note || '';
+      element.textContent = note;
+      element.hidden = note === '';
     } else if (role === 'action') {
       element.classList.toggle('btn-primary', data.available);
       element.classList.toggle('btn-outline-primary', !data.available);
       var actionIcon = element.querySelector('i');
-      if (actionIcon) actionIcon.className = 'fas fa-' + (data.available ? 'book-reader' : 'calendar-alt') + ' mr-2';
+      if (actionIcon) actionIcon.className = 'fas fa-' + (data.available ? 'book-reader' : (data.reservable === false ? 'ban' : 'calendar-alt')) + ' mr-2';
       var actionLabel = element.querySelector('[data-live-label]');
       if (actionLabel) actionLabel.textContent = data.action_label;
-      element.disabled = false;
+      // Last word on the button, after the pending state is cleared: nothing in
+      // circulation means the queue would refuse the request, so do not invite
+      // it (#426). Setting it before this line was undone by the reset below.
+      element.disabled = data.reservable === false;
     } else if (role === 'related') {
       element.classList.remove('availability-pending');
       element.classList.toggle('available-badge', data.available);

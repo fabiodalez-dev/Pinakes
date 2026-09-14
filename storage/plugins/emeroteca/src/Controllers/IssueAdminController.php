@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace App\Plugins\Emeroteca\Controllers;
 
 require_once __DIR__ . '/AbstractAdminController.php';
+// LIST_PATH (where "back to the list of testate" has to land) lives there and
+// must stay a single source of truth: EmerotecaPlugin::dispatch() only loads
+// the controller it routes to, so the sibling is required explicitly.
+require_once __DIR__ . '/PeriodicalAdminController.php';
 
 use App\Support\ActivityLog;
 use App\Support\DateHelper;
@@ -73,7 +77,7 @@ class IssueAdminController extends AbstractAdminController
         $testata = $this->fetchTestata($testataId);
         if ($testata === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
 
         $annate = [];
@@ -190,7 +194,7 @@ class IssueAdminController extends AbstractAdminController
         $testataId = (int) ($args['id'] ?? 0);
         if ($this->fetchTestata($testataId) === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $body = (array) $request->getParsedBody();
         $action = trim((string) ($body['action'] ?? ''));
@@ -940,7 +944,7 @@ class IssueAdminController extends AbstractAdminController
         $testataId = (int) ($args['id'] ?? 0);
         if ($this->fetchTestata($testataId) === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $back = '/admin/periodicals/' . $testataId . '/issues';
         $body = (array) $request->getParsedBody();
@@ -998,7 +1002,7 @@ class IssueAdminController extends AbstractAdminController
         $testata = $this->fetchTestata($testataId);
         if ($testata === null) {
             $this->flashError(__('Testata non trovata.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $back = '/admin/periodicals/' . $testataId . '/issues';
 
@@ -1086,7 +1090,7 @@ class IssueAdminController extends AbstractAdminController
         $fascicolo = $this->fetchFascicolo($id);
         if ($fascicolo === null) {
             $this->flashError(__('Fascicolo non trovato.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
 
         $articoli = [];
@@ -1132,7 +1136,7 @@ class IssueAdminController extends AbstractAdminController
         $fascicolo = $this->fetchFascicolo($id);
         if ($fascicolo === null) {
             $this->flashError(__('Fascicolo non trovato.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $back = '/admin/periodicals/issue/' . $id;
         $body = (array) $request->getParsedBody();
@@ -1488,7 +1492,7 @@ class IssueAdminController extends AbstractAdminController
         $fascicolo = $this->fetchFascicolo($id);
         if ($fascicolo === null) {
             $this->flashError(__('Fascicolo non trovato.'));
-            return $this->redirect($response, '/admin/periodicals');
+            return $this->redirect($response, PeriodicalAdminController::LIST_PATH);
         }
         $testataId = (int) $fascicolo['testata_id'];
 

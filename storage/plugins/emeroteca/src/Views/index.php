@@ -26,7 +26,7 @@ $total      = (int) ($total ?? count($rows));
 
 /** Page link keeping the active filters (page param last). */
 $pageUrl = static function (int $p) use ($f_tipo, $f_editore, $f_stato): string {
-    $qs = [];
+    $qs = ['view'=>'titles'];
     if ($f_tipo !== '') {
         $qs['tipo'] = $f_tipo;
     }
@@ -67,6 +67,8 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
 <div id="emeroteca-admin-index" class="emeroteca-admin">
+<a class="btn-secondary mb-4 inline-flex" href="<?= $e(url('/admin/periodicals/articles')) ?>"><?= __('Articoli') ?></a>
+
     <div class="emt-page-header emt-page-header--index">
         <div>
             <h1 class="text-3xl font-bold text-gray-900"><?= __("Emeroteca") ?></h1>
@@ -97,8 +99,11 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
         </div>
     </div>
 
+<?php $mode=$mode??'complete'; $modeReturnTo='/admin/periodicals?view=titles'; require __DIR__.'/article-mode.php'; ?>
+
     <form method="GET" action="<?= $e(url('/admin/periodicals')) ?>"
           class="emt-toolbar p-4 mb-6 flex flex-wrap items-end gap-3">
+        <input type="hidden" name="view" value="titles">
         <div class="min-w-[150px]">
             <label for="emt-tipo" class="block text-xs font-medium text-gray-600 mb-1">
                 <?= __("Tipo") ?>
@@ -146,7 +151,7 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
                 <?= __("Filtra") ?>
             </button>
             <?php if ($isFiltered): ?>
-                <a href="<?= $e(url('/admin/periodicals')) ?>" class="btn-secondary">
+                <a href="<?= $e(url('/admin/periodicals?view=titles')) ?>" class="btn-secondary">
                     <?= __("Azzera") ?>
                 </a>
             <?php endif; ?>

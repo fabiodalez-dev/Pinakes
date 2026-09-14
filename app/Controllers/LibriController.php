@@ -623,6 +623,7 @@ class LibriController
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
+        $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/crea_libro.php';
@@ -1477,6 +1478,7 @@ class LibriController
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
+        $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/modifica_libro.php';
