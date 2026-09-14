@@ -295,14 +295,22 @@ try {
     // over an hour and die on max_execution_time instead of saying it is busy.
     $blocker=new mysqli($env['DB_HOST']??'localhost',getenv('E2E_DB_USER')?:$env['DB_USER'],getenv('E2E_DB_PASS')?:($env['DB_PASS']??$env['DB_PASSWORD']),getenv('E2E_DB_NAME')?:$env['DB_NAME'],(int)($env['DB_PORT']??3306),getenv('E2E_DB_SOCKET')?:($env['DB_SOCKET']??null));
     $lockName='emeroteca_csv_'.substr(hash('sha256',(string)$db->query('SELECT DATABASE() n')->fetch_row()[0]),0,40);
-    $blocker->query("SELECT GET_LOCK('".$blocker->real_escape_string($lockName)."', 5)");
+    // Assert the precondition instead of assuming it: if the blocking connection
+    // does not actually hold the lock, commit() legitimately succeeds and the
+    // check below fails for a reason that has nothing to do with the batch.
+    $escapedLock=$blocker->real_escape_string($lockName);
+    $acquired=null;
+    for($attempt=0;$attempt<3 && (string)$acquired!=='1';$attempt++) {
+        $acquired=$blocker->query("SELECT GET_LOCK('$escapedLock', 5) a")->fetch_row()[0];
+    }
+    check412((string)$acquired==='1','the blocking connection holds the import lock (got '.var_export($acquired,true).')');
     $contended=$csv->preview("titolo\nBusy one\nBusy two\nBusy three\n");
     $start=microtime(true); $busy=null;
     try { $csv->commit($contended); } catch (InvalidArgumentException $e) { $busy=$e->getMessage(); }
     $waited=microtime(true)-$start;
-    check412($busy!==null && $waited<20,'a contended import waits once for the batch, not once per row');
+    check412($busy!==null && $waited<20,sprintf('a contended import waits once for the batch, not once per row (esito=%s, attesa=%.1fs, lock=%s, held=%s)',var_export($busy,true),$waited,$lockName,var_export($blocker->query("SELECT IS_USED_LOCK('".$blocker->real_escape_string($lockName)."') u")->fetch_row()[0],true)));
     check412((int)$svc->rows("SELECT COUNT(*) n FROM emeroteca_contributi WHERE titolo LIKE 'Busy %'")[0]['n']===0,'a contended import writes nothing at all');
-    $blocker->query("SELECT RELEASE_LOCK('".$blocker->real_escape_string($lockName)."')"); $blocker->close();
+    $blocker->query("SELECT RELEASE_LOCK('$escapedLock')"); $blocker->close();
     check412(count(array_filter($csv->commit($contended),fn($r)=>$r['error']===null))===3,'the same batch imports once the lock is free');
     $parts=iterator_to_array($csv->exportParts());
     check412(count($parts)===1 && count($csv->preview($parts[0]))>0,'small exports remain a single reimportable CSV');
