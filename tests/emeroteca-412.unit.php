@@ -235,6 +235,33 @@ try {
     check412($schema['failed']===[],'interrupted schema upgrade repairs missing foreign key');
     check412($plugin->ensureSchema()['failed']===[],'repeated plugin upgrade is idempotent');
 
+
+    // Recurring columns are distinct publications when their chronology differs.
+    $annualCsv="titolo,autori,contenitore_titolo,anno_pubblicazione,data_pubblicazione_testo,numero,pagine\nEditoriale annuale,Author,Journal,2024,,1,1\nEditoriale annuale,Author,Journal,2025,,1,1\n";
+    $annual=$csv->preview($annualCsv);
+    check412(!array_filter($annual,fn($r)=>$r['error']!==null),'different years are not duplicate citations in preview');
+    check412(!array_filter($csv->commit($annual),fn($r)=>$r['error']!==null),'different years both survive commit-time duplicate checks');
+    check412($csv->preview($annualCsv)[0]['error']!==null,'the same annual citation is still rejected');
+    $dated=$csv->preview("titolo,autori,contenitore_titolo,data_pubblicazione_testo\nRubrica mensile,Author,Journal,June 2024\nRubrica mensile,Author,Journal,July 2024\n");
+    check412(!array_filter($dated,fn($r)=>$r['error']!==null) && !array_filter($csv->commit($dated),fn($r)=>$r['error']!==null),'textual dates distinguish issues even without volume and number');
+    $doiYears=$csv->preview("titolo,anno_pubblicazione,doi\nChronology DOI,2024,10.1234/annual\nChronology DOI,2025,10.1234/annual\n");
+    check412($doiYears[1]['error']!==null,'identical DOI still identifies a duplicate across different dates');
+
+    // Check actual exported cells, then reimport without losing literal prefixes.
+    $formulaTitles=['=1+1','+1+1','-1+1','@SUM(1)',"'=1+1","''quoted","'ordinary"];
+    $formulaIds=[];
+    foreach($formulaTitles as $title) $formulaIds[]=$svc->save(['titolo'=>$title,'note_private'=>'=2+2']);
+    $fp=fopen('php://temp','w+'); fwrite($fp,$csv->export()); rewind($fp);
+    $header=fgetcsv($fp,0,',','"',''); $safeRows=[];
+    while(($cells=fgetcsv($fp,0,',','"',''))!==false) $safeRows[]=array_combine($header,$cells);
+    fclose($fp);
+    foreach($formulaTitles as $title) {
+        check412(count(array_filter($safeRows,fn($r)=>$r['titolo']==="'".$title && $r['note_private']==="'=2+2"))===1,'export escapes formula/apostrophe prefix: '.$title);
+    }
+    $roundTrip=$csv->preview($csv->export());
+    check412(!array_filter($roundTrip,fn($r)=>$r['error']!==null) && !array_filter($csv->commit($roundTrip),fn($r)=>$r['error']!==null),'escaped export can be imported again');
+    check412(array_map(fn($id)=>$svc->get($id)['titolo'],$formulaIds)===$formulaTitles,'reimport preserves formulas as text and literal apostrophes exactly');
+    check412($csv->preview("titolo\n=3+3\n")[0]['data']['titolo']==='=3+3','ordinary external CSV formula text is not changed on import');
     $batch=$csv->preview("titolo,autori,contenitore_titolo\nBatch duplicate,Author,Journal\nBatch duplicate,Author,Journal\n");
     check412($batch[0]['error']===null && $batch[1]['error']!==null,'preview flags duplicate citations inside the uploaded batch');
     $committed=$csv->commit($batch);

@@ -9,6 +9,9 @@ require_once __DIR__ . '/ContributionService.php';
 /** CSV preview is a bounded snapshot; commit rechecks the revision of every row. */
 final class ContributionCsv
 {
+    // Chronology distinguishes recurring columns in different issues/years.
+    private const CITATION_FIELDS = ['titolo','autori','contenitore_titolo','volume','numero','pagine','anno_pubblicazione','data_pubblicazione_testo'];
+
     public const MAX_ROWS = 500;
     public const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -74,6 +77,8 @@ final class ContributionCsv
                 if (count($row) !== count($headers)) {
                     throw new \InvalidArgumentException(__('Numero di colonne non valido.'));
                 }
+                // Undo our reversible spreadsheet escaping before validation/length checks.
+                $row = array_map(self::decodeCell(...), $row);
                 $data = array_combine($headers, $row);
                 $type = strtolower(trim((string)($data['record_type'] ?? 'article')));
                 if (!in_array($type, ['article','articolo','journal_article','newspaper_article'], true)) {
@@ -198,15 +203,15 @@ final class ContributionCsv
             }
             return $value;
         };
-        return json_encode(array_map(static fn($key) => $fold((string)($data[$key] ?? '')), ['titolo','autori','contenitore_titolo','volume','numero','pagine']), JSON_THROW_ON_ERROR);
+        return json_encode(array_map(static fn($key) => $fold((string)($data[$key] ?? '')), self::CITATION_FIELDS), JSON_THROW_ON_ERROR);
     }
 
     /** @param int $excludeId the row being updated, which is never a duplicate of itself */
     private function hasDuplicate(array $data, int $excludeId = 0): bool
     {
-        $params = array_map(static fn($key) => $data[$key] ?? '', ['titolo','autori','contenitore_titolo','volume','numero','pagine']);
+        $params = array_map(static fn($key) => $data[$key] ?? '', self::CITATION_FIELDS);
         $params[] = $excludeId;
-        $matches = $this->service->rows("SELECT id FROM emeroteca_contributi WHERE titolo=? AND COALESCE(autori,'')=? AND COALESCE(contenitore_titolo,'')=? AND COALESCE(volume,'')=? AND COALESCE(numero,'')=? AND COALESCE(pagine,'')=? AND id<>? LIMIT 1", $params);
+        $matches = $this->service->rows("SELECT id FROM emeroteca_contributi WHERE titolo=? AND COALESCE(autori,'')=? AND COALESCE(contenitore_titolo,'')=? AND COALESCE(volume,'')=? AND COALESCE(numero,'')=? AND COALESCE(pagine,'')=? AND COALESCE(anno_pubblicazione,'')=? AND COALESCE(data_pubblicazione_testo,'')=? AND id<>? LIMIT 1", $params);
         return $matches !== [] || (!empty($data['doi']) && $this->service->rows('SELECT id FROM emeroteca_contributi WHERE doi=? AND id<>? LIMIT 1', [$data['doi'], $excludeId]) !== []);
     }
 
@@ -233,6 +238,23 @@ final class ContributionCsv
         return $this->service->save($row['data'], (int)$row['id'], $row['revision']);
     }
 
+    /**
+     * Escape formula prefixes and literal leading apostrophes. Escaping the
+     * latter too makes decoding unambiguous for files produced by this exporter.
+     */
+    private static function encodeCell(mixed $value): string
+    {
+        $value = (string) ($value ?? '');
+        return preg_match("/^['=+\\-@\\t\\r\\n]/", $value) ? "'" . $value : $value;
+    }
+
+    /** Reverse one export escape; ordinary external CSV cells remain unchanged. */
+    private static function decodeCell(?string $value): string
+    {
+        $value = $value ?? '';
+        return preg_match("/^'(?=['=+\\-@\\t\\r\\n])/", $value) ? substr($value, 1) : $value;
+    }
+
     /** CSV files bounded by the same row and byte limits as preview(), including their header. */
     public function exportParts(): \Generator
     {
@@ -251,7 +273,7 @@ final class ContributionCsv
         do {
             $rows = $this->service->rows('SELECT * FROM emeroteca_contributi WHERE id>? ORDER BY id LIMIT 500', [$cursor]);
             foreach ($rows as $row) {
-                $line = $encode([self::recordTypeFor((string)($row['contenitore_tipo'] ?? '')), ...array_map(static fn($key) => $row[$key] ?? '', ContributionService::CSV_FIELDS)]);
+                $line = $encode([self::recordTypeFor((string)($row['contenitore_tipo'] ?? '')), ...array_map(static fn($key) => self::encodeCell($row[$key] ?? ''), ContributionService::CSV_FIELDS)]);
                 if ($count >= self::MAX_ROWS || strlen($part) + strlen($line) > self::MAX_BYTES) {
                     yield $part;
                     $part = $header;
@@ -277,7 +299,7 @@ final class ContributionCsv
 
     /**
      * Combined CSV for programmatic callers. The download controller uses exportParts()
-     * so large collections produce import-sized files. Literal cells preserve round-trip
+     * so large collections produce import-sized files. Reversible spreadsheet escaping preserves round-trip
      * values; record_type distinguishes articles from book imports.
      */
     public function export(): string

@@ -674,13 +674,11 @@ class ApiBookScraperPlugin
         if ($enabledRequested && $submittedEndpoint === '') {
             throw new \InvalidArgumentException(__('Per attivare il plugin servono sia l\'URL dell\'endpoint sia la chiave API.'));
         }
-        // Presence is not enough: "invalid-endpoint" was accepted, the hooks
-        // were registered, and every lookup then failed at call time. A
-        // submitted endpoint must be a complete https URL, disabled or not; a
-        // stored one is checked only when enabling, so an install still holding
-        // an old http:// address can always turn the plugin off.
-        $endpointSubmitted = array_key_exists('api_endpoint', $settings);
-        if ($submittedEndpoint !== '' && ($endpointSubmitted || $enabledRequested) && !self::isUsableEndpoint($submittedEndpoint)) {
+        // Both settings forms submit the existing endpoint even when disabling.
+        // Keep a legacy HTTP value only while disabled and unchanged; enabling
+        // or supplying a different non-empty endpoint still requires HTTPS.
+        $endpointChanged = $submittedEndpoint !== $this->apiEndpoint;
+        if ($submittedEndpoint !== '' && ($endpointChanged || $enabledRequested) && !self::isUsableEndpoint($submittedEndpoint)) {
             throw new \InvalidArgumentException(__('L\'URL dell\'endpoint deve essere un indirizzo https:// completo.'));
         }
 
