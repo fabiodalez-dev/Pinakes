@@ -43,7 +43,15 @@ Highlights of the latest release are below. The full version-by-version history 
 
 ### v0.7.84 — latest
 
-**Emeroteca Semplice e Completa** (#412): catalog standalone articles with their publication, date, volume, issue and page range, without creating holdings. Create a masthead later and associate existing articles in bulk, preserving citations and protected PDFs. Includes CSV preview/import/export, public search and additive mobile API endpoints. Existing installations keep Complete mode; for a new collection the administrator chooses the initial workflow, from the Periodicals page or the plugin settings. Bundled plugin **1.5.0**, migration `migrate_0.7.84.sql` and idempotent plugin schema upgrade.
+**Emeroteca Semplice e Completa** ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)): catalogue a standalone article — its publication, date, volume, issue and page range — without owning the issue it came from and without creating holdings. Create the masthead later and associate existing articles in bulk, preserving citations and protected PDFs. CSV preview, import and export round-trip losslessly; large exports arrive as a ZIP of import-sized CSV parts, and exported cells that start with `=`, `+`, `-` or `@` are escaped so a spreadsheet shows them as text. Public article search, permanent detail pages and additive mobile API endpoints. Existing installations keep Complete mode; for a new collection the administrator chooses the initial workflow, from the Periodicals page or the plugin settings. Bundled plugin **1.5.0**, migration `migrate_0.7.84.sql`, idempotent plugin schema upgrade.
+
+**The book form now says where an article belongs.** The media-type list offers Book, Record, Audiobook, DVD and Other, which is where a cataloguer holding one journal article looks first — and finds nothing that fits. It now points at the Emeroteca: to the article form when the plugin is active, to the plugins page when it is installed but off, and to nothing at all when it is not installed.
+
+**A copy under maintenance no longer erases the book's holdings** ([#426](https://github.com/fabiodalez-dev/Pinakes/issues/426)). A book whose only copy was being repaired published "Available Copies 0 / 0", which reads as "this library does not have it". The catalogue now publishes what the library owns and says why the rest is unavailable — `0 / 1 — Copies out of circulation: Under maintenance: 1` — on the page, in the live availability payload and in `/api/books/{id}/availability`, where `copies_total` keeps its meaning and `copies_owned` is added beside it.
+
+**Backups keep the ones you asked for.** Each archive records its origin — automatic, manual, safety copy or uploaded — and only the automatic ones are rotated, so a backup taken by hand before a risky change is never reclaimed for space. Legacy `update_*` directories rotate only when they really are one.
+
+**API Book Scraper sends its key only over HTTPS.** The endpoint must be a complete `https://` address and no redirect can downgrade it, so `X-API-Key` never travels in cleartext. An installation still holding an `http://` endpoint stops sending lookups and says so; switching the plugin off keeps working.
 
 ### v0.7.83
 
