@@ -40,7 +40,24 @@ final class ContributionCsv
             throw new \InvalidArgumentException(__('Il CSV deve essere UTF-8.'));
         }
         $stream = fopen('php://temp', 'w+');
-        fwrite($stream, preg_replace('/^\xEF\xBB\xBF/', '', $csv) ?? $csv);
+        if ($stream === false) {
+            throw new \RuntimeException('Article import could not open a temporary stream');
+        }
+        // php://temp spills to a file in the system temp directory above 2 MB.
+        // When that directory is missing or unwritable the write silently stores
+        // nothing, and the parse below then reported "CSV vuoto" — blaming the
+        // operator's file for a broken server. Check the write instead.
+        $payload = preg_replace('/^\xEF\xBB\xBF/', '', $csv) ?? $csv;
+        $written = fwrite($stream, $payload);
+        if ($written === false || $written !== strlen($payload)) {
+            fclose($stream);
+            throw new \RuntimeException(sprintf(
+                'Article import could not buffer the CSV: wrote %s of %d bytes to the temporary directory (%s)',
+                var_export($written, true),
+                strlen($payload),
+                sys_get_temp_dir()
+            ));
+        }
         rewind($stream);
         $headers = fgetcsv($stream, 0, ',', '"', '');
         if (!$headers) {
@@ -260,10 +277,18 @@ final class ContributionCsv
     {
         $encode = static function(array $cells): string {
             $fp = fopen('php://temp', 'w+');
+            if ($fp === false) {
+                throw new \RuntimeException('Article export could not open a temporary stream');
+            }
             try {
-                fputcsv($fp, $cells, ',', '"', '');
+                if (fputcsv($fp, $cells, ',', '"', '') === false) {
+                    // Same temp-directory failure as the import side: an export
+                    // that silently produced empty lines would be worse than an
+                    // export that stops and says why.
+                    throw new \RuntimeException('Article export could not write to the temporary directory (' . sys_get_temp_dir() . ')');
+                }
                 rewind($fp);
-                return stream_get_contents($fp);
+                return (string) stream_get_contents($fp);
             } finally { fclose($fp); }
         };
         $header = $encode(ContributionService::CSV_HEADER);

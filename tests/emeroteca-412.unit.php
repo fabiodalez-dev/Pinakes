@@ -308,6 +308,10 @@ try {
     check412(count($parts)===1 && count($csv->preview($parts[0]))>0,'small exports remain a single reimportable CSV');
     for($i=0;$i<501;$i++) { $svc->save(['titolo'=>'Export batch '.$i,'abstract'=>str_repeat('a',10000),'note_private'=>str_repeat('n',10000)]); }
     $parts=iterator_to_array($csv->exportParts()); $exportCount=0;
+    // Say what was actually produced: a bare "CSV vuoto" from preview() gives
+    // the next reader nothing to go on.
+    $shape=implode(', ',array_map(fn($i,$p)=>"#$i=".strlen($p).'B/'.substr_count($p,"\n").'righe',array_keys($parts),$parts));
+    check412($parts!==[] && $parts[0]!=='',"exportParts produces non-empty parts (rows=".(int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_contributi')[0]['n'].", parts: $shape)");
     check412(count($parts)>1 && count($csv->preview($parts[0]))<500,'large exports split on byte size as well as row count');
     foreach($parts as $part) {
         $parsed=$csv->preview($part); $exportCount+=count($parsed);
