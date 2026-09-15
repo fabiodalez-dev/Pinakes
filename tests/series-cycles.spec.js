@@ -305,6 +305,57 @@ test.describe.serial('Series groups and cycles', () => {
     await expect(page.locator('table')).toContainText(SPINOFF_SERIES);
   });
 
+  test('05b. the list draws the universe as a tree, with a visible start and end (#428)', async () => {
+    await page.goto(`${BASE}/admin/series`);
+    // The rows were already ordered as a tree but every row looked identical:
+    // you had to read the parent column to see who belonged to whom.
+    const header = page.locator('tr.series-block-header', { hasText: GROUP_FAIRY }).first();
+    await expect(header).toBeVisible();
+    await expect(header).toHaveClass(/series-block-start/);
+    // The header counts the series it collects, so the block announces its size.
+    await expect(header.locator('.series-block-count')).toHaveText(/^[1-9][0-9]*$/);
+
+    const children = page.locator('td.series-cell-child');
+    expect(await children.count(), 'the group has children drawn as such').toBeGreaterThan(0);
+    // Exactly one closing cell per block: that is what says where it ends.
+    const lastCells = page.locator('td.series-cell-last');
+    expect(await lastCells.count()).toBeGreaterThan(0);
+
+    // The connector must run through a continuing child and stop halfway on the
+    // last one; without the difference the block has no visible end.
+    const geometry = await page.evaluate(() => {
+      const cells = [...document.querySelectorAll('td.series-cell-child')];
+      const middle = cells.find((c) => !c.classList.contains('series-cell-last'));
+      const last = cells.find((c) => c.classList.contains('series-cell-last'));
+      return {
+        middle: middle ? getComputedStyle(middle, '::before').bottom : null,
+        last: last ? getComputedStyle(last, '::before').bottom : null,
+        arm: last ? getComputedStyle(last, '::after').borderTopWidth : null,
+      };
+    });
+    expect(geometry.middle, 'a continuing child carries the line to the bottom').toBe('0px');
+    expect(parseFloat(geometry.last), 'the last child closes the line before the bottom').toBeGreaterThan(1);
+    expect(parseFloat(geometry.arm), 'the child is joined to the block by a visible arm').toBeGreaterThan(0);
+
+    // The closing rule is what keeps the universe from bleeding into whatever
+    // follows — often an ordinary series with no hierarchy, which is exactly
+    // when a reader cannot tell the block ended.
+    const closing = await page.evaluate(() => {
+      const row = document.querySelector('tr.series-block-end');
+      if (!row) return null;
+      const style = getComputedStyle(row.querySelector('td'));
+      const next = row.nextElementSibling;
+      return {
+        width: parseFloat(style.borderBottomWidth),
+        colour: style.borderBottomColor,
+        nextIsOutside: next ? !next.querySelector('td.series-cell-child') : true,
+      };
+    });
+    expect(closing, 'a block end exists').not.toBeNull();
+    expect(closing.width, 'the universe closes with a rule of its own').toBeGreaterThanOrEqual(2);
+    expect(closing.nextIsOutside, 'the row after the closing rule is outside the block').toBe(true);
+  });
+
   test('06. series detail links other spin-offs in the same group', async () => {
     await page.goto(`${BASE}/admin/series/detail?nome=${encodeURIComponent(MAIN_SERIES)}`);
     await expect(page.locator('body')).toContainText('Altre serie nello stesso gruppo');
