@@ -87,6 +87,50 @@ class CmsController
         return $response;
     }
 
+    /**
+     * Index of everything the CMS manages (issue: /admin/cms answered 404).
+     *
+     * The three CMS entry points lived only as separate buttons inside the
+     * settings page, so /admin/cms — the address anyone shortens the others to —
+     * was a dead end, and a page that settings does not link (the privacy
+     * policy, any page a locale added) could be reached only by typing its slug.
+     * The list is read from the database rather than from a fixed menu, so a
+     * page that exists is a page an administrator can find.
+     */
+    public function index(Request $request, Response $response, \mysqli $db, array $args = []): Response
+    {
+        $db->set_charset('utf8mb4');
+        $currentLocale = \App\Support\I18n::getLocale();
+
+        $pages = [];
+        $stmt = $db->prepare(
+            'SELECT slug, title, is_active, updated_at FROM cms_pages WHERE locale = ? ORDER BY title'
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('s', $currentLocale);
+            if ($stmt->execute()) {
+                $result = $stmt->get_result();
+                if ($result instanceof \mysqli_result) {
+                    $pages = $result->fetch_all(MYSQLI_ASSOC);
+                }
+            }
+            $stmt->close();
+        }
+
+        $title = __('Contenuti del sito');
+
+        ob_start();
+        include __DIR__ . '/../Views/cms/index.php';
+        $content = ob_get_clean();
+
+        ob_start();
+        include __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
+    }
+
     public function editHome(Request $request, Response $response, \mysqli $db, array $args): Response
     {
         // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
@@ -555,7 +599,19 @@ class CmsController
         }
 
         if (!empty($errors)) {
-            $_SESSION['error_message'] = implode('<br>', array_map(fn($e) => htmlspecialchars($e, ENT_QUOTES, 'UTF-8'), $errors));
+            // Every section above is written only `if (... && empty($errors))`,
+            // so one invalid field discards the whole submission — including
+            // edits to sections that have nothing to do with it. The message
+            // used to name the offending field and stop there, which reads as
+            // "that one field was ignored" while the visibility someone had just
+            // switched off quietly came back. Say what actually happened.
+            //
+            // Plain text, escaped by the view: the previous version pre-escaped
+            // each error and joined them with <br>, and the view escapes what it
+            // is given, so a submission with two problems rendered them as
+            // "first<br>second" with the tag visible in the middle.
+            $_SESSION['error_message'] = __('Nessuna modifica è stata salvata: correggi quanto segue e salva di nuovo.')
+                . ' ' . implode(' · ', $errors);
         } else {
             \App\Support\ContentCache::homeContentChanged();
 

@@ -1008,6 +1008,14 @@ return function (App $app): void {
         return $controller->delete($request, $response, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Admin CMS index. Declared before /admin/cms/{slug} so the bare address
+    // lists the content instead of being read as a page slug.
+    $app->get('/admin/cms[/]', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\CmsController();
+        return $controller->index($request, $response, $db, $args);
+    })->add(new AdminAuthMiddleware());
+
     // Admin CMS routes - Homepage
     $app->get('/admin/cms/home', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');

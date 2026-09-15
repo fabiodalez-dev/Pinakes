@@ -1,4 +1,10 @@
 {
+  "Nessuna modifica è stata salvata: correggi quanto segue e salva di nuovo.": "Aucune modification n’a été enregistrée : corrigez ce qui suit et enregistrez à nouveau.",
+  "Contenuti del sito": "Contenus du site",
+  "Homepage, pagine e eventi del sito pubblico": "Page d’accueil, pages et événements du site public",
+  "Pagine di contenuto nella lingua attiva (%s)": "Pages de contenu dans la langue active (%s)",
+  "Nessuna pagina di contenuto in questa lingua.": "Aucune page de contenu dans cette langue.",
+  "Non visibile": "Non visible",
   "L'URL dell'endpoint deve essere un indirizzo https:// completo.": "L’URL du point de terminaison doit être une adresse https:// complète.",
   "Per attivare il plugin servono sia l'URL dell'endpoint sia la chiave API.": "Pour activer le plugin, l’URL du point de terminaison et la clé API sont toutes deux requises.",
   "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.": "Importez les articles depuis la section Emeroteca (valeur détectée : « %s »). Si le plugin est inactif, activez-le depuis Plugins.",

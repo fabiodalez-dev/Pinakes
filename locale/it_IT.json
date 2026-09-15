@@ -1,4 +1,10 @@
 {
+  "Nessuna modifica è stata salvata: correggi quanto segue e salva di nuovo.": "Nessuna modifica è stata salvata: correggi quanto segue e salva di nuovo.",
+  "Contenuti del sito": "Contenuti del sito",
+  "Homepage, pagine e eventi del sito pubblico": "Homepage, pagine e eventi del sito pubblico",
+  "Pagine di contenuto nella lingua attiva (%s)": "Pagine di contenuto nella lingua attiva (%s)",
+  "Nessuna pagina di contenuto in questa lingua.": "Nessuna pagina di contenuto in questa lingua.",
+  "Non visibile": "Non visibile",
   "L'URL dell'endpoint deve essere un indirizzo https:// completo.": "L'URL dell'endpoint deve essere un indirizzo https:// completo.",
   "Per attivare il plugin servono sia l'URL dell'endpoint sia la chiave API.": "Per attivare il plugin servono sia l'URL dell'endpoint sia la chiave API.",
   "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.": "Importa gli articoli dalla sezione Emeroteca (valore rilevato: \"%s\"). Se il plugin è inattivo, attivalo da Plugins.",
