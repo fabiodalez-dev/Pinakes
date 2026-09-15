@@ -618,6 +618,95 @@ class LibriApiController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
+    /**
+     * Set one field on the selected books (issue #380).
+     *
+     * Same authorisation as editing a book one at a time — this is that same
+     * operation repeated, not a new privilege. All the semantics live in
+     * {@see \App\Support\BulkFieldEditor}; here we only read the request and
+     * turn its two exception types into the two answers the UI needs: 400 for
+     * something the operator can fix, 500 for a database failure.
+     */
+    public function bulkEdit(Request $request, Response $response, mysqli $db): Response
+    {
+        $body = $request->getParsedBody();
+        if (!is_array($body) || $body === []) {
+            $decoded = json_decode((string) $request->getBody(), true);
+            $body = is_array($decoded) ? $decoded : [];
+        }
+
+        // CSRF validated by CsrfMiddleware
+
+        $ids = $body['ids'] ?? [];
+        if (!is_array($ids) || $ids === []) {
+            return $this->bulkEditError($response, __('Nessun libro selezionato'), 400);
+        }
+
+        $field = is_string($body['field'] ?? null) ? $body['field'] : '';
+        $mode = is_string($body['mode'] ?? null) ? $body['mode'] : '';
+        // A picker submits an id, a free-text box a name: both arrive as a
+        // string and BulkFieldEditor decides what the field accepts.
+        $value = is_scalar($body['value'] ?? null) ? (string) $body['value'] : '';
+
+        try {
+            $result = \App\Support\BulkFieldEditor::apply(
+                $db,
+                array_values($ids),
+                $field,
+                $value,
+                $mode,
+                isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->bulkEditError($response, $e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            AppLog::error('libri.bulk_edit.failed', [
+                'field' => $field,
+                'mode' => $mode,
+                'error' => $e->getMessage(),
+            ]);
+            return $this->bulkEditError($response, __('Errore interno del database'), 500);
+        }
+
+        AppLog::info('libri.bulk_edit', [
+            'field' => $result['field'],
+            'mode' => $result['mode'],
+            'changed' => $result['changed'],
+            'unchanged' => $result['unchanged'],
+            'missing' => $result['missing'],
+        ]);
+
+        // "Unchanged" is a real outcome, not a failure: the value was already
+        // there, or ADD found a genre already set. Say so instead of claiming
+        // an update that did not happen.
+        $message = sprintf(__('%d libri aggiornati'), $result['changed']);
+        if ($result['unchanged'] > 0) {
+            $message .= ' · ' . sprintf(__('%d già a posto'), $result['unchanged']);
+        }
+        if ($result['missing'] > 0) {
+            $message .= ' · ' . sprintf(__('%d non più disponibili'), $result['missing']);
+        }
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'changed' => $result['changed'],
+            'unchanged' => $result['unchanged'],
+            'missing' => $result['missing'],
+            'created' => $result['created'],
+            'message' => $message,
+        ], JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    private function bulkEditError(Response $response, string $error, int $status): Response
+    {
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => $error,
+        ], JSON_UNESCAPED_UNICODE));
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+
     private array $tableColCache = [];
     private function hasTableColumn(mysqli $db, string $table, string $name): bool
     {

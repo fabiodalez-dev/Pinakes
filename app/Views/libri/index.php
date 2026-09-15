@@ -336,6 +336,9 @@ $libri = $data['libri'];
           <button id="bulk-assign-collana" class="btn-secondary">
             <i class="fas fa-layer-group mr-2"></i><?= __("Assegna collana") ?>
           </button>
+          <button id="bulk-edit-field" class="btn-secondary">
+            <i class="fas fa-edit mr-2"></i><?= __("Modifica campo") ?>
+          </button>
           <button id="bulk-fetch-covers" class="btn-primary">
             <i class="fas fa-image mr-2"></i><?= __("Scarica copertine") ?>
           </button>
@@ -1236,6 +1239,176 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // Bulk manual edit of one field (issue #380).
+  //
+  // Every field is a list except the genre, and the two modes mean different
+  // things for the two shapes, so the modal restates what will happen each time
+  // the field changes instead of leaving "add" and "replace" to be guessed.
+  const bulkEditFields = [
+    { key: 'autori', label: __('Autori'), source: 'autori', list: true },
+    { key: 'illustratori', label: __('Illustratori'), source: 'autori', list: true },
+    { key: 'traduttori', label: __('Traduttori'), source: 'autori', list: true },
+    { key: 'curatori', label: __('Curatori'), source: 'autori', list: true },
+    { key: 'coloristi', label: __('Coloristi'), source: 'autori', list: true },
+    { key: 'editore', label: __('Editore'), source: 'editori', list: true },
+    { key: 'genere', label: __('Genere'), source: 'generi', list: false }
+  ];
+
+  document.getElementById('bulk-edit-field').addEventListener('click', async function() {
+    if (selectedBooks.size === 0) return;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const count = selectedBooks.size;
+    // Only the genre travels as an id: its label carries the parent in
+    // brackets and would never match a name. Authors and publishers travel as
+    // names — that is what find-or-create expects, and sending a number there
+    // would create an entity literally called "42".
+    let pickedId = null;
+
+    const options = bulkEditFields
+      .map(f => '<option value="' + f.key + '">' + f.label + '</option>')
+      .join('');
+
+    const result = await Swal.fire({
+      title: __('Modifica campo'),
+      html: '<div class="text-left">'
+        + '<p class="text-sm text-gray-500 mb-3">' + __('La modifica sarà applicata a %d libri selezionati.', count) + '</p>'
+        + '<label class="block text-sm font-medium text-gray-700 mb-1" for="swal-bulk-field">' + __('Campo') + '</label>'
+        + '<select id="swal-bulk-field" class="swal2-select swal-bulk-field">' + options + '</select>'
+        + '<div class="mt-2 flex items-center gap-4">'
+        + '<label class="text-sm text-gray-700"><input type="radio" name="swal-bulk-mode" value="add" checked> ' + __('Aggiungi') + '</label>'
+        + '<label class="text-sm text-gray-700"><input type="radio" name="swal-bulk-mode" value="replace"> ' + __('Sostituisci') + '</label>'
+        + '</div>'
+        + '<p id="swal-bulk-mode-help" class="text-xs text-gray-500 mt-1"></p>'
+        + '<label class="block text-sm font-medium text-gray-700 mb-1 mt-2" for="swal-bulk-value">' + __('Valore') + '</label>'
+        + '<input id="swal-bulk-value" class="swal2-input swal-collana-input" autocomplete="off">'
+        + '<div id="swal-bulk-results" class="mt-1 max-h-32 overflow-y-auto text-sm"></div>'
+        + '<p id="swal-bulk-value-help" class="text-xs text-gray-500 mt-1"></p>'
+        + '</div>',
+      showCancelButton: true,
+      confirmButtonText: __('Applica'),
+      cancelButtonText: __('Annulla'),
+      didOpen: () => {
+        const fieldSel = document.getElementById('swal-bulk-field');
+        const input = document.getElementById('swal-bulk-value');
+        const res = document.getElementById('swal-bulk-results');
+        const modeHelp = document.getElementById('swal-bulk-mode-help');
+        const valueHelp = document.getElementById('swal-bulk-value-help');
+
+        const currentField = () => bulkEditFields.find(f => f.key === fieldSel.value) || bulkEditFields[0];
+        const currentMode = () => document.querySelector('input[name="swal-bulk-mode"]:checked')?.value || 'add';
+
+        const refreshHelp = () => {
+          const field = currentField();
+          const mode = currentMode();
+          if (field.list) {
+            modeHelp.textContent = mode === 'add'
+              ? __('Aggiungi: il valore si somma a quelli già presenti.')
+              : __('Sostituisci: il valore prende il posto di quelli già presenti.');
+          } else {
+            modeHelp.textContent = mode === 'add'
+              ? __('Aggiungi: solo i libri senza genere vengono compilati.')
+              : __('Sostituisci: il genere viene riscritto su tutti i libri selezionati.');
+          }
+          valueHelp.textContent = field.source === 'autori'
+            ? __('Più nomi vanno separati da punto e virgola.')
+            : (field.source === 'generi' ? __('Scegli un genere esistente dall’elenco.') : '');
+        };
+
+        fieldSel.addEventListener('change', () => {
+          pickedId = null;
+          input.value = '';
+          res.textContent = '';
+          refreshHelp();
+          input.focus();
+        });
+        document.querySelectorAll('input[name="swal-bulk-mode"]').forEach(r => r.addEventListener('change', refreshHelp));
+        refreshHelp();
+
+        let deb;
+        input.addEventListener('input', () => {
+          // Typing after choosing a suggestion invalidates that choice.
+          pickedId = null;
+          clearTimeout(deb);
+          deb = setTimeout(async () => {
+            const field = currentField();
+            // With several names typed, only the one being written is searched.
+            const q = (field.source === 'autori' ? input.value.split(';').pop() : input.value).trim();
+            if (q.length < 1) { res.textContent = ''; return; }
+            try {
+              const r = await fetch((window.BASE_PATH || '') + '/api/search/' + field.source + '?q=' + encodeURIComponent(q));
+              const rows = await r.json();
+              res.textContent = '';
+              for (const row of (Array.isArray(rows) ? rows.slice(0, 10) : [])) {
+                const d = document.createElement('div');
+                d.className = 'p-2 hover:bg-gray-100 cursor-pointer rounded text-gray-900';
+                d.textContent = row.label || row.nome || '';
+                d.addEventListener('click', () => {
+                  const name = row.nome || row.label || '';
+                  if (field.source === 'autori') {
+                    const parts = input.value.split(';');
+                    parts[parts.length - 1] = ' ' + name;
+                    input.value = parts.join(';').replace(/^\s+/, '');
+                  } else if (field.source === 'generi') {
+                    input.value = row.label || name;
+                    pickedId = row.id || null;
+                  } else {
+                    input.value = name;
+                  }
+                  res.textContent = '';
+                  input.focus();
+                });
+                res.appendChild(d);
+              }
+            } catch { res.textContent = ''; }
+          }, 200);
+        });
+      },
+      preConfirm: () => {
+        const field = document.getElementById('swal-bulk-field').value;
+        const mode = document.querySelector('input[name="swal-bulk-mode"]:checked')?.value || 'add';
+        const typed = document.getElementById('swal-bulk-value').value.trim();
+        if (!typed) { Swal.showValidationMessage(__('Inserisci un valore')); return false; }
+        return { field, mode, value: pickedId ? String(pickedId) : typed };
+      }
+    });
+
+    if (!result.isConfirmed || !result.value) return;
+    const choice = result.value;
+
+    // Replacing across a selection overwrites data that is not coming back;
+    // the confirmation names the field and the number of books it will hit.
+    if (choice.mode === 'replace') {
+      const field = bulkEditFields.find(f => f.key === choice.field);
+      const confirm = await Swal.fire({
+        icon: 'warning',
+        title: __('Confermi la sostituzione?'),
+        text: __('Il valore attuale di questo campo sarà sostituito nei libri selezionati.') + ' ' + (field ? field.label : '') + ' · ' + count,
+        showCancelButton: true,
+        confirmButtonText: __('Sostituisci'),
+        cancelButtonText: __('Annulla')
+      });
+      if (!confirm.isConfirmed) return;
+    }
+
+    try {
+      const resp = await fetch((window.BASE_PATH || '') + '/api/libri/bulk-edit', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ ids: Array.from(selectedBooks), field: choice.field, mode: choice.mode, value: choice.value })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.success) {
+        await Swal.fire({ icon: 'error', title: __('Errore'), text: data.error || __('Errore durante la modifica') });
+        return;
+      }
+      await Swal.fire({ icon: 'success', title: __('Modifica applicata'), text: data.message, timer: 2500, showConfirmButton: false });
+      window.location.reload();
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: __('Errore'), text: err.message });
+    }
+  });
+
   // Bulk export
   document.getElementById('bulk-export').addEventListener('click', function() {
     if (selectedBooks.size === 0) return;
@@ -1543,7 +1716,10 @@ document.addEventListener('DOMContentLoaded', function() {
   padding: .65rem .75rem;
 }
 
-.swal-collana-input { width: 100% !important; margin: 0 !important; }
+/* SweetAlert centres and narrows its own input/select; inside these dialogs the
+   fields sit under left-aligned labels, so they take the full width instead. */
+.swal-collana-input,
+.swal-bulk-field { width: 100% !important; margin: 0 !important; }
 
 /* DataTables styling */
 table#libri-table { border: 1px solid #e5e7eb; width: 100% !important; }

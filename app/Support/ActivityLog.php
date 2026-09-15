@@ -59,6 +59,7 @@ final class ActivityLog
     private const EVENT_LABELS = [
         'book.created' => 'Libro inserito',
         'book.updated' => 'Libro aggiornato',
+        'book.bulk_edited' => 'Libro aggiornato in blocco',
         'book.deleted' => 'Libro eliminato',
         'copy.created' => 'Copia fisica aggiunta',
         'copy.updated' => 'Copia fisica aggiornata',
@@ -108,6 +109,14 @@ final class ActivityLog
         'editore_id' => 'Editore',
         'genere_id' => 'Genere',
         'sottogenere_id' => 'Sottogenere',
+        // Contributor credit lists. They live in libri_autori, not in a column
+        // of `libri`, so a bulk edit passes them explicitly (issue #380):
+        // without these the audit card would show an event and no change.
+        'autori' => 'Autori',
+        'illustratori' => 'Illustratori',
+        'traduttori' => 'Traduttori',
+        'curatori' => 'Curatori',
+        'coloristi' => 'Coloristi',
         'descrizione' => 'Descrizione',
         'copertina_url' => 'Copertina',
         'parole_chiave' => 'Parole chiave',

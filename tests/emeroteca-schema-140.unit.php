@@ -2,15 +2,16 @@
 declare(strict_types=1);
 
 /**
- * Behavioral unit tests for the Emeroteca 1.4.0 schema migration against
- * the REAL dev DB (issue #140 review follow-up).
+ * Behavioral unit tests for the Emeroteca 1.4.0 schema migration, run against
+ * a real MySQL server in a sandbox database of its own (issue #140 review
+ * follow-up).
  *
  * The point of this suite is the UPGRADE, not the fresh install: the 1.4.0
  * CREATE TABLE DDLs already declare every new column, so a run that only
  * calls ensureSchema() on an up-to-date schema proves nothing — a wrong
  * AFTER, a wrong type, or a column present in the DDL but forgotten in
  * additiveColumnDefs() would all stay green. So the suite DOWNGRADES the
- * real tables to the schema plugin 1.3.0 actually shipped (drops every
+ * tables to the schema plugin 1.3.0 actually shipped (drops every
  * 1.4.0 column, restores the 6-member legacy `stato` ENUM taken verbatim
  * from `git show origin/main:…/EmerotecaPlugin.php`, makes `volume`
  * NULLable again, removes the 1.4.0 indexes and drops emeroteca_abbonamenti),
@@ -50,15 +51,20 @@ declare(strict_types=1);
  *      consistenza is APPENDED to the computed one after ' · ' (shown alone
  *      when there is nothing computed, '—' when there is nothing at all).
  *
- * Data safety: the destructive fixtures run on the real dev tables, so every
- * value living in a 1.4.0-only column is copied into a zz_emu140_bak_* table
- * before the downgrade and written back afterwards; the finally block always
- * re-converges the schema first and restores second, so an assertion dying
- * mid-downgrade cannot leave the dev DB on the 1.3.0 shape.
+ * Where it runs: a database of its own, named after the installation's
+ * ($DB_NAME . '_emu140') or given by EMU140_SANDBOX_DB, created on the spot
+ * when the account may create databases. The installation's own tables are
+ * never touched — only the structure of the core tables the plugin attaches
+ * optional foreign keys to is cloned in, empty. Until 0.7.85 the downgrade ran
+ * on the installation's tables behind an opt-in environment flag, and without
+ * that flag the suite printed SKIP and passed: the one thing it exists to
+ * prove was the one thing nobody was running. A sandbox costs one database and
+ * removes the choice.
  *
  * Conventions follow tests/emeroteca.unit.php (env parsing, DB connection,
  * check()/pass() helpers, FK-ordered cleanup) — but this suite FAILS HARD
- * (exit 1) when the DB is unreachable: it exists to prove the migration.
+ * (exit 1) when the DB or the sandbox is unreachable: it exists to prove the
+ * migration, so it never degrades into a skip.
  */
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -102,6 +108,94 @@ if (!isset($db) || $db->connect_errno !== 0) {
     exit(1);
 }
 $db->set_charset('utf8mb4');
+
+// ── the sandbox database ──────────────────────────────────────────────
+//
+// The downgrade below tears the 1.4.0 schema apart, which is the whole point
+// of the suite: only a real 1.3.0 → 1.4.0 upgrade proves the migration. Doing
+// that to the installation's own tables used to require an opt-in environment
+// flag, and without it the suite quietly skipped the very thing it exists to
+// prove — a skip is not a pass, and a suite that can be silently disabled by
+// forgetting a variable is a suite nobody finds out is off.
+//
+// So the schema work happens in a database of its own, named after the
+// installation's ($DB_NAME . '_emu140') or given by EMU140_SANDBOX_DB. The
+// tables that matter are created here from the plugin's own DDLs, so the
+// sandbox is an installation of the plugin and nothing else: no fixture can
+// reach the catalogue, and the suite can be as destructive as the upgrade
+// really is.
+$installationDb = $name;
+$sandboxName = getenv('EMU140_SANDBOX_DB') ?: ($name . '_emu140');
+if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandboxName)) {
+    fwrite(STDERR, "FAIL: invalid sandbox database name '{$sandboxName}'\n");
+    exit(1);
+}
+if (strcasecmp($sandboxName, (string) $installationDb) === 0) {
+    // The suite drops every emeroteca_% table it finds in the sandbox and then
+    // tears the schema down. Pointed at the installation's own database — one
+    // environment variable away — that is the catalogue's periodicals, and the
+    // "am I on the sandbox" guard further down would happily agree, because
+    // DATABASE() would indeed be this name.
+    fwrite(STDERR, <<<TXT
+        FAIL: EMU140_SANDBOX_DB is set to '{$sandboxName}', which is the installation's own database.
+              This suite drops and rebuilds the emeroteca schema, so it must never point there.
+              Leave it unset to use '{$installationDb}_emu140', or name a disposable database.
+
+        TXT);
+    exit(1);
+}
+// Created when the account may (CI runs as root); otherwise it has to exist
+// already — say exactly what to do rather than skipping the upgrade.
+@$db->query("CREATE DATABASE IF NOT EXISTS `{$sandboxName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+$sandboxExists = false;
+$probe = @$db->query(
+    "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '" . $db->real_escape_string($sandboxName) . "'"
+);
+if ($probe instanceof \mysqli_result) {
+    $sandboxExists = $probe->num_rows === 1;
+    $probe->free();
+}
+if (!$sandboxExists) {
+    fwrite(STDERR, <<<TXT
+        FAIL: the sandbox database '{$sandboxName}' does not exist and this account cannot create it.
+              The suite rebuilds the 1.3.0 schema and upgrades it, so it needs a database of its own.
+              Create it once, as an administrator:
+                CREATE DATABASE `{$sandboxName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+                GRANT ALL PRIVILEGES ON `{$sandboxName}`.* TO '{$user}'@'localhost';
+              Or point EMU140_SANDBOX_DB at a disposable database you already own.
+
+        TXT);
+    exit(1);
+}
+
+// Every emeroteca table is dropped so each run starts from nothing and builds
+// the schema itself: a leftover from a previous run must never be mistaken for
+// what the migration produced.
+$leftovers = [];
+$res = @$db->query(
+    "SELECT TABLE_NAME FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = '" . $db->real_escape_string($sandboxName) . "'
+        AND TABLE_NAME LIKE 'emeroteca\\_%'"
+);
+while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
+    $leftovers[] = (string) $row['TABLE_NAME'];
+}
+if ($leftovers !== []) {
+    @$db->query('SET FOREIGN_KEY_CHECKS = 0');
+    foreach ($leftovers as $leftover) {
+        @$db->query("DROP TABLE IF EXISTS `{$sandboxName}`.`{$leftover}`");
+    }
+    @$db->query('SET FOREIGN_KEY_CHECKS = 1');
+}
+
+// From here on the suite talks only to the sandbox: DATABASE() must resolve to
+// it, because the plugin probes information_schema with TABLE_SCHEMA =
+// DATABASE() and would otherwise inspect the installation while altering the
+// sandbox.
+if (!$db->select_db($sandboxName)) {
+    fwrite(STDERR, "FAIL: cannot use the sandbox database '{$sandboxName}': {$db->error}\n");
+    exit(1);
+}
 
 $TESTNO = 0;
 function pass(string $desc): void
@@ -264,6 +358,31 @@ require_once $pluginDir . '/EmerotecaPlugin.php';
 
 $hm = new \App\Support\HookManager($db);
 $plugin = new EmerotecaPlugin($db, $hm);
+
+// The core tables the plugin attaches its optional foreign keys to are cloned
+// into the sandbox EMPTY and structure-only: CREATE TABLE … LIKE copies no rows
+// and no foreign keys of its own, so nothing cascades in from the catalogue.
+// Without them the plugin would simply not expect those FKs, and the suite
+// would stop covering the one it was written for — annate.collocazione_id →
+// mensole, re-attached by the upgrade. Reading the list from the plugin means a
+// core FK added later is covered here without editing this file.
+$coreFkDefs = new \ReflectionMethod(EmerotecaPlugin::class, 'coreForeignKeyDefs');
+$coreFkDefs->setAccessible(true);
+/** @var list<array{table:string, column:string, ref_table:string, ref_col:string, name:string}> $coreFkList */
+$coreFkList = $coreFkDefs->invoke(null);
+foreach (array_unique(array_column($coreFkList, 'ref_table')) as $coreTable) {
+    if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', (string) $coreTable)) {
+        continue;
+    }
+    if (!@$db->query("CREATE TABLE IF NOT EXISTS `{$sandboxName}`.`{$coreTable}` LIKE `{$installationDb}`.`{$coreTable}`")) {
+        // Failing here rather than carrying on is deliberate: without the core
+        // table the plugin stops expecting that foreign key, and the suite
+        // would keep passing while covering strictly less than it claims to.
+        fwrite(STDERR, "FAIL: cannot clone core table '{$installationDb}.{$coreTable}' into the sandbox: {$db->error}\n");
+        fwrite(STDERR, "      The suite needs the installation schema to exist so the plugin's optional core FKs are exercised.\n");
+        exit(1);
+    }
+}
 
 // ── code-derivation helpers ───────────────────────────────────────────
 
@@ -544,28 +663,8 @@ $assertIndexes = static function (string $phase) use ($indexSpecs, $indexColumns
     }
 };
 
-// ── backup/restore of the columns the downgrade destroys ──────────────
-$backupTables = [];
-$backup = static function (string $table, array $columns) use ($db, &$backupTables): void {
-    if ($columns === []) {
-        return;
-    }
-    $bak = 'zz_emu140_bak_' . $table;
-    @$db->query("DROP TABLE IF EXISTS {$bak}");
-    $cols = implode(', ', array_merge(['id'], $columns));
-    if ($db->query("CREATE TABLE {$bak} AS SELECT {$cols} FROM {$table}") === false) {
-        throw new \RuntimeException("backup of {$table} failed: " . $db->error);
-    }
-    $backupTables[$table] = $columns;
-};
-$restore = static function (string $table, array $columns, string $where = '1=1') use ($db): void {
-    $bak = 'zz_emu140_bak_' . $table;
-    $sets = implode(', ', array_map(static fn (string $c): string => "t.{$c} = b.{$c}", $columns));
-    @$db->query("UPDATE {$table} t JOIN {$bak} b ON b.id = t.id SET {$sets} WHERE {$where}");
-    @$db->query("DROP TABLE IF EXISTS {$bak}");
-};
-
-$downgraded = false;
+// Nothing to back up: the schema below is torn down and rebuilt inside the
+// sandbox, whose only rows are the fixtures this suite inserts itself.
 
 try {
     // ── 1. ensureSchema: no failures, tables derived from the DDLs ─────
@@ -780,7 +879,11 @@ try {
 
     // ══ 7. THE UPGRADE: downgrade to the real 1.3.0 schema, seed legacy
     //       rows, run the REAL ensureSchema() once ═════════════════════
-    if (getenv('EMU140_ALLOW_DESTRUCTIVE') === '1') {
+    // Always runs: the sandbox exists precisely so the upgrade this suite was
+    // written to prove can never be skipped. The guard is the sandbox itself —
+    // if the bootstrap ever left us pointing elsewhere, stop rather than tear
+    // down an installation's tables.
+    if ($db->query('SELECT DATABASE() AS d')->fetch_assoc()['d'] === $sandboxName) {
         $toDrop = [];
         foreach ($LEGACY_130 as $table => $legacyColumns) {
             $toDrop[$table] = array_values(array_diff(array_keys($ddlColumns[$table] ?? []), $legacyColumns));
@@ -793,25 +896,6 @@ try {
                     ['emeroteca_testate', 'emeroteca_annate', 'emeroteca_fascicoli']
                 )) . ')'
         );
-
-        // 7a. protect the real data living in the columns about to be dropped.
-        foreach ($toDrop as $table => $columns) {
-            $backup($table, $columns);
-        }
-        // `stato` survives the downgrade as a column but the 1.3.0 ENUM has no
-        // 'reclamato'/'scartato': snapshot it so pre-existing rows can be put
-        // back exactly as they were.
-        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_stato');
-        check(
-            $db->query('CREATE TABLE zz_emu140_bak_stato AS SELECT id, stato FROM emeroteca_fascicoli') !== false,
-            'downgrade: pre-existing stato values snapshotted before the ENUM reverts to the 1.3.0 list'
-        );
-        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_abbonamenti');
-        check(
-            $db->query('CREATE TABLE zz_emu140_bak_abbonamenti AS SELECT * FROM emeroteca_abbonamenti') !== false,
-            'downgrade: emeroteca_abbonamenti rows snapshotted before the table is dropped'
-        );
-        $downgraded = true;
 
         // 7b. tear the 1.4.0 schema down.
         $annataFk = $fkName('emeroteca_annate', 'collocazione_id');
@@ -1034,34 +1118,6 @@ try {
             'UNIQUE(testata_id, anno, volume) holds strictly across the whole table after the migration'
         );
 
-        // 7h. restore the pre-existing rows now that the schema is back.
-        @$db->query(
-            "UPDATE emeroteca_fascicoli f JOIN zz_emu140_bak_stato b ON b.id = f.id
-                SET f.stato = b.stato
-              WHERE f.annata_id <> {$legacyAnnataId}"
-        );
-        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_stato');
-        $abbCols = [];
-        $res = $db->query(
-            "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'zz_emu140_bak_abbonamenti'
-              ORDER BY ORDINAL_POSITION"
-        );
-        while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
-            $abbCols[] = (string) $row['COLUMN_NAME'];
-        }
-        if ($abbCols !== []) {
-            $list = implode(',', $abbCols);
-            @$db->query("INSERT INTO emeroteca_abbonamenti ({$list}) SELECT {$list} FROM zz_emu140_bak_abbonamenti");
-        }
-        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_abbonamenti');
-        foreach ($backupTables as $table => $columns) {
-            $restore($table, $columns);
-        }
-        $backupTables = [];
-        $downgraded = false;
-        pass('pre-existing dev-DB rows restored into the re-created 1.4.0 columns');
-
         // ── 8. partial upgrade: only the ENUM is legacy, condizione already
         //       exists → COALESCE must not overwrite a recorded condition ──
         check(
@@ -1085,7 +1141,9 @@ try {
         );
 
     } else {
-        echo "SKIP: migration downgrade requires EMU140_ALLOW_DESTRUCTIVE=1 on a disposable database\n";
+        throw new \RuntimeException(
+            'refusing to run the downgrade: the connection is not on the sandbox database'
+        );
     }
 
     // ── 9. consistenzaTestata: stato drives counts, scartato excluded,
@@ -1130,9 +1188,9 @@ try {
     check(($result5['failed'] ?? ['x']) === [], 'final ensureSchema() converges with no failures');
     check($schemaInventory() === $inventoryFinal, 'the upgraded schema is stable across one more ensureSchema()');
 } finally {
-    // Converge FIRST: an assertion dying between the downgrade and the
-    // re-migration would otherwise leave the dev DB on the 1.3.0 schema,
-    // and the restore below needs the 1.4.0 columns to exist.
+    // Converge first: an assertion dying between the downgrade and the
+    // re-migration would otherwise leave the sandbox on the 1.3.0 shape, and
+    // the fixture cleanup below needs the 1.4.0 columns to exist.
     $converge = static function () use ($plugin): void {
         try {
             $plugin->ensureSchema();
@@ -1141,33 +1199,10 @@ try {
         }
     };
     $converge();
-    if ($downgraded) {
-        fwrite(STDERR, "NOTE: the suite aborted mid-downgrade; restoring the snapshotted values\n");
-        @$db->query(
-            'UPDATE emeroteca_fascicoli f JOIN zz_emu140_bak_stato b ON b.id = f.id SET f.stato = b.stato'
-        );
-        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_stato');
-        $abbCols = [];
-        $res = @$db->query(
-            "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'zz_emu140_bak_abbonamenti'
-              ORDER BY ORDINAL_POSITION"
-        );
-        while ($res instanceof \mysqli_result && ($row = $res->fetch_assoc())) {
-            $abbCols[] = (string) $row['COLUMN_NAME'];
-        }
-        if ($abbCols !== []) {
-            $list = implode(',', $abbCols);
-            @$db->query("INSERT IGNORE INTO emeroteca_abbonamenti ({$list}) SELECT {$list} FROM zz_emu140_bak_abbonamenti");
-        }
-        @$db->query('DROP TABLE IF EXISTS zz_emu140_bak_abbonamenti');
-    }
-    foreach ($backupTables as $table => $columns) {
-        $restore($table, $columns);
-    }
     $cleanup();
-    // Fixture rows are gone now: a last pass guarantees the schema the next
-    // suite (or the browser) finds is the converged 1.4.0 one.
+    // Fixture rows are gone now: a last pass leaves the sandbox on the
+    // converged 1.4.0 schema, which is also what the next run starts from
+    // before it drops the tables and builds them again.
     $converge();
     $db->close();
 }

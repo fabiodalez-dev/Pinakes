@@ -2,6 +2,25 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.85]
+
+### Added
+- **Edit one field across a selection of books** ([#380](https://github.com/fabiodalez-dev/Pinakes/issues/380)). Correcting the same field on a whole shelf — the illustrator nobody filled in, a publisher spelled differently, a genre that belongs to all of them — meant opening every book in turn. The books list gains a "Modifica campo" action next to the bulk actions already there: authors, illustrators, translators, curators, colourists, publisher and genre, each in one of two modes. *Add* joins the value to what is already credited and never duplicates it; for the genre, which holds one value, it fills only the books that have none, so a bulk fill can never overwrite a curated classification. *Replace* makes the value the only one and asks for a second confirmation naming the field and the number of books. The whole selection is applied in one transaction, the typed value is resolved once for the batch (a name typed for three hundred books creates one author, not three hundred), soft-deleted books are reported rather than edited, and an unknown genre is refused instead of invented. Every book that changes has its search index rebuilt and an entry in the activity log.
+
+### Changed
+- **The series list draws the hierarchy instead of describing it** ([#428](https://github.com/fabiodalez-dev/Pinakes/issues/428)). The rows were already ordered as a tree — universe first, then its series by cycle order — but every row looked the same, so the only way to see that a cycle belonged to an universe was to read the parent column and rebuild the hierarchy in your head. The block is now drawn: its header carries the universe icon, a tinted row and the number of series it collects; the children are indented and joined by a line that runs while the block continues and closes at a corner on the last one; a darker rule marks where the block ends, which matters most when what follows is an ordinary series with no hierarchy at all.
+
+### Fixed
+- **Saving the homepage no longer switches sections back on.** Reported from a live library: the features section was switched off, and it came back on the next save. A section's visibility is on that page twice — the toggle in the ordering list, which writes immediately, and the "Visibile" checkbox inside the section's own card, which is written on submit — and the two did not talk to each other, so switching a section off at the top of the page and then pressing Save re-sent the value the page had been loaded with. The two controls now follow each other, in both directions, and back again when a toggle request is refused.
+- **Feature cards that were switched off are no longer drawn.** The same library was publishing four cards reading "Feature 1" to "Feature 4", a star icon each and no text: a card that is off is simply absent from the section's data, and the template filled each gap from the defaults meant for a fresh install. It now renders the cards that are actually there, and draws no grid when none are left.
+- **An invalid field on the homepage form no longer discards every other edit in silence.** Each section is written only when there are no errors, so one bad URL threw away the whole submission while the message named the offending field and stopped there. It now says that nothing was saved and lists what to fix. The errors were also joined with `<br>` before a view that escapes what it is given, so two problems rendered with the tag visible between them.
+- **`/admin/cms` answered 404.** The three CMS entry points existed only as buttons inside the settings page, so the address they all shorten to led nowhere, and a page that settings does not link — the privacy policy, anything a locale adds — could be reached only by typing its slug. There is now an index listing the homepage, the events and every content page in the active language, read from the database rather than from a fixed menu.
+- **A content page's heading now lines up with its own text.** It sat in the page container while the text sat in a narrower column: invisible while the theme centres the heading, but the editorial and command layouts align it left, and there it started about a hundred pixels further left than its first line.
+
+### Testing
+- The Emeroteca 1.4.0 schema suite runs its 1.3.0 → 1.4.0 upgrade in a sandbox database of its own instead of skipping it. Tearing the schema down on the installation's own tables was gated behind an environment variable, and without it the suite printed SKIP and passed — the one thing it exists to prove was the one thing nobody was running outside CI. It now goes from 215 checks to 360, with the installation's tables out of reach.
+- New suites: `tests/bulk-field-edit-380.unit.php` (31 behavioural checks against the real schema), `tests/issue-380-bulk-edit.spec.js` and `tests/cms-admin.spec.js` (the CMS as an administrator uses it: the index, section visibility through both controls, the all-or-nothing save, reordering, content pages, heading alignment and events).
+
 ## [0.7.84]
 
 ### Added
