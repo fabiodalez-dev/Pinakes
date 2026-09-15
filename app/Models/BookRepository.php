@@ -1429,6 +1429,34 @@ class BookRepository
     }
 
     /**
+     * Apply only the relational part of a book save (issue #380, bulk edit).
+     *
+     * The bulk editor changes one field across many books and must not touch
+     * anything else, so it cannot go through updateBasic() — that method writes
+     * the whole row and would blank every column the caller did not supply.
+     * Routing it here instead of reimplementing the joins is what keeps a bulk
+     * edit identical to the single-book form: the same role ownership rules, the
+     * same release of import provenance, the same refresh of the denormalized
+     * traduttore/illustratore/curatore columns that CSV export and the public
+     * API still read.
+     *
+     * Keys are the ones the book form posts: `autori_ids` (creators),
+     * `illustratori_ids`, `traduttori_ids`, `curatori_ids`, `coloristi_ids` and
+     * `editori_ids`. Absent keys are left untouched; `libri.editore_id` stays
+     * the caller's responsibility, exactly as it is for updateBasic().
+     *
+     * @param array<string,mixed> $data
+     */
+    public function syncRelations(int $bookId, array $data): void
+    {
+        if (array_key_exists('editori_ids', $data) && is_array($data['editori_ids'])) {
+            $this->syncPublishers($bookId, $data['editori_ids']);
+        }
+        // No-ops on its own when the array carries no contributor key.
+        $this->syncContributors($bookId, $data);
+    }
+
+    /**
      * Replace the publisher set for a book (issue #143).
      *
      * Deletes the libri_editori rows then inserts the given publisher ids in order

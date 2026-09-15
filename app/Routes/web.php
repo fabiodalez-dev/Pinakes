@@ -2514,6 +2514,13 @@ return function (App $app): void {
         return $controller->bulkDelete($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Manual bulk edit of one field across the selection (issue #380)
+    $app->post('/api/libri/bulk-edit', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibriApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkEdit($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // API Increase copies of a book (admin only)
     $app->post('/api/libri/{id:\d+}/increase-copies', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');

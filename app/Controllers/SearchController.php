@@ -22,6 +22,11 @@ class SearchController
         // and each query word may match either the real name or the pseudonym so an
         // author is findable by pen name.
         $label = \App\Support\AuthorName::displaySql('autori') . ' AS label';
+        // `nome` travels alongside the display label because a caller that
+        // resolves people by name — the bulk field editor (#380) — would
+        // otherwise create a second author literally called "Pen name (Real
+        // name)". Pickers that bind on the id simply ignore the extra key.
+        $select = "id, nome, {$label}";
         if ($q !== '') {
             // Split query into words — each word must match (AND logic)
             $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY);
@@ -35,7 +40,7 @@ class SearchController
                 $params[] = $like;
                 $types .= 'ss';
             }
-            $sql = "SELECT id, {$label} FROM autori WHERE " . implode(' AND ', $conditions)
+            $sql = "SELECT {$select} FROM autori WHERE " . implode(' AND ', $conditions)
                 . " ORDER BY " . \App\Support\AuthorName::preferredSql('autori');
             $stmt = $db->prepare($sql);
             $stmt->bind_param($types, ...$params);
@@ -43,13 +48,15 @@ class SearchController
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
                 $r['label'] = HtmlHelper::decode($r['label']);
+                $r['nome'] = HtmlHelper::decode((string) $r['nome']);
                 $rows[] = $r;
             }
         } else {
             // Return all authors (for Choices.js initial load)
-            $res = $db->query("SELECT id, {$label} FROM autori ORDER BY " . \App\Support\AuthorName::preferredSql('autori'));
+            $res = $db->query("SELECT {$select} FROM autori ORDER BY " . \App\Support\AuthorName::preferredSql('autori'));
             while ($r = $res->fetch_assoc()) {
                 $r['label'] = HtmlHelper::decode($r['label']);
+                $r['nome'] = HtmlHelper::decode((string) $r['nome']);
                 $rows[] = $r;
             }
         }
