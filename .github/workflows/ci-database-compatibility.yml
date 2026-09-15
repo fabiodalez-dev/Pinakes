@@ -65,7 +65,6 @@ jobs:
       DB_PASS: root
       DB_NAME: pinakes_test
       CI_STRICT_TESTS: '1'
-      EMU140_ALLOW_DESTRUCTIVE: '1'
 
     steps:
       - name: Checkout without persisted credentials
