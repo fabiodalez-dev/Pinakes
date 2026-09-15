@@ -1102,11 +1102,49 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
 
+    // Five sections carry their visibility TWICE on this page: the toggle in
+    // this list, which writes to the database immediately, and the "Visibile"
+    // checkbox inside the section's own card, which is written when the form is
+    // submitted. They used to be independent, so the obvious sequence — switch a
+    // section off up here, then press Save — sent the card's stale "on" value
+    // and turned the section straight back on. Keeping them in step means the
+    // page has one answer to "is this visible", whichever control is used, and
+    // that the answer follows a failed request back to where it was.
+    //
+    // The card's field is addressed by the section key it posts under, so no
+    // toggle-to-field map has to be maintained by hand. Sections whose
+    // visibility lives only in this list (hero, the four feature cards) have no
+    // field and are left alone — their save path does not touch is_active.
+    const visibilityFieldFor = (toggle) => {
+      const key = toggle.closest('.section-item')?.dataset.sectionKey;
+      return key ? document.querySelector('input[name="' + key + '[is_active]"]') : null;
+    };
+    const syncVisibilityField = (toggle) => {
+      const field = visibilityFieldFor(toggle);
+      if (field) {
+        field.checked = toggle.checked;
+      }
+    };
+
     // Toggle visibility
     document.querySelectorAll('.toggle-visibility').forEach(toggle => {
+      const field = visibilityFieldFor(toggle);
+      if (field) {
+        // The other direction never hits the network: the card's checkbox is
+        // saved with the form, and this list shows what is about to be saved.
+        field.addEventListener('change', () => {
+          toggle.checked = field.checked;
+        });
+      }
       toggle.addEventListener('change', function() {
         const sectionId = parseInt(this.dataset.sectionId);
         const isActive = this.checked ? 1 : 0;
+        // What to go back to if the write is refused. Flipping `checked` again
+        // would undo whatever the operator clicked in the meantime rather than
+        // restore the value this request set out from — and now that the card's
+        // field follows the toggle, a wrong restore would travel to the form.
+        const previous = !this.checked;
+        syncVisibilityField(this);
 
         fetch(window.BASE_PATH + '/admin/cms/home/toggle-visibility', {
             method: 'POST',
@@ -1126,8 +1164,10 @@ document.addEventListener('DOMContentLoaded', function() {
           if (data.error || data.code) {
             statusEl.textContent = '\u2717 ' + (data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
             statusEl.className = 'mt-4 text-sm text-red-600';
-            // Revert checkbox
-            toggle.checked = !toggle.checked;
+            // Restore what it was before this request — and the card's field
+            // with it, so a refused write never leaves the two disagreeing.
+            toggle.checked = previous;
+            syncVisibilityField(toggle);
 
             // Handle session expiration - reload page to get new CSRF token
             if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
@@ -1147,19 +1187,23 @@ document.addEventListener('DOMContentLoaded', function() {
           } else {
             statusEl.textContent = '\u2717 ' + (data.message || <?= json_encode(__("Errore durante l'aggiornamento"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
             statusEl.className = 'mt-4 text-sm text-red-600';
-            // Revert checkbox
-            toggle.checked = !toggle.checked;
+            // Restore what it was before this request — and the card's field
+            // with it, so a refused write never leaves the two disagreeing.
+            toggle.checked = previous;
+            syncVisibilityField(toggle);
           }
         })
         .catch(err => {
           console.error(err);
           statusEl.textContent = '\u2717 ' + <?= json_encode(__("Errore di rete"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
           statusEl.className = 'mt-4 text-sm text-red-600';
-          // Revert checkbox
-          this.checked = !this.checked;
+          // Restore what it was before this request — and the card's field too.
+          this.checked = previous;
+          syncVisibilityField(this);
         });
       });
     });
   }
+
 });
 </script>

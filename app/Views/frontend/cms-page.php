@@ -145,13 +145,20 @@ ob_start();
 
 <section class="cms-page">
     <div class="container">
-        <div class="cms-header">
-            <h1 class="cms-title"><?= htmlspecialchars($title) ?></h1>
-            <div class="cms-divider"></div>
-        </div>
-
+        <?php
+        // The heading lives in the same column as the text it introduces.
+        // It used to sit directly in the container, one twelfth of the page
+        // wider on each side, which nobody notices while the theme centres it —
+        // but the editorial and command layouts align it left, and there it
+        // started about a hundred pixels to the left of its own first line.
+        ?>
         <div class="flex flex-wrap -mx-3 justify-center">
             <div class="w-full lg:w-5/6 px-3">
+                <div class="cms-header">
+                    <h1 class="cms-title"><?= htmlspecialchars($title) ?></h1>
+                    <div class="cms-divider"></div>
+                </div>
+
                 <?php if (!empty($image)): ?>
                     <img src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
                          alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"
