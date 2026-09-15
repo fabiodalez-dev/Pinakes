@@ -35,10 +35,17 @@ const sectionActive = (key) => db(`SELECT is_active FROM home_content WHERE sect
 // Everything this suite changes is put back, so it can run on a working
 // installation without leaving the homepage rearranged.
 let originalState = {};
+// Captured inside the test that edits it, restored in afterAll: a failing
+// assertion must not leave the marker in the page title for the next run.
+let originalPageTitle = null;
 
 test.describe.serial('CMS admin', () => {
   test.beforeAll(() => {
-    if (!process.env.E2E_ADMIN_EMAIL || !process.env.E2E_DB_USER) throw new Error('Run with /tmp/run-e2e.sh');
+    // Every variable this suite needs, checked together: a missing password
+    // used to get past the guard and fail several steps later as a timeout.
+    const required = ['E2E_ADMIN_EMAIL', 'E2E_ADMIN_PASS', 'E2E_DB_USER', 'E2E_DB_NAME', 'E2E_DB_PASS'];
+    const missing = required.filter(name => !process.env[name]);
+    if (missing.length) throw new Error(`Run with /tmp/run-e2e.sh — missing: ${missing.join(', ')}`);
     const rows = db('SELECT section_key, is_active, display_order FROM home_content').split('\n').filter(Boolean);
     originalState = Object.fromEntries(rows.map(r => {
       const [key, active, order] = r.split('\t');
@@ -52,6 +59,9 @@ test.describe.serial('CMS admin', () => {
         db(`UPDATE home_content SET is_active=${Number(v.active)}, display_order=${Number(v.order)} WHERE section_key='${key}'`);
       }
       db(`DELETE FROM events WHERE title LIKE '${marker}%'`);
+      if (originalPageTitle !== null) {
+        db(`UPDATE cms_pages SET title='${originalPageTitle.replace(/'/g, "''")}' WHERE slug='chi-siamo' AND locale='it_IT'`);
+      }
     } catch (e) { console.error('Scoped cleanup failed:', e.message); }
   });
 
@@ -208,6 +218,7 @@ test.describe.serial('CMS admin', () => {
     await page.goto(BASE + '/admin/cms/chi-siamo');
     const titleInput = page.locator('input[name=title]').first();
     const original = await titleInput.inputValue();
+    originalPageTitle = original;
     await titleInput.fill(`${original} ${marker}`);
     await page.locator('button[type=submit]').first().click();
     await page.waitForLoadState('networkidle');

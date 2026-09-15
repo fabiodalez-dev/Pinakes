@@ -1139,6 +1139,11 @@ document.addEventListener('DOMContentLoaded', function() {
       toggle.addEventListener('change', function() {
         const sectionId = parseInt(this.dataset.sectionId);
         const isActive = this.checked ? 1 : 0;
+        // What to go back to if the write is refused. Flipping `checked` again
+        // would undo whatever the operator clicked in the meantime rather than
+        // restore the value this request set out from — and now that the card's
+        // field follows the toggle, a wrong restore would travel to the form.
+        const previous = !this.checked;
         syncVisibilityField(this);
 
         fetch(window.BASE_PATH + '/admin/cms/home/toggle-visibility', {
@@ -1159,9 +1164,9 @@ document.addEventListener('DOMContentLoaded', function() {
           if (data.error || data.code) {
             statusEl.textContent = '\u2717 ' + (data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
             statusEl.className = 'mt-4 text-sm text-red-600';
-            // Revert checkbox — and the card's field with it, so a refused
-            // write never leaves the two controls disagreeing.
-            toggle.checked = !toggle.checked;
+            // Restore what it was before this request — and the card's field
+            // with it, so a refused write never leaves the two disagreeing.
+            toggle.checked = previous;
             syncVisibilityField(toggle);
 
             // Handle session expiration - reload page to get new CSRF token
@@ -1182,9 +1187,9 @@ document.addEventListener('DOMContentLoaded', function() {
           } else {
             statusEl.textContent = '\u2717 ' + (data.message || <?= json_encode(__("Errore durante l'aggiornamento"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
             statusEl.className = 'mt-4 text-sm text-red-600';
-            // Revert checkbox — and the card's field with it, so a refused
-            // write never leaves the two controls disagreeing.
-            toggle.checked = !toggle.checked;
+            // Restore what it was before this request — and the card's field
+            // with it, so a refused write never leaves the two disagreeing.
+            toggle.checked = previous;
             syncVisibilityField(toggle);
           }
         })
@@ -1192,8 +1197,8 @@ document.addEventListener('DOMContentLoaded', function() {
           console.error(err);
           statusEl.textContent = '\u2717 ' + <?= json_encode(__("Errore di rete"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
           statusEl.className = 'mt-4 text-sm text-red-600';
-          // Revert checkbox — and the card's field with it.
-          this.checked = !this.checked;
+          // Restore what it was before this request — and the card's field too.
+          this.checked = previous;
           syncVisibilityField(this);
         });
       });

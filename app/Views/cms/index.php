@@ -6,7 +6,6 @@
  * @var string $currentLocale
  */
 
-use App\Support\HtmlHelper;
 
 // The two fixed destinations. Everything else on this page comes from the
 // database, so a page nobody thought to add to a menu is still reachable.
@@ -59,12 +58,12 @@ $fixedCards = [
         <div class="flex items-start justify-between gap-4">
           <div class="flex-1">
             <div class="flex items-center gap-3 mb-2">
-              <div class="<?= HtmlHelper::e($card['iconWrap']) ?>">
-                <i class="<?= HtmlHelper::e($card['icon']) ?>"></i>
+              <div class="<?= htmlspecialchars($card['iconWrap'], ENT_QUOTES, 'UTF-8') ?>">
+                <i class="<?= htmlspecialchars($card['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
               </div>
-              <h3 class="text-lg font-semibold text-gray-900"><?= HtmlHelper::e($card['heading']) ?></h3>
+              <h3 class="text-lg font-semibold text-gray-900"><?= htmlspecialchars($card['heading'], ENT_QUOTES, 'UTF-8') ?></h3>
             </div>
-            <p class="text-sm text-gray-600"><?= HtmlHelper::e($card['description']) ?></p>
+            <p class="text-sm text-gray-600"><?= htmlspecialchars($card['description'], ENT_QUOTES, 'UTF-8') ?></p>
             <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
               <i class="fas fa-link"></i>
               <a href="<?= htmlspecialchars($card['live'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
@@ -74,7 +73,7 @@ $fixedCards = [
         <div class="mt-4">
           <a href="<?= htmlspecialchars($card['admin'], ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center">
             <i class="fas fa-edit"></i>
-            <?= HtmlHelper::e($card['action']) ?>
+            <?= htmlspecialchars($card['action'], ENT_QUOTES, 'UTF-8') ?>
           </a>
         </div>
       </div>
@@ -88,7 +87,7 @@ $fixedCards = [
         <?= __("Pagine") ?>
       </h2>
       <p class="text-sm text-gray-600 mt-1">
-        <?= sprintf(__('Pagine di contenuto nella lingua attiva (%s)'), HtmlHelper::e($currentLocale)) ?>
+        <?= sprintf(__('Pagine di contenuto nella lingua attiva (%s)'), htmlspecialchars($currentLocale, ENT_QUOTES, 'UTF-8')) ?>
       </p>
     </div>
     <div class="p-6">
@@ -100,8 +99,8 @@ $fixedCards = [
             <li class="bg-gray-50 rounded-xl p-4 border border-gray-200">
               <div class="flex items-center justify-between gap-3 flex-wrap">
                 <div class="flex items-center gap-3">
-                  <span class="font-medium text-gray-900"><?= HtmlHelper::e((string) $page['title']) ?></span>
-                  <span class="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">/<?= HtmlHelper::e((string) $page['slug']) ?></span>
+                  <span class="font-medium text-gray-900"><?= htmlspecialchars((string) $page['title'], ENT_QUOTES, 'UTF-8') ?></span>
+                  <span class="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">/<?= htmlspecialchars((string) $page['slug'], ENT_QUOTES, 'UTF-8') ?></span>
                   <?php if (empty($page['is_active'])): ?>
                     <span class="text-xs text-gray-600 bg-gray-200 px-2 py-1 rounded"><?= __("Non visibile") ?></span>
                   <?php endif; ?>
