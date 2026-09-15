@@ -116,6 +116,59 @@ test.describe.serial('CMS admin', () => {
     await anonymous.close();
   });
 
+  test('a feature card switched off leaves no placeholder behind', async ({ page, browser }) => {
+    await login(page);
+    await page.goto(BASE + '/admin/cms/home');
+    for (const key of ['feature_1', 'feature_2', 'feature_3', 'feature_4']) {
+      const toggle = page.locator(listToggle(key));
+      if (!(await toggle.isChecked())) {
+        await toggle.check();
+        await page.waitForTimeout(400);
+      }
+    }
+    await page.locator('#features_visible').check();
+    await page.locator('button[type=submit]').first().click();
+    await page.waitForLoadState('networkidle');
+
+    const anonymous = await browser.newContext();
+    const reader = await anonymous.newPage();
+    await reader.goto(BASE + '/?cb=' + Date.now());
+    const before = await reader.locator('[data-section="features_title"] .feature-card').count();
+    expect(before).toBe(4);
+
+    // Switching a card off is what an administrator does when they do not want
+    // it. The section used to draw it anyway, from the template's own defaults:
+    // a live library published four cards reading "Feature 1" to "Feature 4",
+    // a star icon each and no text.
+    await page.goto(BASE + '/admin/cms/home');
+    await page.locator(listToggle('feature_1')).uncheck();
+    await page.waitForTimeout(900);
+
+    await reader.goto(BASE + '/?cb=' + Date.now());
+    await expect(reader.locator('[data-section="features_title"] .feature-card')).toHaveCount(3);
+    await expect(reader.locator('[data-section="features_title"]')).not.toContainText('Feature 1');
+
+    // With every card off, the empty grid is not drawn at all.
+    await page.goto(BASE + '/admin/cms/home');
+    for (const key of ['feature_2', 'feature_3', 'feature_4']) {
+      await page.locator(listToggle(key)).uncheck();
+      await page.waitForTimeout(400);
+    }
+    await reader.goto(BASE + '/?cb=' + Date.now());
+    await expect(reader.locator('[data-section="features_title"]')).toHaveCount(1);
+    await expect(reader.locator('[data-section="features_title"] .feature-grid')).toHaveCount(0);
+
+    // Put the cards back.
+    await page.goto(BASE + '/admin/cms/home');
+    for (const key of ['feature_1', 'feature_2', 'feature_3', 'feature_4']) {
+      await page.locator(listToggle(key)).check();
+      await page.waitForTimeout(400);
+    }
+    await reader.goto(BASE + '/?cb=' + Date.now());
+    await expect(reader.locator('[data-section="features_title"] .feature-card')).toHaveCount(4);
+    await anonymous.close();
+  });
+
   test('an invalid field saves nothing and says so', async ({ page }) => {
     await login(page);
     await page.goto(BASE + '/admin/cms/home');
