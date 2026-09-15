@@ -130,6 +130,20 @@ if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandboxName)) {
     fwrite(STDERR, "FAIL: invalid sandbox database name '{$sandboxName}'\n");
     exit(1);
 }
+if (strcasecmp($sandboxName, (string) $installationDb) === 0) {
+    // The suite drops every emeroteca_% table it finds in the sandbox and then
+    // tears the schema down. Pointed at the installation's own database — one
+    // environment variable away — that is the catalogue's periodicals, and the
+    // "am I on the sandbox" guard further down would happily agree, because
+    // DATABASE() would indeed be this name.
+    fwrite(STDERR, <<<TXT
+        FAIL: EMU140_SANDBOX_DB is set to '{$sandboxName}', which is the installation's own database.
+              This suite drops and rebuilds the emeroteca schema, so it must never point there.
+              Leave it unset to use '{$installationDb}_emu140', or name a disposable database.
+
+        TXT);
+    exit(1);
+}
 // Created when the account may (CI runs as root); otherwise it has to exist
 // already — say exactly what to do rather than skipping the upgrade.
 @$db->query("CREATE DATABASE IF NOT EXISTS `{$sandboxName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");

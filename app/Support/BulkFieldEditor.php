@@ -120,6 +120,7 @@ final class BulkFieldEditor
         $created = 0;
 
         $wanted = [];
+        $hasPublisherJunction = false;
         /** @var array{genere_id: int, sottogenere_id: int|null} $genre */
         $genre = ['genere_id' => 0, 'sottogenere_id' => null];
 
@@ -155,6 +156,10 @@ final class BulkFieldEditor
                     throw new \RuntimeException('Bulk edit could not resolve the publisher');
                 }
                 $wanted = [$publisherId];
+                // Asked once for the whole batch instead of twice per book: the
+                // schema cannot change underneath a running transaction, and a
+                // static cache would outlive the connection it was measured on.
+                $hasPublisherJunction = self::tableExists($db, 'libri_editori');
             } else {
                 $genre = self::resolveGenre($db, $value);
             }
@@ -169,7 +174,7 @@ final class BulkFieldEditor
                     $touched = self::applyContributor($db, $repo, $bookId, $field, $wanted, $mode);
                     $afterExtra[$field] = self::contributorNames($db, $bookId, $field);
                 } elseif ($kind === 'publisher') {
-                    $touched = self::applyPublisher($db, $repo, $bookId, $wanted[0], $mode);
+                    $touched = self::applyPublisher($db, $repo, $bookId, $wanted[0], $mode, $hasPublisherJunction);
                 } else {
                     $touched = self::applyGenre($db, $bookId, $genre, $mode);
                 }
@@ -292,9 +297,15 @@ final class BulkFieldEditor
         return true;
     }
 
-    private static function applyPublisher(\mysqli $db, BookRepository $repo, int $bookId, int $publisherId, string $mode): bool
-    {
-        $current = self::publisherIds($db, $bookId);
+    private static function applyPublisher(
+        \mysqli $db,
+        BookRepository $repo,
+        int $bookId,
+        int $publisherId,
+        string $mode,
+        bool $hasJunction
+    ): bool {
+        $current = self::publisherIds($db, $bookId, $hasJunction);
         // ADD keeps the existing publishers and their order, so the first one —
         // the primary — stays primary: a co-publisher is added, not promoted.
         $target = $mode === self::MODE_REPLACE
@@ -309,10 +320,7 @@ final class BulkFieldEditor
         // book that already has its primary would then change nothing at all,
         // and reporting it as changed would log an audit event and rebuild the
         // index over a write that never happened.
-        if ($mode === self::MODE_ADD
-            && !self::tableExists($db, 'libri_editori')
-            && $current !== []
-        ) {
+        if ($mode === self::MODE_ADD && !$hasJunction && $current !== []) {
             return false;
         }
 
@@ -429,10 +437,10 @@ final class BulkFieldEditor
      *
      * @return list<int>
      */
-    private static function publisherIds(\mysqli $db, int $bookId): array
+    private static function publisherIds(\mysqli $db, int $bookId, bool $hasJunction): array
     {
         $primary = (int) (self::column($db, 'SELECT COALESCE(editore_id, 0) FROM libri WHERE id = ? AND deleted_at IS NULL', 'i', [$bookId]) ?? 0);
-        if (!self::tableExists($db, 'libri_editori')) {
+        if (!$hasJunction) {
             return $primary > 0 ? [$primary] : [];
         }
         $rows = self::rows(
