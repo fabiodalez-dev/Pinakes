@@ -315,45 +315,55 @@ test.describe.serial('Series groups and cycles', () => {
     // The header counts the series it collects, so the block announces its size.
     await expect(header.locator('.series-block-count')).toHaveText(/^[1-9][0-9]*$/);
 
-    const children = page.locator('td.series-cell-child');
-    expect(await children.count(), 'the group has children drawn as such').toBeGreaterThan(0);
-    // Exactly one closing cell per block: that is what says where it ends.
-    const lastCells = page.locator('td.series-cell-last');
-    expect(await lastCells.count()).toBeGreaterThan(0);
+    // Everything below is read from THIS block, walked from its own header to
+    // its closing row: the page lists every series in the installation, so a
+    // global selector could just as well be measuring somebody else's universe.
+    const block = await page.evaluate((group) => {
+      const rows = [...document.querySelectorAll('tr')];
+      const header = rows.find(
+        (r) => r.classList.contains('series-block-header') && (r.textContent || '').includes(group)
+      );
+      if (!header) return null;
+
+      const members = [];
+      for (let el = header.nextElementSibling; el; el = el.nextElementSibling) {
+        members.push(el);
+        if (el.classList.contains('series-block-end')) break;
+      }
+      const cells = members.map((r) => r.querySelector('td.series-cell-child')).filter(Boolean);
+      const middle = cells.find((c) => !c.classList.contains('series-cell-last'));
+      const last = cells.find((c) => c.classList.contains('series-cell-last'));
+      const endRow = members.find((r) => r.classList.contains('series-block-end'));
+      const endCell = endRow ? endRow.querySelector('td') : null;
+      const after = endRow ? endRow.nextElementSibling : null;
+
+      return {
+        children: cells.length,
+        lastCells: cells.filter((c) => c.classList.contains('series-cell-last')).length,
+        middleBottom: middle ? getComputedStyle(middle, '::before').bottom : null,
+        lastBottom: last ? getComputedStyle(last, '::before').bottom : null,
+        arm: last ? getComputedStyle(last, '::after').borderTopWidth : null,
+        closingWidth: endCell ? parseFloat(getComputedStyle(endCell).borderBottomWidth) : null,
+        nextIsOutside: after ? !after.querySelector('td.series-cell-child') : true,
+      };
+    }, GROUP_FAIRY);
+
+    expect(block, 'the universe block is on the page').not.toBeNull();
+    expect(block.children, 'the group has children drawn as such').toBeGreaterThan(0);
+    // Exactly one closing cell in this block: that is what says where it ends.
+    expect(block.lastCells, 'the block closes on a single last child').toBe(1);
 
     // The connector must run through a continuing child and stop halfway on the
     // last one; without the difference the block has no visible end.
-    const geometry = await page.evaluate(() => {
-      const cells = [...document.querySelectorAll('td.series-cell-child')];
-      const middle = cells.find((c) => !c.classList.contains('series-cell-last'));
-      const last = cells.find((c) => c.classList.contains('series-cell-last'));
-      return {
-        middle: middle ? getComputedStyle(middle, '::before').bottom : null,
-        last: last ? getComputedStyle(last, '::before').bottom : null,
-        arm: last ? getComputedStyle(last, '::after').borderTopWidth : null,
-      };
-    });
-    expect(geometry.middle, 'a continuing child carries the line to the bottom').toBe('0px');
-    expect(parseFloat(geometry.last), 'the last child closes the line before the bottom').toBeGreaterThan(1);
-    expect(parseFloat(geometry.arm), 'the child is joined to the block by a visible arm').toBeGreaterThan(0);
+    expect(block.middleBottom, 'a continuing child carries the line to the bottom').toBe('0px');
+    expect(parseFloat(block.lastBottom), 'the last child closes the line before the bottom').toBeGreaterThan(1);
+    expect(parseFloat(block.arm), 'the child is joined to the block by a visible arm').toBeGreaterThan(0);
 
     // The closing rule is what keeps the universe from bleeding into whatever
     // follows — often an ordinary series with no hierarchy, which is exactly
     // when a reader cannot tell the block ended.
-    const closing = await page.evaluate(() => {
-      const row = document.querySelector('tr.series-block-end');
-      if (!row) return null;
-      const style = getComputedStyle(row.querySelector('td'));
-      const next = row.nextElementSibling;
-      return {
-        width: parseFloat(style.borderBottomWidth),
-        colour: style.borderBottomColor,
-        nextIsOutside: next ? !next.querySelector('td.series-cell-child') : true,
-      };
-    });
-    expect(closing, 'a block end exists').not.toBeNull();
-    expect(closing.width, 'the universe closes with a rule of its own').toBeGreaterThanOrEqual(2);
-    expect(closing.nextIsOutside, 'the row after the closing rule is outside the block').toBe(true);
+    expect(block.closingWidth, 'the universe closes with a rule of its own').toBeGreaterThanOrEqual(2);
+    expect(block.nextIsOutside, 'the row after the closing rule is outside the block').toBe(true);
   });
 
   test('06. series detail links other spin-offs in the same group', async () => {

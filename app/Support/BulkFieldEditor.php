@@ -119,32 +119,9 @@ final class BulkFieldEditor
         $kind = self::FIELDS[$field]['kind'];
         $created = 0;
 
-        // Resolve the typed value ONCE for the whole batch: a name typed for
-        // 300 books must create a single author, not one per book.
         $wanted = [];
         /** @var array{genere_id: int, sottogenere_id: int|null} $genre */
         $genre = ['genere_id' => 0, 'sottogenere_id' => null];
-        if ($kind === 'contributor') {
-            $resolved = ContributorSync::resolveNameIds($db, $value);
-            $wanted = $resolved['ids'];
-            $created = $resolved['created'];
-            if ($wanted === []) {
-                throw new \InvalidArgumentException(__('Nessun nome valido da applicare.'));
-            }
-        } elseif ($kind === 'publisher') {
-            $publishers = new PublisherRepository($db);
-            $publisherId = $publishers->findByName($value);
-            if ($publisherId === null) {
-                $publisherId = $publishers->create(['nome' => $value, 'sito_web' => '']);
-                $created = 1;
-            }
-            if ($publisherId <= 0) {
-                throw new \RuntimeException('Bulk edit could not resolve the publisher');
-            }
-            $wanted = [$publisherId];
-        } else {
-            $genre = self::resolveGenre($db, $value);
-        }
 
         $repo = new BookRepository($db);
         $ownsTransaction = !self::hasActiveTransaction($db);
@@ -154,6 +131,34 @@ final class BulkFieldEditor
 
         $changed = [];
         try {
+            // Resolving a name CREATES the author or publisher when it is new,
+            // so it belongs inside the transaction: resolved before it, a later
+            // failure would roll the books back and leave the new entity behind,
+            // which is neither "one transaction" nor "nothing is written".
+            // Still resolved once for the whole batch — a name typed for 300
+            // books must create a single author, not one per book.
+            if ($kind === 'contributor') {
+                $resolved = ContributorSync::resolveNameIds($db, $value);
+                $wanted = $resolved['ids'];
+                $created = $resolved['created'];
+                if ($wanted === []) {
+                    throw new \InvalidArgumentException(__('Nessun nome valido da applicare.'));
+                }
+            } elseif ($kind === 'publisher') {
+                $publishers = new PublisherRepository($db);
+                $publisherId = $publishers->findByName($value);
+                if ($publisherId === null) {
+                    $publisherId = $publishers->create(['nome' => $value, 'sito_web' => '']);
+                    $created = 1;
+                }
+                if ($publisherId <= 0) {
+                    throw new \RuntimeException('Bulk edit could not resolve the publisher');
+                }
+                $wanted = [$publisherId];
+            } else {
+                $genre = self::resolveGenre($db, $value);
+            }
+
             foreach ($existing as $bookId) {
                 $before = ActivityLog::loadBookSnapshot($db, $bookId);
                 $beforeExtra = [];
@@ -200,14 +205,21 @@ final class BulkFieldEditor
             }
         } catch (\Throwable $e) {
             if ($ownsTransaction) {
+                // Also undoes an author or publisher created a moment ago: the
+                // resolution above runs inside this transaction precisely so a
+                // refused batch leaves no new entity behind.
                 $db->rollback();
             }
-            SecureLogger::error('[BulkFieldEditor] bulk edit failed', [
-                'field' => $field,
-                'mode' => $mode,
-                'books' => count($existing),
-                'error' => $e->getMessage(),
-            ]);
+            // A value the operator can fix is an answer, not an incident: only
+            // real failures are worth a log line.
+            if (!$e instanceof \InvalidArgumentException) {
+                SecureLogger::error('[BulkFieldEditor] bulk edit failed', [
+                    'field' => $field,
+                    'mode' => $mode,
+                    'books' => count($existing),
+                    'error' => $e->getMessage(),
+                ]);
+            }
             throw $e;
         }
 
@@ -292,6 +304,18 @@ final class BulkFieldEditor
             return false;
         }
 
+        // Before the multi-publisher migration there is nowhere to put a second
+        // publisher: syncPublishers() returns without writing. Adding one to a
+        // book that already has its primary would then change nothing at all,
+        // and reporting it as changed would log an audit event and rebuild the
+        // index over a write that never happened.
+        if ($mode === self::MODE_ADD
+            && !self::tableExists($db, 'libri_editori')
+            && $current !== []
+        ) {
+            return false;
+        }
+
         $repo->syncRelations($bookId, ['editori_ids' => $target]);
         // libri.editore_id is the primary publisher; syncPublishers only owns
         // the junction, so the caller keeps the two in step (as updateBasic does).
@@ -304,6 +328,12 @@ final class BulkFieldEditor
     private static function applyGenre(\mysqli $db, int $bookId, array $genre, string $mode): bool
     {
         $rows = self::rows($db, 'SELECT genere_id, sottogenere_id FROM libri WHERE id = ? AND deleted_at IS NULL', 'i', [$bookId]);
+        if ($rows === []) {
+            // Soft-deleted between the selection and this loop: report it as
+            // untouched rather than reading a row that is not there and then
+            // claiming a change the UPDATE could not make.
+            return false;
+        }
         $current = (int) ($rows[0]['genere_id'] ?? 0);
         $currentSub = $rows[0]['sottogenere_id'] === null ? null : (int) $rows[0]['sottogenere_id'];
 

@@ -1,7 +1,6 @@
 <?php
 /** @var array $collane */
 /** @var bool $supportsHierarchy */
-use App\Support\HtmlHelper;
 use App\Support\SeriesLabels;
 // i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
 $seriesTypeLabels = SeriesLabels::types();
@@ -66,13 +65,13 @@ $seriesTypeLabels = SeriesLabels::types();
   <!-- Messages -->
   <?php if (!empty($_SESSION['success_message'])): ?>
   <div class="mb-4 p-4 bg-green-100 text-green-800 rounded">
-    <i class="fas fa-check-circle mr-1"></i> <?= HtmlHelper::e($_SESSION['success_message']) ?>
+    <i class="fas fa-check-circle mr-1"></i> <?= htmlspecialchars($_SESSION['success_message'], ENT_QUOTES, 'UTF-8') ?>
   </div>
   <?php unset($_SESSION['success_message']); endif; ?>
 
   <?php if (!empty($_SESSION['error_message'])): ?>
   <div class="mb-4 p-4 bg-red-100 text-red-800 rounded">
-    <i class="fas fa-exclamation-circle mr-1"></i> <?= HtmlHelper::e($_SESSION['error_message']) ?>
+    <i class="fas fa-exclamation-circle mr-1"></i> <?= htmlspecialchars($_SESSION['error_message'], ENT_QUOTES, 'UTF-8') ?>
   </div>
   <?php unset($_SESSION['error_message']); endif; ?>
 
@@ -201,7 +200,7 @@ $seriesTypeLabels = SeriesLabels::types();
                 <i class="fas fa-sitemap text-gray-400 mr-2" aria-hidden="true"></i>
               <?php endif; ?>
               <a href="<?= htmlspecialchars(url('/admin/series/detail?nome=' . urlencode($c['collana'])), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-700 font-medium">
-                <?= HtmlHelper::e($c['collana']) ?>
+                <?= htmlspecialchars($c['collana'], ENT_QUOTES, 'UTF-8') ?>
               </a>
               <?php if ($isHeader): ?>
                 <span class="series-block-count" title="<?= htmlspecialchars(__('Serie raccolte in questo universo'), ENT_QUOTES, 'UTF-8') ?>"><?= $blockCount - 1 ?></span>
@@ -215,7 +214,7 @@ $seriesTypeLabels = SeriesLabels::types();
           </td>
           <?php if (!empty($supportsHierarchy)): ?>
           <td class="px-6 py-4 text-sm text-gray-600">
-            <?= HtmlHelper::e(SeriesLabels::label($c['tipo'] ?? 'serie')) ?>
+            <?= htmlspecialchars(SeriesLabels::label($c['tipo'] ?? 'serie'), ENT_QUOTES, 'UTF-8') ?>
           </td>
           <td class="px-6 py-4 text-sm text-gray-600">
             <?php if (empty($c['parent_nome'])): ?>
@@ -226,17 +225,17 @@ $seriesTypeLabels = SeriesLabels::types();
                     // is noise. Keep one glyph for the eye and the name for a screen
                     // reader, so nothing is lost for anyone. ?>
               <span class="series-parent-echo" title="<?= htmlspecialchars($c['parent_nome'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">&#8627;</span>
-              <span class="sr-only"><?= HtmlHelper::e($c['parent_nome']) ?></span>
+              <span class="sr-only"><?= htmlspecialchars($c['parent_nome'], ENT_QUOTES, 'UTF-8') ?></span>
             <?php else: ?>
-              <?= HtmlHelper::e($c['parent_nome']) ?>
+              <?= htmlspecialchars($c['parent_nome'], ENT_QUOTES, 'UTF-8') ?>
             <?php endif; ?>
           </td>
           <td class="px-6 py-4 text-sm text-gray-600">
-            <?= HtmlHelper::e($c['gruppo_serie'] ?? '') ?>
+            <?= htmlspecialchars($c['gruppo_serie'] ?? '', ENT_QUOTES, 'UTF-8') ?>
           </td>
           <td class="px-6 py-4 text-sm text-gray-600">
             <?php if (!empty($c['ciclo']) || !empty($c['ordine_ciclo'])): ?>
-              <?= HtmlHelper::e($c['ciclo'] ?? '') ?>
+              <?= htmlspecialchars($c['ciclo'] ?? '', ENT_QUOTES, 'UTF-8') ?>
               <?php if (!empty($c['ordine_ciclo'])): ?>
                 <span class="text-xs text-gray-400 ml-1">#<?= (int) $c['ordine_ciclo'] ?></span>
               <?php endif; ?>

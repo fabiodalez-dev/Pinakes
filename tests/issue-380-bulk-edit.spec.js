@@ -69,11 +69,29 @@ test.describe.serial('Issue 380 — manual bulk edit from the books list', () =>
   });
 
   test.afterAll(() => {
-    try {
-      db(`DELETE FROM libri WHERE id IN (${bookOne}, ${bookTwo})`);
-      db(`DELETE FROM autori WHERE nome LIKE '${marker}%'`);
-      db(`DELETE FROM editori WHERE nome LIKE '${marker}%'`);
-    } catch (e) { console.error('Scoped cleanup failed:', e.message); }
+    // Each step runs even if an earlier one fails, and a failure is reported
+    // rather than swallowed: leftovers here contaminate the next run, so
+    // silence would hide exactly the thing worth knowing.
+    const steps = [
+      // The audit entries go first: log_modifiche has no foreign key to libri,
+      // so deleting the books would leave this run's events behind for good.
+      `DELETE FROM log_modifiche WHERE tabella='libri' AND record_id IN (${bookOne}, ${bookTwo})`,
+      // The junction tables cascade with the book, so they need no cleanup here.
+      `DELETE FROM libri WHERE id IN (${bookOne}, ${bookTwo})`,
+      `DELETE FROM autori WHERE nome LIKE '${marker}%'`,
+      `DELETE FROM editori WHERE nome LIKE '${marker}%'`,
+    ];
+    const failures = [];
+    for (const sql of steps) {
+      try {
+        db(sql);
+      } catch (e) {
+        failures.push(`${sql} → ${e.message}`);
+      }
+    }
+    if (failures.length) {
+      throw new Error(`Scoped cleanup failed:\n${failures.join('\n')}`);
+    }
   });
 
   test('one value reaches every selected book, without losing what was there', async ({ page }) => {
