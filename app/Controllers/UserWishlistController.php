@@ -18,9 +18,14 @@ final class UserWishlistController
             return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         }
         $uid = (int) $user['id'];
+        // A favourite is HIDDEN, never deleted, while the book is flagged as a
+        // request: manage('received') clears the flag when the donation arrives,
+        // and the entry — plus its availability notification — must come back.
         $sql = "SELECT l.id, l.titolo, l.copertina_url, l.copie_disponibili
                 FROM wishlist w JOIN libri l ON l.id=w.libro_id
-                WHERE w.utente_id=? AND l.deleted_at IS NULL ORDER BY w.id DESC";
+                WHERE w.utente_id=? AND l.deleted_at IS NULL
+                  AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+                ORDER BY w.id DESC";
         $stmt = $db->prepare($sql);
         $stmt->bind_param('i', $uid);
         $stmt->execute();
@@ -64,9 +69,11 @@ final class UserWishlistController
         $libroId = (int) ($q['libro_id'] ?? 0);
         $fav = false;
         if ($libroId > 0) {
-            // Join with libri to exclude soft-deleted books
+            // Same predicate as the listing, so the heart icon can never
+            // disagree with what the list shows.
             $stmt = $db->prepare('SELECT 1 FROM wishlist w
                 JOIN libri l ON l.id = w.libro_id AND l.deleted_at IS NULL
+                    AND ' . \App\Support\BookVisibility::catalogue($db, 'l') . '
                 WHERE w.utente_id = ? AND w.libro_id = ? LIMIT 1');
             $uid = (int) $user['id'];
             $stmt->bind_param('ii', $uid, $libroId);

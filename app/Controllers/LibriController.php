@@ -3472,6 +3472,15 @@ class LibriController
 
         $whereClauses[] = "l.deleted_at IS NULL";
 
+        // The LibraryThing column set is a third party's fixed schema with no
+        // place for the request flag, so a wanted title exported there would
+        // arrive at the destination indistinguishable from a holding. Excluding
+        // it is the honest representation; the standard CSV carries the flag
+        // instead (see $exportsDesiderata below).
+        if ($format === 'librarything') {
+            $whereClauses[] = \App\Support\BookVisibility::catalogue($db, 'l');
+        }
+
         $query .= " WHERE " . implode(' AND ', $whereClauses);
 
         $query .= " GROUP BY l.id ORDER BY l.id DESC";
@@ -3512,6 +3521,10 @@ class LibriController
         // UTF-8 BOM
         fwrite($stream, "\xEF\xBB\xBF");
 
+        // Probed once: the column only exists where the desiderata plugin has
+        // run its schema step.
+        $exportsDesiderata = $format !== 'librarything' && \App\Support\BookVisibility::hasDesiderata($db);
+
         // CSV headers based on format
         if ($format === 'librarything') {
             $headers = $this->getLibraryThingHeaders();
@@ -3546,6 +3559,12 @@ class LibriController
                 'classificazione_dewey',
                 'parole_chiave'
             ];
+            // Appended ONLY when the column exists, so an export from an
+            // installation without the desiderata plugin stays byte-identical
+            // and any consumer positioning by index keeps working.
+            if ($exportsDesiderata) {
+                $headers[] = 'is_desiderata';
+            }
         }
 
         // formulaPrefix "'" neutralizes CSV injection: user-controlled fields
@@ -3601,6 +3620,9 @@ class LibriController
                     $libro['classificazione_dewey'] ?? '',
                     $libro['parole_chiave'] ?? ''
                 ];
+                if ($exportsDesiderata) {
+                    $row[] = (int) ($libro['is_desiderata'] ?? 0);
+                }
             }
 
             $writer->insertOne($row);

@@ -215,6 +215,27 @@ try {
         }
     }
 
+    // Each admin list owns its cursor. A single shared 'page' made the
+    // proposals pager silently advance the requested-books list as well, so
+    // clicking Successiva under one list carried unread items of the other out
+    // of sight. Asserted on the RENDERED HTML because the defect is a
+    // controller/view contract: renaming one without the other makes both navs
+    // inert instead of wrong.
+    $adminRequest = static fn(array $query) => (new Slim\Psr7\Factory\ServerRequestFactory())
+        ->createServerRequest('GET', '/admin/desiderata')->withQueryParams($query);
+    $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'admin']];
+    $paged = $create('_paging_marker', true);
+    $html = (string) $plugin->admin($adminRequest(['offers_page' => '2']), new Slim\Psr7\Response())->getBody();
+    $check(str_contains($html, $prefix . '_paging_marker'), 'paging the proposals list leaves the requested books in place');
+    $check(str_contains($html, 'offers_page=1') || str_contains($html, 'offers_page'), 'the proposals pager emits its own scoped parameter');
+    $check(!str_contains($html, '?page=') && !str_contains($html, '&page='), 'the ambiguous shared page parameter is gone');
+    $check(str_contains($html, 'id="requested-books"') && str_contains($html, 'id="donation-offers"'), 'each list has an anchor to return to');
+    $html = (string) $plugin->admin($adminRequest(['books_page' => '2']), new Slim\Psr7\Response())->getBody();
+    $check(!str_contains($html, $prefix . '_paging_marker'), 'paging the requested books actually moves that list');
+    $html = (string) $plugin->admin($adminRequest(['books_page' => '500']), new Slim\Psr7\Response())->getBody();
+    $check(str_contains($html, 'Nessuna altra richiesta oltre questa pagina.'), 'an over-run page says so instead of claiming there are no requests at all');
+    $_SESSION = [];
+
     // Exercise the real registered HTTP routes and middleware, not just methods.
     $app=Slim\Factory\AppFactory::create(); $app->addBodyParsingMiddleware(); $plugin->registerRoutes($app);
     $oldBypass=$_ENV['PINAKES_E2E_BYPASS_RATE_LIMIT'] ?? null;

@@ -48,9 +48,26 @@ $db = is_string($socket) && $socket !== '' && file_exists($socket)
     : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'] ?? '', $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''), $env['DB_NAME'] ?? '', (int) ($env['DB_PORT'] ?? 3306));
 $db->set_charset('utf8mb4');
 
+// Build the schema instead of skipping on it. The condition that used to
+// trigger the skip — libri.is_desiderata missing — is precisely the bug this
+// suite exists to catch, so exiting 0 with a message reported success while
+// executing none of the assertions below. ensureSchema() is idempotent, and
+// section D re-runs it to prove exactly that.
+//
+// Order matters: BookVisibility::hasDesiderata() memoizes per connection, so
+// the column must exist before anything asks.
+require_once $root . '/storage/plugins/desiderata/DesiderataPlugin.php';
+try {
+    (new DesiderataPlugin($db, new \App\Support\HookManager($db)))->ensureSchema();
+} catch (\Throwable $e) {
+    // A genuinely unusable database is the only remaining reason not to run,
+    // and under CI it is a failure, never a pass.
+    fwrite(STDERR, "SKIP: cannot prepare the desiderata schema: {$e->getMessage()}\n");
+    exit(getenv('CI_STRICT_TESTS') === '1' ? 1 : 0);
+}
 if (!\App\Support\BookVisibility::hasDesiderata($db)) {
-    echo "SKIP: libri.is_desiderata is absent — activate the desiderata plugin first\n";
-    exit(0);
+    fwrite(STDERR, "SKIP: libri.is_desiderata is still absent after ensureSchema()\n");
+    exit(getenv('CI_STRICT_TESTS') === '1' ? 1 : 0);
 }
 
 $token = bin2hex(random_bytes(4));
@@ -135,6 +152,54 @@ try {
         $check(!empty($heldRow), substr(strrchr($class, "\\") ?: $class, 1) . " still serves a real holding");
     }
 
+    echo "C2. Favourites are HIDDEN, never deleted\n";
+    // The receipt path clears the flag, so a favourite on a wanted title must
+    // come back by itself once the donation arrives. Deleting wishlist rows
+    // would destroy user data and break that round trip, so the last assertion
+    // here is the one that pins the fix as a read filter rather than a purge.
+    // Own reader, so the suite does not depend on a seeded account: a fresh CI
+    // database has no rows in utenti at all.
+    $db->query("INSERT INTO utenti (codice_tessera, nome, cognome, email, password)
+                VALUES ('ZZVIS{$token}', 'ZZVIS', 'Reader', 'zzvis-{$token}@example.invalid', 'x')");
+    $probeUserId = (int) $db->insert_id;
+    if ($probeUserId > 0) {
+        $userId = $probeUserId;
+        $db->query('DELETE FROM wishlist WHERE utente_id = ' . $userId . ' AND libro_id IN (' . $wantedId . ', ' . $heldId . ')');
+        $db->query('INSERT INTO wishlist (utente_id, libro_id) VALUES (' . $userId . ', ' . $wantedId . '), (' . $userId . ', ' . $heldId . ')');
+
+        $wishlist = new \App\Controllers\UserWishlistController();
+        $status = static function (int $bookId) use ($wishlist, $db, $userId): bool {
+            $_SESSION = ['user' => ['id' => $userId]];
+            $request = (new Slim\Psr7\Factory\ServerRequestFactory())
+                ->createServerRequest('GET', '/api/wishlist/status')
+                ->withQueryParams(['libro_id' => (string) $bookId]);
+            $response = $wishlist->status($request, new Slim\Psr7\Response(), $db);
+            $_SESSION = [];
+            return (bool) (json_decode((string) $response->getBody(), true)['favorite'] ?? false);
+        };
+        $listed = static function (int $bookId) use ($db, $userId): bool {
+            $sql = 'SELECT 1 FROM wishlist w JOIN libri l ON l.id = w.libro_id
+                    WHERE w.utente_id = ' . $userId . ' AND w.libro_id = ' . $bookId . '
+                      AND l.deleted_at IS NULL AND ' . \App\Support\BookVisibility::catalogue($db, 'l');
+            return $db->query($sql)->num_rows > 0;
+        };
+
+        $check($status($wantedId) === false, 'the favourite status endpoint does not confirm a requested book');
+        $check($status($heldId) === true, 'a favourite on a real holding is still confirmed');
+        $check($listed($wantedId) === false, 'the favourites list hides the requested book');
+        $check($listed($heldId) === true, 'the favourites list still shows the holding');
+
+        $stillThere = (int) $db->query('SELECT COUNT(*) c FROM wishlist WHERE utente_id = ' . $userId . ' AND libro_id = ' . $wantedId)->fetch_assoc()['c'];
+        $check($stillThere === 1, 'the wishlist row itself is never deleted, only hidden');
+
+        // What the receipt does: clear the flag. The favourite must reappear.
+        $db->query('UPDATE libri SET is_desiderata = 0 WHERE id = ' . $wantedId);
+        $check($status($wantedId) === true && $listed($wantedId) === true, 'clearing the flag brings the favourite back, list and status together');
+        $db->query('UPDATE libri SET is_desiderata = 1 WHERE id = ' . $wantedId);
+    } else {
+        $check(false, 'could not create the probe reader for the favourites round trip');
+    }
+
     echo "D. Plugin lifecycle\n";
     require_once $root . '/storage/plugins/desiderata/DesiderataPlugin.php';
     $hooks = new \App\Support\HookManager($db);
@@ -163,6 +228,8 @@ try {
         $db->query('UPDATE libri SET is_desiderata = 1 WHERE id = ' . $id);
     }
 } finally {
+    $db->query('DELETE FROM wishlist WHERE libro_id IN (' . $wantedId . ', ' . $heldId . ')');
+    $db->query("DELETE FROM utenti WHERE codice_tessera = 'ZZVIS{$token}'");
     $db->query('DELETE FROM copie WHERE libro_id IN (' . $wantedId . ', ' . $heldId . ')');
     $db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (" . $wantedId . ', ' . $heldId . ')');
     $db->query('DELETE FROM libri WHERE id IN (' . $wantedId . ', ' . $heldId . ')');

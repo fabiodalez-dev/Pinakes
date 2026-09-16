@@ -1141,6 +1141,11 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $count = 0;
         if ($db) {
+            // Deliberately UNFILTERED by BookVisibility. This feeds the admin
+            // layout's header quick-stat, so it follows the same rule as
+            // DashboardStats and /admin/books: operator surfaces count every
+            // record, requests included. Filtering only this one would make the
+            // header disagree with the dashboard card next to it.
             $res = $db->query("SELECT COUNT(*) AS c FROM libri WHERE deleted_at IS NULL");
             if ($res) {
                 $count = (int) ($res->fetch_assoc()['c'] ?? 0);
@@ -3284,7 +3289,10 @@ return function (App $app): void {
         try {
             $db = $app->getContainer()->get('db');
             $generator = new \App\Support\IcsGenerator($db);
-            $content = $generator->generate();
+            // Anonymous endpoint: the book title goes into the VEVENT summary
+            // and is retained by the subscriber's calendar client, so wanted
+            // titles must not be published here.
+            $content = $generator->generate(true);
 
             $response->getBody()->write($content);
             return $response

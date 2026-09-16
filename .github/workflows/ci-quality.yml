@@ -237,6 +237,32 @@ jobs:
           done
           [ "$FAILED" -eq 0 ] && echo "✓ Tutte le migration hanno versione ≤ $TARGET" || exit 1
 
+      # ── Plugin requires_app guard ─────────────────────────────────────────
+      # Same version_compare ordering hazard as the migration guard, one layer
+      # up: PluginManager refuses to activate a bundled plugin whose
+      # requires_app is above version.json, so the plugin ships registered,
+      # visible and permanently impossible to enable. An empty or absent
+      # requires_app means "no floor" and is skipped, not failed.
+      - name: Plugin requires_app guard (bundled plugin.json ≤ version.json)
+        run: |
+          TARGET=$(php -r "echo json_decode(file_get_contents('version.json'))->version;")
+          FAILED=0
+          for f in storage/plugins/*/plugin.json; do
+            [ -f "$f" ] || continue
+            plugin_name="$(basename "$(dirname "$f")")"
+            REQ=$(MANIFEST="$f" php -r '
+              $m = json_decode((string)file_get_contents(getenv("MANIFEST")), true);
+              echo is_array($m) && isset($m["requires_app"]) ? (string)$m["requires_app"] : "";
+            ')
+            [ -n "$REQ" ] || continue
+            if ! REQUIRES_APP="$REQ" RELEASE_VERSION="$TARGET" php -r \
+              'exit(version_compare(getenv("REQUIRES_APP"), getenv("RELEASE_VERSION"), "<=") ? 0 : 1);'; then
+              echo "  ✗ ${plugin_name}: requires_app $REQ > $TARGET (il plugin non potrebbe mai essere attivato)"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" -eq 0 ] && echo "✓ Tutti i plugin bundled hanno requires_app ≤ $TARGET" || exit 1
+
       # DB-backed unit tests (migration-*, book-field-types, loan-edge-cases,
       # session-fixes) read credentials from .env and connect over TCP. Provide
       # a CI .env pointing at the MySQL service and load the base schema so the
@@ -305,6 +331,18 @@ jobs:
         run: |
           php tests/plugin-zip-update.integration.php
           php tests/plugin-zip-update-all-bundled.integration.php
+
+      # The desiderata feature's advertised coverage: the lifecycle/offer suite
+      # and the interop-visibility contract (mobile-api, OAI-PMH, SRU, NCIP,
+      # OpenURL, BIBFRAME). Neither ran in any workflow before, so 400+ lines of
+      # regression checks executed only if a developer remembered to. Strict
+      # mode turns any remaining skip into a failure.
+      - name: PHP desiderata integration suites
+        env:
+          CI_STRICT_TESTS: '1'
+        run: |
+          php tests/desiderata.integration.php
+          php tests/desiderata-visibility.integration.php
 
       - name: Shell test — bin/setup-permissions.sh
         run: bash tests/setup-permissions.test.sh

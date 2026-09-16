@@ -31,6 +31,11 @@ class DesiderataPlugin
      */
     public function onUninstall(): void
     {
+        // CI-SOFT-DELETE-EXEMPT: archived rows must be cleared too. The flag
+        // hides a book for as long as the column exists; leaving it set on a
+        // soft-deleted record would make any later restore produce a title that
+        // is invisible in the catalogue, with the checkbox gone and nothing in
+        // the admin explaining why. Same rule as the two DataIntegrity sweeps.
         if ($this->db->query('UPDATE libri SET is_desiderata = 0 WHERE is_desiderata = 1') === false) {
             $this->fail('cannot clear the desiderata flag on uninstall');
         }
@@ -273,22 +278,52 @@ class DesiderataPlugin
             return $r->withHeader('Location', url('/desiderata') . '#donation-form')->withStatus(303);
         } catch (InvalidArgumentException $e) { return $this->page($r, ['error' => $e->getMessage(), 'values' => $input], 422); }
     }
+    /**
+     * The admin screen holds two independent lists, so they hold two
+     * independent cursors: a single shared `page` made the proposals pager
+     * advance the requested-books list as well, silently carrying unread
+     * proposals past the operator. Scoped parameters follow the precedent
+     * already set by activity_page / book_activity_page elsewhere in the admin.
+     */
+    public static function pageNumber(array $params, string $key): int
+    {
+        return max(1, (int)($params[$key] ?? 1));
+    }
+    /** The paging to carry across an action: only what differs from page one. */
+    public static function pagingQuery(int $offersPage, int $booksPage): string
+    {
+        $params = array_filter(
+            ['offers_page' => $offersPage, 'books_page' => $booksPage],
+            static fn(int $value): bool => $value > 1
+        );
+        return $params === [] ? '' : '?' . http_build_query($params);
+    }
     public function admin(Request $q, Response $r, string $error = ''): Response
     {
-        $page = max(1, (int)($q->getQueryParams()['page'] ?? 1));
-        $offset = min($page - 1, 100000) * 30;
-        $offers = $this->db->query('SELECT * FROM desiderata_offers ORDER BY id DESC LIMIT 31 OFFSET ' . $offset)->fetch_all(MYSQLI_ASSOC);
+        $params = $q->getQueryParams();
+        $offersPage = self::pageNumber($params, 'offers_page');
+        $booksPage = self::pageNumber($params, 'books_page');
+        $offersOffset = min($offersPage - 1, 100000) * 30;
+        $booksOffset = min($booksPage - 1, 100000) * 30;
+        $offers = $this->db->query('SELECT * FROM desiderata_offers ORDER BY id DESC LIMIT 31 OFFSET ' . $offersOffset)->fetch_all(MYSQLI_ASSOC);
         $more = count($offers) > 30; $offers = array_slice($offers, 0, 30);
         // The requested-books list is paged too: capped at a fixed number, the
         // oldest requests were reachable from nowhere in the admin.
-        $books = $this->wanted('', 31, $offset);
+        $books = $this->wanted('', 31, $booksOffset);
         $moreBooks = count($books) > 30; $books = array_slice($books, 0, 30);
-        return $this->render($r, 'admin', compact('offers', 'page', 'more', 'error', 'books', 'moreBooks'), true);
+        return $this->render($r, 'admin', compact('offers', 'offersPage', 'booksPage', 'more', 'error', 'books', 'moreBooks'), true);
     }
     public function manage(Request $q, Response $r, int $id): Response
     {
         $input = (array)$q->getParsedBody();
         $action = $input['action'] ?? '';
+        // The form action carries the operator's current paging, so an error
+        // re-renders where they were and every redirect returns there instead
+        // of dumping a backlog of 30+ proposals back to page one.
+        $params = $q->getQueryParams();
+        $back = url('/admin/desiderata')
+            . self::pagingQuery(self::pageNumber($params, 'offers_page'), self::pageNumber($params, 'books_page'))
+            . '#donation-offers';
         if (!in_array($action, ['accepted', 'rejected', 'received', 'delete'], true)) { return $this->admin($q, $r, __('Azione non valida.'))->withStatus(422); }
         // Deleting is the erasure path for the donor's name, e-mail and notes:
         // a proposal carries personal data the library asked for, and once it is
@@ -299,7 +334,7 @@ class DesiderataPlugin
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $stmt->close();
-            return $r->withHeader('Location', url('/admin/desiderata'))->withStatus(303);
+            return $r->withHeader('Location', $back)->withStatus(303);
         }
         $this->db->begin_transaction();
         try {
@@ -317,7 +352,14 @@ class DesiderataPlugin
                 if (!$stmt->get_result()->fetch_assoc()) { throw new InvalidArgumentException(__('Per la ricezione scegli una scheda libro esistente. Puoi prima crearla con zero copie.')); }
                 $copyId = (new \App\Models\CopyRepository($this->db))->createWithAllocatedInventoryCode($bookId, 'LIB-' . $bookId, 'disponibile', 'Donazione #' . $id);
                 if ($copyId <= 0) { throw new RuntimeException('Copy creation failed'); }
-                $stmt = $this->db->prepare('UPDATE libri SET is_desiderata=0 WHERE id=?'); $stmt->bind_param('i', $bookId); $stmt->execute();
+                // Self-guarding, per ABSOLUTE RULE 2. Provably a no-op here —
+                // the row was locked FOR UPDATE and checked for deleted_at two
+                // statements above, inside this same transaction — but the
+                // guard removes the dependency on a caller-side check a later
+                // refactor could move away. This is the receipt of a real
+                // donation, so unlike the maintenance sweeps it has no business
+                // touching an archived record.
+                $stmt = $this->db->prepare('UPDATE libri SET is_desiderata=0 WHERE id=? AND deleted_at IS NULL'); $stmt->bind_param('i', $bookId); $stmt->execute();
                 if (!(new \App\Support\DataIntegrity($this->db))->recalculateBookAvailability($bookId, true, true)) { throw new RuntimeException('Availability update failed'); }
                 $stmt = $this->db->prepare("UPDATE desiderata_offers SET status='received', received_book_id=?, copy_id=?, received_at=NOW() WHERE id=?");
                 $stmt->bind_param('iii', $bookId, $copyId, $id); $stmt->execute();
@@ -331,6 +373,6 @@ class DesiderataPlugin
             return $this->admin($q, $r, $e instanceof InvalidArgumentException ? $e->getMessage() : __('Operazione non riuscita. Nessuna copia è stata registrata.'))->withStatus(422);
         }
         $this->invalidate();
-        return $r->withHeader('Location', url('/admin/desiderata'))->withStatus(303);
+        return $r->withHeader('Location', $back)->withStatus(303);
     }
 }

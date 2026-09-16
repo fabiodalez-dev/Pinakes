@@ -28,6 +28,20 @@ class ExtensionsRepo
     // ------------------------------------------------------------------
 
     /**
+     * Public club pages are reachable without a session and render book_url()
+     * links, and the public book page answers 404 for a title the library only
+     * wants rather than holds. The predicate therefore goes on the JOIN
+     * condition over `libri`, next to deleted_at — never in the WHERE: an
+     * external proposal has no `libri` row at all and must keep rendering,
+     * which the existing "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)"
+     * guard already expresses.
+     */
+    private function catalogueOnly(string $alias = 'l'): string
+    {
+        return ' AND ' . \App\Support\BookVisibility::catalogue($this->db, $alias);
+    }
+
+    /**
      * @param array<int, mixed> $params
      * @return list<array<string, mixed>>
      */
@@ -87,13 +101,13 @@ class ExtensionsRepo
     // Sprints
     // ------------------------------------------------------------------
 
-    private const SPRINT_SELECT = "SELECT s.*, l.titolo AS book_title,
+    private function sprintSelect(): string { return "SELECT s.*, l.titolo AS book_title,
                     TRIM(CONCAT(COALESCE(u.nome, ''), ' ', COALESCE(u.cognome, ''))) AS creator_name,
                     (SELECT COUNT(*) FROM bookclub_sprint_participants p WHERE p.sprint_id = s.id) AS participant_count
                FROM bookclub_sprints s
                LEFT JOIN bookclub_books cb ON cb.id = s.club_book_id
-               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
-               LEFT JOIN utenti u ON u.id = s.created_by";
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
+               LEFT JOIN utenti u ON u.id = s.created_by"; }
 
     /**
      * Sprints of a club, most recent start first.
@@ -104,7 +118,7 @@ class ExtensionsRepo
     {
         $limit = max(1, min(200, $limit));
         return $this->rows(
-            self::SPRINT_SELECT . ' WHERE s.club_id = ? ORDER BY s.starts_at DESC, s.id DESC LIMIT ' . $limit,
+            $this->sprintSelect() . ' WHERE s.club_id = ? ORDER BY s.starts_at DESC, s.id DESC LIMIT ' . $limit,
             'i',
             [$clubId]
         );
@@ -113,7 +127,7 @@ class ExtensionsRepo
     /** @return array<string, mixed>|null */
     public function sprintById(int $sprintId): ?array
     {
-        return $this->row(self::SPRINT_SELECT . ' WHERE s.id = ?', 'i', [$sprintId]);
+        return $this->row($this->sprintSelect() . ' WHERE s.id = ?', 'i', [$sprintId]);
     }
 
     /**
@@ -125,7 +139,7 @@ class ExtensionsRepo
     public function nextSprint(int $clubId): ?array
     {
         return $this->row(
-            self::SPRINT_SELECT . " WHERE s.club_id = ?
+            $this->sprintSelect() . " WHERE s.club_id = ?
                 AND s.status = 'scheduled'
                 AND DATE_ADD(s.starts_at, INTERVAL s.duration_min MINUTE) > NOW()
               ORDER BY s.starts_at ASC LIMIT 1",
@@ -376,7 +390,7 @@ class ExtensionsRepo
         return $this->rows(
             "SELECT cb.id, cb.state, l.titolo
                FROM bookclub_books cb
-               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
               WHERE cb.club_id = ? AND cb.state IN ($placeholders)
               ORDER BY cb.position ASC, cb.updated_at DESC",
             $types,

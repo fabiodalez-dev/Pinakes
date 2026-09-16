@@ -35,6 +35,20 @@ class DiscussionRepo
     // ------------------------------------------------------------------
 
     /**
+     * Public club pages are reachable without a session and render book_url()
+     * links, and the public book page answers 404 for a title the library only
+     * wants rather than holds. The predicate therefore goes on the JOIN
+     * condition over `libri`, next to deleted_at — never in the WHERE: an
+     * external proposal has no `libri` row at all and must keep rendering,
+     * which the existing "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)"
+     * guard already expresses.
+     */
+    private function catalogueOnly(string $alias = 'l'): string
+    {
+        return ' AND ' . \App\Support\BookVisibility::catalogue($this->db, $alias);
+    }
+
+    /**
      * @param array<int, mixed> $params
      * @return list<array<string, mixed>>
      */
@@ -125,7 +139,7 @@ class DiscussionRepo
             'SELECT s.id, s.title, l.titolo AS book_title
                FROM bookclub_sections s
                JOIN bookclub_books cb ON cb.id = s.club_book_id
-               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL' . $this->catalogueOnly() . '
               WHERE cb.club_id = ?
               ORDER BY l.titolo ASC, s.id ASC',
             'i',
@@ -191,7 +205,7 @@ class DiscussionRepo
                   FROM bookclub_threads t
                   LEFT JOIN utenti u ON u.id = t.created_by
                   LEFT JOIN bookclub_books cb ON cb.id = t.club_book_id
-                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $sectionJoin;
+                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "" . $sectionJoin;
     }
 
     /**

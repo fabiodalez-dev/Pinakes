@@ -29,6 +29,12 @@ Anche aggiungere la prima copia attraverso la normale gestione delle copie conve
 
 Disattivazione e disinstallazione conservano dati e metadati; il core continua a escludere i desiderata dal catalogo e a convertirli alla prima copia. Riattivare il plugin per riaprire pagina e gestione. Le copie ricevute sono normali copie Pinakes.
 
+## Import ed export CSV
+
+Sulle installazioni che hanno il plugin, l'export CSV standard aggiunge in coda la colonna `is_desiderata`; dove il plugin non c'è, la colonna non compare e il file resta identico a prima, byte per byte. L'import riconosce la colonna (anche come `desiderata`/`wanted`) e per una riga contrassegnata scrive il flag, azzera i conteggi e non crea alcuna copia fisica. Un import che aggiorna una scheda già presente non riporta mai un libro del catalogo allo stato di richiesta.
+
+L'export verso LibraryThing **esclude di proposito** le richieste: quel formato è uno schema di terze parti a colonne fisse e non può esprimere la differenza fra un libro posseduto e uno cercato, quindi una richiesta vi arriverebbe indistinguibile da una copia in inventario.
+
 ## Verifica
 
 `php tests/desiderata.integration.php` usa il database di sviluppo configurato in `.env` (override `E2E_DB_*`); crea fixture riconoscibili, verifica proposta, ricezione, rollback e doppio invio, e rimuove le proprie fixture al termine. Eseguire su ambiente di sviluppo/CI.

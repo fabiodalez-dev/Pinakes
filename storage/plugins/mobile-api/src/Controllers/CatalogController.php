@@ -996,8 +996,12 @@ final class CatalogController
                 $userId,
                 $bookId
             ),
+            // Same predicate as the wishlist list and the web status endpoint,
+            // so the heart icon never contradicts either.
             'has_wishlisted'  => $this->existsScoped(
-                'SELECT 1 FROM wishlist WHERE utente_id = ? AND libro_id = ? LIMIT 1',
+                'SELECT 1 FROM wishlist w JOIN libri l ON l.id = w.libro_id AND l.deleted_at IS NULL AND '
+                    . \App\Support\BookVisibility::catalogue($this->db, 'l')
+                    . ' WHERE w.utente_id = ? AND w.libro_id = ? LIMIT 1',
                 $userId,
                 $bookId
             ),

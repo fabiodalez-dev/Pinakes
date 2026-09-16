@@ -4,20 +4,37 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { ensurePluginActive } = require('./helpers/plugin-activation');
 const root = path.resolve(__dirname, '..');
 const envFile=path.join(__dirname, '.env.test');
 const settings = Object.fromEntries((fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : '').split(/\r?\n/).filter(line => line.includes('=') && !line.startsWith('#')).map(line => { const i=line.indexOf('='); return [line.slice(0,i),line.slice(i+1).trim().replace(/^["']|["']$/g,'')]; }));
 const tag=crypto.randomBytes(6).toString('hex');
 const fixture = action => JSON.parse(execFileSync('php',[path.join(__dirname,'helpers/desiderata-fixture.php'),action,tag],{cwd:root,encoding:'utf8'}));
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || settings.E2E_ADMIN_EMAIL;
+const ADMIN_PASS = process.env.E2E_ADMIN_PASS || settings.E2E_ADMIN_PASS;
 let seeded;
-test.skip(!(process.env.E2E_ADMIN_EMAIL || settings.E2E_ADMIN_EMAIL) || !(process.env.E2E_ADMIN_PASS || settings.E2E_ADMIN_PASS), 'Requires an installed app and E2E_ADMIN_EMAIL/E2E_ADMIN_PASS');
+test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Requires an installed app and E2E_ADMIN_EMAIL/E2E_ADMIN_PASS');
 test.describe.configure({mode:'serial'});
-test.beforeAll(() => { seeded=fixture('seed'); });
+// The plugin is optional and ships inactive: nothing else in this shard turns
+// it on, and its routes 404 until it is. Activating here — through the real
+// admin endpoint, before the fixture seeds anything — is what lets the spec run
+// standalone instead of inheriting another suite's state.
+test.beforeAll(async ({browser}) => {
+  if (ADMIN_EMAIL && ADMIN_PASS) {
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      await login(page);
+      await ensurePluginActive(page, 'desiderata', {smokePath: '/desiderata'});
+    } finally { await context.close(); }
+  }
+  seeded=fixture('seed');
+});
 test.afterAll(() => { fixture('cleanup'); });
 async function login(page) {
   await page.goto('/accedi');
-  await page.getByRole('textbox',{name:'Email',exact:true}).fill(process.env.E2E_ADMIN_EMAIL || settings.E2E_ADMIN_EMAIL);
-  await page.getByRole('textbox',{name:'Password',exact:true}).fill(process.env.E2E_ADMIN_PASS || settings.E2E_ADMIN_PASS);
+  await page.getByRole('textbox',{name:'Email',exact:true}).fill(ADMIN_EMAIL);
+  await page.getByRole('textbox',{name:'Password',exact:true}).fill(ADMIN_PASS);
   await page.getByRole('button',{name:'Accedi',exact:true}).click();
   await page.waitForURL(/\/admin/);
 }
@@ -70,6 +87,10 @@ test('anonymous home offer, actual receipt and duplicate receipt protection',asy
   const offer=state.offers.find(o=>o.book_id===seeded.wanted); expect(offer.status).toBe('pending');
   const context=await browser.newContext(); const admin=await context.newPage();
   try {
+    // The receipt button now asks for confirmation (it creates a real
+    // inventory copy). Playwright dismisses dialogs by default, which would
+    // cancel the action; accept it the way an operator does.
+    admin.on('dialog', dialog => dialog.accept());
     await login(admin); await admin.goto('/admin/desiderata');
     let row=admin.locator('article').filter({hasText:seeded.prefix+' desiderata'});
     await row.getByRole('button',{name:'Accetta proposta',exact:true}).click();
@@ -97,6 +118,7 @@ test('free donation remains a proposal and can be matched to an existing zero-co
   await page.getByRole('button',{name:'Invia la proposta',exact:true}).click();
   await expect(page.getByRole('status').filter({hasText:'Grazie!'})).toBeVisible();
   expect(fixture('state').books).toHaveLength(2);
+  page.on('dialog', dialog => dialog.accept());
   await page.setViewportSize({width:1440,height:1000}); await login(page); await page.goto('/admin/desiderata');
   let row=page.locator('article').filter({hasText:'Offerta libera '+tag});
   await expect(row).toContainText('<script>window.donationXss=true</script>');

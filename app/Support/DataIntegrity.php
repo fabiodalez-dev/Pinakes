@@ -13,7 +13,12 @@ class DataIntegrity {
     }
 
     /**
-     * Ricalcola le copie disponibili per tutti i libri
+     * Ricalcola le copie disponibili per tutti i libri.
+     *
+     * 'updated' counts the availability pass only; the desiderata sweep reports
+     * separately in 'desiderata_cleared' so existing callers keep their meaning.
+     *
+     * @return array{updated:int, errors:list<string>, desiderata_cleared?:int}
      */
     public function recalculateAllBookAvailability(bool $insideTransaction = false): array {
         $results = ['updated' => 0, 'errors' => []];
@@ -150,7 +155,27 @@ class DataIntegrity {
             $stmt->close();
 
             if (BookVisibility::hasDesiderata($this->db)) {
-                $this->db->query('UPDATE libri l SET is_desiderata=0 WHERE is_desiderata=1 AND EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id)');
+                // CI-SOFT-DELETE-EXEMPT: the sweep must reach archived rows too.
+                // The invariant it enforces is about the RECORD — a book that
+                // owns physical copies is never a request — and soft delete
+                // keeps the copie rows. Scoping this to live rows would let an
+                // archived book keep the flag and come back flagged when it is
+                // restored: BookVisibility would then hide a title the library
+                // demonstrably owns. Same reasoning as the per-book sweep below
+                // and as DesiderataPlugin::onUninstall().
+                //
+                // Prepared like every other statement in this method, and its
+                // effect reported separately so a failure cannot hide behind
+                // $results['updated'], which counts the availability pass only.
+                $request = $this->db->prepare('UPDATE libri l SET is_desiderata=0 WHERE is_desiderata=1 AND EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id)');
+                if ($request === false || !$request->execute()) {
+                    $results['errors'][] = 'Errore azzeramento desiderata: ' . $this->db->error;
+                } else {
+                    $results['desiderata_cleared'] = $this->db->affected_rows;
+                }
+                if ($request !== false) {
+                    $request->close();
+                }
             }
 
             if (!$insideTransaction) {
@@ -411,6 +436,13 @@ class DataIntegrity {
 
             // The first physical copy fulfils the request, regardless of its
             // circulation status. Never restore the flag when a copy is removed.
+            //
+            // CI-SOFT-DELETE-EXEMPT: reached with the ids of archived books too,
+            // and that is intended — see the table-wide sibling in
+            // recalculateAllBookAvailability(). Adding deleted_at IS NULL here
+            // would contradict this method's own contract: a restored book that
+            // owns copies would come back flagged, i.e. permanently invisible in
+            // the public catalogue.
             if (BookVisibility::hasDesiderata($this->db)) {
                 $request = $this->db->prepare('UPDATE libri SET is_desiderata=0 WHERE id=? AND is_desiderata=1 AND EXISTS (SELECT 1 FROM copie WHERE libro_id=?)');
                 $request->bind_param('ii', $bookId, $bookId);

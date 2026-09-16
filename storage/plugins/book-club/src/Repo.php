@@ -48,6 +48,20 @@ class Repo
     }
 
     /**
+     * Public club pages are reachable without a session and render book_url()
+     * links, and the public book page answers 404 for a title the library only
+     * wants rather than holds. The predicate therefore goes on the JOIN
+     * condition over `libri`, next to deleted_at — never in the WHERE: an
+     * external proposal has no `libri` row at all and must keep rendering,
+     * which the existing "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)"
+     * guard already expresses.
+     */
+    private function catalogueOnly(string $alias = 'l'): string
+    {
+        return ' AND ' . \App\Support\BookVisibility::catalogue($this->db, $alias);
+    }
+
+    /**
      * @param array<int, mixed> $params
      * @return list<array<string, mixed>>
      */
@@ -755,7 +769,7 @@ class Repo
     // external proposal (cb.external_book_id → bookclub_external_books, a book
     // not in the library). Both are LEFT JOINed and the display fields are
     // COALESCEd so one SELECT serves both; is_external tells them apart.
-    private const BOOK_SELECT = "SELECT cb.*,
+    private function bookSelect(): string { return "SELECT cb.*,
                        COALESCE(l.titolo, ext.titolo) AS titolo,
                        COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
                        COALESCE(l.anno_pubblicazione, ext.anno) AS anno_pubblicazione,
@@ -771,9 +785,9 @@ class Repo
                        ext.isbn AS external_isbn,
                        up.nome AS proposer_nome, up.cognome AS proposer_cognome
                   FROM bookclub_books cb
-                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
                   LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
-                  LEFT JOIN utenti up ON up.id = cb.proposed_by";
+                  LEFT JOIN utenti up ON up.id = cb.proposed_by"; }
 
     // Guard shared by the list methods: keep the old behaviour of hiding a
     // catalogue book whose libri row is missing/soft-deleted, while still
@@ -784,7 +798,7 @@ class Repo
     public function clubBooks(int $clubId): array
     {
         return $this->rows(
-            self::BOOK_SELECT . ' WHERE cb.club_id = ? AND' . self::BOOK_PRESENT . 'ORDER BY cb.position ASC, cb.created_at DESC',
+            $this->bookSelect() . ' WHERE cb.club_id = ? AND' . self::BOOK_PRESENT . 'ORDER BY cb.position ASC, cb.created_at DESC',
             'i',
             [$clubId]
         );
@@ -793,7 +807,7 @@ class Repo
     /** @return array<string, mixed>|null */
     public function clubBook(int $clubBookId): ?array
     {
-        return $this->row(self::BOOK_SELECT . ' WHERE cb.id = ? AND' . self::BOOK_PRESENT, 'i', [$clubBookId]);
+        return $this->row($this->bookSelect() . ' WHERE cb.id = ? AND' . self::BOOK_PRESENT, 'i', [$clubBookId]);
     }
 
     public function bookAlreadyInClub(int $clubId, int $libroId): bool
@@ -1425,7 +1439,7 @@ class Repo
                FROM bookclub_books cb
                LEFT JOIN bookclub_poll_options o ON o.club_book_id = cb.id
                LEFT JOIN bookclub_polls p ON p.id = o.poll_id AND p.club_id = ? AND p.status = 'closed'
-               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
                LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
               WHERE cb.club_id = ?
                 AND cb.state = ?
@@ -1469,7 +1483,7 @@ class Repo
                     COUNT(v.id) AS vote_count
                FROM bookclub_poll_options o
                JOIN bookclub_books cb ON cb.id = o.club_book_id
-               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
                LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
                LEFT JOIN bookclub_votes v ON v.option_id = o.id
               WHERE o.poll_id = ?
@@ -1599,19 +1613,19 @@ class Repo
     // Meetings
     // ------------------------------------------------------------------
 
-    private const MEETING_SELECT = "SELECT mt.*, COALESCE(l.titolo, ext.titolo) AS book_title,
+    private function meetingSelect(): string { return "SELECT mt.*, COALESCE(l.titolo, ext.titolo) AS book_title,
                        (SELECT COUNT(*) FROM bookclub_meeting_rsvps r WHERE r.meeting_id = mt.id AND r.response = 'yes') AS yes_count,
                        (SELECT COUNT(*) FROM bookclub_meeting_rsvps r WHERE r.meeting_id = mt.id AND r.response = 'maybe') AS maybe_count
                   FROM bookclub_meetings mt
                   LEFT JOIN bookclub_books cb ON cb.id = mt.club_book_id
-                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
-                  LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id";
+                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
+                  LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id"; }
 
     /** @return list<array<string, mixed>> */
     public function clubMeetings(int $clubId): array
     {
         return $this->rows(
-            self::MEETING_SELECT . ' WHERE mt.club_id = ? ORDER BY mt.starts_at DESC',
+            $this->meetingSelect() . ' WHERE mt.club_id = ? ORDER BY mt.starts_at DESC',
             'i',
             [$clubId]
         );
@@ -1620,14 +1634,14 @@ class Repo
     /** @return array<string, mixed>|null */
     public function meeting(int $meetingId): ?array
     {
-        return $this->row(self::MEETING_SELECT . ' WHERE mt.id = ?', 'i', [$meetingId]);
+        return $this->row($this->meetingSelect() . ' WHERE mt.id = ?', 'i', [$meetingId]);
     }
 
     /** @return array<string, mixed>|null */
     public function nextMeeting(int $clubId): ?array
     {
         return $this->row(
-            self::MEETING_SELECT . " WHERE mt.club_id = ? AND mt.status = 'scheduled' AND mt.starts_at >= NOW()
+            $this->meetingSelect() . " WHERE mt.club_id = ? AND mt.status = 'scheduled' AND mt.starts_at >= NOW()
               ORDER BY mt.starts_at ASC LIMIT 1",
             'i',
             [$clubId]
@@ -1793,7 +1807,7 @@ class Repo
             $placeholders = implode(',', array_fill(0, count($currentKeys), '?'));
             $types = 'i' . str_repeat('s', count($currentKeys));
             $currentBooks = $this->rows(
-                self::BOOK_SELECT . " WHERE cb.club_id = ? AND cb.state IN ($placeholders)
+                $this->bookSelect() . " WHERE cb.club_id = ? AND cb.state IN ($placeholders)
                   ORDER BY cb.position ASC, cb.updated_at DESC LIMIT 5",
                 $types,
                 array_merge([(int) $club['id']], $currentKeys)

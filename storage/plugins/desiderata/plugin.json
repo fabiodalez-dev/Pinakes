@@ -6,7 +6,7 @@
   "author": "Pinakes",
   "main_file": "wrapper.php",
   "requires_php": "8.2",
-  "requires_app": "0.7.86",
+  "requires_app": "0.7.85",
   "metadata": {
     "category": "community",
     "optional": true

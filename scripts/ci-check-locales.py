@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Validate translation keys, placeholders and localized route parity."""
+"""Validate translation keys, placeholders and localized route parity.
+
+Also scans the PHP sources for __()/__n() literals that are not keys in
+it_IT.json. Cross-comparing the five JSON files can only catch a string that is
+missing from *some* of them; a string missing from all five — the shape that let
+a whole plugin ship untranslated — is invisible to it, because it_IT is the key
+set every other locale is measured against and the admin translation editor
+derives from.
+"""
 
 import json
 import re
@@ -12,6 +20,64 @@ FULL_LOCALES = ("en_US", "de_DE", "fr_FR", "da_DK")
 PLACEHOLDER_LOCALES = FULL_LOCALES
 ROUTE_LOCALES = ("routes_en_US", "routes_de_DE", "routes_fr_FR", "routes_da_DK")
 PLACEHOLDER = re.compile(r"%(?:\d+\$)?[sd]")
+
+# Sources scanned for translatable literals.
+SOURCE_DIRS = ("app", "storage/plugins", "installer")
+# A single-quoted or double-quoted PHP literal. A double-quoted string
+# containing "$" is interpolated, so it is not a literal and is left out.
+_STRING = r"""(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\$]|\\.)*)")"""
+# Only a first argument that IS a literal is checked: __($message),
+# __($labels[$k]) and every other dynamic argument cannot be verified
+# statically and are deliberately skipped rather than guessed at.
+TRANSLATE_CALL = re.compile(r"\b__\(\s*" + _STRING + r"\s*(?=[,)])")
+# __n() carries two literals and translatePlural() looks up whichever one the
+# count selects, so both have to be registered.
+TRANSLATE_PLURAL_CALL = re.compile(
+    r"\b__n\(\s*" + _STRING + r"\s*,\s*" + _STRING + r"\s*(?=[,)])"
+)
+# Docblocks document __() with example strings ("Welcome %s"); they are not
+# call sites and must not be demanded of the catalogue.
+COMMENT_LINE = re.compile(r"^\s*(?:\*|//|#|/\*)")
+
+
+def _unescape(single: str | None, double: str | None) -> str:
+    """Turn a PHP string literal's source text into its runtime value."""
+    if single is not None:
+        return single.replace("\\\\", "\x00").replace("\\'", "'").replace("\x00", "\\")
+    assert double is not None
+    return (
+        double.replace("\\\\", "\x00")
+        .replace('\\"', '"')
+        .replace("\\n", "\n")
+        .replace("\\t", "\t")
+        .replace("\\r", "\r")
+        .replace("\x00", "\\")
+    )
+
+
+def translatable_literals() -> dict[str, set[str]]:
+    """Every statically known __()/__n() literal, mapped to the files using it."""
+    found: dict[str, set[str]] = {}
+    for directory in SOURCE_DIRS:
+        base = ROOT / directory
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*.php")):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for pattern, groups in (
+                (TRANSLATE_CALL, ((1, 2),)),
+                (TRANSLATE_PLURAL_CALL, ((1, 2), (3, 4))),
+            ):
+                for match in pattern.finditer(text):
+                    line_start = text.rfind("\n", 0, match.start()) + 1
+                    if COMMENT_LINE.match(text[line_start : match.start() + 1]):
+                        continue
+                    for first, second in groups:
+                        literal = _unescape(match.group(first), match.group(second))
+                        found.setdefault(literal, set()).add(
+                            str(path.relative_to(ROOT))
+                        )
+    return found
 
 
 def load(name: str) -> dict[str, object]:
@@ -64,6 +130,17 @@ def main() -> int:
                 print(f"  missing: {key}")
             for key in extra:
                 print(f"  extra: {key}")
+
+    unregistered = sorted(
+        (literal, sorted(files))
+        for literal, files in translatable_literals().items()
+        if literal not in italian
+    )
+    if unregistered:
+        failed = True
+        print("✗ __() strings missing from locale/it_IT.json")
+        for literal, files in unregistered:
+            print(f'  missing: "{literal[:100]}"  ({files[0]})')
 
     if failed:
         return 1

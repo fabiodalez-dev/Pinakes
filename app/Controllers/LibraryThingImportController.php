@@ -2222,6 +2222,11 @@ class LibraryThingImportController
         ";
 
         $whereClauses[] = "l.deleted_at IS NULL";
+        // LibraryThing's column set cannot express "the library wants this book
+        // but does not own it", so a request exported here would arrive as an
+        // ordinary holding. Exclude rather than misrepresent — the same
+        // decision as the librarything format in LibriController::exportCsv().
+        $whereClauses[] = \App\Support\BookVisibility::catalogue($db, 'l');
 
         $query .= " WHERE " . implode(' AND ', $whereClauses);
 

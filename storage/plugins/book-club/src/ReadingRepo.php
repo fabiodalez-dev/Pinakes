@@ -106,6 +106,20 @@ class ReadingRepo
     // ------------------------------------------------------------------
 
     /**
+     * Public club pages are reachable without a session and render book_url()
+     * links, and the public book page answers 404 for a title the library only
+     * wants rather than holds. The predicate therefore goes on the JOIN
+     * condition over `libri`, next to deleted_at — never in the WHERE: an
+     * external proposal has no `libri` row at all and must keep rendering,
+     * which the existing "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)"
+     * guard already expresses.
+     */
+    private function catalogueOnly(string $alias = 'l'): string
+    {
+        return ' AND ' . \App\Support\BookVisibility::catalogue($this->db, $alias);
+    }
+
+    /**
      * @param array<int, mixed> $params
      * @return list<array<string, mixed>>
      */
@@ -338,7 +352,7 @@ class ReadingRepo
                       WHERE la.libro_id = l.id
                         AND la.ruolo IN ('principale', 'co-autore')) AS autori
                FROM bookclub_books cb
-               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
               WHERE cb.club_id = ? AND cb.state IN ($placeholders)
               ORDER BY cb.position ASC, cb.updated_at DESC",
             $types,

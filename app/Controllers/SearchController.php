@@ -157,7 +157,7 @@ class SearchController
                        l.copie_disponibili,
                        l.copie_totali
                 FROM libri l
-                WHERE l.deleted_at IS NULL AND {$cond['sql']}
+                WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND {$cond['sql']}
                 ORDER BY {$rel['sql']}
                 LIMIT " . self::AJAX_BOOK_RESULT_LIMIT . "
             ");

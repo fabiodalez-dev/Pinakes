@@ -2,6 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const { flushCache } = require('./helpers/flush-cache');
+const { ensurePluginActive } = require('./helpers/plugin-activation');
 const fs = require('fs');
 const path = require('path');
 
@@ -554,6 +555,19 @@ test.describe.serial('Phase 2: Login and Dashboard', () => {
       (e) => !e.includes('ResizeObserver') && !e.includes('Non-Error'),
     );
     expect(criticalErrors).toHaveLength(0);
+
+    // The stat cards must carry real numbers, and the DB-failure banner must be
+    // absent. DashboardController wraps counts() and the eight repository calls
+    // in ONE try/catch, so a single broken query blanks every card and shows
+    // that banner — while the links above still render, so the visibility check
+    // alone passes. A `//` comment accidentally left inside the counts SQL
+    // string did exactly that and survived a full green run of this suite.
+    const body = await page.locator('body').innerText();
+    expect(body).not.toContain('Verifica la connessione al database');
+
+    const booksCard = page.locator('p', { hasText: /^Totale libri presenti$/ })
+      .locator('xpath=preceding-sibling::p[1]');
+    await expect(booksCard).toHaveText(/^\d+$/, { timeout: 10000 });
   });
 
   test('2.3 Sidebar navigation works', async () => {
@@ -3548,28 +3562,22 @@ test.describe.serial('Phase 21: Language Switch', () => {
 // Helpers for Phase 22 (Archives) and Phase 23 (Multi-publisher / Multi-author)
 // ════════════════════════════════════════════════════════════════════════════
 
-/** Ensure the bundled `archives` plugin is active (auto-registers on /admin/plugins). */
+/**
+ * Ensure the bundled `archives` plugin is active (auto-registers on /admin/plugins).
+ *
+ * Delegates to the shared precondition helper so the lifecycle-endpoint rule
+ * (never a raw SQL flip of is_active) lives in exactly one place. The helper
+ * asserts rather than returning false, so the caller's .catch() is what turns a
+ * refusal back into the boolean this function has always returned.
+ */
 async function ensureArchivesActive(page) {
+  // The plugins page auto-registers bundled plugins on render, so the row the
+  // helper looks up only exists after this visit.
   await page.goto(`${BASE}/admin/plugins`);
   await page.waitForLoadState('domcontentloaded');
   await page.waitForSelector('[data-plugin-id]', { timeout: 10000 }).catch(() => {});
-  const dbId = Number(String(dbQuery(`SELECT id FROM plugins WHERE name='archives' LIMIT 1`)).trim() || '0');
-  if (!dbId) return false;
-  if (String(dbQuery(`SELECT is_active FROM plugins WHERE id=${dbId}`)).trim() === '1') return true;
-  const card = page.locator(`[data-plugin-id="${dbId}"]`).first();
-  const btn = card.locator('button:has-text("Attiva")');
-  if (await btn.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await btn.click();
-    const confirm = page.locator('.swal2-confirm:visible');
-    if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) await confirm.click();
-    await page.waitForFunction(
-      () => document.querySelector('.swal2-popup .swal2-icon.swal2-success') !== null,
-      { timeout: 10000 },
-    ).catch(() => {});
-    await page.keyboard.press('Enter').catch(() => {});
-    await page.waitForLoadState('domcontentloaded');
-  }
-  return String(dbQuery(`SELECT is_active FROM plugins WHERE id=${dbId}`)).trim() === '1';
+  await ensurePluginActive(page, 'archives', { base: BASE, smokePath: '/admin/archives' });
+  return true;
 }
 
 /** Create an archival unit via the admin form. Returns its DB id (0 on failure). */
