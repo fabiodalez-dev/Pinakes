@@ -269,7 +269,7 @@ class FrontendController
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
-            WHERE l.deleted_at IS NULL
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         ";
 
         if (!empty($where_conditions['conditions'])) {
@@ -368,7 +368,7 @@ class FrontendController
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
-            WHERE l.deleted_at IS NULL
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         ";
 
         if (!empty($where_conditions['conditions'])) {
@@ -584,7 +584,7 @@ class FrontendController
                         $statsResult = $db->query(
                             'SELECT COUNT(*) AS total_books, '
                             . 'COALESCE(SUM(copie_disponibili > 0), 0) AS available_books '
-                            . 'FROM libri WHERE deleted_at IS NULL'
+                            . 'FROM libri WHERE deleted_at IS NULL AND ' . \App\Support\BookVisibility::catalogue($db)
                         );
                         if ($statsResult === false) {
                             throw new \RuntimeException('availability stats query returned false: ' . $db->error);
@@ -898,7 +898,7 @@ class FrontendController
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
             LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             LEFT JOIN editori e ON l.editore_id = e.id
-            WHERE l.id = ? AND l.deleted_at IS NULL
+            WHERE l.id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             LIMIT 1
         ";
 
@@ -974,7 +974,7 @@ class FrontendController
                        (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                         WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
                 FROM libri l
-                WHERE l.collana = ? AND l.id != ? AND l.deleted_at IS NULL
+                WHERE l.collana = ? AND l.id != ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
                 ORDER BY
                     CASE WHEN TRIM(l.numero_serie) REGEXP '^[0-9]+$' THEN 0 ELSE 1 END,
                     CAST(l.numero_serie AS UNSIGNED),
@@ -1048,7 +1048,7 @@ class FrontendController
 
         try {
             $stmt = $db->prepare(
-                "SELECT id, copie_disponibili, copie_totali, stato FROM libri WHERE id IN ({$placeholders}) AND deleted_at IS NULL"
+                "SELECT id, copie_disponibili, copie_totali, stato FROM libri WHERE id IN ({$placeholders}) AND deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db) . ""
             );
             if ($stmt === false) {
                 throw new \RuntimeException('mysqli::prepare returned false: ' . $db->error);
@@ -1607,7 +1607,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                    LEFT JOIN generi gfp ON gf.parent_id = gfp.id
                    LEFT JOIN generi gfpp ON gfp.parent_id = gfpp.id
                    LEFT JOIN generi sg ON l.sottogenere_id = sg.id
-                   WHERE l.deleted_at IS NULL
+                   WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
                    AND (
                        l.genere_id = g.id
                        OR l.sottogenere_id = g.id
@@ -1621,16 +1621,16 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         FROM (
             -- Select all genres that have books via genere_id or sottogenere_id
             SELECT DISTINCT g.id FROM generi g
-            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             UNION
             SELECT DISTINCT gp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
-            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             UNION
             SELECT DISTINCT gpp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
             JOIN generi gpp ON gp.parent_id = gpp.id
-            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         ) as genre_ids
         JOIN generi g ON genre_ids.id = g.id
         ORDER BY g.parent_id, g.nome
@@ -1675,7 +1675,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         SELECT e.nome, COUNT(DISTINCT l.id) AS cnt
         FROM editori e
         JOIN libri l ON (e.id = l.editore_id{$facetExists})
-                        AND l.deleted_at IS NULL
+                        AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
@@ -1717,7 +1717,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
         LEFT JOIN generi sg ON l.sottogenere_id = sg.id
-        WHERE l.deleted_at IS NULL
+        WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
     ";
     if (!empty($conditionsAvail)) {
         // Keep all conditions except availability filter (which is excluded via filtersForAvailability)
@@ -1771,7 +1771,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         SELECT a.id, " . \App\Support\AuthorName::displaySql('a') . " AS nome, COUNT(DISTINCT l.id) AS cnt
         FROM autori a
         JOIN libri_autori la ON la.autore_id = a.id
-        JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
+        JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         {$facetJoins}
         WHERE la.ruolo IN ('principale', 'co-autore')
     ";
@@ -1800,7 +1800,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             SELECT l.tipo_media AS value, COUNT(DISTINCT l.id) AS cnt
             FROM libri l
             {$facetJoins}
-            WHERE l.deleted_at IS NULL AND l.tipo_media IS NOT NULL AND l.tipo_media <> ''
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND l.tipo_media IS NOT NULL AND l.tipo_media <> ''
         ";
         if (!empty($whereMt['conditions'])) {
             $queryMt .= " AND " . implode(' AND ', $whereMt['conditions']);
@@ -1834,7 +1834,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                COUNT(DISTINCT l.anno_pubblicazione) AS ydistinct
         FROM libri l
         {$facetJoins}
-        WHERE l.deleted_at IS NULL AND l.anno_pubblicazione > 0
+        WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND l.anno_pubblicazione > 0
     ";
     if (!empty($whereAn['conditions'])) {
         $queryAnno .= " AND " . implode(' AND ', $whereAn['conditions']);
@@ -1913,7 +1913,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                     FROM libri l
                     LEFT JOIN editori e ON l.editore_id = e.id
                     LEFT JOIN generi g ON l.genere_id = g.id
-                    WHERE l.deleted_at IS NULL
+                    WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
                     ORDER BY l.{$latestSort} DESC
                     LIMIT ? OFFSET ?
                 ";
@@ -1938,7 +1938,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                            e.nome AS editore
                     FROM libri l
                     LEFT JOIN editori e ON l.editore_id = e.id
-                    WHERE l.genere_id = ? AND l.deleted_at IS NULL
+                    WHERE l.genere_id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
                     ORDER BY l.created_at DESC
                     LIMIT ? OFFSET ?
                 ";
@@ -1969,13 +1969,13 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         switch ($section) {
             case 'latest':
                 $total = \App\Support\QueryCache::remember('home_api_count_latest', function () use ($db) {
-                    $row = $db->query("SELECT COUNT(*) as total FROM libri WHERE deleted_at IS NULL")->fetch_assoc();
+                    $row = $db->query("SELECT COUNT(*) as total FROM libri WHERE deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db) . "")->fetch_assoc();
                     return (int) ($row['total'] ?? 0);
                 }, 120);
                 break;
             case 'genre':
                 $total = \App\Support\QueryCache::remember('home_api_count_genre_' . $genere_id, function () use ($db, $genere_id) {
-                    $countStmt = $db->prepare("SELECT COUNT(*) as total FROM libri WHERE genere_id = ? AND deleted_at IS NULL");
+                    $countStmt = $db->prepare("SELECT COUNT(*) as total FROM libri WHERE genere_id = ? AND deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db) . "");
                     $countStmt->bind_param("i", $genere_id);
                     $countStmt->execute();
                     $row = $countStmt->get_result()->fetch_assoc();
@@ -2035,7 +2035,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             FROM libri l
             JOIN libri_autori la ON l.id = la.libro_id
             JOIN autori a ON la.autore_id = a.id
-            WHERE a.nome = ? AND l.deleted_at IS NULL
+            WHERE a.nome = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         ";
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('s', $authorName);
@@ -2058,7 +2058,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             JOIN autori a ON la.autore_id = a.id
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE a.nome = ? AND l.deleted_at IS NULL
+            WHERE a.nome = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
@@ -2133,7 +2133,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             SELECT COUNT(l.id) as total
             FROM libri l
             WHERE (l.editore_id IN ($ph){$exists})
-                  AND l.deleted_at IS NULL
+                  AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         ";
         $stmt = $db->prepare($countQuery);
         $countTypes = $hasJunction ? $idTypes . $idTypes : $idTypes;
@@ -2157,7 +2157,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
             WHERE (l.editore_id IN ($ph){$exists})
-                  AND l.deleted_at IS NULL
+                  AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
@@ -2278,7 +2278,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $countQuery = "
             SELECT COUNT(l.id) as total
             FROM libri l
-            WHERE l.genere_id IN ($idPlaceholders) AND l.deleted_at IS NULL
+            WHERE l.genere_id IN ($idPlaceholders) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         ";
         $stmt = $db->prepare($countQuery);
         if ($stmt === false) {
@@ -2303,7 +2303,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             FROM libri l
             JOIN generi g ON l.genere_id = g.id
             LEFT JOIN editori e ON l.editore_id = e.id
-            WHERE l.genere_id IN ($idPlaceholders) AND l.deleted_at IS NULL
+            WHERE l.genere_id IN ($idPlaceholders) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
@@ -2449,7 +2449,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                    g.nome AS genere
             FROM libri l
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE l.deleted_at IS NULL
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             ORDER BY l.{$latestBooksSort} DESC
             LIMIT 12
         ";
@@ -2467,7 +2467,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             SELECT COUNT(*) AS total_cnt,
                    COUNT(CASE WHEN copie_disponibili > 0 THEN 1 END) AS available_cnt
             FROM libri
-            WHERE deleted_at IS NULL
+            WHERE deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db) . "
         ");
         if ($statsResult) {
             $statsRow = $statsResult->fetch_assoc();
@@ -2525,7 +2525,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                            (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                             WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome
                     FROM libri l
-                    WHERE l.genere_id IN " . $inClause . " AND l.deleted_at IS NULL
+                    WHERE l.genere_id IN " . $inClause . " AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
                     ORDER BY l.created_at DESC
                     LIMIT 12
                 ";
@@ -2737,7 +2737,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             SELECT COUNT(DISTINCT l.id) as total
             FROM libri l
             JOIN libri_autori la ON l.id = la.libro_id
-            WHERE la.autore_id = ? AND l.deleted_at IS NULL
+            WHERE la.autore_id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         ";
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('i', $authorId);
@@ -2763,7 +2763,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE la.autore_id = ? AND l.deleted_at IS NULL
+            WHERE la.autore_id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             ORDER BY l.anno_pubblicazione DESC, l.titolo ASC
             LIMIT ? OFFSET ?
         ";
@@ -2877,7 +2877,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                        {$primaryCreatorNameSelect} AS autore_principale_nome
                 FROM libri l
                 WHERE l.id NOT IN ($excludePlaceholders)
-                AND l.deleted_at IS NULL
+                AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
                 ORDER BY {$priorityOrder}, l.created_at DESC, l.id DESC
                 LIMIT ?
             ";

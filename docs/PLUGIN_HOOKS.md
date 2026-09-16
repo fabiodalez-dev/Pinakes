@@ -1575,3 +1575,19 @@ Hooks::add('book.save.after', function($id, $data) {
 **Hook di integrazione aggiunti:** `app.routes.register`, `admin.menu.render`, `assets.head`, `search.unified.sources`, `frontend.catalog.archive_results` (usati dai plugin bundled)
 **Nota:** gli hook con stato "Documentato" (es. `loan.*`, `reservation.*`, `catalog.query.modify`, `book.delete.*`, `admin.menu.items`) sono punti di estensione pianificati, **non** ancora invocati dal core.
 
+
+## Desiderata: estensioni del modulo e della homepage
+
+### `book.form.before_copies` (Action)
+
+Riceve `array $bookData, ?int $bookId`. Emette campi prima del controllo delle copie nel modulo di creazione/modifica. Il plugin Desiderata usa questo punto per il checkbox esplicito che blocca le copie iniziali.
+
+### `book.form.save` (Filter)
+
+Riceve `array $fields, array $submittedData, ?int $bookId` e restituisce i campi normalizzati. Eseguito solo dal salvataggio del modulo libri, prima di `book.save.before` e prima della transazione di creazione. Non aprire transazioni in questo filtro. Gli import che non contengono i campi del modulo non cambiano il flag desiderata.
+
+Come gli altri filtri, gli errori sono intercettati dal gestore hook: non usare eccezioni nel filtro come unica barriera di autorizzazione o validazione. La consistenza delle copie resta responsabilità del repository e del ricalcolo del core.
+
+### `frontend.home.sections` (Action)
+
+Nessun parametro. Emette sezioni aggiuntive dopo le sezioni configurate della homepage. Una homepage anonima può non avere una sessione: per form mutanti richiedere il token dall’endpoint `/csrf-token` al momento dell’invio, senza incorporare token di sessione in HTML condivisibile in cache.

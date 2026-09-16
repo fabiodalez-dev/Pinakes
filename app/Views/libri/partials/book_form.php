@@ -497,6 +497,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= __('es. 21x14 cm') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
           </div>
           
+          <?php Hooks::do('book.form.before_copies', [$book, $book['id'] ?? null]); ?>
           <div class="form-grid-3">
             <div>
               <label for="copie_totali" class="form-label">

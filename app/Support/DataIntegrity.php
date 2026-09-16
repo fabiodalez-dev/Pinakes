@@ -149,6 +149,10 @@ class DataIntegrity {
             $results['updated'] = $this->db->affected_rows;
             $stmt->close();
 
+            if (BookVisibility::hasDesiderata($this->db)) {
+                $this->db->query('UPDATE libri l SET is_desiderata=0 WHERE is_desiderata=1 AND EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id)');
+            }
+
             if (!$insideTransaction) {
                 $this->db->commit();
                 ContentCache::availabilityChanged();
@@ -404,6 +408,15 @@ class DataIntegrity {
             $stmt->bind_param('iiiiiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
             $result = $stmt->execute();
             $stmt->close();
+
+            // The first physical copy fulfils the request, regardless of its
+            // circulation status. Never restore the flag when a copy is removed.
+            if (BookVisibility::hasDesiderata($this->db)) {
+                $request = $this->db->prepare('UPDATE libri SET is_desiderata=0 WHERE id=? AND is_desiderata=1 AND EXISTS (SELECT 1 FROM copie WHERE libro_id=?)');
+                $request->bind_param('ii', $bookId, $bookId);
+                $request->execute();
+                $request->close();
+            }
 
             if (!$insideTransaction) {
                 $this->db->commit();

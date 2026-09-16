@@ -565,23 +565,29 @@ form.hero-search-form {
     }
 
     .genre-carousel-header {
-        margin-bottom: 2.5rem;
-        text-align: center;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.5rem;
+        /* Same inset as the books: navigation button (48px) + grid gap. */
+        margin: 0 calc(48px + 1rem) 2.5rem;
+        text-align: left;
     }
 
     .genre-carousel-title {
         font-size: 2rem;
         font-weight: 800;
         color: var(--primary-color);
-        margin: 0 0 0.5rem;
+        margin: 0;
         letter-spacing: -0.02em;
-        text-align: center;
+        text-align: left;
     }
 
     .genre-carousel-viewall {
         display: flex;
         width: fit-content;
-        margin-inline: auto;
+        margin-inline: 0;
         align-items: center;
         gap: 0.4rem;
         font-size: 0.95rem;
@@ -717,6 +723,10 @@ form.hero-search-form {
     @media (max-width: 768px) {
         .genre-carousel-section {
             padding: 3rem 0;
+        }
+
+        .genre-carousel-header {
+            margin-inline: 0;
         }
 
         .genre-carousel-title {
@@ -959,6 +969,7 @@ if (!empty($sectionsOrdered)) {
         }
     } // End foreach
 } // End if sectionsOrdered
+\App\Support\Hooks::do('frontend.home.sections');
 ?>
 
 

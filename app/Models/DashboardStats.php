@@ -21,7 +21,7 @@ class DashboardStats
             // Y-m-d validato da DateHelper: interpolazione sicura tra apici.
             $today = \App\Support\DateHelper::today();
             $sql = "SELECT
-                        (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) AS libri,
+                        (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db) . ") AS libri,
                         (SELECT COUNT(*) FROM utenti) AS utenti,
                         (SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL WHERE p.stato IN ('in_corso','in_ritardo') AND p.attivo = 1) AS prestiti_in_corso,
                         (SELECT COUNT(*) FROM autori) AS autori,
@@ -57,7 +57,7 @@ class DashboardStats
                 FROM libri l
                 LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale','co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
-                WHERE l.deleted_at IS NULL
+                WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . "
                 GROUP BY l.id
                 ORDER BY l.created_at DESC LIMIT ?";
         $stmt = $this->db->prepare($sql);

@@ -97,6 +97,13 @@ storage/calendar/*
 !storage/calendar/.htaccess
 !storage/plugins/
 storage/plugins/*
+!storage/plugins/desiderata/
+storage/plugins/desiderata/*
+!storage/plugins/desiderata/*.php
+!storage/plugins/desiderata/*.json
+!storage/plugins/desiderata/*.md
+!storage/plugins/desiderata/views/
+!storage/plugins/desiderata/views/*.php
 !storage/plugins/open-library/
 storage/plugins/open-library/*
 !storage/plugins/open-library/*.php

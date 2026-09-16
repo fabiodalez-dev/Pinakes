@@ -180,7 +180,10 @@ final class CatalogController
                 }
             }
 
-            $where = 'l.deleted_at IS NULL';
+            // Books the library only wishes to own are not holdings: the app
+            // is the same public catalogue as the website, so it must hide them
+            // exactly as the web catalogue does.
+            $where = 'l.deleted_at IS NULL AND ' . \App\Support\BookVisibility::catalogue($this->db, 'l');
             if ($conditions !== []) {
                 $where .= ' AND ' . implode(' AND ', $conditions);
             }
@@ -512,7 +515,7 @@ final class CatalogController
             $res = $this->db->query(
                 "SELECT MIN(TRIM(lingua)) AS language, COUNT(*) AS count
                    FROM libri
-                  WHERE deleted_at IS NULL AND lingua IS NOT NULL AND TRIM(lingua) <> ''
+                  WHERE deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db) . " AND lingua IS NOT NULL AND TRIM(lingua) <> ''
                   GROUP BY LOWER(TRIM(lingua))
                   ORDER BY count DESC, language ASC"
             );
@@ -792,7 +795,7 @@ final class CatalogController
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
             LEFT JOIN generi sg  ON l.sottogenere_id = sg.id
             LEFT JOIN editori e  ON l.editore_id = e.id
-            WHERE l.id = ? AND l.deleted_at IS NULL
+            WHERE l.id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . "
             LIMIT 1
         ";
         $stmt = $this->db->prepare($sql);
@@ -938,6 +941,7 @@ final class CatalogController
               AND la.ruolo IN ('principale', 'co-autore')
               AND l.id != ?
               AND l.deleted_at IS NULL
+              AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . "
             GROUP BY l.id
             ORDER BY l.created_at DESC
             LIMIT 6

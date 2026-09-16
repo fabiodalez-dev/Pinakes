@@ -104,8 +104,10 @@ final class UserWishlistController
             // Item was removed
             $payload = ['favorite' => false];
         } else {
-            // Validate book exists and is not soft-deleted before inserting
-            $checkStmt = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL');
+            // Validate book exists and is not soft-deleted before inserting.
+            // A desiderata is a book the library does not own: its public page
+            // 404s, so a favourite pointing at it would be a dead entry.
+            $checkStmt = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL AND ' . \App\Support\BookVisibility::catalogue($db));
             $checkStmt->bind_param('i', $libroId);
             $checkStmt->execute();
             $bookExists = $checkStmt->get_result()->num_rows > 0;

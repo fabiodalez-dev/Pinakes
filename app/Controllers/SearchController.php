@@ -293,7 +293,7 @@ class SearchController
                     JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')) AS autori
             FROM libri l
-            WHERE l.deleted_at IS NULL AND {$cond['sql']}
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND {$cond['sql']}
             ORDER BY {$rel['sql']} LIMIT 10
         ");
         $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));
@@ -423,7 +423,7 @@ class SearchController
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
             FROM libri l
-            WHERE l.deleted_at IS NULL AND {$cond['sql']}
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND {$cond['sql']}
             ORDER BY {$rel['sql']} LIMIT 8
         ");
         $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));
@@ -473,7 +473,7 @@ class SearchController
 
         $sql = "
             SELECT a.id, a.nome, a.pseudonimo, a.biografia,
-                   (SELECT COUNT(DISTINCT la2.libro_id) FROM libri_autori la2 JOIN libri l2 ON la2.libro_id = l2.id WHERE la2.autore_id = a.id AND l2.deleted_at IS NULL) as libro_count
+                   (SELECT COUNT(DISTINCT la2.libro_id) FROM libri_autori la2 JOIN libri l2 ON la2.libro_id = l2.id WHERE la2.autore_id = a.id AND l2.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l2') . ") as libro_count
             FROM autori a
             WHERE " . implode(' AND ', $conditions) . "
             ORDER BY " . \App\Support\AuthorName::preferredSql('a') . " LIMIT 4
@@ -523,7 +523,7 @@ class SearchController
             SELECT e.id, e.nome, e.indirizzo,
                    (SELECT COUNT(*) FROM libri l2
                     WHERE (l2.editore_id = e.id{$exists})
-                          AND l2.deleted_at IS NULL) as libro_count
+                          AND l2.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l2') . ") as libro_count
             FROM editori e
             WHERE " . implode(' AND ', $conditions) . "
             ORDER BY e.nome LIMIT 3

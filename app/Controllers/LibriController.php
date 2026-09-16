@@ -1298,6 +1298,8 @@ class LibriController
                 $fields['collocazione'] = $fields['collocazione'] ?? '';
             }
 
+            $fields = \App\Support\Hooks::apply('book.form.save', $fields, [$data, null]);
+
             // Plugin hook: Before book save
             \App\Support\Hooks::do('book.save.before', [$fields, null]);
 
@@ -1980,6 +1982,8 @@ class LibriController
                     }
                 }
             }
+
+            $fields = \App\Support\Hooks::apply('book.form.save', $fields, [$data, $id]);
 
             // Plugin hook: Before book save (update)
             \App\Support\Hooks::do('book.save.before', [$fields, $id]);

@@ -93,6 +93,7 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
             <button class="carousel-nav-btn" data-carousel="<?php echo $carouselId; ?>" data-direction="next" aria-label="<?php echo __("Successivo"); ?>">
                 <i class="fas fa-chevron-right"></i>
             </button>
+            </div>
         </div>
     </div>
     <?php endforeach; ?>

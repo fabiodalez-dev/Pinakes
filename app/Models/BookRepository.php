@@ -384,6 +384,9 @@ class BookRepository
             $bindParams[] = $value;
         };
 
+        if ($this->hasColumn('is_desiderata')) {
+            $addField('is_desiderata', 'i', empty($data['is_desiderata']) ? 0 : 1);
+        }
         $addField('titolo', 's', \App\Support\HtmlHelper::decode($data['titolo'] ?? ''));
         $addField('sottotitolo', 's', \App\Support\HtmlHelper::decode($data['sottotitolo'] ?? null));
         $addField('isbn10', 's', $isbn10);
@@ -741,6 +744,9 @@ class BookRepository
             $bindParams[] = $value;
         };
 
+        if ($this->hasColumn('is_desiderata') && array_key_exists('is_desiderata', $data)) {
+            $addSet('is_desiderata', 'i', empty($data['is_desiderata']) ? 0 : 1);
+        }
         $addSet('titolo', 's', \App\Support\HtmlHelper::decode($data['titolo'] ?? ''));
         $addSet('sottotitolo', 's', \App\Support\HtmlHelper::decode($data['sottotitolo'] ?? null));
         $addSet('isbn10', 's', $isbn10_upd);

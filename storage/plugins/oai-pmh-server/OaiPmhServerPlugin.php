@@ -810,8 +810,10 @@ class OaiPmhServerPlugin
         // Earliest datestamp: MIN of books and archival units (if archives active).
         // Use a static epoch fallback when the repository is empty — never the current time.
         $earliest = '1970-01-01T00:00:00Z';
+        // A requested book (desiderata) is not a holding: it is never harvested,
+        // so it must not take part in the earliest-datestamp contract either.
         $r = $this->db->query(
-            "SELECT MIN(created_at) AS e FROM libri WHERE deleted_at IS NULL"
+            "SELECT MIN(created_at) AS e FROM libri WHERE deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db)
         );
         if ($r instanceof \mysqli_result) {
             $row = $r->fetch_assoc();
@@ -2869,10 +2871,12 @@ class OaiPmhServerPlugin
         // Try book pattern.
         if (preg_match('/^oai:(?:pinakes|' . preg_quote($host, '/') . '):book:(\d+)$/i', $identifier, $m)) {
             $id   = (int) $m[1];
+            // A requested book (desiderata) is not a holding and must not be
+            // resolvable as one: GetRecord answers idDoesNotExist for it.
             $stmt = $this->db->prepare(
                 'SELECT l.*
                    FROM libri l
-                  WHERE l.id = ? AND l.deleted_at IS NULL'
+                  WHERE l.id = ? AND l.deleted_at IS NULL AND ' . \App\Support\BookVisibility::catalogue($this->db, 'l')
             );
             if ($stmt === false) { return null; }
             $stmt->bind_param('i', $id);
@@ -3141,6 +3145,9 @@ class OaiPmhServerPlugin
 
         if ($doBooks) {
             $w = ['l.deleted_at IS NULL'];
+            // A requested book (desiderata) is not a holding: it must never be
+            // listed to a harvester, whatever the set or date window.
+            $w[] = \App\Support\BookVisibility::catalogue($this->db, 'l');
             if ($fromMysql !== null)  { $w[] = 'l.updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $w[] = 'l.updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
             // CI-SOFT-DELETE-EXEMPT: $w is initialized for this UNION arm with l.deleted_at IS NULL.
@@ -3244,7 +3251,7 @@ class OaiPmhServerPlugin
                            l.traduttore, l.illustratore, l.curatore, l.collana,
                            l.numero_serie, l.classificazione_dewey, l.file_url,
                            l.edizione, l.created_at, l.updated_at
-                      FROM libri l WHERE l.deleted_at IS NULL AND l.id IN ($ph)";
+                      FROM libri l WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . " AND l.id IN ($ph)";
             $stmt = $this->db->prepare($sql);
             if ($stmt !== false) {
                 $stmt->bind_param(str_repeat('i', count($bookIds)), ...$bookIds);

@@ -601,10 +601,12 @@ class ResourceSyncPlugin
     private function fetchBooks(int $page = 0): array
     {
         $offset = $page * self::PAGE_SIZE;
+        // A requested (desiderata) title is not a holding: keep it out of every list and change list.
         $stmt   = $this->db->prepare(
             'SELECT id, titolo, updated_at, created_at
              FROM libri
              WHERE deleted_at IS NULL
+               AND ' . \App\Support\BookVisibility::catalogue($this->db) . '
              ORDER BY id ASC
              LIMIT ? OFFSET ?'
         );
@@ -641,9 +643,10 @@ class ResourceSyncPlugin
                 'SELECT id, titolo, updated_at, created_at, deleted_at,
                         (created_at >= ?) AS is_new_entry
                  FROM libri
-                 WHERE (deleted_at IS NULL AND updated_at >= ?)
+                 WHERE ((deleted_at IS NULL AND updated_at >= ?)
                     OR (deleted_at IS NOT NULL AND deleted_at >= ?
-                        AND deleted_at >= DATE_SUB(NOW(), INTERVAL 90 DAY))
+                        AND deleted_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)))
+                   AND ' . \App\Support\BookVisibility::catalogue($this->db) . '
                  ORDER BY COALESCE(deleted_at, updated_at) ASC
                  LIMIT ? OFFSET ?'
             );
@@ -659,6 +662,7 @@ class ResourceSyncPlugin
                 'SELECT id, titolo, updated_at, created_at, deleted_at, 0 AS is_new_entry
                  FROM libri
                  WHERE (deleted_at IS NULL OR deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
+                   AND ' . \App\Support\BookVisibility::catalogue($this->db) . '
                  ORDER BY COALESCE(deleted_at, updated_at, created_at) DESC
                  LIMIT ? OFFSET ?'
             );
