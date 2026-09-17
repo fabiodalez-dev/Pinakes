@@ -261,6 +261,14 @@ class FrontendController
             ? $this->collectExternalSearchSuggestions($searchTerm)
             : [];
 
+        // Asking for a title by name may reach a book the library WANTS and
+        // does not own (badged in the grid); browsing may not — padding the
+        // grid and every counter with wishes is a different feature. Without
+        // the desiderata plugin the two predicates are the same string.
+        $visibility = $searchTerm !== ''
+            ? \App\Support\BookVisibility::discoverable($db, 'l')
+            : \App\Support\BookVisibility::catalogue($db, 'l');
+
         // Query base without the many-to-many authors join, so one book stays
         // one row. g + gp are sufficient for filtering every supported genre
         // level; sottogenere matches directly on l.sottogenere_id.
@@ -269,7 +277,7 @@ class FrontendController
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
-            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            WHERE l.deleted_at IS NULL AND " . $visibility . "
         ";
 
         if (!empty($where_conditions['conditions'])) {
@@ -361,6 +369,16 @@ class FrontendController
         // returning archive matches in the search-as-you-type JSON payload.
         // catalog() still renders archives in its empty-state block.
 
+        // Same search/browse split as catalog(): this endpoint feeds the
+        // search-as-you-type grid, so a term present here is the visitor
+        // asking for a title by name. $searchTerm is derived the same way
+        // catalog() derives it — catalogAPI() has no archive hook to have
+        // computed it earlier.
+        $searchTerm = trim((string) ($filters['search'] ?? ''));
+        $visibility = $searchTerm !== ''
+            ? \App\Support\BookVisibility::discoverable($db, 'l')
+            : \App\Support\BookVisibility::catalogue($db, 'l');
+
         // Same one-row-per-book join shape as catalog(). g + gp cover the
         // hierarchy predicates; no unused grandparent/subgenre joins here.
         $base_query = "
@@ -368,7 +386,7 @@ class FrontendController
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
-            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            WHERE l.deleted_at IS NULL AND " . $visibility . "
         ";
 
         if (!empty($where_conditions['conditions'])) {
@@ -711,6 +729,12 @@ class FrontendController
         $relatedIds = array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $related_books);
         $liveRelated = $relatedIds !== [] ? $this->fetchLiveAvailability($db, $relatedIds) : [];
         $book = array_merge($book, $liveBook[$book_id]);
+        // Explicit, not merely a side effect of the merge above: the cached DTO
+        // carries the is_desiderata value the book had when the page was first
+        // built, and the badge, the hidden loan buttons and the donation form
+        // all hang off it. Read it live or a received donation keeps asking to
+        // be donated for the rest of the cache window.
+        $book['is_desiderata'] = $liveBook[$book_id]['is_desiderata'];
         if ($liveRelated === null) {
             // The main book's availability is known, so keep rendering the
             // page. Preserve static related-volume metadata, but do not invent
@@ -898,7 +922,7 @@ class FrontendController
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
             LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             LEFT JOIN editori e ON l.editore_id = e.id
-            WHERE l.id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            WHERE l.id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::discoverable($db, 'l') . "
             LIMIT 1
         ";
 
@@ -1031,8 +1055,13 @@ class FrontendController
      * copie_disponibili/copie_totali/stato values the frontend renders — by
      * design it runs on every request and is never cached.
      *
+     * is_desiderata travels with it for the same reason: DataIntegrity clears
+     * the flag the moment a copy is created, and availabilityChanged() does
+     * NOT bump the 'book_detail_' generation, so the cached DTO would keep
+     * advertising a book as wanted after the donation arrived.
+     *
      * @param array<int, int> $ids
-     * @return array<int, array{copie_disponibili: int, copie_totali: int, stato: mixed}>|null
+     * @return array<int, array{copie_disponibili: int, copie_totali: int, stato: mixed, is_desiderata: int}>|null
      *         null means the live query failed; an empty array is a successful
      *         query that found no active books.
      */
@@ -1047,8 +1076,9 @@ class FrontendController
         $stmt = null;
 
         try {
+            $wantedColumn = \App\Support\BookVisibility::hasDesiderata($db) ? 'is_desiderata' : '0';
             $stmt = $db->prepare(
-                "SELECT id, copie_disponibili, copie_totali, stato FROM libri WHERE id IN ({$placeholders}) AND deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db) . ""
+                "SELECT id, copie_disponibili, copie_totali, stato, {$wantedColumn} AS is_desiderata FROM libri WHERE id IN ({$placeholders}) AND deleted_at IS NULL AND " . \App\Support\BookVisibility::discoverable($db) . ""
             );
             if ($stmt === false) {
                 throw new \RuntimeException('mysqli::prepare returned false: ' . $db->error);
@@ -1072,6 +1102,7 @@ class FrontendController
                     'copie_disponibili' => (int) $row['copie_disponibili'],
                     'copie_totali' => (int) $row['copie_totali'],
                     'stato' => $row['stato'],
+                    'is_desiderata' => (int) ($row['is_desiderata'] ?? 0),
                 ];
             }
 

@@ -966,6 +966,13 @@ if (!empty($sectionsOrdered)) {
         // Include template if it exists
         if (file_exists($templateFile)) {
             include $templateFile;
+        } else {
+            // A home_content row without a core template belongs to a plugin
+            // (it owns the row through its own lifecycle, see the cms.home.*
+            // hooks). Firing here — inside the ordered loop — is what makes a
+            // plugin section obey display_order and is_active like every other
+            // section, instead of always landing last via frontend.home.sections.
+            \App\Support\Hooks::do('frontend.home.section', [$sectionKey, $section]);
         }
     } // End foreach
 } // End if sectionsOrdered

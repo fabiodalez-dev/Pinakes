@@ -598,6 +598,20 @@ class CmsController
             }
         }
 
+        // Plugin-owned sections persist their own fields from here and may add
+        // errors. Filter contract: return the (possibly extended) $errors array,
+        // and write only when the incoming array is empty — the same "one bad
+        // field discards the whole submission" rule every core block above obeys.
+        // HookManager::applyFilters() swallows a handler's throwable and keeps
+        // the unfiltered value, so a handler that lets one escape would report a
+        // successful save having written nothing: handlers catch their own.
+        // The guards below keep a misbehaving handler (wrong type, non-string
+        // entries) from breaking the page instead of just its own section.
+        $filtered = \App\Support\Hooks::apply('cms.home.save', $errors, [$data]);
+        if (is_array($filtered)) {
+            $errors = array_values(array_filter($filtered, 'is_string'));
+        }
+
         if (!empty($errors)) {
             // Every section above is written only `if (... && empty($errors))`,
             // so one invalid field discards the whole submission — including

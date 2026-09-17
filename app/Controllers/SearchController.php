@@ -208,8 +208,15 @@ class SearchController
      * (plugins publish their own sources into it through the
      * `search.unified.sources` hook, and the archives E2E suite drives it
      * logged out). So the endpoint stays open and the RESULTS are scoped
-     * instead: a wanted title is an operator-only record and is disclosed
+     * instead: a wanted title is an operator-only record HERE and is disclosed
      * only to a session that could edit it anyway.
+     *
+     * "Here" is load-bearing. The public header preview
+     * (searchBooksWithDetails) runs BookVisibility::discoverable(), which a
+     * plugin may widen so a visitor searching by name learns the library is
+     * looking for that title. This gate is deliberately NOT widened: unified
+     * search links to /admin/books/{id}, so widening it would hand anonymous
+     * callers a back-office URL.
      */
     private function isOperatorSession(): bool
     {
@@ -313,8 +320,13 @@ class SearchController
             self::AJAX_RELEVANCE_WORD_LIMIT
         );
         $visibility = $includeRequests ? '1=1' : \App\Support\BookVisibility::catalogue($db, 'l');
+        // Reported, never used to select: the predicate above decides who sees
+        // a wanted title, this column only lets the operator quick-search say
+        // so on a row it was already allowed to return.
+        $wantedColumn = \App\Support\BookVisibility::hasDesiderata($db) ? 'l.is_desiderata' : '0';
         $stmt = $db->prepare("
             SELECT l.id, l.titolo AS label, l.sottotitolo, l.isbn10, l.isbn13, l.ean,
+                   {$wantedColumn} AS is_desiderata,
                    (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
                             ORDER BY (la.ruolo = 'principale') DESC,
                                      COALESCE(la.ordine_credito, 0), a.nome SEPARATOR ', ')
@@ -355,6 +367,7 @@ class SearchController
                 'identifier' => $identifier,
                 'isbn' => $isbn,
                 'type' => 'book',
+                'wanted' => (int) ($row['is_desiderata'] ?? 0) === 1,
                 'url' => url('/admin/books/' . (int)$row['id'])
             ];
         }
@@ -445,14 +458,19 @@ class SearchController
             'l.',
             self::AJAX_RELEVANCE_WORD_LIMIT
         );
+        // The public header preview is a visitor asking for a title by name —
+        // the one moment a wanted book should answer. Without the desiderata
+        // plugin discoverable() IS catalogue(), so this is today's query.
+        $wantedColumn = \App\Support\BookVisibility::hasDesiderata($db) ? 'l.is_desiderata' : '0';
         $stmt = $db->prepare("
             SELECT l.id, l.titolo, l.sottotitolo, l.copertina_url, l.anno_pubblicazione,
+                   {$wantedColumn} AS is_desiderata,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
             FROM libri l
-            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND {$cond['sql']}
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::discoverable($db, 'l') . " AND {$cond['sql']}
             ORDER BY {$rel['sql']} LIMIT 8
         ");
         $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));
@@ -474,6 +492,7 @@ class SearchController
                 'year' => $row['anno_pubblicazione'],
                 'cover' => $absoluteCoverUrl,
                 'type' => 'book',
+                'wanted' => (int) ($row['is_desiderata'] ?? 0) === 1,
                 'url' => book_url([
                     'id' => $row['id'],
                     'titolo' => $row['titolo'],

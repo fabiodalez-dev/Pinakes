@@ -29,6 +29,29 @@ final class BookVisibility
     }
 
     /**
+     * The SEARCH-and-DETAIL predicate: what a visitor may find by asking for
+     * it by name and open by link. Identical to catalogue() unless a plugin
+     * widens it through the `book.visibility.discoverable` filter — the
+     * desiderata plugin answers '1=1' while active, so a wanted title shows
+     * up (badged) in search results and on its own page. Browse, feeds,
+     * sitemap, the mobile API and the interop protocols keep catalogue().
+     *
+     * The '1=1' allow-list below is a SECURITY control, not a style choice:
+     * the return value is concatenated straight into WHERE clauses, so a
+     * handler must be able to widen the predicate to "everything" and to
+     * nothing else. Any other string — including a plausible-looking
+     * "1=1 OR l.id > 0" — is discarded and the catalogue predicate stands,
+     * which is why a filter can never smuggle SQL through here.
+     */
+    public static function discoverable(\mysqli $db, string $alias = 'libri'): string
+    {
+        $default = self::catalogue($db, $alias);
+        $filtered = \App\Support\Hooks::apply('book.visibility.discoverable', $default, [$db, $alias]);
+
+        return $filtered === '1=1' ? '1=1' : $default;
+    }
+
+    /**
      * The mirror image of catalogue(): "this row is a request, not a holding".
      *
      * It exists for the two harvesting protocols, which owe their subscribers a

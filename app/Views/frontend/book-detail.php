@@ -1950,6 +1950,14 @@ ob_start();
                     <?php endif; ?>
 
                     <div class="mt-4">
+                        <?php if (!empty($book['is_desiderata'])): ?>
+                        <?php
+                        // No data-live-* attributes on purpose: this book has
+                        // no copies to hydrate, and the edge-cache availability
+                        // script only rewrites badges that carry them.
+                        ?>
+                        <span class="availability-badge unavailable"><i class="fas fa-hand-holding-heart mr-2" aria-hidden="true"></i><span><?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?></span></span>
+                        <?php else: ?>
                         <span class="availability-badge <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'available' : 'unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="detail-badge" data-live-pending="1"' : '' ?>>
                             <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : (($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle') ?> mr-2" aria-hidden="true"></i>
                             <span data-live-label><?= $edgeCacheEnabled ? htmlspecialchars(__("Verifica disponibilità"), ENT_QUOTES, 'UTF-8') : (($book['copie_disponibili'] > 0)
@@ -1958,6 +1966,7 @@ ob_start();
                                     : __("Disponibile"))
                                 : __("Non disponibile oggi")) /* lo snapshot è di OGGI: il calendario può mostrare giorni futuri liberi */ ?></span>
                         </span>
+                        <?php endif; ?>
                     </div>
 
                 </div>
@@ -1973,7 +1982,8 @@ ob_start();
             <!-- Main Content -->
             <div class="w-full lg:w-2/3 px-3">
                 <!-- Action Buttons -->
-                <?php if (!$isCatalogueMode): ?>
+                <?php // No loan, reservation or favourite for a book the library does not own. ?>
+                <?php if (!$isCatalogueMode && empty($book['is_desiderata'])): ?>
                 <div class="action-buttons text-center mb-4" id="book-action-buttons">
                     <!-- Always show the calendar to choose dates -->
                     <button id="btn-request-loan" type="button" class="ui-button <?= !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>"<?= !$edgeCacheEnabled && $nothingInCirculation ? ' disabled' : '' ?><?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="action" data-live-pending="1"' : '' ?>>
@@ -2507,9 +2517,15 @@ ob_start();
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
+                                <?php if (!empty($book['is_desiderata'])): ?>
+                                <span class="book-status-inline is-unavailable">
+                                    <?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?>
+                                </span>
+                                <?php else: ?>
                                 <span class="book-status-inline <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'is-available' : 'is-unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="status" data-live-pending="1"' : '' ?>>
                                     <?= $edgeCacheEnabled ? __("Verifica disponibilità") : (($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non disponibile oggi")) ?>
                                 </span>
+                                <?php endif; ?>
                             </div>
                         </div>
 

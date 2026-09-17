@@ -877,6 +877,9 @@ $htmlLang = substr($currentLocale, 0, 2);
       const searchInput = document.getElementById('global-search');
       const resultsDiv = document.getElementById('global-search-results');
       let searchTimeout;
+      // Injected from PHP: the renderer below builds HTML by string
+      // concatenation, so the label arrives already escaped for a JS string.
+      const WANTED_LABEL = <?= json_encode(__('Cercato dalla biblioteca'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
       if (searchInput && resultsDiv) {
         // Hide placeholder on focus/blur
@@ -946,6 +949,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                       }
                       if (item.isbn) {
                         identifierHtml += `<div class="text-xs text-gray-400 dark:text-gray-500 font-mono">${escapeHtml(String(item.isbn))}</div>`;
+                      }
+                      if (item.wanted) {
+                        identifierHtml += '<div class="text-xs font-medium text-amber-700 mt-0.5">' + WANTED_LABEL + '</div>';
                       }
                       break;
                     case 'author':
