@@ -108,6 +108,15 @@ $callPrivate = static function (object $object, string $method, array $args = []
     return $ref->invokeArgs($object, $args);
 };
 
+// Every cleanup statement that threw, with the statement that threw it. Under
+// MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT a failed query() is an exception,
+// and an exception raised inside the finally below would abandon the deletes
+// after it — leaving this run's fixtures in the operator's real catalogue, the
+// wanted one still flagged and so invisible in the UI that could remove it —
+// while also replacing whatever failure the run was about to report. Failures
+// accumulate here instead, to be reported after the primary result.
+$cleanupErrors = [];
+
 try {
     echo "A. The mobile app is the same public catalogue\n";
     require_once $root . '/storage/plugins/mobile-api/src/Controllers/CatalogController.php';
@@ -456,7 +465,13 @@ try {
             'the books themselves are preserved'
         );
     } finally {
-        $sandbox->close();
+        // Guarded for the same reason as the outer teardown: a throw here would
+        // replace whatever the sandbox section was actually reporting.
+        try {
+            $sandbox->close();
+        } catch (\Throwable $error) {
+            $cleanupErrors[] = 'closing the sandbox connection' . "\n      " . $error->getMessage();
+        }
     }
 } catch (\Throwable $fatal) {
     // Recorded, not rethrown: the cleanup below must run first, and the suite
@@ -466,15 +481,38 @@ try {
     // Runs whatever happened, including a failure inside the sandbox setup:
     // the rows below live in the real catalogue, and the wanted one is flagged,
     // so a leftover would be invisible in the UI that could delete it.
+    // One statement, one attempt, never a lost successor: a row this suite
+    // cannot delete must not stop it deleting the rest.
+    $sweep = static function (string $sql) use ($db, &$cleanupErrors): void {
+        try {
+            $db->query($sql);
+        } catch (\Throwable $error) {
+            $cleanupErrors[] = $sql . "\n      " . $error->getMessage();
+        }
+    };
     $ids = implode(', ', array_filter([$wantedId, $heldId, $transitionId]));
     if ($ids !== '') {
-        $db->query('DELETE FROM wishlist WHERE libro_id IN (' . $ids . ')');
-        $db->query("DELETE FROM utenti WHERE codice_tessera = 'ZZVIS{$token}'");
-        $db->query('DELETE FROM copie WHERE libro_id IN (' . $ids . ')');
-        $db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (" . $ids . ')');
-        $db->query('DELETE FROM libri WHERE id IN (' . $ids . ')');
+        $sweep('DELETE FROM wishlist WHERE libro_id IN (' . $ids . ')');
+        $sweep("DELETE FROM utenti WHERE codice_tessera = 'ZZVIS{$token}'");
+        $sweep('DELETE FROM copie WHERE libro_id IN (' . $ids . ')');
+        $sweep("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (" . $ids . ')');
+        $sweep('DELETE FROM libri WHERE id IN (' . $ids . ')');
     }
-    $db->close();
+    try {
+        $db->close();
+    } catch (\Throwable $error) {
+        $cleanupErrors[] = 'closing the connection' . "\n      " . $error->getMessage();
+    }
+}
+
+// Reported BEFORE the primary result so the primary result is what the reader
+// is left looking at — a teardown problem is a real problem, but it is never
+// the explanation of the run.
+if ($cleanupErrors !== []) {
+    fwrite(STDERR, "\nCLEANUP FAILED — fixture rows may still be in the database:\n");
+    foreach ($cleanupErrors as $message) {
+        fwrite(STDERR, "    {$message}\n");
+    }
 }
 
 if (isset($fatalError)) {
@@ -483,4 +521,9 @@ if (isset($fatalError)) {
 }
 
 echo $fail === 0 ? "\nALL {$pass} PASS\n" : "\n{$pass} PASS, {$fail} FAIL\n";
-exit($fail === 0 ? 0 : 1);
+if ($cleanupErrors !== []) {
+    // On its own this still has to fail the run: a cleanup that quietly gives
+    // up is how the demo data in this database would get polluted unnoticed.
+    fwrite(STDERR, "FAIL: the cleanup reported above did not complete.\n");
+}
+exit($fail === 0 && $cleanupErrors === [] ? 0 : 1);

@@ -167,6 +167,14 @@ $payload = [
 ];
 
 $fatalError = null;
+// Every cleanup statement that threw. This suite's teardown is not only a
+// fixture sweep: it RESTORES the installation's own contacts settings, which
+// this run overwrote with test keys. Under MYSQLI_REPORT_ERROR |
+// MYSQLI_REPORT_STRICT a throw partway through that loop used to abandon the
+// rest of it, leaving the development site running on this suite's reCAPTCHA
+// keys — a misconfigured installation, not fixture litter, and one nobody would
+// notice until reCAPTCHA started rejecting real visitors.
+$cleanupErrors = [];
 
 try {
     $repo = new App\Models\BookRepository($db);
@@ -301,43 +309,95 @@ try {
 } catch (\Throwable $thrown) {
     $fatalError = $thrown;
 } finally {
-    $plugin->setRecaptchaTransport(null);
-    // Restore the installation's own contacts settings, byte for byte.
+    // One statement, one attempt, never a lost successor.
+    $guard = static function (string $what, callable $statement) use (&$cleanupErrors): void {
+        try {
+            $statement();
+        } catch (\Throwable $error) {
+            $cleanupErrors[] = $what . "\n      " . $error->getMessage();
+        }
+    };
+    $sweep = static function (string $sql) use ($db, $guard): void {
+        $guard($sql, static function () use ($db, $sql): void { $db->query($sql); });
+    };
+    $guard('detaching the reCAPTCHA transport', static function () use ($plugin): void {
+        $plugin->setRecaptchaTransport(null);
+    });
+    // Restore the installation's own contacts settings, byte for byte. EVERY
+    // key is attempted whatever the ones before it did, and each is READ BACK:
+    // an UPDATE that matched no row reports success and restores nothing, so
+    // the statement succeeding is not evidence that the setting is right.
     foreach ($settingSnapshot as $key => $value) {
-        if ($value === null) {
-            $db->query("DELETE FROM system_settings WHERE category = 'contacts' AND setting_key = '" . $db->real_escape_string($key) . "'");
+        $escapedKey = $db->real_escape_string($key);
+        $repair = "contacts.{$key} was NOT restored — this installation is still"
+            . " running on this suite's test value. Repair it in Settings › Contacts.";
+        try {
+            if ($value === null) {
+                $db->query("DELETE FROM system_settings WHERE category = 'contacts' AND setting_key = '{$escapedKey}'");
+            } else {
+                $db->query(
+                    "UPDATE system_settings SET setting_value = '" . $db->real_escape_string($value) . "'"
+                    . " WHERE category = 'contacts' AND setting_key = '{$escapedKey}'"
+                );
+            }
+        } catch (\Throwable $error) {
+            $cleanupErrors[] = $repair . "\n      " . $error->getMessage();
             continue;
         }
-        $db->query(
-            "UPDATE system_settings SET setting_value = '" . $db->real_escape_string($value) . "'"
-            . " WHERE category = 'contacts' AND setting_key = '" . $db->real_escape_string($key) . "'"
-        );
+        try {
+            $row = $db->query("SELECT setting_value FROM system_settings WHERE category = 'contacts' AND setting_key = '{$escapedKey}' LIMIT 1")->fetch_assoc();
+            $now = $row === null ? null : (string) $row['setting_value'];
+            if ($now !== $value) {
+                // Named, never printed: recaptcha_secret_key is a secret, and
+                // CI output is not the place to publish either half of the pair.
+                $cleanupErrors[] = $repair . "\n      the row now holds "
+                    . ($now === null ? 'no value at all' : 'a value other than the one captured at startup');
+            }
+        } catch (\Throwable $error) {
+            $cleanupErrors[] = "contacts.{$key} could not be verified after the restore\n      " . $error->getMessage();
+        }
     }
-    ConfigStore::clearCache();
+    $guard('clearing the ConfigStore cache', static function (): void { ConfigStore::clearCache(); });
     // Swept by PREFIX, not only by the ids the happy paths recorded. A run that
     // ends early — or one where the code under test accepts a submission this
     // suite expected it to refuse — writes proposals nobody tracked, and an
     // id-only cleanup leaves them in the operator's backlog. The prefix is
     // unique to this process, so the sweep can never reach anybody's data.
     $like = $db->real_escape_string($prefix) . '%';
-    foreach ($db->query("SELECT id FROM desiderata_offers WHERE title LIKE '$like'")->fetch_all(MYSQLI_ASSOC) as $row) {
-        $offerIds[] = (int) $row['id'];
-    }
+    // Guarded like the rest: query() returns false on error under STRICT, and
+    // ->fetch_all() on false is a fatal that would take the whole sweep with it.
+    $guard("SELECT id FROM desiderata_offers WHERE title LIKE '$like'", static function () use ($db, $like, &$offerIds): void {
+        foreach ($db->query("SELECT id FROM desiderata_offers WHERE title LIKE '$like'")->fetch_all(MYSQLI_ASSOC) as $row) {
+            $offerIds[] = (int) $row['id'];
+        }
+    });
     $offerIds = array_values(array_unique(array_filter($offerIds, static fn(int $id): bool => $id > 0)));
     if ($offerIds !== []) {
         // Only the bell rows this run created: bounded by the id high-water
         // mark taken at the start AND by the proposals this suite owns.
-        $db->query('DELETE FROM admin_notifications WHERE id > ' . $notificationMark . " AND type = 'general' AND related_id IN (" . implode(',', $offerIds) . ')');
-        $db->query('DELETE FROM desiderata_offers WHERE id IN (' . implode(',', $offerIds) . ')');
+        $sweep('DELETE FROM admin_notifications WHERE id > ' . $notificationMark . " AND type = 'general' AND related_id IN (" . implode(',', $offerIds) . ')');
+        $sweep('DELETE FROM desiderata_offers WHERE id IN (' . implode(',', $offerIds) . ')');
     }
-    $db->query("DELETE FROM desiderata_offers WHERE title LIKE '$like'");
+    $sweep("DELETE FROM desiderata_offers WHERE title LIKE '$like'");
     if ($bookIds !== []) {
-        $db->query('DELETE FROM copie WHERE libro_id IN (' . implode(',', $bookIds) . ')');
-        $db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (" . implode(',', $bookIds) . ')');
-        $db->query('DELETE FROM libri WHERE id IN (' . implode(',', $bookIds) . ')');
+        $sweep('DELETE FROM copie WHERE libro_id IN (' . implode(',', $bookIds) . ')');
+        $sweep("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (" . implode(',', $bookIds) . ')');
+        $sweep('DELETE FROM libri WHERE id IN (' . implode(',', $bookIds) . ')');
     }
-    App\Support\ContentCache::booksChanged();
-    $db->close();
+    $guard('invalidating the catalogue cache and closing the connection', static function () use ($db): void {
+        App\Support\ContentCache::booksChanged();
+        $db->close();
+    });
+}
+
+// Reported BEFORE the primary result so the primary result is what the reader
+// is left looking at — a teardown problem is a real problem, but it is never
+// the explanation of the run.
+if ($cleanupErrors !== []) {
+    fwrite(STDERR, "\nCLEANUP FAILED — the installation may need repair:\n");
+    foreach ($cleanupErrors as $message) {
+        fwrite(STDERR, "    {$message}\n");
+    }
 }
 
 if ($fatalError !== null) {
@@ -346,4 +406,10 @@ if ($fatalError !== null) {
 }
 
 echo $fail === 0 ? "\nALL {$pass} PASS\n" : "\n{$pass} PASS, {$fail} FAIL\n";
-exit($fail === 0 ? 0 : 1);
+if ($cleanupErrors !== []) {
+    // On its own this still has to fail the run: a settings restore that
+    // quietly gave up leaves the installation misconfigured, and a green run
+    // is exactly how that would go unnoticed.
+    fwrite(STDERR, "FAIL: the cleanup reported above did not complete.\n");
+}
+exit($fail === 0 && $cleanupErrors === [] ? 0 : 1);

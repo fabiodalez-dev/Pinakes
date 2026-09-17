@@ -73,6 +73,17 @@ $lastOfferId = static function () use ($db, $prefix): int {
     if ($id === 0) { throw new RuntimeException('No offer found for prefix ' . $prefix); }
     return $id;
 };
+// The run's own failure, held rather than rethrown so the cleanup below gets to
+// run and the exit code is this suite's own instead of an uncaught-error stack
+// trace — the shape the sibling desiderata suites already use.
+$fatalError = null;
+// Every cleanup statement that threw, with the statement that threw it. Under
+// MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT a failed query() is an exception,
+// and this file had no catch at all: an exception raised inside the finally was
+// the run's ENTIRE result, abandoning every later delete and erasing whatever
+// the run was about to report. Failures are collected here instead and reported
+// after the primary result rather than instead of it.
+$cleanupErrors = [];
 try {
     $id = $create('_wanted', true); $normal = $create('_zero', false);
     $check((int)$scalar("SELECT copie_totali FROM libri WHERE id=$id") === 0, 'checkbox overrides forged initial copies on the server');
@@ -343,26 +354,78 @@ try {
         if($oldBypass===null) unset($_ENV['PINAKES_E2E_BYPASS_RATE_LIMIT']); else $_ENV['PINAKES_E2E_BYPASS_RATE_LIMIT']=$oldBypass;
     }
 
-    echo "$passed checks passed\n";
+} catch (\Throwable $thrown) {
+    $fatalError = $thrown;
 } finally {
     $db->failReceipt=false; $db->failCopy=false;
+    // One statement, one attempt, never a lost successor: a row this suite
+    // cannot delete must not stop it deleting the rest. \Throwable, not
+    // mysqli_sql_exception: a failed prepare() returns false and the
+    // ->bind_param() on it is a TypeError, which a mysqli-only catch misses.
+    $guard = static function (string $what, callable $statement) use (&$cleanupErrors): void {
+        try {
+            $statement();
+        } catch (\Throwable $error) {
+            $cleanupErrors[] = $what . "\n      " . $error->getMessage();
+        }
+    };
+    $sweepSql = static function (string $sql) use ($db, $guard): void {
+        $guard($sql, static function () use ($db, $sql): void { $db->query($sql); });
+    };
     // Swept by prefix, not only by the ids this run recorded: a run in which the
     // code accepts something the suite expected it to refuse writes proposals
     // nobody tracked, and an id-only cleanup leaves them sitting in the
     // operator's real backlog. The notifications go too — offer() has notified
     // the operators since the bell was wired, so every offer here left a row
     // behind in admin_notifications that nothing removed.
-    if($offerIds) $db->query('DELETE FROM desiderata_offers WHERE id IN ('.implode(',',$offerIds).')');
+    if($offerIds) $sweepSql('DELETE FROM desiderata_offers WHERE id IN ('.implode(',',$offerIds).')');
     // ESCAPE is not decoration: the prefix contains an underscore, which LIKE
     // treats as "any single character" — unescaped, DWTEST_abc also matches
     // DWTESTXabc, and this statement deletes rows.
     $esc = str_replace(['!','%','_'], ['!!','!%','!_'], $prefix);
-    $sweep = $db->prepare("DELETE FROM desiderata_offers WHERE title LIKE ? ESCAPE '!'");
-    $starts = $esc.'%'; $sweep->bind_param('s',$starts); $sweep->execute(); $sweep->close();
+    $guard('DELETE FROM desiderata_offers WHERE title LIKE <prefix>', static function () use ($db, $esc): void {
+        $sweep = $db->prepare("DELETE FROM desiderata_offers WHERE title LIKE ? ESCAPE '!'");
+        $starts = $esc.'%'; $sweep->bind_param('s',$starts); $sweep->execute(); $sweep->close();
+    });
     // The notification title reads "Nuova proposta di donazione: <titolo>", so
     // the prefix sits in the middle rather than at the start.
-    $notes = $db->prepare("DELETE FROM admin_notifications WHERE title LIKE ? ESCAPE '!' OR message LIKE ? ESCAPE '!'");
-    $anywhere = '%'.$esc.'%'; $notes->bind_param('ss',$anywhere,$anywhere); $notes->execute(); $notes->close();
-    if($ids) { $db->query('DELETE FROM copie WHERE libro_id IN ('.implode(',',$ids).')'); $db->query('DELETE FROM libri WHERE id IN ('.implode(',',$ids).')'); }
-    App\Support\ContentCache::booksChanged();
+    $guard('DELETE FROM admin_notifications WHERE title/message LIKE <prefix>', static function () use ($db, $esc): void {
+        $notes = $db->prepare("DELETE FROM admin_notifications WHERE title LIKE ? ESCAPE '!' OR message LIKE ? ESCAPE '!'");
+        $anywhere = '%'.$esc.'%'; $notes->bind_param('ss',$anywhere,$anywhere); $notes->execute(); $notes->close();
+    });
+    if($ids) {
+        $list = implode(',',$ids);
+        $sweepSql('DELETE FROM copie WHERE libro_id IN ('.$list.')');
+        // createBasic() writes an audit row per fixture book. Deleting the book
+        // and not this left an orphan behind on every single run — 45 of them
+        // by the time it was noticed — each naming a DWTEST_ title that no
+        // longer exists. The sibling suites already delete it; this one didn't.
+        $sweepSql("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (".$list.')');
+        $sweepSql('DELETE FROM libri WHERE id IN ('.$list.')');
+    }
+    $guard('invalidating the catalogue cache', static function (): void { App\Support\ContentCache::booksChanged(); });
 }
+
+// Reported BEFORE the primary result so the primary result is what the reader
+// is left looking at — a teardown problem is a real problem, but it is never
+// the explanation of the run.
+if ($cleanupErrors !== []) {
+    fwrite(STDERR, "\nCLEANUP FAILED — fixture rows may still be in the database:\n");
+    foreach ($cleanupErrors as $message) {
+        fwrite(STDERR, "    {$message}\n");
+    }
+}
+
+if ($fatalError !== null) {
+    fwrite(STDERR, "\nFAIL: {$fatalError->getMessage()}\n");
+    exit(1);
+}
+
+echo "$passed checks passed\n";
+if ($cleanupErrors !== []) {
+    // On its own this still has to fail the run: a cleanup that quietly gives
+    // up is how the demo data in this database would get polluted unnoticed.
+    fwrite(STDERR, "FAIL: the cleanup reported above did not complete.\n");
+    exit(1);
+}
+exit(0);
