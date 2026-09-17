@@ -82,7 +82,26 @@ test('anonymous home offer, actual receipt and duplicate receipt protection',asy
   await page.getByRole('button',{name:'Ce l’ho, posso donarlo',exact:true}).click();
   await expect(page.locator('#donation-book-id')).toHaveValue(String(seeded.wanted));
   await donor(page); await page.getByRole('button',{name:'Invia la proposta',exact:true}).click();
-  await expect(page.getByRole('status').filter({hasText:'Grazie!'})).toBeVisible();
+  // Instrumented on purpose. This assertion failed once in the deep-regression
+  // shard (position 115/452) while passing locally, in isolation and in
+  // sequence with the extended spec — and while its twin at the end of this
+  // file, which asserts the same banner after submitting from /desiderata
+  // instead of from the homepage, passed in the same CI run. That pair rules
+  // out the banner mechanism itself and points at something about this path or
+  // that environment. Rather than guess again, make the next failure explain
+  // itself: the URL actually reached, every role=status text on the page, and
+  // whether the alert element exists at all under a different string.
+  try {
+    await expect(page.getByRole('status').filter({hasText:'Grazie!'})).toBeVisible();
+  } catch (error) {
+    const diagnosis = await page.evaluate(() => ({
+      url: location.href,
+      statuses: [...document.querySelectorAll('[role="status"]')].map(n => n.textContent.trim()),
+      alerts: [...document.querySelectorAll('.alert')].map(n => n.className + ' :: ' + n.textContent.trim()),
+      formPresent: !!document.querySelector('[data-desiderata-form]'),
+    }));
+    throw new Error(`${error.message}\n--- page state when the banner was expected ---\n${JSON.stringify(diagnosis, null, 2)}`);
+  }
   let state=fixture('state'); expect(state.books.find(b=>b.id===seeded.wanted).physical).toBe(0);
   const offer=state.offers.find(o=>o.book_id===seeded.wanted); expect(offer.status).toBe('pending');
   const context=await browser.newContext(); const admin=await context.newPage();

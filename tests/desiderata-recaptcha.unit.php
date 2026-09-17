@@ -305,7 +305,20 @@ try {
     $check($response->getStatusCode() === 303 && $offerCount() === $before + 1, 'the identical payload with a usable token is accepted');
     $offerIds[] = (int) $scalar("SELECT MAX(id) FROM desiderata_offers WHERE title LIKE '" . $db->real_escape_string($prefix) . "%'");
 
-    $check($mailbox->sent !== [], 'the capturing mailer intercepted the operator notifications instead of PHP mail()');
+    // What this has to assert is that no REAL mail leaves a test run — not that
+    // the capturing mailer saw traffic. Those are different claims, and only the
+    // first one holds everywhere: notifyOperators() checks Mailer::isSmtpReachable()
+    // and skips the email step entirely when there is no mail system, which is
+    // correct behaviour and is the normal state of a CI runner. Asserting that
+    // something was captured made this test describe the developer's machine
+    // (mail driver present, so reachable) rather than the code, and it failed in
+    // CI for doing its job.
+    if (\App\Support\Mailer::isSmtpReachable()) {
+        $check($mailbox->sent !== [], 'where mail can be sent, the capturing mailer intercepted it instead of PHP mail()');
+    } else {
+        $check($mailbox->sent === [], 'where mail cannot be sent, nothing was attempted at all');
+        echo "     NOTE: no reachable mail transport, so the send path was skipped by design\n";
+    }
 } catch (\Throwable $thrown) {
     $fatalError = $thrown;
 } finally {
