@@ -182,6 +182,15 @@ $lastOfferId = static function () use ($db, $prefix): int {
 };
 
 $fatalError = null;
+// Every cleanup statement that threw, with the statement that threw it. Under
+// MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT a failed query() is an exception,
+// and an exception raised inside the finally below would do two bad things at
+// once: abandon the deletes after it, leaving this run's fixtures in the
+// operator's live catalogue, and REPLACE whatever failure the run was about to
+// report with a stack trace from the teardown. So the deletes are each run
+// independently and their failures accumulate here, to be reported after the
+// primary result rather than instead of it.
+$cleanupErrors = [];
 $sandbox = null;
 
 try {
@@ -713,6 +722,15 @@ try {
     // id-only cleanup leaves them in the operator's backlog. The prefix is
     // unique to this process, so the sweep can never reach anybody's data.
     $like = $db->real_escape_string($prefix) . '%';
+    // One statement, one attempt, never a lost successor: a row this suite
+    // cannot delete must not stop it deleting the rest.
+    $sweep = static function (string $sql) use ($db, &$cleanupErrors): void {
+        try {
+            $db->query($sql);
+        } catch (\Throwable $error) {
+            $cleanupErrors[] = $sql . "\n      " . $error->getMessage();
+        }
+    };
     try {
         foreach ($db->query("SELECT id FROM desiderata_offers WHERE title LIKE '$like'")->fetch_all(MYSQLI_ASSOC) as $row) {
             $offerIds[] = (int) $row['id'];
@@ -724,26 +742,40 @@ try {
     if ($offerIds !== []) {
         // Only the bell rows this run created: bounded by the high-water mark
         // taken at the start AND by the proposals this suite owns.
-        $db->query('DELETE FROM admin_notifications WHERE id > ' . $notificationMark . " AND type = 'general' AND related_id IN (" . implode(',', $offerIds) . ')');
-        $db->query('DELETE FROM desiderata_offers WHERE id IN (' . implode(',', $offerIds) . ')');
+        $sweep('DELETE FROM admin_notifications WHERE id > ' . $notificationMark . " AND type = 'general' AND related_id IN (" . implode(',', $offerIds) . ')');
+        $sweep('DELETE FROM desiderata_offers WHERE id IN (' . implode(',', $offerIds) . ')');
     }
-    $db->query("DELETE FROM desiderata_offers WHERE title LIKE '$like'");
+    $sweep("DELETE FROM desiderata_offers WHERE title LIKE '$like'");
     if ($bookIds !== []) {
         $list = implode(',', $bookIds);
-        $db->query('DELETE FROM desiderata_offers WHERE book_id IN (' . $list . ') OR received_book_id IN (' . $list . ')');
-        $db->query('DELETE FROM libri_editori WHERE libro_id IN (' . $list . ')');
-        $db->query('DELETE FROM copie WHERE libro_id IN (' . $list . ')');
-        $db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (" . $list . ')');
-        $db->query('DELETE FROM libri WHERE id IN (' . $list . ')');
+        $sweep('DELETE FROM desiderata_offers WHERE book_id IN (' . $list . ') OR received_book_id IN (' . $list . ')');
+        $sweep('DELETE FROM libri_editori WHERE libro_id IN (' . $list . ')');
+        $sweep('DELETE FROM copie WHERE libro_id IN (' . $list . ')');
+        $sweep("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (" . $list . ')');
+        $sweep('DELETE FROM libri WHERE id IN (' . $list . ')');
     }
     if ($publisherIds !== []) {
-        $db->query('DELETE FROM editori WHERE id IN (' . implode(',', $publisherIds) . ')');
+        $sweep('DELETE FROM editori WHERE id IN (' . implode(',', $publisherIds) . ')');
     }
     if ($userIds !== []) {
-        $db->query('DELETE FROM utenti WHERE id IN (' . implode(',', $userIds) . ')');
+        $sweep('DELETE FROM utenti WHERE id IN (' . implode(',', $userIds) . ')');
     }
-    App\Support\ContentCache::booksChanged();
-    $db->close();
+    try {
+        App\Support\ContentCache::booksChanged();
+        $db->close();
+    } catch (\Throwable $error) {
+        $cleanupErrors[] = 'closing the connection' . "\n      " . $error->getMessage();
+    }
+}
+
+// Reported BEFORE the primary result so the primary result is what the reader
+// is left looking at — a teardown problem is a real problem, but it is never
+// the explanation of the run.
+if ($cleanupErrors !== []) {
+    fwrite(STDERR, "\nCLEANUP FAILED — fixture rows may still be in the database:\n");
+    foreach ($cleanupErrors as $message) {
+        fwrite(STDERR, "    {$message}\n");
+    }
 }
 
 if ($fatalError !== null) {
@@ -752,4 +784,9 @@ if ($fatalError !== null) {
 }
 
 echo $fail === 0 ? "\nALL {$pass} PASS\n" : "\n{$pass} PASS, {$fail} FAIL\n";
-exit($fail === 0 ? 0 : 1);
+if ($cleanupErrors !== []) {
+    // On its own this still has to fail the run: a cleanup that quietly gives
+    // up is how the demo data in this database would get polluted unnoticed.
+    fwrite(STDERR, "FAIL: the cleanup reported above did not complete.\n");
+}
+exit($fail === 0 && $cleanupErrors === [] ? 0 : 1);
