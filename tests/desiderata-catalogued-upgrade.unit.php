@@ -64,6 +64,11 @@ $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/my
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
 $dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
 $dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
+// Host and port are overridable like the rest, so the TCP branch below can
+// actually be exercised on a machine whose .env says 'localhost' — which
+// mysqli resolves to the socket, quietly skipping the very path CI takes.
+$dbHost = getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
+$dbPort = (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306));
 
 $sandboxName = getenv('DESIDERATA_SANDBOX_DB') ?: ($dbName . '_desiderata');
 if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandboxName)) {
@@ -74,10 +79,10 @@ if (strcasecmp($sandboxName, (string) $dbName) === 0) {
     exit(1);
 }
 
-$connect = static function (string $database) use ($socket, $dbUser, $dbPass, $env): mysqli {
+$connect = static function (string $database) use ($socket, $dbUser, $dbPass, $dbHost, $dbPort): mysqli {
     $db = is_string($socket) && $socket !== '' && file_exists($socket)
         ? new mysqli(null, $dbUser, $dbPass, $database, 0, $socket)
-        : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $dbUser, $dbPass, $database, (int) ($env['DB_PORT'] ?? 3306));
+        : new mysqli($dbHost, $dbUser, $dbPass, $database, $dbPort);
     $db->set_charset('utf8mb4');
 
     return $db;
@@ -111,16 +116,33 @@ $prep->close();
 $fatalError = null;
 
 try {
-    exec(sprintf(
-        'mysql --socket=%s -u %s -p%s %s < %s 2>&1',
-        escapeshellarg((string) $socket),
-        escapeshellarg((string) $dbUser),
-        escapeshellarg((string) $dbPass),
-        escapeshellarg($sandboxName),
-        escapeshellarg($root . '/installer/database/schema.sql')
-    ), $out, $rc);
+    // The transport is chosen the same way the mysqli connections above choose
+    // it, and for the same reason: hard-coding --socket with a path bakes the
+    // developer's machine into the test. It passed here and failed on CI, which
+    // reaches MySQL over TCP and has no socket at that path at all — a failure
+    // that says nothing about the code it guards. The password travels in the
+    // environment rather than in argv, so it stays out of the process list and
+    // out of mysql's own warning on stderr.
+    $useSocket = is_string($socket) && $socket !== '' && file_exists($socket);
+    $command = $useSocket
+        ? sprintf('mysql --socket=%s -u %s %s', escapeshellarg($socket), escapeshellarg((string) $dbUser), escapeshellarg($sandboxName))
+        : sprintf(
+            'mysql -h %s -P %d --protocol=TCP -u %s %s',
+            escapeshellarg((string) $dbHost),
+            $dbPort,
+            escapeshellarg((string) $dbUser),
+            escapeshellarg($sandboxName)
+        );
+    $command .= ' < ' . escapeshellarg($root . '/installer/database/schema.sql') . ' 2>&1';
+    $previousPwd = getenv('MYSQL_PWD');
+    putenv('MYSQL_PWD=' . (string) $dbPass);
+    try {
+        exec($command, $out, $rc);
+    } finally {
+        $previousPwd === false ? putenv('MYSQL_PWD') : putenv('MYSQL_PWD=' . $previousPwd);
+    }
     if ($rc !== 0) {
-        throw new RuntimeException('could not load schema.sql: ' . implode("\n", $out));
+        throw new RuntimeException('could not load schema.sql (' . ($useSocket ? 'socket' : 'tcp') . '): ' . implode("\n", $out));
     }
 
     $db = $connect($sandboxName);

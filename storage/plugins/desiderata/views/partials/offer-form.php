@@ -25,7 +25,14 @@ $value = static fn(string $key): string => is_scalar($values[$key] ?? '') ? $e($
 // the "thank you" surfaced later, on the donor's next unrelated visit to
 // /desiderata. Consuming it in the one file that can display it means a future
 // third surface cannot reintroduce that.
-$success = !empty($success) || !empty($_SESSION['desiderata_success']);
+// Three sources, in descending order of how much they can be trusted to still
+// be there. The session flash is the one the code always had; the query marker
+// is what makes the banner survive a submission sent from a SESSIONLESS page —
+// see DesiderataPlugin::thankYouUrl(). The flash is still consumed either way,
+// so it can never surface later on an unrelated page.
+$success = !empty($success)
+    || !empty($_SESSION['desiderata_success'])
+    || (($_GET[DesiderataPlugin::THANK_YOU_MARKER] ?? '') === '1');
 unset($_SESSION['desiderata_success']);
 $returnTo = is_string($returnTo ?? null) ? $returnTo : '';
 $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '';

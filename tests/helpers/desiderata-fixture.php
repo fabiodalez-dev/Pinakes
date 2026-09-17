@@ -205,6 +205,14 @@ elseif($argv[1]==='seed-extended') {
     // on system_settings would leave ConfigStore serving its 60-second cache,
     // so the plugin would keep reading the old key and the test would prove
     // nothing; SettingsRepository::set() + ConfigStore::set() drop that cache.
+    //
+    // They drop THIS process's cache. They cannot drop the web server's: with
+    // the APCu backend that cache lives in Apache's shared memory, which no CLI
+    // process can reach (see tests/helpers/flush-cache.js, which exists for
+    // exactly this). The caller must therefore await flushCache() after this
+    // action and before asserting on a rendered page — without it the assertion
+    // passes or fails according to whether anything happened to read the
+    // contacts settings in the previous sixty seconds.
     $settings=new App\Models\SettingsRepository($db); $settings->ensureTables();
     $site=(string)($argv[3] ?? ''); $secret=(string)($argv[4] ?? '');
     foreach(['recaptcha_site_key'=>$site, 'recaptcha_secret_key'=>$secret] as $key=>$value) {

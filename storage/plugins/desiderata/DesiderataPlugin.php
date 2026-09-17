@@ -203,6 +203,12 @@ class DesiderataPlugin
      * reason. CLAUDE.md rule 4 governs locale-varying core user routes and does
      * not reach this case.
      */
+    /**
+     * The query marker that tells the landing page a proposal was just
+     * sent. See thankYouUrl() for why the session flash cannot carry this
+     * on its own.
+     */
+    public const THANK_YOU_MARKER = 'inviata';
     public const PATH_PUBLIC = '/desiderata';
     public const PATH_SEARCH = self::PATH_PUBLIC . '/search';
     public const PATH_OFFERS = self::PATH_PUBLIC . '/offers';
@@ -1110,6 +1116,39 @@ class DesiderataPlugin
         return preg_match('#^/(?![/\\\\])[^\r\n]{0,254}$#D', $raw) === 1 ? $raw : '';
     }
     /**
+     * Where a donor lands after a successful proposal, carrying the "thank you"
+     * in the URL and not only in the session.
+     *
+     * The session flash alone is not enough, and the reason is structural rather
+     * than accidental. SessionPolicy lists '/' among the sessionless paths: an
+     * anonymous visitor reading the homepage is served with no session and no
+     * cookie at all, which is the point of that policy. The donation form lives
+     * on that page too, so a proposal sent from the homepage mints its session
+     * midway through the submission — the /csrf-token fetch does it — and then
+     * asks a flash to survive a redirect onto a DIFFERENT page. Nothing
+     * guarantees that continuity; the policy explicitly declines to.
+     *
+     * Submitting from /desiderata never showed the problem because that page IS
+     * sessionful and is also where the donor lands, so the flash never has to
+     * cross anything. Same banner, same code, different session guarantees.
+     *
+     * A marker in the redirect removes the dependency entirely. The honest cost:
+     * anyone who types the URL sees a thank-you for a donation they did not
+     * make. It states nothing about them, reveals nothing, and writes nothing —
+     * a fair trade for a confirmation that otherwise vanishes for the visitors
+     * least likely to try again.
+     */
+    private static function thankYouUrl(string $returnTo): string
+    {
+        $target = url($returnTo !== '' ? $returnTo : self::PATH_PUBLIC);
+        // returnPath() admits a query string, so the separator has to be chosen
+        // rather than assumed — appending a second '?' would make the marker
+        // part of the previous parameter's value and silently do nothing.
+        $separator = str_contains($target, '?') ? '&' : '?';
+
+        return $target . $separator . self::THANK_YOU_MARKER . '=1#donation-form';
+    }
+    /**
      * A reader has offered a book: tell the operators.
      *
      * Called after the INSERT and outside any transaction on purpose — telling
@@ -1168,7 +1207,7 @@ class DesiderataPlugin
             $_SESSION['desiderata_last_offer'] = time();
             $_SESSION['desiderata_success'] = true;
             $this->notifyOffer($offerId, $v);
-            return $r->withHeader('Location', url($returnTo !== '' ? $returnTo : self::PATH_PUBLIC) . '#donation-form')->withStatus(303);
+            return $r->withHeader('Location', self::thankYouUrl($returnTo))->withStatus(303);
         } catch (Throwable $e) {
             if ($transactionOpen) { $this->db->rollback(); }
             // Same shape as manage(): a rejected input speaks for itself, while

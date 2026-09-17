@@ -27,6 +27,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { ensurePluginActive, dbQuery } = require('./helpers/plugin-activation');
+const { flushCache } = require('./helpers/flush-cache');
 
 const root = path.resolve(__dirname, '..');
 const envFile = path.join(__dirname, '.env.test');
@@ -507,6 +508,13 @@ test('T20 — browser wiring: the real form posts the token grecaptcha produced'
   const configured = fixture('recaptcha', 'e2e-site', '');
   expect(configured.recaptcha_site_key, 'the fixture must have configured a site key').toBe('e2e-site');
   expect(configured.recaptcha_secret_key, 'with no secret, so the server skips verification').toBe('');
+  // The fixture is a CLI process and its ConfigStore::clearCache() empties the
+  // CLI's own cache, which is not the web server's: with the APCu backend the
+  // settings cache lives in Apache's shared memory and no Node or CLI process
+  // can reach it. Without this the page keeps rendering from a key cached up to
+  // 60 seconds ago — so the assertion below passed whenever nothing had read
+  // the contacts settings recently, and failed when something had.
+  await flushCache();
 
   /** @type {string[]} */ const loaderRequests = [];
   await page.route('https://www.google.com/recaptcha/api.js*', async route => {
@@ -534,6 +542,7 @@ test('T20 — browser wiring: the real form posts the token grecaptcha produced'
   // No key configured: nothing may be loaded from Google at all.
   const cleared = fixture('recaptcha', '', '');
   expect(cleared.recaptcha_site_key).toBe('');
+  await flushCache();
   const context = await browser.newContext();
   try {
     const quiet = await context.newPage();
