@@ -68,6 +68,75 @@ final class BookVisibility
         return self::hasDesiderata($db) ? self::alias($alias) . '.is_desiderata = 1' : '0=1';
     }
 
+    /**
+     * "This row was once in the public catalogue" — the other half delisted()
+     * cannot supply on its own.
+     *
+     * A harvester is owed a deletion for a record it actually received. But
+     * is_desiderata = 1 is reached two ways — a catalogued book WITHDRAWN, and
+     * a book BORN as a request — and the flag keeps no memory of which, because
+     * the copies are hard-deleted and nothing else records the transition. Used
+     * alone it publishes tombstones for wishes no harvester ever saw, and with
+     * them the ids and timestamps of the library's wish list.
+     *
+     * libri.catalogued_at is stamped once, the first time a row is written with
+     * is_desiderata = 0, and never cleared. Pair this with delisted() to get
+     * "withdrawn" rather than "wanted".
+     *
+     * Returns 0=1 when the column is absent, so an installation that has not
+     * run the plugin's ensureSchema() emits no tombstones at all. That is the
+     * deliberate direction: a missing deletion leaves one stale record in a
+     * remote catalogue, while a wrong one publishes a wish that was never
+     * public.
+     */
+    public static function everCatalogued(\mysqli $db, string $alias = 'libri'): string
+    {
+        return self::hasCataloguedAt($db) ? self::alias($alias) . '.catalogued_at IS NOT NULL' : '0=1';
+    }
+
+    /**
+     * The write-once stamp, as a SET fragment: empty when the column is absent,
+     * so a caller can concatenate it onto an UPDATE unconditionally.
+     *
+     * COALESCE is what makes it write-once. It is spliced into the same
+     * statement that clears the flag rather than issued as a second query, so
+     * a row can never be un-flagged without being stamped — the two facts stay
+     * in step even if the caller is interrupted between statements.
+     */
+    public static function catalogueStamp(\mysqli $db, string $column = 'catalogued_at'): string
+    {
+        if (!self::hasCataloguedAt($db)) {
+            return '';
+        }
+        $column = self::alias($column);
+
+        return ', ' . $column . ' = COALESCE(' . $column . ', NOW())';
+    }
+
+    /** Same memoised probe as hasDesiderata(); see the note on its docblock. */
+    public static function hasCataloguedAt(\mysqli $db): bool
+    {
+        static $columns;
+        static $seenColumn = false;
+        $columns ??= new \WeakMap();
+        if (!isset($columns[$db])) {
+            try {
+                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'catalogued_at'");
+            } catch (\Throwable $e) {
+                $result = false;
+            }
+            if ($result === false) {
+                return $seenColumn;
+            }
+            $columns[$db] = $result->num_rows > 0;
+            if ($columns[$db]) {
+                $seenColumn = true;
+            }
+        }
+
+        return $columns[$db];
+    }
+
     private static function alias(string $alias): string
     {
         if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/D', $alias)) {

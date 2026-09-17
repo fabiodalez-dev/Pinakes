@@ -78,12 +78,37 @@ elseif($argv[1]==='seed-extended') {
     // browser, the view's onerror would rewrite src to the placeholder, and the
     // assertion on the seeded URL would fail for a reason that has nothing to
     // do with the code under test.
-    $coverPath='';
-    foreach(glob($root.'/public/uploads/copertine/*.jpg') ?: [] as $file) {
-        if(basename($file)==='placeholder.jpg') continue;
-        $coverPath='/uploads/copertine/'.basename($file); break;
+    //
+    // WRITTEN, not hunted for. Borrowing whatever jpg the machine happened to
+    // have in public/uploads/copertine passes on a developer's installation,
+    // where demo covers are lying around, and fails on a clean runner, where the
+    // directory holds nothing but the placeholder — reported as eight
+    // "suspicious skips" and a missing-fixture error that says nothing about the
+    // code. A tiny real JPEG, embedded rather than generated, so the fixture
+    // does not depend on the GD extension either. cleanup-extended removes it.
+    $coverDir=$root.'/public/uploads/copertine';
+    if(!is_dir($coverDir) && !mkdir($coverDir,0775,true) && !is_dir($coverDir)) {
+        throw new RuntimeException('cannot create '.$coverDir.' to seed a cover into');
     }
-    if($coverPath==='') throw new RuntimeException('No real cover file in public/uploads/copertine to seed with');
+    $coverName='zz-desiderata-fixture-'.$tag.'.jpg';
+    $coverBytes=base64_decode(
+        '/9j/4AAQSkZJRgABAQEAYABgAAD//gA7Q1JFQVRPUjogZ2QtanBlZyB2MS4wICh1c2luZyBJSkcgSlBFRyB2ODApLCBxdWFs'
+        . 'aXR5ID0gNzAK/9sAQwAKBwcIBwYKCAgICwoKCw4YEA4NDQ4dFRYRGCMfJSQiHyIhJis3LyYpNCkhIjBBMTQ5Oz4+PiUuRElD'
+        . 'PEg3PT47/9sAQwEKCwsODQ4cEBAcOygiKDs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7'
+        . 'Ozs7/8AAEQgAPAAoAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQE'
+        . 'AAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RV'
+        . 'VldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY'
+        . '2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQE'
+        . 'AAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNU'
+        . 'VVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW'
+        . '19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/aAAwDAQACEQMRAD8A9AooorYyCiiigAooooAKKKKACiiigAooooAKKKKACiiigAoo'
+        . 'ooAKKKKACiiigAooooA//9k=',
+        true
+    );
+    if($coverBytes===false || file_put_contents($coverDir.'/'.$coverName,$coverBytes)===false) {
+        throw new RuntimeException('cannot write the fixture cover to '.$coverDir);
+    }
+    $coverPath='/uploads/copertine/'.$coverName;
     $make=static function(string $suffix, bool $wanted, string $cover='') use ($repo,$db,$prefix): array {
         $data=['titolo'=>$prefix.' '.$suffix, 'copie_totali'=>$wanted?0:1];
         if($wanted) $data['is_desiderata']=1;
@@ -189,6 +214,10 @@ elseif($argv[1]==='seed-extended') {
     App\Support\ConfigStore::clearCache();
     echo json_encode(['recaptcha_site_key'=>$settings->get('contacts','recaptcha_site_key',''), 'recaptcha_secret_key'=>$settings->get('contacts','recaptcha_secret_key','')]);
 } elseif($argv[1]==='cleanup-extended') {
+    // The cover this run wrote, and only that one: named after the run tag so a
+    // parallel shard's file is never touched.
+    $ownCover=$root.'/public/uploads/copertine/zz-desiderata-fixture-'.$tag.'.jpg';
+    if(is_file($ownCover)) { @unlink($ownCover); }
     $file=snapshot_path($tag);
     $snapshot=is_file($file) ? json_decode((string)file_get_contents($file),true) : null;
     if(!is_array($snapshot)) throw new InvalidArgumentException('cleanup-extended cannot find the snapshot seed-extended wrote at '.$file);

@@ -24,7 +24,7 @@ $pager = is_array($pager ?? null) ? $pager : null;
 $wantedTotal = (int) ($wantedTotal ?? count($books));
 // Page one has no ?page=: a link that says "1" and a link that says nothing
 // would be two URLs for one list, which is one canonical URL too many.
-$pageUrl = static fn(int $n): string => url('/desiderata') . ($n > 1 ? '?page=' . $n : '') . '#desiderata-results';
+$pageUrl = static fn(int $n): string => url(DesiderataPlugin::PATH_PUBLIC) . ($n > 1 ? '?page=' . $n : '') . '#desiderata-results';
 // The fallback the browser uses when a cover 404s, as a JS string literal: it
 // sits inside an onerror= attribute, where htmlspecialchars() of a raw path
 // would be HTML-decoded before the JS parser ever sees it.
@@ -61,11 +61,11 @@ $placeholderJson = json_encode(url(DesiderataPlugin::PLACEHOLDER_COVER), JSON_HE
       </nav>
       <?php elseif ($pager === null && $wantedTotal > count($books)): ?>
       <nav class="dw-pager" data-desiderata-pager>
-        <a href="<?= $e(url('/desiderata')) ?>"><?= $e(__('Vedi tutti i libri che cerchiamo (%d)', $wantedTotal)) ?></a>
+        <a href="<?= $e(url(DesiderataPlugin::PATH_PUBLIC)) ?>"><?= $e(__('Vedi tutti i libri che cerchiamo (%d)', $wantedTotal)) ?></a>
       </nav>
       <?php endif; ?>
     </div>
-    <noscript><p><a href="<?= $e(url('/desiderata')) ?>"><?= __('Apri il modulo di donazione') ?></a></p></noscript>
+    <noscript><p><a href="<?= $e(url(DesiderataPlugin::PATH_PUBLIC)) ?>"><?= __('Apri il modulo di donazione') ?></a></p></noscript>
     <?php require __DIR__ . '/partials/offer-form.php'; ?>
   </div>
 </section>

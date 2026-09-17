@@ -173,6 +173,16 @@ try {
     $transitionTitle = "ZZVIS transition {$token}";
     $db->query("INSERT INTO libri (titolo, is_desiderata, copie_totali, copie_disponibili, search_index) VALUES ('{$transitionTitle}', 0, 1, 1, '{$transitionTitle}')");
     $transitionId = (int) $db->insert_id;
+    // This section is about a WITHDRAWN holding, and a row only counts as one
+    // if it was in the catalogue to begin with — which the de-listing arms now
+    // read from libri.catalogued_at rather than inferring from is_desiderata,
+    // since that flag is reached both by withdrawing a book and by creating a
+    // request that was never published. A raw INSERT skips every write path
+    // that stamps it, so without this the fixture would be a book that was
+    // never a holding, and the checks below would be asserting the wrong case.
+    if (\App\Support\BookVisibility::hasCataloguedAt($db)) {
+        $db->query('UPDATE libri SET catalogued_at = NOW() WHERE id = ' . $transitionId);
+    }
     // Datestamp a harvester would hold after taking the record: everything the
     // incremental window below returns happened at or after this instant.
     $mark = (string) $db->query('SELECT NOW() AS n')->fetch_assoc()['n'];

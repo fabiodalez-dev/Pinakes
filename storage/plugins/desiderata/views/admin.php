@@ -60,7 +60,7 @@ $errorInCard = $error !== '' && $errorOfferId > 0
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <a class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors" href="<?= $e(url('/admin/books/create')) ?>"><i class="fas fa-plus"></i><?= __('Aggiungi un desiderata') ?></a>
-        <a class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors" href="<?= $e(url('/desiderata')) ?>"><i class="fas fa-external-link-alt"></i><?= __('Apri la pagina pubblica') ?></a>
+        <a class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors" href="<?= $e(url(DesiderataPlugin::PATH_PUBLIC)) ?>"><i class="fas fa-external-link-alt"></i><?= __('Apri la pagina pubblica') ?></a>
       </div>
     </div>
   </div>

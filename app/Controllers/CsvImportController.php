@@ -1147,7 +1147,13 @@ class CsvImportController
             'classificazione_dewey' => !empty($row['classificazione_dewey']) ? trim($row['classificazione_dewey']) : null,
             'copertina_url' => !empty($row['copertina_url']) ? trim($row['copertina_url']) : null,
             // A request: the library wants the book but owns no copy of it.
-            'is_desiderata' => in_array(strtolower(trim((string) ($row['is_desiderata'] ?? ''))), ['1', 'true', 'yes', 'si', 'sì', 'y'], true)
+            //
+            // mb_strtolower, not strtolower: the accepted list carries the
+            // accented Italian affirmative, and strtolower() folds only ASCII
+            // A-Z. "SÌ" would come out as "sÌ", match nothing, and import the
+            // row as an owned holding — silently, since an unmatched value is
+            // simply false. Same call shape as validateLanguage() below.
+            'is_desiderata' => in_array(mb_strtolower(trim((string) ($row['is_desiderata'] ?? '')), 'UTF-8'), ['1', 'true', 'yes', 'si', 'sì', 'y'], true)
         ];
     }
 

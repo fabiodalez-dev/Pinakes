@@ -39,7 +39,7 @@ $lockTitle = ($values['book_id'] ?? '') !== '';
   <p><?= $e($texts['form_intro'] ?? __('La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.')) ?></p>
   <?php if ($success): ?><p role="status" class="alert alert-success"><?= __('Grazie! La proposta è stata inviata alla biblioteca.') ?></p><?php endif; ?>
   <?php if (!empty($error)): ?><p role="alert" class="alert alert-danger"><?= $e($error) ?></p><?php endif; ?>
-  <form method="post" action="<?= $e(url('/desiderata/offers')) ?>" id="desiderata-offer">
+  <form method="post" action="<?= $e(url(DesiderataPlugin::PATH_OFFERS)) ?>" id="desiderata-offer">
     <input type="hidden" name="csrf_token" value="<?= $e(session_status() === PHP_SESSION_ACTIVE ? \App\Support\Csrf::ensureToken() : '') ?>">
     <input type="hidden" name="book_id" id="donation-book-id" value="<?= $value('book_id') ?>">
     <?php // Filled in by grecaptcha and by the caller respectively; inert while neither is configured. ?>

@@ -40,7 +40,7 @@ class DesiderataPlugin
         // soft-deleted record would make any later restore produce a title that
         // is invisible in the catalogue, with the checkbox gone and nothing in
         // the admin explaining why. Same rule as the two DataIntegrity sweeps.
-        if ($this->db->query('UPDATE libri SET is_desiderata = 0 WHERE is_desiderata = 1') === false) {
+        if ($this->db->query('UPDATE libri SET is_desiderata = 0' . \App\Support\BookVisibility::catalogueStamp($this->db) . ' WHERE is_desiderata = 1') === false) {
             $this->fail('cannot clear the desiderata flag on uninstall');
         }
         ContentCache::deferBooksChanged();
@@ -77,6 +77,50 @@ class DesiderataPlugin
         }
         if ($index->num_rows === 0 && $this->db->query('ALTER TABLE libri ADD INDEX idx_desiderata (is_desiderata, deleted_at)') === false) {
             $this->fail('cannot add the idx_desiderata index');
+        }
+        // "Was this row ever in the public catalogue?" — written once, never
+        // cleared. The OAI-PMH de-listing arm needs it because is_desiderata
+        // alone cannot answer it: a row reaches 1 either by being WITHDRAWN
+        // from the catalogue (a real deletion its harvesters must be told
+        // about) or by being BORN as a request (which no harvester ever saw),
+        // and once the flag is set nothing distinguishes the two — the copies
+        // are hard-deleted, so there is no history to consult. Without this the
+        // arm published a status=deleted header for wishes that were never
+        // published in the first place.
+        //
+        // The predicate is "was ever is_desiderata = 0", not "ever had copies":
+        // the ACTIVE arm filters on is_desiderata alone, so a record with no
+        // copies is harvested just the same, and tying the stamp to copies
+        // would stop a genuinely withdrawn copy-less record from tombstoning.
+        // CI-SOFT-DELETE-EXEMPT: schema introspection, not a read of book rows.
+        $catalogued = $this->db->query("SHOW COLUMNS FROM libri LIKE 'catalogued\\_at'");
+        if ($catalogued === false) {
+            $this->fail('cannot inspect libri for catalogued_at');
+        }
+        if ($catalogued->num_rows === 0) {
+            if ($this->db->query('ALTER TABLE libri ADD COLUMN catalogued_at DATETIME NULL DEFAULT NULL') === false) {
+                $this->fail('cannot add libri.catalogued_at');
+            }
+            // Backfill, once, on the transition — and only in the direction we
+            // can actually know. A row sitting at is_desiderata = 0 right now
+            // IS in the catalogue, so it is stamped. A row already flagged
+            // cannot be judged either way, so it stays NULL and will never
+            // tombstone: the existing wish list loses tombstones it should
+            // arguably have had, which is the harmless half of the trade, while
+            // guessing the other way would keep publishing deletions for
+            // records no harvester ever received.
+            // NOW(), not the row's own created_at/updated_at: those belong to
+            // core's libri, not to this plugin, and reading them here would make
+            // the schema step fail on any table that does not carry them. The
+            // value is never compared to anything — everCatalogued() asks only
+            // IS NOT NULL — so "stamped when the column arrived" is as good as a
+            // reconstructed date, and it does not pretend to a precision it
+            // cannot have.
+            // CI-SOFT-DELETE-EXEMPT: deliberately stamps archived rows too — a
+            // restored book was in the catalogue before it was deleted.
+            if ($this->db->query('UPDATE libri SET catalogued_at = NOW() WHERE is_desiderata = 0 AND catalogued_at IS NULL') === false) {
+                $this->fail('cannot backfill libri.catalogued_at');
+            }
         }
         // No hard FK to core tables: installations may use different integer types.
         if ($this->db->query("CREATE TABLE IF NOT EXISTS desiderata_offers (
@@ -140,6 +184,28 @@ class DesiderataPlugin
     ];
     /** The home_content row this plugin owns; nothing else may write it. */
     private const HOME_SECTION_KEY = 'desiderata';
+    /**
+     * The plugin's three public paths, in one place.
+     *
+     * They were spelled out as literals in seven spots across five files — the
+     * route registrations, the redirect fallback in offer(), the pager, the
+     * "see them all" link, the noscript link, the search endpoint in the JS
+     * assets and the form action — which is six chances for a rename to land
+     * half-done, and to land silently, since a stale literal is a valid string
+     * that simply 404s at the wrong moment.
+     *
+     * Deliberately NOT routed through route_path()/RouteTranslator. That
+     * mechanism reads a fixed key table in locale/routes_*.json which a plugin
+     * cannot extend, so using it would mean adding keys to five shared core
+     * files for one optional plugin — and a partial edit there misroutes
+     * non-English installations without saying so. Thirteen of the fourteen
+     * other bundled plugins with public routes register literals for the same
+     * reason. CLAUDE.md rule 4 governs locale-varying core user routes and does
+     * not reach this case.
+     */
+    public const PATH_PUBLIC = '/desiderata';
+    public const PATH_SEARCH = self::PATH_PUBLIC . '/search';
+    public const PATH_OFFERS = self::PATH_PUBLIC . '/offers';
     /**
      * Idempotent: PluginManager re-runs onActivate() on an already-active
      * bundled plugin whenever plugin.json carries a newer version, which is the
@@ -493,7 +559,7 @@ class DesiderataPlugin
                 ->createManyForBookWithIdsAndNote($bookId, 'LIB-' . $bookId, $howMany, 'disponibile', 'Donazione diretta');
             if (count($ids) !== $howMany) { throw new RuntimeException('Copy creation failed'); }
             $copyId = $ids[0];
-            $stmt = $this->db->prepare('UPDATE libri SET is_desiderata = 0 WHERE id = ? AND deleted_at IS NULL');
+            $stmt = $this->db->prepare('UPDATE libri SET is_desiderata = 0' . \App\Support\BookVisibility::catalogueStamp($this->db) . ' WHERE id = ? AND deleted_at IS NULL');
             if ($stmt === false) { throw new RuntimeException($this->db->error); }
             $stmt->bind_param('i', $bookId);
             $stmt->execute();
@@ -519,9 +585,9 @@ class DesiderataPlugin
         $plugin = $this;
         $csrf = new \App\Middleware\CsrfMiddleware();
         $admin = new \App\Middleware\AdminAuthMiddleware($this->db);
-        $app->get('/desiderata', fn(Request $q, Response $r) => $plugin->page($r, [], 200, self::pageNumber($q->getQueryParams(), 'page')));
-        $app->get('/desiderata/search', fn(Request $q, Response $r) => $plugin->search($q, $r))->add(new \App\Middleware\RateLimitMiddleware(90, 60, 'desiderata-search'));
-        $app->post('/desiderata/offers', fn(Request $q, Response $r) => $plugin->offer($q, $r))->add($csrf)->add(new \App\Middleware\RateLimitMiddleware(5, 900, 'desiderata-offer'));
+        $app->get(self::PATH_PUBLIC, fn(Request $q, Response $r) => $plugin->page($r, [], 200, self::pageNumber($q->getQueryParams(), 'page')));
+        $app->get(self::PATH_SEARCH, fn(Request $q, Response $r) => $plugin->search($q, $r))->add(new \App\Middleware\RateLimitMiddleware(90, 60, 'desiderata-search'));
+        $app->post(self::PATH_OFFERS, fn(Request $q, Response $r) => $plugin->offer($q, $r))->add($csrf)->add(new \App\Middleware\RateLimitMiddleware(5, 900, 'desiderata-offer'));
         $app->get('/admin/desiderata/books', fn(Request $q, Response $r) => $plugin->catalogueSearch($q, $r))->add($admin);
         $app->get('/admin/desiderata', fn(Request $q, Response $r) => $plugin->admin($q, $r))->add($admin);
         $app->post('/admin/desiderata/offers/{id:[0-9]+}', fn(Request $q, Response $r, array $a) => $plugin->manage($q, $r, (int)$a['id']))->add($csrf)->add($admin);
@@ -1067,6 +1133,12 @@ class DesiderataPlugin
         $input = (array)$q->getParsedBody();
         $returnTo = self::returnPath($input['return_to'] ?? '');
         $transactionOpen = false;
+        // Set at the one throw that means "the book stopped being wanted while
+        // you were filling the form in". Flagged at the throw rather than
+        // recognised from the message in the catch: the message is translated,
+        // so matching on its text would quietly stop working in every locale
+        // but Italian.
+        $bookNoLongerWanted = false;
         try {
             if (!empty($input['website'])) { throw new InvalidArgumentException(__('Proposta non valida.')); }
             if (time() - (int)($_SESSION['desiderata_last_offer'] ?? 0) < 60) { return $this->page($r, ['error' => __('Attendi un minuto prima di inviare un’altra proposta.'), 'values' => $input, 'returnTo' => $returnTo], 429); }
@@ -1084,7 +1156,7 @@ class DesiderataPlugin
                 $stmt->bind_param('i', $bookId); $stmt->execute();
                 $book = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
-                if (!$book) { throw new InvalidArgumentException(__('Questo libro non è più richiesto. Puoi proporlo come altra donazione.')); }
+                if (!$book) { $bookNoLongerWanted = true; throw new InvalidArgumentException(__('Questo libro non è più richiesto. Puoi proporlo come altra donazione.')); }
                 $v['title'] = $book['titolo'];
             }
             $stmt = $this->db->prepare('INSERT INTO desiderata_offers (book_id, donor_name, donor_email, title, author, publisher, isbn, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
@@ -1096,7 +1168,7 @@ class DesiderataPlugin
             $_SESSION['desiderata_last_offer'] = time();
             $_SESSION['desiderata_success'] = true;
             $this->notifyOffer($offerId, $v);
-            return $r->withHeader('Location', url($returnTo !== '' ? $returnTo : '/desiderata') . '#donation-form')->withStatus(303);
+            return $r->withHeader('Location', url($returnTo !== '' ? $returnTo : self::PATH_PUBLIC) . '#donation-form')->withStatus(303);
         } catch (Throwable $e) {
             if ($transactionOpen) { $this->db->rollback(); }
             // Same shape as manage(): a rejected input speaks for itself, while
@@ -1107,6 +1179,17 @@ class DesiderataPlugin
             // away everything the visitor typed into the donation form.
             if (!$e instanceof InvalidArgumentException) {
                 \App\Support\SecureLogger::error('[Desiderata] Offer failed: ' . $e->getMessage());
+            }
+            // The message tells the donor they can still offer this book as a
+            // separate donation. Dropping book_id is what makes that true: the
+            // form locks the title whenever book_id is set — server-side, via
+            // $lockTitle in offer-form.php — and the only control that released
+            // it was a button wired in JavaScript. Without this the promise held
+            // only for visitors running scripts; the rest were left with a
+            // read-only title and, if they took the noscript link out, an empty
+            // form. Everything else they typed stays where it is.
+            if ($bookNoLongerWanted) {
+                unset($input['book_id']);
             }
             return $this->page($r, [
                 'error' => $e instanceof InvalidArgumentException
@@ -1259,7 +1342,7 @@ class DesiderataPlugin
             // DataIntegrity clears the flag by itself once a copy exists: the
             // guarantee must not depend on a helper's side effect. Same shape
             // as manage(), for the same reason.
-            $stmt = $this->db->prepare('UPDATE libri SET is_desiderata = 0 WHERE id = ? AND deleted_at IS NULL');
+            $stmt = $this->db->prepare('UPDATE libri SET is_desiderata = 0' . \App\Support\BookVisibility::catalogueStamp($this->db) . ' WHERE id = ? AND deleted_at IS NULL');
             if ($stmt === false) { throw new RuntimeException($this->db->error); }
             $stmt->bind_param('i', $bookId);
             $stmt->execute();
@@ -1620,7 +1703,7 @@ class DesiderataPlugin
                 // refactor could move away. This is the receipt of a real
                 // donation, so unlike the maintenance sweeps it has no business
                 // touching an archived record.
-                $stmt = $this->db->prepare('UPDATE libri SET is_desiderata=0 WHERE id=? AND deleted_at IS NULL'); $stmt->bind_param('i', $bookId); $stmt->execute();
+                $stmt = $this->db->prepare('UPDATE libri SET is_desiderata=0' . \App\Support\BookVisibility::catalogueStamp($this->db) . ' WHERE id=? AND deleted_at IS NULL'); $stmt->bind_param('i', $bookId); $stmt->execute();
                 if (!(new \App\Support\DataIntegrity($this->db))->recalculateBookAvailability($bookId, true, true)) { throw new RuntimeException('Availability update failed'); }
                 $stmt = $this->db->prepare("UPDATE desiderata_offers SET status='received', received_book_id=?, copy_id=?, received_at=NOW() WHERE id=?");
                 $stmt->bind_param('iii', $bookId, $copyId, $id); $stmt->execute();

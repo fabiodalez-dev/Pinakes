@@ -2918,6 +2918,12 @@ class OaiPmhServerPlugin
                    FROM libri l
                   WHERE l.id = ? AND l.deleted_at IS NULL AND '
                 . \App\Support\BookVisibility::delisted($this->db, 'l')
+                // Same pairing as the ListIdentifiers/ListRecords arm: a
+                // record born as a request was never handed to anyone, so
+                // answering "deleted" for it both misstates the protocol and
+                // confirms a wish-list id to whoever guessed it. Without this
+                // the two responses would disagree about the same identifier.
+                . ' AND ' . \App\Support\BookVisibility::everCatalogued($this->db, 'l')
             );
             if ($stmt === false) { return null; }
             $stmt->bind_param('i', $id);
@@ -3243,7 +3249,13 @@ class OaiPmhServerPlugin
             // because its table simply stays empty without the triggers.
             if ($this->hasActiveTriggers()) {
             $delisted = \App\Support\BookVisibility::delisted($this->db, 'l');
-            $w = ['l.deleted_at IS NULL', $delisted];
+            // Both halves, and the second is not redundant. "Wanted" alone
+            // tombstones a record that was BORN a request and therefore never
+            // reached a harvester at all — a deletion for something nobody was
+            // ever given, which also hands anonymous harvesters the ids and
+            // timestamps of the library's wish list. Only a row that was once
+            // in the catalogue can have been withdrawn from it.
+            $w = ['l.deleted_at IS NULL', $delisted, \App\Support\BookVisibility::everCatalogued($this->db, 'l')];
             $w[] = 'l.updated_at >= DATE_SUB(NOW(), INTERVAL ' . ($fromMysql !== null ? 90 : 30) . ' DAY)';
             if ($fromMysql !== null)  { $w[] = 'l.updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $w[] = 'l.updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }

@@ -167,7 +167,7 @@ class DataIntegrity {
                 // Prepared like every other statement in this method, and its
                 // effect reported separately so a failure cannot hide behind
                 // $results['updated'], which counts the availability pass only.
-                $request = $this->db->prepare('UPDATE libri l SET is_desiderata=0 WHERE is_desiderata=1 AND EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id)');
+                $request = $this->db->prepare('UPDATE libri l SET is_desiderata=0' . BookVisibility::catalogueStamp($this->db) . ' WHERE is_desiderata=1 AND EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id)');
                 if ($request === false || !$request->execute()) {
                     $results['errors'][] = 'Errore azzeramento desiderata: ' . $this->db->error;
                 } else {
@@ -454,7 +454,7 @@ class DataIntegrity {
                 // deliberately routes it into this method's own catch, which
                 // already knows whether to roll back or hand the failure to the
                 // caller that owns the transaction.
-                $request = $this->db->prepare('UPDATE libri SET is_desiderata=0 WHERE id=? AND is_desiderata=1 AND EXISTS (SELECT 1 FROM copie WHERE libro_id=?)');
+                $request = $this->db->prepare('UPDATE libri SET is_desiderata=0' . BookVisibility::catalogueStamp($this->db) . ' WHERE id=? AND is_desiderata=1 AND EXISTS (SELECT 1 FROM copie WHERE libro_id=?)');
                 if ($request === false) {
                     throw new \RuntimeException('desiderata flag clear failed to prepare: ' . $this->db->error);
                 }

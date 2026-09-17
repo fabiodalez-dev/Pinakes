@@ -191,6 +191,23 @@ try {
         $r=$plugin->offer($request($payload+['book_id'=>$badId]),new Slim\Psr7\Response());
         $check($r->getStatusCode()===422 && (int)$scalar('SELECT COUNT(*) FROM desiderata_offers')===$before,'invalid, deleted, held and non-request book IDs cannot receive matched offers');
     }
+    // A proposal aimed at a book that stopped being wanted is told it can still
+    // be offered as a separate donation. That promise is only true if the form
+    // comes back with the title editable — which it does by dropping book_id,
+    // since $lockTitle in offer-form.php is computed from it SERVER-side. The
+    // only control that released the lock used to be a JavaScript button, so
+    // until this the message was true for visitors running scripts and a dead
+    // end for everyone else. Asserted on the rendered HTML rather than on the
+    // input array, because the readonly attribute is the thing the donor meets.
+    $_SESSION=[];
+    $r=$plugin->offer($request($payload+['book_id'=>(string)$normal,'notes'=>'Copia in ottimo stato']),new Slim\Psr7\Response());
+    $body=(string)$r->getBody();
+    $check($r->getStatusCode()===422,'a proposal for a book that is no longer wanted is refused');
+    $check(!str_contains($body,' readonly'),'and the title comes back editable, so the donor can act on what the message offers');
+    $check(str_contains($body,'name="book_id" id="donation-book-id" value=""'),'the stale book binding is dropped');
+    $check(str_contains($body,'Test donor') && str_contains($body,'test@example.invalid') && str_contains($body,'Copia in ottimo stato'),
+        'while everything else the donor typed survives the refusal');
+
     $_SESSION=[];
     $r=$plugin->offer($request($payload+['website'=>'https://spam.invalid']),new Slim\Psr7\Response());
     $check($r->getStatusCode()===422,'honeypot rejects automated submissions');

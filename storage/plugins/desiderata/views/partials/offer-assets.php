@@ -24,7 +24,7 @@ $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '
 <script>
 (() => {
   const text = <?= json_encode(['loading'=>__('Ricerca in corso…'), 'error'=>__('Ricerca non riuscita. Riprova tra poco.'), 'hint'=>__('Ultimi libri richiesti. Scrivi almeno 3 caratteri per cercare.'), 'empty'=>__('Nessun desiderata trovato. Puoi proporre un altro libro qui sotto.'), 'found'=>__('Libri trovati:'), 'offer'=>__('Ce l’ho, posso donarlo'), 'selected'=>__('Stai offrendo un libro richiesto:'), 'failed'=>__('Invio non riuscito. I dati sono conservati: riprova.')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-  const csrfUrl = <?= json_encode(url('/csrf-token'), JSON_HEX_TAG) ?>, searchUrl = <?= json_encode(url('/desiderata/search'), JSON_HEX_TAG) ?>;
+  const csrfUrl = <?= json_encode(url('/csrf-token'), JSON_HEX_TAG) ?>, searchUrl = <?= json_encode(url(DesiderataPlugin::PATH_SEARCH), JSON_HEX_TAG) ?>;
   // Covers are resolved server-side (DesiderataPlugin::wanted()), so nothing
   // here has to know the installation's base path.
   const placeholderCover = <?= json_encode(url(DesiderataPlugin::PLACEHOLDER_COVER), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;

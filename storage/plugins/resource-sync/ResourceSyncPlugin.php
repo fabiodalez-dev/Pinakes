@@ -649,6 +649,13 @@ class ResourceSyncPlugin
         // at least still reports its own tombstones.
         $visible  = \App\Support\BookVisibility::catalogue($this->db);
         $delisted = \App\Support\BookVisibility::delisted($this->db);
+        // A de-listing is only owed to a harvester that was GIVEN the record.
+        // is_desiderata = 1 is reached both by withdrawing a catalogued book
+        // and by creating a request that was never published, and the flag
+        // keeps no memory of which — so the arm announced removals for wishes
+        // nobody ever received. Paired with the de-listing arms below, never
+        // with the live one.
+        $everCatalogued = \App\Support\BookVisibility::everCatalogued($this->db);
 
         if ($since !== null) {
             // FIX F078: bound tombstone exposure on `?from=` queries.
@@ -671,7 +678,7 @@ class ResourceSyncPlugin
                         (created_at >= ?) AS is_new_entry
                  FROM libri
                  WHERE ((deleted_at IS NULL AND updated_at >= ? AND ' . $visible . ')
-                    OR (deleted_at IS NULL AND ' . $delisted . ' AND updated_at >= ?
+                    OR (deleted_at IS NULL AND ' . $delisted . ' AND ' . $everCatalogued . ' AND updated_at >= ?
                         AND updated_at >= DATE_SUB(NOW(), INTERVAL 90 DAY))
                     OR (deleted_at IS NOT NULL AND deleted_at >= ?
                         AND deleted_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)))
@@ -692,7 +699,7 @@ class ResourceSyncPlugin
                         (' . $delisted . ') AS is_delisted, 0 AS is_new_entry
                  FROM libri
                  WHERE ((deleted_at IS NULL AND ' . $visible . ')
-                    OR (deleted_at IS NULL AND ' . $delisted . '
+                    OR (deleted_at IS NULL AND ' . $delisted . ' AND ' . $everCatalogued . '
                         AND updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
                     OR (deleted_at IS NOT NULL AND deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)))
                  ORDER BY COALESCE(deleted_at, updated_at, created_at) DESC
