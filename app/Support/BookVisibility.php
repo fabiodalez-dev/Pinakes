@@ -76,6 +76,23 @@ final class BookVisibility
         return $alias;
     }
 
+    /**
+     * Is the desiderata column present on this connection?
+     *
+     * The answer is memoised per connection and never invalidated, which looks
+     * unsafe next to a plugin whose activation runs the ALTER TABLE mid-request:
+     * a caller that asked BEFORE the column existed would keep being told "no"
+     * afterwards, and the visibility filter would be off for the rest of that
+     * request. It was checked rather than assumed, and the window does not
+     * exist. Both memos are function statics, which PHP-FPM discards at the end
+     * of every request, and the WeakMap is keyed on a connection that dies with
+     * it — so the blast radius is one request at most. That request is the
+     * activation endpoint, which answers bare JSON and consults nothing here
+     * before the ALTER. Recorded so the next reader does not have to re-derive
+     * it; an invalidation hook would couple the plugin to this class to defend
+     * a case that cannot arise, and dropping the memo would put a SHOW COLUMNS
+     * on every catalogue query, which is the hottest path in the application.
+     */
     public static function hasDesiderata(\mysqli $db): bool
     {
         static $columns;
