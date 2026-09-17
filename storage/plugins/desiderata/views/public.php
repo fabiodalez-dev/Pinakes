@@ -18,7 +18,8 @@ $headingTag = !empty($standalone) ? 'h1' : 'h2';
 $texts = is_array($texts ?? null) ? $texts : [];
 $values = $values ?? [];
 $value = static fn(string $key): string => is_scalar($values[$key] ?? '') ? $e($values[$key] ?? '') : '';
-$success = !empty($_SESSION['desiderata_success']); unset($_SESSION['desiderata_success']);
+// The success flag is consumed by partials/offer-form.php, the one file that
+// can actually display it — see the comment there.
 $pager = is_array($pager ?? null) ? $pager : null;
 $wantedTotal = (int) ($wantedTotal ?? count($books));
 // Page one has no ?page=: a link that says "1" and a link that says nothing

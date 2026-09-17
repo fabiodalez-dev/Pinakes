@@ -19,7 +19,14 @@ $e = [DesiderataPlugin::class, 'e'];
 $texts = is_array($texts ?? null) ? $texts : [];
 $values = is_array($values ?? null) ? $values : [];
 $value = static fn(string $key): string => is_scalar($values[$key] ?? '') ? $e($values[$key] ?? '') : '';
-$success = !empty($success);
+// Read AND clear here rather than in the including view. The flag has to be
+// consumed by whoever actually renders the form: when only the homepage view
+// did it, a proposal sent from a book's page showed no confirmation at all and
+// the "thank you" surfaced later, on the donor's next unrelated visit to
+// /desiderata. Consuming it in the one file that can display it means a future
+// third surface cannot reintroduce that.
+$success = !empty($success) || !empty($_SESSION['desiderata_success']);
+unset($_SESSION['desiderata_success']);
 $returnTo = is_string($returnTo ?? null) ? $returnTo : '';
 $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '';
 // A proposal aimed at a specific request names that book, not a title the
