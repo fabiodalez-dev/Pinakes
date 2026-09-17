@@ -497,7 +497,17 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= __('es. 21x14 cm') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
           </div>
           
-          <?php Hooks::do('book.form.before_copies', [$book, $book['id'] ?? null]); ?>
+          <?php
+          // The id is cast, not passed through: handlers declare `?int $id`
+          // under strict_types and HookManager::doAction() swallows every
+          // \Throwable, so a numeric-STRING id would not raise an error — the
+          // handler would simply never run and its field would go missing with
+          // nothing in the page to say so. BookRepository::getById() returns a
+          // native int today (prepared statement + get_result), but a plain
+          // $db->query() on the same column yields a string, so the cast is
+          // what keeps that refactor from silently deleting a form field.
+          Hooks::do('book.form.before_copies', [$book, isset($book['id']) ? (int) $book['id'] : null]);
+          ?>
           <div class="form-grid-3">
             <div>
               <label for="copie_totali" class="form-label">
@@ -1028,7 +1038,8 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <?php
       // Plugin hook: Additional fields in book form (backend)
       $bookData = $mode === 'edit' ? ($libro ?? null) : null;
-      $bookId = $mode === 'edit' ? ($libro['id'] ?? null) : null;
+      // Cast for the same reason as book.form.before_copies above.
+      $bookId = $mode === 'edit' && isset($libro['id']) ? (int) $libro['id'] : null;
       \App\Support\Hooks::do('book.form.fields', [$bookData, $bookId]);
       ?>
 

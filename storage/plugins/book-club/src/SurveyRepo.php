@@ -36,6 +36,20 @@ class SurveyRepo
     // ------------------------------------------------------------------
 
     /**
+     * Public club pages are reachable without a session and render book_url()
+     * links, and the public book page answers 404 for a title the library only
+     * wants rather than holds. The predicate therefore goes on the JOIN
+     * condition over `libri`, next to deleted_at — never in the WHERE: an
+     * external proposal has no `libri` row at all and must keep rendering,
+     * which the existing "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)"
+     * guard already expresses.
+     */
+    private function catalogueOnly(string $alias = 'l'): string
+    {
+        return ' AND ' . \App\Support\BookVisibility::catalogue($this->db, $alias);
+    }
+
+    /**
      * @param array<int, mixed> $params
      * @return list<array<string, mixed>>
      */
@@ -154,16 +168,22 @@ class SurveyRepo
     // Surveys
     // ------------------------------------------------------------------
 
-    private const SURVEY_SELECT = "SELECT s.*, l.titolo AS book_title,
+    // A method and not a const: a const cannot call catalogueOnly(). LEFT JOIN
+    // so the predicate only empties book_title — surveyById() must keep
+    // resolving the survey, or answering and closing it would 404.
+    private function surveySelect(): string
+    {
+        return "SELECT s.*, l.titolo AS book_title,
                (SELECT COUNT(*) FROM bookclub_survey_answers a WHERE a.survey_id = s.id) AS answer_count
           FROM bookclub_surveys s
           LEFT JOIN bookclub_books cb ON cb.id = s.club_book_id
-          LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL";
+          LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly();
+    }
 
     /** @return list<array<string, mixed>> open first, then drafts, then closed */
     public function listSurveys(int $clubId, bool $includeDrafts): array
     {
-        $sql = self::SURVEY_SELECT . ' WHERE s.club_id = ?';
+        $sql = $this->surveySelect() . ' WHERE s.club_id = ?';
         if (!$includeDrafts) {
             $sql .= " AND s.status <> 'draft'";
         }
@@ -174,7 +194,7 @@ class SurveyRepo
     /** @return array<string, mixed>|null */
     public function surveyById(int $surveyId): ?array
     {
-        return $this->row(self::SURVEY_SELECT . ' WHERE s.id = ?', 'i', [$surveyId]);
+        return $this->row($this->surveySelect() . ' WHERE s.id = ?', 'i', [$surveyId]);
     }
 
     public function createSurvey(int $clubId, ?int $clubBookId, string $title, int $anonymous, ?string $opensAt, ?string $closesAt, ?int $createdBy): ?int
@@ -381,7 +401,7 @@ class SurveyRepo
         return $this->rows(
             'SELECT cb.id, l.titolo
                FROM bookclub_books cb
-               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL' . $this->catalogueOnly() . '
               WHERE cb.club_id = ?
               ORDER BY cb.updated_at DESC, cb.id DESC
               LIMIT 100',

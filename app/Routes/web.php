@@ -2239,11 +2239,16 @@ return function (App $app): void {
         return $controller->list($request, $response, $db);
     })->add(new AdminAuthMiddleware());
     // API Autori (server-side DataTables)
+    // Admin-only: this feed returns biografia, sito_web and the life dates,
+    // and it was the one registration in its block chaining no auth while its
+    // bulk-delete and bulk-export siblings did (CWE-306). Its only consumer is
+    // the /admin/authors DataTables — the book form's author picker is a
+    // different endpoint, /api/search/autori — so gating it costs no caller.
     $app->get('/api/autori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\AutoriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->list($request, $response, $db);
-    });
+    })->add(new AdminAuthMiddleware());
 
     // API Autori - Bulk Delete
     $app->post('/api/autori/bulk-delete', function ($request, $response) use ($app) {

@@ -230,21 +230,31 @@ document.querySelectorAll('.dw-receipt-search').forEach(root => {
   const pickNote=<?= json_encode(__('Seleziona il libro corrispondente prima di registrare la copia.'), JSON_HEX_TAG) ?>;
   const flaggedTag=<?= json_encode(__('richiesta aperta'), JSON_HEX_TAG) ?>;
   let timer, controller, revision=0;
-  const sync=() => {
+  // EVERY path writes the status line. Leaving it untouched when nothing is
+  // selected let the open-request warning outlive its selection: pick a
+  // flagged record, then reselect the empty placeholder, and the page went on
+  // announcing that a request would be closed by a form that had no record in
+  // it at all. `fallback` is what "nothing selected" should read — the caller
+  // that has just searched knows better than sync() does, because "no record
+  // found" and "a list waiting to be chosen from" are not the same silence.
+  const sync=(fallback) => {
     const option=select.selectedOptions[0];
     const flagged=!!option && option.dataset.desiderata==='1';
     if(receive) receive.setAttribute('onclick', flagged?flaggedAsk:genericAsk);
-    if(flagged) status.textContent=flaggedNote;
-    else if(option && option.value) status.textContent=pickNote;
+    status.textContent = flagged ? flaggedNote
+      : (option && option.value) ? pickNote
+      : (fallback ?? (select.options.length>1 ? pickNote : ''));
   };
-  select.addEventListener('change', sync);
+  // Wrapped, not passed by reference: as a listener sync() would receive the
+  // Event as its fallback and print "[object Event]" into the status line.
+  select.addEventListener('change', () => sync());
   // Run once: a select pre-filled from the proposal's ISBN starts with a
   // selection nobody changed, and without this the flagged-record warning and
   // its stricter confirmation would only appear if the operator touched it.
   sync();
   input.addEventListener('input', () => {
     clearTimeout(timer); controller?.abort(); const current=++revision;
-    select.replaceChildren(new Option(<?= json_encode(__('Cerca e seleziona una scheda'), JSON_HEX_TAG) ?>,'')); status.textContent=''; sync();
+    select.replaceChildren(new Option(<?= json_encode(__('Cerca e seleziona una scheda'), JSON_HEX_TAG) ?>,'')); sync('');
     if([...input.value.trim()].length<3) return;
     timer=setTimeout(async () => {
       controller=new AbortController();
@@ -257,8 +267,7 @@ document.querySelectorAll('.dw-receipt-search').forEach(root => {
           if(flagged) option.dataset.desiderata='1';
           select.add(option);
         });
-        status.textContent=books.length?pickNote:<?= json_encode(__('Nessuna scheda trovata. Crea prima il libro con zero copie.'), JSON_HEX_TAG) ?>;
-        sync();
+        sync(books.length?pickNote:<?= json_encode(__('Nessuna scheda trovata. Crea prima il libro con zero copie.'), JSON_HEX_TAG) ?>);
       } catch(error) { if(error.name!=='AbortError' && current===revision) status.textContent=<?= json_encode(__('Ricerca non riuscita. Riprova.'), JSON_HEX_TAG) ?>; }
     },250);
   });

@@ -291,16 +291,25 @@ class ExtensionsRepo
     // Buddy reading
     // ------------------------------------------------------------------
 
-    private const BUDDY_SELECT = "SELECT b.*, l.titolo AS book_title,
+    // A method and not a const for the same reason as sprintSelect(): a const
+    // cannot call catalogueOnly(), and without it a club book later flagged as
+    // a desiderata kept publishing its title to every member of the club.
+    //
+    // LEFT JOIN like sprintSelect(): neither a soft-deleted nor a wanted
+    // catalog book may make the pairing unresolvable (accept/decline/done
+    // would 404). The predicate therefore belongs on the JOIN, where it only
+    // empties book_title, and never in the WHERE, which would drop the row.
+    private function buddySelect(): string
+    {
+        return "SELECT b.*, l.titolo AS book_title,
                     TRIM(CONCAT(COALESCE(ua.nome, ''), ' ', COALESCE(ua.cognome, ''))) AS name_a,
                     TRIM(CONCAT(COALESCE(ub.nome, ''), ' ', COALESCE(ub.cognome, ''))) AS name_b
                FROM bookclub_buddies b
                JOIN bookclub_books cb ON cb.id = b.club_book_id
-               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
                LEFT JOIN utenti ua ON ua.id = b.user_a
                LEFT JOIN utenti ub ON ub.id = b.user_b";
-    // ^ LEFT JOIN like SPRINT_SELECT: a soft-deleted catalog book must not
-    //   make the pairing unresolvable (accept/decline/done would 404).
+    }
 
     /**
      * All pairings involving $userId in $clubId (both sides see them).
@@ -310,7 +319,7 @@ class ExtensionsRepo
     public function buddiesForUser(int $clubId, int $userId): array
     {
         return $this->rows(
-            self::BUDDY_SELECT . " WHERE b.club_id = ? AND (b.user_a = ? OR b.user_b = ?)
+            $this->buddySelect() . " WHERE b.club_id = ? AND (b.user_a = ? OR b.user_b = ?)
               ORDER BY FIELD(b.status, 'proposed', 'active', 'done'), b.created_at DESC",
             'iii',
             [$clubId, $userId, $userId]
@@ -320,7 +329,7 @@ class ExtensionsRepo
     /** @return array<string, mixed>|null */
     public function buddyById(int $buddyId): ?array
     {
-        return $this->row(self::BUDDY_SELECT . ' WHERE b.id = ?', 'i', [$buddyId]);
+        return $this->row($this->buddySelect() . ' WHERE b.id = ?', 'i', [$buddyId]);
     }
 
     public function buddyExists(int $clubId, int $clubBookId, int $userA, int $userB): bool

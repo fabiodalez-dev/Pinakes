@@ -830,6 +830,13 @@ $htmlLang = substr($currentLocale, 0, 2);
       return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    // Injected from PHP: both quick-search renderers (desktop in
+    // initializeGlobalSearch, mobile in initializeDropdowns) build their HTML by
+    // string concatenation, so the label arrives already escaped for a JS
+    // string. Declared here, at the shared script scope, precisely so there is
+    // ONE of it — inside either function the other renderer could not see it.
+    const WANTED_LABEL = <?= json_encode(__('Cercato dalla biblioteca'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
     // Locale-aware date formatting (matches PHP format_date helper)
     const appLocale = '<?= \App\Support\I18n::getLocale() ?>';
     function formatDateLocale(date, includeTime = false, separator = '/') {
@@ -877,9 +884,6 @@ $htmlLang = substr($currentLocale, 0, 2);
       const searchInput = document.getElementById('global-search');
       const resultsDiv = document.getElementById('global-search-results');
       let searchTimeout;
-      // Injected from PHP: the renderer below builds HTML by string
-      // concatenation, so the label arrives already escaped for a JS string.
-      const WANTED_LABEL = <?= json_encode(__('Cercato dalla biblioteca'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
       if (searchInput && resultsDiv) {
         // Hide placeholder on focus/blur
@@ -1223,6 +1227,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                       }
                       if (item.identifier) {
                         identifierHtml += `<div class="text-xs text-gray-500 mt-1">${escapeHtml(String(item.identifier))}</div>`;
+                      }
+                      if (item.wanted) {
+                        identifierHtml += '<div class="text-xs font-medium text-amber-700 mt-0.5">' + WANTED_LABEL + '</div>';
                       }
                       break;
                     case 'author':

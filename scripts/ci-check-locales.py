@@ -12,6 +12,7 @@ derives from.
 import json
 import re
 import sys
+from bisect import bisect_right
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,8 +37,80 @@ TRANSLATE_PLURAL_CALL = re.compile(
     r"\b__n\(\s*" + _STRING + r"\s*,\s*" + _STRING + r"\s*(?=[,)])"
 )
 # Docblocks document __() with example strings ("Welcome %s"); they are not
-# call sites and must not be demanded of the catalogue.
-COMMENT_LINE = re.compile(r"^\s*(?:\*|//|#|/\*)")
+# call sites and must not be demanded of the catalogue. Deciding that from the
+# start of the physical line missed two shapes — a trailing "$x = 1; // __('x')"
+# and the inner lines of a /* … */ block that do not open with "*" — so the
+# comment regions are lexed instead.
+#
+# The lexer is deliberately more than a "is there a // before me" test, because
+# the cheap version is wrong in the DANGEROUS direction: an href="https://…"
+# earlier on the same line would mark every later __() on it as commented out,
+# and a genuinely missing key would stop being reported. Strings, heredocs and
+# the HTML outside <?php … ?> therefore all have to be skipped properly.
+_PHP_OPEN = re.compile(r"<\?(?:php\b|=)?", re.IGNORECASE)
+_PHP_TOKEN = re.compile(r"""['"`]|//|\#|/\*|\?>|<<<""")
+_SQ_END = re.compile(r"(?:[^'\\]|\\.)*'", re.DOTALL)
+_DQ_END = re.compile(r'(?:[^"\\]|\\.)*"', re.DOTALL)
+_BT_END = re.compile(r"(?:[^`\\]|\\.)*`", re.DOTALL)
+_HEREDOC_START = re.compile(
+    r"<<<[ \t]*(?:'([A-Za-z_\x80-\xff][\w\x80-\xff]*)'"
+    r'|"?([A-Za-z_\x80-\xff][\w\x80-\xff]*)"?)\r?\n'
+)
+
+
+def comment_spans(text: str) -> list[tuple[int, int]]:
+    """Half-open [start, end) offsets of every PHP comment in one source file."""
+    spans: list[tuple[int, int]] = []
+    length = len(text)
+    pos = 0
+    in_php = False
+    while pos < length:
+        if not in_php:
+            opening = _PHP_OPEN.search(text, pos)
+            if opening is None:
+                break
+            pos, in_php = opening.end(), True
+            continue
+
+        token = _PHP_TOKEN.search(text, pos)
+        if token is None:
+            break
+        start, kind = token.start(), token.group()
+
+        if kind in ("'", '"', "`"):
+            closer = {"'": _SQ_END, '"': _DQ_END, "`": _BT_END}[kind]
+            end = closer.match(text, start + 1)
+            pos = end.end() if end else length
+        elif kind == "<<<":
+            heredoc = _HEREDOC_START.match(text, start)
+            if heredoc is None:
+                pos = start + 3
+                continue
+            label = heredoc.group(1) or heredoc.group(2)
+            terminator = re.compile(
+                r"^[ \t]*" + re.escape(label) + r"\b", re.MULTILINE
+            ).search(text, heredoc.end())
+            pos = terminator.end() if terminator else length
+        elif kind == "/*":
+            closing = text.find("*/", start + 2)
+            end = length if closing == -1 else closing + 2
+            spans.append((start, end))
+            pos = end
+        elif kind == "?>":
+            in_php = False
+            pos = start + 2
+        else:  # "//" or "#" — a line comment, unless it is a #[Attribute]
+            if kind == "#" and text.startswith("#[", start):
+                pos = start + 2
+                continue
+            newline = text.find("\n", start)
+            newline = length if newline == -1 else newline
+            # "?>" closes a line comment as surely as a newline does.
+            closing_tag = text.find("?>", start, newline)
+            end = newline if closing_tag == -1 else closing_tag
+            spans.append((start, end))
+            pos = end
+    return spans
 
 
 def _unescape(single: str | None, double: str | None) -> str:
@@ -64,13 +137,17 @@ def translatable_literals() -> dict[str, set[str]]:
             continue
         for path in sorted(base.rglob("*.php")):
             text = path.read_text(encoding="utf-8", errors="replace")
+            spans = comment_spans(text)
+            starts = [start for start, _ in spans]
             for pattern, groups in (
                 (TRANSLATE_CALL, ((1, 2),)),
                 (TRANSLATE_PLURAL_CALL, ((1, 2), (3, 4))),
             ):
                 for match in pattern.finditer(text):
-                    line_start = text.rfind("\n", 0, match.start()) + 1
-                    if COMMENT_LINE.match(text[line_start : match.start() + 1]):
+                    # The call sits in a comment when the nearest span opening
+                    # at or before it has not closed yet.
+                    index = bisect_right(starts, match.start()) - 1
+                    if index >= 0 and match.start() < spans[index][1]:
                         continue
                     for first, second in groups:
                         literal = _unescape(match.group(first), match.group(second))
