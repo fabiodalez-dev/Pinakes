@@ -347,6 +347,9 @@ jobs:
         run: |
           php tests/desiderata.integration.php
           php tests/desiderata-visibility.integration.php
+          php tests/desiderata-extended.integration.php
+          php tests/desiderata-recaptcha.unit.php
+          php tests/desiderata-core-hooks.unit.php
 
       - name: Shell test — bin/setup-permissions.sh
         run: bash tests/setup-permissions.test.sh

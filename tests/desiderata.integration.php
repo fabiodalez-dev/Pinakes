@@ -346,7 +346,23 @@ try {
     echo "$passed checks passed\n";
 } finally {
     $db->failReceipt=false; $db->failCopy=false;
+    // Swept by prefix, not only by the ids this run recorded: a run in which the
+    // code accepts something the suite expected it to refuse writes proposals
+    // nobody tracked, and an id-only cleanup leaves them sitting in the
+    // operator's real backlog. The notifications go too — offer() has notified
+    // the operators since the bell was wired, so every offer here left a row
+    // behind in admin_notifications that nothing removed.
     if($offerIds) $db->query('DELETE FROM desiderata_offers WHERE id IN ('.implode(',',$offerIds).')');
+    // ESCAPE is not decoration: the prefix contains an underscore, which LIKE
+    // treats as "any single character" — unescaped, DWTEST_abc also matches
+    // DWTESTXabc, and this statement deletes rows.
+    $esc = str_replace(['!','%','_'], ['!!','!%','!_'], $prefix);
+    $sweep = $db->prepare("DELETE FROM desiderata_offers WHERE title LIKE ? ESCAPE '!'");
+    $starts = $esc.'%'; $sweep->bind_param('s',$starts); $sweep->execute(); $sweep->close();
+    // The notification title reads "Nuova proposta di donazione: <titolo>", so
+    // the prefix sits in the middle rather than at the start.
+    $notes = $db->prepare("DELETE FROM admin_notifications WHERE title LIKE ? ESCAPE '!' OR message LIKE ? ESCAPE '!'");
+    $anywhere = '%'.$esc.'%'; $notes->bind_param('ss',$anywhere,$anywhere); $notes->execute(); $notes->close();
     if($ids) { $db->query('DELETE FROM copie WHERE libro_id IN ('.implode(',',$ids).')'); $db->query('DELETE FROM libri WHERE id IN ('.implode(',',$ids).')'); }
     App\Support\ContentCache::booksChanged();
 }
