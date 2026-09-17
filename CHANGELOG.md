@@ -2,7 +2,7 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [Unreleased]
+## [0.7.86]
 
 ### Added
 - Optional Desiderata plugin: library requests without physical copies, a homepage section that is reorderable, hideable and editable per locale from the CMS, public donations searchable by title, author, publisher or ISBN, a wanted badge in catalogue search, dashboard management, direct receipt, receipt history and operator notifications in each recipient's own language. A wanted title is findable by name and reachable by link, and stays out of catalogue browsing, feeds, the sitemap, the mobile API and the interop protocols. With the plugin off, every one of those surfaces behaves as it did before the feature existed.
