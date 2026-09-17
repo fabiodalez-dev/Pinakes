@@ -197,6 +197,10 @@ $fatalError = null;
 // independently and their failures accumulate here, to be reported after the
 // primary result rather than instead of it.
 $cleanupErrors = [];
+// Set when this run had to create email/from_email because the installation
+// did not have one; declared here so the finally can see it even if the run
+// dies before the line that sets it.
+$seededFromEmail = false;
 $sandbox = null;
 
 try {
@@ -286,8 +290,25 @@ try {
     // ConfigStore has to be REACHING the database, not answering from the
     // shipped defaults: T17 reads the mail driver through it, and a suite that
     // silently ran on defaults would be describing a different installation.
+    // The row is created when it is missing rather than required to be there.
+    // A fresh installation — every CI runner is one — has no email/from_email
+    // yet, and demanding it made this assert a property of the DEVELOPER's
+    // database instead of a property of ConfigStore. What has to be proven is
+    // the round trip: a value written to system_settings is what ConfigStore
+    // answers, so the suite is reaching the database and not the shipped
+    // defaults (which is exactly what an empty $_ENV would silently cause).
     $knownRow = $db->query("SELECT setting_value FROM system_settings WHERE category = 'email' AND setting_key = 'from_email' LIMIT 1")->fetch_assoc();
-    $must($knownRow !== null, 'the installation has an email/from_email setting to verify ConfigStore against');
+    $seededFromEmail = false;
+    if ($knownRow === null) {
+        $probeAddress = strtolower($prefix) . '@example.invalid';
+        $stmt = $db->prepare("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('email', 'from_email', ?)");
+        $stmt->bind_param('s', $probeAddress);
+        $stmt->execute();
+        $stmt->close();
+        $seededFromEmail = true;
+        $knownRow = ['setting_value' => $probeAddress];
+        ConfigStore::clearCache();
+    }
     $must(
         (string) ConfigStore::get('mail.from_email', '') === (string) $knownRow['setting_value'],
         'ConfigStore reads the database (copy .env into $_ENV before touching it)'
@@ -842,6 +863,9 @@ try {
         $sweep('DELETE FROM copie WHERE libro_id IN (' . $list . ')');
         $sweep("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (" . $list . ')');
         $sweep('DELETE FROM libri WHERE id IN (' . $list . ')');
+    }
+    if ($seededFromEmail) {
+        $sweep("DELETE FROM system_settings WHERE category = 'email' AND setting_key = 'from_email'");
     }
     if ($publisherIds !== []) {
         $sweep('DELETE FROM editori WHERE id IN (' . implode(',', $publisherIds) . ')');
