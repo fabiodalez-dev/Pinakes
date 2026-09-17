@@ -250,6 +250,10 @@ jobs:
           for f in storage/plugins/*/plugin.json; do
             [ -f "$f" ] || continue
             plugin_name="$(basename "$(dirname "$f")")"
+            # The single quotes below are load-bearing: $m is a PHP variable and
+            # must reach php unexpanded. The manifest path travels through the
+            # environment (getenv), so nothing here needs shell interpolation.
+            # shellcheck disable=SC2016
             REQ=$(MANIFEST="$f" php -r '
               $m = json_decode((string)file_get_contents(getenv("MANIFEST")), true);
               echo is_array($m) && isset($m["requires_app"]) ? (string)$m["requires_app"] : "";
