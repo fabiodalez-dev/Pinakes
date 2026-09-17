@@ -421,7 +421,14 @@ test('T14 — wanted book page: reachable, badged, no loan actions, pre-bound do
     const refused = evil.waitForResponse(response => response.request().method() === 'POST' && response.url().includes('/desiderata/offers'));
     await evil.getByRole('button', { name: 'Invia la proposta', exact: true }).click();
     const location = (await refused).headers()['location'];
-    expect(location, 'an off-site return_to must be ignored, not followed').toBe('/desiderata#donation-form');
+    // Asserted as the exact string rather than "does not contain evil.example":
+    // the point is that the refused value is replaced by the local fallback, and
+    // a containment check would also pass on a Location this test never
+    // anticipated. The `?inviata=1` is the thank-you marker the redirect now
+    // carries so the banner does not depend on a session the page may not have
+    // (DesiderataPlugin::thankYouUrl).
+    expect(location, 'an off-site return_to must be ignored, not followed').toBe('/desiderata?inviata=1#donation-form');
+    expect(location, 'and nothing of the attacker-supplied host may survive').not.toContain('evil.example');
     await expect.poll(() => new URL(evil.url()).host, { message: 'and the browser must stay on this host' }).toBe(new URL(BASE_URL).host);
   } finally {
     await evilContext.close();
@@ -443,20 +450,24 @@ test('T14 — wanted book page: reachable, badged, no loan actions, pre-bound do
   await page.getByRole('button', { name: 'Invia la proposta', exact: true }).click();
   const sent = await accepted;
   expect(sent.status(), 'the proposal must be accepted').toBe(303);
-  expect(sent.headers()['location'], 'and send the donor back to this book, at the form').toBe(`${book.path}#donation-form`);
+  const landing = `${book.path}?inviata=1#donation-form`;
+  expect(sent.headers()['location'], 'and send the donor back to this book, at the form').toBe(landing);
   // Polled rather than read once: the fragment lands a beat after the
   // navigation commits, and reading page.url() at that instant misses it.
-  await expect.poll(() => page.url(), { message: 'the browser must follow it' }).toBe(`${BASE_URL}${book.path}#donation-form`);
-  // The plan also expected the "Grazie!" confirmation here, and it is NOT
-  // asserted on purpose: today the book page cannot show it. `views/public.php`
-  // reads and clears $_SESSION['desiderata_success'] before it includes the
-  // form partial; `views/book-detail.php` (and DesiderataPlugin::bookDetail())
-  // never do, so the donor lands back on the book with no acknowledgement at
-  // all and the flag stays in the session until their next visit to
-  // /desiderata, where a thank-you appears for something they sent elsewhere.
-  // Measured, both halves. Asserting either the silence or the stale banner
-  // would freeze the defect into the suite, so this test proves the parts that
-  // will hold before and after the one-line fix, and the gap is reported.
+  await expect.poll(() => page.url(), { message: 'the browser must follow it' }).toBe(`${BASE_URL}${landing}`);
+  // This assertion used to be absent, and the comment in its place explained
+  // why: the book page could not show the confirmation. views/public.php read
+  // and cleared $_SESSION['desiderata_success'] before including the form,
+  // while views/book-detail.php never did — so a donor who offered from a book
+  // page landed back on it with no acknowledgement at all, and the flash sat in
+  // the session until their next visit to /desiderata, where a thank-you
+  // appeared for something they had sent somewhere else.
+  //
+  // Carrying the marker in the redirect closed both halves at once: the
+  // confirmation is where the donor actually is, and there is no flash left
+  // over to surface later on an unrelated page.
+  await expect(page.getByRole('status').filter({ hasText: 'Grazie!' }),
+    'and the donor is thanked ON THE BOOK PAGE, which was silent before').toBeVisible();
 
   const state = fixture('state-extended');
   const mine = state.offers.filter(offer => offer.donor_name === 'Donatore T14');
