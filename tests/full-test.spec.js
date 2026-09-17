@@ -2544,7 +2544,18 @@ test.describe.serial('Phase 15: User Reservation & Approval', () => {
     if (await pickupBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await pickupBtn.click();
       await adminPage.waitForSelector('.swal2-popup', { timeout: 10000 });
+      // Waited on the RESPONSE, not on a popup going away: the handler closes
+      // the confirm dialog, awaits the fetch and only then opens the success
+      // one, so between the two there is an instant with no .swal2-popup in the
+      // document and "or no popup" is already true while the POST is still in
+      // flight. See tests/loan-reservation.spec.js for where this bit.
+      const pickupResponsePromise = adminPage.waitForResponse(
+        r => r.url().includes('/admin/loans/confirm-pickup') && r.request().method() === 'POST',
+        { timeout: 30000 },
+      );
       await adminPage.locator('.swal2-confirm').click();
+      const pickupResponse = await pickupResponsePromise;
+      expect(pickupResponse.ok(), `confirm-pickup HTTP ${pickupResponse.status()}`).toBe(true);
       await adminPage.waitForFunction(
         () => !!document.querySelector('.swal2-icon-success') || !document.querySelector('.swal2-popup'),
         { timeout: 30000 },

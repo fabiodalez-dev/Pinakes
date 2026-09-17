@@ -309,6 +309,26 @@ table {
     border-color: var(--color-gray-400);
   }
 
+  /* A disabled field has to LOOK disabled. Without this it kept the white
+     background and the hover border of an editable one, so the only sign was
+     that typing did nothing — which reads as a broken page rather than as a
+     field the form is deliberately holding. The desiderata checkbox is where it
+     showed: ticking it locks the copies to zero, and the locked field looked
+     exactly like the one next to it.
+     :disabled and [readonly] together, because the two say the same thing to a
+     reader even though only one of them also stops the value being submitted. */
+  .form-input:disabled,
+  .form-input[readonly] {
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-500);
+    cursor: not-allowed;
+  }
+
+  .form-input:disabled:hover,
+  .form-input[readonly]:hover {
+    border-color: var(--color-gray-300);
+  }
+
   select.form-input {
     @apply pr-10;
   }
