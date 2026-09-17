@@ -457,7 +457,19 @@ try {
     // hook, not the route. Both roles are rendered: the admin render is the
     // control that proves the panel is wired at all, without which the patron
     // assertion would pass on a plugin that renders nothing for anybody.
-    Hooks::init(new HookManager($db));
+    // The handler is registered HERE rather than read out of plugin_hooks.
+    // Loading the registry from the database would make this check assert a
+    // property of whatever installation it runs against: on a developer machine
+    // with the plugin switched on the panel appears and the check passes, while
+    // on a clean CI schema the plugin is registered INACTIVE (it is optional),
+    // no hook rows exist, and the same code fails for a reason that has nothing
+    // to do with the code. setPluginsLoadedRuntime() keeps the manager from
+    // consulting the database at all, so what is under test is the plugin's own
+    // handler and the operator gate inside it.
+    $wiredHooks = new HookManager($db);
+    $wiredHooks->setPluginsLoadedRuntime();
+    Hooks::init($wiredHooks);
+    Hooks::add('admin.dashboard.sections', static fn(): mixed => $plugin->dashboard());
     $dashboard = new \App\Controllers\DashboardController();
     $renderDashboard = static function (string $role) use ($dashboard, $factory, $db): string {
         $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => $role, 'nome' => 'Test', 'cognome' => 'Operator']];
