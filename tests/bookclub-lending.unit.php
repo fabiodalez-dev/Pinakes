@@ -357,7 +357,14 @@ if ($db->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'")->num_rows > 0) {
     check($repo->requestLoan($wantedOffer, $U2), 'R13: member can request the wanted title');
     check(!$repo->requestLoan($wantedOffer, $U3), 'R14: second borrower cannot steal the wanted loan');
     check(count(array_filter($repo->myBorrowings($CLUB, $U2), fn($l) => (int)$l['id'] === $wantedOffer && !empty($l['titolo']))) === 1, 'R15: borrower sees wanted title in their history');
-    check($repo->declineRequest($wantedOffer) && $repo->loanById($wantedOffer)['borrower_id'] === null, 'R16: declining wanted loan clears borrower');
+    // The row is fetched into a variable and asserted to EXIST before its
+    // borrower is read. loanById() returns ?array, and null['borrower_id'] is
+    // itself null — so written inline this check would pass just as happily on a
+    // decline that DELETED the loan as on one that cleared its borrower, which
+    // is the opposite outcome. Reported by CodeRabbit on this PR.
+    $declined = $repo->declineRequest($wantedOffer);
+    $declinedLoan = $declined ? $repo->loanById($wantedOffer) : null;
+    check($declinedLoan !== null && $declinedLoan['borrower_id'] === null, 'R16: declining wanted loan clears borrower, and keeps it');
     $repo->requestLoan($wantedOffer, $U3);
     check($repo->handOver($wantedOffer, '2099-12-31'), 'R17: wanted copy can be handed over');
     check(!$repo->cancel($wantedOffer), 'R18: active wanted loan cannot be cancelled');
