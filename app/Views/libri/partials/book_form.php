@@ -3588,10 +3588,37 @@ function initializeFormValidation() {
 
         // Show confirmation dialog
         const confirmTitle = FORM_MODE === 'edit' ? __('Conferma Aggiornamento') : __('Conferma Salvataggio');
-        const confirmText = FORM_MODE === 'edit'
+        let confirmText = FORM_MODE === 'edit'
             ? __('Vuoi aggiornare il libro "%s"?').replace('%s', title)
             : __('Sei sicuro di voler salvare il libro "%s"?').replace('%s', title);
         const confirmButton = FORM_MODE === 'edit' ? __('Sì, Aggiorna') : __('Sì, Salva');
+
+        // A plugin that injects a field into this form may need to say what
+        // saving will actually DO, because the generic question above cannot:
+        // it only names the book. The desiderata plugin uses this to warn that
+        // clearing its checkbox creates real inventory copies — a consequence
+        // the operator should meet before confirming, not discover afterwards.
+        // Each note returns a string or nothing, and one that throws is skipped
+        // rather than allowed to take the save down with it.
+        window.bookFormConfirmNotes = window.bookFormConfirmNotes || [];
+        const extraNotes = window.bookFormConfirmNotes
+            .map(function (note) {
+                try {
+                    return typeof note === 'function' ? (note() || '') : '';
+                } catch (error) {
+                    console.error('book form confirm note failed', error);
+                    return '';
+                }
+            })
+            .filter(function (note) { return typeof note === 'string' && note !== ''; });
+        // Joined with spaces into one paragraph rather than with newlines:
+        // whether SweetAlert honours a line break in `text` depends on the
+        // white-space rule its stylesheet happens to carry, and a warning that
+        // renders as one run-on line in some builds is still read, while one
+        // that depends on a style we do not control may not be.
+        if (extraNotes.length) {
+            confirmText += ' ' + extraNotes.join(' ');
+        }
 
         const result = await Swal.fire({
             title: confirmTitle,

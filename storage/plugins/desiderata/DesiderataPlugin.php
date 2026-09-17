@@ -1022,10 +1022,26 @@ class DesiderataPlugin
      * protocol-relative `//evil.example` (which a browser reads as another
      * host), never a backslash variant of it, never a header-splitting CR/LF.
      * Everything else falls back to the desiderata page.
+     *
+     * A control byte anywhere in the value refuses it outright, and that is the
+     * half a pattern alone gets wrong. A browser REMOVES tab, LF and CR from a
+     * URL wherever they appear — not merely at the edges — before it parses it
+     * (WHATWG URL Standard, "URL parsing"). Matching the raw string therefore
+     * judges something the browser will never see: "/\t\evil.example" contains
+     * no "/\" pair and passes a pattern looking for one, yet the browser reads
+     * it as "/\evil.example", a network-path reference to the host the attacker
+     * named. No legitimate return path carries such a byte, so the whole class
+     * is refused rather than stripped — stripping would leave two forms of the
+     * same value, the one sent and the one rewritten, and every later reader
+     * would have to reason about both.
      */
     private static function returnPath(mixed $raw): string
     {
-        return is_string($raw) && preg_match('#^/(?![/\\\\])[^\r\n]{0,254}$#D', $raw) === 1 ? $raw : '';
+        if (!is_string($raw) || preg_match('/[\x00-\x1F\x7F]/', $raw) === 1) {
+            return '';
+        }
+
+        return preg_match('#^/(?![/\\\\])[^\r\n]{0,254}$#D', $raw) === 1 ? $raw : '';
     }
     /**
      * A reader has offered a book: tell the operators.
@@ -1222,7 +1238,13 @@ class DesiderataPlugin
         $offerId = 0;
         $this->db->begin_transaction();
         try {
-            $stmt = $this->db->prepare('SELECT titolo FROM libri WHERE id = ? AND deleted_at IS NULL AND is_desiderata = 1 FOR UPDATE');
+            // The NOT EXISTS clause is the same one registerCopies() and offer()
+            // lock on, and it is not redundant with is_desiderata = 1: a row can
+            // be BOTH flagged and already holding copies. That is precisely the
+            // inconsistency DataIntegrity exists to repair, and without this
+            // clause a receipt recorded in that window would answer it by
+            // creating a SECOND inventory copy rather than refusing.
+            $stmt = $this->db->prepare('SELECT titolo FROM libri l WHERE id = ? AND deleted_at IS NULL AND is_desiderata = 1 AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = l.id) FOR UPDATE');
             if ($stmt === false) { throw new RuntimeException($this->db->error); }
             $stmt->bind_param('i', $bookId);
             $stmt->execute();

@@ -28,20 +28,6 @@ class ExtensionsRepo
     // ------------------------------------------------------------------
 
     /**
-     * Public club pages are reachable without a session and render book_url()
-     * links, and the public book page answers 404 for a title the library only
-     * wants rather than holds. The predicate therefore goes on the JOIN
-     * condition over `libri`, next to deleted_at — never in the WHERE: an
-     * external proposal has no `libri` row at all and must keep rendering,
-     * which the existing "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)"
-     * guard already expresses.
-     */
-    private function catalogueOnly(string $alias = 'l'): string
-    {
-        return ' AND ' . \App\Support\BookVisibility::catalogue($this->db, $alias);
-    }
-
-    /**
      * @param array<int, mixed> $params
      * @return list<array<string, mixed>>
      */
@@ -106,7 +92,7 @@ class ExtensionsRepo
                     (SELECT COUNT(*) FROM bookclub_sprint_participants p WHERE p.sprint_id = s.id) AS participant_count
                FROM bookclub_sprints s
                LEFT JOIN bookclub_books cb ON cb.id = s.club_book_id
-               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN utenti u ON u.id = s.created_by"; }
 
     /**
@@ -291,14 +277,10 @@ class ExtensionsRepo
     // Buddy reading
     // ------------------------------------------------------------------
 
-    // A method and not a const for the same reason as sprintSelect(): a const
-    // cannot call catalogueOnly(), and without it a club book later flagged as
-    // a desiderata kept publishing its title to every member of the club.
-    //
-    // LEFT JOIN like sprintSelect(): neither a soft-deleted nor a wanted
-    // catalog book may make the pairing unresolvable (accept/decline/done
-    // would 404). The predicate therefore belongs on the JOIN, where it only
-    // empties book_title, and never in the WHERE, which would drop the row.
+    // LEFT JOIN like sprintSelect(): a soft-deleted catalogue book may empty
+    // book_title, but must never make the pairing unresolvable — accept,
+    // decline and done would all 404. See Repo::bookSelect() for why no
+    // desiderata predicate belongs on this join either.
     private function buddySelect(): string
     {
         return "SELECT b.*, l.titolo AS book_title,
@@ -306,7 +288,7 @@ class ExtensionsRepo
                     TRIM(CONCAT(COALESCE(ub.nome, ''), ' ', COALESCE(ub.cognome, ''))) AS name_b
                FROM bookclub_buddies b
                JOIN bookclub_books cb ON cb.id = b.club_book_id
-               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN utenti ua ON ua.id = b.user_a
                LEFT JOIN utenti ub ON ub.id = b.user_b";
     }
@@ -399,7 +381,7 @@ class ExtensionsRepo
         return $this->rows(
             "SELECT cb.id, cb.state, l.titolo
                FROM bookclub_books cb
-               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
               WHERE cb.club_id = ? AND cb.state IN ($placeholders)
               ORDER BY cb.position ASC, cb.updated_at DESC",
             $types,

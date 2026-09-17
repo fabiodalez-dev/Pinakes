@@ -85,5 +85,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
   flag.addEventListener('change', sync); sync();
+
+  // The core save dialog only asks "update the book X?", which says nothing
+  // about the one consequence here that cannot be undone from the same screen:
+  // clearing this box turns the request into a holding and writes real copies
+  // into the inventory, each with an allocated inventory number. The receipt
+  // actions in the desiderata admin already warn before acting; this makes the
+  // book form say the same thing at the same moment, through the extension
+  // point the core form exposes rather than by teaching the core form what a
+  // desiderata is.
+  const notices = <?= json_encode([
+      'received' => __('Togliendo la spunta Desiderata viene creata una copia fisica in inventario e la richiesta si chiude.'),
+      'receivedMany' => __('Togliendo la spunta Desiderata vengono create %s copie fisiche in inventario e la richiesta si chiude.'),
+  ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  window.bookFormConfirmNotes = window.bookFormConfirmNotes || [];
+  window.bookFormConfirmNotes.push(() => {
+    // Only when the operator is actually closing a request: the box started
+    // ticked and is now clear. A disabled box is a book that already has
+    // copies, where nothing is created.
+    if (!receive || flag.disabled || flag.checked) return '';
+    const wanted = document.getElementById('desiderata_copies');
+    const count = Math.max(1, parseInt(wanted && wanted.value, 10) || 1);
+    return count === 1 ? notices.received : notices.receivedMany.replace('%s', String(count));
+  });
 });
 </script>

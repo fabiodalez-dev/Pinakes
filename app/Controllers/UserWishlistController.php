@@ -101,8 +101,30 @@ final class UserWishlistController
 
         // SECURITY: Fix race condition using atomic DELETE + affected_rows check
         // First attempt to delete - if affected_rows > 0, item existed and was removed
-        $stmt = $db->prepare('DELETE FROM wishlist WHERE utente_id=? AND libro_id=?');
-        $stmt->bind_param('ii', $uid, $libroId);
+        //
+        // The DELETE is scoped to what the reader can actually SEE, which is
+        // the only thing that makes a toggle safe. status() and list() hide a
+        // favourite whose book has since been flagged as a request, so the heart
+        // renders empty and the reader's intent when clicking it is ADD — while
+        // an unscoped DELETE would read the very same click as REMOVE and
+        // destroy the hidden row for good. Scoping it means nothing is removed,
+        // the insert path below runs, and that path answers "not found" for a
+        // book the library does not hold: the click does nothing, and the
+        // favourite comes back on its own once the donation arrives and the
+        // flag clears.
+        //
+        // The mobile twin at mobile-api ActionsController::removeFavourite()
+        // deliberately stays unscoped: it is an explicit remove, not a toggle,
+        // so deleting is what the caller asked for either way.
+        $stmt = $db->prepare(
+            'DELETE FROM wishlist
+              WHERE utente_id = ? AND libro_id = ?
+                AND EXISTS (SELECT 1 FROM libri l
+                             WHERE l.id = ?
+                               AND l.deleted_at IS NULL
+                               AND ' . \App\Support\BookVisibility::catalogue($db, 'l') . ')'
+        );
+        $stmt->bind_param('iii', $uid, $libroId, $libroId);
         $stmt->execute();
         $deleted = $stmt->affected_rows > 0;
         $stmt->close();

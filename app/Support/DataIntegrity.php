@@ -444,7 +444,20 @@ class DataIntegrity {
             // owns copies would come back flagged, i.e. permanently invisible in
             // the public catalogue.
             if (BookVisibility::hasDesiderata($this->db)) {
+                // Guarded like the table-wide sibling in
+                // recalculateAllBookAvailability(). prepare() normally THROWS
+                // under this app's mysqli reporting, so the false branch is the
+                // narrow one — it needs reporting to be disarmed, which is what
+                // BackupManager does around an import. But bind_param() on false
+                // is a TypeError, and the one raised there would read as a PHP
+                // fault rather than the database failure it is. Raising it
+                // deliberately routes it into this method's own catch, which
+                // already knows whether to roll back or hand the failure to the
+                // caller that owns the transaction.
                 $request = $this->db->prepare('UPDATE libri SET is_desiderata=0 WHERE id=? AND is_desiderata=1 AND EXISTS (SELECT 1 FROM copie WHERE libro_id=?)');
+                if ($request === false) {
+                    throw new \RuntimeException('desiderata flag clear failed to prepare: ' . $this->db->error);
+                }
                 $request->bind_param('ii', $bookId, $bookId);
                 $request->execute();
                 $request->close();

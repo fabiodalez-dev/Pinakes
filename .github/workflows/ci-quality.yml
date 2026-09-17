@@ -356,6 +356,10 @@ jobs:
           php tests/desiderata-extended.integration.php
           php tests/desiderata-recaptcha.unit.php
           php tests/desiderata-core-hooks.unit.php
+          # desiderata-return-path, desiderata-bookclub-resolvable and
+          # desiderata-search-facets are NOT listed here: they are *.unit.php
+          # and the "PHP unit tests" step above already globs them. Naming them
+          # again would run each one twice.
           # Run after plugin schema setup so the cross-plugin cases cannot skip.
           REQUIRE_DESIDERATA_TESTS=1 php tests/bookclub-lending.unit.php
 

@@ -607,13 +607,23 @@ class CmsController
         // successful save having written nothing: handlers catch their own.
         // The guards below keep a misbehaving handler (wrong type, non-string
         // entries) from breaking the page instead of just its own section.
+        // Snapshotted BEFORE the filter runs, because the two kinds of error
+        // that come out of it describe two different outcomes on disk, and the
+        // message has to tell them apart. Core validation happens above, before
+        // the first write; an error there really does mean nothing was saved.
+        // A handler's error does not: by the time the filter is reached every
+        // core section has already been written, so claiming otherwise sends
+        // the operator back to re-enter edits that are in fact persisted, and —
+        // worse — to disbelieve a visibility switch that did take effect.
+        $errorsBeforeHandlers = $errors;
+
         $filtered = \App\Support\Hooks::apply('cms.home.save', $errors, [$data]);
         if (is_array($filtered)) {
             $errors = array_values(array_filter($filtered, 'is_string'));
         }
 
         if (!empty($errors)) {
-            // Every section above is written only `if (... && empty($errors))`,
+            // Every core section above is written only `if (... && empty($errors))`,
             // so one invalid field discards the whole submission — including
             // edits to sections that have nothing to do with it. The message
             // used to name the offending field and stop there, which reads as
@@ -624,7 +634,9 @@ class CmsController
             // each error and joined them with <br>, and the view escapes what it
             // is given, so a submission with two problems rendered them as
             // "first<br>second" with the tag visible in the middle.
-            $_SESSION['error_message'] = __('Nessuna modifica è stata salvata: correggi quanto segue e salva di nuovo.')
+            $_SESSION['error_message'] = ($errorsBeforeHandlers === []
+                ? __('Le sezioni principali sono state salvate, ma una sezione aggiuntiva ha segnalato un problema:')
+                : __('Nessuna modifica è stata salvata: correggi quanto segue e salva di nuovo.'))
                 . ' ' . implode(' · ', $errors);
         } else {
             \App\Support\ContentCache::homeContentChanged();

@@ -1426,11 +1426,17 @@ class FrontendController
         //   - "prestato"   → on loan: a copy is actually checked out (l.stato)
         // Books with copies all out of circulation (l.stato = 'non_disponibile')
         // and empty records belong to none of the three — they show only under "All".
-        if ($filters['disponibilita'] === 'disponibile') {
+        // Read defensively, like every other filter above it: catalog() always
+        // supplies this key, but the method is reachable from callers that
+        // build their own filter array, and an unguarded read there is an
+        // undefined-index warning rather than the "no availability filter" the
+        // absent key plainly means.
+        $availability = $filters['disponibilita'] ?? '';
+        if ($availability === 'disponibile') {
             $conditions[] = "l.copie_disponibili > 0";
-        } elseif ($filters['disponibilita'] === 'prenotato') {
+        } elseif ($availability === 'prenotato') {
             $conditions[] = "l.stato = 'prenotato'";
-        } elseif ($filters['disponibilita'] === 'prestato') {
+        } elseif ($availability === 'prestato') {
             $conditions[] = "l.stato = 'prestato'";
         }
 
@@ -1610,6 +1616,17 @@ private function hasBoundedCatalogCacheKey(array $filters): bool
 
 private function computeFilterOptions(mysqli $db, array $filters = []): array
 {
+    // The SAME rule catalog() applies to the grid, for the same reason: a
+    // search may reach a book the library wants and does not own, so the facet
+    // counts beside those results have to be counting the same population.
+    // Computing it here rather than taking it as an argument keeps the one
+    // rule in one expression — a second copy is how the two drifted apart in
+    // the first place, showing a wanted title in the grid that every facet
+    // then denied, and that vanished the moment a facet was clicked.
+    $visibility = trim((string) ($filters['search'] ?? '')) !== ''
+        ? \App\Support\BookVisibility::discoverable($db, 'l')
+        : \App\Support\BookVisibility::catalogue($db, 'l');
+
     $options = [];
     // ---------- Generi ----------
     // Build filter conditions excluding the current 'genere' filter
@@ -1638,7 +1655,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                    LEFT JOIN generi gfp ON gf.parent_id = gfp.id
                    LEFT JOIN generi gfpp ON gfp.parent_id = gfpp.id
                    LEFT JOIN generi sg ON l.sottogenere_id = sg.id
-                   WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+                   WHERE l.deleted_at IS NULL AND " . $visibility . "
                    AND (
                        l.genere_id = g.id
                        OR l.sottogenere_id = g.id
@@ -1652,16 +1669,16 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         FROM (
             -- Select all genres that have books via genere_id or sottogenere_id
             SELECT DISTINCT g.id FROM generi g
-            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . $visibility . "
             UNION
             SELECT DISTINCT gp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
-            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . $visibility . "
             UNION
             SELECT DISTINCT gpp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
             JOIN generi gpp ON gp.parent_id = gpp.id
-            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . $visibility . "
         ) as genre_ids
         JOIN generi g ON genre_ids.id = g.id
         ORDER BY g.parent_id, g.nome
@@ -1706,7 +1723,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         SELECT e.nome, COUNT(DISTINCT l.id) AS cnt
         FROM editori e
         JOIN libri l ON (e.id = l.editore_id{$facetExists})
-                        AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+                        AND l.deleted_at IS NULL AND " . $visibility . "
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
@@ -1748,7 +1765,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
         LEFT JOIN generi sg ON l.sottogenere_id = sg.id
-        WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+        WHERE l.deleted_at IS NULL AND " . $visibility . "
     ";
     if (!empty($conditionsAvail)) {
         // Keep all conditions except availability filter (which is excluded via filtersForAvailability)
@@ -1802,7 +1819,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         SELECT a.id, " . \App\Support\AuthorName::displaySql('a') . " AS nome, COUNT(DISTINCT l.id) AS cnt
         FROM autori a
         JOIN libri_autori la ON la.autore_id = a.id
-        JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+        JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL AND " . $visibility . "
         {$facetJoins}
         WHERE la.ruolo IN ('principale', 'co-autore')
     ";
@@ -1831,7 +1848,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             SELECT l.tipo_media AS value, COUNT(DISTINCT l.id) AS cnt
             FROM libri l
             {$facetJoins}
-            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND l.tipo_media IS NOT NULL AND l.tipo_media <> ''
+            WHERE l.deleted_at IS NULL AND " . $visibility . " AND l.tipo_media IS NOT NULL AND l.tipo_media <> ''
         ";
         if (!empty($whereMt['conditions'])) {
             $queryMt .= " AND " . implode(' AND ', $whereMt['conditions']);
@@ -1865,7 +1882,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                COUNT(DISTINCT l.anno_pubblicazione) AS ydistinct
         FROM libri l
         {$facetJoins}
-        WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND l.anno_pubblicazione > 0
+        WHERE l.deleted_at IS NULL AND " . $visibility . " AND l.anno_pubblicazione > 0
     ";
     if (!empty($whereAn['conditions'])) {
         $queryAnno .= " AND " . implode(' AND ', $whereAn['conditions']);

@@ -48,18 +48,24 @@ class Repo
     }
 
     /**
-     * Public club pages are reachable without a session and render book_url()
-     * links, and the public book page answers 404 for a title the library only
-     * wants rather than holds. The predicate therefore goes on the JOIN
-     * condition over `libri`, next to deleted_at — never in the WHERE: an
-     * external proposal has no `libri` row at all and must keep rendering,
-     * which the existing "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)"
-     * guard already expresses.
+     * A club's reading list deliberately does NOT hide a book the library has
+     * flagged as wanted rather than held.
+     *
+     * The filter that used to live here put `is_desiderata = 0` on the JOIN
+     * condition over `libri`, which cannot express "blank the title, keep the
+     * row": on a LEFT JOIN it nulls the whole `l.*` projection, and the
+     * "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)" guard below —
+     * written to hide a DELETED book — then read that as a missing row and
+     * dropped the entry, so clubBook() answered null and every route keyed on
+     * it 404d. On the sibling repositories' INNER JOINs the row simply vanished.
+     *
+     * Nor was there anything to protect: `/desiderata` is registered without
+     * auth middleware and publishes the whole wish list — titles, authors,
+     * publishers, covers — to anonymous visitors by design. A club showing the
+     * title of a book its members chose to read discloses nothing that feature
+     * does not already publish itself, and the members still need to see what
+     * they are reading.
      */
-    private function catalogueOnly(string $alias = 'l'): string
-    {
-        return ' AND ' . \App\Support\BookVisibility::catalogue($this->db, $alias);
-    }
 
     /**
      * @param array<int, mixed> $params
@@ -785,7 +791,7 @@ class Repo
                        ext.isbn AS external_isbn,
                        up.nome AS proposer_nome, up.cognome AS proposer_cognome
                   FROM bookclub_books cb
-                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
+                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                   LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
                   LEFT JOIN utenti up ON up.id = cb.proposed_by"; }
 
@@ -1439,7 +1445,7 @@ class Repo
                FROM bookclub_books cb
                LEFT JOIN bookclub_poll_options o ON o.club_book_id = cb.id
                LEFT JOIN bookclub_polls p ON p.id = o.poll_id AND p.club_id = ? AND p.status = 'closed'
-               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
               WHERE cb.club_id = ?
                 AND cb.state = ?
@@ -1483,7 +1489,7 @@ class Repo
                     COUNT(v.id) AS vote_count
                FROM bookclub_poll_options o
                JOIN bookclub_books cb ON cb.id = o.club_book_id
-               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
                LEFT JOIN bookclub_votes v ON v.option_id = o.id
               WHERE o.poll_id = ?
@@ -1618,7 +1624,7 @@ class Repo
                        (SELECT COUNT(*) FROM bookclub_meeting_rsvps r WHERE r.meeting_id = mt.id AND r.response = 'maybe') AS maybe_count
                   FROM bookclub_meetings mt
                   LEFT JOIN bookclub_books cb ON cb.id = mt.club_book_id
-                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $this->catalogueOnly() . "
+                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                   LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id"; }
 
     /** @return list<array<string, mixed>> */
