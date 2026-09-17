@@ -2,6 +2,17 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [Unreleased]
+
+### Added
+- Optional Desiderata plugin: library requests without physical copies, a homepage section that is reorderable, hideable and editable per locale from the CMS, public donations searchable by title, author, publisher or ISBN, a wanted badge in catalogue search, dashboard management, direct receipt, receipt history and operator notifications in each recipient's own language. A wanted title is findable by name and reachable by link, and stays out of catalogue browsing, feeds, the sitemap, the mobile API and the interop protocols. With the plugin off, every one of those surfaces behaves as it did before the feature existed.
+- Test coverage for the feature: 335 PHP checks across five suites and 13 browser scenarios, including two that deactivate the plugin through the real admin endpoints, three for reCAPTCHA — which had no automated coverage at all — and twenty release regression cases for proposal/receipt concurrency and for Book Club member lending of wanted books.
+
+### Fixed
+- Unticking Desiderata on the book form no longer clears the request before the copies exist: the flag now falls only inside the transaction that creates them, so a copy-creation failure leaves the book a request rather than a catalogue record with nothing on the shelf, and the operator is told instead of seeing a success message. That path also refuses to register copies while a donor proposal is still pending or accepted, which until now only the direct-receipt button did.
+- Donation proposals and receipts serialize on the same book row, preventing proposals from being attached to a request that closed during submission.
+- reCAPTCHA email tests create their own temporary administrator instead of depending on existing installation users.
+
 ## [0.7.85]
 
 ### Added

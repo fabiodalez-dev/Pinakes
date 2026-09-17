@@ -24,6 +24,13 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $db = new DesiderataTestDb($env['DB_HOST'] ?? 'localhost', getenv('E2E_DB_USER') ?: $env['DB_USER'], getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? $env['DB_PASSWORD'] ?? ''), getenv('E2E_DB_NAME') ?: $env['DB_NAME'], (int)($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
 $db->set_charset('utf8mb4');
 $plugin = new DesiderataPlugin($db, new App\Support\HookManager($db));
+// Capture mail in the parent and receipt workers: tests must not mail real operators.
+$plugin->setEmailService(new class($db) extends App\Support\EmailService {
+    public function sendEmail(string $to, string $subject, string $body, string $toName = '', ?string $locale = null, array $attachments = []): bool
+    {
+        return true;
+    }
+});
 // Two independent processes exercise the actual row-lock/idempotency contract.
 if (($argv[1] ?? '') === '--receive-worker') {
     echo "READY\n"; fflush(STDOUT); fgets(STDIN);

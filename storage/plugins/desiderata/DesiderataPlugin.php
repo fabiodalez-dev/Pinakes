@@ -377,7 +377,12 @@ class DesiderataPlugin
         if ($wanted) { $fields['copie_totali'] = $fields['copie_disponibili'] = 0; }
         if ($id !== null) {
             unset(self::$pendingReceipt[$id]);
-            if (!$wanted) { $this->rememberReceipt($id, $input); }
+            if (!$wanted) {
+                // Preserve the stored flag until copies and receipt commit together.
+                // Also fail closed if the intent lookup is temporarily unavailable.
+                if (($input['is_desiderata'] ?? '') !== '1') { unset($fields['is_desiderata']); }
+                $this->rememberReceipt($id, $input);
+            }
         }
         return $fields;
     }
@@ -388,8 +393,7 @@ class DesiderataPlugin
      * Static because HookManager builds a fresh plugin object for every hook
      * call: `book.form.save` and `book.save.after` are two of them, and this is
      * the only thing that survives between the two. It has to be captured in
-     * the first one — by the time the second fires, the flag it depends on has
-     * already been written to zero.
+     * the first one — the second hook completes the receipt after metadata has been saved.
      *
      * @var array<int,int>
      */
@@ -412,9 +416,9 @@ class DesiderataPlugin
     /**
      * Remembers that this save turns an open request into a holding.
      *
-     * Read BEFORE the update, because afterwards there is no way to tell an
-     * arriving donation from an ordinary edit of a book that never was a
-     * request — and creating copies for the latter would invent stock nobody
+     * Read BEFORE the update to capture the operator's intent independently
+     * of subsequent hooks. An ordinary edit of a book that never was a
+     * request must not register a receipt — and creating copies for the latter would invent stock nobody
      * owns. The "no copies yet" condition is the other half: a record that
      * already has holdings is not a request being closed.
      *
@@ -425,7 +429,7 @@ class DesiderataPlugin
         if (!isset($input['desiderata_form'])) { return; }
         try {
             $stmt = $this->db->prepare('SELECT is_desiderata FROM libri l WHERE l.id = ? AND l.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = l.id)');
-            if ($stmt === false) { return; }
+            if ($stmt === false) { throw new RuntimeException($this->db->error); }
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
@@ -433,22 +437,15 @@ class DesiderataPlugin
             if ($row === null || (int) ($row['is_desiderata'] ?? 0) !== 1) { return; }
             self::$pendingReceipt[$id] = self::copiesRequested($input);
         } catch (Throwable $e) {
-            // Losing the intent costs the operator a trip to the copies screen;
-            // letting this throw would abort a save that has nothing wrong.
+            $_SESSION['error_message'] = __('Operazione non riuscita. Nessuna copia è stata registrata.');
             \App\Support\SecureLogger::error('[Desiderata] receipt intent probe failed: ' . $e->getMessage());
         }
     }
     /**
-     * Core fires this after the book row is saved AND committed.
-     *
-     * Nothing may escape: the record the operator submitted is already stored
-     * by the time we get here, so an exception would render a 500 over a save
-     * that actually worked. A failed copy leaves the book in the catalogue with
-     * zero copies — visible, editable, fixable from the copies screen — which
-     * is the recoverable half of the two.
-     *
-     * @param mixed $id core passes the book id
-     * @param mixed $fields the saved field set; unused, the intent is in the stash
+     * Complete receipt after the metadata save, retaining the flag on failure.
+     * Core has already committed the metadata: handle failures here and report
+     * them through the existing flash channel instead of throwing over a saved
+     * record. Copies, the flag and the receipt audit share a separate transaction.
      */
     public function bookSaved(mixed $id = null, mixed $fields = null): void
     {
@@ -461,6 +458,9 @@ class DesiderataPlugin
             $this->registerCopies($bookId, $howMany);
             $this->invalidate();
         } catch (Throwable $e) {
+            $_SESSION['error_message'] = $e instanceof InvalidArgumentException
+                ? $e->getMessage()
+                : __('Operazione non riuscita. Nessuna copia è stata registrata.');
             \App\Support\SecureLogger::error('[Desiderata] receipt on save failed: ' . $e->getMessage());
         }
     }
@@ -474,14 +474,13 @@ class DesiderataPlugin
      * buttons the operator happened to press, and the received history would
      * have holes nobody could explain later.
      *
-     * "No copies yet" is the idempotency key here — by this point the flag is
-     * already zero, so it cannot be the one.
+     * The flag and the absence of copies are checked under the book lock.
      */
     private function registerCopies(int $bookId, int $howMany): void
     {
         $this->db->begin_transaction();
         try {
-            $stmt = $this->db->prepare('SELECT titolo FROM libri l WHERE l.id = ? AND l.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = l.id) FOR UPDATE');
+            $stmt = $this->db->prepare('SELECT titolo FROM libri l WHERE l.id = ? AND l.deleted_at IS NULL AND l.is_desiderata = 1 AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = l.id) FOR UPDATE');
             if ($stmt === false) { throw new RuntimeException($this->db->error); }
             $stmt->bind_param('i', $bookId);
             $stmt->execute();
@@ -489,6 +488,7 @@ class DesiderataPlugin
             $stmt->close();
             if (!$book) { $this->db->rollback(); return; }
             $title = (string) ($book['titolo'] ?? '');
+            $this->assertNoOpenOffers($bookId);
             $ids = (new \App\Models\CopyRepository($this->db))
                 ->createManyForBookWithIdsAndNote($bookId, 'LIB-' . $bookId, $howMany, 'disponibile', 'Donazione diretta');
             if (count($ids) !== $howMany) { throw new RuntimeException('Copy creation failed'); }
@@ -1050,6 +1050,7 @@ class DesiderataPlugin
     {
         $input = (array)$q->getParsedBody();
         $returnTo = self::returnPath($input['return_to'] ?? '');
+        $transactionOpen = false;
         try {
             if (!empty($input['website'])) { throw new InvalidArgumentException(__('Proposta non valida.')); }
             if (time() - (int)($_SESSION['desiderata_last_offer'] ?? 0) < 60) { return $this->page($r, ['error' => __('Attendi un minuto prima di inviare un’altra proposta.'), 'values' => $input, 'returnTo' => $returnTo], 429); }
@@ -1058,10 +1059,15 @@ class DesiderataPlugin
             $rawId = $input['book_id'] ?? '';
             if (!is_string($rawId) || ($rawId !== '' && !ctype_digit($rawId))) { throw new InvalidArgumentException(__('Seleziona un libro valido.')); }
             $bookId = $rawId === '' ? null : (int)$rawId;
+            // Serialize proposals and receipts on the same book row. Otherwise a
+            // receipt can close the request between validation and insertion.
+            $this->db->begin_transaction();
+            $transactionOpen = true;
             if ($bookId !== null) {
-                $stmt = $this->db->prepare('SELECT titolo FROM libri l WHERE id=? AND deleted_at IS NULL AND is_desiderata=1 AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id)');
+                $stmt = $this->db->prepare('SELECT titolo FROM libri l WHERE id=? AND deleted_at IS NULL AND is_desiderata=1 AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id) FOR UPDATE');
                 $stmt->bind_param('i', $bookId); $stmt->execute();
                 $book = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
                 if (!$book) { throw new InvalidArgumentException(__('Questo libro non è più richiesto. Puoi proporlo come altra donazione.')); }
                 $v['title'] = $book['titolo'];
             }
@@ -1069,11 +1075,14 @@ class DesiderataPlugin
             $stmt->bind_param('isssssss', $bookId, $v['donor_name'], $v['donor_email'], $v['title'], $v['author'], $v['publisher'], $v['isbn'], $v['notes']); $stmt->execute();
             $offerId = (int) $this->db->insert_id;
             $stmt->close();
+            $this->db->commit();
+            $transactionOpen = false;
             $_SESSION['desiderata_last_offer'] = time();
             $_SESSION['desiderata_success'] = true;
             $this->notifyOffer($offerId, $v);
             return $r->withHeader('Location', url($returnTo !== '' ? $returnTo : '/desiderata') . '#donation-form')->withStatus(303);
         } catch (Throwable $e) {
+            if ($transactionOpen) { $this->db->rollback(); }
             // Same shape as manage(): a rejected input speaks for itself, while
             // anything else is logged and answered with a generic message. What
             // matters is that BOTH branches re-render the form with 'values' —
@@ -1176,6 +1185,17 @@ class DesiderataPlugin
         $result = $this->db->query('SELECT COUNT(*) AS n FROM libri l WHERE l.deleted_at IS NULL AND l.is_desiderata = 1 AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = l.id)');
         return $result === false ? 0 : (int) ($result->fetch_assoc()['n'] ?? 0);
     }
+    private function assertNoOpenOffers(int $bookId): void
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) AS n FROM desiderata_offers WHERE book_id = ? AND status IN ('pending','accepted')");
+        if ($stmt === false) { throw new RuntimeException($this->db->error); }
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $open = (int) ($stmt->get_result()->fetch_assoc()['n'] ?? 0);
+        $stmt->close();
+        if ($open > 0) { throw new InvalidArgumentException(__('Questo libro ha proposte aperte: registra la ricezione dalla proposta.')); }
+    }
+
     /**
      * Someone handed the book over at the desk: register the copy without a
      * proposal behind it.
@@ -1210,13 +1230,7 @@ class DesiderataPlugin
             $stmt->close();
             if (!$book) { throw new InvalidArgumentException(__('Il libro non è più una richiesta aperta.')); }
             $title = (string) ($book['titolo'] ?? '');
-            $stmt = $this->db->prepare("SELECT COUNT(*) AS n FROM desiderata_offers WHERE book_id = ? AND status IN ('pending','accepted')");
-            if ($stmt === false) { throw new RuntimeException($this->db->error); }
-            $stmt->bind_param('i', $bookId);
-            $stmt->execute();
-            $open = (int) ($stmt->get_result()->fetch_assoc()['n'] ?? 0);
-            $stmt->close();
-            if ($open > 0) { throw new InvalidArgumentException(__('Questo libro ha proposte aperte: registra la ricezione dalla proposta.')); }
+            $this->assertNoOpenOffers($bookId);
             $copyId = (new \App\Models\CopyRepository($this->db))->createWithAllocatedInventoryCode($bookId, 'LIB-' . $bookId, 'disponibile', 'Donazione diretta');
             if ($copyId <= 0) { throw new RuntimeException('Copy creation failed'); }
             // Self-guarding, per ABSOLUTE RULE 2, and kept even though

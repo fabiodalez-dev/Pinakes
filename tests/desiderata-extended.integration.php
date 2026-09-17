@@ -60,6 +60,7 @@ use Slim\Psr7\Response;
 final class DesiderataExtendedDb extends mysqli
 {
     public bool $failCopy = false;
+    public ?Closure $beforeOfferInsert = null;
     public bool $failPluginSettings = false;
 
     public function prepare(string $query): mysqli_stmt|false
@@ -71,6 +72,11 @@ final class DesiderataExtendedDb extends mysqli
             throw new RuntimeException('Injected plugin_settings failure');
         }
 
+        if ($this->beforeOfferInsert !== null && str_starts_with($query, 'INSERT INTO desiderata_offers (book_id, donor_name')) {
+            $callback = $this->beforeOfferInsert;
+            $this->beforeOfferInsert = null;
+            $callback();
+        }
         return parent::prepare($query);
     }
 }
@@ -194,6 +200,89 @@ $cleanupErrors = [];
 $sandbox = null;
 
 try {
+    echo "Checkbox receipt regression tests\n";
+    $receiptBook = $makeBook('checkbox-receipt', true);
+    $receiptInput = ['desiderata_form' => '1', 'desiderata_copies' => '2'];
+    $receiptFields = $plugin->prepareBook(['titolo' => $prefix . 'checkbox-receipt'], $receiptInput, $receiptBook);
+    $check(!isset($receiptFields['is_desiderata']), 'unchecking preserves the stored flag until receipt commits');
+    $repo->updateBasic($receiptBook, $receiptFields);
+    $check((int)$scalar("SELECT is_desiderata FROM libri WHERE id=$receiptBook") === 1, 'metadata save does not close the request');
+    $db->failCopy = true;
+    $plugin->bookSaved($receiptBook, $receiptFields);
+    $db->failCopy = false;
+    $check((int)$scalar("SELECT is_desiderata FROM libri WHERE id=$receiptBook") === 1, 'copy failure retains desiderata');
+    $check((int)$scalar("SELECT COUNT(*) FROM copie WHERE libro_id=$receiptBook") === 0, 'copy failure leaves no inventory');
+    $check((int)$scalar("SELECT COUNT(*) FROM desiderata_offers WHERE book_id=$receiptBook") === 0, 'copy failure leaves no receipt');
+    $check(!empty($_SESSION['error_message']), 'copy failure is visible to operator');
+    unset($_SESSION['error_message']);
+    $receiptFields = $plugin->prepareBook(['titolo' => $prefix . 'checkbox-receipt'], $receiptInput, $receiptBook);
+    $repo->updateBasic($receiptBook, $receiptFields);
+    $plugin->bookSaved($receiptBook, $receiptFields);
+    $check((int)$scalar("SELECT is_desiderata FROM libri WHERE id=$receiptBook") === 0, 'retry closes request');
+    $check((int)$scalar("SELECT COUNT(*) FROM copie WHERE libro_id=$receiptBook") === 2, 'retry registers requested copies');
+    $check((int)$scalar("SELECT COUNT(*) FROM desiderata_offers WHERE book_id=$receiptBook AND status='received'") === 1, 'retry creates one audit receipt');
+    $plugin->bookSaved($receiptBook, $receiptFields);
+    $check((int)$scalar("SELECT COUNT(*) FROM copie WHERE libro_id=$receiptBook") === 2, 'repeated hook creates no duplicates');
+    foreach (['pending', 'accepted'] as $openStatus) {
+        $blockedBook = $makeBook('checkbox-' . $openStatus, true);
+        $title = $prefix . 'checkbox-' . $openStatus;
+        $stmt = $db->prepare("INSERT INTO desiderata_offers (book_id, donor_name, donor_email, title, notes, status) VALUES (?, 'Test', 'test@example.invalid', ?, '', ?)");
+        $stmt->bind_param('iss', $blockedBook, $title, $openStatus); $stmt->execute(); $stmt->close();
+        $f = $plugin->prepareBook(['titolo' => $title], $receiptInput, $blockedBook);
+        $repo->updateBasic($blockedBook, $f);
+        $plugin->bookSaved($blockedBook, $f);
+        $check((int)$scalar("SELECT is_desiderata FROM libri WHERE id=$blockedBook") === 1, "$openStatus offer retains request");
+        $check((int)$scalar("SELECT COUNT(*) FROM copie WHERE libro_id=$blockedBook") === 0, "$openStatus offer prevents direct inventory");
+        $check((int)$scalar("SELECT COUNT(*) FROM desiderata_offers WHERE book_id=$blockedBook AND status='received'") === 0, "$openStatus offer prevents direct receipt");
+        $check((int)$scalar("SELECT COUNT(*) FROM desiderata_offers WHERE book_id=$blockedBook AND status='$openStatus'") === 1, "$openStatus donor proposal remains intact");
+        $check(!empty($_SESSION['error_message']), "$openStatus offer explains rejection");
+        unset($_SESSION['error_message']);
+    }
+
+
+    echo "Release: proposal/receipt serialization (10 checks)\n";
+    $raceBook = $makeBook('release-race', true);
+    $submitReleaseOffer = static function (?int $book) use ($plugin, $prefix): Response {
+        $_SESSION = [];
+        $q = (new ServerRequestFactory())->createServerRequest('POST', '/desiderata/offers')->withParsedBody([
+            'book_id' => $book === null ? '' : (string)$book,
+            'donor_name' => 'Release test', 'donor_email' => 'release@example.invalid',
+            'title' => $prefix . 'release-offer', 'author' => '', 'publisher' => '',
+            'isbn' => '', 'notes' => '', 'consent' => '1',
+        ]);
+        return $plugin->offer($q, new Response());
+    };
+    $locked = false;
+    $db->beforeOfferInsert = static function () use ($env, $dbUser, $dbPass, $dbName, $socket, $raceBook, &$locked): void {
+        $peer = new mysqli($env['DB_HOST'] ?? 'localhost', $dbUser, $dbPass, $dbName, (int)($env['DB_PORT'] ?? 3306), $socket ?: null);
+        try {
+            $peer->query('SET SESSION innodb_lock_wait_timeout=1');
+            $peer->begin_transaction();
+            try {
+                $peer->query("SELECT id FROM libri WHERE id=$raceBook FOR UPDATE");
+            } catch (mysqli_sql_exception $e) {
+                if ($e->getCode() !== 1205) { throw $e; }
+                $locked = true;
+            }
+        } finally { $peer->rollback(); $peer->close(); }
+    };
+    $proposal = $submitReleaseOffer($raceBook);
+    $check($locked, 'R01: another connection cannot receive between proposal validation and insert');
+    $check($proposal->getStatusCode() === 303 && (int)$scalar("SELECT COUNT(*) FROM desiderata_offers WHERE book_id=$raceBook AND status='pending'") === 1, 'R02: the lock owner commits exactly one proposal');
+    $check($plugin->receiveDirect($adminRequest(), new Response(), $raceBook)->getStatusCode() === 422 && (int)$scalar("SELECT COUNT(*) FROM copie WHERE libro_id=$raceBook") === 0, 'R03: receipt after proposal commit is refused without copies');
+    $receivedFirst = $makeBook('release-received-first', true);
+    $plugin->receiveDirect($adminRequest(), new Response(), $receivedFirst);
+    $check($submitReleaseOffer($receivedFirst)->getStatusCode() === 422, 'R04: proposal after receipt commit is rejected');
+    $check((int)$scalar("SELECT COUNT(*) FROM desiderata_offers WHERE book_id=$receivedFirst AND status='pending'") === 0, 'R05: closed request has no late proposal');
+    $failedBook = $makeBook('release-insert-failure', true);
+    $db->beforeOfferInsert = static function (): void { throw new RuntimeException('Injected proposal insert failure'); };
+    $check($submitReleaseOffer($failedBook)->getStatusCode() === 422, 'R06: insert failure returns recoverable validation response');
+    $check((int)$scalar("SELECT is_desiderata FROM libri WHERE id=$failedBook") === 1 && (int)$scalar("SELECT COUNT(*) FROM desiderata_offers WHERE book_id=$failedBook") === 0, 'R07: failed proposal leaves request intact without partial rows');
+    $check(empty($_SESSION['desiderata_last_offer']) && empty($_SESSION['desiderata_success']), 'R08: failed proposal neither consumes throttle nor reports success');
+    $check($submitReleaseOffer($failedBook)->getStatusCode() === 303, 'R09: retry after rollback succeeds');
+    $check($submitReleaseOffer(null)->getStatusCode() === 303, 'R10: free-form donations still commit without a requested book');
+
+    $mailbox->sent = [];
     // ConfigStore has to be REACHING the database, not answering from the
     // shipped defaults: T17 reads the mail driver through it, and a suite that
     // silently ran on defaults would be describing a different installation.

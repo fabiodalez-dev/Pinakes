@@ -99,3 +99,16 @@ Le suite usano il database di sviluppo configurato in `.env` (override `E2E_DB_*
 - `php tests/desiderata.integration.php`: 118 verifiche, inclusi limiti Unicode, input anomali, ricerca letterale e paginazione, schede cancellate/ripristinate, copie preesistenti, antispam, XSS, rollback, ricezioni simultanee, round trip CSV verso un'altra installazione e middleware HTTP per permessi/CSRF. I processi concorrenti usano connessioni separate al database.
 - `php tests/desiderata-visibility.integration.php`: 33 verifiche sulle superfici che parlano al software di qualcun altro — API mobile e protocolli di interoperabilità — più il ciclo di vita del plugin, che gira in un database usa e getta perché la disinstallazione tocca l'intera tabella.
 - `npx playwright test --config=tests/playwright.config.js tests/desiderata.spec.js`: 4 scenari end-to-end, con credenziali `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASS` da ambiente o `tests/.env.test`. Usa l'app locale (`APP_URL`, default `http://localhost:8081`) e rimuove le proprie fixture al termine. Controlla anche l'allineamento dei titoli dei generi a 1440, 1024, 768 e 390 px; se la homepage non contiene generi, renderizza il template reale con contenuti di prova senza cambiare la configurazione della biblioteca.
+
+### Garanzie di ricezione e concorrenza
+
+Togliere la spunta nel modulo libro mantiene il flag fino al completamento della transazione che registra copie e ricezione. In caso di errore il libro resta desiderata e il messaggio viene mostrato all'operatore. Le proposte pendenti o accettate impediscono la ricezione diretta anche dal modulo libro: occorre registrare la consegna dalla proposta del donatore.
+
+L'invio di una proposta collegata e la ricezione bloccano la stessa riga del libro. Se la proposta viene salvata prima, la ricezione diretta viene rifiutata; se la ricezione termina prima, il modulo pubblico segnala che il libro non è più richiesto. Le notifiche partono dopo il commit.
+
+Verifiche aggiuntive per la release:
+
+- `php tests/desiderata-extended.integration.php`: 117 controlli, inclusi 10 nuovi casi R01–R10 sulla serializzazione con due connessioni MySQL, ricezione prima/dopo proposta, rollback, ritentativi e donazioni libere.
+- `REQUIRE_DESIDERATA_TESTS=1 php tests/bookclub-lending.unit.php`: 43 controlli, inclusi 10 nuovi casi R11–R20 sul ciclo di prestito di copie dei membri per libri desiderata. Il flag della biblioteca non nasconde il titolo e non modifica il possesso del membro.
+- La CI esegue i test Book Club anche dopo l'installazione dello schema desiderata, richiedendo la presenza della colonna per evitare che questi casi vengano saltati.
+- I test PHP delle donazioni intercettano le email con un servizio simulato. I controlli reCAPTCHA simulano le risposte di Google; non certificano le chiavi di una specifica installazione.

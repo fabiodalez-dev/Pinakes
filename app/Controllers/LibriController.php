@@ -2071,7 +2071,9 @@ class LibriController
                 source: 'manual'
             );
 
-            $_SESSION['success_message'] = __('Libro aggiornato con successo!');
+            if (empty($_SESSION['error_message'])) {
+                $_SESSION['success_message'] = __('Libro aggiornato con successo!');
+            }
 
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
 

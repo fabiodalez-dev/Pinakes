@@ -126,6 +126,7 @@ $prefix = 'DWTEST_' . bin2hex(random_bytes(6));
 $secret = $prefix . '-secret';
 $bookIds = [];
 $offerIds = [];
+$operatorId = null;
 
 $scalar = static fn(string $sql): mixed => $db->query($sql)->fetch_row()[0];
 $offerCount = static fn(): int => (int) $db->query(
@@ -177,6 +178,13 @@ $fatalError = null;
 $cleanupErrors = [];
 
 try {
+    $email = strtolower($prefix) . '@example.invalid';
+    $stmt = $db->prepare("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente, locale, privacy_accettata) VALUES (?, 'Recaptcha', 'Test', ?, 'x', 'attivo', 'admin', 'it_IT', 1)");
+    $stmt->bind_param('ss', $prefix, $email);
+    $stmt->execute();
+    $operatorId = (int) $db->insert_id;
+    $stmt->close();
+
     $repo = new App\Models\BookRepository($db);
     $bookId = $repo->createBasic(['titolo' => $prefix . ' wanted', 'copie_totali' => 0, 'is_desiderata' => 1]);
     $bookIds[] = $bookId;
@@ -397,6 +405,7 @@ try {
         $sweep("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id IN (" . implode(',', $bookIds) . ')');
         $sweep('DELETE FROM libri WHERE id IN (' . implode(',', $bookIds) . ')');
     }
+    if ($operatorId !== null) { $guard('removing test operator', static function () use ($db, $operatorId): void { $db->query('DELETE FROM utenti WHERE id = ' . $operatorId); }); }
     $guard('invalidating the catalogue cache and closing the connection', static function () use ($db): void {
         App\Support\ContentCache::booksChanged();
         $db->close();
