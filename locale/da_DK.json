@@ -7804,5 +7804,9 @@
   "Titolo del modulo": "Formularens titel",
   "Titolo della sezione": "Sektionens titel",
   "Titolo, autore, editore o ISBN, almeno 3 caratteri": "Titel, forfatter, forlag eller ISBN, mindst 3 tegn",
-  "Togliendo la spunta stai registrando l’arrivo del libro: al salvataggio entrano in inventario le copie fisiche indicate qui sotto e il libro passa nel catalogo.": "Når du fjerner fluebenet, registrerer du bogens ankomst: når du gemmer, kommer de fysiske eksemplarer, der er angivet nedenfor, i beholdningen, og bogen flytter over i kataloget."
+  "Togliendo la spunta stai registrando l’arrivo del libro: al salvataggio entrano in inventario le copie fisiche indicate qui sotto e il libro passa nel catalogo.": "Når du fjerner fluebenet, registrerer du bogens ankomst: når du gemmer, kommer de fysiske eksemplarer, der er angivet nedenfor, i beholdningen, og bogen flytter over i kataloget.",
+  "Nuova proposta di donazione: %s": "Nyt donationsforslag: %s",
+  "%s ha proposto di donare «%s». Valuta la proposta in Desiderata e donazioni.": "%s har tilbudt at donere »%s«. Vurder forslaget under Ønskede bøger og donationer.",
+  "Libro ricevuto in donazione: %s": "Doneret bog modtaget: %s",
+  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "»%s« er nu i beholdningen med et fysisk eksemplar. Ønsket er lukket."
 }

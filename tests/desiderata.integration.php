@@ -51,6 +51,28 @@ $request = static fn(array $body) => (new Slim\Psr7\Factory\ServerRequestFactory
 $offerMethod = new ReflectionMethod($plugin, 'offer');
 $manageMethod = new ReflectionMethod($plugin, 'manage');
 $payload = ['donor_name'=>'Test donor', 'donor_email'=>'test@example.invalid', 'title'=>$prefix, 'consent'=>'1'];
+
+// The id of the offer just created has to be read back from the table, never
+// from mysqli::$insert_id. offer() notifies the operators right after the
+// INSERT, and that notification is written on THIS connection, so insert_id
+// afterwards names the admin_notifications row instead. Believing it would hand
+// manage() the wrong id — and the same value feeds the cleanup DELETE at the end
+// of this file, so once a notification id collided with a real offer id the
+// suite would delete a stranger's proposal. Scoped to this run's unique prefix
+// so nothing another process inserts can be picked up.
+// Matched against the prefix rather than the exact title: an offer bound to a
+// book stores that book's title ("<prefix>_wanted"), a free-form one stores what
+// the donor typed ("<prefix>"). Both start with this run's prefix.
+$lastOfferId = static function () use ($db, $prefix): int {
+    $like = $prefix . '%';
+    $stmt = $db->prepare('SELECT MAX(id) FROM desiderata_offers WHERE title LIKE ?');
+    $stmt->bind_param('s', $like);
+    $stmt->execute();
+    $id = (int) ($stmt->get_result()->fetch_row()[0] ?? 0);
+    $stmt->close();
+    if ($id === 0) { throw new RuntimeException('No offer found for prefix ' . $prefix); }
+    return $id;
+};
 try {
     $id = $create('_wanted', true); $normal = $create('_zero', false);
     $check((int)$scalar("SELECT copie_totali FROM libri WHERE id=$id") === 0, 'checkbox overrides forged initial copies on the server');
@@ -68,7 +90,7 @@ try {
     $_SESSION = [];
     $response = $offerMethod->invoke($plugin, $request($payload + ['book_id'=>(string)$id]), new Slim\Psr7\Response());
     $check($response->getStatusCode()===303, 'matched donation is accepted');
-    $offerId = (int)$db->insert_id; $offerIds[]=$offerId;
+    $offerId = $lastOfferId(); $offerIds[]=$offerId;
     $check((int)$scalar("SELECT COUNT(*) FROM copie WHERE libro_id=$id")===0, 'proposal never creates copies');
     $response=$manageMethod->invoke($plugin,$request(['action'=>'accepted']),new Slim\Psr7\Response(),$offerId);
     $check($response->getStatusCode()===303 && (int)$scalar("SELECT COUNT(*) FROM copie WHERE libro_id=$id")===0, 'acceptance waits for actual delivery');
@@ -94,7 +116,7 @@ try {
     $check((int)$scalar("SELECT is_desiderata FROM libri WHERE id=$ordinary")===0,'removing a copy never silently recreates a request');
     $_SESSION=[];
     $before=(int)$scalar('SELECT COUNT(*) FROM libri');
-    $response=$offerMethod->invoke($plugin,$request($payload+['book_id'=>'']),new Slim\Psr7\Response()); $offerIds[]=(int)$db->insert_id;
+    $response=$offerMethod->invoke($plugin,$request($payload+['book_id'=>'']),new Slim\Psr7\Response()); $offerIds[]=$lastOfferId();
     $check($response->getStatusCode()===303 && (int)$scalar('SELECT COUNT(*) FROM libri')===$before,'unsolicited donation stays separate from bibliographic records');
     $freeOffer = $offerIds[count($offerIds)-1];
     ob_start(); $response=$manageMethod->invoke($plugin,$request(['action'=>'received']),new Slim\Psr7\Response(),$freeOffer); ob_end_clean();
@@ -162,11 +184,11 @@ try {
     $html=(string)$r->getBody();
     $check($r->getStatusCode()===422 && !str_contains($html,'value="<script>') && str_contains($html,'&lt;script&gt;'),'validation errors retain input with HTML escaping');
 
-    $makeOffer = static function(int $book) use($plugin,$request,$payload,$db,&$offerIds): int {
+    $makeOffer = static function(int $book) use($plugin,$request,$payload,$db,$lastOfferId,&$offerIds): int {
         $_SESSION=[];
         $r=$plugin->offer($request($payload+['book_id'=>(string)$book]),new Slim\Psr7\Response());
         if($r->getStatusCode()!==303) throw new RuntimeException('Fixture offer rejected');
-        $offer=(int)$db->insert_id; $offerIds[]=$offer; return $offer;
+        $offer=$lastOfferId(); $offerIds[]=$offer; return $offer;
     };
     $rejected=$makeOffer($open);
     $r=$plugin->manage($request(['action'=>'rejected']),new Slim\Psr7\Response(),$rejected);

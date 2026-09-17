@@ -7804,5 +7804,9 @@
   "Titolo del modulo": "Titre du formulaire",
   "Titolo della sezione": "Titre de la section",
   "Titolo, autore, editore o ISBN, almeno 3 caratteri": "Titre, auteur, éditeur ou ISBN, au moins 3 caractères",
-  "Togliendo la spunta stai registrando l’arrivo del libro: al salvataggio entrano in inventario le copie fisiche indicate qui sotto e il libro passa nel catalogo.": "En décochant la case, vous enregistrez l’arrivée du livre : à l’enregistrement, les exemplaires physiques indiqués ci-dessous entrent dans l’inventaire et le livre passe dans le catalogue."
+  "Togliendo la spunta stai registrando l’arrivo del libro: al salvataggio entrano in inventario le copie fisiche indicate qui sotto e il libro passa nel catalogo.": "En décochant la case, vous enregistrez l’arrivée du livre : à l’enregistrement, les exemplaires physiques indiqués ci-dessous entrent dans l’inventaire et le livre passe dans le catalogue.",
+  "Nuova proposta di donazione: %s": "Nouvelle proposition de don : %s",
+  "%s ha proposto di donare «%s». Valuta la proposta in Desiderata e donazioni.": "%s propose de donner « %s ». Évaluez la proposition dans Livres recherchés et dons.",
+  "Libro ricevuto in donazione: %s": "Livre reçu en don : %s",
+  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "« %s » est entré au catalogue avec un exemplaire physique. La demande est close."
 }

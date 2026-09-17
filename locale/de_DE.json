@@ -7804,5 +7804,9 @@
   "Titolo del modulo": "Formulartitel",
   "Titolo della sezione": "Bereichstitel",
   "Titolo, autore, editore o ISBN, almeno 3 caratteri": "Titel, Autor, Verlag oder ISBN, mindestens 3 Zeichen",
-  "Togliendo la spunta stai registrando l’arrivo del libro: al salvataggio entrano in inventario le copie fisiche indicate qui sotto e il libro passa nel catalogo.": "Wenn du das Häkchen entfernst, erfasst du das Eintreffen des Buches: Beim Speichern gelangen die unten angegebenen physischen Exemplare in den Bestand und das Buch wechselt in den Katalog."
+  "Togliendo la spunta stai registrando l’arrivo del libro: al salvataggio entrano in inventario le copie fisiche indicate qui sotto e il libro passa nel catalogo.": "Wenn du das Häkchen entfernst, erfasst du das Eintreffen des Buches: Beim Speichern gelangen die unten angegebenen physischen Exemplare in den Bestand und das Buch wechselt in den Katalog.",
+  "Nuova proposta di donazione: %s": "Neuer Spendenvorschlag: %s",
+  "%s ha proposto di donare «%s». Valuta la proposta in Desiderata e donazioni.": "%s möchte „%s“ spenden. Prüfe den Vorschlag unter Wunschbücher und Spenden.",
+  "Libro ricevuto in donazione: %s": "Gespendetes Buch erhalten: %s",
+  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "„%s“ ist mit einem physischen Exemplar im Katalog. Der Wunsch ist geschlossen."
 }

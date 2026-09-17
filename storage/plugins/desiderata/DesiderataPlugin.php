@@ -953,14 +953,23 @@ class DesiderataPlugin
         return is_string($raw) && preg_match('#^/(?![/\\\\])[^\r\n]{0,254}$#D', $raw) === 1 ? $raw : '';
     }
     /**
-     * Placeholder for the operator notification (WP7 fills it in). It sits
-     * after the INSERT and outside any transaction on purpose: telling the
-     * library about a proposal must never be able to undo the proposal.
+     * A reader has offered a book: tell the operators.
+     *
+     * Called after the INSERT and outside any transaction on purpose — telling
+     * the library about a proposal must never be able to undo the proposal.
      *
      * @param array<string,string> $v the validated proposal
      */
     private function notifyOffer(int $offerId, array $v): void
     {
+        $title = self::shortTitle($v['title'] ?? '');
+        $donor = trim($v['donor_name'] ?? '');
+        $this->notifyOperators(
+            static fn(): string => sprintf(__('Nuova proposta di donazione: %s'), $title),
+            static fn(): string => sprintf(__('%s ha proposto di donare «%s». Valuta la proposta in Desiderata e donazioni.'), $donor, $title),
+            absoluteUrl('/admin/desiderata#donation-offers'),
+            $offerId
+        );
     }
     public function offer(Request $q, Response $r): Response
     {
@@ -1164,12 +1173,159 @@ class DesiderataPlugin
         return $r->withHeader('Location', $back)->withStatus(303);
     }
     /**
-     * Placeholder for the receipt notification (WP7 fills it in), after the
-     * commit and outside the transaction: telling the other operators about a
-     * donation must never be able to undo the donation.
+     * A book the library was looking for is now on the shelf: tell the
+     * operators. Called after the commit and outside the transaction, because
+     * telling them must never be able to undo the donation.
+     *
+     * The operator who registered the receipt is notified too. A library has
+     * several people at the desk and the others are exactly who needs to know
+     * that a request just closed; the bell row is one shared row anyway, so
+     * excluding the actor from the email only would make the two channels
+     * disagree about what happened.
+     *
+     * The title is read here rather than passed in: the three call sites
+     * (manage(), receiveDirect(), registerCopies()) know different things, and
+     * the book row is the one thing all three have just written.
      */
     private function notifyReceipt(int $bookId, int $offerId): void
     {
+        $title = self::shortTitle($this->bookTitle($bookId));
+        // Not a label — an identifier, for the case where the title lookup
+        // fails. Nothing to translate, so the notification still reads the same
+        // in every recipient's language.
+        if ($title === '') { $title = '#' . $bookId; }
+        $this->notifyOperators(
+            static fn(): string => sprintf(__('Libro ricevuto in donazione: %s'), $title),
+            static fn(): string => sprintf(__('«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.'), $title),
+            absoluteUrl('/admin/books/' . $bookId . '#physical-copies'),
+            $offerId
+        );
+    }
+    /** The title of a live book, or '' when it cannot be read. */
+    private function bookTitle(int $bookId): string
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT titolo FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+            if ($stmt === false) { return ''; }
+            $stmt->bind_param('i', $bookId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            return trim((string) ($row['titolo'] ?? ''));
+        } catch (Throwable $e) {
+            \App\Support\SecureLogger::error('[Desiderata] notification title lookup failed: ' . $e->getMessage());
+            return '';
+        }
+    }
+    /**
+     * A book title is 255 characters wide in this plugin's table and the bell
+     * row's title column is 255 too: composed with a prefix, a long title would
+     * overflow the INSERT and the notification would be lost with only a line in
+     * the log. Shortened once, so the bell, the subject and the body agree.
+     */
+    private static function shortTitle(string $title): string
+    {
+        $title = trim($title);
+        return mb_strlen($title) > 120 ? rtrim(mb_substr($title, 0, 119)) . '…' : $title;
+    }
+    /**
+     * Where the emails go when a test is watching. Production leaves it null
+     * and gets a real EmailService built per notification.
+     */
+    private ?\App\Support\EmailService $emailService = null;
+    public function setEmailService(\App\Support\EmailService $service): void { $this->emailService = $service; }
+    /**
+     * The two channels Pinakes notifies operators on: the shared admin bell and
+     * one email each.
+     *
+     * This deliberately does NOT call NotificationService::notifyAdmins(). That
+     * helper composes the subject and the body ONCE, in whatever locale the
+     * request happens to be in, and sends those same strings to everybody — a
+     * donation posted by a visitor browsing in French would reach every operator
+     * in French. Pinakes renders user-facing email in the RECIPIENT's language
+     * (#360), so the ten lines of recipient selection below are duplicated on
+     * purpose. Do not "simplify" them back into notifyAdmins().
+     *
+     * $title and $message are callables, not strings, for the same reason: each
+     * one is evaluated once per locale, inside inLocale(), so the __() literals
+     * live at the call site where the locale scanner can see them.
+     *
+     * Best-effort throughout: the offer or the copy is already committed by the
+     * time this runs, and a mail server having a bad day must never turn a
+     * donation the library actually received into a 500 that discards it.
+     *
+     * @param callable(): string $title
+     * @param callable(): string $message
+     */
+    private function notifyOperators(callable $title, callable $message, string $link, int $relatedId): void
+    {
+        try {
+            $notifications = new \App\Support\NotificationService($this->db);
+            // The bell is one row shared by every operator, so it can only speak
+            // one language: the installation's.
+            $installation = \App\Support\I18n::getInstallationLocale();
+            $notifications->createNotification(
+                'general',
+                (string) $this->inLocale($installation, $title),
+                (string) $this->inLocale($installation, $message),
+                $link,
+                $relatedId
+            );
+            $recipients = $this->operatorRecipients();
+            if ($recipients === []) { return; }
+            // Same circuit-breaker as notifyAdmins(): this runs synchronously
+            // inside a visitor's POST, and an unreachable SMTP server would hang
+            // that request for one connection timeout per operator. The bell row
+            // above is already written either way.
+            if (!\App\Support\Mailer::isSmtpReachable()) {
+                \App\Support\SecureLogger::warning('[Desiderata] SMTP unreachable: notification e-mail skipped for ' . count($recipients) . ' operator(s)');
+                return;
+            }
+            $mailer = $this->emailService ?? new \App\Support\EmailService($this->db);
+            foreach ($recipients as $recipient) {
+                $locale = $notifications->resolveRecipientLocale($recipient['email']);
+                $body = '<p>' . self::e($this->inLocale($locale, $message)) . '</p>'
+                    . '<p><a href="' . self::e($link) . '">' . self::e($link) . '</a></p>';
+                $mailer->sendEmail(
+                    $recipient['email'],
+                    (string) $this->inLocale($locale, $title),
+                    $body,
+                    $recipient['name'],
+                    $locale
+                );
+            }
+        } catch (Throwable $e) {
+            \App\Support\SecureLogger::error('[Desiderata] notification failed: ' . $e->getMessage());
+        }
+    }
+    /**
+     * Active admins and staff who have an address, de-duplicated by lower-cased
+     * e-mail — the same recipient set every other Pinakes admin notification
+     * uses (NotificationService::notifyAdmins), minus the locale column, which
+     * resolveRecipientLocale() reads and caches per address.
+     *
+     * @return list<array{email: string, name: string}>
+     */
+    private function operatorRecipients(): array
+    {
+        $result = $this->db->query(
+            "SELECT email, nome, cognome FROM utenti
+              WHERE tipo_utente IN ('admin', 'staff') AND stato = 'attivo'
+                AND email IS NOT NULL AND email <> ''"
+        );
+        if ($result === false) { return []; }
+        $byEmail = [];
+        while (($row = $result->fetch_assoc()) !== null) {
+            $email = trim((string) ($row['email'] ?? ''));
+            if ($email === '') { continue; }
+            $key = mb_strtolower($email);
+            if (isset($byEmail[$key])) { continue; }
+            $byEmail[$key] = [
+                'email' => $email,
+                'name' => trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? '')),
+            ];
+        }
+        return array_values($byEmail);
     }
     /**
      * The admin screen holds two independent lists, so they hold two
@@ -1274,7 +1430,14 @@ class DesiderataPlugin
         $booksPage = self::pageNumber($params, 'books_page');
         $offersOffset = min($offersPage - 1, 100000) * 30;
         $booksOffset = min($booksPage - 1, 100000) * 30;
-        $offers = $this->db->query('SELECT * FROM desiderata_offers ORDER BY id DESC LIMIT 31 OFFSET ' . $offersOffset)->fetch_all(MYSQLI_ASSOC);
+        // Loud, unlike the dashboard panel and the menu pill: those two decorate
+        // pages that are about something else and may quietly show nothing, but
+        // this list IS the operator's backlog. An empty one here would read as
+        // "no proposals to judge" when the truth is "the query failed", so a
+        // half-finished activation must say so instead of hiding the queue.
+        $offersResult = $this->db->query('SELECT * FROM desiderata_offers ORDER BY id DESC LIMIT 31 OFFSET ' . $offersOffset);
+        if ($offersResult === false) { $this->fail('cannot read the donation proposals'); }
+        $offers = $offersResult->fetch_all(MYSQLI_ASSOC);
         $more = count($offers) > 30; $offers = array_slice($offers, 0, 30);
         // The requested-books list is paged too: capped at a fixed number, the
         // oldest requests were reachable from nowhere in the admin.
@@ -1312,6 +1475,11 @@ class DesiderataPlugin
             $stmt->close();
             return $r->withHeader('Location', $back)->withStatus(303);
         }
+        // Set inside the transaction, read after the commit: the receipt
+        // notification must fire from the same place as the other two receipt
+        // paths — after the donation is a fact — and never from inside the
+        // transaction it would be reporting on.
+        $receivedBookId = 0;
         $this->db->begin_transaction();
         try {
             $stmt = $this->db->prepare('SELECT * FROM desiderata_offers WHERE id=? FOR UPDATE');
@@ -1339,6 +1507,7 @@ class DesiderataPlugin
                 if (!(new \App\Support\DataIntegrity($this->db))->recalculateBookAvailability($bookId, true, true)) { throw new RuntimeException('Availability update failed'); }
                 $stmt = $this->db->prepare("UPDATE desiderata_offers SET status='received', received_book_id=?, copy_id=?, received_at=NOW() WHERE id=?");
                 $stmt->bind_param('iii', $bookId, $copyId, $id); $stmt->execute();
+                $receivedBookId = $bookId;
             } else {
                 $stmt = $this->db->prepare('UPDATE desiderata_offers SET status=? WHERE id=?'); $stmt->bind_param('si', $action, $id); $stmt->execute();
             }
@@ -1349,6 +1518,7 @@ class DesiderataPlugin
             return $this->admin($q, $r, $e instanceof InvalidArgumentException ? $e->getMessage() : __('Operazione non riuscita. Nessuna copia è stata registrata.'), $id)->withStatus(422);
         }
         $this->invalidate();
+        if ($receivedBookId > 0) { $this->notifyReceipt($receivedBookId, $id); }
         return $r->withHeader('Location', $back)->withStatus(303);
     }
 }

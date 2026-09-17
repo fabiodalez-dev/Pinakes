@@ -79,28 +79,68 @@ final class BookVisibility
     public static function hasDesiderata(\mysqli $db): bool
     {
         static $columns;
+        // Whether any probe in this worker ever SUCCEEDED in finding the column.
+        // Separate from the per-connection memo below on purpose: it survives a
+        // later failure, which is what lets a failed probe fall back to what we
+        // already know instead of to a guess.
+        static $seenColumn = false;
         $columns ??= new \WeakMap();
         if (!isset($columns[$db])) {
-            $result = $db->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'");
+            // Both failure shapes have to be caught here. The app runs under
+            // mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT) —
+            // ConfigStore:291 sets it, and it is also the PHP 8.2 default — so a
+            // failing probe THROWS rather than returning false, and an uncaught
+            // exception out of a visibility helper is a 500 on every page that
+            // lists books. The false branch is still reachable: BackupManager
+            // turns reporting off for the duration of an import (see its comment
+            // at :1217) and restores it afterwards.
+            $reason = '';
+            try {
+                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'");
+                if ($result === false) {
+                    // Reporting is off (an import is running): the message lives
+                    // on the connection, not on an exception.
+                    $reason = $db->error;
+                }
+            } catch (\Throwable $e) {
+                // Read the reason off the exception, never off the connection:
+                // $db may be closed by now, and mysqli throws again on property
+                // access to a closed handle — which would replace a logged
+                // degradation with an unlogged fatal.
+                $result = false;
+                $reason = $e->getMessage();
+            }
             if ($result === false) {
                 // A FAILED probe is not an answer, and memoising it as "the
                 // column is absent" would poison the rest of the request: every
                 // later catalogue() would degrade to 1=1 and publish the whole
                 // wish list to the catalogue, the feeds, the sitemap and all six
-                // interop protocols. Log it and answer false for THIS call only,
-                // so the next one probes again.
+                // interop protocols. Log it and answer for THIS call only, so
+                // the next one probes again.
                 //
-                // False — not true — is the only safe answer here: emitting a
-                // predicate on a column that may genuinely not exist would take
-                // the public catalogue down on every installation without the
-                // plugin, which is worse than the leak it would prevent.
+                // Which answer is safe depends on something we often already
+                // know. Guessing "absent" is only defensible on an installation
+                // where the column genuinely may not exist: emitting a predicate
+                // on a missing column would take the public catalogue down
+                // everywhere the plugin was never installed, which is worse than
+                // the leak it prevents. But once any probe in this worker has
+                // SEEN the column, that reasoning no longer applies — the column
+                // exists, a transient query failure does not un-create it, and
+                // answering "absent" would publish the wish list for no reason.
+                // So: fall back to what we learned, and only guess when we never
+                // learned anything.
                 \App\Support\SecureLogger::error(
-                    'BookVisibility: cannot probe libri.is_desiderata; visibility filtering is degraded for this call',
-                    ['error' => $db->error]
+                    $seenColumn
+                        ? 'BookVisibility: cannot probe libri.is_desiderata; keeping the filter on, the column was seen earlier in this worker'
+                        : 'BookVisibility: cannot probe libri.is_desiderata; visibility filtering is degraded for this call',
+                    ['error' => $reason]
                 );
-                return false;
+                return $seenColumn;
             }
             $columns[$db] = $result->num_rows > 0;
+            if ($columns[$db]) {
+                $seenColumn = true;
+            }
         }
         return $columns[$db];
     }

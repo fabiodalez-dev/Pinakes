@@ -7804,5 +7804,9 @@
   "Titolo del modulo": "Form title",
   "Titolo della sezione": "Section title",
   "Titolo, autore, editore o ISBN, almeno 3 caratteri": "Title, author, publisher or ISBN, at least 3 characters",
-  "Togliendo la spunta stai registrando l’arrivo del libro: al salvataggio entrano in inventario le copie fisiche indicate qui sotto e il libro passa nel catalogo.": "By clearing the tick you are registering the arrival of the book: on saving, the physical copies given below enter the inventory and the book moves into the catalogue."
+  "Togliendo la spunta stai registrando l’arrivo del libro: al salvataggio entrano in inventario le copie fisiche indicate qui sotto e il libro passa nel catalogo.": "By clearing the tick you are registering the arrival of the book: on saving, the physical copies given below enter the inventory and the book moves into the catalogue.",
+  "Nuova proposta di donazione: %s": "New donation proposal: %s",
+  "%s ha proposto di donare «%s». Valuta la proposta in Desiderata e donazioni.": "%s has offered to donate “%s”. Review the proposal under Wanted books and donations.",
+  "Libro ricevuto in donazione: %s": "Donated book received: %s",
+  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "“%s” is now in the catalogue with a physical copy. The request is closed."
 }
