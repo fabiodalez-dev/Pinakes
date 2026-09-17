@@ -9,7 +9,9 @@
  * the request already selected and a return path back to this page.
  *
  * @var array<string,string> $texts
- * @var array<string,mixed>  $values           book_id and the read-only title
+ * @var array<string,mixed>  $values           book_id, the read-only title, and the
+ *                                             author/publisher/ISBN the catalogue
+ *                                             already knows (all three editable)
  * @var string               $returnTo         where a successful proposal returns
  * @var string               $recaptchaSiteKey empty = no reCAPTCHA here
  */

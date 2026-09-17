@@ -7808,5 +7808,7 @@
   "Nuova proposta di donazione: %s": "New donation proposal: %s",
   "%s ha proposto di donare «%s». Valuta la proposta in Desiderata e donazioni.": "%s has offered to donate “%s”. Review the proposal under Wanted books and donations.",
   "Libro ricevuto in donazione: %s": "Donated book received: %s",
-  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "“%s” is now in the catalogue with a physical copy. The request is closed."
+  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "“%s” is now in the catalogue with a physical copy. The request is closed.",
+  "La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.": "The library will review the proposal and contact you to arrange the delivery.",
+  "Vedi tutti i libri che cerchiamo (%d)": "See all the books we are looking for (%d)"
 }

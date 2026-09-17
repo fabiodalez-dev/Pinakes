@@ -7808,5 +7808,7 @@
   "Nuova proposta di donazione: %s": "Nouvelle proposition de don : %s",
   "%s ha proposto di donare «%s». Valuta la proposta in Desiderata e donazioni.": "%s propose de donner « %s ». Évaluez la proposition dans Livres recherchés et dons.",
   "Libro ricevuto in donazione: %s": "Livre reçu en don : %s",
-  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "« %s » est entré au catalogue avec un exemplaire physique. La demande est close."
+  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "« %s » est entré au catalogue avec un exemplaire physique. La demande est close.",
+  "La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.": "La bibliothèque examinera la proposition et vous contactera pour convenir de la remise.",
+  "Vedi tutti i libri che cerchiamo (%d)": "Voir tous les livres que nous recherchons (%d)"
 }

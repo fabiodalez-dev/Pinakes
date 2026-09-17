@@ -19,7 +19,7 @@ $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '
 <script src="https://www.google.com/recaptcha/api.js?render=<?= rawurlencode($recaptchaSiteKey) ?>"></script>
 <?php endif; ?>
 <style>
-.desiderata-section [hidden]{display:none!important}.desiderata-section{padding:3.5rem 0;color:var(--text-primary,inherit)}.desiderata-section .container{max-width:1120px;margin:auto;padding:0 1.25rem}.desiderata-section #desiderata-heading{font-size:2rem;margin:0 0 1rem}.desiderata-section h3{font-size:1.5rem}.desiderata-section p{max-width:72ch;margin:.5rem 0 1rem}.dw-eyebrow{font-weight:600;color:var(--primary-color,inherit)}.dw-muted{color:var(--text-secondary,#59616c);font-size:.9rem}.desiderata-section label{display:block;font-weight:500;margin:1rem 0 .5rem}.desiderata-section .form-input{width:100%;min-height:44px;padding:.7rem;border:1px solid var(--border-color,#cbd0d6);border-radius:6px;background:var(--card-bg,#f9fafb);color:inherit;font:inherit}.dw-results{list-style:none;padding:0;margin:1rem 0 2rem}.dw-results li{display:flex;align-items:center;gap:1rem;padding:1rem 0;border-bottom:1px solid var(--border-color,#d7dce0)}.dw-results li>div{flex:1 1 auto}.dw-cover{width:48px;height:68px;object-fit:cover;border-radius:4px;flex-shrink:0;background:var(--border-color,#e4e8ec)}.dw-results strong{font-size:1.1rem}.dw-results p{margin:.25rem 0}.dw-results button{flex-shrink:0}.dw-on-book{padding:2rem 0 0}.dw-on-book .container{max-width:none;padding:0}.dw-on-book h2{font-size:1.5rem;margin:0 0 .5rem}.dw-form{border-top:1px solid var(--border-color,#d7dce0);padding-top:2rem}.dw-form [hidden]{display:none!important}.dw-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 1.5rem}.desiderata-section .dw-consent{display:flex;align-items:flex-start;gap:.7rem;margin:1.5rem 0}.dw-consent input{margin-top:.3rem;min-width:18px;min-height:18px}.desiderata-section .btn{min-height:44px;white-space:normal}.desiderata-section :focus-visible{outline:3px solid var(--primary-color,#406187);outline-offset:3px}@media(max-width:640px){.dw-fields{grid-template-columns:1fr}.dw-results li{align-items:flex-start;flex-direction:column}}
+.desiderata-section [hidden]{display:none!important}.desiderata-section{padding:3.5rem 0;color:var(--text-primary,inherit)}.desiderata-section .container{max-width:1120px;margin:auto;padding:0 1.25rem}.desiderata-section #desiderata-heading{font-size:2rem;margin:0 0 1rem}.desiderata-section h3{font-size:1.5rem}.desiderata-section p{max-width:72ch;margin:.5rem 0 1rem}.dw-eyebrow{font-weight:600;color:var(--primary-color,inherit)}.dw-muted{color:var(--text-secondary,#59616c);font-size:.9rem}.desiderata-section label{display:block;font-weight:500;margin:1rem 0 .5rem}.desiderata-section .form-input{width:100%;min-height:44px;padding:.7rem;border:1px solid var(--border-color,#cbd0d6);border-radius:6px;background:var(--card-bg,#f9fafb);color:inherit;font:inherit}.dw-results{list-style:none;padding:0;margin:1rem 0 2rem}.dw-results li{display:flex;align-items:center;gap:1rem;padding:1rem 0;border-bottom:1px solid var(--border-color,#d7dce0)}.dw-results li>div{flex:1 1 auto}.dw-cover{width:48px;height:68px;object-fit:cover;border-radius:4px;flex-shrink:0;background:var(--border-color,#e4e8ec)}.dw-cover-link{display:block;flex-shrink:0;line-height:0;border-radius:4px}.dw-title-link{color:inherit;text-decoration:none}.dw-title-link:hover,.dw-title-link:focus-visible{text-decoration:underline}.dw-pager{display:flex;align-items:center;flex-wrap:wrap;gap:1rem;margin:0 0 2rem}.dw-pager a{color:var(--primary-color,#406187);font-weight:500}.dw-pager .dw-muted{margin:0}.dw-results strong{font-size:1.1rem}.dw-results p{margin:.25rem 0}.dw-results button{flex-shrink:0}.dw-on-book{padding:2rem 0 0}.dw-on-book .container{max-width:none;padding:0}.dw-on-book h2{font-size:1.5rem;margin:0 0 .5rem}.dw-form{border-top:1px solid var(--border-color,#d7dce0);padding-top:2rem}.dw-form [hidden]{display:none!important}.dw-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 1.5rem}.desiderata-section .dw-consent{display:flex;align-items:flex-start;gap:.7rem;margin:1.5rem 0}.dw-consent input{margin-top:.3rem;min-width:18px;min-height:18px}.desiderata-section .btn{min-height:44px;white-space:normal}.desiderata-section :focus-visible{outline:3px solid var(--primary-color,#406187);outline-offset:3px}@media(max-width:640px){.dw-fields{grid-template-columns:1fr}.dw-results li{align-items:flex-start;flex-direction:column}}
 </style>
 <script>
 (() => {
@@ -78,6 +78,10 @@ $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '
     search.addEventListener('input', () => {
       clearTimeout(timer); controller?.abort(); const current=++revision, q=search.value.trim();
       const empty=root.querySelector('.dw-empty'); if(empty) empty.hidden=q.length>=3;
+      // The pager (and the homepage's "see them all") belongs to the unfiltered
+      // list: leaving it up while a search is on screen would offer page 2 of
+      // something the reader is no longer looking at.
+      const pager=root.querySelector('[data-desiderata-pager]'); if(pager) pager.hidden=q.length>=3;
       if([...q].length<3) { results.innerHTML=original; status.textContent=text.hint; results.removeAttribute('aria-busy'); return; }
       timer=setTimeout(async () => {
         controller=new AbortController(); status.textContent=text.loading; results.setAttribute('aria-busy','true');
@@ -90,9 +94,21 @@ $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '
             // Same row as the server-rendered one, placeholder fallback included.
             cover.className='dw-cover'; cover.alt=''; cover.loading='lazy'; cover.decoding='async';
             cover.src=b.cover||placeholderCover; cover.addEventListener('error',()=>{cover.src=placeholderCover},{once:true});
-            title.textContent=b.titolo; details.className='dw-muted'; details.textContent=[b.autore,b.editore,b.isbn13||b.isbn10].filter(Boolean).join(' · ');
+            details.className='dw-muted'; details.textContent=[b.autore,b.editore,b.isbn13||b.isbn10].filter(Boolean).join(' · ');
             button.type='button'; button.className='btn btn-outline-primary dw-select'; button.textContent=text.offer; button.dataset.book=JSON.stringify(b);
-            info.append(title,details); li.append(cover,info,button); results.append(li);
+            // The cover and the title lead to the book's page, exactly as they do
+            // in the server-rendered list — the URL is resolved server-side so the
+            // two cannot disagree. The cover link is hidden from assistive
+            // technology: it duplicates the title link right beside it.
+            let coverNode=cover, titleNode=document.createTextNode(b.titolo);
+            if(b.url){
+              const coverLink=document.createElement('a'), titleLink=document.createElement('a');
+              coverLink.className='dw-cover-link'; coverLink.href=b.url; coverLink.tabIndex=-1; coverLink.setAttribute('aria-hidden','true'); coverLink.append(cover);
+              titleLink.className='dw-title-link'; titleLink.href=b.url; titleLink.textContent=b.titolo;
+              coverNode=coverLink; titleNode=titleLink;
+            }
+            title.append(titleNode);
+            info.append(title,details); li.append(coverNode,info,button); results.append(li);
           }
           status.textContent=books.length?text.found+' '+books.length:text.empty;
         } catch(error) { if(error.name!=='AbortError' && current===revision) status.textContent=text.error; }

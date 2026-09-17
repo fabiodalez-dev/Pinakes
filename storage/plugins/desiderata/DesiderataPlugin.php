@@ -519,7 +519,7 @@ class DesiderataPlugin
         $plugin = $this;
         $csrf = new \App\Middleware\CsrfMiddleware();
         $admin = new \App\Middleware\AdminAuthMiddleware($this->db);
-        $app->get('/desiderata', fn(Request $q, Response $r) => $plugin->page($r));
+        $app->get('/desiderata', fn(Request $q, Response $r) => $plugin->page($r, [], 200, self::pageNumber($q->getQueryParams(), 'page')));
         $app->get('/desiderata/search', fn(Request $q, Response $r) => $plugin->search($q, $r))->add(new \App\Middleware\RateLimitMiddleware(90, 60, 'desiderata-search'));
         $app->post('/desiderata/offers', fn(Request $q, Response $r) => $plugin->offer($q, $r))->add($csrf)->add(new \App\Middleware\RateLimitMiddleware(5, 900, 'desiderata-offer'));
         $app->get('/admin/desiderata/books', fn(Request $q, Response $r) => $plugin->catalogueSearch($q, $r))->add($admin);
@@ -557,9 +557,16 @@ class DesiderataPlugin
      * junction for multi-publisher records), so both are searched whenever the
      * junction exists.
      *
-     * `cover` is resolved here, once, instead of in each of the three renderers:
-     * the JSON the search endpoint returns is consumed by JavaScript that has no
-     * business knowing the installation's base path.
+     * `cover` and `url` are resolved here, once, instead of in each of the three
+     * renderers: the JSON the search endpoint returns is consumed by JavaScript
+     * that has no business knowing the installation's base path, and a row built
+     * server-side must be indistinguishable from a row built by the script — the
+     * two drift apart the moment either of them computes its own links.
+     *
+     * `url` is the canonical book URL, so `autore_principale_nome` is selected
+     * beside the GROUP_CONCAT of every author: book_path() slugs THAT key first,
+     * and feeding it the concatenation would put "natalia-ginzburg-cesare-pavese"
+     * where the catalogue puts "natalia-ginzburg".
      *
      * @return list<array<string,mixed>>
      */
@@ -572,7 +579,10 @@ class DesiderataPlugin
             ? " OR EXISTS (SELECT 1 FROM libri_editori le JOIN editori e2 ON e2.id=le.editore_id WHERE le.libro_id=l.id AND e2.nome LIKE ? ESCAPE '!')"
             : '';
         $stmt = $this->db->prepare("SELECT l.id, l.titolo, l.isbn13, l.isbn10, l.copertina_url, e.nome AS editore,
-            (SELECT GROUP_CONCAT(a.nome SEPARATOR ', ') FROM libri_autori la JOIN autori a ON a.id=la.autore_id WHERE la.libro_id=l.id) AS autore
+            (SELECT GROUP_CONCAT(a.nome SEPARATOR ', ') FROM libri_autori la JOIN autori a ON a.id=la.autore_id WHERE la.libro_id=l.id) AS autore,
+            (SELECT a.nome FROM libri_autori la JOIN autori a ON a.id=la.autore_id
+             WHERE la.libro_id=l.id AND la.ruolo IN ('principale','co-autore')
+             ORDER BY CASE la.ruolo WHEN 'principale' THEN 0 ELSE 1 END, la.ordine_credito LIMIT 1) AS autore_principale_nome
             FROM libri l LEFT JOIN editori e ON e.id=l.editore_id
             WHERE l.deleted_at IS NULL AND l.is_desiderata=1
             AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id)
@@ -596,32 +606,56 @@ class DesiderataPlugin
         foreach ($rows as $index => $row) {
             $cover = is_string($row['copertina_url'] ?? null) ? $row['copertina_url'] : '';
             $rows[$index]['cover'] = url($cover !== '' ? $cover : self::PLACEHOLDER_COVER);
+            $rows[$index]['url'] = book_url($row);
         }
         return $rows;
     }
+    /** How many requests one public page shows. Matches wanted()'s own default. */
+    public const PUBLIC_PAGE_SIZE = 12;
     /** The cover shown for a request nobody has photographed yet. */
     public const PLACEHOLDER_COVER = '/uploads/copertine/placeholder.jpg';
     /**
      * Rendered from inside the ordered loop of the homepage template, so the
      * operator's display_order and visibility apply. The guard matters: the
      * action fires for every row without a core template, plugin-owned or not.
+     *
+     * No pager here, on purpose: this section is one block of a longer page, so
+     * a page link would carry the reader away from everything else the homepage
+     * says. The overflow is a link to /desiderata instead, which is the surface
+     * that paginates — and the one the <noscript> fallback already points at.
      */
     public function renderHomeSection(string $sectionKey, array $section): void
     {
         if ($sectionKey !== self::HOME_SECTION_KEY) { return; }
-        $books = $this->wanted();
+        $books = $this->wanted('', self::PUBLIC_PAGE_SIZE);
+        $wantedTotal = $this->wantedCount();
+        $pager = null;
         $texts = $this->texts(\App\Support\I18n::getLocale());
         $recaptchaSiteKey = self::recaptchaSiteKey();
         require __DIR__ . '/views/public.php';
     }
-    public function page(Response $r, array $data = [], int $status = 200): Response
+    /**
+     * The standalone /desiderata page, which is where the whole list lives.
+     *
+     * `$page` comes from the query string, so it is clamped to what actually
+     * exists: a hand-typed ?page=9999 shows the last page rather than an empty
+     * list with no way back. The controls are ordinary links — the <noscript>
+     * fallback promises this page works, and a pager that needs JavaScript
+     * would quietly break that promise.
+     */
+    public function page(Response $r, array $data = [], int $status = 200, int $page = 1): Response
     {
-        $books = $this->wanted();
+        $wantedTotal = $this->wantedCount();
+        $pages = max(1, (int) ceil($wantedTotal / self::PUBLIC_PAGE_SIZE));
+        $page = min(max(1, $page), $pages);
+        $books = $this->wanted('', self::PUBLIC_PAGE_SIZE, ($page - 1) * self::PUBLIC_PAGE_SIZE);
         $texts = $this->texts(\App\Support\I18n::getLocale());
         return $this->render($r, 'public', $data + [
             'books' => $books,
             'standalone' => true,
             'texts' => $texts,
+            'wantedTotal' => $wantedTotal,
+            'pager' => ['page' => $page, 'pages' => $pages, 'total' => $wantedTotal],
             'recaptchaSiteKey' => self::recaptchaSiteKey(),
         ], false)->withStatus($status);
     }
@@ -655,7 +689,11 @@ class DesiderataPlugin
         $bookId = is_numeric($id) ? (int) $id : (int) ($book['id'] ?? 0);
         if ($bookId <= 0) { return; }
         $texts = $this->texts(\App\Support\I18n::getLocale());
-        $values = [
+        // Exactly what the homepage fills in when a visitor presses "I have it":
+        // title, author, publisher and ISBN, with only the title locked. Asking
+        // a donor to retype three things the catalogue already holds is how a
+        // form gets abandoned.
+        $values = $this->donationPrefill($bookId) + [
             'book_id' => (string) $bookId,
             'title' => is_scalar($book['titolo'] ?? null) ? (string) $book['titolo'] : '',
         ];
@@ -664,6 +702,38 @@ class DesiderataPlugin
         $returnTo = book_path($book + ['id' => $bookId]);
         $recaptchaSiteKey = self::recaptchaSiteKey();
         require __DIR__ . '/views/book-detail.php';
+    }
+    /**
+     * Author, publisher and ISBN for the form bound to one wanted book.
+     *
+     * Read here rather than picked out of the book-detail DTO the hook hands
+     * over: that array carries `autore_principale` (the FIRST author only) while
+     * the homepage row carries every author, so trusting it would give a
+     * two-author book one author on its own page and two on the list. The
+     * expressions below are wanted()'s, so the two surfaces agree by
+     * construction. A failed read simply leaves the fields empty and editable.
+     *
+     * @return array<string,string>
+     */
+    private function donationPrefill(int $bookId): array
+    {
+        $stmt = $this->db->prepare("SELECT l.isbn13, l.isbn10, e.nome AS editore,
+            (SELECT GROUP_CONCAT(a.nome SEPARATOR ', ') FROM libri_autori la JOIN autori a ON a.id=la.autore_id WHERE la.libro_id=l.id) AS autore
+            FROM libri l LEFT JOIN editori e ON e.id=l.editore_id
+            WHERE l.id = ? AND l.deleted_at IS NULL LIMIT 1");
+        if ($stmt === false) { return []; }
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!is_array($row)) { return []; }
+        $isbn13 = is_string($row['isbn13'] ?? null) ? trim($row['isbn13']) : '';
+        $isbn10 = is_string($row['isbn10'] ?? null) ? trim($row['isbn10']) : '';
+        return [
+            'author' => is_string($row['autore'] ?? null) ? $row['autore'] : '',
+            'publisher' => is_string($row['editore'] ?? null) ? $row['editore'] : '',
+            'isbn' => $isbn13 !== '' ? $isbn13 : $isbn10,
+        ];
     }
     /**
      * Widens BookVisibility::discoverable() to everything while the plugin is
@@ -704,7 +774,12 @@ class DesiderataPlugin
             'title' => __('I libri che cerchiamo'),
             'intro' => __('Aiutaci ad arricchire la biblioteca. Puoi offrire un libro richiesto oppure proporre un altro titolo.'),
             'form_title' => __('Proponi una donazione'),
-            'form_intro' => __('La biblioteca valuterà la proposta e ti contatterà per concordare la consegna. L’invio non aggiunge libri o copie al catalogo.'),
+            // What the donor needs and nothing else. The sentence that used to
+            // follow ("sending it adds no books or copies to the catalogue")
+            // described the plugin's own bookkeeping to somebody who is simply
+            // offering a book, and the old key stays in the catalogue so an
+            // operator who copied it into an override keeps their text.
+            'form_intro' => __('La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.'),
             'button' => __('Invia la proposta'),
         ];
     }
@@ -1089,8 +1164,14 @@ class DesiderataPlugin
         }
         require __DIR__ . '/views/dashboard.php';
     }
-    /** Open requests in total, for the count pill above the six shown. */
-    private function wantedCount(): int
+    /**
+     * Open requests in total: the count pill above the six on the dashboard,
+     * and the public pager's idea of how many pages there are.
+     *
+     * Same predicate as wanted() with no search term, and nothing else — a
+     * count that disagrees with the list it counts produces an empty last page.
+     */
+    public function wantedCount(): int
     {
         $result = $this->db->query('SELECT COUNT(*) AS n FROM libri l WHERE l.deleted_at IS NULL AND l.is_desiderata = 1 AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = l.id)');
         return $result === false ? 0 : (int) ($result->fetch_assoc()['n'] ?? 0);

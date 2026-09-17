@@ -29,7 +29,7 @@ $lockTitle = ($values['book_id'] ?? '') !== '';
 ?>
 <div class="dw-form" id="donation-form" data-desiderata-form>
   <h3><?= $e($texts['form_title'] ?? __('Proponi una donazione')) ?></h3>
-  <p><?= $e($texts['form_intro'] ?? __('La biblioteca valuterà la proposta e ti contatterà per concordare la consegna. L’invio non aggiunge libri o copie al catalogo.')) ?></p>
+  <p><?= $e($texts['form_intro'] ?? __('La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.')) ?></p>
   <?php if ($success): ?><p role="status" class="alert alert-success"><?= __('Grazie! La proposta è stata inviata alla biblioteca.') ?></p><?php endif; ?>
   <?php if (!empty($error)): ?><p role="alert" class="alert alert-danger"><?= $e($error) ?></p><?php endif; ?>
   <form method="post" action="<?= $e(url('/desiderata/offers')) ?>" id="desiderata-offer">

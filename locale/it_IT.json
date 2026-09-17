@@ -7808,5 +7808,7 @@
   "Nuova proposta di donazione: %s": "Nuova proposta di donazione: %s",
   "%s ha proposto di donare «%s». Valuta la proposta in Desiderata e donazioni.": "%s ha proposto di donare «%s». Valuta la proposta in Desiderata e donazioni.",
   "Libro ricevuto in donazione: %s": "Libro ricevuto in donazione: %s",
-  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa."
+  "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.",
+  "La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.": "La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.",
+  "Vedi tutti i libri che cerchiamo (%d)": "Vedi tutti i libri che cerchiamo (%d)"
 }
