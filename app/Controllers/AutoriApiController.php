@@ -170,6 +170,23 @@ class AutoriApiController
         }
 
         $selectNaz = $colNaz !== null ? "a.`$colNaz` AS nazionalita" : "'' AS nazionalita";
+        // The libri_count below is deliberately UNFILTERED by BookVisibility,
+        // following the operator-counts rule: /admin/books, DashboardStats and
+        // the header quick-stat all count every record, requests (desiderata)
+        // among them. Filtering here alone would make the "N. Libri" column
+        // disagree with the list an operator reaches by clicking it, by exactly
+        // the number of wanted titles, with nothing on screen explaining the gap.
+        // The public-facing twin, SearchController::searchAuthorsWithDetails(),
+        // is the one that carries the catalogue filter.
+        //
+        // Caveat, deliberately recorded rather than assumed away: the only
+        // consumer is the /admin/authors DataTables, but GET /api/autori is the
+        // one registration in its block that chains no AdminAuthMiddleware (its
+        // bulk-delete and bulk-export siblings do), and this SELECT also returns
+        // biografia, sito_web and the life dates. So "operator surface" here
+        // describes the intended audience, not an enforced one. That is a
+        // pre-existing exposure, unchanged by the desiderata work; closing it
+        // means gating the route, not filtering this count.
         $sql_prepared = "SELECT a.id, a.nome, a.pseudonimo, a.data_nascita, a.data_morte, a.biografia, a.sito_web,
                        $selectNaz,
                        (SELECT COUNT(DISTINCT la.libro_id)

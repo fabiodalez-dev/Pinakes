@@ -1493,18 +1493,23 @@ class OaiPmhServerPlugin
         if ($rec === null) {
             // Check if it's a deleted record.
             $rec = $this->resolveDeletedIdentifier($identifier, $host);
-            if ($rec !== null) {
-                $xw->startElement('GetRecord');
-                $xw->startElement('record');
-                $xw->startElement('header');
-                $xw->writeAttribute('status', 'deleted');
-                $xw->writeElement('identifier', $identifier);
-                $xw->writeElement('datestamp', $this->recordDatestamp($rec));
-                $xw->endElement(); // header
-                $xw->endElement(); // record
-                $xw->endElement(); // GetRecord
-                return;
-            }
+        }
+        // One deleted-header writer for both sources: a tombstone table row and
+        // a book withdrawn by the desiderata flag (which resolveIdentifier()
+        // reports with _status = 'deleted') produce the same answer.
+        if ($rec !== null && ($rec['_status'] ?? '') === 'deleted') {
+            $xw->startElement('GetRecord');
+            $xw->startElement('record');
+            $xw->startElement('header');
+            $xw->writeAttribute('status', 'deleted');
+            $xw->writeElement('identifier', $identifier);
+            $xw->writeElement('datestamp', $this->recordDatestamp($rec));
+            $xw->endElement(); // header
+            $xw->endElement(); // record
+            $xw->endElement(); // GetRecord
+            return;
+        }
+        if ($rec === null) {
             $this->oaiError($xw, 'idDoesNotExist',
                 'The value of the identifier argument is unknown or illegal in this repository.');
             return;
@@ -2871,8 +2876,11 @@ class OaiPmhServerPlugin
         // Try book pattern.
         if (preg_match('/^oai:(?:pinakes|' . preg_quote($host, '/') . '):book:(\d+)$/i', $identifier, $m)) {
             $id   = (int) $m[1];
-            // A requested book (desiderata) is not a holding and must not be
-            // resolvable as one: GetRecord answers idDoesNotExist for it.
+            // A requested book (desiderata) is not a holding and must not
+            // resolve as one, so it is excluded here. It is not simply unknown
+            // either: see the de-listing branch below, which answers a deleted
+            // header instead of idDoesNotExist when the repository is allowed
+            // to report deletions at all.
             $stmt = $this->db->prepare(
                 'SELECT l.*
                    FROM libri l
@@ -2888,6 +2896,43 @@ class OaiPmhServerPlugin
                 $row['_entity'] = 'book';
                 $row['_status'] = 'active';
                 return $row;
+            }
+
+            // Still here, still flagged: the record was withdrawn from the
+            // holdings rather than never existing. Answering idDoesNotExist
+            // would tell a harvester that already holds it to keep its stale
+            // copy; a deleted header tells it to drop the record, which is the
+            // truth. ONE row, deliberately: a book that was flagged AND then
+            // soft-deleted does not match here (deleted_at IS NOT NULL) and
+            // falls through to resolveDeletedIdentifier()'s real tombstone, so
+            // GetRecord can never produce two conflicting resolutions.
+            //
+            // Gated on hasActiveTriggers() for the same conformance reason as
+            // the de-listing arm in fetchRecordsPage(): without them Identify
+            // advertises deletedRecord='no', and a repository at that level may
+            // not reveal a deleted status in any response. There it falls back
+            // to idDoesNotExist, which is what this method answered before.
+            if (!$this->hasActiveTriggers()) { return null; }
+            $stmt = $this->db->prepare(
+                'SELECT l.id, l.updated_at
+                   FROM libri l
+                  WHERE l.id = ? AND l.deleted_at IS NULL AND '
+                . \App\Support\BookVisibility::delisted($this->db, 'l')
+            );
+            if ($stmt === false) { return null; }
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+            $stmt->close();
+            if ($row !== null) {
+                return [
+                    '_entity'    => 'book',
+                    '_status'    => 'deleted',
+                    'entity_id'  => (int) $row['id'],
+                    'datestamp'  => $row['updated_at'],
+                    '_datestamp' => $row['updated_at'],
+                ];
             }
         }
 
@@ -3111,6 +3156,16 @@ class OaiPmhServerPlugin
             $parts[] = $arm;
         }
 
+        // The books arm carries a second, de-listing tombstone arm, and that one
+        // only exists while libri.is_desiderata does. Installing the desiderata
+        // plugin mid-harvest therefore inserts rows before the harvester's
+        // offset exactly the way activating Emeroteca does, so it belongs in the
+        // marker: a token minted before it is refused, and the harvester
+        // restarts instead of losing whatever crossed the boundary.
+        if ($arms['book'] && $this->hasActiveTriggers() && \App\Support\BookVisibility::hasDesiderata($this->db)) {
+            $parts[] = 'book_delisted';
+        }
+
         return implode('|', $parts);
     }
 
@@ -3138,7 +3193,15 @@ class OaiPmhServerPlugin
         $auExists   = $doArchives && $this->hasArchivalUnitsTable();
 
         // Build UNION ALL parts for page identifiers only.
-        // Each part returns: _id INT, _entity VARCHAR, _status VARCHAR, _datestamp DATETIME.
+        // Each part returns: _id INT, _entity VARCHAR, _status VARCHAR,
+        // _datestamp DATETIME, _source VARCHAR.
+        //
+        // _source names the TABLE _id belongs to, and it is not decoration: the
+        // batch-detail step below looks deleted rows up by primary key, and the
+        // two tombstone tables plus `libri` have overlapping auto-increment ids.
+        // A de-listed book enters this union as a deleted row whose _id is a
+        // `libri` id; resolving it against oai_deleted_records would emit a
+        // header for an unrelated record — corruption, not an omission.
         $parts = [];
         $types = '';
         $vals  = [];
@@ -3151,15 +3214,52 @@ class OaiPmhServerPlugin
             if ($fromMysql !== null)  { $w[] = 'l.updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $w[] = 'l.updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
             // CI-SOFT-DELETE-EXEMPT: $w is initialized for this UNION arm with l.deleted_at IS NULL.
-            $parts[] = 'SELECT l.id AS _id, \'book\' AS _entity, \'active\' AS _status, l.updated_at AS _datestamp'
+            $parts[] = 'SELECT l.id AS _id, \'book\' AS _entity, \'active\' AS _status, l.updated_at AS _datestamp,'
+                . ' \'libri\' AS _source'
                 . ' FROM libri l WHERE ' . implode(' AND ', $w);
+
+            // DE-LISTING TOMBSTONES. Flagging an already-harvested book as
+            // wanted withdraws it from the holdings: the row stays, but it stops
+            // being published. Without this arm the record simply never comes up
+            // again and every remote catalogue keeps a stale copy forever — the
+            // same failure the plugin already fixed for hard-deleted mastheads.
+            //
+            // Dated by updated_at, which the flag write bumps, so un-flagging
+            // self-heals: the row reappears in the active arm at a newer
+            // datestamp and this arm stops matching it. Currently-unflagged rows
+            // are excluded, so one id is never both active and deleted in a
+            // single response.
+            //
+            // Bounded like the ResourceSync tombstone windows (90 days with a
+            // from=, 30 without), so a from=1970 harvest cannot walk out with
+            // the library's entire wish list as identifiers.
+            //
+            // Gated on hasActiveTriggers() for conformance, not for capability:
+            // this arm derives its tombstones from libri directly and would work
+            // without them, but oaiIdentify() advertises deletedRecord='no' when
+            // the triggers are absent (shared hosting with no TRIGGER privilege),
+            // and OAI-PMH 2.0 §2.5.1 forbids revealing a deleted status at that
+            // level. The pre-existing oai_deleted_records arm never had to say so
+            // because its table simply stays empty without the triggers.
+            if ($this->hasActiveTriggers()) {
+            $delisted = \App\Support\BookVisibility::delisted($this->db, 'l');
+            $w = ['l.deleted_at IS NULL', $delisted];
+            $w[] = 'l.updated_at >= DATE_SUB(NOW(), INTERVAL ' . ($fromMysql !== null ? 90 : 30) . ' DAY)';
+            if ($fromMysql !== null)  { $w[] = 'l.updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
+            if ($untilMysql !== null) { $w[] = 'l.updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
+            // CI-SOFT-DELETE-EXEMPT: $w is initialized for this UNION arm with l.deleted_at IS NULL.
+            $parts[] = 'SELECT l.id AS _id, \'book\' AS _entity, \'deleted\' AS _status, l.updated_at AS _datestamp,'
+                . ' \'libri\' AS _source'
+                . ' FROM libri l WHERE ' . implode(' AND ', $w);
+            }
         }
 
         if ($doArchives && $auExists) {
             $w = ['deleted_at IS NULL'];
             if ($fromMysql !== null)  { $w[] = 'updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $w[] = 'updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
-            $parts[] = 'SELECT id AS _id, \'archival_unit\' AS _entity, \'active\' AS _status, updated_at AS _datestamp'
+            $parts[] = 'SELECT id AS _id, \'archival_unit\' AS _entity, \'active\' AS _status, updated_at AS _datestamp,'
+                . ' \'archival_units\' AS _source'
                 . ' FROM archival_units WHERE ' . implode(' AND ', $w);
         }
 
@@ -3167,7 +3267,8 @@ class OaiPmhServerPlugin
             $w = [];
             if ($fromMysql !== null)  { $w[] = 'updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $w[] = 'updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
-            $parts[] = 'SELECT id AS _id, \'periodical\' AS _entity, \'active\' AS _status, updated_at AS _datestamp'
+            $parts[] = 'SELECT id AS _id, \'periodical\' AS _entity, \'active\' AS _status, updated_at AS _datestamp,'
+                . ' \'emeroteca_testate\' AS _source'
                 . ' FROM emeroteca_testate'
                 . ($w !== [] ? ' WHERE ' . implode(' AND ', $w) : '');
 
@@ -3181,7 +3282,8 @@ class OaiPmhServerPlugin
                 $delW = [];
                 if ($fromMysql !== null)  { $delW[] = 'datestamp >= ?'; $types .= 's'; $vals[] = $fromMysql; }
                 if ($untilMysql !== null) { $delW[] = 'datestamp <= ?'; $types .= 's'; $vals[] = $untilMysql; }
-                $parts[] = "SELECT id AS _id, 'periodical' AS _entity, 'deleted' AS _status, datestamp AS _datestamp"
+                $parts[] = "SELECT id AS _id, 'periodical' AS _entity, 'deleted' AS _status, datestamp AS _datestamp,"
+                    . " 'oai_deleted_periodicals' AS _source"
                     . ' FROM oai_deleted_periodicals'
                     . ($delW !== [] ? ' WHERE ' . implode(' AND ', $delW) : '');
             }
@@ -3204,7 +3306,8 @@ class OaiPmhServerPlugin
             $delW[] = "entity_type IN ('" . implode("','", $delTypes) . "')";
             if ($fromMysql !== null)  { $delW[] = 'datestamp >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $delW[] = 'datestamp <= ?'; $types .= 's'; $vals[] = $untilMysql; }
-            $parts[] = "SELECT id AS _id, entity_type AS _entity, 'deleted' AS _status, datestamp AS _datestamp"
+            $parts[] = "SELECT id AS _id, entity_type AS _entity, 'deleted' AS _status, datestamp AS _datestamp,"
+                . " 'oai_deleted_records' AS _source"
                 . " FROM oai_deleted_records WHERE " . implode(' AND ', $delW);
         }
 
@@ -3212,9 +3315,14 @@ class OaiPmhServerPlugin
             return [];
         }
 
-        // UNION ALL with DB-level ORDER + LIMIT + OFFSET.
+        // UNION ALL with DB-level ORDER + LIMIT + OFFSET. Paging needs nothing
+        // else from the new arm: the cursor is a plain OFFSET into this ordered
+        // union and PAGE_SIZE + 1 still decides hasMore, so the extra rows are
+        // counted by the same arithmetic as every other arm and no separate
+        // total is kept anywhere.
         $union   = implode(' UNION ALL ', $parts);
-        $pageSql = "SELECT _id, _entity, _status, _datestamp FROM ($union) AS _combined ORDER BY _datestamp, _id, _entity, _status LIMIT ? OFFSET ?";
+        $pageSql = "SELECT _id, _entity, _status, _datestamp, _source FROM ($union) AS _combined"
+            . " ORDER BY _datestamp, _id, _entity, _status, _source LIMIT ? OFFSET ?";
         $types  .= 'ii';
         $vals[]  = $limit;
         $vals[]  = $cursor;
@@ -3330,11 +3438,14 @@ class OaiPmhServerPlugin
         // apart and the assembly loop picks by _entity.
         $delMap    = [];
         $perDelMap = [];
+        // Selected by _source, not by _entity: a de-listed book is also a
+        // deleted, non-periodical row, but its _id is a `libri` id and looking
+        // it up here would resolve an unrelated tombstone.
         $delIds = array_values(array_map(
             fn($r) => (int) $r['_id'],
             array_filter(
                 $pageRefs,
-                fn($r) => $r['_status'] === 'deleted' && $r['_entity'] !== 'periodical'
+                fn($r) => $r['_status'] === 'deleted' && ($r['_source'] ?? '') === 'oai_deleted_records'
             )
         ));
         if (!empty($delIds)) {
@@ -3359,7 +3470,7 @@ class OaiPmhServerPlugin
             fn($r) => (int) $r['_id'],
             array_filter(
                 $pageRefs,
-                fn($r) => $r['_status'] === 'deleted' && $r['_entity'] === 'periodical'
+                fn($r) => $r['_status'] === 'deleted' && ($r['_source'] ?? '') === 'oai_deleted_periodicals'
             )
         ));
         if (!empty($perDelIds)) {
@@ -3561,8 +3672,21 @@ class OaiPmhServerPlugin
         $result = [];
         foreach ($pageRefs as $ref) {
             $id = (int) $ref['_id'];
-            if ($ref['_status'] === 'deleted') {
-                $tomb = $ref['_entity'] === 'periodical'
+            $source = (string) ($ref['_source'] ?? '');
+            if ($ref['_status'] === 'deleted' && $source === 'libri') {
+                // De-listed book: the tombstone has no row of its own. Built
+                // here from the union reference, with entity_id carrying the
+                // `libri` id buildOaiId() reads for a deleted record — the same
+                // shape a tombstone table row arrives in.
+                $result[] = [
+                    '_entity'    => 'book',
+                    '_status'    => 'deleted',
+                    'entity_id'  => $id,
+                    'datestamp'  => $ref['_datestamp'],
+                    '_datestamp' => $ref['_datestamp'],
+                ];
+            } elseif ($ref['_status'] === 'deleted') {
+                $tomb = $source === 'oai_deleted_periodicals'
                     ? ($perDelMap[$id] ?? null)
                     : ($delMap[$id] ?? null);
                 if ($tomb !== null) { $result[] = $tomb; }

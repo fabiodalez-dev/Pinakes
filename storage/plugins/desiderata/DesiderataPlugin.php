@@ -232,7 +232,13 @@ class DesiderataPlugin
         $rows = [];
         if (mb_strlen($term) >= 3 && mb_strlen($term) <= 120) {
             $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term) . '%';
-            $stmt = $this->db->prepare("SELECT id, titolo, isbn13, isbn10 FROM libri WHERE deleted_at IS NULL AND (titolo LIKE ? ESCAPE '!' OR isbn13 LIKE ? ESCAPE '!' OR isbn10 LIKE ? ESCAPE '!') ORDER BY titolo, id LIMIT 30");
+            // is_desiderata travels with the row so the picker can SAY which
+            // records are open requests. The WHERE clause deliberately does not
+            // filter them out: receiving a free-form donation against an
+            // ordinary holding is a supported workflow, and an operator who
+            // genuinely received the requested book must be able to pick it.
+            // The warning belongs in the interface, not in a silent exclusion.
+            $stmt = $this->db->prepare("SELECT id, titolo, isbn13, isbn10, is_desiderata FROM libri WHERE deleted_at IS NULL AND (titolo LIKE ? ESCAPE '!' OR isbn13 LIKE ? ESCAPE '!' OR isbn10 LIKE ? ESCAPE '!') ORDER BY titolo, id LIMIT 30");
             $stmt->bind_param('sss', $like, $like, $like); $stmt->execute();
             $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         }
@@ -276,7 +282,23 @@ class DesiderataPlugin
             $_SESSION['desiderata_last_offer'] = time();
             $_SESSION['desiderata_success'] = true;
             return $r->withHeader('Location', url('/desiderata') . '#donation-form')->withStatus(303);
-        } catch (InvalidArgumentException $e) { return $this->page($r, ['error' => $e->getMessage(), 'values' => $input], 422); }
+        } catch (Throwable $e) {
+            // Same shape as manage(): a rejected input speaks for itself, while
+            // anything else is logged and answered with a generic message. What
+            // matters is that BOTH branches re-render the form with 'values' —
+            // the error middleware renders a bare 500 with no access to the
+            // request body, so an unhandled database failure here would throw
+            // away everything the visitor typed into the donation form.
+            if (!$e instanceof InvalidArgumentException) {
+                \App\Support\SecureLogger::error('[Desiderata] Offer failed: ' . $e->getMessage());
+            }
+            return $this->page($r, [
+                'error' => $e instanceof InvalidArgumentException
+                    ? $e->getMessage()
+                    : __('Non è stato possibile registrare la proposta. Riprova tra poco: i dati che hai inserito sono ancora qui.'),
+                'values' => $input,
+            ], 422);
+        }
     }
     /**
      * The admin screen holds two independent lists, so they hold two
@@ -298,7 +320,12 @@ class DesiderataPlugin
         );
         return $params === [] ? '' : '?' . http_build_query($params);
     }
-    public function admin(Request $q, Response $r, string $error = ''): Response
+    /**
+     * $errorOfferId names the proposal the message belongs to, so the view can
+     * put it inside that card instead of on a banner thirty cards away. Zero
+     * means the failure is not about one proposal and the banner is right.
+     */
+    public function admin(Request $q, Response $r, string $error = '', int $errorOfferId = 0): Response
     {
         $params = $q->getQueryParams();
         $offersPage = self::pageNumber($params, 'offers_page');
@@ -311,7 +338,7 @@ class DesiderataPlugin
         // oldest requests were reachable from nowhere in the admin.
         $books = $this->wanted('', 31, $booksOffset);
         $moreBooks = count($books) > 30; $books = array_slice($books, 0, 30);
-        return $this->render($r, 'admin', compact('offers', 'offersPage', 'booksPage', 'more', 'error', 'books', 'moreBooks'), true);
+        return $this->render($r, 'admin', compact('offers', 'offersPage', 'booksPage', 'more', 'error', 'errorOfferId', 'books', 'moreBooks'), true);
     }
     public function manage(Request $q, Response $r, int $id): Response
     {
@@ -370,7 +397,7 @@ class DesiderataPlugin
         } catch (Throwable $e) {
             $this->db->rollback();
             if (!$e instanceof InvalidArgumentException) { \App\Support\SecureLogger::error('[Desiderata] Receipt failed: ' . $e->getMessage()); }
-            return $this->admin($q, $r, $e instanceof InvalidArgumentException ? $e->getMessage() : __('Operazione non riuscita. Nessuna copia è stata registrata.'))->withStatus(422);
+            return $this->admin($q, $r, $e instanceof InvalidArgumentException ? $e->getMessage() : __('Operazione non riuscita. Nessuna copia è stata registrata.'), $id)->withStatus(422);
         }
         $this->invalidate();
         return $r->withHeader('Location', $back)->withStatus(303);

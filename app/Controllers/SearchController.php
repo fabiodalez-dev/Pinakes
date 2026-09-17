@@ -199,14 +199,35 @@ class SearchController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
+    /**
+     * Is the current session an operator one (admin or staff)?
+     *
+     * /api/search/unified carries no auth middleware — unlike its sibling
+     * /api/search/utenti, which chains AdminAuthMiddleware — and is reached
+     * both from the back-office quick-search and from anonymous callers
+     * (plugins publish their own sources into it through the
+     * `search.unified.sources` hook, and the archives E2E suite drives it
+     * logged out). So the endpoint stays open and the RESULTS are scoped
+     * instead: a wanted title is an operator-only record and is disclosed
+     * only to a session that could edit it anyway.
+     */
+    private function isOperatorSession(): bool
+    {
+        $role = $_SESSION['user']['tipo_utente'] ?? null;
+        return $role === 'admin' || $role === 'staff';
+    }
+
     public function unifiedSearch(Request $request, Response $response, mysqli $db): Response
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $results = [];
 
         if ($q !== '') {
-            // Search books by ISBN, EAN, title, subtitle
-            $bookResults = $this->searchBooks($db, $q);
+            // Search books by ISBN, EAN, title, subtitle.
+            // The quick-search box links to url('/admin/books/{id}'), so an
+            // operator must be able to find a title they have just recorded as
+            // wanted; everyone else gets the public catalogue.
+            $bookResults = $this->searchBooks($db, $q, $this->isOperatorSession());
             $results = array_merge($results, $bookResults);
 
             // Search authors
@@ -265,7 +286,14 @@ class SearchController
         return $response->withHeader('Content-Type', 'application/json');
     }
     
-    private function searchBooks(mysqli $db, string $query): array
+    /**
+     * @param bool $includeRequests TRUE only for an operator session: wanted
+     *                              titles (desiderata) join the results so the
+     *                              back-office quick-search can find a record
+     *                              that has just been created. Defaults to
+     *                              FALSE, which is the public catalogue.
+     */
+    private function searchBooks(mysqli $db, string $query, bool $includeRequests = false): array
     {
         $results = [];
         $cond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $query);
@@ -284,6 +312,7 @@ class SearchController
             'l.',
             self::AJAX_RELEVANCE_WORD_LIMIT
         );
+        $visibility = $includeRequests ? '1=1' : \App\Support\BookVisibility::catalogue($db, 'l');
         $stmt = $db->prepare("
             SELECT l.id, l.titolo AS label, l.sottotitolo, l.isbn10, l.isbn13, l.ean,
                    (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
@@ -293,7 +322,7 @@ class SearchController
                     JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')) AS autori
             FROM libri l
-            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND {$cond['sql']}
+            WHERE l.deleted_at IS NULL AND " . $visibility . " AND {$cond['sql']}
             ORDER BY {$rel['sql']} LIMIT 10
         ");
         $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));

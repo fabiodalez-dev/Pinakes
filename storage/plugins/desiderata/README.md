@@ -41,5 +41,5 @@ L'export verso LibraryThing **esclude di proposito** le richieste: quel formato 
 
 ### Suite completa
 
-- `php tests/desiderata.integration.php`: 100 verifiche, inclusi limiti Unicode, input anomali, ricerca letterale e paginazione, schede cancellate/ripristinate, copie preesistenti, antispam, XSS, rollback, ricezioni simultanee e middleware HTTP per permessi/CSRF. I processi concorrenti usano connessioni separate al database.
+- `php tests/desiderata.integration.php`: 118 verifiche, inclusi limiti Unicode, input anomali, ricerca letterale e paginazione, schede cancellate/ripristinate, copie preesistenti, antispam, XSS, rollback, ricezioni simultanee, round trip CSV verso un'altra installazione e middleware HTTP per permessi/CSRF. I processi concorrenti usano connessioni separate al database.
 - `npx playwright test --config=tests/playwright.config.js tests/desiderata.spec.js`: 4 scenari end-to-end, con credenziali `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASS` da ambiente o `tests/.env.test`. Usa l’app locale (`APP_URL`, default `http://localhost:8081`) e rimuove le proprie fixture al termine. Controlla anche l’allineamento dei titoli dei generi a 1440, 1024, 768 e 390 px; se la homepage non contiene generi, renderizza il template reale con contenuti di prova senza cambiare la configurazione della biblioteca.

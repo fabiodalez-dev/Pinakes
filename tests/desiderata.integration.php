@@ -236,6 +236,64 @@ try {
     $check(str_contains($html, 'Nessuna altra richiesta oltre questa pagina.'), 'an over-run page says so instead of claiming there are no requests at all');
     $_SESSION = [];
 
+    // CSV round trip ACROSS installations, which is where a request is lost.
+    // Re-importing an export into the SAME catalogue proves nothing: the row
+    // still carries its id, so the importer takes the update path, which never
+    // touches copies and stays green with the defect present. The destructive
+    // case is a catalogue that does not hold the book — no id, insert path —
+    // because there the exported copie_totali of 0 is falsy to !empty(), is read
+    // back as 1, survives the "< 1 becomes 1" clamp and makes the importer
+    // fabricate a physical copy with an allocated inventory code. A title the
+    // library merely wants arrives as an owned, lendable holding, and the next
+    // availability recalculation clears the flag for good.
+    $roundTrip = $create('_roundtrip', true);
+    $exported = (string) (new App\Controllers\LibriController())->exportCsv(
+        (new Slim\Psr7\Factory\ServerRequestFactory())
+            ->createServerRequest('GET', '/admin/libri/export')
+            ->withQueryParams(['ids' => (string) $roundTrip]),
+        new Slim\Psr7\Response(),
+        $db
+    )->getBody();
+    $reader = App\Support\Csv::readerFromString($exported, ';');
+    $exportHeaders = array_values((array) $reader->nth(0));
+    $exportRow = array_values((array) $reader->nth(1));
+    $cell = static fn(string $column) => (string) ($exportRow[array_search($column, $exportHeaders, true)] ?? '');
+    $check(in_array('is_desiderata', $exportHeaders, true), 'the standard export carries the request flag where the column exists');
+    $check($cell('is_desiderata') === '1' && $cell('titolo') === $prefix . '_roundtrip', 'the exported row marks the wanted title as a request');
+    $check($cell('copie_totali') === '0', 'the exported request declares zero copies');
+
+    // Spreadsheet editors drop the id column routinely, and a second
+    // installation has no row under it either: both land on the insert path.
+    $idColumn = array_search('id', $exportHeaders, true);
+    unset($exportHeaders[$idColumn], $exportRow[$idColumn]);
+    $exportHeaders = array_values($exportHeaders);
+    $exportRow = array_values($exportRow);
+
+    $importer = new App\Controllers\CsvImportController();
+    $invokeImporter = static fn(string $method, mixed ...$args) => (new ReflectionMethod($importer, $method))->invoke($importer, ...$args);
+    $row = [];
+    foreach ($invokeImporter('mapColumnHeaders', $exportHeaders) as $index => $canonical) {
+        if (array_key_exists($canonical, $row) && trim((string) $row[$canonical]) !== '') continue;
+        $row[$canonical] = $exportRow[$index] ?? '';
+    }
+    $parsed = $invokeImporter('parseCsvRow', $row);
+    $check($parsed['is_desiderata'] === true, 'the importer recognises the exported flag column');
+    $check($parsed['copie_totali'] === 1, 'the exported zero copy count is falsy and comes back as one, so the flag alone must suppress copies');
+    $existing = $invokeImporter('findExistingBook', $db, $parsed);
+    $check($existing === null, 'without the id column the row reaches a catalogue that does not hold it, so the insert path runs');
+    $db->begin_transaction();
+    try {
+        $result = $invokeImporter('upsertBook', $db, $parsed, null, null, [], $existing);
+        $db->commit();
+    } catch (\Throwable $e) { $db->rollback(); throw $e; }
+    $migrated = (int) $result['id']; $ids[] = $migrated;
+    $check($result['action'] === 'created', 'the round trip creates a new record rather than updating the source');
+    $check((int) $scalar("SELECT COUNT(*) FROM copie WHERE libro_id=$migrated") === 0, 'importing a request fabricates no physical copy');
+    $check((int) $scalar("SELECT is_desiderata FROM libri WHERE id=$migrated") === 1, 'the request survives the migration into another catalogue');
+    $check((int) $scalar("SELECT copie_totali FROM libri WHERE id=$migrated") === 0 && (int) $scalar("SELECT copie_disponibili FROM libri WHERE id=$migrated") === 0, 'the migrated request still owns nothing');
+    $check((int) $scalar("SELECT COUNT(*) FROM libri WHERE id=$migrated AND $visibility") === 0, 'the migrated request stays out of the ordinary catalogue');
+    $check(in_array($migrated, array_column($plugin->wanted($prefix . '_roundtrip', 100), 'id'), true), 'the migrated request appears among the requested books');
+
     // Exercise the real registered HTTP routes and middleware, not just methods.
     $app=Slim\Factory\AppFactory::create(); $app->addBodyParsingMiddleware(); $plugin->registerRoutes($app);
     $oldBypass=$_ENV['PINAKES_E2E_BYPASS_RATE_LIMIT'] ?? null;

@@ -25,10 +25,32 @@ final class BookVisibility
      */
     public static function catalogue(\mysqli $db, string $alias = 'libri'): string
     {
+        return self::hasDesiderata($db) ? self::alias($alias) . '.is_desiderata = 0' : '1=1';
+    }
+
+    /**
+     * The mirror image of catalogue(): "this row is a request, not a holding".
+     *
+     * It exists for the two harvesting protocols, which owe their subscribers a
+     * DELETION when a record they already took stops being published — flagging
+     * a harvested book as wanted is a withdrawal, and silence would leave a
+     * stale copy in every remote catalogue forever. Expressing it here keeps the
+     * column probe in one place instead of each protocol re-deriving it.
+     *
+     * Returns the literal 0=1 when the column is absent, so the extra UNION arm
+     * an installation without the plugin carries is inert and costs nothing.
+     */
+    public static function delisted(\mysqli $db, string $alias = 'libri'): string
+    {
+        return self::hasDesiderata($db) ? self::alias($alias) . '.is_desiderata = 1' : '0=1';
+    }
+
+    private static function alias(string $alias): string
+    {
         if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/D', $alias)) {
             throw new \InvalidArgumentException('Invalid SQL alias');
         }
-        return self::hasDesiderata($db) ? "$alias.is_desiderata = 0" : '1=1';
+        return $alias;
     }
 
     public static function hasDesiderata(\mysqli $db): bool
@@ -37,7 +59,25 @@ final class BookVisibility
         $columns ??= new \WeakMap();
         if (!isset($columns[$db])) {
             $result = $db->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'");
-            $columns[$db] = $result !== false && $result->num_rows > 0;
+            if ($result === false) {
+                // A FAILED probe is not an answer, and memoising it as "the
+                // column is absent" would poison the rest of the request: every
+                // later catalogue() would degrade to 1=1 and publish the whole
+                // wish list to the catalogue, the feeds, the sitemap and all six
+                // interop protocols. Log it and answer false for THIS call only,
+                // so the next one probes again.
+                //
+                // False — not true — is the only safe answer here: emitting a
+                // predicate on a column that may genuinely not exist would take
+                // the public catalogue down on every installation without the
+                // plugin, which is worse than the leak it would prevent.
+                \App\Support\SecureLogger::error(
+                    'BookVisibility: cannot probe libri.is_desiderata; visibility filtering is degraded for this call',
+                    ['error' => $db->error]
+                );
+                return false;
+            }
+            $columns[$db] = $result->num_rows > 0;
         }
         return $columns[$db];
     }
