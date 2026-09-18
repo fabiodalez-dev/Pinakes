@@ -432,13 +432,36 @@ try {
         // catalogue from here. deleted_at is not optional — the plugin's
         // composite index is (is_desiderata, deleted_at), and without the column
         // the schema half of this section would silently stop being exercised.
-        $sandbox->query('DROP TABLE IF EXISTS desiderata_offers');
-        $sandbox->query('DROP TABLE IF EXISTS libri');
+        // The sandbox is EMPTIED first, not just relieved of two tables.
+        //
+        // It is shared with the other desiderata suites, and they load the full
+        // schema.sql into it. Dropping only `libri` leaves every table that
+        // points at it, and those leftovers break this section two different
+        // ways depending on which sibling ran last: with foreign key checks on,
+        // the DROP is refused outright ("Cannot drop table 'libri' referenced
+        // by a foreign key constraint 'copie_ibfk_1'"); with them off, the
+        // minimal `libri` below is refused instead, because its INT UNSIGNED id
+        // is incompatible with the surviving fk_bcbooks_libro.
+        //
+        // Either way the outcome depended on execution order rather than on the
+        // code under test. This section wants a pristine database of its own —
+        // that is the point of a minimal `libri` "of the plugin's own making" —
+        // so it builds one instead of hoping to find one.
+        $sandbox->query('SET FOREIGN_KEY_CHECKS = 0');
+        $leftovers = [];
+        $shown = $sandbox->query('SHOW TABLES');
+        while ($t = $shown->fetch_row()) {
+            $leftovers[] = $t[0];
+        }
+        foreach ($leftovers as $t) {
+            $sandbox->query('DROP TABLE IF EXISTS `' . $t . '`');
+        }
         $sandbox->query('CREATE TABLE libri (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
             titolo VARCHAR(255) NOT NULL,
             deleted_at DATETIME NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        $sandbox->query('SET FOREIGN_KEY_CHECKS = 1');
 
         $sandboxPlugin = new DesiderataPlugin($sandbox, new \App\Support\HookManager($sandbox));
 

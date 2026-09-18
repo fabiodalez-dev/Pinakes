@@ -145,6 +145,54 @@ foreach (['recaptcha_site_key', 'recaptcha_secret_key'] as $key) {
     $settingSnapshot[$key] = $row === null ? null : (string) $row['setting_value'];
 }
 
+// The restore is armed HERE, on the shutdown handler, and not only in the
+// finally block far below — for two reasons, both of which happened.
+//
+// First, the window. The test secret is written a few lines down, while the
+// try/finally that restores it does not open until much later; anything fatal
+// in between leaves the installation running on this suite's value with
+// nothing arranged to take it back. Second, `finally` does not run on a fatal
+// error or on exit(), so even inside the block the guarantee was weaker than
+// it looked.
+//
+// What it costs when it leaks is disproportionate and silent: a non-empty
+// secret with an empty site key is "reCAPTCHA configured" as far as the plugin
+// is concerned, so every donation submitted from the real form — by a suite or
+// by a person — is answered 422 "Verifica reCAPTCHA fallita", and the donation
+// page of the development installation simply stops accepting anything. It
+// took an unrelated pair of integration suites failing to notice.
+//
+// It is a FALLBACK, not a second restore. On a normal run the finally block
+// below does the work and reports any failure, then sets the flag; by the time
+// shutdown handlers run that block has also closed $db, and touching a closed
+// mysqli throws — so the flag is what keeps this handler out of the way rather
+// than turning every clean run into a fatal at the very last instant.
+//
+// A shutdown handler still cannot survive SIGKILL. That case is unreachable
+// from here, and the finally block remains the path that reports failures.
+$settingsRestored = false;
+register_shutdown_function(static function () use ($db, $settingSnapshot, &$settingsRestored): void {
+    if ($settingsRestored) {
+        return;
+    }
+    try {
+        foreach ($settingSnapshot as $key => $value) {
+            $escapedKey = $db->real_escape_string($key);
+            if ($value === null) {
+                $db->query("DELETE FROM system_settings WHERE category = 'contacts' AND setting_key = '{$escapedKey}'");
+            } else {
+                $db->query(
+                    "UPDATE system_settings SET setting_value = '" . $db->real_escape_string($value) . "'"
+                    . " WHERE category = 'contacts' AND setting_key = '{$escapedKey}'"
+                );
+            }
+        }
+    } catch (\Throwable) {
+        // Nothing useful can be done from a shutdown handler; this path only
+        // exists for runs that never reached the finally block at all.
+    }
+});
+
 $useSecret = static function (string $value) use ($check): void {
     ConfigStore::set('contacts.recaptcha_secret_key', $value);
     ConfigStore::clearCache();
@@ -378,6 +426,11 @@ try {
             $cleanupErrors[] = "contacts.{$key} could not be verified after the restore\n      " . $error->getMessage();
         }
     }
+    // The loop above has had its turn, verified each row by reading it back,
+    // and recorded anything it could not put right. Stand the shutdown
+    // fallback down: from here on $db is about to be closed, and a second
+    // attempt could only fail.
+    $settingsRestored = true;
     $guard('clearing the ConfigStore cache', static function (): void { ConfigStore::clearCache(); });
     // Swept by PREFIX, not only by the ids the happy paths recorded. A run that
     // ends early — or one where the code under test accepts a submission this

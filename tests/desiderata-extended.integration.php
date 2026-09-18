@@ -641,9 +641,24 @@ try {
     $junction->setAccessible(true);
     $junction->setValue(null, null);
 
-    foreach (['desiderata_offers', 'plugin_hooks', 'plugin_settings', 'home_content', 'plugins', 'libri'] as $table) {
+    // The sandbox is EMPTIED, not relieved of a named list. It is shared with
+    // the other desiderata suites, which load the full schema.sql into it, and
+    // that schema hangs foreign keys off the very tables named below —
+    // plugin_data onto plugins, copie onto libri. Dropping a fixed list leaves
+    // the referencing tables standing and the DROP is refused ("Cannot drop
+    // table 'plugins' referenced by a foreign key constraint
+    // 'fk_plugin_data_plugin'"), so whether this section runs at all depended
+    // on which sibling happened to go first.
+    $sandbox->query('SET FOREIGN_KEY_CHECKS = 0');
+    $leftovers = [];
+    $shown = $sandbox->query('SHOW TABLES');
+    while ($t = $shown->fetch_row()) {
+        $leftovers[] = $t[0];
+    }
+    foreach ($leftovers as $table) {
         $sandbox->query("DROP TABLE IF EXISTS `{$table}`");
     }
+    $sandbox->query('SET FOREIGN_KEY_CHECKS = 1');
     // deleted_at is not optional: the plugin's composite index is
     // (is_desiderata, deleted_at) and ensureSchema() would fail without it.
     $sandbox->query('CREATE TABLE libri (
@@ -817,6 +832,13 @@ try {
     $_SESSION = [];
     if ($sandbox instanceof mysqli) {
         $sandbox->failPluginSettings = false;
+        // Same reason as the teardown's counterpart at setup: a fixed list
+        // cannot drop a table something else still references.
+        try {
+            $sandbox->query('SET FOREIGN_KEY_CHECKS = 0');
+        } catch (\Throwable) {
+            // Best effort; the loop below reports nothing either way.
+        }
         foreach (['desiderata_offers', 'plugin_hooks', 'plugin_settings', 'home_content', 'plugins', 'libri'] as $table) {
             try {
                 $sandbox->query("DROP TABLE IF EXISTS `{$table}`");
