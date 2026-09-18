@@ -448,6 +448,7 @@ tests/*
 !tests/*.unit.php
 !tests/*.integration.php
 !tests/*.test.sh
+!tests/*.test.cjs
 !tests/ci-playwright-policy.json
 !tests/seeds/
 tests/seeds/*

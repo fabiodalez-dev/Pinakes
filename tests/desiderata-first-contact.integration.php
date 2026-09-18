@@ -26,7 +26,7 @@ declare(strict_types=1);
  * exists — are asserted to stay 403, and the database is checked to be untouched
  * after all of them.
  *
- * Run:  php tests/desiderata-first-contact.unit.php
+ * Run:  php tests/desiderata-first-contact.integration.php
  */
 
 $root = dirname(__DIR__);

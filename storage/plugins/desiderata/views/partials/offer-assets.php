@@ -58,18 +58,20 @@ $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '
     // Establishing it at wiring time costs one small request, and only on a page
     // that had no session to begin with — a page served WITH one already carries
     // its token and skips this entirely.
+    let initialCsrf = Promise.resolve();
     if (!form.elements.csrf_token.value) {
-      fetch(csrfUrl, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+      initialCsrf = fetch(csrfUrl, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
         .then(response => response.ok ? response.json() : null)
         .then(data => { if (data && typeof data.token === 'string' && data.token && !form.elements.csrf_token.value) { form.elements.csrf_token.value = data.token; } })
-        // Deliberately silent: the submit handler fetches a fresh token anyway,
-        // so a failure here costs nothing beyond the head start.
+        // A failed warmup can be retried by submit, after this request settles.
         .catch(() => {});
     }
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const submit=form.querySelector('button[type="submit"]'); submit.disabled=true;
       try {
+        // Do not mint two sessions concurrently in a browser with no cookie.
+        await initialCsrf;
         // Before the CSRF refresh, not after: the token this produces is
         // single-use and short-lived, and the network round trip for the CSRF
         // token would age it for nothing.

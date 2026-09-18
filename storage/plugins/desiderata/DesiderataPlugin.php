@@ -101,26 +101,13 @@ class DesiderataPlugin
             if ($this->db->query('ALTER TABLE libri ADD COLUMN catalogued_at DATETIME NULL DEFAULT NULL') === false) {
                 $this->fail('cannot add libri.catalogued_at');
             }
-            // Backfill, once, on the transition — and only in the direction we
-            // can actually know. A row sitting at is_desiderata = 0 right now
-            // IS in the catalogue, so it is stamped. A row already flagged
-            // cannot be judged either way, so it stays NULL and will never
-            // tombstone: the existing wish list loses tombstones it should
-            // arguably have had, which is the harmless half of the trade, while
-            // guessing the other way would keep publishing deletions for
-            // records no harvester ever received.
-            // NOW(), not the row's own created_at/updated_at: those belong to
-            // core's libri, not to this plugin, and reading them here would make
-            // the schema step fail on any table that does not carry them. The
-            // value is never compared to anything — everCatalogued() asks only
-            // IS NOT NULL — so "stamped when the column arrived" is as good as a
-            // reconstructed date, and it does not pretend to a precision it
-            // cannot have.
-            // CI-SOFT-DELETE-EXEMPT: deliberately stamps archived rows too — a
-            // restored book was in the catalogue before it was deleted.
-            if ($this->db->query('UPDATE libri SET catalogued_at = NOW() WHERE is_desiderata = 0 AND catalogued_at IS NULL') === false) {
-                $this->fail('cannot backfill libri.catalogued_at');
-            }
+        }
+        // Retryable after a failure between ALTER TABLE and backfill. Only rows
+        // currently in the catalogue can be stamped; preserve previous stamps
+        // and leave never-published requests unknown.
+        // CI-SOFT-DELETE-EXEMPT: archived catalogue rows were published too.
+        if ($this->db->query('UPDATE libri SET catalogued_at = NOW() WHERE is_desiderata = 0 AND catalogued_at IS NULL') === false) {
+            $this->fail('cannot backfill libri.catalogued_at');
         }
         // No hard FK to core tables: installations may use different integer types.
         if ($this->db->query("CREATE TABLE IF NOT EXISTS desiderata_offers (

@@ -112,3 +112,9 @@ Verifiche aggiuntive per la release:
 - `REQUIRE_DESIDERATA_TESTS=1 php tests/bookclub-lending.unit.php`: 43 controlli, inclusi 10 nuovi casi R11–R20 sul ciclo di prestito di copie dei membri per libri desiderata. Il flag della biblioteca non nasconde il titolo e non modifica il possesso del membro.
 - La CI esegue i test Book Club anche dopo l'installazione dello schema desiderata, richiedendo la presenza della colonna per evitare che questi casi vengano saltati.
 - I test PHP delle donazioni intercettano le email con un servizio simulato. I controlli reCAPTCHA simulano le risposte di Google; non certificano le chiavi di una specifica installazione.
+
+### Regressioni sessione e aggiornamento
+
+- `node --test tests/desiderata-csrf-concurrency.test.cjs`: 7 test sul JavaScript effettivo del modulo, con richieste controllate: primo invio durante l'inizializzazione, errori di rete, risposta malformata, sessione esistente e ritentativi.
+- `php tests/desiderata-catalogued-upgrade.unit.php`: include il recupero del popolamento di `catalogued_at` dopo un aggiornamento interrotto e la conservazione dei timestamp preesistenti.
+- `tests/desiderata-first-contact.integration.php` richiede un server HTTP e il plugin attivo. Viene eseguito da `tests/desiderata.spec.js` dopo l'attivazione del plugin, non nei job standalone dei database.

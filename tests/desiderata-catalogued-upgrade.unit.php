@@ -201,6 +201,15 @@ try {
     $check($db->query("SHOW COLUMNS FROM libri LIKE 'catalogued\\_at'")->num_rows === 1,
         'the column is still there exactly once');
 
+    // Simulate interruption after the DDL committed but before backfill ran.
+    $db->query("UPDATE libri SET catalogued_at = NULL WHERE id = $held");
+    $plugin = new \DesiderataPlugin($db, new HookManager($db));
+    $plugin->ensureSchema();
+    $check($stamp($held) !== null, 'retry repairs backfill when the column already exists');
+    $check($stamp($wanted) === null, 'retry never stamps an unpublished request');
+    $repaired = $stamp($held);
+    $plugin->ensureSchema();
+    $check($stamp($held) === $repaired, 'repeated repair preserves original timestamp');
     $db->close();
 } catch (\Throwable $error) {
     $fatalError = $error;

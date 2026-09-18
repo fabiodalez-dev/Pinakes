@@ -169,3 +169,12 @@ test('free donation remains a proposal and can be matched to an existing zero-co
   await expect(page.locator('article').filter({hasText:'Offerta libera '+tag})).toContainText('Ricevuta');
   expect(fixture('state').books.find(b=>b.id===seeded.normal).physical).toBe(1);
 });
+
+// Requires the HTTP server and the plugin activated by this suite's beforeAll.
+// Keep it out of the standalone database-only unit-test glob.
+test('first contact without JavaScript preserves the form and CSRF protection', () => {
+  execFileSync('php', [path.join(__dirname, 'desiderata-first-contact.integration.php')], {
+    cwd: root, encoding: 'utf8', stdio: 'pipe',
+    env: { ...process.env, E2E_BASE_URL: process.env.APP_URL || 'http://localhost:8081' },
+  });
+});
