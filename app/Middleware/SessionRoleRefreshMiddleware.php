@@ -16,20 +16,20 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
  *
  * Why this exists as a middleware rather than an inline check.
  * `$_SESSION['user']['tipo_utente']` is a snapshot taken at login, and roughly
- * sixty places across the controllers read it directly. They are all sound
- * because they sit behind AdminAuthMiddleware, whose revalidateRole() does not
- * merely decide yes/no — it writes the fresh DB role back into the session, so
- * every downstream reader on that route sees a current value. The invariant
- * "the session role is fresh" is maintained by the middleware chain, not by the
- * readers.
+ * sixty places across the controllers read it directly. They are sound
+ * because they sit behind AdminAuthMiddleware or AuthMiddleware, which re-read
+ * the account through SessionRoleRevalidator and write the fresh role back
+ * into the session, so every downstream reader on that route sees a current
+ * value. The invariant "the session role is fresh" is maintained by the
+ * middleware chain, not by the readers.
  *
  * A route registered with no middleware therefore has no one maintaining it,
  * and a role read there is a stale login-time claim that survives a demotion or
  * a suspension until the session expires (CWE-613). That is the gap this fills
  * for endpoints that must stay reachable by anonymous callers and so cannot
- * take AdminAuthMiddleware, which would answer 401.
+ * take an authorising middleware, which would answer 401 or redirect.
  *
- * Two deliberate differences from AdminAuthMiddleware:
+ * Two deliberate differences from the authorising middlewares:
  *
  * 1. It never denies. The privilege fails closed, the request does not: on a
  *    missing session, a suspended account, an unreachable DB or a failed query
@@ -50,15 +50,6 @@ class SessionRoleRefreshMiddleware implements MiddlewareInterface
 
     /** Roles that count as operator. Mirrors AdminAuthMiddleware::ALLOWED_ROLES. */
     private const OPERATOR_ROLES = ['admin', 'staff'];
-
-    /**
-     * Per-request memo keyed by user id, so a route carrying this middleware
-     * alongside another role check pays one query. PHP is shared-nothing
-     * (PHP-FPM included), so no verdict outlives the request that made it.
-     *
-     * @var array<int,bool>
-     */
-    private static array $cache = [];
 
     private ?\mysqli $db;
     private ?ContainerInterface $container;
@@ -81,61 +72,28 @@ class SessionRoleRefreshMiddleware implements MiddlewareInterface
         );
     }
 
+    /**
+     * The query, the per-request memo and the write-back of the fresh role
+     * into the session all live in SessionRoleRevalidator, shared with the
+     * two authorising middlewares. Any failure to establish an active
+     * operator account — no session, unreachable database, deleted or
+     * suspended account — is simply "not an operator" here.
+     */
     private function resolveOperator(): bool
     {
-        $userId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : 0;
-        if ($userId <= 0) {
-            // Anonymous, or a session without a usable id. Not an error: this
-            // endpoint is public and most of its traffic arrives this way.
+        if (!isset($_SESSION['user']['id'])) {
+            // Anonymous: the common case on this public endpoint, and not an
+            // error — so no connection is opened for it.
             return false;
-        }
-
-        if (isset(self::$cache[$userId])) {
-            return self::$cache[$userId];
         }
 
         $db = $this->resolveDb();
         if (!$db instanceof \mysqli) {
-            // Do NOT cache: a later call in the same request may recover.
             \App\Support\SecureLogger::error('[SessionRoleRefreshMiddleware] Database unavailable; treating session as non-operator');
             return false;
         }
 
-        try {
-            $stmt = $db->prepare('SELECT tipo_utente, stato FROM utenti WHERE id = ? LIMIT 1');
-            if ($stmt === false) {
-                return false;
-            }
-            $stmt->bind_param('i', $userId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $row = ($result instanceof \mysqli_result) ? $result->fetch_assoc() : null;
-            $stmt->close();
-        } catch (\Throwable $e) {
-            \App\Support\SecureLogger::error('[SessionRoleRefreshMiddleware] Role re-validation query failed; treating session as non-operator', ['exception' => $e->getMessage()]);
-            return false;
-        }
-
-        if (!is_array($row)) {
-            // The account is gone. Cache it: it will not reappear mid-request.
-            self::$cache[$userId] = false;
-            return false;
-        }
-
-        $role   = $row['tipo_utente'] ?? null;
-        $active = ($row['stato'] ?? '') === 'attivo';
-
-        // The read succeeded, so the session snapshot can be realigned — this
-        // is the same write-back AdminAuthMiddleware performs, and it is what
-        // keeps the inline role reads elsewhere honest for the rest of this
-        // request. Only reached when the DB actually answered.
-        $_SESSION['user']['tipo_utente'] = $role;
-        $_SESSION['user']['stato'] = $row['stato'] ?? null;
-
-        $isOperator = $active && in_array($role, self::OPERATOR_ROLES, true);
-        self::$cache[$userId] = $isOperator;
-
-        return $isOperator;
+        return \App\Support\SessionRoleRevalidator::holdsActiveRole(self::OPERATOR_ROLES, $db);
     }
 
     private function resolveDb(): ?\mysqli
