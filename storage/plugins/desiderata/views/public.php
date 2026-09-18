@@ -65,7 +65,11 @@ $placeholderJson = json_encode(url(DesiderataPlugin::PLACEHOLDER_COVER), JSON_HE
       </nav>
       <?php endif; ?>
     </div>
+    <?php // Only the homepage section needs the way out: on /desiderata the
+          // form is already on the page, and the link would lead back to it. ?>
+    <?php if (empty($standalone)): ?>
     <noscript><p><a href="<?= $e(url(DesiderataPlugin::PATH_PUBLIC)) ?>"><?= __('Apri il modulo di donazione') ?></a></p></noscript>
+    <?php endif; ?>
     <?php require __DIR__ . '/partials/offer-form.php'; ?>
   </div>
 </section>

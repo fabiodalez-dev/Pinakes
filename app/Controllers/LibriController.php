@@ -1499,6 +1499,12 @@ class LibriController
      */
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        // Snapshotted before any work, so the success message at the end can
+        // tell an error THIS request raised (a cover/plugin step writing the
+        // flash) from a stale one left by an earlier request that nobody has
+        // rendered yet — the latter must not swallow "book updated".
+        $errorBeforeUpdate = $_SESSION['error_message'] ?? null;
+
         $data = $this->parseRequestBody($request);
         if ($data === null) {
             $_SESSION['error_message'] = __('Impossibile leggere i dati del modulo. Riprova.');
@@ -2071,7 +2077,7 @@ class LibriController
                 source: 'manual'
             );
 
-            if (empty($_SESSION['error_message'])) {
+            if (($_SESSION['error_message'] ?? null) === $errorBeforeUpdate) {
                 $_SESSION['success_message'] = __('Libro aggiornato con successo!');
             }
 

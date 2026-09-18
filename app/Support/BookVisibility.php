@@ -266,19 +266,65 @@ final class BookVisibility
                 // answering "absent" would publish the wish list for no reason.
                 // So: fall back to what we learned, and only guess when we never
                 // learned anything.
+                //
+                // "This worker" is too narrow on its own. $seenColumn is a
+                // static, so a PHP-FPM worker that has just been spawned knows
+                // nothing, and a transient failure on its very first probe would
+                // answer "absent" and publish the wish list for that call even
+                // though every other worker has seen the column. The shared
+                // cache (APCu, or the file backend) carries the same fact across
+                // workers and restarts. Trusting it is safe for the same reason
+                // trusting $seenColumn is: the plugin never drops the column —
+                // onUninstall() clears the flag on every row and leaves the
+                // column in place — so "seen once" stays true.
+                $known = $seenColumn || self::columnSeenElsewhere();
                 \App\Support\SecureLogger::error(
-                    $seenColumn
-                        ? 'BookVisibility: cannot probe libri.is_desiderata; keeping the filter on, the column was seen earlier in this worker'
+                    $known
+                        ? 'BookVisibility: cannot probe libri.is_desiderata; keeping the filter on, the column is known to exist'
                         : 'BookVisibility: cannot probe libri.is_desiderata; visibility filtering is degraded for this call',
                     ['error' => $reason]
                 );
-                return $seenColumn;
+                return $known;
             }
             $columns[$db] = $result->num_rows > 0;
             if ($columns[$db]) {
+                if (!$seenColumn) {
+                    self::rememberColumnSeen();
+                }
                 $seenColumn = true;
             }
         }
         return $columns[$db];
+    }
+
+    /**
+     * Shared-cache key for "the desiderata column exists on this installation".
+     * Thirty days, because the column is never dropped and a long-lived worker
+     * pool only rewrites the key when a new worker makes its first probe.
+     */
+    private const COLUMN_SEEN_KEY = 'visibility_desiderata_column_seen';
+
+    /**
+     * Record, once per worker, that a probe found the column. A cache failure
+     * is ignored: this is a tie-breaker for a failed probe, never a reason to
+     * fail the successful one that is running now.
+     */
+    private static function rememberColumnSeen(): void
+    {
+        try {
+            \App\Support\QueryCache::set(self::COLUMN_SEEN_KEY, true, 2592000);
+        } catch (\Throwable) {
+            // Best effort by design; see above.
+        }
+    }
+
+    /** Has any worker on this installation seen the column? */
+    private static function columnSeenElsewhere(): bool
+    {
+        try {
+            return \App\Support\QueryCache::get(self::COLUMN_SEEN_KEY) === true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

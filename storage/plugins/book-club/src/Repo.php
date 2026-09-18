@@ -48,26 +48,6 @@ class Repo
     }
 
     /**
-     * A club's reading list deliberately does NOT hide a book the library has
-     * flagged as wanted rather than held.
-     *
-     * The filter that used to live here put `is_desiderata = 0` on the JOIN
-     * condition over `libri`, which cannot express "blank the title, keep the
-     * row": on a LEFT JOIN it nulls the whole `l.*` projection, and the
-     * "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)" guard below —
-     * written to hide a DELETED book — then read that as a missing row and
-     * dropped the entry, so clubBook() answered null and every route keyed on
-     * it 404d. On the sibling repositories' INNER JOINs the row simply vanished.
-     *
-     * Nor was there anything to protect: `/desiderata` is registered without
-     * auth middleware and publishes the whole wish list — titles, authors,
-     * publishers, covers — to anonymous visitors by design. A club showing the
-     * title of a book its members chose to read discloses nothing that feature
-     * does not already publish itself, and the members still need to see what
-     * they are reading.
-     */
-
-    /**
      * @param array<int, mixed> $params
      * @return list<array<string, mixed>>
      */
@@ -771,10 +751,30 @@ class Repo
     // Club books
     // ------------------------------------------------------------------
 
-    // A club book is EITHER a catalogue book (cb.libro_id → libri) OR an
-    // external proposal (cb.external_book_id → bookclub_external_books, a book
-    // not in the library). Both are LEFT JOINed and the display fields are
-    // COALESCEd so one SELECT serves both; is_external tells them apart.
+    /**
+     * A club book is EITHER a catalogue book (cb.libro_id → libri) OR an
+     * external proposal (cb.external_book_id → bookclub_external_books, a book
+     * not in the library). Both are LEFT JOINed and the display fields are
+     * COALESCEd so one SELECT serves both; is_external tells them apart.
+     *
+     * A club's reading list deliberately does NOT hide a book the library has
+     * flagged as wanted rather than held.
+     *
+     * The filter that used to live here put `is_desiderata = 0` on the JOIN
+     * condition over `libri`, which cannot express "blank the title, keep the
+     * row": on a LEFT JOIN it nulls the whole `l.*` projection, and the
+     * "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)" guard below —
+     * written to hide a DELETED book — then read that as a missing row and
+     * dropped the entry, so clubBook() answered null and every route keyed on
+     * it 404d. On the sibling repositories' INNER JOINs the row simply vanished.
+     *
+     * Nor was there anything to protect: `/desiderata` is registered without
+     * auth middleware and publishes the whole wish list — titles, authors,
+     * publishers, covers — to anonymous visitors by design. A club showing the
+     * title of a book its members chose to read discloses nothing that feature
+     * does not already publish itself, and the members still need to see what
+     * they are reading.
+     */
     private function bookSelect(): string { return "SELECT cb.*,
                        COALESCE(l.titolo, ext.titolo) AS titolo,
                        COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,

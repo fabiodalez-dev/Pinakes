@@ -247,19 +247,38 @@ def comment_spans(text: str) -> list[tuple[int, int]]:
     return spans
 
 
+# PHP's double-quoted escapes, matched left to right so "\\n" is a backslash
+# followed by "n", never a newline. Order inside the alternation matters only
+# for the shared "\" prefix: octal and hex are tried before the catch-all.
+_DQ_ESCAPE = re.compile(
+    r"\\(?:([0-7]{1,3})|x([0-9A-Fa-f]{1,2})|u\{([0-9A-Fa-f]+)\}|(.))", re.DOTALL
+)
+_DQ_SIMPLE = {
+    "\\": "\\", "$": "$", '"': '"', "n": "\n", "t": "\t", "r": "\r",
+    "v": "\v", "e": "\x1b", "f": "\f",
+}
+
+
+def _dq_escape(match: re.Match[str]) -> str:
+    octal, hexa, codepoint, other = match.groups()
+    if octal is not None:
+        # PHP wraps "\400" and above to a single byte, as chr() does.
+        return chr(int(octal, 8) & 0xFF)
+    if hexa is not None:
+        return chr(int(hexa, 16))
+    if codepoint is not None:
+        return chr(int(codepoint, 16))
+    # Any other sequence ("\q", "\'") is not an escape in PHP: it stays verbatim.
+    return _DQ_SIMPLE.get(other, match.group())
+
+
 def _unescape(single: str | None, double: str | None) -> str:
     """Turn a PHP string literal's source text into its runtime value."""
     if single is not None:
+        # Single quotes know only two escapes; "\$" or "\n" stay as written.
         return single.replace("\\\\", "\x00").replace("\\'", "'").replace("\x00", "\\")
     assert double is not None
-    return (
-        double.replace("\\\\", "\x00")
-        .replace('\\"', '"')
-        .replace("\\n", "\n")
-        .replace("\\t", "\t")
-        .replace("\\r", "\r")
-        .replace("\x00", "\\")
-    )
+    return _DQ_ESCAPE.sub(_dq_escape, double)
 
 
 def translatable_literals() -> dict[str, set[str]]:

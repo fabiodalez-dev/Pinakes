@@ -1047,14 +1047,28 @@ class DesiderataPlugin
     public static function validateOffer(array $input): array
     {
         $out = [];
-        foreach (['donor_name' => 150, 'donor_email' => 254, 'title' => 255, 'author' => 255, 'publisher' => 255, 'isbn' => 20, 'notes' => 2000] as $key => $max) {
+        // The labels are the ones the donor reads on the form, so the error
+        // points at a field they can find instead of making them guess which
+        // of seven went wrong.
+        $fields = [
+            'donor_name' => [__('Il tuo nome'), 150],
+            'donor_email' => [__('Email per essere contattato'), 254],
+            'title' => [__('Titolo del libro'), 255],
+            'author' => [__('Autore'), 255],
+            'publisher' => [__('Editore'), 255],
+            'isbn' => [__('ISBN'), 20],
+            'notes' => [__('Condizioni del libro e note'), 2000],
+        ];
+        foreach ($fields as $key => [$label, $max]) {
             $value = $input[$key] ?? '';
-            if (!is_string($value) || mb_strlen(trim($value)) > $max) { throw new InvalidArgumentException(__('Controlla la lunghezza dei campi.')); }
+            if (!is_string($value)) { throw new InvalidArgumentException(__('Il campo «%s» non è valido.', $label)); }
+            if (mb_strlen(trim($value)) > $max) { throw new InvalidArgumentException(__('Il campo «%s» può contenere al massimo %d caratteri.', $label, $max)); }
             $out[$key] = trim($value);
         }
-        if ($out['donor_name'] === '' || $out['title'] === '' || !filter_var($out['donor_email'], FILTER_VALIDATE_EMAIL)) {
-            throw new InvalidArgumentException(__('Inserisci nome, email valida e titolo del libro.'));
-        }
+        // One problem at a time, in the order the fields appear on the form.
+        if ($out['donor_name'] === '') { throw new InvalidArgumentException(__('Inserisci il tuo nome.')); }
+        if (!filter_var($out['donor_email'], FILTER_VALIDATE_EMAIL)) { throw new InvalidArgumentException(__('Inserisci un indirizzo email valido.')); }
+        if ($out['title'] === '') { throw new InvalidArgumentException(__('Inserisci il titolo del libro.')); }
         if (($input['consent'] ?? '') !== '1') { throw new InvalidArgumentException(__('Conferma il consenso al contatto per la donazione.')); }
         return $out;
     }
@@ -1760,10 +1774,22 @@ class DesiderataPlugin
         // settled there has to be a way to remove it from the interface, not
         // only from SQL. Allowed in any state, including closed ones.
         if ($action === 'delete') {
-            $stmt = $this->db->prepare('DELETE FROM desiderata_offers WHERE id = ?');
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            $stmt->close();
+            // Same error contract as the status actions below: a failure
+            // re-renders the page with a message and a 422, never a bare 500,
+            // and a row that is already gone is reported, not passed off as a
+            // successful erasure.
+            try {
+                $stmt = $this->db->prepare('DELETE FROM desiderata_offers WHERE id = ?');
+                if ($stmt === false) { throw new RuntimeException('Offer delete prepare failed: ' . $this->db->error); }
+                $stmt->bind_param('i', $id);
+                if (!$stmt->execute()) { throw new RuntimeException('Offer delete failed: ' . $stmt->error); }
+                $deleted = $stmt->affected_rows;
+                $stmt->close();
+                if ($deleted < 1) { throw new InvalidArgumentException(__('Proposta già chiusa o non trovata.')); }
+            } catch (Throwable $e) {
+                if (!$e instanceof InvalidArgumentException) { \App\Support\SecureLogger::error('[Desiderata] Offer delete failed: ' . $e->getMessage()); }
+                return $this->admin($q, $r, $e instanceof InvalidArgumentException ? $e->getMessage() : __('Operazione non riuscita. Riprova.'), $id)->withStatus(422);
+            }
             return $r->withHeader('Location', $back)->withStatus(303);
         }
         // Set inside the transaction, read after the commit: the receipt
@@ -1773,8 +1799,15 @@ class DesiderataPlugin
         $receivedBookId = 0;
         $this->db->begin_transaction();
         try {
+            // Every prepare() below is checked: while BackupManager restores an
+            // import it disarms mysqli exceptions, and a false handle would
+            // otherwise surface as a TypeError instead of the RuntimeException
+            // this catch rolls back and reports. Each handle is closed before
+            // the variable is reused, so none outlives its statement.
             $stmt = $this->db->prepare('SELECT * FROM desiderata_offers WHERE id=? FOR UPDATE');
+            if ($stmt === false) { throw new RuntimeException('Offer lock prepare failed: ' . $this->db->error); }
             $stmt->bind_param('i', $id); $stmt->execute(); $offer = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
             if (!$offer || in_array($offer['status'], ['received', 'rejected'], true)) { throw new InvalidArgumentException(__('Proposta già chiusa o non trovata.')); }
             if ($action === 'received') {
                 $rawBookId = $offer['book_id'] ?: ($input['received_book_id'] ?? '');
@@ -1783,8 +1816,11 @@ class DesiderataPlugin
                 }
                 $bookId = (int)$rawBookId;
                 $stmt = $this->db->prepare('SELECT id FROM libri WHERE id=? AND deleted_at IS NULL FOR UPDATE');
+                if ($stmt === false) { throw new RuntimeException('Book lock prepare failed: ' . $this->db->error); }
                 $stmt->bind_param('i', $bookId); $stmt->execute();
-                if (!$stmt->get_result()->fetch_assoc()) { throw new InvalidArgumentException(__('Per la ricezione scegli una scheda libro esistente. Puoi prima crearla con zero copie.')); }
+                $bookRow = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if (!$bookRow) { throw new InvalidArgumentException(__('Per la ricezione scegli una scheda libro esistente. Puoi prima crearla con zero copie.')); }
                 $copyId = (new \App\Models\CopyRepository($this->db))->createWithAllocatedInventoryCode($bookId, 'LIB-' . $bookId, 'disponibile', 'Donazione #' . $id);
                 if ($copyId <= 0) { throw new RuntimeException('Copy creation failed'); }
                 // Self-guarding, per ABSOLUTE RULE 2. Provably a no-op here —
@@ -1794,13 +1830,18 @@ class DesiderataPlugin
                 // refactor could move away. This is the receipt of a real
                 // donation, so unlike the maintenance sweeps it has no business
                 // touching an archived record.
-                $stmt = $this->db->prepare('UPDATE libri SET is_desiderata=0' . \App\Support\BookVisibility::catalogueStamp($this->db) . ' WHERE id=? AND deleted_at IS NULL'); $stmt->bind_param('i', $bookId); $stmt->execute();
+                $stmt = $this->db->prepare('UPDATE libri SET is_desiderata=0' . \App\Support\BookVisibility::catalogueStamp($this->db) . ' WHERE id=? AND deleted_at IS NULL');
+                if ($stmt === false) { throw new RuntimeException('Request flag update prepare failed: ' . $this->db->error); }
+                $stmt->bind_param('i', $bookId); $stmt->execute(); $stmt->close();
                 if (!(new \App\Support\DataIntegrity($this->db))->recalculateBookAvailability($bookId, true, true)) { throw new RuntimeException('Availability update failed'); }
                 $stmt = $this->db->prepare("UPDATE desiderata_offers SET status='received', received_book_id=?, copy_id=?, received_at=NOW() WHERE id=?");
-                $stmt->bind_param('iii', $bookId, $copyId, $id); $stmt->execute();
+                if ($stmt === false) { throw new RuntimeException('Offer receipt update prepare failed: ' . $this->db->error); }
+                $stmt->bind_param('iii', $bookId, $copyId, $id); $stmt->execute(); $stmt->close();
                 $receivedBookId = $bookId;
             } else {
-                $stmt = $this->db->prepare('UPDATE desiderata_offers SET status=? WHERE id=?'); $stmt->bind_param('si', $action, $id); $stmt->execute();
+                $stmt = $this->db->prepare('UPDATE desiderata_offers SET status=? WHERE id=?');
+                if ($stmt === false) { throw new RuntimeException('Offer status update prepare failed: ' . $this->db->error); }
+                $stmt->bind_param('si', $action, $id); $stmt->execute(); $stmt->close();
             }
             $this->db->commit();
         } catch (Throwable $e) {
