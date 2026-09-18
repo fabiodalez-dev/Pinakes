@@ -1030,8 +1030,15 @@ class DesiderataPlugin
             // genuinely received the requested book must be able to pick it.
             // The warning belongs in the interface, not in a silent exclusion.
             $stmt = $this->db->prepare("SELECT id, titolo, isbn13, isbn10, is_desiderata FROM libri WHERE deleted_at IS NULL AND (titolo LIKE ? ESCAPE '!' OR isbn13 LIKE ? ESCAPE '!' OR isbn10 LIKE ? ESCAPE '!') ORDER BY titolo, id LIMIT 30");
-            $stmt->bind_param('sss', $like, $like, $like); $stmt->execute();
-            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            // A failed prepare must degrade like every other lookup in this
+            // file: the picker gets an empty list, not a TypeError 500 from
+            // bind_param() on false.
+            if ($stmt === false) {
+                \App\Support\SecureLogger::error('[Desiderata] catalogue search prepare failed: ' . $this->db->error);
+            } else {
+                $stmt->bind_param('sss', $like, $like, $like); $stmt->execute();
+                $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            }
         }
         $r->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
         return $r->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store');
@@ -1178,6 +1185,14 @@ class DesiderataPlugin
     private static function thankYouUrl(string $returnTo): string
     {
         $target = url($returnTo !== '' ? $returnTo : self::PATH_PUBLIC);
+        // returnPath() also admits a fragment. Anything after '#' never reaches
+        // the server, so a marker appended behind it would be invisible to the
+        // form's $_GET check and the banner would vanish once more. The
+        // original fragment is dropped: the donor lands on #donation-form anyway.
+        $hash = strpos($target, '#');
+        if ($hash !== false) {
+            $target = substr($target, 0, $hash);
+        }
         // returnPath() admits a query string, so the separator has to be chosen
         // rather than assumed — appending a second '?' would make the marker
         // part of the previous parameter's value and silently do nothing.

@@ -729,12 +729,6 @@ class FrontendController
         $relatedIds = array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $related_books);
         $liveRelated = $relatedIds !== [] ? $this->fetchLiveAvailability($db, $relatedIds) : [];
         $book = array_merge($book, $liveBook[$book_id]);
-        // Explicit, not merely a side effect of the merge above: the cached DTO
-        // carries the is_desiderata value the book had when the page was first
-        // built, and the badge, the hidden loan buttons and the donation form
-        // all hang off it. Read it live or a received donation keeps asking to
-        // be donated for the rest of the cache window.
-        $book['is_desiderata'] = $liveBook[$book_id]['is_desiderata'];
         if ($liveRelated === null) {
             // The main book's availability is known, so keep rendering the
             // page. Preserve static related-volume metadata, but do not invent

@@ -1573,7 +1573,7 @@ Hooks::add('book.save.after', function($id, $data) {
 
 **Documentazione aggiornata:** 2026-06
 **Hook di integrazione aggiunti:** `app.routes.register`, `admin.menu.render`, `assets.head`, `search.unified.sources`, `frontend.catalog.archive_results` (usati dai plugin bundled)
-**Nota:** gli hook con stato "Documentato" (es. `loan.*`, `reservation.*`, `catalog.query.modify`, `book.delete.*`, `admin.menu.items`) sono punti di estensione pianificati, **non** ancora invocati dal core.
+**Nota:** gli hook con stato "Documentato" (es. `loan.*`, `reservation.*`, `catalog.query.modify`, `book.delete.*`, `admin.menu.items`) sono punti di estensione pianificati, **non** ancora invocati dal core. Gli hook della sezione "Desiderata" qui sotto sono invece invocati dal core. Questo file non è un elenco esaustivo: il core invoca anche hook non ancora descritti qui, quindi l'assenza di un nome da questa pagina non significa che l'hook sia solo pianificato. Per sapere se un hook è davvero invocato, cercare il nome in `app/` (`Hooks::do(...)` / `Hooks::apply(...)`).
 
 
 ## Desiderata: estensioni del modulo e della homepage
@@ -1590,4 +1590,73 @@ Come gli altri filtri, gli errori sono intercettati dal gestore hook: non usare 
 
 ### `frontend.home.sections` (Action)
 
-Nessun parametro. Emette sezioni aggiuntive dopo le sezioni configurate della homepage. Una homepage anonima può non avere una sessione: per form mutanti richiedere il token dall’endpoint `/csrf-token` al momento dell’invio, senza incorporare token di sessione in HTML condivisibile in cache.
+Nessun parametro. Invocato da `app/Views/frontend/home.php` con `Hooks::do('frontend.home.sections')` dopo il ciclo delle sezioni configurate: ciò che emette finisce sempre in fondo alla homepage, indipendentemente da `display_order` e `is_active`. Per una sezione che deve rispettare l'ordine e l'attivazione impostati nel CMS usare `frontend.home.section` (singolare). Una homepage anonima può non avere una sessione: per form mutanti richiedere il token dall’endpoint `/csrf-token` al momento dell’invio, senza incorporare token di sessione in HTML condivisibile in cache.
+
+### `frontend.home.section` (Action)
+
+Riceve `string $sectionKey, array $section`. Invocato da `app/Views/frontend/home.php` con `Hooks::do('frontend.home.section', [$sectionKey, $section])` **dentro** il ciclo ordinato delle sezioni (`ORDER BY display_order ASC, section_key ASC`), per ogni riga di `home_content` attiva che non ha un template core in `app/Views/frontend/home-sections/{section_key}.php`. `$section` è la riga di `home_content` (`section_key`, `title`, `subtitle`, `content`, `button_text`, `button_link`, `background_image`, campi SEO, `is_active`, `display_order`). Le righe con `is_active` vuoto vengono saltate prima dell'hook. È così che una sezione di plugin rispetta ordine e attivazione come le sezioni core.
+
+L'hook scatta per **ogni** sezione senza template core: l'handler deve controllare `$sectionKey` e uscire subito se la chiave non è la propria. La riga in `home_content` appartiene al plugin, che la crea e la rimuove nel proprio ciclo di vita (attivazione/disattivazione). Le stesse regole su sessione e token CSRF di `frontend.home.sections` valgono qui.
+
+```php
+public function renderHomeSection(string $sectionKey, array $section): void
+{
+    if ($sectionKey !== 'desiderata') { return; }
+    require __DIR__ . '/views/public.php';
+}
+```
+
+### `cms.home.section_name` (Filter)
+
+Riceve `string $label, string $key` e restituisce l'etichetta da mostrare per la sezione nell'elenco ordinabile di `/admin/cms/home`. Invocato da `app/Views/cms/edit-home.php` con `Hooks::apply('cms.home.section_name', $default, [$key])`, dove `$default` è il nome della sezione core oppure, per una chiave sconosciuta, la chiave resa leggibile (`ucfirst(str_replace('_', ' ', $key))`). Il valore restituito viene stampato: se non è una stringa viene scartato e resta `$default`. L'handler deve restituire `$label` invariato per le chiavi che non gli appartengono.
+
+```php
+public function cmsSectionName(string $label, string $key): string
+{
+    return $key === 'desiderata' ? __('Desiderata e donazioni') : $label;
+}
+```
+
+### `cms.home.section.fields` (Action)
+
+Riceve `array $sections`: tutte le righe di `home_content` indicizzate per `section_key`. Invocato da `app/Views/cms/edit-home.php` con `Hooks::do('cms.home.section.fields', [$sections])` **dentro** il `<form>` dell'editor homepage, subito prima del pulsante di salvataggio. Il plugin emette (echo) la propria card di campi: essendo nel form, i campi vengono inviati insieme al resto e arrivano al filtro `cms.home.save`. Se la riga del plugin non esiste in `$sections` (plugin disattivato), l'handler non deve emettere nulla. Gli attributi `name` dei campi vanno annidati sotto la chiave della sezione (es. `desiderata[texts][it_IT][title]`), perché `cms.home.save` riceve il body completo del POST.
+
+### `cms.home.save` (Filter)
+
+Riceve `array $errors, array|null $data` e restituisce l'array degli errori. Invocato da `CmsController::updateHome()` con `Hooks::apply('cms.home.save', $errors, [$data])`, dove `$data` è `$request->getParsedBody()` (tutto il form di `/admin/cms/home`) ed `$errors` è l'elenco (stringhe) degli errori di validazione delle sezioni core. Contratto del filtro:
+
+- restituire l'array `$errors` ricevuto, eventualmente esteso con messaggi (stringhe in chiaro: la view le esegue l'escape);
+- scrivere sul database **solo** se l'array ricevuto è vuoto: è la stessa regola "un campo non valido scarta l'intero invio" che rispettano tutti i blocchi core;
+- intercettare le proprie eccezioni: `HookManager::applyFilters()` cattura un `\Throwable` sfuggito all'handler e mantiene il valore non filtrato, quindi un'eccezione non gestita produrrebbe un "salvataggio riuscito" senza che il plugin abbia scritto nulla.
+
+Se il valore restituito non è un array viene ignorato; se lo è, vengono tenute solo le voci stringa. Quando il filtro viene eseguito le sezioni core sono **già** state scritte: se gli errori arrivano solo dagli handler, l'operatore vede "Le sezioni principali sono state salvate, ma una sezione aggiuntiva ha segnalato un problema", non "Nessuna modifica è stata salvata". La cache dei contenuti homepage viene invalidata solo quando l'elenco finale degli errori è vuoto.
+
+```php
+public function cmsSave(array $errors, mixed $data): array
+{
+    if ($errors !== []) { return $errors; }
+    if (!is_array($data)) { return $errors; }
+    $own = $data['desiderata'] ?? null;
+    if (!is_array($own)) { return $errors; }
+    // ... validare; in caso di problemi: $errors[] = __('...'); return $errors;
+    // ... scrivere solo a validazione superata
+    return $errors;
+}
+```
+
+### `admin.dashboard.sections` (Action)
+
+Nessun parametro. Invocato da `app/Views/dashboard/index.php` con `Hooks::do('admin.dashboard.sections')` dopo le urgenze di circolazione e prima degli elenchi informativi (libri recenti), fuori dal blocco condizionato dalla modalità catalogo, quindi anche una biblioteca che non presta riceve i pannelli. Il plugin emette (echo) i propri pannelli. La rotta della dashboard è aperta anche agli utenti `standard` e `premium`, ma l'hook scatta **solo** se `$isAdminOrStaff` è vero: gli utenti non staff non eseguono i callback e non ricevono markup amministrativo. Un pannello non deve compromettere la dashboard: intercettare gli errori, registrarli con `SecureLogger::error()` e non emettere nulla.
+
+### `book.visibility.discoverable` (Filter)
+
+Riceve `string $predicate, \mysqli $db, string $alias` e restituisce un predicato SQL. Invocato da `App\Support\BookVisibility::discoverable()` con `Hooks::apply('book.visibility.discoverable', $default, [$db, $alias])`, dove `$default` è il predicato di catalogo (`BookVisibility::catalogue()`: `<alias>.is_desiderata = 0` se la colonna esiste, altrimenti `1=1`). `discoverable()` decide cosa un visitatore può trovare cercandolo per nome e aprire tramite link (ricerca e scheda libro, in `SearchController` e `FrontendController`); navigazione del catalogo, feed, sitemap, API mobile e protocolli di interoperabilità restano su `catalogue()` e non passano da questo filtro.
+
+**Regola di sicurezza:** il valore restituito viene concatenato direttamente nelle clausole `WHERE`. Per questo l'unico valore accettato per allargare il predicato è **esattamente** la stringa `'1=1'`; qualsiasi altro valore, compresa una stringa dall'aspetto innocuo come `'1=1 OR l.id > 0'`, viene scartato e resta il predicato di catalogo. Un handler può solo allargare a "tutto" oppure lasciare il predicato invariato: non può restringerlo né iniettare SQL. Il plugin Desiderata restituisce `'1=1'` mentre è attivo, così un titolo desiderato compare (con badge) nei risultati di ricerca e sulla propria pagina.
+
+```php
+public function discoverable(mixed $predicate = null, mixed $db = null, mixed $alias = null): string
+{
+    return '1=1';
+}
+```

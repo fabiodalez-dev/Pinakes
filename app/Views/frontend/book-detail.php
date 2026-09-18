@@ -786,6 +786,29 @@ $additional_css = "
         box-shadow: none;
     }
 
+    /* Wanted book: an invitation to donate, not an error. Same neutral grey as the catalogue grid. */
+    .availability-badge.wanted {
+        background: #6b7280;
+        color: white;
+        border-color: #6b7280;
+        box-shadow: none;
+    }
+
+    .availability-badge.wanted:hover {
+        background: #6b7280;
+        transform: translateY(-2px);
+        box-shadow: none;
+    }
+
+    body[class*='layout-'] .availability-badge.wanted {
+        background: color-mix(in srgb, #6b7280 11%, var(--white));
+        color: color-mix(in srgb, #6b7280 72%, #1a1a1a);
+    }
+
+    .book-status-inline.is-wanted::before {
+        background: #6b7280;
+    }
+
     .book-meta {
         background: transparent;
         padding: 3rem 0;
@@ -1956,7 +1979,7 @@ ob_start();
                         // no copies to hydrate, and the edge-cache availability
                         // script only rewrites badges that carry them.
                         ?>
-                        <span class="availability-badge unavailable"><i class="fas fa-hand-holding-heart mr-2" aria-hidden="true"></i><span><?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?></span></span>
+                        <span class="availability-badge wanted"><i class="fas fa-hand-holding-heart mr-2" aria-hidden="true"></i><span><?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?></span></span>
                         <?php else: ?>
                         <span class="availability-badge <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'available' : 'unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="detail-badge" data-live-pending="1"' : '' ?>>
                             <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : (($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle') ?> mr-2" aria-hidden="true"></i>
@@ -2518,7 +2541,7 @@ ob_start();
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
                                 <?php if (!empty($book['is_desiderata'])): ?>
-                                <span class="book-status-inline is-unavailable">
+                                <span class="book-status-inline is-wanted">
                                     <?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?>
                                 </span>
                                 <?php else: ?>

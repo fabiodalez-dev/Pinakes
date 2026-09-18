@@ -102,27 +102,33 @@ final class UserWishlistController
         // SECURITY: Fix race condition using atomic DELETE + affected_rows check
         // First attempt to delete - if affected_rows > 0, item existed and was removed
         //
-        // The DELETE is scoped to what the reader can actually SEE, which is
-        // the only thing that makes a toggle safe. status() and list() hide a
-        // favourite whose book has since been flagged as a request, so the heart
+        // The DELETE refuses exactly one case: a live book currently flagged as
+        // a request. status() and list() hide that favourite, so the heart
         // renders empty and the reader's intent when clicking it is ADD — while
         // an unscoped DELETE would read the very same click as REMOVE and
-        // destroy the hidden row for good. Scoping it means nothing is removed,
+        // destroy the hidden row for good. Skipping it means nothing is removed,
         // the insert path below runs, and that path answers "not found" for a
         // book the library does not hold: the click does nothing, and the
         // favourite comes back on its own once the donation arrives and the
         // flag clears.
         //
-        // The mobile twin at mobile-api ActionsController::removeFavourite()
+        // Every other row stays removable, a favourite pointing at a
+        // soft-deleted book included: guarding on the book being live would
+        // strand that row, because the insert path's existence check fails on
+        // the same condition and the endpoint could only ever answer 404 for
+        // it. Without the desiderata column delisted() is 0=1, so the guard
+        // never blocks anything.
+        //
+        // The mobile twin at mobile-api ActionsController::removeWishlist()
         // deliberately stays unscoped: it is an explicit remove, not a toggle,
         // so deleting is what the caller asked for either way.
         $stmt = $db->prepare(
             'DELETE FROM wishlist
               WHERE utente_id = ? AND libro_id = ?
-                AND EXISTS (SELECT 1 FROM libri l
-                             WHERE l.id = ?
-                               AND l.deleted_at IS NULL
-                               AND ' . \App\Support\BookVisibility::catalogue($db, 'l') . ')'
+                AND NOT EXISTS (SELECT 1 FROM libri l
+                                 WHERE l.id = ?
+                                   AND l.deleted_at IS NULL
+                                   AND ' . \App\Support\BookVisibility::delisted($db, 'l') . ')'
         );
         $stmt->bind_param('iii', $uid, $libroId, $libroId);
         $stmt->execute();

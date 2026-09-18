@@ -67,6 +67,10 @@ $cases = [
     // A return path that already carries a query: a second '?' would fold the
     // marker into the previous parameter's value and do nothing at all.
     '/libro/42?da=home'    => '/libro/42?da=home&' . $marker . '=1#donation-form',
+    // A return path carrying a fragment: the marker must land BEFORE the '#',
+    // or the browser keeps it client-side and the server never sees it.
+    '/libro/42#recensioni' => '/libro/42?' . $marker . '=1#donation-form',
+    '/libro/42?x=1#y'      => '/libro/42?x=1&' . $marker . '=1#donation-form',
 ];
 foreach ($cases as $returnTo => $expected) {
     $got = $thankYou->invoke(null, $returnTo);

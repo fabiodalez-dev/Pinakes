@@ -72,9 +72,15 @@ $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '
       try {
         // Do not mint two sessions concurrently in a browser with no cookie.
         await initialCsrf;
-        // Before the CSRF refresh, not after: the token this produces is
-        // single-use and short-lived, and the network round trip for the CSRF
-        // token would age it for nothing.
+        // reCAPTCHA first, CSRF refresh last. grecaptcha.ready() can wait an
+        // unbounded time (the script may still be loading), so the CSRF token
+        // is read only afterwards: what gets submitted is whatever the session
+        // holds at that moment, not a value fetched before an arbitrary wait.
+        // The reCAPTCHA v3 token (Google's: single-use, valid about two
+        // minutes) pays for this with one small same-origin round trip, well
+        // inside its window. The CSRF token has no such limits:
+        // Csrf::validate() is a plain hash_equals() against the session value,
+        // which Csrf::ensureToken() rotates only after roughly two hours.
         if (siteKey && window.grecaptcha) {
           await new Promise(resolve => grecaptcha.ready(resolve));
           form.elements.recaptcha_token.value = await grecaptcha.execute(siteKey, {action:'desiderata_offer'});

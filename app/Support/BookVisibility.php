@@ -153,12 +153,30 @@ final class BookVisibility
         static $seenColumn = false;
         $columns ??= new \WeakMap();
         if (!isset($columns[$db])) {
+            // The underscore is escaped because LIKE reads a bare _ as "any one
+            // character"; the plugin spells the same probe this way too.
+            $reason = '';
             try {
-                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'catalogued_at'");
+                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'catalogued\\_at'");
+                if ($result === false) {
+                    $reason = $db->error;
+                }
             } catch (\Throwable $e) {
+                // Off the exception, not the connection: see hasDesiderata().
                 $result = false;
+                $reason = $e->getMessage();
             }
             if ($result === false) {
+                // Not silent: when this answers "absent", everCatalogued()
+                // becomes 0=1 and every de-listing tombstone on OAI-PMH and
+                // ResourceSync disappears, so harvesters stop receiving
+                // deletions. The log line is the only trace of why.
+                \App\Support\SecureLogger::error(
+                    $seenColumn
+                        ? 'BookVisibility: cannot probe libri.catalogued_at; keeping the tombstones on, the column was seen earlier in this worker'
+                        : 'BookVisibility: cannot probe libri.catalogued_at; de-listing tombstones are degraded for this call',
+                    ['error' => $reason]
+                );
                 return $seenColumn;
             }
             $columns[$db] = $result->num_rows > 0;
@@ -215,7 +233,7 @@ final class BookVisibility
             // at :1217) and restores it afterwards.
             $reason = '';
             try {
-                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'");
+                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'is\\_desiderata'");
                 if ($result === false) {
                     // Reporting is off (an import is running): the message lives
                     // on the connection, not on an exception.
