@@ -202,7 +202,7 @@ class SearchController
     /**
      * Is the current session an operator one (admin or staff)?
      *
-     * /api/search/unified carries no auth middleware — unlike its sibling
+     * /api/search/unified takes no AUTHORISING middleware — unlike its sibling
      * /api/search/utenti, which chains AdminAuthMiddleware — and is reached
      * both from the back-office quick-search and from anonymous callers
      * (plugins publish their own sources into it through the
@@ -217,11 +217,20 @@ class SearchController
      * looking for that title. This gate is deliberately NOT widened: unified
      * search links to /admin/books/{id}, so widening it would hand anonymous
      * callers a back-office URL.
+     *
+     * The verdict is READ FROM THE REQUEST, not from $_SESSION.
+     * SessionRoleRefreshMiddleware re-validated it against the DB for this
+     * request; reading the session here would throw that away and go back to
+     * the login-time snapshot, which keeps admitting a demoted or suspended
+     * operator until the session expires (CWE-613). Absent attribute means
+     * false, so a route that forgets the middleware discloses nothing.
      */
-    private function isOperatorSession(): bool
+    private function isOperatorSession(Request $request): bool
     {
-        $role = $_SESSION['user']['tipo_utente'] ?? null;
-        return $role === 'admin' || $role === 'staff';
+        return $request->getAttribute(
+            \App\Middleware\SessionRoleRefreshMiddleware::ATTRIBUTE,
+            false
+        ) === true;
     }
 
     public function unifiedSearch(Request $request, Response $response, mysqli $db): Response
@@ -234,7 +243,7 @@ class SearchController
             // The quick-search box links to url('/admin/books/{id}'), so an
             // operator must be able to find a title they have just recorded as
             // wanted; everyone else gets the public catalogue.
-            $bookResults = $this->searchBooks($db, $q, $this->isOperatorSession());
+            $bookResults = $this->searchBooks($db, $q, $this->isOperatorSession($request));
             $results = array_merge($results, $bookResults);
 
             // Search authors

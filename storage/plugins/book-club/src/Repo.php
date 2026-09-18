@@ -1209,15 +1209,21 @@ class Repo
     ): int {
         $publisherId = $this->findOrCreatePublisher(isset($row['editore']) ? (string) $row['editore'] : null);
 
+        // This method promotes an external club title INTO the catalogue, so
+        // the row is born catalogued and carries the stamp. The fragments are
+        // raw SQL (NOW(), no placeholder), so the bind type strings below are
+        // unaffected. See BookVisibility::catalogueBirth().
+        [$cataloguedCol, $cataloguedVal] = \App\Support\BookVisibility::catalogueBirth($this->db);
+
         // Only `titolo` is mandatory in `libri`; everything else is optional.
         $inserted = $publisherId !== null
             ? $this->exec(
-                'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id) VALUES (?, ?, ?, ?, ?, ?)',
+                "INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id{$cataloguedCol}) VALUES (?, ?, ?, ?, ?, ?{$cataloguedVal})",
                 'sisssi',
                 [$titolo, $anno, $isbn13, $isbn10, $cover, $publisherId]
             )
             : $this->exec(
-                'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url) VALUES (?, ?, ?, ?, ?)',
+                "INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url{$cataloguedCol}) VALUES (?, ?, ?, ?, ?{$cataloguedVal})",
                 'sisss',
                 [$titolo, $anno, $isbn13, $isbn10, $cover]
             );

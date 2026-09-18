@@ -1153,7 +1153,18 @@ class CsvImportController
             // A-Z. "SÌ" would come out as "sÌ", match nothing, and import the
             // row as an owned holding — silently, since an unmatched value is
             // simply false. Same call shape as validateLanguage() below.
-            'is_desiderata' => in_array(mb_strtolower(trim((string) ($row['is_desiderata'] ?? '')), 'UTF-8'), ['1', 'true', 'yes', 'si', 'sì', 'y'], true)
+            //
+            // The list covers every language the header map claims to read
+            // (mapColumnHeaders below accepts Spanish, French, German and
+            // Danish column names): a file whose header says "wunschbuch" or
+            // "recherché" carries "Ja" or "Oui" in the cells, and matching the
+            // header while rejecting its own values imports the whole request
+            // list as owned holdings. Danish and German share "ja".
+            'is_desiderata' => in_array(
+                mb_strtolower(trim((string) ($row['is_desiderata'] ?? '')), 'UTF-8'),
+                ['1', 'true', 'yes', 'y', 'si', 'sì', 'sí', 'oui', 'ja'],
+                true
+            )
         ];
     }
 
@@ -1438,13 +1449,23 @@ class CsvImportController
         $mappedHeaders = [];
 
         foreach ($headers as $index => $header) {
-            $headerLower = strtolower(trim($header));
+            // mb_strtolower on BOTH sides, not strtolower. Nineteen of the
+            // aliases above are non-ASCII (título, año, edición, éditeur,
+            // numéro de série, mots-clés, schlagwörter, übersetzer, ønsket,
+            // recherché, …) and strtolower() folds only A-Z, leaving every
+            // multibyte letter untouched: an all-caps header row — which is
+            // what several library exports write — turns "NUMÉRO DE SÉRIE"
+            // into "numÉro de sÉrie", matches nothing, and the column is
+            // imported under its raw name and then dropped. That silently
+            // disabled the entire Spanish, French, German and Danish header
+            // vocabulary while the Italian and English ones kept working.
+            $headerLower = mb_strtolower(trim($header), 'UTF-8');
             $canonicalName = $header; // Default: keep original if no mapping found
 
             // Try to find a mapping
             foreach ($columnMapping as $canonical => $variations) {
                 foreach ($variations as $variation) {
-                    if ($headerLower === strtolower($variation)) {
+                    if ($headerLower === mb_strtolower($variation, 'UTF-8')) {
                         $canonicalName = $canonical;
                         break 2;
                     }
@@ -2090,6 +2111,11 @@ class CsvImportController
         $wanted = \App\Support\BookVisibility::hasDesiderata($db) && !empty($data['is_desiderata']);
         $desiderataCol = $wanted ? ', is_desiderata' : '';
         $desiderataVal = $wanted ? ', 1' : '';
+        // An imported holding is catalogued from birth, so it carries the same
+        // stamp BookRepository::create() writes; a flagged row gets none.
+        // Without it the row is invisible to everCatalogued(), and withdrawing
+        // it later emits no OAI-PMH tombstone.
+        [$cataloguedCol, $cataloguedVal] = \App\Support\BookVisibility::catalogueBirth($db, $wanted);
 
         $stmt = $db->prepare("
             INSERT INTO libri (
@@ -2097,13 +2123,13 @@ class CsvImportController
                 lingua, edizione, numero_pagine, genere_id,
                 descrizione{$descPlainCol}, formato{$tipoMediaCol}, prezzo, copie_totali, copie_disponibili,
                 editore_id, collana, numero_serie, traduttore, illustratore, curatore, parole_chiave,
-                classificazione_dewey, stato, created_at{$desiderataCol}
+                classificazione_dewey, stato, created_at{$desiderataCol}{$cataloguedCol}
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
                 ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?,
-                ?, 'disponibile', NOW(){$desiderataVal}
+                ?, 'disponibile', NOW(){$desiderataVal}{$cataloguedVal}
             )
         ");
 

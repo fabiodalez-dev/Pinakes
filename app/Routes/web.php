@@ -28,6 +28,7 @@ use App\Controllers\LanguageController;
 use App\Controllers\ReservationsAdminController;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\AdminAuthMiddleware;
+use App\Middleware\SessionRoleRefreshMiddleware;
 use App\Support\RouteTranslator;
 use App\Support\I18n;
 
@@ -2443,11 +2444,18 @@ return function (App $app): void {
         return $controller->search($request, $response, $db);
     });
 
+    // Stays open — plugins publish sources into it through the
+    // `search.unified.sources` hook and the archives suite drives it logged
+    // out — but its results are scoped by operator role, and a role read on a
+    // route with no middleware is the login-time snapshot with nothing
+    // refreshing it (CWE-613). SessionRoleRefreshMiddleware re-validates the
+    // claim against the DB and lets everyone through; AdminAuthMiddleware
+    // cannot go here because it would answer 401 to the anonymous callers.
     $app->get('/api/search/unified', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
         return $controller->unifiedSearch($request, $response, $db);
-    });
+    })->add(new SessionRoleRefreshMiddleware(null, $app->getContainer()));
     $app->get('/api/search/preview', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');

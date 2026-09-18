@@ -1794,6 +1794,11 @@ class LibraryThingImportController
         $tipoMediaCol = $hasTipoMedia ? ', tipo_media' : '';
         $tipoMediaVal = $hasTipoMedia ? ', ?' : '';
 
+        // A LibraryThing import is always an owned holding — this controller
+        // has no notion of a request — so both statements below stamp
+        // catalogued_at unconditionally. See BookVisibility::catalogueBirth().
+        [$cataloguedCol, $cataloguedVal] = \App\Support\BookVisibility::catalogueBirth($db);
+
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         if ($copie < 1) {
             $copie = 1;
@@ -1818,7 +1823,7 @@ class LibraryThingImportController
                     original_languages, source, from_where,
                     lending_patron, lending_status, lending_start, lending_end,
                     value, condition_lt, entry_date,
-                    stato, created_at
+                    stato, created_at{$cataloguedCol}
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?,
@@ -1830,7 +1835,7 @@ class LibraryThingImportController
                     ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?,
-                    'disponibile', NOW()
+                    'disponibile', NOW(){$cataloguedVal}
                 )
             ");
 
@@ -1908,9 +1913,9 @@ class LibraryThingImportController
                     lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato{$tipoMediaCol},
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
-                    stato, created_at
+                    stato, created_at{$cataloguedCol}
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW(){$cataloguedVal}
                 )
             ");
 

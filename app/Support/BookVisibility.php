@@ -113,6 +113,39 @@ final class BookVisibility
         return ', ' . $column . ' = COALESCE(' . $column . ', NOW())';
     }
 
+    /**
+     * The same stamp for a row being CREATED, as a matched column/value pair to
+     * splice into an INSERT: [', catalogued_at', ', NOW()'] for a row born in
+     * the catalogue, or ['', ''] for a row born as a request or on an
+     * installation without the column.
+     *
+     * The rule it enforces is not a new one — the plugin's activation backfill
+     * (`SET catalogued_at = NOW() WHERE is_desiderata = 0 AND catalogued_at IS
+     * NULL`) and BookRepository::create() already state it independently: a row
+     * that is born visible in the catalogue carries the stamp. The backfill is
+     * also what hides a violation, because it runs once and repairs the whole
+     * history, so only rows created AFTER activation stay unstamped — and an
+     * unstamped row that is later withdrawn produces no OAI-PMH tombstone at
+     * all, leaving harvesters holding a record the library has retired.
+     *
+     * Returned as a pair rather than two calls so the column and its value
+     * cannot drift apart: there is no way to add one without the other.
+     *
+     * NOW() is a literal, not a bound parameter, so the value comes from the
+     * same MySQL clock as created_at/updated_at — see the note in
+     * BookRepository::create().
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function catalogueBirth(\mysqli $db, bool $wanted = false): array
+    {
+        if ($wanted || !self::hasCataloguedAt($db)) {
+            return ['', ''];
+        }
+
+        return [', catalogued_at', ', NOW()'];
+    }
+
     /** Same memoised probe as hasDesiderata(); see the note on its docblock. */
     public static function hasCataloguedAt(\mysqli $db): bool
     {
