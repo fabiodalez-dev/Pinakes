@@ -593,7 +593,14 @@ class DesiderataPlugin
         $admin = new \App\Middleware\AdminAuthMiddleware($this->db);
         $app->get(self::PATH_PUBLIC, fn(Request $q, Response $r) => $plugin->page($r, [], 200, self::pageNumber($q->getQueryParams(), 'page')));
         $app->get(self::PATH_SEARCH, fn(Request $q, Response $r) => $plugin->search($q, $r))->add(new \App\Middleware\RateLimitMiddleware(90, 60, 'desiderata-search'));
-        $app->post(self::PATH_OFFERS, fn(Request $q, Response $r) => $plugin->offer($q, $r))->add($csrf)->add(new \App\Middleware\RateLimitMiddleware(5, 900, 'desiderata-offer'));
+        // Ordering matters: Slim runs the LAST added first, so the rate limiter
+        // still throttles a flood, and confirmFirstContact() then sits between it
+        // and the CSRF guard — close enough to intercept the sessionless first
+        // contact, far enough that it cannot be used to bypass throttling.
+        $app->post(self::PATH_OFFERS, fn(Request $q, Response $r) => $plugin->offer($q, $r))
+            ->add($csrf)
+            ->add(fn(Request $q, $handler) => $plugin->confirmFirstContact($q, $handler))
+            ->add(new \App\Middleware\RateLimitMiddleware(5, 900, 'desiderata-offer'));
         $app->get('/admin/desiderata/books', fn(Request $q, Response $r) => $plugin->catalogueSearch($q, $r))->add($admin);
         $app->get('/admin/desiderata', fn(Request $q, Response $r) => $plugin->admin($q, $r))->add($admin);
         $app->post('/admin/desiderata/offers/{id:[0-9]+}', fn(Request $q, Response $r, array $a) => $plugin->manage($q, $r, (int)$a['id']))->add($csrf)->add($admin);
@@ -1114,6 +1121,49 @@ class DesiderataPlugin
         }
 
         return preg_match('#^/(?![/\\\\])[^\r\n]{0,254}$#D', $raw) === 1 ? $raw : '';
+    }
+    /**
+     * First contact from a visitor the site never gave a session to.
+     *
+     * The donation form also lives on `/` and on a book page, and SessionPolicy
+     * serves both without a session — deliberately, because those pages are
+     * edge-cacheable and a per-visitor CSRF token baked into a shared cache
+     * would be handed to everyone. So the form there renders an empty token and
+     * the browser mints one before submitting. With scripting off nothing mints
+     * it, the POST arrives with no token and no prior session, and the core CSRF
+     * guard answers a bare "Sessione Scaduta" — to a donor who did nothing
+     * wrong and whose typed text is gone.
+     *
+     * This runs BEFORE that guard and only in the one case that could never be a
+     * valid protected request in the first place: no token submitted AND no
+     * token in the session. It accepts nothing and writes nothing. It starts the
+     * session, gives the visitor their own form back with everything they typed
+     * and a real token, and asks them to send it once more. Everything else —
+     * a token that is wrong, or missing while a session exists — is left to the
+     * core guard exactly as before.
+     *
+     * Safe to reach cross-site: the response only echoes what the caller itself
+     * posted, is not readable across origins, and changes no state.
+     */
+    public function confirmFirstContact(Request $q, \Psr\Http\Server\RequestHandlerInterface $handler): Response
+    {
+        $input = (array) $q->getParsedBody();
+        $submitted = is_string($input['csrf_token'] ?? null) ? trim($input['csrf_token']) : '';
+        $inSession = is_string($_SESSION['csrf_token'] ?? null) ? $_SESSION['csrf_token'] : '';
+        if ($submitted !== '' || $inSession !== '') {
+            return $handler->handle($q);
+        }
+
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        \App\Support\Csrf::ensureToken();
+
+        return $this->page(new \Slim\Psr7\Response(), [
+            'error' => __('Per completare l’invio conferma un’ultima volta: il tuo browser non aveva ancora una sessione aperta. Quello che hai scritto è tutto qui.'),
+            'values' => $input,
+            'returnTo' => self::returnPath($input['return_to'] ?? ''),
+        ], 200);
     }
     /**
      * Where a donor lands after a successful proposal, carrying the "thank you"

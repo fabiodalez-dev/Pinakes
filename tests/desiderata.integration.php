@@ -356,9 +356,28 @@ try {
     $oldBypass=$_ENV['PINAKES_E2E_BYPASS_RATE_LIMIT'] ?? null;
     $_ENV['PINAKES_E2E_BYPASS_RATE_LIMIT']='1';
     try {
+        // Two shapes, and they are answered differently ON PURPOSE.
+        //
+        // A post with NO token and NO session is the sessionless first contact:
+        // the donation form also lives on '/' and on a book page, which are
+        // served without a session because they are edge-cacheable, so with
+        // scripting off nothing can have minted a token yet. That is answered by
+        // handing the form back with a real token, not by a bare "Sessione
+        // Scaduta" — and it must still write nothing.
+        $before=(int)$scalar('SELECT COUNT(*) FROM desiderata_offers');
         $_SESSION=[];
         $r=$app->handle($request($payload));
-        $check($r->getStatusCode()===403,'public POST without CSRF is rejected by middleware');
+        $check($r->getStatusCode()===200 && str_contains((string)$r->getBody(),'id="desiderata-offer"'),'a sessionless post is answered with the form again, carrying a token');
+        $check((int)$scalar('SELECT COUNT(*) FROM desiderata_offers')===$before,'and it accepts nothing: no proposal is recorded');
+
+        // A WRONG token, on a session that holds a different one, is an ordinary
+        // CSRF failure and must stay refused. This is the half that proves the
+        // branch above did not soften the guard.
+        $_SESSION=['csrf_token'=>'a-real-session-token','csrf_token_time'=>time()];
+        $r=$app->handle($request($payload+['csrf_token'=>'deadbeef-0000-0000']));
+        $check($r->getStatusCode()===403,'a wrong CSRF token is still rejected by middleware');
+        $check((int)$scalar('SELECT COUNT(*) FROM desiderata_offers')===$before,'and it too writes nothing');
+        $_SESSION=[];
         $factory=new Slim\Psr7\Factory\ServerRequestFactory();
         foreach(['/admin/desiderata','/admin/desiderata/books?q=abc'] as $path) {
             $r=$app->handle($factory->createServerRequest('GET',$path));
