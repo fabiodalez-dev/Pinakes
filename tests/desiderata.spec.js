@@ -81,16 +81,23 @@ test('anonymous home offer, actual receipt and duplicate receipt protection',asy
   await expect(page.locator('#desiderata-results li')).toHaveCount(1);
   await page.getByRole('button',{name:'Ce l’ho, posso donarlo',exact:true}).click();
   await expect(page.locator('#donation-book-id')).toHaveValue(String(seeded.wanted));
-  await donor(page); await page.getByRole('button',{name:'Invia la proposta',exact:true}).click();
-  // Instrumented on purpose. This assertion failed once in the deep-regression
-  // shard (position 115/452) while passing locally, in isolation and in
-  // sequence with the extended spec — and while its twin at the end of this
-  // file, which asserts the same banner after submitting from /desiderata
-  // instead of from the homepage, passed in the same CI run. That pair rules
-  // out the banner mechanism itself and points at something about this path or
-  // that environment. Rather than guess again, make the next failure explain
-  // itself: the URL actually reached, every role=status text on the page, and
-  // whether the alert element exists at all under a different string.
+  await donor(page);
+  // Instrumented on purpose, and now for the SECOND failure mode. The first one
+  // — a redirect that landed correctly with no banner — was the session flash
+  // not surviving a submission sent from a page SessionPolicy deliberately
+  // serves without a session; that is fixed, and the banner now also travels in
+  // the redirect. What showed next is different: the browser stayed on
+  // /desiderata/offers with no form, no status and no alert on the page, which
+  // is what a REJECTED post renders, not a successful one. The diagnosis
+  // therefore has to include what the server actually answered — the plugin's
+  // own 422 keeps the form, so an empty page means the request never reached
+  // the plugin at all.
+  const offerPost = page.waitForResponse(
+    r => r.request().method() === 'POST' && r.url().includes('/desiderata/offers'),
+    { timeout: 20000 },
+  ).catch(() => null);
+  await page.getByRole('button',{name:'Invia la proposta',exact:true}).click();
+  const offerResponse = await offerPost;
   try {
     await expect(page.getByRole('status').filter({hasText:'Grazie!'})).toBeVisible();
   } catch (error) {
@@ -99,7 +106,20 @@ test('anonymous home offer, actual receipt and duplicate receipt protection',asy
       statuses: [...document.querySelectorAll('[role="status"]')].map(n => n.textContent.trim()),
       alerts: [...document.querySelectorAll('.alert')].map(n => n.className + ' :: ' + n.textContent.trim()),
       formPresent: !!document.querySelector('[data-desiderata-form]'),
+      title: document.title,
+      bodyStart: (document.body.innerText || '').trim().slice(0, 300),
     }));
+    // The POST itself: status, the Location it did or did not send, and the
+    // start of the body. A 403 is CSRF (the traditional-form branch renders
+    // errors/session-expired.php), a 429 is the rate limiter, a 303 means the
+    // request was accepted and the problem is downstream of it.
+    diagnosis.post = offerResponse
+      ? {
+          status: offerResponse.status(),
+          location: offerResponse.headers()['location'] || null,
+          body: (await offerResponse.text().catch(() => '')).slice(0, 300),
+        }
+      : 'no POST to /desiderata/offers was observed at all';
     throw new Error(`${error.message}\n--- page state when the banner was expected ---\n${JSON.stringify(diagnosis, null, 2)}`);
   }
   let state=fixture('state'); expect(state.books.find(b=>b.id===seeded.wanted).physical).toBe(0);

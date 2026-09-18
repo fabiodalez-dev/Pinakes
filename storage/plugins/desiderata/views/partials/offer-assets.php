@@ -46,6 +46,26 @@ $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '
     };
     if (clear) clear.addEventListener('click', () => { form.elements.book_id.value=''; form.elements.title.readOnly=false; for(const key of ['title','author','publisher','isbn']) form.elements[key].value=''; if(match) match.textContent=''; clear.hidden=true; form.elements.title.focus(); });
     if (form.elements.book_id.value) { if(match) match.textContent=text.selected+' '+form.elements.title.value; if(clear) clear.hidden=false; form.elements.title.readOnly=true; }
+    // An EMPTY token means this page was served without a session, which is not
+    // an accident: SessionPolicy lists '/' among the sessionless paths, so the
+    // homepage — where this form also lives — gives an anonymous visitor no
+    // session and no cookie at all. The token is therefore minted by the fetch
+    // below, and until this line that only happened inside the submit handler:
+    // the visitor's very first write depended on a session created a few
+    // milliseconds earlier in the same gesture, and under load that chain is
+    // where a 403 "Sessione Scaduta" came from.
+    //
+    // Establishing it at wiring time costs one small request, and only on a page
+    // that had no session to begin with — a page served WITH one already carries
+    // its token and skips this entirely.
+    if (!form.elements.csrf_token.value) {
+      fetch(csrfUrl, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+        .then(response => response.ok ? response.json() : null)
+        .then(data => { if (data && typeof data.token === 'string' && data.token && !form.elements.csrf_token.value) { form.elements.csrf_token.value = data.token; } })
+        // Deliberately silent: the submit handler fetches a fresh token anyway,
+        // so a failure here costs nothing beyond the head start.
+        .catch(() => {});
+    }
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const submit=form.querySelector('button[type="submit"]'); submit.disabled=true;
