@@ -1279,6 +1279,14 @@ $htmlLang = substr($currentLocale, 0, 2);
     }
 
     // Load notifications
+    // A fetch still in flight when the operator navigates away is cancelled by
+    // the browser and rejects with "Failed to fetch". That is not a failure of
+    // the notification endpoint, and reporting it as one filled the console
+    // with a false error on every quick page change.
+    let notificationsPageLeaving = false;
+    window.addEventListener('pagehide', () => { notificationsPageLeaving = true; });
+    window.addEventListener('beforeunload', () => { notificationsPageLeaving = true; });
+
     async function loadNotifications() {
       const list = document.getElementById('notifications-list');
       const empty = document.getElementById('notifications-empty');
@@ -1402,6 +1410,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           });
         }
       } catch (error) {
+        if (notificationsPageLeaving) { return; }
         console.error('Error loading notifications:', error);
         if (empty) empty.classList.remove('hidden');
         list.innerHTML = '';
@@ -1426,6 +1435,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           }
         }
       } catch (error) {
+        if (notificationsPageLeaving) { return; }
         console.error('Error loading notification count:', error);
       }
     }

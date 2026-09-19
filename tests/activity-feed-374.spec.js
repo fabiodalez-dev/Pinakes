@@ -263,6 +263,10 @@ test.describe.serial('Activity feed (#374)', () => {
     await page.goto(`${BASE}/admin/dashboard`);
     await page.evaluate(() => { window.__stay = true; });
     await page.selectOption('#activity-type', 'edit');
+    // Wait for the swap itself, not for TITLE_V2: the edit event is already in
+    // the unfiltered feed, so the text check passed before the response had
+    // landed and the search below raced it. replaceState marks the swap done.
+    await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 10000 }).toContain('activity_type=edit');
     await expect(page.locator('#activity-feed')).toContainText(TITLE_V2, { timeout: 10000 });
     await page.fill('#activity-q', `zz-nessun-match-${RUN}`);
     await expect(page.locator('#activity-feed')).toContainText('Nessuna attività registrata', { timeout: 10000 });
