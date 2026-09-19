@@ -608,7 +608,7 @@ public function onShelfCanDelete($allowed, int $mensolaId): bool
 **Status:** Implementato
 **File:** `app/Controllers/CollocazioneController.php:206`
 
-Invocato da `CollocazioneController::deleteMensola()` con `\App\Support\Hooks::do('shelf.deleted', [$id])`, avvolto in un `try/catch`, subito dopo la `DELETE FROM mensole` e prima del redirect a `/admin/placement`. L'esito della `DELETE` non viene controllato: l'hook scatta anche se la riga non è stata effettivamente rimossa. Scatta solo se `shelf.can_delete` non ha restituito `false`. Nessuna transazione aperta; un'eccezione non fa fallire la richiesta; nessun output (la risposta è un redirect).
+Invocato da `CollocazioneController::deleteMensola()` con `\App\Support\Hooks::do('shelf.deleted', [$id])`, avvolto in un `try/catch`, subito dopo la `DELETE FROM mensole` e prima del redirect a `/admin/placement`. L'hook scatta solo se la `DELETE` ha rimosso davvero la riga: se l'id non corrisponde più a nessuna mensola (pagina vecchia, doppio clic) il controller mostra "Mensola non trovata" e l'hook non viene invocato, così i plugin non ripuliscono dati derivati per un'eliminazione mai avvenuta. Scatta solo se `shelf.can_delete` non ha restituito `false`. Nessuna transazione aperta; un'eccezione non fa fallire la richiesta; nessun output (la risposta è un redirect).
 
 **Parametri:**
 - `$mensolaId` (int): ID della mensola eliminata
@@ -1465,7 +1465,7 @@ Inietta risultati di materiale archivistico nel catalogo pubblico. Usato dal plu
 **Status:** Implementato
 **File:** `app/Support/SitemapGenerator.php:234`
 
-Invocato da `SitemapGenerator::applyEntriesFilter()` con `Hooks::apply('sitemap.entries', array_values($unique), [$this->baseUrl, $this->defaultLocale])`, dopo che il generatore ha raccolto le voci core (pagine statiche, libri, autori, editori, generi) e prima di scrivere l'XML. Il generatore gira su `GET /sitemap.xml` (`SeoController::sitemap()`, richiesta pubblica), dal pulsante di rigenerazione nelle impostazioni avanzate (`POST /admin/settings/advanced/regenerate-sitemap`, `SettingsController::regenerateSitemap()`, che scrive il file statico `public/sitemap.xml`) e da `scripts/generate-sitemap.php`. Il filtro viene chiamato solo se l’istanza globale degli hook è inizializzata e ha almeno un handler (`Hooks::has('sitemap.entries')`): `scripts/generate-sitemap.php` non chiama `Hooks::init()`, quindi la sitemap generata da CLI non contiene le voci dei plugin.
+Invocato da `SitemapGenerator::applyEntriesFilter()` con `Hooks::apply('sitemap.entries', array_values($unique), [$this->baseUrl, $this->defaultLocale])`, dopo che il generatore ha raccolto le voci core (pagine statiche, libri, autori, editori, generi) e prima di scrivere l'XML. Il generatore gira su `GET /sitemap.xml` (`SeoController::sitemap()`, richiesta pubblica), dal pulsante di rigenerazione nelle impostazioni avanzate (`POST /admin/settings/advanced/regenerate-sitemap`, `SettingsController::regenerateSitemap()`, che scrive il file statico `public/sitemap.xml`) e da `scripts/generate-sitemap.php`. Il filtro viene chiamato solo se l’istanza globale degli hook è inizializzata e ha almeno un handler (`Hooks::has('sitemap.entries')`). Anche `scripts/generate-sitemap.php` inizializza il sistema degli hook e carica i plugin attivi prima di generare, come fa `public/index.php`: la sitemap prodotta da riga di comando o da cron contiene quindi le stesse voci dei plugin di quella generata dal pannello.
 
 Contratto, validato dal core (un plugin non deve poter rompere la sitemap):
 
@@ -1932,7 +1932,7 @@ Riceve `array $errors, array|null $data` e restituisce l'array degli errori. Inv
 - scrivere sul database **solo** se l'array ricevuto è vuoto: è la stessa regola "un campo non valido scarta l'intero invio" che rispettano tutti i blocchi core;
 - intercettare le proprie eccezioni: `HookManager::applyFilters()` cattura un `\Throwable` sfuggito all'handler e mantiene il valore non filtrato, quindi un'eccezione non gestita produrrebbe un "salvataggio riuscito" senza che il plugin abbia scritto nulla.
 
-Se il valore restituito non è un array viene ignorato; se lo è, vengono tenute solo le voci stringa. Quando il filtro viene eseguito le sezioni core sono **già** state scritte: se gli errori arrivano solo dagli handler, l'operatore vede "Le sezioni principali sono state salvate, ma una sezione aggiuntiva ha segnalato un problema", non "Nessuna modifica è stata salvata". La cache dei contenuti homepage viene invalidata solo quando l'elenco finale degli errori è vuoto.
+Se il valore restituito non è un array viene ignorato; se lo è, vengono tenute solo le voci stringa. Quando il filtro viene eseguito le sezioni core sono **già** state scritte: se gli errori arrivano solo dagli handler, l'operatore vede "Le sezioni principali sono state salvate, ma una sezione aggiuntiva ha segnalato un problema", non "Nessuna modifica è stata salvata". La cache dei contenuti homepage viene invalidata ogni volta che le sezioni core sono state scritte: sia quando l'elenco finale degli errori è vuoto, sia quando gli errori arrivano solo dagli handler di questo filtro. Non viene invalidata quando la validazione core respinge l'invio, perché in quel caso non è stato salvato nulla.
 
 ```php
 public function cmsSave(array $errors, mixed $data): array

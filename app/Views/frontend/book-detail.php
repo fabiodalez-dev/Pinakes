@@ -2552,7 +2552,14 @@ ob_start();
                             </div>
                         </div>
 
+                        <?php if (empty($book['is_desiderata'])): ?>
                         <?php
+                        // A wanted book owns no copy by definition: the status line
+                        // above already says the library is looking for it, and a
+                        // "0 / 0" underneath contradicted that invitation — while,
+                        // with the edge cache on, it also hydrated live availability
+                        // for copies that do not exist. Holdings only.
+                        //
                         // The denominator is what the library owns, not what is in
                         // circulation: with the only copy under maintenance the old
                         // "0 / 0" read as "not in this library" (#426).
@@ -2570,6 +2577,7 @@ ob_start();
                                 <div class="meta-note" data-live-book-id="<?= (int) $book['id'] ?>" data-live-role="count-note" hidden></div>
                             <?php endif; ?>
                         </div>
+                        <?php endif; ?>
 
                         <?php if (!empty($book['collocazione'])): ?>
                         <div class="meta-item">

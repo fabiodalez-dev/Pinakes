@@ -1029,15 +1029,25 @@ class DesiderataPlugin
             // ordinary holding is a supported workflow, and an operator who
             // genuinely received the requested book must be able to pick it.
             // The warning belongs in the interface, not in a silent exclusion.
-            $stmt = $this->db->prepare("SELECT id, titolo, isbn13, isbn10, is_desiderata FROM libri WHERE deleted_at IS NULL AND (titolo LIKE ? ESCAPE '!' OR isbn13 LIKE ? ESCAPE '!' OR isbn10 LIKE ? ESCAPE '!') ORDER BY titolo, id LIMIT 30");
-            // A failed prepare must degrade like every other lookup in this
-            // file: the picker gets an empty list, not a TypeError 500 from
-            // bind_param() on false.
-            if ($stmt === false) {
-                \App\Support\SecureLogger::error('[Desiderata] catalogue search prepare failed: ' . $this->db->error);
-            } else {
-                $stmt->bind_param('sss', $like, $like, $like); $stmt->execute();
-                $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            // A failed lookup must degrade like every other one in this file:
+            // the picker gets an empty list, not a 500. Both failure shapes are
+            // covered. Under MYSQLI_REPORT_STRICT — which the app runs with —
+            // prepare() and execute() THROW, so a `=== false` check alone never
+            // fires; the false branch is still reachable while BackupManager has
+            // reporting switched off during an import.
+            try {
+                $stmt = $this->db->prepare("SELECT id, titolo, isbn13, isbn10, is_desiderata FROM libri WHERE deleted_at IS NULL AND (titolo LIKE ? ESCAPE '!' OR isbn13 LIKE ? ESCAPE '!' OR isbn10 LIKE ? ESCAPE '!') ORDER BY titolo, id LIMIT 30");
+                if ($stmt === false) {
+                    throw new \RuntimeException($this->db->error);
+                }
+                $stmt->bind_param('sss', $like, $like, $like);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $rows = $result instanceof \mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+                $stmt->close();
+            } catch (\Throwable $e) {
+                $rows = [];
+                \App\Support\SecureLogger::error('[Desiderata] catalogue search failed', ['error' => $e->getMessage()]);
             }
         }
         $r->getBody()->write(json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));

@@ -33,32 +33,66 @@ $check = static function (bool $ok, string $label) use (&$pass, &$fail): void {
     $ok ? $pass++ : $fail++;
 };
 
-/** Run a probe in a fresh process: 'seed' | 'clear' decide the shared cache first. */
-$probe = static function (string $cache) use ($root): string {
+/**
+ * Both processes run with apc.enable_cli=0, and that is deliberate. On the
+ * command line APCu (when enabled for the CLI) gives every process a private
+ * segment, so nothing written in one process is visible to the next — unlike
+ * PHP-FPM, whose workers share one APCu segment, which is exactly the case this
+ * code serves. With APCu off, QueryCache uses its file backend, which is shared
+ * across processes the same way, so the test observes cross-worker behaviour.
+ */
+$php = 'php -d apc.enable_cli=0';
+
+/**
+ * The shared-cache step and the probe run in SEPARATE processes. Seeding and
+ * probing in the same process would let a process-local cache satisfy the
+ * probe, and the check would pass without proving the one thing it is for:
+ * that a worker which has never probed can rely on what ANOTHER worker learned.
+ */
+$cacheOp = static function (string $key, string $op) use ($root, $php): void {
+    $code = <<<'CODE'
+require $argv[1] . '/vendor/autoload.php';
+if ($argv[3] === 'seed') { \App\Support\QueryCache::set($argv[2], true, 60); }
+if ($argv[3] === 'clear') { \App\Support\QueryCache::delete($argv[2]); }
+CODE;
+    shell_exec(sprintf('%s -r %s %s %s %s 2>/dev/null', $php, escapeshellarg($code), escapeshellarg($root), escapeshellarg($key), escapeshellarg($op)));
+};
+
+/** A brand-new process whose first probe fails; it never touches the cache itself. */
+$probe = static function () use ($root, $php): string {
     $code = <<<'CODE'
 require $argv[1] . '/vendor/autoload.php';
 if (!function_exists('__')) { function __(string $t, mixed ...$a): string { return $a ? vsprintf($t, $a) : $t; } }
-$key = 'visibility_desiderata_column_seen';
-if ($argv[2] === 'seed') { \App\Support\QueryCache::set($key, true, 60); }
-if ($argv[2] === 'clear') { \App\Support\QueryCache::delete($key); }
 $db = mysqli_init();          // never connected: every query on it fails
 echo \App\Support\BookVisibility::hasDesiderata($db) ? 'present' : 'absent';
 echo '|' . \App\Support\BookVisibility::catalogue($db, 'l');
+echo '|' . (\App\Support\BookVisibility::hasCataloguedAt($db) ? 'present' : 'absent');
+echo '|' . implode('', \App\Support\BookVisibility::catalogueBirth($db));
 CODE;
-    $cmd = sprintf('php -r %s %s %s 2>/dev/null', escapeshellarg($code), escapeshellarg($root), escapeshellarg($cache));
-
-    return trim((string) shell_exec($cmd));
+    return trim((string) shell_exec(sprintf('%s -r %s %s 2>/dev/null', $php, escapeshellarg($code), escapeshellarg($root))));
 };
 
-echo "A fresh worker whose first probe fails\n";
+$desiderataKey = 'visibility_desiderata_column_seen';
+$cataloguedKey = 'visibility_catalogued_at_column_seen';
 
-[$verdict, $predicate] = explode('|', $probe('seed') . '|');
-$check($verdict === 'present', 'answers "present" when another worker has already seen the column');
+echo "A fresh worker whose first probe fails, after another worker saw the columns\n";
+
+$cacheOp($desiderataKey, 'seed');
+$cacheOp($cataloguedKey, 'seed');
+[$wanted, $predicate, $stamped, $birth] = explode('|', $probe() . '|||');
+$check($wanted === 'present', 'answers "present" for is_desiderata');
 $check($predicate === 'l.is_desiderata = 0', 'so the catalogue keeps filtering the wish list out (' . $predicate . ')');
+$check($stamped === 'present', 'answers "present" for catalogued_at as well');
+$check($birth === ', catalogued_at, NOW()', 'so a holding created by that worker still carries its stamp (' . $birth . ')');
 
-[$verdict, $predicate] = explode('|', $probe('clear') . '|');
-$check($verdict === 'absent', 'still answers "absent" when nothing has ever seen the column — the guess an installation without the plugin needs');
+echo "\nA fresh worker whose first probe fails, when no worker has ever seen them\n";
+
+$cacheOp($desiderataKey, 'clear');
+$cacheOp($cataloguedKey, 'clear');
+[$wanted, $predicate, $stamped, $birth] = explode('|', $probe() . '|||');
+$check($wanted === 'absent', 'still answers "absent" — the guess an installation without the plugin needs');
 $check($predicate === '1=1', 'and emits no predicate on a column that may not exist (' . $predicate . ')');
+$check($stamped === 'absent' && $birth === '', 'and writes no catalogued_at column into an INSERT');
 
 echo "\n" . ($fail === 0 ? "ALL {$pass} PASS\n" : "{$pass} PASS, {$fail} FAIL\n");
 exit($fail === 0 ? 0 : 1);

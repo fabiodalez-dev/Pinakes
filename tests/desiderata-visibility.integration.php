@@ -375,7 +375,11 @@ try {
     if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandboxName)) {
         throw new \RuntimeException("invalid sandbox database name '{$sandboxName}'");
     }
-    if (strcasecmp($sandboxName, (string) $dbName) === 0) {
+    // The sandbox is refused if it names ANY real database this run could mean:
+    // the installation's (.env DB_NAME) and the E2E one (E2E_DB_NAME). Comparing
+    // against only one let DESIDERATA_SANDBOX_DB equal to the other slip through,
+    // and the setup below would then empty every table in it.
+    if (in_array(strtolower($sandboxName), array_map('strtolower', array_filter([(string) $dbName, (string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')])), true)) {
         // One environment variable pointed at the installation reproduces the
         // very destruction this section was moved out to avoid, with the guard
         // agreeing, because DATABASE() would indeed be this name.

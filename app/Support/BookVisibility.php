@@ -171,16 +171,26 @@ final class BookVisibility
                 // becomes 0=1 and every de-listing tombstone on OAI-PMH and
                 // ResourceSync disappears, so harvesters stop receiving
                 // deletions. The log line is the only trace of why.
+                //
+                // It matters on the WRITE side too: catalogueBirth() asks this
+                // before every insert, and a fresh PHP-FPM worker whose first
+                // probe failed would create a holding without its stamp — one
+                // that can then never be announced as withdrawn. So, as in
+                // hasDesiderata(), fall back to what any worker has learned.
+                $known = $seenColumn || self::columnSeenElsewhere(self::CATALOGUED_SEEN_KEY);
                 \App\Support\SecureLogger::error(
-                    $seenColumn
-                        ? 'BookVisibility: cannot probe libri.catalogued_at; keeping the tombstones on, the column was seen earlier in this worker'
+                    $known
+                        ? 'BookVisibility: cannot probe libri.catalogued_at; keeping the tombstones on, the column is known to exist'
                         : 'BookVisibility: cannot probe libri.catalogued_at; de-listing tombstones are degraded for this call',
                     ['error' => $reason]
                 );
-                return $seenColumn;
+                return $known;
             }
             $columns[$db] = $result->num_rows > 0;
             if ($columns[$db]) {
+                if (!$seenColumn) {
+                    self::rememberColumnSeen(self::CATALOGUED_SEEN_KEY);
+                }
                 $seenColumn = true;
             }
         }
@@ -304,25 +314,28 @@ final class BookVisibility
      */
     private const COLUMN_SEEN_KEY = 'visibility_desiderata_column_seen';
 
+    /** Same, for libri.catalogued_at — also never dropped by the plugin. */
+    private const CATALOGUED_SEEN_KEY = 'visibility_catalogued_at_column_seen';
+
     /**
      * Record, once per worker, that a probe found the column. A cache failure
      * is ignored: this is a tie-breaker for a failed probe, never a reason to
      * fail the successful one that is running now.
      */
-    private static function rememberColumnSeen(): void
+    private static function rememberColumnSeen(string $key = self::COLUMN_SEEN_KEY): void
     {
         try {
-            \App\Support\QueryCache::set(self::COLUMN_SEEN_KEY, true, 2592000);
+            \App\Support\QueryCache::set($key, true, 2592000);
         } catch (\Throwable) {
             // Best effort by design; see above.
         }
     }
 
     /** Has any worker on this installation seen the column? */
-    private static function columnSeenElsewhere(): bool
+    private static function columnSeenElsewhere(string $key = self::COLUMN_SEEN_KEY): bool
     {
         try {
-            return \App\Support\QueryCache::get(self::COLUMN_SEEN_KEY) === true;
+            return \App\Support\QueryCache::get($key) === true;
         } catch (\Throwable) {
             return false;
         }

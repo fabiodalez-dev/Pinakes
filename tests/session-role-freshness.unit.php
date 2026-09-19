@@ -80,7 +80,11 @@ $dbHost = getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
 $dbPort = (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306));
 
 $sandboxName = getenv('DESIDERATA_SANDBOX_DB') ?: ($dbName . '_desiderata');
-if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandboxName) || strcasecmp($sandboxName, (string) $dbName) === 0) {
+// The sandbox is refused if it names ANY real database this run could mean:
+// the installation's (.env DB_NAME) and the E2E one (E2E_DB_NAME). Comparing
+// against only one let DESIDERATA_SANDBOX_DB equal to the other slip through,
+// and the setup below would then empty every table in it.
+if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandboxName) || in_array(strtolower($sandboxName), array_map('strtolower', array_filter([(string) $dbName, (string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')])), true)) {
     fwrite(STDERR, "FAIL: refusing to use '{$sandboxName}' as a sandbox.\n");
     exit(1);
 }

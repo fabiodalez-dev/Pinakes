@@ -72,18 +72,29 @@ $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '
       try {
         // Do not mint two sessions concurrently in a browser with no cookie.
         await initialCsrf;
-        // reCAPTCHA first, CSRF refresh last. grecaptcha.ready() can wait an
-        // unbounded time (the script may still be loading), so the CSRF token
-        // is read only afterwards: what gets submitted is whatever the session
+        // reCAPTCHA first, CSRF refresh last. grecaptcha.ready() can wait a
+        // long time (the script may still be loading), so the CSRF token is
+        // read only afterwards: what gets submitted is whatever the session
         // holds at that moment, not a value fetched before an arbitrary wait.
+        //
+        // The wait is bounded. A loader that never reaches "ready" (blocked
+        // by an extension, a stalled network) never calls the callback, so the
+        // promise would hang, the catch below would never run, and the donor
+        // would face a disabled button with no message until a reload. Past
+        // the limit the attempt fails like any other: message shown, button
+        // enabled again.
         // The reCAPTCHA v3 token (Google's: single-use, valid about two
         // minutes) pays for this with one small same-origin round trip, well
         // inside its window. The CSRF token has no such limits:
         // Csrf::validate() is a plain hash_equals() against the session value,
         // which Csrf::ensureToken() rotates only after roughly two hours.
         if (siteKey && window.grecaptcha) {
-          await new Promise(resolve => grecaptcha.ready(resolve));
-          form.elements.recaptcha_token.value = await grecaptcha.execute(siteKey, {action:'desiderata_offer'});
+          const withinLimit = promise => Promise.race([
+            promise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('reCAPTCHA timeout')), 15000)),
+          ]);
+          await withinLimit(new Promise(resolve => grecaptcha.ready(resolve)));
+          form.elements.recaptcha_token.value = await withinLimit(grecaptcha.execute(siteKey, {action:'desiderata_offer'}));
         }
         const response=await fetch(csrfUrl,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
         if(!response.ok) throw new Error(); const data=await response.json();
