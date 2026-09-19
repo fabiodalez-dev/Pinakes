@@ -97,7 +97,7 @@ if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandboxName)) {
 // the installation's (.env DB_NAME) and the E2E one (E2E_DB_NAME). Comparing
 // against only one let DESIDERATA_SANDBOX_DB equal to the other slip through,
 // and the setup below would then empty every table in it.
-if (in_array(strtolower($sandboxName), array_map('strtolower', array_filter([(string) $dbName, (string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')])), true)) {
+if (in_array(strtolower($sandboxName), array_map('strtolower', array_filter([(string) $dbName, (string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')], static fn (string $name): bool => $name !== '')), true)) {
     fwrite(STDERR, "FAIL: the sandbox name is the installation's own database. Name a disposable one.\n");
     exit(1);
 }

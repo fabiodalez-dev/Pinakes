@@ -592,7 +592,7 @@ try {
     // the installation's (.env DB_NAME) and the E2E one (E2E_DB_NAME). Comparing
     // against only one let DESIDERATA_SANDBOX_DB equal to the other slip through,
     // and the setup below would then empty every table in it.
-    if (in_array(strtolower($sandboxName), array_map('strtolower', array_filter([(string) $dbName, (string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')])), true)) {
+    if (in_array(strtolower($sandboxName), array_map('strtolower', array_filter([(string) $dbName, (string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')], static fn (string $name): bool => $name !== '')), true)) {
         fwrite(STDERR, <<<TXT
             FAIL: DESIDERATA_SANDBOX_DB is set to '{$sandboxName}', which is the installation's own database.
                   Section 6 drops and rebuilds home_content, plugin_hooks and plugin_settings, so it must never point there.

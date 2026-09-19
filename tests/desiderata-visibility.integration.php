@@ -379,7 +379,7 @@ try {
     // the installation's (.env DB_NAME) and the E2E one (E2E_DB_NAME). Comparing
     // against only one let DESIDERATA_SANDBOX_DB equal to the other slip through,
     // and the setup below would then empty every table in it.
-    if (in_array(strtolower($sandboxName), array_map('strtolower', array_filter([(string) $dbName, (string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')])), true)) {
+    if (in_array(strtolower($sandboxName), array_map('strtolower', array_filter([(string) $dbName, (string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')], static fn (string $name): bool => $name !== '')), true)) {
         // One environment variable pointed at the installation reproduces the
         // very destruction this section was moved out to avoid, with the guard
         // agreeing, because DATABASE() would indeed be this name.
