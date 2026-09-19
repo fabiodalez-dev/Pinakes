@@ -78,7 +78,7 @@ class SeoController
         // Gather stats
         $stats = $db->query(
             "SELECT
-                (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) AS books,
+                (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db) . ") AS books,
                 (SELECT COUNT(*) FROM autori) AS authors,
                 (SELECT COUNT(*) FROM editori) AS publishers,
                 (SELECT COUNT(*) FROM events WHERE is_active = 1) AS events"

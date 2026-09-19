@@ -118,6 +118,18 @@ Lo stato account (`stato`) ammette **solo tre valori**:
 
 > Non esistono gli stati "bloccato" o "in attesa" come valori separati: l'attesa di approvazione è rappresentata da `sospeso`.
 
+#### Quando hanno effetto un cambio di ruolo o di stato
+
+Subito, alla **richiesta successiva** dell'utente: non occorre aspettare che la sua sessione scada né chiedergli di uscire e rientrare.
+
+-   Un account **sospeso**, **scaduto** o **eliminato** viene disconnesso alla prima pagina protetta che apre, ed è rimandato al login. È la stessa regola che il login applica già: una sessione non sopravvive al permesso di aprirla.
+-   Un **Amministratore declassato** perde subito i poteri di amministrazione, comprese le azioni di manutenzione e le operazioni riservate ai soli amministratori.
+-   Un **membro dello Staff declassato** a utente non vede più i dati riservati (per esempio chi ha in prestito un libro nella scheda di amministrazione).
+
+Se il database non risponde, le pagine protette **rifiutano** l'accesso invece di fidarsi dell'ultimo ruolo noto: è preferibile un rifiuto temporaneo a un permesso revocato che continua a funzionare.
+
+> **Per chi sviluppa.** Il ruolo e lo stato salvati in sessione al login (`$_SESSION['user']['tipo_utente']`, `['stato']`) sono una fotografia: prima di ogni richiesta protetta vanno riletti dal database, e lo fa `App\Support\SessionRoleRevalidator`, usato da `AuthMiddleware`, `AdminAuthMiddleware` e `SessionRoleRefreshMiddleware`. Il valore riletto viene riscritto in sessione, ed è questo che rende affidabili i controlli sul ruolo scritti dentro i controller. Una rotta nuova che legge il ruolo deve quindi avere uno dei tre middleware: `AuthMiddleware([...ruoli])` o `AdminAuthMiddleware` se va protetta, `SessionRoleRefreshMiddleware` se deve restare aperta anche agli anonimi (in quel caso il controller legge l'attributo `is_operator_session` della richiesta, non la sessione). `tests/session-role-freshness.unit.php` analizza tutte le rotte e fallisce se una di esse legge il ruolo senza uno di questi middleware.
+
 #### 5. Eliminare un Utente
 -   Clicca sull'icona  **"Elimina"** (richiede conferma).
 -   **Solo gli Amministratori** possono eliminare utenti: lo Staff riceve `403`.

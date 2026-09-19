@@ -87,13 +87,13 @@ class ExtensionsRepo
     // Sprints
     // ------------------------------------------------------------------
 
-    private const SPRINT_SELECT = "SELECT s.*, l.titolo AS book_title,
+    private function sprintSelect(): string { return "SELECT s.*, l.titolo AS book_title,
                     TRIM(CONCAT(COALESCE(u.nome, ''), ' ', COALESCE(u.cognome, ''))) AS creator_name,
                     (SELECT COUNT(*) FROM bookclub_sprint_participants p WHERE p.sprint_id = s.id) AS participant_count
                FROM bookclub_sprints s
                LEFT JOIN bookclub_books cb ON cb.id = s.club_book_id
                LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
-               LEFT JOIN utenti u ON u.id = s.created_by";
+               LEFT JOIN utenti u ON u.id = s.created_by"; }
 
     /**
      * Sprints of a club, most recent start first.
@@ -104,7 +104,7 @@ class ExtensionsRepo
     {
         $limit = max(1, min(200, $limit));
         return $this->rows(
-            self::SPRINT_SELECT . ' WHERE s.club_id = ? ORDER BY s.starts_at DESC, s.id DESC LIMIT ' . $limit,
+            $this->sprintSelect() . ' WHERE s.club_id = ? ORDER BY s.starts_at DESC, s.id DESC LIMIT ' . $limit,
             'i',
             [$clubId]
         );
@@ -113,7 +113,7 @@ class ExtensionsRepo
     /** @return array<string, mixed>|null */
     public function sprintById(int $sprintId): ?array
     {
-        return $this->row(self::SPRINT_SELECT . ' WHERE s.id = ?', 'i', [$sprintId]);
+        return $this->row($this->sprintSelect() . ' WHERE s.id = ?', 'i', [$sprintId]);
     }
 
     /**
@@ -125,7 +125,7 @@ class ExtensionsRepo
     public function nextSprint(int $clubId): ?array
     {
         return $this->row(
-            self::SPRINT_SELECT . " WHERE s.club_id = ?
+            $this->sprintSelect() . " WHERE s.club_id = ?
                 AND s.status = 'scheduled'
                 AND DATE_ADD(s.starts_at, INTERVAL s.duration_min MINUTE) > NOW()
               ORDER BY s.starts_at ASC LIMIT 1",
@@ -277,7 +277,13 @@ class ExtensionsRepo
     // Buddy reading
     // ------------------------------------------------------------------
 
-    private const BUDDY_SELECT = "SELECT b.*, l.titolo AS book_title,
+    // LEFT JOIN like sprintSelect(): a soft-deleted catalogue book may empty
+    // book_title, but must never make the pairing unresolvable — accept,
+    // decline and done would all 404. See Repo::bookSelect() for why no
+    // desiderata predicate belongs on this join either.
+    private function buddySelect(): string
+    {
+        return "SELECT b.*, l.titolo AS book_title,
                     TRIM(CONCAT(COALESCE(ua.nome, ''), ' ', COALESCE(ua.cognome, ''))) AS name_a,
                     TRIM(CONCAT(COALESCE(ub.nome, ''), ' ', COALESCE(ub.cognome, ''))) AS name_b
                FROM bookclub_buddies b
@@ -285,8 +291,7 @@ class ExtensionsRepo
                LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN utenti ua ON ua.id = b.user_a
                LEFT JOIN utenti ub ON ub.id = b.user_b";
-    // ^ LEFT JOIN like SPRINT_SELECT: a soft-deleted catalog book must not
-    //   make the pairing unresolvable (accept/decline/done would 404).
+    }
 
     /**
      * All pairings involving $userId in $clubId (both sides see them).
@@ -296,7 +301,7 @@ class ExtensionsRepo
     public function buddiesForUser(int $clubId, int $userId): array
     {
         return $this->rows(
-            self::BUDDY_SELECT . " WHERE b.club_id = ? AND (b.user_a = ? OR b.user_b = ?)
+            $this->buddySelect() . " WHERE b.club_id = ? AND (b.user_a = ? OR b.user_b = ?)
               ORDER BY FIELD(b.status, 'proposed', 'active', 'done'), b.created_at DESC",
             'iii',
             [$clubId, $userId, $userId]
@@ -306,7 +311,7 @@ class ExtensionsRepo
     /** @return array<string, mixed>|null */
     public function buddyById(int $buddyId): ?array
     {
-        return $this->row(self::BUDDY_SELECT . ' WHERE b.id = ?', 'i', [$buddyId]);
+        return $this->row($this->buddySelect() . ' WHERE b.id = ?', 'i', [$buddyId]);
     }
 
     public function buddyExists(int $clubId, int $clubBookId, int $userA, int $userB): bool

@@ -97,6 +97,13 @@ storage/calendar/*
 !storage/calendar/.htaccess
 !storage/plugins/
 storage/plugins/*
+!storage/plugins/desiderata/
+storage/plugins/desiderata/*
+!storage/plugins/desiderata/*.php
+!storage/plugins/desiderata/*.json
+!storage/plugins/desiderata/*.md
+!storage/plugins/desiderata/views/
+!storage/plugins/desiderata/views/*.php
 !storage/plugins/open-library/
 storage/plugins/open-library/*
 !storage/plugins/open-library/*.php
@@ -441,6 +448,7 @@ tests/*
 !tests/*.unit.php
 !tests/*.integration.php
 !tests/*.test.sh
+!tests/*.test.cjs
 !tests/ci-playwright-policy.json
 !tests/seeds/
 tests/seeds/*

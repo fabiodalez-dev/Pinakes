@@ -786,6 +786,29 @@ $additional_css = "
         box-shadow: none;
     }
 
+    /* Wanted book: an invitation to donate, not an error. Same neutral grey as the catalogue grid. */
+    .availability-badge.wanted {
+        background: #6b7280;
+        color: white;
+        border-color: #6b7280;
+        box-shadow: none;
+    }
+
+    .availability-badge.wanted:hover {
+        background: #6b7280;
+        transform: translateY(-2px);
+        box-shadow: none;
+    }
+
+    body[class*='layout-'] .availability-badge.wanted {
+        background: color-mix(in srgb, #6b7280 11%, var(--white));
+        color: color-mix(in srgb, #6b7280 72%, #1a1a1a);
+    }
+
+    .book-status-inline.is-wanted::before {
+        background: #6b7280;
+    }
+
     .book-meta {
         background: transparent;
         padding: 3rem 0;
@@ -1950,6 +1973,14 @@ ob_start();
                     <?php endif; ?>
 
                     <div class="mt-4">
+                        <?php if (!empty($book['is_desiderata'])): ?>
+                        <?php
+                        // No data-live-* attributes on purpose: this book has
+                        // no copies to hydrate, and the edge-cache availability
+                        // script only rewrites badges that carry them.
+                        ?>
+                        <span class="availability-badge wanted"><i class="fas fa-hand-holding-heart mr-2" aria-hidden="true"></i><span><?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?></span></span>
+                        <?php else: ?>
                         <span class="availability-badge <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'available' : 'unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="detail-badge" data-live-pending="1"' : '' ?>>
                             <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : (($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle') ?> mr-2" aria-hidden="true"></i>
                             <span data-live-label><?= $edgeCacheEnabled ? htmlspecialchars(__("Verifica disponibilità"), ENT_QUOTES, 'UTF-8') : (($book['copie_disponibili'] > 0)
@@ -1958,6 +1989,7 @@ ob_start();
                                     : __("Disponibile"))
                                 : __("Non disponibile oggi")) /* lo snapshot è di OGGI: il calendario può mostrare giorni futuri liberi */ ?></span>
                         </span>
+                        <?php endif; ?>
                     </div>
 
                 </div>
@@ -1973,7 +2005,8 @@ ob_start();
             <!-- Main Content -->
             <div class="w-full lg:w-2/3 px-3">
                 <!-- Action Buttons -->
-                <?php if (!$isCatalogueMode): ?>
+                <?php // No loan, reservation or favourite for a book the library does not own. ?>
+                <?php if (!$isCatalogueMode && empty($book['is_desiderata'])): ?>
                 <div class="action-buttons text-center mb-4" id="book-action-buttons">
                     <!-- Always show the calendar to choose dates -->
                     <button id="btn-request-loan" type="button" class="ui-button <?= !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>"<?= !$edgeCacheEnabled && $nothingInCirculation ? ' disabled' : '' ?><?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="action" data-live-pending="1"' : '' ?>>
@@ -2507,13 +2540,26 @@ ob_start();
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
+                                <?php if (!empty($book['is_desiderata'])): ?>
+                                <span class="book-status-inline is-wanted">
+                                    <?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?>
+                                </span>
+                                <?php else: ?>
                                 <span class="book-status-inline <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'is-available' : 'is-unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="status" data-live-pending="1"' : '' ?>>
                                     <?= $edgeCacheEnabled ? __("Verifica disponibilità") : (($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non disponibile oggi")) ?>
                                 </span>
+                                <?php endif; ?>
                             </div>
                         </div>
 
+                        <?php if (empty($book['is_desiderata'])): ?>
                         <?php
+                        // A wanted book owns no copy by definition: the status line
+                        // above already says the library is looking for it, and a
+                        // "0 / 0" underneath contradicted that invitation — while,
+                        // with the edge cache on, it also hydrated live availability
+                        // for copies that do not exist. Holdings only.
+                        //
                         // The denominator is what the library owns, not what is in
                         // circulation: with the only copy under maintenance the old
                         // "0 / 0" read as "not in this library" (#426).
@@ -2531,6 +2577,7 @@ ob_start();
                                 <div class="meta-note" data-live-book-id="<?= (int) $book['id'] ?>" data-live-role="count-note" hidden></div>
                             <?php endif; ?>
                         </div>
+                        <?php endif; ?>
 
                         <?php if (!empty($book['collocazione'])): ?>
                         <div class="meta-item">

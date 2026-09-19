@@ -29,7 +29,16 @@ function getSectionDisplayName($key) {
         'events' => __('Eventi e Incontri'),
         'cta' => __('Call to Action')
     ];
-    return $names[$key] ?? ucfirst(str_replace('_', ' ', $key));
+    // A plugin-owned section has no entry here, and the humanised key
+    // ("Desiderata") is rarely what the operator should read. The filter lets
+    // the owning plugin name its own row; with no handler the fallback is the
+    // unchanged behaviour. The label is echoed, so a handler that returns
+    // anything but a string is discarded rather than left to trip an
+    // "Array to string conversion" in the middle of the sortable list.
+    $default = $names[$key] ?? ucfirst(str_replace('_', ' ', $key));
+    $filtered = \App\Support\Hooks::apply('cms.home.section_name', $default, [$key]);
+
+    return is_string($filtered) ? $filtered : $default;
 }
 ?>
 
@@ -679,6 +688,14 @@ function getSectionDisplayName($key) {
       </div>
     </div>
 
+<?php
+// Plugin-owned sections render their own card here: inside the <form>, so their
+// fields post with everything else and are picked up by the cms.home.save
+// filter in CmsController::updateHome(). No handler, no output — the tag pair
+// is closed tight against the surrounding markup so the emitted HTML is
+// unchanged byte for byte while the hook is unused.
+\App\Support\Hooks::do('cms.home.section.fields', [$sections]);
+?>
     <!-- Submit Button -->
     <div class="flex justify-end gap-3">
       <a href="<?= htmlspecialchars(url('/admin/settings?tab=cms'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-semibold transition-colors">

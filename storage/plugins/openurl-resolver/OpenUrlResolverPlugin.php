@@ -381,6 +381,8 @@ class OpenUrlResolverPlugin
     // ─── DB helpers ───────────────────────────────────────────────────────────
 
     /**
+     * A requested (desiderata) title is not a holding: never resolve an OpenURL to it.
+     *
      * @return array<string, mixed>|null
      */
     private function findBookByIsbn(string $isbn): ?array
@@ -397,6 +399,7 @@ class OpenUrlResolverPlugin
                       LIMIT 1) AS autore_principale
                FROM libri l
               WHERE l.{$col} = ? AND l.deleted_at IS NULL
+                AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . "
               LIMIT 1"
         );
         if ($stmt === false) { return null; }
@@ -418,7 +421,8 @@ class OpenUrlResolverPlugin
                     l.anno_pubblicazione, l.lingua, e.nome AS editore
                FROM libri l
                LEFT JOIN editori e ON e.id = l.editore_id
-              WHERE l.id = ? AND l.deleted_at IS NULL'
+              WHERE l.id = ? AND l.deleted_at IS NULL
+                AND ' . \App\Support\BookVisibility::catalogue($this->db, 'l')
         );
         if ($stmt === false) { return null; }
         $stmt->bind_param('i', $id);

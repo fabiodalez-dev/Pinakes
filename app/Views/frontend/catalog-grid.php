@@ -59,7 +59,18 @@ $getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
                          loading="lazy" decoding="async"
                          onerror="this.onerror=null;this.src=<?= htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8') ?>">
                 </a>
-                <?= $getBookStatusBadge($book) ?>
+                <?php if (!empty($book['is_desiderata'])): ?>
+                    <?php
+                    // A book the library WANTS, not one it holds: it has no
+                    // availability to hydrate, so this badge deliberately
+                    // carries no data-live-* attributes — the edge-cache
+                    // hydration in live-availability.js only rewrites those,
+                    // and would otherwise relabel it "Non disponibile".
+                    ?>
+                    <span class="book-status-badge status-unavailable dw-wanted-badge"><span><i class="fas fa-hand-holding-heart" aria-hidden="true"></i> <?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?></span></span>
+                <?php else: ?>
+                    <?= $getBookStatusBadge($book) ?>
+                <?php endif; ?>
                 <?php if (($book['tipo_media'] ?? 'libro') !== 'libro'): ?>
                   <span class="book-media-badge" title="<?= htmlspecialchars(\App\Support\MediaLabels::tipoMediaDisplayName($book['tipo_media']), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(\App\Support\MediaLabels::tipoMediaDisplayName($book['tipo_media']), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas <?= htmlspecialchars(\App\Support\MediaLabels::icon($book['tipo_media']), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i>

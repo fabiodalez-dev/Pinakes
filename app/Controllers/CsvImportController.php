@@ -1145,7 +1145,26 @@ class CsvImportController
             'colorista_provided' => array_key_exists('colorista', $row),
             'parole_chiave' => !empty($row['parole_chiave']) ? trim($row['parole_chiave']) : null,
             'classificazione_dewey' => !empty($row['classificazione_dewey']) ? trim($row['classificazione_dewey']) : null,
-            'copertina_url' => !empty($row['copertina_url']) ? trim($row['copertina_url']) : null
+            'copertina_url' => !empty($row['copertina_url']) ? trim($row['copertina_url']) : null,
+            // A request: the library wants the book but owns no copy of it.
+            //
+            // mb_strtolower, not strtolower: the accepted list carries the
+            // accented Italian affirmative, and strtolower() folds only ASCII
+            // A-Z. "SÌ" would come out as "sÌ", match nothing, and import the
+            // row as an owned holding — silently, since an unmatched value is
+            // simply false. Same call shape as validateLanguage() below.
+            //
+            // The list covers every language the header map claims to read
+            // (mapColumnHeaders below accepts Spanish, French, German and
+            // Danish column names): a file whose header says "wunschbuch" or
+            // "recherché" carries "Ja" or "Oui" in the cells, and matching the
+            // header while rejecting its own values imports the whole request
+            // list as owned holdings. Danish and German share "ja".
+            'is_desiderata' => in_array(
+                mb_strtolower(trim((string) ($row['is_desiderata'] ?? '')), 'UTF-8'),
+                ['1', 'true', 'yes', 'y', 'si', 'sì', 'sí', 'oui', 'ja'],
+                true
+            )
         ];
     }
 
@@ -1420,19 +1439,33 @@ class CsvImportController
             'curatore' => ['curatore', 'editor', 'curator', 'edited by', 'herausgeber'],
             'colorista' => ['colorista', 'colorist', 'colourist'],
             'parole_chiave' => ['parole_chiave', 'parole chiave', 'keywords', 'tags', 'palabras clave', 'mots-clés', 'schlagwörter', 'subjects'],
-            'classificazione_dewey' => ['classificazione_dewey', 'dewey', 'dewey decimal', 'dewey classification', 'dewey wording', 'lc classification', 'call number', 'other call number']
+            'classificazione_dewey' => ['classificazione_dewey', 'dewey', 'dewey decimal', 'dewey classification', 'dewey wording', 'lc classification', 'call number', 'other call number'],
+            // Written by the standard export on installations with the
+            // desiderata plugin; harmless everywhere else, where the value is
+            // simply ignored because the column does not exist.
+            'is_desiderata' => ['is_desiderata', 'desiderata', 'wanted', 'wunschbuch', 'recherché', 'ønsket']
         ];
 
         $mappedHeaders = [];
 
         foreach ($headers as $index => $header) {
-            $headerLower = strtolower(trim($header));
+            // mb_strtolower on BOTH sides, not strtolower. Nineteen of the
+            // aliases above are non-ASCII (título, año, edición, éditeur,
+            // numéro de série, mots-clés, schlagwörter, übersetzer, ønsket,
+            // recherché, …) and strtolower() folds only A-Z, leaving every
+            // multibyte letter untouched: an all-caps header row — which is
+            // what several library exports write — turns "NUMÉRO DE SÉRIE"
+            // into "numÉro de sÉrie", matches nothing, and the column is
+            // imported under its raw name and then dropped. That silently
+            // disabled the entire Spanish, French, German and Danish header
+            // vocabulary while the Italian and English ones kept working.
+            $headerLower = mb_strtolower(trim($header), 'UTF-8');
             $canonicalName = $header; // Default: keep original if no mapping found
 
             // Try to find a mapping
             foreach ($columnMapping as $canonical => $variations) {
                 foreach ($variations as $variation) {
-                    if ($headerLower === strtolower($variation)) {
+                    if ($headerLower === mb_strtolower($variation, 'UTF-8')) {
                         $canonicalName = $canonical;
                         break 2;
                     }
@@ -1706,6 +1739,12 @@ class CsvImportController
      * genre → genere_id; publisher → editore_id (+ junction sync skipped);
      * description → descrizione/descrizione_plain; keywords → parole_chiave;
      * contributors → the legacy traduttore/illustratore/curatore TEXT columns.
+     *
+     * is_desiderata is deliberately NOT written here. An import that matches an
+     * existing record must never turn a holding back into a request: the core
+     * invariant is that a book with physical copies is not a desiderata, and
+     * DataIntegrity would clear the flag on the very next recalculation anyway.
+     * The flag is therefore set on the insert path only.
      *
      * @param array<string,bool> $updateFields
      */
@@ -2065,6 +2104,18 @@ class CsvImportController
         $hasDescPlain = $this->hasDescrizionePlainColumn($db);
         $descPlainCol = $hasDescPlain ? ', descrizione_plain' : '';
         $descPlainVal = $hasDescPlain ? ', ?' : '';
+        // A flagged row is a book the library does NOT own. Writing the flag
+        // without also suppressing the copies below would be self-erasing: the
+        // availability recalculation at the end of this method clears the flag
+        // the moment a copy exists.
+        $wanted = \App\Support\BookVisibility::hasDesiderata($db) && !empty($data['is_desiderata']);
+        $desiderataCol = $wanted ? ', is_desiderata' : '';
+        $desiderataVal = $wanted ? ', 1' : '';
+        // An imported holding is catalogued from birth, so it carries the same
+        // stamp BookRepository::create() writes; a flagged row gets none.
+        // Without it the row is invisible to everCatalogued(), and withdrawing
+        // it later emits no OAI-PMH tombstone.
+        [$cataloguedCol, $cataloguedVal] = \App\Support\BookVisibility::catalogueBirth($db, $wanted);
 
         $stmt = $db->prepare("
             INSERT INTO libri (
@@ -2072,13 +2123,13 @@ class CsvImportController
                 lingua, edizione, numero_pagine, genere_id,
                 descrizione{$descPlainCol}, formato{$tipoMediaCol}, prezzo, copie_totali, copie_disponibili,
                 editore_id, collana, numero_serie, traduttore, illustratore, curatore, parole_chiave,
-                classificazione_dewey, stato, created_at
+                classificazione_dewey, stato, created_at{$desiderataCol}{$cataloguedCol}
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
                 ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?,
-                ?, 'disponibile', NOW()
+                ?, 'disponibile', NOW(){$desiderataVal}{$cataloguedVal}
             )
         ");
 
@@ -2105,7 +2156,15 @@ class CsvImportController
         // dropped copies on a cross-install migration (export writes the real
         // count); raise it to a still-DoS-safe ceiling and log when it bites so a
         // truncation is diagnosable rather than invisible.
-        if ($copie < 1) {
+        //
+        // The "< 1 becomes 1" clamp is corrected for FLAGGED ROWS ONLY: an
+        // exported request carries copie_totali = 0, and a numeric zero falling
+        // through that clamp is what fabricates a physical copy and an inventory
+        // code for a book the library does not own. Ordinary zero-copy imports
+        // keep the existing behaviour on purpose.
+        if ($wanted) {
+            $copie = 0;
+        } elseif ($copie < 1) {
             $copie = 1;
         } elseif ($copie > 2000) {
             \App\Support\SecureLogger::warning('CsvImportController: copie_totali troncato all\'import', [
@@ -2160,16 +2219,21 @@ class CsvImportController
         $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
         $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
 
-        // Genera copie fisiche nella tabella copie
-        $copyRepo = new \App\Models\CopyRepository($db);
+        // Genera copie fisiche nella tabella copie.
+        // A request gets none: the whole point is that no copy exists yet. The
+        // availability recalculation below still runs, so the row lands in a
+        // consistent state (stato 'non_disponibile', zero counters).
+        if (!$wanted) {
+            $copyRepo = new \App\Models\CopyRepository($db);
 
-        // Genera numero inventario base (usa ISBN se disponibile, altrimenti LIB-{id})
-        $baseInventario = $isbn13 ?: ($isbn10 ?: "LIB-{$bookId}");
+            // Genera numero inventario base (usa ISBN se disponibile, altrimenti LIB-{id})
+            $baseInventario = $isbn13 ?: ($isbn10 ?: "LIB-{$bookId}");
 
-        // Batch: one prefix pre-load + one multi-row INSERT instead of two
-        // queries per copy, so a large copie_totali doesn't flood the per-row
-        // transaction with thousands of statements.
-        $copyRepo->createManyForBook($bookId, $baseInventario, $copie, 'disponibile', __("Copia %d di %d"));
+            // Batch: one prefix pre-load + one multi-row INSERT instead of two
+            // queries per copy, so a large copie_totali doesn't flood the per-row
+            // transaction with thousands of statements.
+            $copyRepo->createManyForBook($bookId, $baseInventario, $copie, 'disponibile', __("Copia %d di %d"));
+        }
 
         // Ricalcola disponibilità dopo aver creato le copie
         $integrity = new \App\Support\DataIntegrity($db);

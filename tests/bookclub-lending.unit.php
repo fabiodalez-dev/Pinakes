@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Reusable behavioral suite for the Book Club "member lending" module —
  * App\Plugins\BookClub\LendingRepo (bookclub_member_loans).
  *
- * 25 lifecycle scenarios (31 assertions) drive the REAL LendingRepo against a live MySQL, covering the full
+ * 25 baseline lifecycle scenarios (31 assertions), plus 12 cross-plugin assertions when Desiderata is installed, drive the REAL LendingRepo against a live MySQL, covering the full
  * loan state machine (offered → requested → active → returned / cancelled), the
  * conditional-UPDATE guards ("first requester wins", state-machine gates), and the
  * "at most one OPEN loan per (club_book_id, lender_id)" invariant enforced by the
@@ -67,6 +67,7 @@ try {
         );
     }
 } catch (\Throwable $e) {
+    if (getenv('REQUIRE_DESIDERATA_TESTS') === '1') { throw $e; }
     echo "SKIP: database not reachable (" . $e->getMessage() . ")\n";
     exit(0);
 }
@@ -303,6 +304,16 @@ check(
     "myActiveLoans() lists the active loan for lender and borrower"
 );
 
+// A member owns this copy even when the library only wants the title.
+if ($db->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'")->num_rows > 0) {
+    $beforeWanted = $repo->loanById($offerId);
+    $db->query('UPDATE libri SET is_desiderata=1 WHERE id=' . (int)$created['libro']);
+    $wantedLoan = $repo->loanById($offerId);
+    check($wantedLoan['titolo'] === $beforeWanted['titolo'] && !empty($wantedLoan['titolo']), 'wanted book retains its title in member loans');
+    check($wantedLoan['status'] === 'active', 'wanted book retains active loan');
+    $db->query('UPDATE libri SET is_desiderata=0 WHERE id=' . (int)$created['libro']);
+}
+
 // 20. markReturned: 'active' → 'returned'.
 check($repo->markReturned($offerId) === true, "markReturned() moves active → returned");
 check($statusOf($offerId) === 'returned', "status is 'returned' after markReturned");
@@ -330,6 +341,37 @@ check(
     && $repo->countOpenOffers($CLUB) === 0,
     "myOffers() returns the full history and countOpenOffers() is 0 with no open rows"
 );
+
+
+// Release regression: complete member-owned lending lifecycle for a desiderata.
+if (getenv('REQUIRE_DESIDERATA_TESTS') === '1' && $db->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'")->num_rows === 0) {
+    blCleanup($db, $created);
+    throw new RuntimeException('Desiderata schema required for release regression tests');
+}
+if ($db->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'")->num_rows > 0) {
+    $db->query('UPDATE libri SET is_desiderata=1 WHERE id=' . (int)$created['libro']);
+    $wantedOffer = $repo->createOffer($CLUB, $BOOK, $U1, 'release desiderata');
+    if ($wantedOffer !== null) { $created['loans'][] = $wantedOffer; }
+    check($wantedOffer !== null, 'R11: member can offer their own copy of a desiderata');
+    check(count(array_filter($repo->openOffers($CLUB), fn($l) => (int)$l['id'] === $wantedOffer && !empty($l['titolo']))) === 1, 'R12: wanted title is identifiable in available member offers');
+    check($repo->requestLoan($wantedOffer, $U2), 'R13: member can request the wanted title');
+    check(!$repo->requestLoan($wantedOffer, $U3), 'R14: second borrower cannot steal the wanted loan');
+    check(count(array_filter($repo->myBorrowings($CLUB, $U2), fn($l) => (int)$l['id'] === $wantedOffer && !empty($l['titolo']))) === 1, 'R15: borrower sees wanted title in their history');
+    // The row is fetched into a variable and asserted to EXIST before its
+    // borrower is read. loanById() returns ?array, and null['borrower_id'] is
+    // itself null — so written inline this check would pass just as happily on a
+    // decline that DELETED the loan as on one that cleared its borrower, which
+    // is the opposite outcome. Reported by CodeRabbit on this PR.
+    $declined = $repo->declineRequest($wantedOffer);
+    $declinedLoan = $declined ? $repo->loanById($wantedOffer) : null;
+    check($declinedLoan !== null && $declinedLoan['borrower_id'] === null, 'R16: declining wanted loan clears borrower, and keeps it');
+    $repo->requestLoan($wantedOffer, $U3);
+    check($repo->handOver($wantedOffer, '2099-12-31'), 'R17: wanted copy can be handed over');
+    check(!$repo->cancel($wantedOffer), 'R18: active wanted loan cannot be cancelled');
+    check(count(array_filter($repo->myActiveLoans($CLUB, $U3), fn($l) => (int)$l['id'] === $wantedOffer && !empty($l['titolo']))) === 1, 'R19: active wanted loan retains its title');
+    check($repo->markReturned($wantedOffer) && !$repo->hasOpenOffer($BOOK, $U1), 'R20: returning wanted loan releases the member copy');
+    $db->query('UPDATE libri SET is_desiderata=0 WHERE id=' . (int)$created['libro']);
+}
 
 blCleanup($db, $created);
 printf("\nALL %d PASS\n", $TESTNO);

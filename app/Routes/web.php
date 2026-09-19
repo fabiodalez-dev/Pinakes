@@ -28,6 +28,7 @@ use App\Controllers\LanguageController;
 use App\Controllers\ReservationsAdminController;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\AdminAuthMiddleware;
+use App\Middleware\SessionRoleRefreshMiddleware;
 use App\Support\RouteTranslator;
 use App\Support\I18n;
 
@@ -1141,6 +1142,11 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $count = 0;
         if ($db) {
+            // Deliberately UNFILTERED by BookVisibility. This feeds the admin
+            // layout's header quick-stat, so it follows the same rule as
+            // DashboardStats and /admin/books: operator surfaces count every
+            // record, requests included. Filtering only this one would make the
+            // header disagree with the dashboard card next to it.
             $res = $db->query("SELECT COUNT(*) AS c FROM libri WHERE deleted_at IS NULL");
             if ($res) {
                 $count = (int) ($res->fetch_assoc()['c'] ?? 0);
@@ -2234,11 +2240,16 @@ return function (App $app): void {
         return $controller->list($request, $response, $db);
     })->add(new AdminAuthMiddleware());
     // API Autori (server-side DataTables)
+    // Admin-only: this feed returns biografia, sito_web and the life dates,
+    // and it was the one registration in its block chaining no auth while its
+    // bulk-delete and bulk-export siblings did (CWE-306). Its only consumer is
+    // the /admin/authors DataTables — the book form's author picker is a
+    // different endpoint, /api/search/autori — so gating it costs no caller.
     $app->get('/api/autori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\AutoriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->list($request, $response, $db);
-    });
+    })->add(new AdminAuthMiddleware());
 
     // API Autori - Bulk Delete
     $app->post('/api/autori/bulk-delete', function ($request, $response) use ($app) {
@@ -2433,11 +2444,18 @@ return function (App $app): void {
         return $controller->search($request, $response, $db);
     });
 
+    // Stays open — plugins publish sources into it through the
+    // `search.unified.sources` hook and the archives suite drives it logged
+    // out — but its results are scoped by operator role, and a role read on a
+    // route with no middleware is the login-time snapshot with nothing
+    // refreshing it (CWE-613). SessionRoleRefreshMiddleware re-validates the
+    // claim against the DB and lets everyone through; AdminAuthMiddleware
+    // cannot go here because it would answer 401 to the anonymous callers.
     $app->get('/api/search/unified', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
         return $controller->unifiedSearch($request, $response, $db);
-    });
+    })->add(new SessionRoleRefreshMiddleware(null, $app->getContainer()));
     $app->get('/api/search/preview', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
@@ -3284,7 +3302,10 @@ return function (App $app): void {
         try {
             $db = $app->getContainer()->get('db');
             $generator = new \App\Support\IcsGenerator($db);
-            $content = $generator->generate();
+            // Anonymous endpoint: the book title goes into the VEVENT summary
+            // and is retained by the subscriber's calendar client, so wanted
+            // titles must not be published here.
+            $content = $generator->generate(true);
 
             $response->getBody()->write($content);
             return $response

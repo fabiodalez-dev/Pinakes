@@ -505,7 +505,8 @@ class SRUServer
             LEFT JOIN scaffali s ON l.scaffale_id = s.id
             LEFT JOIN mensole m ON l.mensola_id = m.id
             LEFT JOIN copie c ON l.id = c.libro_id
-            WHERE l.deleted_at IS NULL AND ({$whereClause})
+            -- A requested book (desiderata) is not a holding: never publish it.
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . " AND ({$whereClause})
             GROUP BY l.id
         ";
 
@@ -1529,6 +1530,11 @@ class SRUServer
         $stmt = null;
         $result = null;
 
+        // Scan terms and frequencies must agree with searchRetrieve: a
+        // requested book (desiderata) is not a holding, so it is not browsable.
+        $holdingOnly = \App\Support\BookVisibility::catalogue($this->db, 'l');
+        $holdingOnlyBare = \App\Support\BookVisibility::catalogue($this->db, 'libri');
+
         try {
             switch ($index) {
                 case 'dc.creator':
@@ -1540,7 +1546,7 @@ class SRUServer
                         SELECT a.nome AS term, COUNT(DISTINCT l.id) AS frequency
                         FROM autori a
                         JOIN libri_autori la ON la.autore_id = a.id
-                        JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
+                        JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL AND {$holdingOnly}
                         WHERE a.nome <> '' AND a.nome LIKE ?
                         GROUP BY a.nome
                         ORDER BY a.nome
@@ -1560,7 +1566,7 @@ class SRUServer
                         SELECT g.nome AS term, COUNT(DISTINCT l.id) AS frequency
                         FROM generi g
                         JOIN libri l ON (l.genere_id = g.id OR l.sottogenere_id = g.id)
-                                    AND l.deleted_at IS NULL
+                                    AND l.deleted_at IS NULL AND {$holdingOnly}
                         WHERE g.nome <> '' AND g.nome LIKE ?
                         GROUP BY g.nome
                         ORDER BY g.nome
@@ -1576,9 +1582,9 @@ class SRUServer
                 case 'bath.isbn':
                     $stmt = $this->db->prepare("
                         SELECT value AS term, COUNT(*) AS frequency FROM (
-                            SELECT isbn10 AS value FROM libri WHERE deleted_at IS NULL AND isbn10 <> '' AND isbn10 LIKE ?
+                            SELECT isbn10 AS value FROM libri WHERE deleted_at IS NULL AND {$holdingOnlyBare} AND isbn10 <> '' AND isbn10 LIKE ?
                             UNION ALL
-                            SELECT isbn13 AS value FROM libri WHERE deleted_at IS NULL AND isbn13 <> '' AND isbn13 LIKE ?
+                            SELECT isbn13 AS value FROM libri WHERE deleted_at IS NULL AND {$holdingOnlyBare} AND isbn13 <> '' AND isbn13 LIKE ?
                         ) AS isbns
                         GROUP BY value
                         ORDER BY value
@@ -1597,7 +1603,7 @@ class SRUServer
                     $stmt = $this->db->prepare("
                         SELECT titolo AS term, COUNT(*) AS frequency
                         FROM libri
-                        WHERE titolo <> '' AND titolo LIKE ? AND deleted_at IS NULL
+                        WHERE titolo <> '' AND titolo LIKE ? AND deleted_at IS NULL AND {$holdingOnlyBare}
                         GROUP BY titolo
                         ORDER BY titolo
                         LIMIT ?
