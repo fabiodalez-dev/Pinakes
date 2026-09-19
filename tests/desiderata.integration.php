@@ -127,6 +127,11 @@ try {
     (new App\Models\CopyRepository($db))->createWithAllocatedInventoryCode($ordinary,$prefix);
     $check((new App\Support\DataIntegrity($db))->recalculateBookAvailability($ordinary), 'normal copy management reconciles successfully');
     $check((int)$scalar("SELECT is_desiderata FROM libri WHERE id=$ordinary")===0, 'ordinary copy creation also automatically fulfils desiderata');
+    // The automatic transition must leave a trace in the book's history: it
+    // makes the title public, and an operator reading the log has to be able
+    // to see when and why. One system-attributed 'repair' event, no more.
+    $repairEvents=(int)$scalar("SELECT COUNT(*) FROM log_modifiche WHERE tabella='libri' AND record_id=$ordinary AND utente_id IS NULL AND dati_nuovi LIKE '%\"source\":\"repair\"%' AND dati_nuovi LIKE '%is_desiderata%'");
+    $check($repairEvents===1, "the automatic fulfilment is recorded once in the book's history as a system repair (found {$repairEvents})");
     $fields=$plugin->prepareBook([],['desiderata_form'=>'1','is_desiderata'=>'1'],$ordinary);
     $check($fields['is_desiderata']===0,'existing physical holdings cannot become a request');
     $db->query("DELETE FROM copie WHERE libro_id=$ordinary");

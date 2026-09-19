@@ -656,6 +656,20 @@ class ResourceSyncPlugin
         // nobody ever received. Paired with the de-listing arms below, never
         // with the live one.
         $everCatalogued = \App\Support\BookVisibility::everCatalogued($this->db);
+        // The soft-delete tombstones owe the same courtesy, with one case to
+        // exclude and only one: a row that is a request AND never reached the
+        // catalogue. Soft-deleting such a row used to emit change="deleted" for
+        // a record no harvester was ever given — a false sync event that also
+        // leaked the request's id and timestamps.
+        //
+        // Written as "not (request and never catalogued)" rather than simply
+        // appending $everCatalogued, which would be wrong twice over: on an
+        // installation without the plugin everCatalogued() is 0=1 and every
+        // soft-delete tombstone would vanish, and an ordinary holding created
+        // before catalogued_at was stamped on every insert would stop being
+        // announced as deleted. With the column absent, delisted() is 0=1 and
+        // this whole guard is inert.
+        $publishedOnce = 'NOT (' . $delisted . ' AND NOT (' . $everCatalogued . '))';
 
         if ($since !== null) {
             // FIX F078: bound tombstone exposure on `?from=` queries.
@@ -680,7 +694,7 @@ class ResourceSyncPlugin
                  WHERE ((deleted_at IS NULL AND updated_at >= ? AND ' . $visible . ')
                     OR (deleted_at IS NULL AND ' . $delisted . ' AND ' . $everCatalogued . ' AND updated_at >= ?
                         AND updated_at >= DATE_SUB(NOW(), INTERVAL 90 DAY))
-                    OR (deleted_at IS NOT NULL AND deleted_at >= ?
+                    OR (deleted_at IS NOT NULL AND deleted_at >= ? AND ' . $publishedOnce . '
                         AND deleted_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)))
                  ORDER BY COALESCE(deleted_at, updated_at) ASC
                  LIMIT ? OFFSET ?'
@@ -701,7 +715,7 @@ class ResourceSyncPlugin
                  WHERE ((deleted_at IS NULL AND ' . $visible . ')
                     OR (deleted_at IS NULL AND ' . $delisted . ' AND ' . $everCatalogued . '
                         AND updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
-                    OR (deleted_at IS NOT NULL AND deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)))
+                    OR (deleted_at IS NOT NULL AND ' . $publishedOnce . ' AND deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)))
                  ORDER BY COALESCE(deleted_at, updated_at, created_at) DESC
                  LIMIT ? OFFSET ?'
             );

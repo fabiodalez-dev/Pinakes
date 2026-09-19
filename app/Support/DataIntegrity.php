@@ -167,11 +167,19 @@ class DataIntegrity {
                 // Prepared like every other statement in this method, and its
                 // effect reported separately so a failure cannot hide behind
                 // $results['updated'], which counts the availability pass only.
+                //
+                // Clearing the flag publishes the book in the catalogue, so the
+                // rows it is about to change are read first — same WHERE, same
+                // scope, and every libri row is already locked above, so this
+                // is exactly the set the UPDATE will touch — to give each one
+                // an audit event. Normally empty: no further query then.
+                $fulfilledRequests = $this->loadFulfilledRequests(null);
                 $request = $this->db->prepare('UPDATE libri l SET is_desiderata=0' . BookVisibility::catalogueStamp($this->db) . ' WHERE is_desiderata=1 AND EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id)');
                 if ($request === false || !$request->execute()) {
                     $results['errors'][] = 'Errore azzeramento desiderata: ' . $this->db->error;
                 } else {
                     $results['desiderata_cleared'] = $this->db->affected_rows;
+                    $this->recordFulfilledRequests($fulfilledRequests);
                 }
                 if ($request !== false) {
                     $request->close();
@@ -454,13 +462,21 @@ class DataIntegrity {
                 // deliberately routes it into this method's own catch, which
                 // already knows whether to roll back or hand the failure to the
                 // caller that owns the transaction.
+                //
+                // Pre-image for the audit event, read with the same WHERE; the
+                // availability UPDATE above already holds this row's lock.
+                $fulfilledRequests = $this->loadFulfilledRequests($bookId);
                 $request = $this->db->prepare('UPDATE libri SET is_desiderata=0' . BookVisibility::catalogueStamp($this->db) . ' WHERE id=? AND is_desiderata=1 AND EXISTS (SELECT 1 FROM copie WHERE libro_id=?)');
                 if ($request === false) {
                     throw new \RuntimeException('desiderata flag clear failed to prepare: ' . $this->db->error);
                 }
                 $request->bind_param('ii', $bookId, $bookId);
                 $request->execute();
+                $cleared = $request->affected_rows;
                 $request->close();
+                if ($cleared > 0) {
+                    $this->recordFulfilledRequests($fulfilledRequests);
+                }
             }
 
             if (!$insideTransaction) {
@@ -490,6 +506,118 @@ class DataIntegrity {
             $this->db->rollback();
             return false;
         }
+    }
+
+    /**
+     * Rows the desiderata sweep is about to clear, keyed by book id: the
+     * scope of the matching UPDATE (one book, or the whole table when
+     * $bookId is null). Read before the UPDATE so the audit event carries
+     * the real pre-image.
+     *
+     * Audit only: a failure here is logged and yields no events, it never
+     * stops the sweep itself.
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    private function loadFulfilledRequests(?int $bookId): array
+    {
+        $rows = [];
+        try {
+            if ($bookId === null) {
+                // CI-SOFT-DELETE-EXEMPT: mirrors the table-wide desiderata sweep, which deliberately reaches archived rows too.
+                $stmt = $this->db->prepare('SELECT l.* FROM libri l WHERE l.is_desiderata=1 AND EXISTS (SELECT 1 FROM copie c WHERE c.libro_id=l.id)');
+            } else {
+                // CI-SOFT-DELETE-EXEMPT: mirrors the per-book desiderata sweep, which deliberately reaches archived rows too.
+                $stmt = $this->db->prepare('SELECT * FROM libri WHERE id=? AND is_desiderata=1 AND EXISTS (SELECT 1 FROM copie WHERE libro_id=?)');
+            }
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            if ($bookId !== null) {
+                $stmt->bind_param('ii', $bookId, $bookId);
+            }
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($result && ($row = $result->fetch_assoc())) {
+                $rows[(int) $row['id']] = $row;
+            }
+            $stmt->close();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Desiderata sweep audit pre-image failed', [
+                'book_id' => $bookId,
+                'error' => $e->getMessage(),
+            ]);
+            return [];
+        }
+        return $rows;
+    }
+
+    /**
+     * One book.updated event per request the sweep actually fulfilled: the
+     * flag went from 1 to 0 and the book became visible in the catalogue.
+     * Written on the same connection, hence inside whatever transaction is
+     * open (ours or the caller's) — never committed on its own. Attributed to
+     * the system, like every other automatic repair in this class.
+     *
+     * @param array<int, array<string,mixed>> $beforeRows
+     */
+    private function recordFulfilledRequests(array $beforeRows): void
+    {
+        if ($beforeRows === []) {
+            return;
+        }
+        try {
+            $ids = implode(',', array_map('intval', array_keys($beforeRows)));
+            // CI-SOFT-DELETE-EXEMPT: post-image of rows the desiderata sweep just changed, archived ones included.
+            $result = $this->db->query("SELECT * FROM libri WHERE id IN ({$ids})");
+            if ($result === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            while ($after = $result->fetch_assoc()) {
+                $id = (int) $after['id'];
+                $before = $beforeRows[$id] ?? null;
+                if ($before === null || (int) ($after['is_desiderata'] ?? 1) !== 0) {
+                    continue;
+                }
+                ActivityLog::recordBookEvent(
+                    $this->db,
+                    $id,
+                    'aggiornamento',
+                    'edit',
+                    'book.updated',
+                    self::desiderataAuditSnapshot($before),
+                    self::desiderataAuditSnapshot($after),
+                    operatorId: ActivityLog::SYSTEM_OPERATOR,
+                    bookTitle: (string) ($after['titolo'] ?? ''),
+                    source: 'repair'
+                );
+            }
+            $result->free();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Desiderata sweep audit write failed', [
+                'book_ids' => array_keys($beforeRows),
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * The standard book snapshot plus the two columns this transition changes.
+     * ActivityLog::bookSnapshot() leaves them out, so without them the event
+     * would render as a change with nothing in it.
+     *
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private static function desiderataAuditSnapshot(array $row): array
+    {
+        $snapshot = ActivityLog::bookSnapshot($row);
+        foreach (['is_desiderata', 'catalogued_at'] as $field) {
+            if (array_key_exists($field, $row)) {
+                $snapshot[$field] = $row[$field];
+            }
+        }
+        return $snapshot;
     }
 
     /**

@@ -623,6 +623,15 @@ class CmsController
         }
 
         if (!empty($errors)) {
+            // Only a plugin handler failed: the core sections ARE on disk (see
+            // the snapshot note above), so the cached home page is now stale
+            // and must be invalidated exactly as on a clean save. Without this
+            // the operator is told the main sections were saved while visitors
+            // keep being served the previous version until the cache expires.
+            if ($errorsBeforeHandlers === []) {
+                \App\Support\ContentCache::homeContentChanged();
+            }
+
             // Every core section above is written only `if (... && empty($errors))`,
             // so one invalid field discards the whole submission — including
             // edits to sections that have nothing to do with it. The message

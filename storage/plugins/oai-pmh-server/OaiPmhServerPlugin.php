@@ -3033,8 +3033,13 @@ class OaiPmhServerPlugin
             return null;
         }
 
+        // The soft-delete trigger records EVERY book, including a request that
+        // was never in the catalogue, so a deletion is answered here only for a
+        // record a harvester could actually have received — the same rule the
+        // ListIdentifiers/ListRecords arm applies (see neverPublishedGuard()).
+        // CI-SOFT-DELETE-EXEMPT: a tombstone is by definition about a soft-deleted libri row.
         $stmt = $this->db->prepare(
-            'SELECT * FROM oai_deleted_records WHERE entity_type = ? AND entity_id = ?'
+            'SELECT * FROM oai_deleted_records d WHERE d.entity_type = ? AND d.entity_id = ? AND ' . $this->neverPublishedGuard('d')
         );
         if ($stmt === false) { return null; }
         $stmt->bind_param('si', $entityType, $entityId);
@@ -3316,8 +3321,10 @@ class OaiPmhServerPlugin
             // emitted. Values come from the fixed allow-list above, never from
             // input.
             $delW[] = "entity_type IN ('" . implode("','", $delTypes) . "')";
+            $delW[] = $this->neverPublishedGuard('oai_deleted_records');
             if ($fromMysql !== null)  { $delW[] = 'datestamp >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $delW[] = 'datestamp <= ?'; $types .= 's'; $vals[] = $untilMysql; }
+            // CI-SOFT-DELETE-EXEMPT: the libri subquery in neverPublishedGuard() targets soft-deleted rows by design.
             $parts[] = "SELECT id AS _id, entity_type AS _entity, 'deleted' AS _status, datestamp AS _datestamp,"
                 . " 'oai_deleted_records' AS _source"
                 . " FROM oai_deleted_records WHERE " . implode(' AND ', $delW);
@@ -4524,5 +4531,32 @@ class OaiPmhServerPlugin
     {
         $response->getBody()->write((string) json_encode(['success' => false, 'error' => $error]));
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+    }
+
+    /**
+     * SQL guard for oai_deleted_records: drop a BOOK tombstone whose row is a
+     * library request that never reached the catalogue.
+     *
+     * The soft-delete trigger fires for every book, and it cannot tell a
+     * withdrawn holding from a wish list entry — the desiderata columns may not
+     * even exist when the trigger is created. Filtering at read time also
+     * covers the tombstones already recorded, which changing the trigger would
+     * not. A tombstone for such a row announces the deletion of a record no
+     * harvester was given, and publishes the request's id and timestamps.
+     *
+     * Inert without the plugin: delisted() is then 0=1 and nothing is dropped.
+     * Archival units and any other entity type are never affected.
+     */
+    private function neverPublishedGuard(string $alias): string
+    {
+        if (!preg_match('/^[a-z_]+$/', $alias)) {
+            throw new \InvalidArgumentException('Invalid SQL alias');
+        }
+        $delisted = \App\Support\BookVisibility::delisted($this->db, 'nl');
+        $everCatalogued = \App\Support\BookVisibility::everCatalogued($this->db, 'nl');
+
+        // CI-SOFT-DELETE-EXEMPT: the guard must see the soft-deleted row the tombstone is about.
+        return "NOT ({$alias}.entity_type = 'book' AND EXISTS (SELECT 1 FROM libri nl WHERE nl.id = {$alias}.entity_id"
+            . " AND {$delisted} AND NOT ({$everCatalogued})))";
     }
 }

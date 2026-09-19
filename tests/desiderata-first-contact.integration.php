@@ -98,6 +98,8 @@ $jarFirst = tempnam(sys_get_temp_dir(), 'dwfc');
 $jarHostile = tempnam(sys_get_temp_dir(), 'dwfc');
 $db = null;
 
+$fatalError = null;
+
 try {
     // Reachability first: a suite that silently measured a dead server would
     // report every refusal below as a pass.
@@ -177,8 +179,11 @@ try {
     $hostileCount = (int) $db->query("SELECT COUNT(*) c FROM desiderata_offers WHERE donor_email = 'x@y.invalid'")->fetch_assoc()['c'];
     $check($hostileCount === 0, "and the refused and re-presented sends wrote nothing (found {$hostileCount})");
 } catch (\Throwable $error) {
-    fwrite(STDERR, "\nFAIL: {$error->getMessage()}\n");
-    exit(1);
+    // Recorded, not acted on. exit() here would end the process before the
+    // finally block below runs — PHP does not unwind finally on exit — and
+    // leave the confirmed proposal in the installation's desiderata_offers
+    // and the cookie jars on disk. The failure is reported after cleanup.
+    $fatalError = $error;
 } finally {
     if ($db instanceof mysqli) {
         $stmt = $db->prepare('DELETE FROM desiderata_offers WHERE donor_email = ? OR donor_email = ?');
@@ -190,6 +195,11 @@ try {
     }
     @unlink($jarFirst);
     @unlink($jarHostile);
+}
+
+if ($fatalError !== null) {
+    fwrite(STDERR, "\nFAIL: {$fatalError->getMessage()}\n");
+    exit(1);
 }
 
 echo "\n" . ($fail === 0 ? "ALL {$pass} PASS\n" : "{$pass} PASS, {$fail} FAIL\n");

@@ -24,7 +24,14 @@ declare(strict_types=1);
  * copies is harvested just the same; tying the stamp to copies would stop a
  * genuinely withdrawn copy-less record from ever tombstoning.
  *
- * Everything is written inside a transaction that is rolled back.
+ * Runs against a DISPOSABLE database of its own (DESIDERATA_SANDBOX_DB, default
+ * "<DB_NAME>_desiderata"), rebuilt from installer/database/schema.sql on every
+ * run, and refuses to touch the installation's. The transaction below does not
+ * make the installation safe: ensureSchema() adds libri.catalogued_at, backfills
+ * it with an UPDATE and creates desiderata_offers before the transaction opens,
+ * and DDL commits implicitly, so none of it would ever be rolled back. FAILS
+ * HARD rather than skipping when the sandbox is unreachable. The book rows are
+ * still written inside a transaction that is rolled back.
  *
  * Run:  php tests/desiderata-oai-tombstones.unit.php
  */
@@ -63,14 +70,82 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) ?: 
     $env[trim($key)] = trim(trim($value), "\"'");
 }
 
+// Transport resolved exactly as tests/desiderata-catalogued-on-create.unit.php
+// does: a socket when one exists, TCP otherwise (CI reaches MySQL over TCP).
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
 $dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
 $dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
-$db = is_string($socket) && $socket !== '' && file_exists($socket)
-    ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
-    : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $dbUser, $dbPass, $dbName, (int) ($env['DB_PORT'] ?? 3306));
-$db->set_charset('utf8mb4');
+$dbHost = getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
+$dbPort = (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306));
+
+// ensureSchema() runs DDL and a backfill UPDATE that no rollback can undo, so
+// the suite never touches the installation's database: it rebuilds a
+// disposable one from schema.sql on every run.
+$sandboxName = getenv('DESIDERATA_SANDBOX_DB') ?: ($dbName . '_desiderata');
+if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandboxName)) {
+    fwrite(STDERR, "FAIL: invalid sandbox database name '{$sandboxName}'\n");
+    exit(1);
+}
+if (strcasecmp($sandboxName, (string) $dbName) === 0) {
+    fwrite(STDERR, "FAIL: the sandbox name is the installation's own database. Name a disposable one.\n");
+    exit(1);
+}
+
+$connect = static function (string $database) use ($socket, $dbUser, $dbPass, $dbHost, $dbPort): mysqli {
+    $db = is_string($socket) && $socket !== '' && file_exists($socket)
+        ? new mysqli(null, $dbUser, $dbPass, $database, 0, $socket)
+        : new mysqli($dbHost, $dbUser, $dbPass, $database, $dbPort);
+    $db->set_charset('utf8mb4');
+
+    return $db;
+};
+
+try {
+    $admin = $connect('');
+    $admin->query("CREATE DATABASE IF NOT EXISTS `{$sandboxName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $admin->close();
+
+    $prep = $connect($sandboxName);
+    $prep->query('SET FOREIGN_KEY_CHECKS = 0');
+    $tables = [];
+    $result = $prep->query('SHOW TABLES');
+    while ($row = $result->fetch_row()) {
+        $tables[] = $row[0];
+    }
+    foreach ($tables as $table) {
+        $prep->query('DROP TABLE IF EXISTS `' . $table . '`');
+    }
+    $prep->query('SET FOREIGN_KEY_CHECKS = 1');
+    $prep->close();
+
+    $useSocket = is_string($socket) && $socket !== '' && file_exists($socket);
+    $command = $useSocket
+        ? sprintf('mysql --socket=%s -u %s %s', escapeshellarg($socket), escapeshellarg((string) $dbUser), escapeshellarg($sandboxName))
+        : sprintf(
+            'mysql -h %s -P %d --protocol=TCP -u %s %s',
+            escapeshellarg((string) $dbHost),
+            $dbPort,
+            escapeshellarg((string) $dbUser),
+            escapeshellarg($sandboxName)
+        );
+    $command .= ' < ' . escapeshellarg($root . '/installer/database/schema.sql') . ' 2>&1';
+    $previousPwd = getenv('MYSQL_PWD');
+    putenv('MYSQL_PWD=' . (string) $dbPass);
+    try {
+        exec($command, $out, $rc);
+    } finally {
+        $previousPwd === false ? putenv('MYSQL_PWD') : putenv('MYSQL_PWD=' . $previousPwd);
+    }
+    if ($rc !== 0) {
+        throw new RuntimeException('could not load schema.sql: ' . implode("\n", $out));
+    }
+
+    $db = $connect($sandboxName);
+} catch (\Throwable $e) {
+    fwrite(STDERR, "FAIL: the sandbox database '{$sandboxName}' could not be prepared: {$e->getMessage()}\n");
+    exit(1);
+}
 
 $MARK = 'ZZTOMB';
 $fatalError = null;
@@ -78,6 +153,11 @@ $transactionOpen = false;
 
 try {
     echo "A. The schema step adds the column and backfills only what it can know\n";
+
+    // A holding that predates the plugin. The sandbox starts empty, and the
+    // backfill check below would be vacuous with nothing there to stamp.
+    $db->query("INSERT INTO libri (titolo) VALUES ('{$MARK} preesistente')");
+    $preexisting = (int) $db->insert_id;
 
     $plugin = new DesiderataPlugin($db, new HookManager($db));
     $plugin->ensureSchema();
@@ -89,6 +169,10 @@ try {
         'SELECT COUNT(*) c FROM libri WHERE is_desiderata = 0 AND catalogued_at IS NULL'
     )->fetch_assoc()['c'];
     $check($orphans === 0, "the backfill stamped every row already in the catalogue ({$orphans} left unstamped)");
+    $check(
+        $db->query("SELECT catalogued_at FROM libri WHERE id = {$preexisting}")->fetch_assoc()['catalogued_at'] !== null,
+        'including the holding that existed before the plugin (so the check above had something to stamp)'
+    );
 
     echo "\nB. The two origins, written through the real repository\n";
 

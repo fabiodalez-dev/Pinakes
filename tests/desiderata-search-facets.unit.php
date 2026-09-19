@@ -19,8 +19,14 @@ declare(strict_types=1);
  * appears. It asserts the publisher facet, because a publisher count is a plain
  * COUNT over one join and leaves nowhere for an off-by-one to hide.
  *
- * Fixtures are prefixed and removed in a finally block; nothing is written
- * outside the two rows this file creates.
+ * Runs against a DISPOSABLE database of its own (DESIDERATA_SANDBOX_DB, default
+ * "<DB_NAME>_desiderata"), rebuilt from installer/database/schema.sql on every
+ * run, and refuses to touch the installation's. Removing the fixture rows is
+ * not enough to leave an installation as it was: DesiderataPlugin::ensureSchema()
+ * alters libri, backfills catalogued_at with an UPDATE and creates
+ * desiderata_offers, and none of that is undone by any cleanup or rollback.
+ * FAILS HARD rather than skipping when the sandbox is unreachable. Fixtures are
+ * still prefixed and removed in a finally block.
  *
  * Run:  php tests/desiderata-search-facets.unit.php
  */
@@ -60,14 +66,82 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) ?: 
     $env[trim($key)] = trim(trim($value), "\"'");
 }
 
+// Transport resolved exactly as tests/desiderata-catalogued-on-create.unit.php
+// does: a socket when one exists, TCP otherwise (CI reaches MySQL over TCP).
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
 $dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
 $dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
-$db = is_string($socket) && $socket !== '' && file_exists($socket)
-    ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
-    : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $dbUser, $dbPass, $dbName, (int) ($env['DB_PORT'] ?? 3306));
-$db->set_charset('utf8mb4');
+$dbHost = getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1');
+$dbPort = (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306));
+
+// ensureSchema() runs DDL and a backfill UPDATE that no cleanup can undo, so the
+// suite never touches the installation's database: it rebuilds a disposable one
+// from schema.sql on every run.
+$sandboxName = getenv('DESIDERATA_SANDBOX_DB') ?: ($dbName . '_desiderata');
+if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandboxName)) {
+    fwrite(STDERR, "FAIL: invalid sandbox database name '{$sandboxName}'\n");
+    exit(1);
+}
+if (strcasecmp($sandboxName, (string) $dbName) === 0) {
+    fwrite(STDERR, "FAIL: the sandbox name is the installation's own database. Name a disposable one.\n");
+    exit(1);
+}
+
+$connect = static function (string $database) use ($socket, $dbUser, $dbPass, $dbHost, $dbPort): mysqli {
+    $db = is_string($socket) && $socket !== '' && file_exists($socket)
+        ? new mysqli(null, $dbUser, $dbPass, $database, 0, $socket)
+        : new mysqli($dbHost, $dbUser, $dbPass, $database, $dbPort);
+    $db->set_charset('utf8mb4');
+
+    return $db;
+};
+
+try {
+    $admin = $connect('');
+    $admin->query("CREATE DATABASE IF NOT EXISTS `{$sandboxName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $admin->close();
+
+    $prep = $connect($sandboxName);
+    $prep->query('SET FOREIGN_KEY_CHECKS = 0');
+    $tables = [];
+    $result = $prep->query('SHOW TABLES');
+    while ($row = $result->fetch_row()) {
+        $tables[] = $row[0];
+    }
+    foreach ($tables as $table) {
+        $prep->query('DROP TABLE IF EXISTS `' . $table . '`');
+    }
+    $prep->query('SET FOREIGN_KEY_CHECKS = 1');
+    $prep->close();
+
+    $useSocket = is_string($socket) && $socket !== '' && file_exists($socket);
+    $command = $useSocket
+        ? sprintf('mysql --socket=%s -u %s %s', escapeshellarg($socket), escapeshellarg((string) $dbUser), escapeshellarg($sandboxName))
+        : sprintf(
+            'mysql -h %s -P %d --protocol=TCP -u %s %s',
+            escapeshellarg((string) $dbHost),
+            $dbPort,
+            escapeshellarg((string) $dbUser),
+            escapeshellarg($sandboxName)
+        );
+    $command .= ' < ' . escapeshellarg($root . '/installer/database/schema.sql') . ' 2>&1';
+    $previousPwd = getenv('MYSQL_PWD');
+    putenv('MYSQL_PWD=' . (string) $dbPass);
+    try {
+        exec($command, $out, $rc);
+    } finally {
+        $previousPwd === false ? putenv('MYSQL_PWD') : putenv('MYSQL_PWD=' . $previousPwd);
+    }
+    if ($rc !== 0) {
+        throw new RuntimeException('could not load schema.sql: ' . implode("\n", $out));
+    }
+
+    $db = $connect($sandboxName);
+} catch (\Throwable $e) {
+    fwrite(STDERR, "FAIL: the sandbox database '{$sandboxName}' could not be prepared: {$e->getMessage()}\n");
+    exit(1);
+}
 
 $MARK = 'ZZTESTFACET';
 $fatalError = null;
