@@ -234,6 +234,15 @@ $check(!$r['reached'], 'a suspended admin is refused');
 $r = $run(new AdminAuthMiddleware($closed), ['id' => ACTIVE_ADMIN, 'tipo_utente' => 'admin'], '/api/admin/probe');
 $check(!$r['reached'], 'an unreachable database fails closed here too');
 
+// Promotions must take effect as immediately as demotions. An earlier version
+// rejected on the snapshot BEFORE asking the database, so an account promoted
+// while logged in stayed locked out until it logged in again.
+$r = $run($admin, ['id' => DEMOTED_TO_STAFF, 'tipo_utente' => 'standard'], '/api/admin/probe');
+$check($r['reached'], 'an account promoted to staff while logged in passes at once, although its session still says standard');
+$check(($r['session']['tipo_utente'] ?? null) === 'staff', 'and its session is brought up to date');
+$r = $run($adminOnly, ['id' => ACTIVE_ADMIN, 'tipo_utente' => 'standard']);
+$check($r['reached'], 'the same holds for AuthMiddleware on an admin-only route');
+
 echo "\nC. The fresh role reaches the inline checks further down the request\n";
 
 // A staff member whose snapshot still says admin: AdminAuthMiddleware admits

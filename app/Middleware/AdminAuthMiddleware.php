@@ -57,16 +57,13 @@ class AdminAuthMiddleware implements MiddlewareInterface
             return $res->withHeader('Location', $loginUrl);
         }
 
-        // Check for admin or staff role (from the session snapshot set at login)
-        $tipo_utente = $user['tipo_utente'] ?? null;
-        if (!in_array($tipo_utente, self::ALLOWED_ROLES, true)) {
-            return $this->denyRole($isApiRequest);
-        }
-
-        // Security scan F8 (CWE-613): the session role above is a stale snapshot
-        // captured at login. Re-validate the user against the DB once per request
-        // so demotions/suspensions take effect immediately instead of lingering
-        // until the session expires. Fails CLOSED on any DB/lookup failure.
+        // Security scan F8 (CWE-613): the session role is a snapshot captured at
+        // login, so the decision is taken on the role read from the DB on this
+        // request — never on the snapshot. Demotions and suspensions take effect
+        // immediately, and so do PROMOTIONS: an earlier version rejected a
+        // session whose snapshot said 'standard' before asking the database, so
+        // an account just promoted to staff stayed locked out of every admin
+        // route until it logged in again. Fails CLOSED on any DB/lookup failure.
         if (!$this->revalidateRole($user)) {
             return $this->denyRole($isApiRequest);
         }
