@@ -105,11 +105,30 @@ final class ContributionController extends AbstractAdminController
         if ($id && !$old) {
             return $rs->withStatus(404);
         }
-        $pdf = [];
+        $files = [];
         $newPath = null;
+        $newCover = null;
         try {
             ContributionService::normalize($body);
-            $file = $rq->getUploadedFiles()['pdf'] ?? null;
+            $uploads = $rq->getUploadedFiles();
+            $cover = $uploads['copertina'] ?? null;
+            if ($cover instanceof \Psr\Http\Message\UploadedFileInterface && $cover->getError() !== UPLOAD_ERR_NO_FILE) {
+                if ($cover->getError() !== UPLOAD_ERR_OK) {
+                    throw new \InvalidArgumentException(__('Errore durante l\'upload.'));
+                }
+                // Same validator as the issue and masthead images: extension,
+                // size and magic bytes, then a random name under
+                // public/uploads/emeroteca.
+                $stored = $this->storeManagedImage($cover, 'articolo');
+                if (empty($stored['success']) || empty($stored['path'])) {
+                    throw new \InvalidArgumentException((string)($stored['message'] ?? __('Errore durante l\'upload.')));
+                }
+                $newCover = (string)$stored['path'];
+                $files['copertina_url'] = $newCover;
+            } elseif (!empty($body['remove_copertina'])) {
+                $files['copertina_url'] = null;
+            }
+            $file = $uploads['pdf'] ?? null;
             if ($file && $file->getError() !== UPLOAD_ERR_NO_FILE) {
                 if ($file->getError() !== UPLOAD_ERR_OK || !$file->getSize() || $file->getSize() > 25 * 1024 * 1024) {
                     throw new \InvalidArgumentException(__('PDF non valido o superiore a 25 MB.'));
@@ -129,20 +148,31 @@ final class ContributionController extends AbstractAdminController
                 if ((new \finfo(FILEINFO_MIME_TYPE))->file($newPath) !== 'application/pdf') {
                     throw new \InvalidArgumentException(__('Carica un documento PDF.'));
                 }
-                $pdf = ['pdf_path' => $name,'pdf_nome_originale' => mb_substr(basename($file->getClientFilename() ?? 'articolo.pdf'), 0, 255),'pdf_dimensione' => filesize($newPath)];
+                $files += ['pdf_path' => $name,'pdf_nome_originale' => mb_substr(basename($file->getClientFilename() ?? 'articolo.pdf'), 0, 255),'pdf_dimensione' => filesize($newPath)];
             } elseif (!empty($body['remove_pdf'])) {
-                $pdf = ['pdf_path' => null,'pdf_nome_originale' => null,'pdf_dimensione' => null];
+                $files += ['pdf_path' => null,'pdf_nome_originale' => null,'pdf_dimensione' => null];
                 $body['pdf_pubblico'] = 0;
             }
-            $id = $this->service()->save($body, $id, isset($body['revision']) ? (int)$body['revision'] : null, $pdf);
-            if ($pdf && !empty($old['pdf_path'])) {
+            $id = $this->service()->save($body, $id, isset($body['revision']) ? (int)$body['revision'] : null, $files);
+            if (array_key_exists('pdf_path', $files) && !empty($old['pdf_path'])) {
                 self::removePdf((string)$old['pdf_path']);
+            }
+            // Only after the row points at the new image: a failed save must
+            // never leave the article showing a file that is no longer there.
+            $previousCover = (string)($old['copertina_url'] ?? '');
+            if (array_key_exists('copertina_url', $files) && $previousCover !== '' && $previousCover !== $newCover) {
+                $this->deleteManagedImageIfUnreferenced($previousCover);
             }
             $this->flashSuccess(__('Articolo salvato.'));
             return $this->redirect($rs, '/admin/periodicals/articles/'.$id);
         } catch (\Throwable $e) {
             if ($newPath && is_file($newPath)) {
                 unlink($newPath);
+            }
+            if ($newCover !== null) {
+                // Stored but never referenced: the reference check finds no
+                // row and removes it.
+                $this->deleteManagedImageIfUnreferenced($newCover);
             }
             if (!$e instanceof \InvalidArgumentException) {
                 SecureLogger::error('[Emeroteca] contribution save: '.$e->getMessage());
@@ -151,7 +181,7 @@ final class ContributionController extends AbstractAdminController
             // would win and the re-rendered form would show the article as
             // still published: the operator would republish it by resubmitting.
             $flags = [];
-            foreach (['pubblico','pdf_pubblico','remove_pdf'] as $flag) {
+            foreach (['pubblico','pdf_pubblico','remove_pdf','remove_copertina'] as $flag) {
                 $flags[$flag] = empty($body[$flag]) ? 0 : 1;
             }
             return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.')]);
@@ -316,6 +346,7 @@ final class ContributionController extends AbstractAdminController
             return $this->redirect($rs, '/admin/periodicals/articles/'.$id);
         }
         self::removePdf((string)($row['pdf_path'] ?? ''));
+        $this->deleteManagedImageIfUnreferenced((string)($row['copertina_url'] ?? ''));
         $this->flashSuccess(__('Articolo eliminato.'));
         return $this->redirect($rs, '/admin/periodicals/articles');
     }

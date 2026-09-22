@@ -501,14 +501,38 @@ class PublicController
      * an install whose schema step failed must still serve its mastheads and
      * issues. The sitemap hook and the catalogue hint already degrade this way.
      *
+     * @param array<string, string> $filters see ContributionService::FILTER_FIELDS
      * @return array{rows: array<int, array<string, mixed>>, total: int, page: int, pages: int}
      */
-    private function articleResults(string $term, int $testata, int $page = 1): array
+    private function articleResults(string $term, int $testata, int $page = 1, array $filters = []): array
     {
         if (!$this->tableExists('emeroteca_contributi')) {
             return ['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1];
         }
-        return $this->contributions()->search($term, $testata, true, $page);
+        return $this->contributions()->search($term, $testata, true, $page, $filters);
+    }
+
+    /**
+     * The filter values carried by the query string, trimmed and capped.
+     *
+     * @param array<string, mixed> $query
+     * @return array<string, string> only the keys that carry a value
+     */
+    private function articleFilters(array $query): array
+    {
+        // Plugin classes have no autoloader scope: reading a constant off the
+        // service is enough to need its file, and this method runs BEFORE
+        // contributions() does its own lazy require.
+        require_once __DIR__ . '/../Services/ContributionService.php';
+        $filters = [];
+        foreach (\App\Plugins\Emeroteca\Services\ContributionService::FILTER_FIELDS as $key) {
+            $value = $query[$key] ?? null;
+            $value = is_string($value) ? trim($value) : '';
+            if ($value !== '') {
+                $filters[$key] = mb_substr($value, 0, 200);
+            }
+        }
+        return $filters;
     }
 
     /** Build a ContributionService bound to this controller's DB connection, loading its class file. */
@@ -518,12 +542,29 @@ class PublicController
         return new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
     }
 
-    /** Public articles search/listing page. */
+    /**
+     * Public articles search/listing page, optionally narrowed by author,
+     * publication or keyword — the destinations the links on an article page
+     * point at.
+     *
+     * A narrowed listing is the same corpus seen through a filter, so it is
+     * served noindex/follow: one canonical /emeroteca/articoli, not one
+     * indexable page per author the library happens to hold.
+     */
     public function articles(ServerRequestInterface $request, ResponseInterface $response, array $args=[]): ResponseInterface
     {
         $q=$request->getQueryParams();
         $term=is_string($q['q']??null)?$q['q']:'';
-        return $this->renderPublic($response,'articles.php',$this->articleResults($term,(int)($q['testata']??0),(int)($q['page']??1))+['term'=>$term,'testata'=>(int)($q['testata']??0),'seoTitle'=>__('Articoli'),'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli']);
+        $filters=$this->articleFilters($q);
+        $testata=(int)($q['testata']??0);
+        return $this->renderPublic($response,'articles.php',$this->articleResults($term,$testata,(int)($q['page']??1),$filters)+[
+            'term'=>$term,
+            'testata'=>$testata,
+            'filters'=>$filters,
+            'seoTitle'=>__('Articoli'),
+            'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli',
+            'seoRobots'=>$filters===[]?'index,follow':'noindex,follow',
+        ]);
     }
 
     /**

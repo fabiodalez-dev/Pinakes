@@ -115,10 +115,24 @@ abstract class AbstractAdminController
         return $this->tableCache[$table] = $exists;
     }
 
+    /** Every table that can point at a managed image: table => column. */
+    private const IMAGE_REFERENCES = [
+        'emeroteca_fascicoli'  => 'copertina_url',
+        'emeroteca_annate'     => 'copertina_url',
+        'emeroteca_testate'    => 'logo_url',
+        'emeroteca_contributi' => 'copertina_url',
+    ];
+
     /**
      * Remove a plugin-managed image after its database row has gone, but only
-     * when no title, volume year or issue still references it. External URLs
-     * and paths outside public/uploads/emeroteca are never touched.
+     * when no title, volume year, issue or article still references it.
+     * External URLs and paths outside public/uploads/emeroteca are never
+     * touched.
+     *
+     * The probe is built from the tables that actually exist. A degraded
+     * install missing one of them must still be able to clear an orphan
+     * image, and — the direction that loses data — a file another row is
+     * still showing must never be unlinked because its table went unread.
      */
     protected function deleteManagedImageIfUnreferenced(string $url): void
     {
@@ -126,17 +140,24 @@ abstract class AbstractAdminController
             return;
         }
 
-        $stmt = $this->db->prepare(
-            'SELECT 1 FROM emeroteca_fascicoli WHERE copertina_url = ?
-             UNION SELECT 1 FROM emeroteca_annate WHERE copertina_url = ?
-             UNION SELECT 1 FROM emeroteca_testate WHERE logo_url = ?
-             LIMIT 1'
-        );
+        $parts = [];
+        foreach (self::IMAGE_REFERENCES as $table => $column) {
+            if ($this->tableExists($table)) {
+                $parts[] = "SELECT 1 FROM $table WHERE $column = ?";
+            }
+        }
+        if ($parts === []) {
+            // Nothing can be checked, so nothing may be deleted: an orphan
+            // file costs disk space, a wrongly deleted one costs the image.
+            return;
+        }
+
+        $stmt = $this->db->prepare(implode(' UNION ', $parts) . ' LIMIT 1');
         if ($stmt === false) {
             SecureLogger::error('[Emeroteca] image reference check prepare failed: ' . $this->db->error);
             return;
         }
-        $stmt->bind_param('sss', $url, $url, $url);
+        $stmt->bind_param(str_repeat('s', count($parts)), ...array_fill(0, count($parts), $url));
         if (!$stmt->execute()) {
             SecureLogger::error('[Emeroteca] image reference check failed: ' . $stmt->error);
             $stmt->close();

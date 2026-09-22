@@ -88,7 +88,7 @@ try {
     $db->query("DELETE FROM emeroteca_testate WHERE titolo='Held'");
     $svc->setMode('simple');
     $db->query(ContributionService::ddl()); $db->query(ContributionService::ddl());
-    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','revision','created_at','updated_at'], 'fresh and repeated schema DDL');
+    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','copertina_url','revision','created_at','updated_at'], 'fresh and repeated schema DDL');
     $base=['titolo'=>"Intertextuality in Daniel Kehlmann's Novel Tyll",'autori'=>'Marc J. Schweissinger','contenitore_titolo'=>'International Journal of Language and Literature','data_pubblicazione_testo'=>'giugno 2019','anno_pubblicazione'=>'2019','volume'=>'7','numero'=>'1','pagine'=>'138–148','pubblico'=>1];
     $id=$svc->save($base);$row=$svc->get($id);
     check412($id>0 && $row['pagine']==='138–148' && $row['fascicolo_id']===null,'single article without any host');
@@ -135,6 +135,57 @@ try {
     check412($svc->get($private,true)===null && $svc->search('Secret',0,true)['total']===0,'private article absent from public lookups/search');
     check412($svc->search('International',0,true)['total']===1,'search includes container title');
     check412($svc->search('%',0,true)['total']===0,'LIKE wildcard is escaped');
+
+    // ── #412 (follow-up): l'articolo va trovato dove il lettore lo cerca ──
+    // Author, publication and keyword are free text on a standalone article,
+    // so "everything else by this author" can only be a filtered search.
+    $second=$svc->save(['titolo'=>'Second Schweissinger piece','autori'=>'Marc J. Schweissinger','contenitore_titolo'=>'Another Journal','keywords'=>'Tyll, Kehlmann','pubblico'=>1]);
+    $svc->save(['titolo'=>'Unpublished by the same author','autori'=>'Marc J. Schweissinger','keywords'=>'Tyll']);
+    check412($svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===2,'author filter collects the articles by that author');
+    check412($svc->search('',0,true,1,['pubblicazione'=>'Another Journal'])['total']===1,'publication filter narrows to one journal');
+    check412($svc->search('',0,true,1,['keyword'=>'Kehlmann'])['total']===1,'keyword filter matches inside a comma-separated list');
+    check412($svc->search('',0,true,1,['keyword'=>'Tyll'])['total']===2,'keyword filter matches every article carrying it');
+    check412($svc->search('',0,true,1,['autore'=>'Schweissinger','pubblicazione'=>'Another Journal'])['total']===1,'filters combine');
+    check412($svc->search('',0,true,1,['autore'=>'%'])['total']===0,'filter wildcards are escaped');
+    check412($svc->search('',0,true,1,['sconosciuto'=>'x'])['total']===$svc->search('',0,true)['total'],'an unknown filter key is ignored, not applied');
+    // The unpublished article by the same author is the point of this one: a
+    // filter must never be a way around pubblico=0.
+    check412($svc->search('Unpublished',0,true)['total']===0 && $svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===2,'a filtered search never surfaces an unpublished article');
+
+    // The catalogue hint: it must carry the articles themselves, because the
+    // visitor searched the catalogue for a title it cannot hold.
+    $suggest=$plugin->suggestEmerotecaSearch([],'Intertextuality');
+    check412(count($suggest)===1 && ($suggest[0]['total']??0)===1 && count($suggest[0]['items']??[])===1,'a catalogue search that matches an article yields one section with one item');
+    check412(($suggest[0]['items'][0]['label']??'')===$base['titolo'],'the item carries the article title, not a generic label');
+    check412(str_ends_with((string)($suggest[0]['items'][0]['url']??''),'/emeroteca/articolo/'.$id),'the item links to that article');
+    check412(str_contains((string)($suggest[0]['items'][0]['meta']??''),'Schweissinger') && str_contains((string)($suggest[0]['items'][0]['meta']??''),'138–148'),'the item meta line carries authors and the page span');
+    check412($plugin->suggestEmerotecaSearch([],'Secret Article')===[],'an unpublished article produces no suggestion at all');
+    check412($plugin->suggestEmerotecaSearch([],'z')===[],'a one-character term is not worth a full scan');
+    check412($plugin->suggestEmerotecaSearch([],'%%')===[],'wildcards in the term never match everything');
+    check412($plugin->suggestEmerotecaSearch('not-an-array','Intertextuality')==='not-an-array','a non-array input is passed through untouched');
+    check412(count($plugin->suggestEmerotecaSearch([['label'=>'zz existing','url'=>'/x'],],'Intertextuality'))===2,'the listener appends, it never replaces');
+    $svc->rows("INSERT INTO emeroteca_testate (titolo,sottotitolo) VALUES ('Zeitschrift für Tests','Beilage')");
+    $suggestTestata=$plugin->suggestEmerotecaSearch([],'Zeitschrift');
+    check412(count($suggestTestata)===1 && ($suggestTestata[0]['items'][0]['meta']??'')==='Beilage','a masthead match yields its own section with the subtitle as meta');
+    $svc->rows("DELETE FROM emeroteca_testate WHERE titolo='Zeitschrift für Tests'");
+
+    // The article image, on an install that predates the column: the real
+    // schema repair must add it, twice in a row, without touching the rows.
+    $db->query('ALTER TABLE emeroteca_contributi DROP COLUMN copertina_url');
+    $repair=(new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->ensureSchema();
+    (new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->ensureSchema();
+    check412($repair['failed']===[] && in_array('copertina_url',array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'),'Field'),true),'the real schema repair adds the article image column to an older install');
+    check412($svc->get($second)['titolo']==='Second Schweissinger piece','repairing the schema leaves the catalogued articles alone');
+    $rev=(int)$svc->get($id)['revision'];
+    $svc->save(array_replace($svc->get($id),['copertina_url'=>'/uploads/emeroteca/forged.jpg']),$id,$rev);
+    check412($svc->get($id)['copertina_url']===null,'the form body cannot point an article at a file of its own choosing');
+    $rev=(int)$svc->get($id)['revision'];
+    $svc->save($svc->get($id),$id,$rev,['copertina_url'=>'/uploads/emeroteca/real.jpg']);
+    check412($svc->get($id)['copertina_url']==='/uploads/emeroteca/real.jpg','the controller sets the image through the validated files argument');
+    $rev=(int)$svc->get($id)['revision'];
+    $svc->save($svc->get($id),$id,$rev,['copertina_url'=>null]);
+    check412($svc->get($id)['copertina_url']===null,'removing the image clears the column');
+    $svc->rows('DELETE FROM emeroteca_contributi WHERE id IN (?,?)',[$second,(int)$svc->rows("SELECT id FROM emeroteca_contributi WHERE titolo='Unpublished by the same author'")[0]['id']]);
     $public=ContributionService::publicData($svc->get($private));
     check412(!isset($public['note_private'],$public['collocazione'],$public['pdf_path']),'mobile projection excludes private data');
     $csv=new ContributionCsv($svc); $export=$csv->export();$preview=$csv->preview($export);
@@ -195,6 +246,11 @@ try {
     $withdrawn=$mobile->articles($request,new \Slim\Psr7\Response(),$id);
     check412(json_decode((string)$withdrawn->getBody(),true)['data']['pdf_url']===null && $withdrawn->getHeaderLine('ETag')!==$pdfResponse->getHeaderLine('ETag'),'withdrawing PDF clears its URL and invalidates the mobile ETag');
 
+    $svc->rows('UPDATE emeroteca_contributi SET copertina_url=? WHERE id=?',['/uploads/emeroteca/articolo_test.jpg',$id]);
+    $withCover=json_decode((string)$mobile->articles($request,new \Slim\Psr7\Response(),$id)->getBody(),true)['data'];
+    check412($withCover['cover_url']===absoluteUrl('/uploads/emeroteca/articolo_test.jpg'),'mobile article resolves the image to an absolute URL');
+    $svc->rows('UPDATE emeroteca_contributi SET copertina_url=NULL WHERE id=?',[$id]);
+    check412(json_decode((string)$mobile->articles($request,new \Slim\Psr7\Response(),$id)->getBody(),true)['data']['cover_url']===null,'an article without an image reports no URL instead of an empty path');
     check412($mobile->articles($request,new \Slim\Psr7\Response(),$private)->getStatusCode()===404,'mobile private detail returns 404');
     check412($mobile->articles($request->withQueryParams(['cursor'=>'bad']),new \Slim\Psr7\Response())->getStatusCode()===400,'malformed cursor rejected');
     for($i=0;$i<52;$i++) { $svc->save(['titolo'=>'Page article '.$i,'pubblico'=>1]); }

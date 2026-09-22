@@ -37,6 +37,12 @@ final class ContributionService
         'pdf_nome_originale' => "VARCHAR(255) NULL",
         'pdf_dimensione' => "BIGINT UNSIGNED NULL",
         'pdf_pubblico' => "TINYINT(1) NOT NULL DEFAULT 0",
+        // 1.6.0 — the article's own image, so a result list of articles is not
+        // a wall of text next to a catalogue of covers. Same managed-uploads
+        // path as the issue and masthead images (/uploads/emeroteca/…), never
+        // written from the form body: the controller sets it after validating
+        // the file. NULL is the norm, and the views draw a placeholder.
+        'copertina_url' => "VARCHAR(500) NULL",
         'revision' => "INT UNSIGNED NOT NULL DEFAULT 1",
         'created_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
         'updated_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
@@ -200,13 +206,22 @@ SQL;
         return $out;
     }
 
-    /** Full form or merged import snapshot; optimistic concurrency protects edits. */
-    public function save(array $data, int $id = 0, ?int $revision = null, array $pdf = []): int
+    /**
+     * Full form or merged import snapshot; optimistic concurrency protects edits.
+     *
+     * @param array<string, mixed> $files the upload columns the caller has
+     *        already validated and stored — PDF and cover image. They are
+     *        applied from HERE and never from $data, so a crafted form body
+     *        cannot point a row at a file of someone else's choosing; a key
+     *        that is absent leaves the stored value alone, and an explicit
+     *        null clears it.
+     */
+    public function save(array $data, int $id = 0, ?int $revision = null, array $files = []): int
     {
         $values = self::normalize($data);
-        foreach (['pdf_path','pdf_nome_originale','pdf_dimensione'] as $field) {
-            if (array_key_exists($field, $pdf)) {
-                $values[$field] = $pdf[$field];
+        foreach (['pdf_path','pdf_nome_originale','pdf_dimensione','copertina_url'] as $field) {
+            if (array_key_exists($field, $files)) {
+                $values[$field] = $files[$field];
             }
         }
         if ($id > 0) {
@@ -232,8 +247,21 @@ SQL;
         return $id;
     }
 
-    /** @return array{rows:array,total:int,page:int,pages:int} */
-    public function search(string $term = '', int $testata = 0, bool $public = false, int $page = 1): array
+    /**
+     * The filters the public article search accepts besides the free term:
+     * column => query-string parameter. They exist because on a standalone
+     * article the author, the container and the keywords are free text, not
+     * rows in the core registries, so "everything else by this author" can
+     * only be a filtered search — there is no author page to link to.
+     */
+    public const FILTER_FIELDS = ['autori' => 'autore', 'contenitore_titolo' => 'pubblicazione', 'keywords' => 'keyword'];
+
+    /**
+     * @param array<string, string> $filters subset of FILTER_FIELDS values ⇒ the
+     *        text to match; an empty or unknown key is ignored
+     * @return array{rows:array,total:int,page:int,pages:int}
+     */
+    public function search(string $term = '', int $testata = 0, bool $public = false, int $page = 1, array $filters = []): array
     {
         $where = ['1=1'];
         $params = [];
@@ -243,6 +271,17 @@ SQL;
         if ($testata > 0) {
             $where[] = 'c.testata_id=?';
             $params[] = $testata;
+        }
+        foreach (self::FILTER_FIELDS as $column => $key) {
+            $value = trim((string) ($filters[$key] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+            // Substring, not equality: keywords arrive as one comma-separated
+            // string, and an author field holding two names must still answer
+            // for each of them.
+            $where[] = "c.$column LIKE ? ESCAPE '='";
+            $params[] = '%' . strtr(mb_substr($value, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
         }
         if ($term !== '') {
             $where[] = "(c.titolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?)";

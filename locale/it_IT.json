@@ -7663,5 +7663,12 @@
   "Valore non valido.": "Valore non valido.",
   "Valore troppo lungo.": "Valore troppo lungo.",
   "Verifica": "Verifica",
-  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente."
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.",
+  "Vedi tutti i %d risultati": "Vedi tutti i %d risultati",
+  "Articoli nell’emeroteca (%d)": "Articoli nell’emeroteca (%d)",
+  "Testate nell’emeroteca (%d)": "Testate nell’emeroteca (%d)",
+  "Mostra tutti gli articoli": "Mostra tutti gli articoli",
+  "Rimuovi il filtro": "Rimuovi il filtro",
+  "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)",
+  "%d articolo": "%d articolo"
 }

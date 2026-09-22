@@ -695,13 +695,21 @@ final class MobileModule
         }
     }
 
-    /** Public article projection, including a server-resolved public PDF URL for clients. */
+    /**
+     * Public article projection, including server-resolved URLs for the public
+     * PDF and the article image.
+     *
+     * publicData() is a whitelist and deliberately leaves copertina_url out —
+     * it holds a storage path, not a URL — so the image is resolved here, the
+     * same way issues and volume years resolve theirs.
+     */
     private function mapContribution(array $row): array
     {
         $data = \App\Plugins\Emeroteca\Services\ContributionService::publicData($row);
         $data['pdf_url'] = $data['has_public_pdf']
             ? absoluteUrl('/emeroteca/articolo/' . (int)$row['id'] . '/pdf')
             : null;
+        $data['cover_url'] = $this->mediaUrl($row['copertina_url'] ?? null);
         return $data;
     }
 

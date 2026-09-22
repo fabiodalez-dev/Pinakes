@@ -7663,5 +7663,12 @@
   "Valore non valido.": "Ungültiger Wert.",
   "Valore troppo lungo.": "Wert zu lang.",
   "Verifica": "Prüfung",
-  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Große Exporte enthalten mehrere CSV-Dateien in einer ZIP-Datei. Entpacke sie und importiere jede CSV-Datei einzeln."
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Große Exporte enthalten mehrere CSV-Dateien in einer ZIP-Datei. Entpacke sie und importiere jede CSV-Datei einzeln.",
+  "Vedi tutti i %d risultati": "Alle %d Ergebnisse anzeigen",
+  "Articoli nell’emeroteca (%d)": "Artikel in der Zeitschriftensammlung (%d)",
+  "Testate nell’emeroteca (%d)": "Zeitschriftentitel in der Zeitschriftensammlung (%d)",
+  "Mostra tutti gli articoli": "Alle Artikel anzeigen",
+  "Rimuovi il filtro": "Filter entfernen",
+  "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Artikelbild (JPG, PNG oder WebP, max. 5 MB)",
+  "%d articolo": "%d Artikel"
 }

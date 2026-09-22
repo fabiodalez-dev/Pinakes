@@ -7663,5 +7663,12 @@
   "Valore non valido.": "Invalid value.",
   "Valore troppo lungo.": "Value too long.",
   "Verifica": "Check",
-  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Large exports contain multiple CSV files in a ZIP. Extract and import each CSV separately."
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Large exports contain multiple CSV files in a ZIP. Extract and import each CSV separately.",
+  "Vedi tutti i %d risultati": "See all %d results",
+  "Articoli nell’emeroteca (%d)": "Articles in Periodicals (%d)",
+  "Testate nell’emeroteca (%d)": "Serial titles in Periodicals (%d)",
+  "Mostra tutti gli articoli": "Show all articles",
+  "Rimuovi il filtro": "Remove filter",
+  "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Article image (JPG, PNG or WebP, max 5 MB)",
+  "%d articolo": "%d article"
 }

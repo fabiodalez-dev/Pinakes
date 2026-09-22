@@ -7663,5 +7663,12 @@
   "Valore non valido.": "Ugyldig værdi.",
   "Valore troppo lungo.": "Værdien er for lang.",
   "Verifica": "Kontrol",
-  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Store eksporter indeholder flere CSV-filer i en ZIP-fil. Pak dem ud, og importer hver CSV-fil separat."
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Store eksporter indeholder flere CSV-filer i en ZIP-fil. Pak dem ud, og importer hver CSV-fil separat.",
+  "Vedi tutti i %d risultati": "Se alle %d resultater",
+  "Articoli nell’emeroteca (%d)": "Artikler i tidsskriftssamlingen (%d)",
+  "Testate nell’emeroteca (%d)": "Tidsskriftstitler i tidsskriftssamlingen (%d)",
+  "Mostra tutti gli articoli": "Vis alle artikler",
+  "Rimuovi il filtro": "Fjern filter",
+  "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Billede af artiklen (JPG, PNG eller WebP, maks. 5 MB)",
+  "%d articolo": "%d artikel"
 }

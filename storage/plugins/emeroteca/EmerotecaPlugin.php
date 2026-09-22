@@ -2481,19 +2481,21 @@ class EmerotecaPlugin
     /**
      * Listener for the `search.external_suggestions` FILTER (contract in
      * App\Controllers\FrontendController::collectExternalSearchSuggestions):
-     * point a catalogue search at the emeroteca when the term matches
-     * something there.
+     * answer a catalogue search with what the emeroteca holds on that term.
      *
-     * The catalogue only reads `libri.search_index`, so searching for a
-     * periodical title or an indexed article gives "nessun risultato"
-     * even though the library holds it — a dead end the visitor has no
-     * way out of. This appends ONE link to /emeroteca?q=<term>.
+     * The catalogue only reads `libri.search_index`, so a periodical title or
+     * a published article gives "nessun risultato" even though the library
+     * holds it — a dead end the visitor has no way out of. Since 1.6.0 this
+     * returns the matches themselves (up to 5 per section, with the real
+     * total) instead of a bare link to search again somewhere else: someone
+     * who typed an article title must read that title back.
      *
-     * The suggestion is emitted ONLY on a real match, as the contract
-     * demands ("MUST NOT return a suggestion when it has no match"): two
-     * existence probes with LIMIT 1, short-circuiting on the first hit,
-     * using LIKE for masthead titles and the public search FULLTEXT index
-     * for article titles, restricted to non-withdrawn issues.
+     * Two sections at most, each emitted ONLY on a real match, as the
+     * contract demands ("MUST NOT return a suggestion when it has no match"):
+     * the published standalone articles, then the mastheads — or, when no
+     * masthead matches but an indexed article inside an owned issue does, the
+     * generic emeroteca link, because that article is reachable only through
+     * its issue and has no page of its own to link to.
      *
      * @param mixed $suggestions the suggestions collected so far
      * @return mixed append-only; a non-array input is passed through
@@ -2514,23 +2516,32 @@ class EmerotecaPlugin
             }
             $needle = mb_substr($needle, 0, 200);
 
-            if (!$this->emerotecaMatches($needle)) {
-                return $suggestions;
+            $articles = $this->emerotecaArticleHits($needle);
+            if ($articles['total'] > 0) {
+                $suggestions[] = [
+                    'label' => $this->translate('Articoli nell’emeroteca (%d)', $articles['total']),
+                    'url'   => $this->emerotecaPath('/emeroteca/articoli') . '?q=' . rawurlencode($needle),
+                    'items' => $articles['items'],
+                    'total' => $articles['total'],
+                ];
             }
 
-            $path = function_exists('url') ? (string) url('/emeroteca') : '/emeroteca';
-            if ($path === '' || $path[0] !== '/' || str_starts_with($path, '//')) {
-                // The core rejects anything that is not a single-slash
-                // same-origin path; do not hand it a URL it will drop.
-                $path = '/emeroteca';
+            $mastheads = $this->emerotecaTestataHits($needle);
+            if ($mastheads['total'] > 0) {
+                $suggestions[] = [
+                    'label' => $this->translate('Testate nell’emeroteca (%d)', $mastheads['total']),
+                    'url'   => $this->emerotecaPath('/emeroteca') . '?q=' . rawurlencode($needle),
+                    'items' => $mastheads['items'],
+                    'total' => $mastheads['total'],
+                ];
+            } elseif ($this->emerotecaIndexedArticleMatches($needle)) {
+                $suggestions[] = [
+                    'label' => function_exists('__')
+                        ? (string) __('Emeroteca (testate e spoglio degli articoli)')
+                        : 'Emeroteca (testate e spoglio degli articoli)',
+                    'url'   => $this->emerotecaPath('/emeroteca') . '?q=' . rawurlencode($needle),
+                ];
             }
-
-            $suggestions[] = [
-                'label' => function_exists('__')
-                    ? (string) __('Emeroteca (testate e spoglio degli articoli)')
-                    : 'Emeroteca (testate e spoglio degli articoli)',
-                'url'   => $path . '?q=' . rawurlencode($needle),
-            ];
         } catch (\Throwable $e) {
             SecureLogger::error('[Emeroteca] search.external_suggestions listener error: ' . $e->getMessage());
         }
@@ -2538,71 +2549,189 @@ class EmerotecaPlugin
     }
 
     /**
-     * True when at least one testata or one indexed article matches the
-     * term. Two separate LIMIT 1 probes rather than a UNION so each is
-     * guarded by its own table probe: on a degraded install one table
-     * can exist without the other.
+     * A same-origin path for the public emeroteca, base path included.
+     *
+     * The core rejects anything that is not a single-slash relative path, so
+     * a misconfigured url() helper must not be handed to it: fall back to the
+     * literal route rather than emit a suggestion the core will drop.
      */
-    private function emerotecaMatches(string $term): bool
+    private function emerotecaPath(string $route): string
     {
-        $pattern = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+        $path = function_exists('url') ? (string) url($route) : $route;
+        if ($path === '' || $path[0] !== '/' || str_starts_with($path, '//')) {
+            return $route;
+        }
+        return $path;
+    }
 
-        $probes = [];
-        if ($this->emerotecaTableExists('emeroteca_testate')) {
-            $probes[] = ["SELECT 1 FROM emeroteca_testate
-                          WHERE titolo LIKE ? ESCAPE '\\\\'
-                             OR sottotitolo LIKE ? ESCAPE '\\\\'
-                             OR issn LIKE ? ESCAPE '\\\\'
-                          LIMIT 1", 'sss', [$pattern, $pattern, $pattern]];
+    /** __() when the core helpers are loaded, sprintf() alone when they are not. */
+    private function translate(string $message, int|string ...$args): string
+    {
+        return function_exists('__') ? (string) __($message, ...$args) : sprintf($message, ...$args);
+    }
+
+    /** LIKE pattern for $term with the wildcards escaped (ESCAPE '\\'). */
+    private function likePattern(string $term): string
+    {
+        return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+    }
+
+    /**
+     * Published standalone articles matching the term: the first 5 by recency,
+     * plus how many there are in all.
+     *
+     * Only `pubblico = 1` rows, exactly as the public article page requires —
+     * an unpublished article must not become visible through a catalogue
+     * search that cannot open it.
+     *
+     * @return array{items: array<int, array{label: string, url: string, meta: string}>, total: int}
+     */
+    private function emerotecaArticleHits(string $term): array
+    {
+        $empty = ['items' => [], 'total' => 0];
+        if (!$this->emerotecaTableExists('emeroteca_contributi')) {
+            return $empty;
         }
-        if ($this->emerotecaTableExists('emeroteca_contributi')) {
-            // Same fields as the public article search, public rows only, and a
-            // LIMIT 1 existence probe like its neighbours: this runs on every
-            // catalogue miss, and it goes through the loop below so a failure
-            // is logged instead of breaking the search that asked for a hint.
-            $probes[] = ["SELECT 1 FROM emeroteca_contributi
-                          WHERE pubblico = 1
-                            AND (titolo LIKE ? ESCAPE '\\\\'
-                                 OR autori LIKE ? ESCAPE '\\\\'
-                                 OR contenitore_titolo LIKE ? ESCAPE '\\\\'
-                                 OR keywords LIKE ? ESCAPE '\\\\'
-                                 OR issn = ?)
-                          LIMIT 1", 'sssss', [$pattern, $pattern, $pattern, $pattern, $term]];
-        }
-        if ($this->emerotecaTableExists('emeroteca_articoli')) {
-            // This hint uses the same token search as the public article search.
-            // The FULLTEXT index avoids a full article scan on every catalogue miss.
-            $probes[] = ["SELECT 1 FROM emeroteca_articoli ar
-                          JOIN emeroteca_fascicoli f ON f.id = ar.fascicolo_id
-                          WHERE f.stato <> 'scartato'
-                            AND MATCH(ar.titolo, ar.autori, ar.keywords)
-                                AGAINST (? IN NATURAL LANGUAGE MODE)
-                          LIMIT 1", 's', [$term]];
+        $pattern = $this->likePattern($term);
+        $where = "pubblico = 1
+                  AND (titolo LIKE ? ESCAPE '\\\\'
+                       OR autori LIKE ? ESCAPE '\\\\'
+                       OR contenitore_titolo LIKE ? ESCAPE '\\\\'
+                       OR keywords LIKE ? ESCAPE '\\\\'
+                       OR issn = ?)";
+        $params = [$pattern, $pattern, $pattern, $pattern, $term];
+
+        $total = $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_contributi WHERE $where", 'sssss', $params);
+        if ($total <= 0) {
+            return $empty;
         }
 
-        foreach ($probes as [$sql, $types, $params]) {
-            $stmt = $this->db->prepare($sql);
-            if ($stmt === false) {
-                SecureLogger::error('[Emeroteca] search suggestion probe prepare failed: ' . $this->db->error);
-                continue;
-            }
-            $stmt->bind_param($types, ...$params);
-            if (!$stmt->execute()) {
-                SecureLogger::error('[Emeroteca] search suggestion probe failed: ' . $stmt->error);
-                $stmt->close();
-                continue;
-            }
-            $res = $stmt->get_result();
-            $hit = $res instanceof \mysqli_result && $res->fetch_row() !== null;
-            if ($res instanceof \mysqli_result) {
-                $res->free();
-            }
+        $rows = $this->emerotecaRows(
+            "SELECT id, titolo, autori, contenitore_titolo, data_pubblicazione_testo, volume, numero, pagine
+             FROM emeroteca_contributi WHERE $where ORDER BY id DESC LIMIT 5",
+            'sssss',
+            $params
+        );
+        $items = [];
+        foreach ($rows as $row) {
+            $items[] = [
+                'label' => (string) $row['titolo'],
+                'url'   => $this->emerotecaPath('/emeroteca/articolo/' . (int) $row['id']),
+                'meta'  => implode(' · ', array_filter([
+                    (string) ($row['autori'] ?? ''),
+                    (string) ($row['contenitore_titolo'] ?? ''),
+                    (string) ($row['data_pubblicazione_testo'] ?? ''),
+                    (string) ($row['pagine'] ?? ''),
+                ], static fn (string $part): bool => trim($part) !== '')),
+            ];
+        }
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * Mastheads matching the term: the first 5 by title, plus the total.
+     *
+     * @return array{items: array<int, array{label: string, url: string, meta: string}>, total: int}
+     */
+    private function emerotecaTestataHits(string $term): array
+    {
+        $empty = ['items' => [], 'total' => 0];
+        if (!$this->emerotecaTableExists('emeroteca_testate')) {
+            return $empty;
+        }
+        $pattern = $this->likePattern($term);
+        $where = "titolo LIKE ? ESCAPE '\\\\'
+                  OR sottotitolo LIKE ? ESCAPE '\\\\'
+                  OR issn LIKE ? ESCAPE '\\\\'";
+        $params = [$pattern, $pattern, $pattern];
+
+        $total = $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_testate WHERE $where", 'sss', $params);
+        if ($total <= 0) {
+            return $empty;
+        }
+
+        $rows = $this->emerotecaRows(
+            "SELECT id, titolo, sottotitolo, issn FROM emeroteca_testate WHERE $where ORDER BY titolo LIMIT 5",
+            'sss',
+            $params
+        );
+        $items = [];
+        foreach ($rows as $row) {
+            $items[] = [
+                'label' => (string) $row['titolo'],
+                'url'   => $this->emerotecaPath('/emeroteca/' . (int) $row['id']),
+                'meta'  => implode(' · ', array_filter([
+                    (string) ($row['sottotitolo'] ?? ''),
+                    ($row['issn'] ?? '') !== '' ? 'ISSN ' . (string) $row['issn'] : '',
+                ], static fn (string $part): bool => trim($part) !== '')),
+            ];
+        }
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * True when an article indexed inside an owned issue matches the term.
+     *
+     * Kept as a bare existence probe: these articles live inside an issue and
+     * have no public page of their own, so there is nothing to link an item
+     * to — only the section. The FULLTEXT index avoids a full scan on every
+     * catalogue miss, and withdrawn issues are excluded as everywhere else.
+     */
+    private function emerotecaIndexedArticleMatches(string $term): bool
+    {
+        if (!$this->emerotecaTableExists('emeroteca_articoli')) {
+            return false;
+        }
+        return $this->emerotecaCount(
+            "SELECT COUNT(*) c FROM emeroteca_articoli ar
+             JOIN emeroteca_fascicoli f ON f.id = ar.fascicolo_id
+             WHERE f.stato <> 'scartato'
+               AND MATCH(ar.titolo, ar.autori, ar.keywords) AGAINST (? IN NATURAL LANGUAGE MODE)",
+            's',
+            [$term]
+        ) > 0;
+    }
+
+    /**
+     * COUNT(*) for the probes above, or 0 when the query cannot run.
+     *
+     * These execute on every catalogue search, so a failure is logged and
+     * swallowed: a broken hint must never cost the visitor the results page.
+     *
+     * @param array<int, string> $params
+     */
+    private function emerotecaCount(string $sql, string $types, array $params): int
+    {
+        $rows = $this->emerotecaRows($sql, $types, $params);
+        return (int) ($rows[0]['c'] ?? 0);
+    }
+
+    /**
+     * Prepared SELECT for the suggestion probes, returning [] on any failure.
+     *
+     * @param array<int, string> $params
+     * @return array<int, array<string, mixed>>
+     */
+    private function emerotecaRows(string $sql, string $types, array $params): array
+    {
+        $stmt = $this->db->prepare($sql);
+        if ($stmt === false) {
+            SecureLogger::error('[Emeroteca] search suggestion probe prepare failed: ' . $this->db->error);
+            return [];
+        }
+        $stmt->bind_param($types, ...$params);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Emeroteca] search suggestion probe failed: ' . $stmt->error);
             $stmt->close();
-            if ($hit) {
-                return true;
-            }
+            return [];
         }
-        return false;
+        $res = $stmt->get_result();
+        $rows = $res instanceof \mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
+        if ($res instanceof \mysqli_result) {
+            $res->free();
+        }
+        $stmt->close();
+        return $rows;
     }
 
     /**

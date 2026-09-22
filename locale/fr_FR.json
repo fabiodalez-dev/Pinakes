@@ -7663,5 +7663,12 @@
   "Valore non valido.": "Valeur non valide.",
   "Valore troppo lungo.": "Valeur trop longue.",
   "Verifica": "Vérification",
-  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Les exports volumineux contiennent plusieurs CSV dans un ZIP. Extrayez et importez chaque CSV séparément."
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Les exports volumineux contiennent plusieurs CSV dans un ZIP. Extrayez et importez chaque CSV séparément.",
+  "Vedi tutti i %d risultati": "Voir les %d résultats",
+  "Articoli nell’emeroteca (%d)": "Articles dans l'hémérothèque (%d)",
+  "Testate nell’emeroteca (%d)": "Titres de périodiques dans l'hémérothèque (%d)",
+  "Mostra tutti gli articoli": "Afficher tous les articles",
+  "Rimuovi il filtro": "Retirer le filtre",
+  "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Image de l'article (JPG, PNG ou WebP, 5 Mo maximum)",
+  "%d articolo": "%d article"
 }
