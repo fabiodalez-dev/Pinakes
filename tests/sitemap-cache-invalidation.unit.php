@@ -160,6 +160,41 @@ try {
         $hooks = new \App\Support\HookManager($db);
         $manager = new PluginManager($db, $hooks);
 
+        // These checks call the maintenance pass DIRECTLY, without the
+        // once-per-window marker the application boot goes through — and
+        // cleanupOrphanPlugins() deletes the `plugins` row of any non-bundled
+        // plugin whose directory is missing, cascading to its hooks, settings
+        // and data. On a developer database pointed at by .env that would
+        // destroy real rows, earlier than anything else would have. So look
+        // first: if this database HAS such a plugin, do not run the pass on it.
+        // Refusing loudly is the point — a silent skip here would leave the
+        // suite green while proving nothing.
+        $orphans = [];
+        $orphanRows = $db->query('SELECT name FROM plugins');
+        if ($orphanRows) {
+            while ($orphanRow = $orphanRows->fetch_assoc()) {
+                $orphanName = (string) $orphanRow['name'];
+                if (in_array($orphanName, \App\Support\BundledPlugins::LIST, true)) {
+                    continue;
+                }
+                if (!is_dir(dirname(__DIR__) . '/storage/plugins/' . $orphanName)) {
+                    $orphans[] = $orphanName;
+                }
+            }
+            $orphanRows->free();
+        }
+
+        if ($orphans !== []) {
+            echo "NOTE: the maintenance-pass checks (6, 7) are NOT running on this database.\n";
+            echo "      It registers non-bundled plugin(s) with no directory on disk: "
+                . implode(', ', $orphans) . ".\n";
+            echo "      Forcing the pass here would DELETE those rows (and their hooks,\n";
+            echo "      settings and data). Point E2E_DB_NAME at a scratch database, or\n";
+            echo "      clean up the orphan registration, to get these two checks back.\n";
+            $db->close();
+            return;
+        }
+
         // Settle first: on a DB that has never synced (or one left mid-upgrade)
         // the FIRST pass legitimately mutates. The no-op property is about the
         // second and every later pass, which is what a live install runs.
@@ -205,6 +240,25 @@ try {
             $stmt->execute();
             $stmt->close();
 
+            // From here the row carries a value that is not true. The sync is
+            // expected to rewrite it from the manifest — that is what check 7
+            // asserts — but check_sm() throws, so an assertion failure between
+            // here and there would walk out past the restore and leave the
+            // sentinel in the database. Put it back unconditionally instead of
+            // relying on the code under test to do it.
+            $restoreRequiresPhp = static function () use ($db, $target): void {
+                $stmt = $db->prepare('UPDATE plugins SET requires_php = ? WHERE name = ?');
+                if ($stmt === false) {
+                    return;
+                }
+                $original = (string) $target['requires_php'];
+                $name = (string) $target['name'];
+                $stmt->bind_param('ss', $original, $name);
+                $stmt->execute();
+                $stmt->close();
+            };
+
+            try {
             file_put_contents($published, "<urlset><url><loc>/emeroteca</loc></url></urlset>");
             $manager->autoRegisterBundledPlugins();
 
@@ -222,6 +276,9 @@ try {
                 !is_file($published),
                 'a maintenance pass that DID mutate plugin state drops the published sitemap (autoRegisterBundledPlugins honours the clearPluginCache contract)'
             );
+            } finally {
+                $restoreRequiresPhp();
+            }
         }
 
         $db->close();

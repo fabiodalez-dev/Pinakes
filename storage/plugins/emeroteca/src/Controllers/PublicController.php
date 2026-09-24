@@ -124,10 +124,23 @@ class PublicController
             // One owner for "does this masthead answer that term": the
             // catalogue hint counts with the same fragment, so the number it
             // prints next to this link is the number this link opens.
-            $where[] = \EmerotecaPlugin::testataSearchWhere(true);
+            //
+            // The hint picks the reduced form when the article tables are
+            // absent, so this side has to make the same choice from the same
+            // evidence. Hard-coding `true` kept the invariant only on a healthy
+            // install: on a degraded one the hint counted with three binds
+            // while prepare() here failed on the missing table, and the link
+            // opened a page with no mastheads at all under a count promising
+            // some.
+            $withArticles = $this->tableExists('emeroteca_articoli')
+                && $this->tableExists('emeroteca_fascicoli')
+                && $this->tableExists('emeroteca_annate');
+            $where[] = \EmerotecaPlugin::testataSearchWhere($withArticles);
             $pattern = '%' . $this->escapeLike($q) . '%';
-            $bindTypes .= 'sssssss';
-            $bindValues = [$pattern, $pattern, $pattern, $q, $pattern, $pattern, $pattern];
+            $bindValues = $withArticles
+                ? [$pattern, $pattern, $pattern, $q, $pattern, $pattern, $pattern]
+                : [$pattern, $pattern, $pattern];
+            $bindTypes .= str_repeat('s', count($bindValues));
         }
         if ($tipo !== '') {
             $where[] = 't.tipo = ?';
