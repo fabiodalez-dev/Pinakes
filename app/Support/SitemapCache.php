@@ -29,6 +29,55 @@ final class SitemapCache
         return dirname(__DIR__, 2) . '/public/sitemap.xml';
     }
 
+    /** Absolute path of the revision counter. */
+    private static function revisionPath(): string
+    {
+        return dirname(__DIR__, 2) . '/storage/cache/sitemap-revision';
+    }
+
+    /**
+     * How many times the published sitemap has been invalidated.
+     *
+     * A file, not a cache entry: the cron generator runs under the CLI SAPI and
+     * shares no APCu with PHP-FPM, so an in-memory counter would let precisely
+     * the two producers that matter disagree. A missing or unreadable file
+     * reads as 0, which is the conservative answer — a publisher that cannot
+     * read the counter sees "unchanged" and still publishes, exactly as it did
+     * before this existed.
+     */
+    public static function revision(): int
+    {
+        $raw = @file_get_contents(self::revisionPath());
+
+        return $raw === false ? 0 : (int) trim($raw);
+    }
+
+    /**
+     * Record that the set of public URLs may have changed.
+     *
+     * Separate from deleting the file, and deliberately bumped even when there
+     * was no file to delete: the counter answers "did anything change while you
+     * were generating?", and a generation that started before an invalidation
+     * is stale whether or not a published file existed at the time.
+     */
+    private static function bumpRevision(): void
+    {
+        $path = self::revisionPath();
+        $directory = dirname($path);
+
+        if (!is_dir($directory)) {
+            return;
+        }
+
+        // Append-and-count would grow without bound; read-modify-write can lose
+        // a concurrent bump. Losing one is harmless — the value is compared for
+        // INEQUALITY, so any change at all is enough, and two invalidations
+        // that collapse into one still differ from the value a generator read
+        // before either of them.
+        $current = self::revision();
+        @file_put_contents($path, (string) ($current + 1), LOCK_EX);
+    }
+
     /**
      * Drop the published file because the set of public URLs may have changed.
      *
@@ -46,6 +95,11 @@ final class SitemapCache
         $target = $path ?? self::publishedPath();
 
         try {
+            // Before the unlink, and unconditionally: a generation already in
+            // flight has to learn that its snapshot is stale even in the cases
+            // this method returns early from.
+            self::bumpRevision();
+
             if (!is_file($target)) {
                 return false;
             }
