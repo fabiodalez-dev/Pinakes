@@ -21,10 +21,12 @@ require_once __DIR__.'/../../Services/ContributionService.php';
 $articleAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorList(isset($article['autori'])?(string)$article['autori']:null);
 /** Free-text keyword list: comma-separated by convention, one link each. */
 $articleKeywords=array_values(array_filter(array_map('trim', explode(',', (string)($article['keywords']??''))), static fn(string $k):bool=>$k!==''));
+/** Own image, else the masthead's, else '' — one owner for the rule. */
+$articleCover=\App\Plugins\Emeroteca\Services\ContributionService::coverUrl($article);
 ?>
 <main class="max-w-4xl mx-auto px-4 py-10"><a class="underline" href="<?= $e(url('/emeroteca/articoli')) ?>"><?= __('Articoli') ?></a>
 <div style="display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap;margin-top:1.25rem;">
-<img src="<?= $e(url(($article['copertina_url']??'')!==''?(string)$article['copertina_url']:'/uploads/copertine/placeholder.jpg')) ?>" alt="" loading="lazy" decoding="async" style="width:150px;height:200px;object-fit:cover;border-radius:.375rem;flex:0 0 auto;" onerror="this.onerror=null;this.src=<?= $e(json_encode($articlePlaceholder, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
+<img src="<?= $e(url($articleCover!==''?$articleCover:'/uploads/copertine/placeholder.jpg')) ?>" alt="" loading="lazy" decoding="async" style="width:150px;height:200px;object-fit:cover;border-radius:.375rem;flex:0 0 auto;" onerror="this.onerror=null;this.src=<?= $e(json_encode($articlePlaceholder, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
 <div style="flex:1 1 320px;min-width:0;"><h1 class="text-3xl font-bold mb-3"><?= $e($article['titolo']) ?></h1>
 <?php if(!empty($article['autori'])): ?><p class="text-xl mb-6"><?php if($articleAuthors): foreach($articleAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a class="underline" href="<?= $e($articleFilterUrl('autore',$an)) ?>"><?= $e($an) ?></a><?php endforeach; else: ?><?= $e($article['autori']) ?><?php endif; ?></p><?php endif; ?>
 </div></div>
@@ -41,8 +43,10 @@ if (!empty($article['contenitore_titolo'])) { $structured['isPartOf']=array_filt
 if (!empty($article['pagine'])) { $structured['pagination']=$article['pagine']; }
 if (!empty($article['doi'])) { $structured['identifier']=$article['doi']; }
 // Only a real image: the shared placeholder is chrome, and declaring it here
-// would tell an aggregator every article looks the same.
-if (!empty($article['copertina_url'])) { $structured['image']=absoluteUrl((string)$article['copertina_url']); }
+// would tell an aggregator every article looks the same. The masthead's logo
+// IS declared, even though every article of one publication then shares it:
+// it is a true statement about the record, which the placeholder never was.
+if ($articleCover !== '') { $structured['image']=absoluteUrl($articleCover); }
 if ($articleKeywords) { $structured['keywords']=$articleKeywords; }
 ?>
 <script type="application/ld+json"><?= json_encode($structured, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>

@@ -122,7 +122,16 @@ SQL;
      */
     public function get(int $id, bool $publicOnly = false): ?array
     {
-        return $this->rows('SELECT * FROM emeroteca_contributi WHERE id = ?' . ($publicOnly ? ' AND pubblico = 1' : ''), [$id])[0] ?? null;
+        // The masthead logo travels with the row so coverUrl() has one supplier
+        // rather than one per caller. LEFT JOIN: testata_id is nullable — a
+        // standalone article need not belong to a masthead at all — and an
+        // inner join would make those articles vanish from their own page.
+        return $this->rows(
+            'SELECT c.*, t.logo_url testata_logo_url FROM emeroteca_contributi c'
+            . ' LEFT JOIN emeroteca_testate t ON t.id = c.testata_id'
+            . ' WHERE c.id = ?' . ($publicOnly ? ' AND c.pubblico = 1' : ''),
+            [$id]
+        )[0] ?? null;
     }
 
     /** The plugin's workflow mode ('simple' or 'complete'), defaulting to 'complete' when unset. */
@@ -327,7 +336,7 @@ SQL;
         $pages = max(1, (int)ceil($total / 50));
         $page = min($pages, max(1, $page));
         $offset = ($page - 1) * 50;
-        $rows = $this->rows("SELECT c.*,t.titolo testata_titolo FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE $sql ORDER BY c.id DESC LIMIT 50 OFFSET $offset", $params);
+        $rows = $this->rows("SELECT c.*,t.titolo testata_titolo,t.logo_url testata_logo_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE $sql ORDER BY c.id DESC LIMIT 50 OFFSET $offset", $params);
         return compact('rows', 'total', 'page', 'pages');
     }
 
@@ -468,6 +477,40 @@ SQL;
      * @param array<string, mixed> $r a raw emeroteca_contributi row
      * @return array<string, mixed>
      */
+    /**
+     * The image to show for an article: its own, else the masthead's.
+     *
+     * An article carries a cover only since 1.6, and most never will — it is
+     * an optional field on a record that is usually just a citation. Falling
+     * straight through to the catalogue placeholder made a list of results a
+     * column of identical grey rectangles. The masthead's logo is the image
+     * the article genuinely belongs to, and in a list it does useful work:
+     * it says at a glance which publication each result came from.
+     *
+     * Deliberately NOT the issue's cover, even when the article is attached to
+     * one. A per-issue photograph varies row by row and stops carrying that
+     * signal; the masthead is the constant the reader is orienting by.
+     *
+     * The single owner of this rule. Both public views and the mobile
+     * projection ask it rather than each writing "own cover or else", because
+     * that is the shape that already produced two disagreeing definitions of
+     * "empty" in this plugin. Pure: the caller's row must already carry
+     * `testata_logo_url`, which every read path that renders an article joins
+     * in. A row without it degrades to the article's own cover, never to a
+     * query issued per rendered row.
+     *
+     * @param array<string,mixed> $row
+     * @return string '' when there is no image at all — the caller decides
+     *                what a missing image looks like (a placeholder on a page,
+     *                a null in a payload, an absent key in structured data).
+     */
+    public static function coverUrl(array $row): string
+    {
+        $own = trim((string) ($row['copertina_url'] ?? ''));
+
+        return $own !== '' ? $own : trim((string) ($row['testata_logo_url'] ?? ''));
+    }
+
     public static function publicData(array $r): array
     {
         $out = array_intersect_key($r, array_flip(['id','titolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','testata_id','fascicolo_id','updated_at']));

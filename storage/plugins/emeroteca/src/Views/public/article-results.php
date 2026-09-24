@@ -3,8 +3,9 @@
  * Shared list of public articles: the emeroteca home, a masthead page and the
  * article search all render this block.
  *
- * Each row carries its image (or the catalogue's own placeholder, so a list of
- * articles reads like the catalogue next door rather than a wall of text) and
+ * Each row carries its image — its own, else the masthead's, else the
+ * catalogue's placeholder, resolved by ContributionService::coverUrl() so this
+ * block and the article page cannot disagree — and
  * the three links that make the list navigable: the author, the publication
  * and each keyword, all pointing at the same article search narrowed by that
  * value — on a standalone article those fields are free text, not rows in the
@@ -29,7 +30,7 @@ $articleKeep=static fn(mixed $value):bool=>trim((string)$value)!=='';
 <section class="max-w-6xl mx-auto px-4 py-8"><h2 class="text-2xl font-semibold mb-5"><?= __('Articoli') ?></h2>
 <?php if(!$articleResults['rows']): ?><p><?= __('Nessun articolo disponibile.') ?></p><?php endif; ?>
 <ul class="divide-y"><?php foreach($articleResults['rows'] as $a): ?><li class="py-4"><div style="display:flex;gap:1rem;align-items:flex-start;">
-<a href="<?= $ae(url('/emeroteca/articolo/'.(int)$a['id'])) ?>" tabindex="-1" aria-hidden="true" style="flex:0 0 auto;"><img src="<?= $ae(url(($a['copertina_url']??'')!==''?(string)$a['copertina_url']:'/uploads/copertine/placeholder.jpg')) ?>" alt="" loading="lazy" decoding="async" style="width:72px;height:96px;object-fit:cover;border-radius:.25rem;" onerror="this.onerror=null;this.src=<?= $ae(json_encode($articlePlaceholder, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>"></a>
+<a href="<?= $ae(url('/emeroteca/articolo/'.(int)$a['id'])) ?>" tabindex="-1" aria-hidden="true" style="flex:0 0 auto;"><img src="<?= $ae(url(\App\Plugins\Emeroteca\Services\ContributionService::coverUrl($a)?:'/uploads/copertine/placeholder.jpg')) ?>" alt="" loading="lazy" decoding="async" style="width:72px;height:96px;object-fit:cover;border-radius:.25rem;" onerror="this.onerror=null;this.src=<?= $ae(json_encode($articlePlaceholder, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>"></a>
 <div style="flex:1 1 auto;min-width:0;">
 <a class="font-semibold underline" href="<?= $ae(url('/emeroteca/articolo/'.(int)$a['id'])) ?>"><?= $ae($a['titolo']) ?></a>
 <?php if(($a['autori']??'')!==''): $rowAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorList((string)$a['autori']); ?><p><?php if($rowAuthors): foreach($rowAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a class="underline" href="<?= $ae($articleFilterUrl('autore',$an)) ?>"><?= $ae($an) ?></a><?php endforeach; else: ?><?= $ae($a['autori']) ?><?php endif; ?></p><?php endif; ?>
