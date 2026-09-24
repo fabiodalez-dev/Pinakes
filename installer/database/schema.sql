@@ -640,7 +640,7 @@ CREATE TABLE `plugin_data` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_plugin_key` (`plugin_id`,`data_key`),
+  UNIQUE KEY `uniq_plugin_key` (`plugin_id`,`data_key`),
   KEY `idx_plugin_id` (`plugin_id`),
   CONSTRAINT `fk_plugin_data_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Generic plugin data storage';

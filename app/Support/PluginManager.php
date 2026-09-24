@@ -51,6 +51,14 @@ class PluginManager
      */
     private const HOOKS_PAYLOAD_KEY = 'plugins_payload_active_with_hooks';
 
+    /**
+     * plugin_data key recording that a hook-less self-heal already ran for a
+     * given version and achieved nothing — see the same-version branch of
+     * autoRegisterBundledPlugins(). The value is the disk version it was
+     * written for, so a version bump invalidates it by comparison alone.
+     */
+    private const SELFHEAL_NOOP_KEY = '_selfheal_noop_version';
+
     public function __construct(mysqli $db, HookManager $hookManager)
     {
         $this->db = $db;
@@ -469,8 +477,28 @@ class PluginManager
                     // a table are actually absent, so a healthy install pays
                     // nothing and the historical deadlock (running DDL on every
                     // admin-page poll) cannot recur.
+                    //
+                    // (a) has one trap: "no hooks" is not always a symptom.
+                    // A plugin whose hooks depend on configuration registers
+                    // NOTHING until the operator sets it up — api-book-scraper
+                    // returns early from registerHooks() while its `enabled`
+                    // setting is off — so for that plugin zero hooks is the
+                    // correct steady state, not a gap to heal. Reading it as a
+                    // symptom made this branch re-instantiate the plugin and
+                    // re-run onActivate() on EVERY maintenance pass, for ever,
+                    // achieving nothing each time. The marker below remembers
+                    // "this version already tried and changed nothing", so the
+                    // attempt happens once per version instead of once per
+                    // pass. Configuring the plugin does not depend on it:
+                    // saveSettings() registers the hooks itself, and once they
+                    // exist $hookCount is non-zero and the marker is never read.
                     $pluginIdInt = (int) ($row['id'] ?? 0);
                     $hookCount = $this->countPluginHooks($pluginIdInt);
+                    $hooklessIsKnownSteady = false;
+                    if ($hookCount === 0) {
+                        $noopVersion = (string) $this->getData($pluginIdInt, self::SELFHEAL_NOOP_KEY, '');
+                        $hooklessIsKnownSteady = $noopVersion !== '' && $noopVersion === $diskVersion;
+                    }
                     try {
                         $syncInstance = $this->instantiatePlugin([
                             'id'        => $pluginIdInt,
@@ -479,7 +507,10 @@ class PluginManager
                             'main_file' => $pluginMeta['main_file'] ?? 'wrapper.php',
                         ]);
                         $schemaIncomplete = $this->bundledSchemaIncomplete($syncInstance);
-                        $needsSync = ($hookCount === 0) || $schemaIncomplete;
+                        // An incomplete schema always re-runs the self-heal: a
+                        // missing table is a real, repairable fault, and the
+                        // marker must never suppress it.
+                        $needsSync = ($hookCount === 0 && !$hooklessIsKnownSteady) || $schemaIncomplete;
                         if ($needsSync && method_exists($syncInstance, 'onActivate')) {
                             $syncInstance->onActivate();
                             // Only a self-heal that ACHIEVED something counts as
@@ -498,6 +529,20 @@ class PluginManager
                                 && !$this->bundledSchemaIncomplete($syncInstance);
                             if ($hooksAppeared || $schemaRepaired) {
                                 $mutated = true;
+                            } elseif ($hookCount === 0 && !$schemaIncomplete) {
+                                // onActivate() ran on a healthy schema and still
+                                // produced no hooks: this plugin has nothing to
+                                // register in its current configuration. Record
+                                // the version so the next pass skips the call
+                                // instead of repeating it. Only this exact case
+                                // is recorded — a repair that failed leaves no
+                                // marker, so it keeps being retried.
+                                $this->setData(
+                                    $pluginIdInt,
+                                    self::SELFHEAL_NOOP_KEY,
+                                    $diskVersion,
+                                    'string'
+                                );
                             }
                         }
                     } catch (\Throwable $e) {
