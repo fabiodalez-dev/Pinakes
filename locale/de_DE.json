@@ -7683,6 +7683,7 @@
   "Articoli non disponibili.": "Artikel nicht verfügbar.",
   "Articolo non trovato.": "Artikel nicht gefunden.",
   "Articolo salvato.": "Artikel gespeichert.",
+  "Articolo salvato, ma la pulizia dei file non è riuscita.": "Artikel gespeichert, die Dateibereinigung ist jedoch fehlgeschlagen.",
   "Associa gli articoli selezionati a una testata": "Ausgewählte Artikel einer Zeitschrift zuordnen",
   "Associazione non riuscita.": "Zuordnung fehlgeschlagen.",
   "CSV UTF-8 separato da virgole, massimo 500 righe. La reference_key identifica gli aggiornamenti; le colonne assenti conservano i dati, le celle vuote li svuotano. Nessun fascicolo viene creato.": "Kommagetrennte UTF-8-CSV, höchstens 500 Zeilen. reference_key identifiziert Aktualisierungen; fehlende Spalten erhalten Daten, leere Zellen löschen sie. Es werden keine Hefte erstellt.",
@@ -7745,6 +7746,7 @@
   "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.": "Mögliches Duplikat: vorhandene reference_key zum Aktualisieren verwenden oder Quellenangabe prüfen.",
   "Pronto": "Bereit",
   "Puoi indicare anche solo mese e anno, per esempio giugno 2019.": "Monat und Jahr genügen, zum Beispiel Juni 2019.",
+  "Separa più autori con un punto e virgola. La virgola resta parte del nome, per esempio Schweissinger, Marc J.": "Trennen Sie mehrere Autoren mit einem Semikolon. Ein Komma bleibt Teil des Namens, zum Beispiel Schweissinger, Marc J.",
   "Registra un articolo, anche senza possedere la rivista completa.": "Einen Artikel erfassen, auch ohne die vollständige Zeitschrift zu besitzen.",
   "Ricarica la scheda prima di salvare.": "Datensatz vor dem Speichern neu laden.",
   "Riga": "Zeile",
@@ -7824,5 +7826,13 @@
   "Libro ricevuto in donazione: %s": "Gespendetes Buch erhalten: %s",
   "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "„%s“ ist mit einem physischen Exemplar im Katalog. Der Wunsch ist geschlossen.",
   "La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.": "Die Bibliothek prüft den Vorschlag und meldet sich bei dir, um die Übergabe zu vereinbaren.",
-  "Vedi tutti i libri che cerchiamo (%d)": "Alle gesuchten Bücher ansehen (%d)"
+  "Vedi tutti i libri che cerchiamo (%d)": "Alle gesuchten Bücher ansehen (%d)",
+  "Vedi tutti i %d risultati": "Alle %d Ergebnisse anzeigen",
+  "Articoli nell’emeroteca (%d)": "Artikel in der Zeitschriftensammlung (%d)",
+  "Testate nell’emeroteca (%d)": "Zeitschriftentitel in der Zeitschriftensammlung (%d)",
+  "Mostra tutti gli articoli": "Alle Artikel anzeigen",
+  "Rimuovi il filtro": "Filter entfernen",
+  "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Artikelbild (JPG, PNG oder WebP, max. 5 MB)",
+  "%d articolo": "%d Artikel",
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Die Datei wurde entfernt, weil sich die öffentlichen Seiten geändert haben: /sitemap.xml antwortet weiterhin und wird dabei zur Laufzeit erzeugt. Neu erzeugen, um die Datei wieder zu veröffentlichen."
 }

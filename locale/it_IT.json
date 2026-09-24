@@ -7683,6 +7683,7 @@
   "Articoli non disponibili.": "Articoli non disponibili.",
   "Articolo non trovato.": "Articolo non trovato.",
   "Articolo salvato.": "Articolo salvato.",
+  "Articolo salvato, ma la pulizia dei file non è riuscita.": "Articolo salvato, ma la pulizia dei file non è riuscita.",
   "Associa gli articoli selezionati a una testata": "Associa gli articoli selezionati a una testata",
   "Associazione non riuscita.": "Associazione non riuscita.",
   "CSV UTF-8 separato da virgole, massimo 500 righe. La reference_key identifica gli aggiornamenti; le colonne assenti conservano i dati, le celle vuote li svuotano. Nessun fascicolo viene creato.": "CSV UTF-8 separato da virgole, massimo 500 righe. La reference_key identifica gli aggiornamenti; le colonne assenti conservano i dati, le celle vuote li svuotano. Nessun fascicolo viene creato.",
@@ -7745,6 +7746,7 @@
   "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.": "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.",
   "Pronto": "Pronto",
   "Puoi indicare anche solo mese e anno, per esempio giugno 2019.": "Puoi indicare anche solo mese e anno, per esempio giugno 2019.",
+  "Separa più autori con un punto e virgola. La virgola resta parte del nome, per esempio Schweissinger, Marc J.": "Separa più autori con un punto e virgola. La virgola resta parte del nome, per esempio Schweissinger, Marc J.",
   "Registra un articolo, anche senza possedere la rivista completa.": "Registra un articolo, anche senza possedere la rivista completa.",
   "Ricarica la scheda prima di salvare.": "Ricarica la scheda prima di salvare.",
   "Riga": "Riga",
@@ -7824,5 +7826,13 @@
   "Libro ricevuto in donazione: %s": "Libro ricevuto in donazione: %s",
   "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.",
   "La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.": "La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.",
-  "Vedi tutti i libri che cerchiamo (%d)": "Vedi tutti i libri che cerchiamo (%d)"
+  "Vedi tutti i libri che cerchiamo (%d)": "Vedi tutti i libri che cerchiamo (%d)",
+  "Vedi tutti i %d risultati": "Vedi tutti i %d risultati",
+  "Articoli nell’emeroteca (%d)": "Articoli nell’emeroteca (%d)",
+  "Testate nell’emeroteca (%d)": "Testate nell’emeroteca (%d)",
+  "Mostra tutti gli articoli": "Mostra tutti gli articoli",
+  "Rimuovi il filtro": "Rimuovi il filtro",
+  "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)",
+  "%d articolo": "%d articolo",
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file."
 }

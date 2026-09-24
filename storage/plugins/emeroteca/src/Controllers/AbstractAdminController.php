@@ -115,50 +115,91 @@ abstract class AbstractAdminController
         return $this->tableCache[$table] = $exists;
     }
 
+    /** Every table that can point at a managed image: table => column. */
+    private const IMAGE_REFERENCES = [
+        'emeroteca_fascicoli'  => 'copertina_url',
+        'emeroteca_annate'     => 'copertina_url',
+        'emeroteca_testate'    => 'logo_url',
+        'emeroteca_contributi' => 'copertina_url',
+    ];
+
     /**
      * Remove a plugin-managed image after its database row has gone, but only
-     * when no title, volume year or issue still references it. External URLs
-     * and paths outside public/uploads/emeroteca are never touched.
+     * when no title, volume year, issue or article still references it.
+     * External URLs and paths outside public/uploads/emeroteca are never
+     * touched.
+     *
+     * The probe is built from the tables that actually exist. A degraded
+     * install missing one of them must still be able to clear an orphan
+     * image, and — the direction that loses data — a file another row is
+     * still showing must never be unlinked because its table went unread.
+     *
+     * NEVER THROWS. This is janitorial work that runs AFTER the row it
+     * follows has already been committed, so its failure must cost a stale
+     * file on disk and a log line, never the outcome of the operation — the
+     * contract App\Support\SitemapCache::invalidate() states for the same
+     * reason. The `=== false` / `!execute()` branches below cannot deliver
+     * that on their own: config/container.php arms
+     * mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT), so a failing
+     * statement throws mysqli_sql_exception instead of returning false and
+     * those branches are dead in production (EmerotecaPlugin::runStep makes
+     * the same observation about the migration helpers).
+     *
+     * The catch wraps the WHOLE method on purpose, never tableExists(): a
+     * swallowed probe failure that merely shrank the UNION would let the code
+     * unlink a file another row still shows. Aborting leaves an orphan, which
+     * is the safe direction.
      */
     protected function deleteManagedImageIfUnreferenced(string $url): void
     {
-        if (!str_starts_with($url, '/uploads/emeroteca/')) {
-            return;
-        }
+        try {
+            if (!str_starts_with($url, '/uploads/emeroteca/')) {
+                return;
+            }
 
-        $stmt = $this->db->prepare(
-            'SELECT 1 FROM emeroteca_fascicoli WHERE copertina_url = ?
-             UNION SELECT 1 FROM emeroteca_annate WHERE copertina_url = ?
-             UNION SELECT 1 FROM emeroteca_testate WHERE logo_url = ?
-             LIMIT 1'
-        );
-        if ($stmt === false) {
-            SecureLogger::error('[Emeroteca] image reference check prepare failed: ' . $this->db->error);
-            return;
-        }
-        $stmt->bind_param('sss', $url, $url, $url);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[Emeroteca] image reference check failed: ' . $stmt->error);
+            $parts = [];
+            foreach (self::IMAGE_REFERENCES as $table => $column) {
+                if ($this->tableExists($table)) {
+                    $parts[] = "SELECT 1 FROM $table WHERE $column = ?";
+                }
+            }
+            if ($parts === []) {
+                // Nothing can be checked, so nothing may be deleted: an orphan
+                // file costs disk space, a wrongly deleted one costs the image.
+                return;
+            }
+
+            $stmt = $this->db->prepare(implode(' UNION ', $parts) . ' LIMIT 1');
+            if ($stmt === false) {
+                SecureLogger::error('[Emeroteca] image reference check prepare failed: ' . $this->db->error);
+                return;
+            }
+            $stmt->bind_param(str_repeat('s', count($parts)), ...array_fill(0, count($parts), $url));
+            if (!$stmt->execute()) {
+                SecureLogger::error('[Emeroteca] image reference check failed: ' . $stmt->error);
+                $stmt->close();
+                return;
+            }
+            $res = $stmt->get_result();
+            $referenced = $res instanceof \mysqli_result && $res->fetch_row() !== null;
             $stmt->close();
-            return;
-        }
-        $res = $stmt->get_result();
-        $referenced = $res instanceof \mysqli_result && $res->fetch_row() !== null;
-        $stmt->close();
-        if ($referenced) {
-            return;
-        }
+            if ($referenced) {
+                return;
+            }
 
-        $baseDir = realpath(__DIR__ . '/../../../../../public/uploads/emeroteca');
-        if ($baseDir === false) {
-            return;
-        }
-        $resolved = realpath($baseDir . DIRECTORY_SEPARATOR . basename($url));
-        if ($resolved !== false
-            && str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)
-            && is_file($resolved)
-            && !@unlink($resolved)) {
-            SecureLogger::warning('[Emeroteca] unable to remove orphan image: ' . $resolved);
+            $baseDir = realpath(__DIR__ . '/../../../../../public/uploads/emeroteca');
+            if ($baseDir === false) {
+                return;
+            }
+            $resolved = realpath($baseDir . DIRECTORY_SEPARATOR . basename($url));
+            if ($resolved !== false
+                && str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)
+                && is_file($resolved)
+                && !@unlink($resolved)) {
+                SecureLogger::warning('[Emeroteca] unable to remove orphan image: ' . $resolved);
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] image reference check failed: ' . $e->getMessage());
         }
     }
 
@@ -271,37 +312,50 @@ abstract class AbstractAdminController
         }
     }
 
-    /** Remove a no-longer-referenced plugin PDF, never an arbitrary path. */
+    /**
+     * Remove a no-longer-referenced plugin PDF, never an arbitrary path.
+     *
+     * NEVER THROWS, for the reason spelled out on
+     * deleteManagedImageIfUnreferenced(): this runs after the row it follows
+     * is already committed, and under MYSQLI_REPORT_STRICT the `=== false` /
+     * `!execute()` branches below never run — the failure arrives as a
+     * mysqli_sql_exception. A failed probe must leave the file on disk and a
+     * log line behind, not turn a saved record into an error page.
+     */
     protected function deleteManagedPdfIfUnreferenced(string $filename): void
     {
-        if ($filename === '' || basename($filename) !== $filename || strtolower(pathinfo($filename, PATHINFO_EXTENSION)) !== 'pdf') {
-            return;
-        }
-        $stmt = $this->db->prepare('SELECT 1 FROM emeroteca_fascicoli WHERE pdf_path = ? LIMIT 1');
-        if ($stmt === false) {
-            SecureLogger::error('[Emeroteca] PDF reference check prepare failed: ' . $this->db->error);
-            return;
-        }
-        $stmt->bind_param('s', $filename);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[Emeroteca] PDF reference check failed: ' . $stmt->error);
+        try {
+            if ($filename === '' || basename($filename) !== $filename || strtolower(pathinfo($filename, PATHINFO_EXTENSION)) !== 'pdf') {
+                return;
+            }
+            $stmt = $this->db->prepare('SELECT 1 FROM emeroteca_fascicoli WHERE pdf_path = ? LIMIT 1');
+            if ($stmt === false) {
+                SecureLogger::error('[Emeroteca] PDF reference check prepare failed: ' . $this->db->error);
+                return;
+            }
+            $stmt->bind_param('s', $filename);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[Emeroteca] PDF reference check failed: ' . $stmt->error);
+                $stmt->close();
+                return;
+            }
+            $res = $stmt->get_result();
+            $referenced = $res instanceof \mysqli_result && $res->fetch_row() !== null;
             $stmt->close();
-            return;
-        }
-        $res = $stmt->get_result();
-        $referenced = $res instanceof \mysqli_result && $res->fetch_row() !== null;
-        $stmt->close();
-        if ($referenced) {
-            return;
-        }
+            if ($referenced) {
+                return;
+            }
 
-        $baseDir = realpath(__DIR__ . '/../../../../uploads/emeroteca');
-        $resolved = $baseDir === false ? false : realpath($baseDir . DIRECTORY_SEPARATOR . $filename);
-        if ($resolved !== false
-            && str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)
-            && is_file($resolved)
-            && !@unlink($resolved)) {
-            SecureLogger::warning('[Emeroteca] unable to remove orphan PDF: ' . $resolved);
+            $baseDir = realpath(__DIR__ . '/../../../../uploads/emeroteca');
+            $resolved = $baseDir === false ? false : realpath($baseDir . DIRECTORY_SEPARATOR . $filename);
+            if ($resolved !== false
+                && str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)
+                && is_file($resolved)
+                && !@unlink($resolved)) {
+                SecureLogger::warning('[Emeroteca] unable to remove orphan PDF: ' . $resolved);
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] PDF reference check failed: ' . $e->getMessage());
         }
     }
 

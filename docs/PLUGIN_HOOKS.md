@@ -1494,6 +1494,45 @@ public function extendSitemapEntries($entries, string $baseUrl = '', string $def
 }
 ```
 
+### `search.external_suggestions` (Filter)
+
+**Status:** Implementato
+**File:** `app/Controllers/FrontendController.php` (`collectExternalSearchSuggestions()`)
+
+Il catalogo interroga solo `libri.search_index`: un termine che vive nel corpus di un plugin (periodici, archivi) produrrebbe "nessun risultato" anche quando la biblioteca lo possiede. Il filtro chiede ai plugin che cosa trovano sul termine cercato e il risultato viene mostrato nella pagina dei risultati, sia quando il catalogo non ha trovato nulla sia quando ha trovato qualcosa che il plugin completa.
+
+**Parametri:**
+- valore iniziale `[]` (array): suggerimenti raccolti finora — il listener **aggiunge**, non sostituisce
+- `$term` (string): termine di ricerca grezzo, già trimmato
+
+**Ogni suggerimento:**
+
+| chiave | tipo | obbligatoria | descrizione |
+|---|---|---|---|
+| `label` | string | sì | testo già tradotto nella lingua del visitatore, max 160 caratteri; il core lo escapa (niente HTML) |
+| `url` | string | sì | percorso same-origin che inizia con `/`; URL assoluti, `//host`, `javascript:` e `data:` vengono scartati |
+| `items` | array | no | i match veri e propri: `['label' => …, 'url' => …, 'meta' => …]`, con `label`/`url` validati come sopra e `meta` riga di dettaglio in solo testo. Ne vengono mostrati al massimo 5 |
+| `total` | int | no | quanti match esistono in tutto nel corpus del plugin; ignorato se minore del numero di `items` |
+
+`items` e `total` sono additivi (dalla 0.7.86): un listener che restituisce solo `label` e `url` continua a funzionare e viene reso come semplice link di sezione.
+
+**Regole:** il listener **non deve** restituire un suggerimento quando non ha riscontri — il core non rende nulla se l'array è vuoto, ed è esattamente questo il senso del suggerimento. Un listener che solleva un'eccezione o restituisce dati malformati non rompe mai la pagina del catalogo: il suggerimento semplicemente non compare. Vengono mostrati al massimo 5 suggerimenti.
+
+**Restituisce:** array - i suggerimenti, validati dal core prima del rendering
+
+Esempio (dal plugin `emeroteca`):
+
+```php
+$suggestions[] = [
+    'label' => __('Articoli nell’emeroteca (%d)', $total),
+    'url'   => url('/emeroteca/articoli') . '?q=' . rawurlencode($term),
+    'items' => [
+        ['label' => 'Intertextuality in Tyll', 'url' => url('/emeroteca/articolo/12'), 'meta' => 'Schweissinger · IJLL · giugno 2019 · 138-148'],
+    ],
+    'total' => $total,
+];
+```
+
 ### Hook Digital Library (Action)
 
 **Status:** Implementati

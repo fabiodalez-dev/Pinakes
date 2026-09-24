@@ -157,6 +157,16 @@ class SitemapGenerator
      */
     public function saveTo(string $filePath): void
     {
+        // generate() reads the plugin state, the catalogue and the CMS pages;
+        // on a large collection that takes long enough for a plugin to be
+        // activated or removed in the meantime. Without this the publisher
+        // would then write a document describing the world as it was before
+        // that change — over a file the invalidation had just deleted
+        // precisely because it no longer described the world. Capturing the
+        // revision first and re-reading it after the write turns that race
+        // into a no-op instead of a stale publication.
+        $revisionBefore = SitemapCache::revision();
+
         $xml = $this->generate();
         $directory = dirname($filePath);
 
@@ -168,6 +178,23 @@ class SitemapGenerator
 
         if (file_put_contents($filePath, $xml) === false) {
             throw new RuntimeException("Impossibile scrivere la sitemap in {$filePath}");
+        }
+
+        // Withdraw rather than refuse to publish: the caller asked for a file
+        // and gets the same outcome an invalidation would have produced on its
+        // own — no stale file, and /sitemap.xml serving the current document on
+        // the next request. Refusing earlier would have been worse, because the
+        // work is already done by the time we can detect the change, and a
+        // caller told "failed" over a correct state would only retry into it.
+        if (SitemapCache::revision() !== $revisionBefore) {
+            // Withdraw the file THIS call wrote, not the published one: saveTo()
+            // takes an arbitrary path and the suites use a temporary file, so
+            // defaulting to publishedPath() would leave the stale document
+            // behind and delete an unrelated file instead.
+            SitemapCache::invalidate(
+                'plugin state changed while the sitemap was being generated',
+                $filePath
+            );
         }
     }
 

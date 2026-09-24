@@ -7683,6 +7683,7 @@
   "Articoli non disponibili.": "Artiklerne er ikke tilgængelige.",
   "Articolo non trovato.": "Artiklen blev ikke fundet.",
   "Articolo salvato.": "Artiklen er gemt.",
+  "Articolo salvato, ma la pulizia dei file non è riuscita.": "Artiklen er gemt, men oprydningen af filerne mislykkedes.",
   "Associa gli articoli selezionati a una testata": "Tilknyt de valgte artikler til et tidsskrift",
   "Associazione non riuscita.": "Tilknytningen mislykkedes.",
   "CSV UTF-8 separato da virgole, massimo 500 righe. La reference_key identifica gli aggiornamenti; le colonne assenti conservano i dati, le celle vuote li svuotano. Nessun fascicolo viene creato.": "Kommasepareret UTF-8 CSV, højst 500 rækker. reference_key identificerer opdateringer; udeladte kolonner bevarer data, tomme celler rydder dem. Der oprettes ingen numre.",
@@ -7745,6 +7746,7 @@
   "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.": "Mulig dublet: brug den eksisterende reference_key til opdatering, eller kontrollér referencen.",
   "Pronto": "Klar",
   "Puoi indicare anche solo mese e anno, per esempio giugno 2019.": "Du kan nøjes med måned og år, for eksempel juni 2019.",
+  "Separa più autori con un punto e virgola. La virgola resta parte del nome, per esempio Schweissinger, Marc J.": "Adskil flere forfattere med semikolon. Et komma er stadig en del af navnet, for eksempel Schweissinger, Marc J.",
   "Registra un articolo, anche senza possedere la rivista completa.": "Registrér en artikel, selv uden at eje hele tidsskriftet.",
   "Ricarica la scheda prima di salvare.": "Genindlæs posten før du gemmer.",
   "Riga": "Række",
@@ -7824,5 +7826,13 @@
   "Libro ricevuto in donazione: %s": "Doneret bog modtaget: %s",
   "«%s» è entrato in catalogo con una copia fisica. La richiesta è chiusa.": "»%s« er kommet i kataloget med et fysisk eksemplar. Ønsket er lukket.",
   "La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.": "Biblioteket vurderer forslaget og kontakter dig for at aftale afleveringen.",
-  "Vedi tutti i libri che cerchiamo (%d)": "Se alle de bøger, vi leder efter (%d)"
+  "Vedi tutti i libri che cerchiamo (%d)": "Se alle de bøger, vi leder efter (%d)",
+  "Vedi tutti i %d risultati": "Se alle %d resultater",
+  "Articoli nell’emeroteca (%d)": "Artikler i tidsskriftssamlingen (%d)",
+  "Testate nell’emeroteca (%d)": "Tidsskriftstitler i tidsskriftssamlingen (%d)",
+  "Mostra tutti gli articoli": "Vis alle artikler",
+  "Rimuovi il filtro": "Fjern filter",
+  "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Billede af artiklen (JPG, PNG eller WebP, maks. 5 MB)",
+  "%d articolo": "%d artikel",
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Filen blev fjernet, fordi de offentlige sider er ændret: /sitemap.xml svarer stadig og dannes undervejs. Gendan den for at udgive filen igen."
 }
