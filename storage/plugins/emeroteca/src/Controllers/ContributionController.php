@@ -96,6 +96,15 @@ final class ContributionController extends AbstractAdminController
      * the article; on any failure re-renders the form (HTTP 422) with the submitted values and
      * an error message, discarding any file already moved to disk. The previous PDF is deleted
      * only after the new row has actually been saved, so a failed save never loses the old file.
+     *
+     * The commit point is service()->save(). Everything after it is janitorial
+     * and runs in its own log-only try: removing a superseded file is
+     * housekeeping, and its failure must never be reported as — or acted on
+     * as — a save failure. $committed records that the row was written, so a
+     * rollback can never delete the file the committed row now names, and the
+     * operator is never handed back a retry form carrying a `revision` this
+     * request has already consumed (which the optimistic-concurrency check
+     * would then refuse with "someone else changed it").
      */
     public function save(Request $rq, Response $rs, array $args = []): Response
     {
@@ -108,6 +117,7 @@ final class ContributionController extends AbstractAdminController
         $files = [];
         $newPath = null;
         $newCover = null;
+        $committed = false;
         try {
             ContributionService::normalize($body);
             $uploads = $rq->getUploadedFiles();
@@ -154,25 +164,46 @@ final class ContributionController extends AbstractAdminController
                 $body['pdf_pubblico'] = 0;
             }
             $id = $this->service()->save($body, $id, isset($body['revision']) ? (int)$body['revision'] : null, $files);
-            if (array_key_exists('pdf_path', $files) && !empty($old['pdf_path'])) {
-                self::removePdf((string)$old['pdf_path']);
-            }
-            // Only after the row points at the new image: a failed save must
-            // never leave the article showing a file that is no longer there.
-            $previousCover = (string)($old['copertina_url'] ?? '');
-            if (array_key_exists('copertina_url', $files) && $previousCover !== '' && $previousCover !== $newCover) {
-                $this->deleteManagedImageIfUnreferenced($previousCover);
+            $committed = true;
+            // Post-commit housekeeping, in its own try: the row is durable
+            // (save() runs under autocommit), so a failing janitor owes the
+            // operator a log line, not a 422 telling them nothing was saved.
+            try {
+                if (array_key_exists('pdf_path', $files) && !empty($old['pdf_path'])) {
+                    self::removePdf((string)$old['pdf_path']);
+                }
+                // Only after the row points at the new image: a failed save must
+                // never leave the article showing a file that is no longer there.
+                $previousCover = (string)($old['copertina_url'] ?? '');
+                if (array_key_exists('copertina_url', $files) && $previousCover !== '' && $previousCover !== $newCover) {
+                    $this->deleteManagedImageIfUnreferenced($previousCover);
+                }
+            } catch (\Throwable $cleanup) {
+                SecureLogger::error('[Emeroteca] contribution save cleanup: '.$cleanup->getMessage());
             }
             $this->flashSuccess(__('Articolo salvato.'));
             return $this->redirect($rs, '/admin/periodicals/articles/'.$id);
         } catch (\Throwable $e) {
-            if ($newPath && is_file($newPath)) {
+            // Rollbacks belong to the pre-commit window only. Once the row is
+            // written it references these files, and deleting them would leave
+            // a pdf_path pointing at nothing.
+            if (!$committed && $newPath && is_file($newPath)) {
                 unlink($newPath);
             }
-            if ($newCover !== null) {
+            if (!$committed && $newCover !== null) {
                 // Stored but never referenced: the reference check finds no
                 // row and removes it.
                 $this->deleteManagedImageIfUnreferenced($newCover);
+            }
+            if ($committed) {
+                // Defence in depth: with the janitors swallowing their own
+                // failures this is unreachable, but a statement added after
+                // the commit point must not resurrect the false "not saved"
+                // verdict — nor a retry form whose Save and Delete buttons
+                // both carry a revision the row has already moved past.
+                SecureLogger::error('[Emeroteca] contribution save after commit: '.$e->getMessage());
+                $this->flashError(__('Articolo salvato, ma la pulizia dei file non è riuscita.'));
+                return $this->redirect($rs, '/admin/periodicals/articles/'.$id);
             }
             if (!$e instanceof \InvalidArgumentException) {
                 SecureLogger::error('[Emeroteca] contribution save: '.$e->getMessage());

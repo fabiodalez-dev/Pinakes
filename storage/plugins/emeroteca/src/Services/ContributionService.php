@@ -257,6 +257,40 @@ SQL;
     public const FILTER_FIELDS = ['autori' => 'autore', 'contenitore_titolo' => 'pubblicazione', 'keywords' => 'keyword'];
 
     /**
+     * The names credited by a free-text `autori` citation, in the order they
+     * were written — one per narrowing link, because a filter value holding a
+     * whole credit line can only ever match the article it came from.
+     *
+     * The separator is the SEMICOLON and nothing else. A comma is NOT a
+     * separator here: a single name is routinely written inverted, and the
+     * plugin's own documented reference value is "Schweissinger, Marc J."
+     * (README.md, src/Views/article-import.php) — splitting on ',' would turn
+     * one author into two half-names that look plausible and mean nothing.
+     * ' and ' / ' & ' are excluded for the same reason: the CSV importer
+     * accepts corporate authors such as "Institute of Science and Technology".
+     *
+     * A string with no semicolon comes back as a single element, so the whole
+     * existing single-author corpus renders exactly as it did before.
+     * A null, empty or whitespace-only field yields [] — never [''].
+     *
+     * This is a RENDER-TIME split: the stored citation is never rewritten
+     * (ContributionCsv matches duplicates on exact equality of `autori`).
+     *
+     * @return list<string>
+     */
+    public static function authorList(?string $autori): array
+    {
+        if ($autori === null) {
+            return [];
+        }
+        $parts = array_map(
+            static fn (string $name): string => trim($name),
+            explode(';', $autori)
+        );
+        return array_values(array_filter($parts, static fn (string $name): bool => $name !== ''));
+    }
+
+    /**
      * @param array<string, string> $filters subset of FILTER_FIELDS values ⇒ the
      *        text to match; an empty or unknown key is ignored
      * @return array{rows:array,total:int,page:int,pages:int}

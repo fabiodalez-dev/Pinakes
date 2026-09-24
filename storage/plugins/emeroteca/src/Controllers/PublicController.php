@@ -121,23 +121,10 @@ class PublicController
         $bindTypes = '';
         $bindValues = [];
         if ($q !== '') {
-            $where[] = '(t.titolo LIKE ? ESCAPE \'\\\\\'
-                         OR t.sottotitolo LIKE ? ESCAPE \'\\\\\'
-                         OR t.issn LIKE ? ESCAPE \'\\\\\'
-                         OR EXISTS (
-                            SELECT 1
-                              FROM emeroteca_articoli ar
-                              JOIN emeroteca_fascicoli ef ON ef.id = ar.fascicolo_id
-                              JOIN emeroteca_annate ea ON ea.id = ef.annata_id
-                             WHERE ea.testata_id = t.id AND ef.stato <> \'scartato\'
-                               AND (
-                                    MATCH(ar.titolo, ar.autori, ar.keywords)
-                                        AGAINST (? IN NATURAL LANGUAGE MODE)
-                                    OR ar.titolo LIKE ? ESCAPE \'\\\\\'
-                                    OR ar.autori LIKE ? ESCAPE \'\\\\\'
-                                    OR ar.keywords LIKE ? ESCAPE \'\\\\\'
-                               )
-                         ))';
+            // One owner for "does this masthead answer that term": the
+            // catalogue hint counts with the same fragment, so the number it
+            // prints next to this link is the number this link opens.
+            $where[] = \EmerotecaPlugin::testataSearchWhere(true);
             $pattern = '%' . $this->escapeLike($q) . '%';
             $bindTypes .= 'sssssss';
             $bindValues = [$pattern, $pattern, $pattern, $q, $pattern, $pattern, $pattern];
@@ -157,7 +144,7 @@ class PublicController
             'argomento' => " ORDER BY (genere_nome IS NULL), genere_nome ASC, t.titolo ASC",
             default     => " ORDER BY t.titolo ASC",
         };
-        $sql .= ' LIMIT 500';
+        $sql .= ' LIMIT ' . \EmerotecaPlugin::TESTATA_SEARCH_LIMIT;
 
         $rows = $this->fetchAll($sql, $bindTypes, $bindValues);
 
@@ -173,6 +160,11 @@ class PublicController
             'seoTitle' => __('Emeroteca'),
             'seoDescription' => __('Consulta le testate di riviste, giornali e periodici conservate in emeroteca.'),
             'seoCanonical' => $this->baseUrl() . '/emeroteca',
+            // Same rule as the article search and as the core catalogue
+            // (app/Views/frontend/catalog.php): a narrowed or re-sorted view
+            // of one corpus declares the bare /emeroteca as its canonical, so
+            // it must not also ask to be indexed. Links are still followed.
+            'seoRobots' => ($q !== '' || $tipo !== '' || $vista !== 'az') ? 'noindex,follow' : 'index,follow',
         ]);
     }
 
@@ -549,7 +541,15 @@ class PublicController
      *
      * A narrowed listing is the same corpus seen through a filter, so it is
      * served noindex/follow: one canonical /emeroteca/articoli, not one
-     * indexable page per author the library happens to hold.
+     * indexable page per author the library happens to hold. "Narrowed" means
+     * EVERY parameter that cuts the corpus — the free term and the masthead
+     * as much as the three named filters — and not just the subset that
+     * happens to live in ContributionService::FILTER_FIELDS.
+     *
+     * Pagination is the exception: page 2 is not a duplicate of page 1, so it
+     * canonicalises to itself, exactly as the core catalogue and the author /
+     * publisher archives do (app/Views/frontend/catalog.php,
+     * app/Views/frontend/archive.php).
      */
     public function articles(ServerRequestInterface $request, ResponseInterface $response, array $args=[]): ResponseInterface
     {
@@ -557,13 +557,18 @@ class PublicController
         $term=is_string($q['q']??null)?$q['q']:'';
         $filters=$this->articleFilters($q);
         $testata=(int)($q['testata']??0);
-        return $this->renderPublic($response,'articles.php',$this->articleResults($term,$testata,(int)($q['page']??1),$filters)+[
+        $results=$this->articleResults($term,$testata,max(1,(int)($q['page']??1)),$filters);
+        // The page the listing actually settled on: a request past the last
+        // page is clamped, and the canonical must name the page it served.
+        $page=max(1,(int)$results['page']);
+        $narrowed=$filters!==[]||$term!==''||$testata>0;
+        return $this->renderPublic($response,'articles.php',$results+[
             'term'=>$term,
             'testata'=>$testata,
             'filters'=>$filters,
             'seoTitle'=>__('Articoli'),
-            'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli',
-            'seoRobots'=>$filters===[]?'index,follow':'noindex,follow',
+            'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli'.($page>1?'?page='.$page:''),
+            'seoRobots'=>$narrowed?'noindex,follow':'index,follow',
         ]);
     }
 

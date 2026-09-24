@@ -14,6 +14,11 @@
 $article=$article??[]; $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
 $articlePlaceholder=url('/uploads/copertine/placeholder.jpg');
 $articleFilterUrl=static fn(string $key,string $value):string=>url('/emeroteca/articoli').'?'.http_build_query([$key=>$value]);
+// Plugin classes have no autoloader scope and a view must not depend on the
+// controller having loaded them: require the service before reading it.
+require_once __DIR__.'/../../Services/ContributionService.php';
+/** Free-text author credit: semicolon-separated by convention, one link each. */
+$articleAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorList(isset($article['autori'])?(string)$article['autori']:null);
 /** Free-text keyword list: comma-separated by convention, one link each. */
 $articleKeywords=array_values(array_filter(array_map('trim', explode(',', (string)($article['keywords']??''))), static fn(string $k):bool=>$k!==''));
 ?>
@@ -21,7 +26,7 @@ $articleKeywords=array_values(array_filter(array_map('trim', explode(',', (strin
 <div style="display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap;margin-top:1.25rem;">
 <img src="<?= $e(url(($article['copertina_url']??'')!==''?(string)$article['copertina_url']:'/uploads/copertine/placeholder.jpg')) ?>" alt="" loading="lazy" decoding="async" style="width:150px;height:200px;object-fit:cover;border-radius:.375rem;flex:0 0 auto;" onerror="this.onerror=null;this.src=<?= $e(json_encode($articlePlaceholder, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
 <div style="flex:1 1 320px;min-width:0;"><h1 class="text-3xl font-bold mb-3"><?= $e($article['titolo']) ?></h1>
-<?php if(!empty($article['autori'])): ?><p class="text-xl mb-6"><a class="underline" href="<?= $e($articleFilterUrl('autore',(string)$article['autori'])) ?>"><?= $e($article['autori']) ?></a></p><?php endif; ?>
+<?php if(!empty($article['autori'])): ?><p class="text-xl mb-6"><?php if($articleAuthors): foreach($articleAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a class="underline" href="<?= $e($articleFilterUrl('autore',$an)) ?>"><?= $e($an) ?></a><?php endforeach; else: ?><?= $e($article['autori']) ?><?php endif; ?></p><?php endif; ?>
 </div></div>
 <dl class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-8"><?php foreach(['contenitore_titolo'=>__('Pubblicazione'),'data_pubblicazione_testo'=>__('Data di pubblicazione'),'anno_pubblicazione'=>__('Anno'),'volume'=>__('Volume'),'numero'=>__('Numero'),'pagine'=>__('Pagine'),'issn'=>'ISSN','doi'=>'DOI'] as $key=>$label): if(empty($article[$key]))continue; ?><div><dt class="text-sm text-gray-600"><?= $e($label) ?></dt><dd><?php if($key==='contenitore_titolo'): ?><a class="underline" href="<?= $e($articleFilterUrl('pubblicazione',(string)$article[$key])) ?>"><?= $e($article[$key]) ?></a><?php else: ?><?= $e($article[$key]) ?><?php endif; ?></dd></div><?php endforeach; ?>
 <?php if($articleKeywords): ?><div><dt class="text-sm text-gray-600"><?= __('Parole chiave') ?></dt><dd><?php foreach($articleKeywords as $i=>$kw): ?><?= $i?', ':'' ?><a class="underline" href="<?= $e($articleFilterUrl('keyword',$kw)) ?>"><?= $e($kw) ?></a><?php endforeach; ?></dd></div><?php endif; ?></dl>

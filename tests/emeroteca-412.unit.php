@@ -152,6 +152,22 @@ try {
     // filter must never be a way around pubblico=0.
     check412($svc->search('Unpublished',0,true)['total']===0 && $svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===2,'a filtered search never surfaces an unpublished article');
 
+// A citation can credit several authors. The links on an article carry ONE
+// name each, so the filter has to answer for either of them — and the
+// separator is the semicolon, never the comma: "Schweissinger, Marc J." is a
+// single inverted name, and splitting it would make two half-names that look
+// plausible and match nothing.
+$coauthored=$svc->save(['titolo'=>'Tyll e il doppio','autori'=>'Schweissinger, Marc J.; Bianchi, Anna','pubblico'=>1]);
+check412($svc->search('',0,true,1,['autore'=>'Bianchi, Anna'])['total']===1,'a co-authored article is found by its second author alone');
+check412($svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===3,'the co-authored article joins the others under its first author');
+check412(ContributionService::authorList('Schweissinger, Marc J.; Bianchi, Anna')===['Schweissinger, Marc J.','Bianchi, Anna'],'the semicolon separates two credited authors');
+check412(ContributionService::authorList('Schweissinger, Marc J.')===['Schweissinger, Marc J.'],'a comma inside one inverted name is not a separator');
+check412(ContributionService::authorList('Institute of Science and Technology')===['Institute of Science and Technology'],'" and " is not a separator either: corporate authors stay whole');
+check412(ContributionService::authorList(' A ;; B; ')===['A','B'],'doubled and trailing separators produce no empty author');
+check412(ContributionService::authorList(null)===[] && ContributionService::authorList('')===[] && ContributionService::authorList('   ')===[],'an empty author field yields no names at all, never ['."''".']');
+$svc->rows('DELETE FROM emeroteca_contributi WHERE id=?',[$coauthored]);
+check412($svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===2,'the co-author fixture leaves the corpus as it found it');
+
     // The catalogue hint: it must carry the articles themselves, because the
     // visitor searched the catalogue for a title it cannot hold.
     $suggest=$plugin->suggestEmerotecaSearch([],'Intertextuality');
@@ -168,6 +184,27 @@ try {
     $suggestTestata=$plugin->suggestEmerotecaSearch([],'Zeitschrift');
     check412(count($suggestTestata)===1 && ($suggestTestata[0]['items'][0]['meta']??'')==='Beilage','a masthead match yields its own section with the subtitle as meta');
     $svc->rows("DELETE FROM emeroteca_testate WHERE titolo='Zeitschrift für Tests'");
+// The masthead hint must count what /emeroteca?q= lists, and that page also
+// reaches a masthead through the articles indexed inside its owned issues.
+$svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Il Caffè')");
+$caffe=(int)$db->insert_id;
+$svc->rows('INSERT INTO emeroteca_annate (testata_id,anno) VALUES (?,1960)',[$caffe]);
+$annata=(int)$db->insert_id;
+$svc->rows("INSERT INTO emeroteca_fascicoli (annata_id,numero,stato) VALUES (?,'1','posseduto')",[$annata]);
+$fascicolo=(int)$db->insert_id;
+$svc->rows("INSERT INTO emeroteca_articoli (fascicolo_id,titolo,autori) VALUES (?,'La giornata d''uno scrutatore','Italo Calvino')",[$fascicolo]);
+$svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Rivista di Calvino Studies')");
+$suggestCalvino=$plugin->suggestEmerotecaSearch([],'Calvino');
+check412(count($suggestCalvino)===1 && ($suggestCalvino[0]['total']??0)===2,'the masthead hint counts the mastheads reachable through their indexed articles too');
+// "ino" is shorter than innodb_ft_min_token_size, so MATCH alone finds
+// nothing while the destination still lists the masthead by substring.
+$suggestSubtoken=$plugin->suggestEmerotecaSearch([],'ino');
+check412(count($suggestSubtoken)===1 && ($suggestSubtoken[0]['total']??0)>0,'a term FULLTEXT cannot tokenise still produces the masthead hint');
+$svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Calvino Notes I'),('Calvino Notes II'),('Calvino Notes III'),('Calvino Notes IV'),('Calvino Notes V')");
+$suggestSaturated=$plugin->suggestEmerotecaSearch([],'Calvino');
+check412(count($suggestSaturated[0]['items']??[])===5 && ($suggestSaturated[0]['total']??0)===7,'past five matches the section still reports the exact total behind its five items');
+$svc->rows("DELETE FROM emeroteca_articoli WHERE fascicolo_id=?",[$fascicolo]);
+$svc->rows("DELETE FROM emeroteca_testate WHERE titolo LIKE 'Calvino Notes%' OR titolo IN ('Il Caffè','Rivista di Calvino Studies')");
 
     // The article image, on an install that predates the column: the real
     // schema repair must add it, twice in a row, without touching the rows.

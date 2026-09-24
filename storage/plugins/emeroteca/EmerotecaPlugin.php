@@ -2576,6 +2576,58 @@ class EmerotecaPlugin
         return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
     }
 
+    /** How many mastheads /emeroteca?q= ever lists; the hint caps its total the same way. */
+    public const TESTATA_SEARCH_LIMIT = 500;
+
+    /**
+     * The WHERE fragment that decides whether a masthead answers a free term,
+     * owned here and used by BOTH the public listing
+     * (PublicController::index) and the catalogue hint
+     * (emerotecaTestataHits) — a count printed next to a link must be the
+     * count of what that link opens, and two hand-maintained spellings of the
+     * same question drift apart the moment one of them is edited.
+     *
+     * The table must be aliased `t`. The parentheses are load-bearing: the
+     * fragment is an OR chain interpolated into statements that AND it with
+     * other conditions.
+     *
+     * Bind order, all strings:
+     *   narrow ('sss'):    pattern, pattern, pattern
+     *   $withArticles:     … then term (MATCH), pattern, pattern, pattern
+     *                      → 'sssssss'
+     *
+     * $withArticles adds the indexed articles inside owned issues. It is
+     * optional because emeroteca_articoli / _fascicoli / _annate can be
+     * missing on a degraded install, where the narrow form must still answer.
+     * The MATCH arm is joined by three LIKEs on purpose: InnoDB FULLTEXT
+     * ignores tokens shorter than innodb_ft_min_token_size and stopwords, so
+     * MATCH alone would hide mastheads the listing does show.
+     */
+    public static function testataSearchWhere(bool $withArticles): string
+    {
+        $where = "t.titolo LIKE ? ESCAPE '\\\\'
+                  OR t.sottotitolo LIKE ? ESCAPE '\\\\'
+                  OR t.issn LIKE ? ESCAPE '\\\\'";
+        if ($withArticles) {
+            $where .= "
+                  OR EXISTS (
+                        SELECT 1
+                          FROM emeroteca_articoli ar
+                          JOIN emeroteca_fascicoli ef ON ef.id = ar.fascicolo_id
+                          JOIN emeroteca_annate ea ON ea.id = ef.annata_id
+                         WHERE ea.testata_id = t.id AND ef.stato <> 'scartato'
+                           AND (
+                                MATCH(ar.titolo, ar.autori, ar.keywords)
+                                    AGAINST (? IN NATURAL LANGUAGE MODE)
+                                OR ar.titolo LIKE ? ESCAPE '\\\\'
+                                OR ar.autori LIKE ? ESCAPE '\\\\'
+                                OR ar.keywords LIKE ? ESCAPE '\\\\'
+                           )
+                  )";
+        }
+        return '(' . $where . ')';
+    }
+
     /**
      * Published standalone articles matching the term: the first 5 by recency,
      * plus how many there are in all.
@@ -2601,17 +2653,24 @@ class EmerotecaPlugin
                        OR issn = ?)";
         $params = [$pattern, $pattern, $pattern, $pattern, $term];
 
-        $total = $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_contributi WHERE $where", 'sssss', $params);
-        if ($total <= 0) {
-            return $empty;
-        }
-
+        // Fetch first, count only when the page comes back saturated: a term
+        // with five or fewer matches already knows its own total, and this
+        // runs on every catalogue search. An aggregate over a leading-wildcard
+        // LIKE chain walks every published row to learn a number the fetch was
+        // about to hand over for free.
         $rows = $this->emerotecaRows(
-            "SELECT id, titolo, autori, contenitore_titolo, data_pubblicazione_testo, volume, numero, pagine
-             FROM emeroteca_contributi WHERE $where ORDER BY id DESC LIMIT 5",
+            "SELECT id, titolo, autori, contenitore_titolo, data_pubblicazione_testo, pagine
+             FROM emeroteca_contributi WHERE $where ORDER BY id DESC LIMIT 6",
             'sssss',
             $params
         );
+        if ($rows === []) {
+            return $empty;
+        }
+        $total = count($rows) > 5
+            ? $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_contributi WHERE $where", 'sssss', $params)
+            : count($rows);
+        $rows = array_slice($rows, 0, 5);
         $items = [];
         foreach ($rows as $row) {
             $items[] = [
@@ -2631,6 +2690,16 @@ class EmerotecaPlugin
     /**
      * Mastheads matching the term: the first 5 by title, plus the total.
      *
+     * The predicate is testataSearchWhere(), the same fragment
+     * PublicController::index() runs — including the indexed articles inside
+     * owned issues — so the number in "Testate nell’emeroteca (%d)" is the
+     * number the page behind that link prints. The total is capped at
+     * TESTATA_SEARCH_LIMIT for the same reason: the listing stops there too.
+     *
+     * The article arm is dropped on a degraded install missing any of
+     * emeroteca_articoli / _fascicoli / _annate: narrow but answering beats a
+     * prepare() that fails and silently zeroes every masthead hint.
+     *
      * @return array{items: array<int, array{label: string, url: string, meta: string}>, total: int}
      */
     private function emerotecaTestataHits(string $term): array
@@ -2640,21 +2709,31 @@ class EmerotecaPlugin
             return $empty;
         }
         $pattern = $this->likePattern($term);
-        $where = "titolo LIKE ? ESCAPE '\\\\'
-                  OR sottotitolo LIKE ? ESCAPE '\\\\'
-                  OR issn LIKE ? ESCAPE '\\\\'";
-        $params = [$pattern, $pattern, $pattern];
+        $withArticles = $this->emerotecaTableExists('emeroteca_articoli')
+            && $this->emerotecaTableExists('emeroteca_fascicoli')
+            && $this->emerotecaTableExists('emeroteca_annate');
+        $where = self::testataSearchWhere($withArticles);
+        $params = $withArticles
+            ? [$pattern, $pattern, $pattern, $term, $pattern, $pattern, $pattern]
+            : [$pattern, $pattern, $pattern];
+        $types = str_repeat('s', count($params));
 
-        $total = $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_testate WHERE $where", 'sss', $params);
-        if ($total <= 0) {
-            return $empty;
-        }
-
+        // Fetch first, count only when saturated — see emerotecaArticleHits().
         $rows = $this->emerotecaRows(
-            "SELECT id, titolo, sottotitolo, issn FROM emeroteca_testate WHERE $where ORDER BY titolo LIMIT 5",
-            'sss',
+            "SELECT t.id, t.titolo, t.sottotitolo, t.issn FROM emeroteca_testate t WHERE $where ORDER BY t.titolo LIMIT 6",
+            $types,
             $params
         );
+        if ($rows === []) {
+            return $empty;
+        }
+        $total = count($rows) > 5
+            ? min(
+                $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_testate t WHERE $where", $types, $params),
+                self::TESTATA_SEARCH_LIMIT
+            )
+            : count($rows);
+        $rows = array_slice($rows, 0, 5);
         $items = [];
         foreach ($rows as $row) {
             $items[] = [
@@ -2672,24 +2751,38 @@ class EmerotecaPlugin
     /**
      * True when an article indexed inside an owned issue matches the term.
      *
-     * Kept as a bare existence probe: these articles live inside an issue and
-     * have no public page of their own, so there is nothing to link an item
-     * to — only the section. The FULLTEXT index avoids a full scan on every
-     * catalogue miss, and withdrawn issues are excluded as everywhere else.
+     * Kept as a bare existence probe with LIMIT 1: these articles live inside
+     * an issue and have no public page of their own, so there is nothing to
+     * link an item to — only the section. Nobody reads a number here, so the
+     * query stops at the first qualifying row instead of counting every
+     * FULLTEXT hit and joining each one to its issue.
+     *
+     * MATCH is joined by three LIKE arms, matching the destination's own
+     * EXISTS (PublicController::index): FULLTEXT ignores tokens below
+     * innodb_ft_min_token_size and stopwords, so MATCH alone withholds the
+     * hint for terms /emeroteca?q= would happily answer.
+     *
+     * Withdrawn issues are excluded as everywhere else.
      */
     private function emerotecaIndexedArticleMatches(string $term): bool
     {
-        if (!$this->emerotecaTableExists('emeroteca_articoli')) {
+        if (!$this->emerotecaTableExists('emeroteca_articoli')
+            || !$this->emerotecaTableExists('emeroteca_fascicoli')) {
             return false;
         }
-        return $this->emerotecaCount(
-            "SELECT COUNT(*) c FROM emeroteca_articoli ar
+        $pattern = $this->likePattern($term);
+        return $this->emerotecaRows(
+            "SELECT 1 FROM emeroteca_articoli ar
              JOIN emeroteca_fascicoli f ON f.id = ar.fascicolo_id
              WHERE f.stato <> 'scartato'
-               AND MATCH(ar.titolo, ar.autori, ar.keywords) AGAINST (? IN NATURAL LANGUAGE MODE)",
-            's',
-            [$term]
-        ) > 0;
+               AND (MATCH(ar.titolo, ar.autori, ar.keywords) AGAINST (? IN NATURAL LANGUAGE MODE)
+                    OR ar.titolo LIKE ? ESCAPE '\\\\'
+                    OR ar.autori LIKE ? ESCAPE '\\\\'
+                    OR ar.keywords LIKE ? ESCAPE '\\\\')
+             LIMIT 1",
+            'ssss',
+            [$term, $pattern, $pattern, $pattern]
+        ) !== [];
     }
 
     /**

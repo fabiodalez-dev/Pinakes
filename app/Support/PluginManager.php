@@ -131,6 +131,29 @@ class PluginManager
             || $this->expectedForeignKeysMissing($instance);
     }
 
+    /**
+     * How many hook rows a plugin currently owns. Read twice around the
+     * same-version self-heal — before, to decide whether it is needed; after,
+     * to tell a self-heal that actually registered something from one that
+     * changed nothing at all. A failed probe returns 0, which is the
+     * conservative answer: it re-runs the self-heal rather than skipping it.
+     */
+    private function countPluginHooks(int $pluginId): int
+    {
+        $hookCount = 0;
+        $hookStmt = $this->db->prepare('SELECT COUNT(*) FROM plugin_hooks WHERE plugin_id = ?');
+        if ($hookStmt !== false) {
+            $hookStmt->bind_param('i', $pluginId);
+            if ($hookStmt->execute()) {
+                $hookStmt->bind_result($hookCount);
+                $hookStmt->fetch();
+            }
+            $hookStmt->close();
+        }
+
+        return (int) $hookCount;
+    }
+
     /** True when a declared expectedTables() entry is absent from the schema. */
     private function expectedTablesMissing(object $instance): bool
     {
@@ -276,6 +299,16 @@ class PluginManager
     {
         $registered = 0;
 
+        // Did this pass actually change plugin state? This method is a
+        // maintenance scan: it runs on every /admin/plugins view and once per
+        // maintenance window at bootstrap, and on a healthy, unchanged install
+        // it writes nothing at all. The cache invalidation at the end — which
+        // includes deleting the PUBLISHED sitemap — must therefore be gated on
+        // a real mutation. Clearing unconditionally would drop public/sitemap.xml
+        // on every admin page load and every maintenance window, so the static
+        // file would never survive and the fast path would cease to exist.
+        $mutated = false;
+
         foreach (BundledPlugins::LIST as $pluginName) {
             $pluginPath = $this->pluginsDir . '/' . $pluginName;
             $jsonPath = $pluginPath . '/plugin.json';
@@ -341,7 +374,14 @@ class PluginManager
                             $diskRequiresApp,
                             $requirementsId
                         );
-                        $requirementsStmt->execute();
+                        // The execute() result is read for one reason only: a
+                        // silently failing UPDATE re-fires this branch on every
+                        // pass, and gating the invalidation on an attempt rather
+                        // than on a success would then delete the published
+                        // sitemap forever, once per maintenance window.
+                        if ($requirementsStmt->execute()) {
+                            $mutated = true;
+                        }
                         $requirementsStmt->close();
                     }
                 }
@@ -368,6 +408,7 @@ class PluginManager
                         SecureLogger::error("[PluginManager] Failed to update bundled plugin $pluginName", ['db_error' => $this->db->error]);
                         continue;
                     }
+                    $mutated = true;
                     SecureLogger::info("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
 
                     // Re-register hooks only if plugin is active.
@@ -429,16 +470,7 @@ class PluginManager
                     // nothing and the historical deadlock (running DDL on every
                     // admin-page poll) cannot recur.
                     $pluginIdInt = (int) ($row['id'] ?? 0);
-                    $hookCount = 0;
-                    $hookStmt = $this->db->prepare('SELECT COUNT(*) FROM plugin_hooks WHERE plugin_id = ?');
-                    if ($hookStmt !== false) {
-                        $hookStmt->bind_param('i', $pluginIdInt);
-                        if ($hookStmt->execute()) {
-                            $hookStmt->bind_result($hookCount);
-                            $hookStmt->fetch();
-                        }
-                        $hookStmt->close();
-                    }
+                    $hookCount = $this->countPluginHooks($pluginIdInt);
                     try {
                         $syncInstance = $this->instantiatePlugin([
                             'id'        => $pluginIdInt,
@@ -446,10 +478,27 @@ class PluginManager
                             'path'      => $pluginName,
                             'main_file' => $pluginMeta['main_file'] ?? 'wrapper.php',
                         ]);
-                        $needsSync = ((int) $hookCount === 0)
-                            || $this->bundledSchemaIncomplete($syncInstance);
+                        $schemaIncomplete = $this->bundledSchemaIncomplete($syncInstance);
+                        $needsSync = ($hookCount === 0) || $schemaIncomplete;
                         if ($needsSync && method_exists($syncInstance, 'onActivate')) {
                             $syncInstance->onActivate();
+                            // Only a self-heal that ACHIEVED something counts as
+                            // a mutation. A plugin that registers no hooks and
+                            // declares no schema keeps $needsSync true on every
+                            // single pass — api-book-scraper does exactly that
+                            // on this codebase — so flagging the ATTEMPT would
+                            // drop the published sitemap once per maintenance
+                            // window, for ever, on an install where nothing ever
+                            // changed. Re-running the same two cheap probes
+                            // answers "did anything actually change?" instead of
+                            // assuming it did.
+                            $hooksAppeared = $hookCount === 0
+                                && $this->countPluginHooks($pluginIdInt) > 0;
+                            $schemaRepaired = $schemaIncomplete
+                                && !$this->bundledSchemaIncomplete($syncInstance);
+                            if ($hooksAppeared || $schemaRepaired) {
+                                $mutated = true;
+                            }
                         }
                     } catch (\Throwable $e) {
                         // Non-fatal: log and continue. The next boot retries.
@@ -516,6 +565,7 @@ class PluginManager
             if ($stmt->execute()) {
                 $pluginId = $this->db->insert_id;
                 $registered++;
+                $mutated = true;
                 $activeLabel = $isOptional ? 'inactive (optional)' : 'active';
                 SecureLogger::info("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, $activeLabel)");
 
@@ -562,6 +612,15 @@ class PluginManager
 
         if ($registered > 0) {
             SecureLogger::info("[PluginManager] Auto-registered $registered bundled plugin(s)");
+        }
+
+        // Once per pass, never inside the loop: 20 bundled plugins would
+        // otherwise cost 20 unlinks and 20 cache-generation bumps. $registered
+        // alone is not the signal — it counts brand-new rows only, and misses
+        // the version bump and the self-heal, which re-register the very hooks
+        // that decide which public URLs exist.
+        if ($mutated) {
+            self::clearPluginCache();
         }
 
         return $registered;
@@ -613,6 +672,11 @@ class PluginManager
         }
 
         $orphanIds = [];
+        // Bundled deactivations are a mutation the return value deliberately
+        // does not report (callers read it as "orphans removed"), so without
+        // this counter nobody — inside or outside — can tell that the set of
+        // public URLs just shrank.
+        $deactivated = 0;
         while ($row = $result->fetch_assoc()) {
             $pluginPath = $this->pluginsDir . '/' . $row['path'];
 
@@ -637,7 +701,7 @@ class PluginManager
                     if ($deactivate !== false) {
                         $pid = (int)$row['id'];
                         $deactivate->bind_param('i', $pid);
-                        $deactivate->execute();
+                        $deactivated += $deactivate->execute() ? 1 : 0;
                         $deactivate->close();
                         SecureLogger::info("[PluginManager] Deactivated bundled plugin '{$row['name']}' until folder is restored");
                     }
@@ -651,6 +715,9 @@ class PluginManager
         $result->free();
 
         if (empty($orphanIds)) {
+            if ($deactivated > 0) {
+                self::clearPluginCache();
+            }
             return 0;
         }
 
@@ -659,6 +726,9 @@ class PluginManager
         $stmt = $this->db->prepare("DELETE FROM plugins WHERE id = ?");
         if ($stmt === false) {
             SecureLogger::error('[PluginManager] Failed to prepare orphan plugin cleanup statement', ['db_error' => $this->db->error]);
+            if ($deactivated > 0) {
+                self::clearPluginCache();
+            }
             return 0;
         }
 
@@ -676,6 +746,15 @@ class PluginManager
 
         if ($deleted > 0) {
             SecureLogger::info("[PluginManager] Cleaned up {$deleted} orphan plugin(s) from database");
+        }
+
+        // Both branches take public URLs away: a deleted plugin's routes stop
+        // being registered, a deactivated one's too. Gated, once per pass, and
+        // idempotent in practice — a plugin already at is_active = 0 is not
+        // deactivated again, so a repeated pass over the same broken install
+        // stops invalidating after the first one.
+        if ($deleted > 0 || $deactivated > 0) {
+            self::clearPluginCache();
         }
 
         return $deleted;
