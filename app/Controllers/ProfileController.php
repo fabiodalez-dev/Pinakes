@@ -117,7 +117,16 @@ class ProfileController
         $stmt->bind_param('si', $hash, $uid);
         $stmt->execute();
         $stmt->close();
-        $_SESSION['success_message'] = __('Password aggiornata con successo.');
+
+        // Changing the password signs out every other device — the remember-me
+        // cookies and the Mobile API tokens the old password authorised — while
+        // keeping the session this was typed in, which is the one the person is
+        // looking at.
+        $revoked = \App\Support\CredentialRevoker::revokeAll($db, $uid, true);
+
+        $_SESSION['success_message'] = ($revoked['sessions'] + $revoked['mobile']) > 0
+            ? __('Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.')
+            : __('Password aggiornata con successo.');
         return $response->withHeader('Location', RouteTranslator::route('profile'))->withStatus(302);
     }
 

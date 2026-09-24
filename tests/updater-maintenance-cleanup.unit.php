@@ -92,11 +92,23 @@ $check($finallyCleanups >= 2, "03 both update paths run cleanup() in a finally (
 // 4. The restore path (BackupManager) keeps the shared lock inode persistent —
 //    its shutdown handler must not capture or unlink $lockFile (same inode-race
 //    fix as the updater).
-$restoreHandlerSafe = (bool) preg_match(
-    '/register_shutdown_function\(static function \(\) use \(\$maintenanceFile\): void/',
-    $backupSrc
-) && !preg_match('/@unlink\(\$lockFile\)/', $backupSrc);
-$check($restoreHandlerSafe, "04 BackupManager restore keeps the lock inode persistent (no \$lockFile unlink)");
+//
+//    This asserts the PROPERTY, not the spelling. It used to pin the handler's
+//    exact signature, `static function () use ($maintenanceFile)`, which said
+//    nothing about the lock and broke the moment the closure legitimately
+//    stopped being static — it now captures $this to ask whether the database
+//    replacement had begun. A check that fails when correct code is rewritten,
+//    while a real $lockFile unlink somewhere else would still pass, is testing
+//    the author's habits rather than the guarantee.
+$handlerUseClause = '';
+if (preg_match('/register_shutdown_function\(\s*(?:static\s+)?function\s*\([^)]*\)\s*use\s*\(([^)]*)\)/', $backupSrc, $m)) {
+    $handlerUseClause = $m[1];
+}
+$check($handlerUseClause !== '', "04a BackupManager registers a shutdown handler with a use() clause");
+$check(!str_contains($handlerUseClause, '$lockFile'),
+    "04b the shutdown handler does not capture \$lockFile (use: {$handlerUseClause})");
+$check(!preg_match('/@?unlink\(\$lockFile\)/', $backupSrc),
+    "04c nothing in BackupManager unlinks the shared lock inode");
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

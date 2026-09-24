@@ -63,18 +63,11 @@ class PasswordController
             // trusted host, NEVER from the request Host header (which an attacker
             // controls on a catch-all vhost → reset-link poisoning, CWE-20).
             $resetPath = RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
-            $envUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
-            $resetUrl = null;
-            if (is_string($envUrl) && $envUrl !== '') {
-                // Full canonical URL preserves scheme and any base path.
-                $resetUrl = rtrim($envUrl, '/') . $resetPath;
-            } else {
-                // No canonical URL: fall back ONLY to a configured trusted host.
-                $trustedHost = \App\Support\HtmlHelper::configuredTrustedHost();
-                if ($trustedHost !== null) {
-                    $resetUrl = 'https://' . $trustedHost . $resetPath;
-                }
-            }
+            // This rule now lives in one place. It used to live only here, which
+            // is exactly why the two other paths that mail the same kind of
+            // link — the Mobile API's recovery and the invitation emails —
+            // never received it.
+            $resetUrl = \App\Support\TrustedLink::build($resetPath);
 
             if ($resetUrl === null) {
                 // Fail closed: no trustworthy host is configured, so refuse to
@@ -194,6 +187,15 @@ class PasswordController
             $stmt->bind_param('si', $hash, $uid);
             $stmt->execute();
             $stmt->close();
+
+            // Recovering an account has to end the access the old password was
+            // protecting. A remember-me cookie and a Mobile API token both
+            // outlive the session that made them, so without this someone who
+            // held one kept their way in across the very act performed to take
+            // the account back. Nothing is kept: whoever is at this page holds
+            // a link sent to the address, not necessarily the owner's browser.
+            \App\Support\CredentialRevoker::revokeAll($db, $uid, false);
+
             return $response->withHeader('Location', RouteTranslator::route('login') . '?reset=1')->withStatus(302);
         }
         $stmt->close();

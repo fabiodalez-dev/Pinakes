@@ -570,11 +570,26 @@ final class AuthController
 
     private function sendResetEmail(string $email, string $name, string $resetToken): void
     {
-        $envUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
-        if (is_string($envUrl) && $envUrl !== '') {
-            $resetUrl = rtrim($envUrl, '/') . RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
-        } else {
-            $resetUrl = absoluteUrl(RouteTranslator::route('reset_password')) . '?token=' . urlencode($resetToken);
+        // Same rule as the web recovery page (PasswordController::forgot), and
+        // for the same reason: this link carries the token, so the host it
+        // points at cannot come from the request. On a catch-all virtual host
+        // the Host header is attacker-supplied, and absoluteUrl() accepts it
+        // whenever APP_TRUSTED_HOSTS is unset — which is how the mobile
+        // endpoint could mail a recovery link to somebody else's domain while
+        // the web page, given the identical request, refused to send at all.
+        $resetUrl = \App\Support\TrustedLink::build(
+            RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken)
+        );
+
+        if ($resetUrl === null) {
+            // Fail closed. The caller already answers the same way whether or
+            // not an account exists, so suppressing the mail here does not
+            // disclose anything; sending a token to an unverified host would.
+            SecureLogger::error(
+                '[MobileApi] Password reset email suppressed: neither APP_CANONICAL_URL nor APP_TRUSTED_HOSTS is '
+                . 'configured; refusing to build the reset link from the request Host header'
+            );
+            return;
         }
 
         $safeName = htmlspecialchars($name !== '' ? $name : $email, ENT_QUOTES, 'UTF-8');

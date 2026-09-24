@@ -327,10 +327,18 @@ class NotificationService {
         }
     }
 
-    public function sendUserPasswordSetup(int $userId): bool
+    /**
+     * @param string|null $rawToken the ORIGINAL token, as minted by
+     *        PasswordSetupToken::issue(). The database holds only its hash, so
+     *        this cannot be read back from the row — passing null makes this
+     *        method issue a fresh one rather than mail a value that would be
+     *        refused. Mailing the stored column, which is what this used to do,
+     *        sent the reader a hash for a page that hashes what it is given.
+     */
+    public function sendUserPasswordSetup(int $userId, ?string $rawToken = null): bool
     {
         try {
-            $stmt = $this->db->prepare("SELECT id, nome, cognome, email, token_reset_password FROM utenti WHERE id = ? LIMIT 1");
+            $stmt = $this->db->prepare("SELECT id, nome, cognome, email FROM utenti WHERE id = ? LIMIT 1");
             $stmt->bind_param('i', $userId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -341,20 +349,35 @@ class NotificationService {
             }
             $stmt->close();
 
-            $token = $user['token_reset_password'];
-            if (!$token) {
-                $token = bin2hex(random_bytes(32));
-                $now = gmdate('Y-m-d H:i:s');
-                $update = $this->db->prepare("UPDATE utenti SET token_reset_password = ?, data_token_reset = ? WHERE id = ?");
-                $update->bind_param('ssi', $token, $now, $userId);
-                $update->execute();
-                $update->close();
+            $token = $rawToken !== null && $rawToken !== ''
+                ? $rawToken
+                : PasswordSetupToken::issue($this->db, $userId);
+            if ($token === null || $token === '') {
+                SecureLogger::error('[NotificationService] No usable setup token; refusing to send a link that cannot work', [
+                    'user_id' => $userId,
+                ]);
+                return false;
+            }
+
+            // Never absoluteUrl() for a link that will be emailed: it carries
+            // the token, so its host must be one the operator configured and
+            // not one the request supplied. TrustedLink owns that rule for the
+            // three places that send such a link.
+            $resetUrl = TrustedLink::build(
+                RouteTranslator::route('reset_password') . '?token=' . urlencode((string) $token)
+            );
+            if ($resetUrl === null) {
+                SecureLogger::error('[NotificationService] Setup email suppressed: neither APP_CANONICAL_URL nor '
+                    . 'APP_TRUSTED_HOSTS is configured; refusing to build the link from the request Host header', [
+                        'user_id' => $userId,
+                    ]);
+                return false;
             }
 
             $variables = [
                 'nome' => $user['nome'],
                 'cognome' => $user['cognome'],
-                'reset_url' => absoluteUrl(RouteTranslator::route('reset_password') . '?token=' . urlencode((string)$token)),
+                'reset_url' => $resetUrl,
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
 
@@ -368,10 +391,18 @@ class NotificationService {
         }
     }
 
-    public function sendAdminInvitation(int $userId): bool
+    /**
+     * @param string|null $rawToken the ORIGINAL token, as minted by
+     *        PasswordSetupToken::issue(). The database holds only its hash, so
+     *        this cannot be read back from the row — passing null makes this
+     *        method issue a fresh one rather than mail a value that would be
+     *        refused. Mailing the stored column, which is what this used to do,
+     *        sent the reader a hash for a page that hashes what it is given.
+     */
+    public function sendAdminInvitation(int $userId, ?string $rawToken = null): bool
     {
         try {
-            $stmt = $this->db->prepare("SELECT id, nome, cognome, email, token_reset_password FROM utenti WHERE id = ? LIMIT 1");
+            $stmt = $this->db->prepare("SELECT id, nome, cognome, email FROM utenti WHERE id = ? LIMIT 1");
             $stmt->bind_param('i', $userId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -382,21 +413,36 @@ class NotificationService {
             }
             $stmt->close();
 
-            $token = $user['token_reset_password'];
-            if (!$token) {
-                $token = bin2hex(random_bytes(32));
-                $now = gmdate('Y-m-d H:i:s');
-                $update = $this->db->prepare("UPDATE utenti SET token_reset_password = ?, data_token_reset = ? WHERE id = ?");
-                $update->bind_param('ssi', $token, $now, $userId);
-                $update->execute();
-                $update->close();
+            $token = $rawToken !== null && $rawToken !== ''
+                ? $rawToken
+                : PasswordSetupToken::issue($this->db, $userId);
+            if ($token === null || $token === '') {
+                SecureLogger::error('[NotificationService] No usable setup token; refusing to send a link that cannot work', [
+                    'user_id' => $userId,
+                ]);
+                return false;
+            }
+
+            // Never absoluteUrl() for a link that will be emailed: it carries
+            // the token, so its host must be one the operator configured and
+            // not one the request supplied. TrustedLink owns that rule for the
+            // three places that send such a link.
+            $resetUrl = TrustedLink::build(
+                RouteTranslator::route('reset_password') . '?token=' . urlencode((string) $token)
+            );
+            if ($resetUrl === null) {
+                SecureLogger::error('[NotificationService] Setup email suppressed: neither APP_CANONICAL_URL nor '
+                    . 'APP_TRUSTED_HOSTS is configured; refusing to build the link from the request Host header', [
+                        'user_id' => $userId,
+                    ]);
+                return false;
             }
 
             $variables = [
                 'nome' => $user['nome'],
                 'cognome' => $user['cognome'],
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca'),
-                'reset_url' => absoluteUrl(RouteTranslator::route('reset_password') . '?token=' . urlencode((string)$token)),
+                'reset_url' => $resetUrl,
                 'dashboard_url' => absoluteUrl('/admin/dashboard')
             ];
 

@@ -32,6 +32,17 @@ class RememberMeService
     /**
      * Create a new remember token for a user and set the cookie.
      */
+    /**
+     * Session key holding the `user_sessions` row this PHP session belongs to.
+     *
+     * Revoking a device used to mark that row and stop there, and the check
+     * that reads it ran only for a request arriving WITHOUT a session — so a
+     * device already signed in kept using the session it had, and "revoke"
+     * meant no more than "no further automatic sign-ins here". Binding the
+     * session to its row is what lets a later request notice.
+     */
+    public const SESSION_ROW_KEY = 'remember_session_id';
+
     public function createToken(int $userId): bool
     {
         if (!$this->tableExists()) {
@@ -60,11 +71,13 @@ class RememberMeService
         }
         $stmt->bind_param('isssss', $userId, $tokenHash, $deviceInfo, $ipAddress, $userAgent, $expiresAt);
         $success = $stmt->execute();
+        $rowId = (int) $this->db->insert_id;
         $stmt->close();
 
         if ($success) {
             // Set cookie with original token (not the hash)
             $this->setCookie($token);
+            $this->bindSessionToRow($rowId);
             return true;
         }
 
@@ -112,6 +125,7 @@ class RememberMeService
             // Update last_used_at timestamp
             $sessionId = (int) $row['id'];
             $this->updateLastUsed($sessionId);
+            $this->bindSessionToRow($sessionId);
 
             return (int) $row['utente_id'];
         }
@@ -194,6 +208,63 @@ class RememberMeService
         $stmt->close();
 
         return $affected;
+    }
+
+    /**
+     * Remember which `user_sessions` row this PHP session was opened from.
+     *
+     * Only remember-me sign-ins create such a row, and only those appear in the
+     * "active sessions" list an operator can revoke — so binding exactly those
+     * is enough for revocation to mean what the interface says it means.
+     */
+    private function bindSessionToRow(int $rowId): void
+    {
+        if ($rowId > 0 && session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION[self::SESSION_ROW_KEY] = $rowId;
+        }
+    }
+
+    /**
+     * True when the row this session is bound to has been revoked or expired.
+     *
+     * Answers false for a session that is bound to nothing: an ordinary
+     * sign-in without "remember me" creates no row, is not listed as a device,
+     * and therefore cannot have been revoked. Also false when the lookup
+     * fails — a database hiccup must not sign the whole library out, and the
+     * next request asks again.
+     */
+    public function boundSessionIsRevoked(): bool
+    {
+        $rowId = isset($_SESSION[self::SESSION_ROW_KEY]) ? (int) $_SESSION[self::SESSION_ROW_KEY] : 0;
+        if ($rowId <= 0 || !$this->tableExists()) {
+            return false;
+        }
+
+        try {
+            $this->db->query("SET SESSION time_zone = '+00:00'");
+            $stmt = $this->db->prepare(
+                'SELECT is_revoked, (expires_at > NOW()) AS still_valid FROM user_sessions WHERE id = ? LIMIT 1'
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('i', $rowId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[RememberMeService] Could not check whether this session was revoked: ' . $e->getMessage());
+            return false;
+        }
+
+        // A row that has been DELETED outright counts as revoked: the operator
+        // asked for that device to stop, and a missing row is not a reason to
+        // keep going.
+        if (!is_array($row)) {
+            return true;
+        }
+
+        return (int) ($row['is_revoked'] ?? 0) === 1 || (int) ($row['still_valid'] ?? 0) !== 1;
     }
 
     /**
@@ -340,6 +411,18 @@ class RememberMeService
     /**
      * Clear the remember cookie.
      */
+    /**
+     * Drop the remember-me cookie of a session that has just been revoked.
+     *
+     * Without this the browser keeps presenting a token the next request would
+     * look up, fail to validate and clear anyway — one wasted round trip, and a
+     * confusing moment where the device looks signed in until it reloads.
+     */
+    public function clearCookieForRevokedSession(): void
+    {
+        $this->clearCookie();
+    }
+
     private function clearCookie(): void
     {
         setcookie(self::COOKIE_NAME, '', [

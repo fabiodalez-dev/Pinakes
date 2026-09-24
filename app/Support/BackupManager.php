@@ -592,6 +592,20 @@ class BackupManager
      *
      * @return array{success: bool, safety_backup: string|null, error: string|null, partial?: bool, restored_phase?: string}
      */
+    /**
+     * True from the instant the import may have executed its first DROP TABLE
+     * until it has finished.
+     *
+     * MySQL cannot roll back DDL, so between those two points the database is
+     * neither the one the site was serving nor the one the archive describes.
+     * Two things must follow from that and neither did: the outcome has to say
+     * so, and the site must stay closed. An interrupted restore reported as an
+     * ordinary failure invites the operator to retry into the wreckage, and the
+     * maintenance flag was being lifted on the way out — including by the
+     * fatal-error shutdown handler, which is exactly the case this describes.
+     */
+    private bool $databaseReplacementStarted = false;
+
     private function restoreZip(string $zipPath): array
     {
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
@@ -620,13 +634,26 @@ class BackupManager
         // Safety net: a fatal error mid-restore must not leave the site locked
         // in maintenance (the front controller's 30-minute staleness fallback
         // remains the last resort). Mirrors Updater's shutdown handler.
-        register_shutdown_function(static function () use ($maintenanceFile): void {
+        // NOT static, and conditional: the handler exists so a fatal error
+        // BEFORE anything was touched cannot leave the site locked out. Once
+        // the import may have started replacing tables the opposite is true —
+        // lifting the flag then reopens the site on a half-replaced database,
+        // which is the worst of the two outcomes and the one nobody chose.
+        register_shutdown_function(function () use ($maintenanceFile): void {
             $error = error_get_last();
-            if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
-                if (file_exists($maintenanceFile)) {
-                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
-                    @unlink($maintenanceFile);
-                }
+            if ($error === null || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                return;
+            }
+            if ($this->databaseReplacementStarted) {
+                SecureLogger::error(
+                    '[BackupManager] Fatal error during the database replacement; maintenance mode is left ON '
+                    . 'because the database is in an unknown state'
+                );
+                return;
+            }
+            if (file_exists($maintenanceFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
+                @unlink($maintenanceFile);
             }
         });
 
@@ -636,15 +663,29 @@ class BackupManager
         // Inside the try so a failure to arm the flag aborts cleanly: the
         // finally below still releases the flock, and the catch keeps the
         // array-return contract instead of leaking the exception. (#167 review)
+        $outcome = null;
         try {
             $this->enterRestoreMaintenanceMode($maintenanceFile);
-            return $this->doRestoreZip($zipPath);
+            $outcome = $this->doRestoreZip($zipPath);
+            return $outcome;
         } catch (\Throwable $e) {
-            return ['success' => false, 'safety_backup' => null, 'error' => $e->getMessage()];
+            $outcome = ['success' => false, 'safety_backup' => null, 'error' => $e->getMessage()];
+            return $outcome;
         } finally {
-            if (file_exists($maintenanceFile)) {
+            // Reopen the site only when the database is whole: either the
+            // restore finished, or it failed without ever starting to replace
+            // anything. An import that began and did not finish keeps the flag,
+            // because what is behind it is not a library catalogue any more.
+            $incomplete = ($outcome['restored_phase'] ?? '') === 'database_incomplete';
+            if (!$incomplete && file_exists($maintenanceFile)) {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
                 @unlink($maintenanceFile);
+            }
+            if ($incomplete) {
+                SecureLogger::error(
+                    '[BackupManager] Restore left the database incomplete; maintenance mode stays ON until an '
+                    . 'operator restores the safety backup: ' . (string) ($outcome['safety_backup'] ?? 'none')
+                );
             }
             flock($lockHandle, LOCK_UN);
             fclose($lockHandle);
@@ -726,8 +767,11 @@ class BackupManager
                 $zip->close();
             }
 
-            // 4. Import the DB (hash-verified inside). After this point the DB is
-            //    the restored one; files are already safely staged.
+            // 4. Import the DB (hash-verified inside). From the line below until
+            //    importDatabase() returns, the database may be part old and part
+            //    new — the flag is what lets the failure paths tell that apart
+            //    from a restore that never touched anything.
+            $this->databaseReplacementStarted = true;
             $this->importDatabase($sqlTmp, $expectedSha);
             // The live DB is now the restored one — any later failure is a
             // PARTIAL restore, not a no-op, and must be reported as such.
@@ -760,6 +804,25 @@ class BackupManager
                     'restored_phase' => 'database',
                     'safety_backup' => $safetyName,
                     'error' => $e->getMessage(),
+                ];
+            }
+            if ($this->databaseReplacementStarted) {
+                // The import started and did not finish: the database holds an
+                // unknown mixture of both versions. This is a DIFFERENT outcome
+                // from the one above — there the data is whole and only the
+                // uploaded files are stale — and the operator has to be told
+                // which, because only this one requires restoring the safety
+                // backup before the site can serve anything.
+                return [
+                    'success' => false,
+                    'partial' => true,
+                    'restored_phase' => 'database_incomplete',
+                    'safety_backup' => $safetyName,
+                    // The operator reads this string, and what it has to convey
+                    // is not the SQL error but what to do next. The site is
+                    // closed and stays closed until someone acts.
+                    'error' => __('Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.')
+                        . ' (' . $e->getMessage() . ')',
                 ];
             }
             return ['success' => false, 'safety_backup' => $safetyName, 'error' => $e->getMessage()];
@@ -931,6 +994,68 @@ class BackupManager
      * backup/restore round-trip. The schema is text/numeric/datetime only —
      * adding a binary column requires changing this serialization first.
      */
+    /**
+     * The columns of $table a restore may write, in declaration order.
+     *
+     * Generated columns are excluded: MySQL and MariaDB both reject an INSERT
+     * that supplies a value for one ("The value specified for generated column
+     * … is not allowed"), and the value is reproduced by the database from the
+     * expression the dumped CREATE TABLE already carries, so nothing is lost.
+     * GENERATION_EXPRESSION is the portable test — EXTRA also says
+     * DEFAULT_GENERATED for an ordinary DEFAULT CURRENT_TIMESTAMP, which is not
+     * a generated column and must keep being written.
+     *
+     * A probe that fails returns every column rather than none: the dump is
+     * then exactly what it was before this method existed, which is wrong only
+     * for a table that has a generated column — never silently empty.
+     *
+     * @return list<string>
+     */
+    private function insertableColumns(string $table): array
+    {
+        $columns = [];
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                    AND (GENERATION_EXPRESSION IS NULL OR GENERATION_EXPRESSION = \'\')
+                  ORDER BY ORDINAL_POSITION'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param('s', $table);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($result instanceof \mysqli_result && ($row = $result->fetch_row())) {
+                $columns[] = (string) $row[0];
+            }
+            $stmt->close();
+        } catch (\Throwable $e) {
+            SecureLogger::warning(
+                "[BackupManager] Could not read the column list of {$table}; dumping every column: " . $e->getMessage()
+            );
+            $columns = [];
+        }
+
+        if ($columns === []) {
+            // Fall back to the full column list from the open connection.
+            try {
+                $describe = $this->db->query("SHOW COLUMNS FROM `{$table}`");
+                while ($describe instanceof \mysqli_result && ($row = $describe->fetch_assoc())) {
+                    $columns[] = (string) $row['Field'];
+                }
+                if ($describe instanceof \mysqli_result) {
+                    $describe->free();
+                }
+            } catch (\Throwable $e) {
+                return [];
+            }
+        }
+
+        return $columns;
+    }
+
     private function dumpDatabaseTo(string $filepath): int
     {
         $handle = fopen($filepath, 'w');
@@ -976,7 +1101,24 @@ class BackupManager
                 fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
                 fwrite($handle, ((string) ($createRow[1] ?? '')) . ";\n\n");
 
-                $this->db->real_query("SELECT * FROM `{$table}`");
+                // Only the columns a restore is allowed to write. MySQL refuses
+                // an INSERT that supplies a value for a generated column, and
+                // `SELECT *` returns them like any other — so a table with one
+                // produced a dump that could be created but never imported. The
+                // database recomputes them from the definition the CREATE TABLE
+                // above already carries. Naming the columns also frees the
+                // restore from depending on their order.
+                $columns = $this->insertableColumns($table);
+                if ($columns === []) {
+                    // A table made only of generated columns cannot be written
+                    // to at all; there is nothing to restore and an INSERT with
+                    // an empty column list is not valid SQL.
+                    fwrite($handle, "\n");
+                    continue;
+                }
+                $columnList = '`' . implode('`, `', $columns) . '`';
+
+                $this->db->real_query("SELECT {$columnList} FROM `{$table}`");
                 $dataResult = $this->db->use_result();
                 if ($dataResult === false) {
                     throw new \RuntimeException(sprintf(__('Errore nel recupero dati tabella %s'), $table) . ': ' . $this->db->error);
@@ -986,7 +1128,7 @@ class BackupManager
                     $values = array_map(function ($value): string {
                         return $value === null ? 'NULL' : "'" . $this->db->real_escape_string((string) $value) . "'";
                     }, $row);
-                    fwrite($handle, "INSERT INTO `{$table}` VALUES (" . implode(', ', $values) . ");\n");
+                    fwrite($handle, "INSERT INTO `{$table}` ({$columnList}) VALUES (" . implode(', ', $values) . ");\n");
                 }
                 $dataResult->free();
                 fwrite($handle, "\n");
