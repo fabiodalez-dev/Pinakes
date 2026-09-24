@@ -59,10 +59,15 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     $env[trim($k)] = trim(trim($v), "\"'");
 }
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
+// E2E_DB_NAME first, like every other suite here: in CI that is the database
+// built for the run, and reading only .env would write to the installation's.
+$dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
+$dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
+$dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
 try {
     $db = $socket !== '' && file_exists($socket)
-        ? new mysqli(null, $env['DB_USER'] ?? '', $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''), $env['DB_NAME'] ?? '', 0, $socket)
-        : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'] ?? '', $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''), $env['DB_NAME'] ?? '', (int) ($env['DB_PORT'] ?? 3306));
+        ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
+        : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $dbUser, $dbPass, $dbName, (int) ($env['DB_PORT'] ?? 3306));
     $db->set_charset('utf8mb4');
 } catch (\Throwable $e) {
     fwrite(STDERR, "FAIL: database unreachable — this suite must not skip silently: {$e->getMessage()}\n");
@@ -160,6 +165,25 @@ try {
         : null;
     $check(is_array($ld) && isset($ld['image']) && str_contains((string) $ld['image'], $logo),
         'and declares it as the article’s image in the structured data');
+
+    // The resolver answering "0" correctly is not enough: the bug was a view
+    // testing that answer with `?:`, which reads "0" as absent. Render it.
+    $zeroRow = ($seeded ?? []) + [];
+    $zeroRow['copertina_url'] = '0';
+    $zeroRow['testata_logo_url'] = $logo;
+    $articleResults = ['rows' => [$zeroRow]];
+    ob_start();
+    require $root . '/storage/plugins/emeroteca/src/Views/public/article-results.php';
+    $zeroHtml = (string) ob_get_clean();
+    $check(!str_contains($zeroHtml, 'placeholder.jpg"'),
+        'a cover stored as the string "0" is rendered, not mistaken for an absent one');
+
+    $article = $zeroRow;
+    ob_start();
+    require $root . '/storage/plugins/emeroteca/src/Views/public/article.php';
+    $zeroPage = (string) ob_get_clean();
+    $check(!str_contains($zeroPage, 'placeholder.jpg"'),
+        'and the article page agrees with the list about it');
 
     echo "\nD. With no image anywhere, the page says so honestly\n";
 
