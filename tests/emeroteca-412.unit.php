@@ -19,15 +19,57 @@ final class Sandbox412Db extends mysqli
         $sql=preg_replace('/\b(fk_emeroteca_\w+|fk_contributo_\w+)\b/',$this->prefix.'$1',$sql);
         return $sql;
     }
+    /**
+     * Statements prepared since the counter was last reset. The hint listener
+     * runs on EVERY catalogue search, so how many queries it issues is part of
+     * its contract — and nothing else in this suite constrains it. The
+     * short-circuit it used to have was removed once without any check
+     * noticing, because every assertion here is about the RESULT and a slower
+     * implementation returns exactly the same one.
+     */
+    public int $preparedCount = 0;
+    /** @var list<string> Statements prepared since the reset, for diagnostics. */
+    public array $preparedSql = [];
+    public function resetStatementCounter(): void { $this->preparedCount = 0; $this->preparedSql = []; }
     public function query(string $query,int $result_mode=MYSQLI_STORE_RESULT): mysqli_result|bool { return parent::query($this->mapped($query),$result_mode); }
-    public function prepare(string $query): mysqli_stmt|false { return new Sandbox412Stmt($this, $this->mapped($query)); }
+    public function prepare(string $query): mysqli_stmt|false {
+        $this->preparedCount++;
+        $this->preparedSql[] = preg_replace('/\s+/', ' ', trim($query)) ?? $query;
+        return new Sandbox412Stmt($this, $this->mapped($query));
+    }
 }
 final class Sandbox412Stmt extends mysqli_stmt
 {
+    /**
+     * The remapped values, kept alive as a property.
+     *
+     * bind_param() binds by REFERENCE and mysqli reads the variables again at
+     * execute(), so the rewritten copies have to outlive this call — which is
+     * why the first version of this class rewrote the caller's own variables
+     * in place. That had a cost nobody saw: a method passing its own parameter
+     * ($table in emerotecaTableExists) got that parameter rewritten underneath
+     * it, so the value it used AFTER the bind was the prefixed one. The
+     * table-existence cache keyed its write on that mutated name and its read
+     * on the original, never hit, and the suite measured a probe-per-call that
+     * production does not perform. Copies on the instance keep the remapping
+     * without reaching back into the code under test.
+     *
+     * @var array<int,mixed>
+     */
+    private array $boundValues = [];
+
     public function __construct(private Sandbox412Db $sandbox, string $sql) { parent::__construct($sandbox,$sql); }
     public function bind_param(string $types, mixed &...$vars): bool {
-        foreach($vars as &$v) { if(is_string($v) && in_array($v,$this->sandbox->tables,true)) $v=$this->sandbox->prefix.$v; }
-        return parent::bind_param($types,...$vars);
+        $this->boundValues = [];
+        foreach ($vars as $i => $v) {
+            $this->boundValues[$i] = (is_string($v) && in_array($v, $this->sandbox->tables, true))
+                ? $this->sandbox->prefix . $v
+                : $v;
+        }
+        $refs = [];
+        foreach ($this->boundValues as $i => &$value) { $refs[$i] = &$value; }
+        unset($value);
+        return parent::bind_param($types, ...$refs);
     }
 }
 $root=dirname(__DIR__); $env=Dotenv\Dotenv::parse(file_get_contents($root.'/.env'));
@@ -88,7 +130,7 @@ try {
     $db->query("DELETE FROM emeroteca_testate WHERE titolo='Held'");
     $svc->setMode('simple');
     $db->query(ContributionService::ddl()); $db->query(ContributionService::ddl());
-    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','revision','created_at','updated_at'], 'fresh and repeated schema DDL');
+    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','copertina_url','revision','created_at','updated_at'], 'fresh and repeated schema DDL');
     $base=['titolo'=>"Intertextuality in Daniel Kehlmann's Novel Tyll",'autori'=>'Marc J. Schweissinger','contenitore_titolo'=>'International Journal of Language and Literature','data_pubblicazione_testo'=>'giugno 2019','anno_pubblicazione'=>'2019','volume'=>'7','numero'=>'1','pagine'=>'138–148','pubblico'=>1];
     $id=$svc->save($base);$row=$svc->get($id);
     check412($id>0 && $row['pagine']==='138–148' && $row['fascicolo_id']===null,'single article without any host');
@@ -135,6 +177,143 @@ try {
     check412($svc->get($private,true)===null && $svc->search('Secret',0,true)['total']===0,'private article absent from public lookups/search');
     check412($svc->search('International',0,true)['total']===1,'search includes container title');
     check412($svc->search('%',0,true)['total']===0,'LIKE wildcard is escaped');
+
+    // ── #412 (follow-up): l'articolo va trovato dove il lettore lo cerca ──
+    // Author, publication and keyword are free text on a standalone article,
+    // so "everything else by this author" can only be a filtered search.
+    $second=$svc->save(['titolo'=>'Second Schweissinger piece','autori'=>'Marc J. Schweissinger','contenitore_titolo'=>'Another Journal','keywords'=>'Tyll, Kehlmann','pubblico'=>1]);
+    $svc->save(['titolo'=>'Unpublished by the same author','autori'=>'Marc J. Schweissinger','keywords'=>'Tyll']);
+    check412($svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===2,'author filter collects the articles by that author');
+    check412($svc->search('',0,true,1,['pubblicazione'=>'Another Journal'])['total']===1,'publication filter narrows to one journal');
+    check412($svc->search('',0,true,1,['keyword'=>'Kehlmann'])['total']===1,'keyword filter matches inside a comma-separated list');
+    check412($svc->search('',0,true,1,['keyword'=>'Tyll'])['total']===2,'keyword filter matches every article carrying it');
+    check412($svc->search('',0,true,1,['autore'=>'Schweissinger','pubblicazione'=>'Another Journal'])['total']===1,'filters combine');
+    check412($svc->search('',0,true,1,['autore'=>'%'])['total']===0,'filter wildcards are escaped');
+    check412($svc->search('',0,true,1,['sconosciuto'=>'x'])['total']===$svc->search('',0,true)['total'],'an unknown filter key is ignored, not applied');
+    // The unpublished article by the same author is the point of this one: a
+    // filter must never be a way around pubblico=0.
+    check412($svc->search('Unpublished',0,true)['total']===0 && $svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===2,'a filtered search never surfaces an unpublished article');
+
+// A citation can credit several authors. The links on an article carry ONE
+// name each, so the filter has to answer for either of them — and the
+// separator is the semicolon, never the comma: "Schweissinger, Marc J." is a
+// single inverted name, and splitting it would make two half-names that look
+// plausible and match nothing.
+$coauthored=$svc->save(['titolo'=>'Tyll e il doppio','autori'=>'Schweissinger, Marc J.; Bianchi, Anna','pubblico'=>1]);
+check412($svc->search('',0,true,1,['autore'=>'Bianchi, Anna'])['total']===1,'a co-authored article is found by its second author alone');
+check412($svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===3,'the co-authored article joins the others under its first author');
+check412(ContributionService::authorList('Schweissinger, Marc J.; Bianchi, Anna')===['Schweissinger, Marc J.','Bianchi, Anna'],'the semicolon separates two credited authors');
+check412(ContributionService::authorList('Schweissinger, Marc J.')===['Schweissinger, Marc J.'],'a comma inside one inverted name is not a separator');
+check412(ContributionService::authorList('Institute of Science and Technology')===['Institute of Science and Technology'],'" and " is not a separator either: corporate authors stay whole');
+check412(ContributionService::authorList(' A ;; B; ')===['A','B'],'doubled and trailing separators produce no empty author');
+check412(ContributionService::authorList(null)===[] && ContributionService::authorList('')===[] && ContributionService::authorList('   ')===[],'an empty author field yields no names at all, never ['."''".']');
+$svc->rows('DELETE FROM emeroteca_contributi WHERE id=?',[$coauthored]);
+check412($svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===2,'the co-author fixture leaves the corpus as it found it');
+
+    // The catalogue hint: it must carry the articles themselves, because the
+    // visitor searched the catalogue for a title it cannot hold.
+    $suggest=$plugin->suggestEmerotecaSearch([],'Intertextuality');
+    check412(count($suggest)===1 && ($suggest[0]['total']??0)===1 && count($suggest[0]['items']??[])===1,'a catalogue search that matches an article yields one section with one item');
+    check412(($suggest[0]['items'][0]['label']??'')===$base['titolo'],'the item carries the article title, not a generic label');
+    check412(str_ends_with((string)($suggest[0]['items'][0]['url']??''),'/emeroteca/articolo/'.$id),'the item links to that article');
+    check412(str_contains((string)($suggest[0]['items'][0]['meta']??''),'Schweissinger') && str_contains((string)($suggest[0]['items'][0]['meta']??''),'138–148'),'the item meta line carries authors and the page span');
+    check412($plugin->suggestEmerotecaSearch([],'Secret Article')===[],'an unpublished article produces no suggestion at all');
+    check412($plugin->suggestEmerotecaSearch([],'z')===[],'a one-character term is not worth a full scan');
+    check412($plugin->suggestEmerotecaSearch([],'%%')===[],'wildcards in the term never match everything');
+    check412($plugin->suggestEmerotecaSearch('not-an-array','Intertextuality')==='not-an-array','a non-array input is passed through untouched');
+    check412(count($plugin->suggestEmerotecaSearch([['label'=>'zz existing','url'=>'/x'],],'Intertextuality'))===2,'the listener appends, it never replaces');
+    $svc->rows("INSERT INTO emeroteca_testate (titolo,sottotitolo) VALUES ('Zeitschrift für Tests','Beilage')");
+    $suggestTestata=$plugin->suggestEmerotecaSearch([],'Zeitschrift');
+    check412(count($suggestTestata)===1 && ($suggestTestata[0]['items'][0]['meta']??'')==='Beilage','a masthead match yields its own section with the subtitle as meta');
+    $svc->rows("DELETE FROM emeroteca_testate WHERE titolo='Zeitschrift für Tests'");
+// The masthead hint must count what /emeroteca?q= lists, and that page also
+// reaches a masthead through the articles indexed inside its owned issues.
+$svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Il Caffè')");
+$caffe=(int)$db->insert_id;
+$svc->rows('INSERT INTO emeroteca_annate (testata_id,anno) VALUES (?,1960)',[$caffe]);
+$annata=(int)$db->insert_id;
+$svc->rows("INSERT INTO emeroteca_fascicoli (annata_id,numero,stato) VALUES (?,'1','posseduto')",[$annata]);
+$fascicolo=(int)$db->insert_id;
+$svc->rows("INSERT INTO emeroteca_articoli (fascicolo_id,titolo,autori) VALUES (?,'La giornata d''uno scrutatore','Italo Calvino')",[$fascicolo]);
+$svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Rivista di Calvino Studies')");
+$suggestCalvino=$plugin->suggestEmerotecaSearch([],'Calvino');
+check412(count($suggestCalvino)===1 && ($suggestCalvino[0]['total']??0)===2,'the masthead hint counts the mastheads reachable through their indexed articles too');
+// How MANY statements the listener issues is part of its contract: it runs on
+// every catalogue search, on the unauthenticated /catalogo, which the core
+// deliberately refuses to cache when a search term is present. An upper bound,
+// not an equality: pinning the exact number would fail on any legitimate change
+// to the predicate, while a ceiling still catches the thing that actually went
+// wrong once — a probe quietly growing into a scan, or a section counting
+// before it knows there is anything to count.
+//
+// Measured on a FRESH instance, because that is what production does: the
+// plugin is constructed per request, so the table-existence probes are paid
+// once per request and the per-instance cache serves everything after them.
+$freshPlugin = static fn(): EmerotecaPlugin => new EmerotecaPlugin($db, new \App\Support\HookManager($db));
+
+$db->resetStatementCounter();
+$freshPlugin()->suggestEmerotecaSearch([], 'zzz-nothing-matches-this-zzz');
+$missStatements = $db->preparedCount;
+check412($missStatements > 0, 'the miss path does reach the database (the budget below is not measuring a no-op)');
+check412(
+    $missStatements <= 9,
+    "a catalogue search matching nothing costs at most 9 statements on a cold instance (measured {$missStatements}: "
+        . implode(' | ', array_map(static fn(string $q): string => substr($q, 0, 34), $db->preparedSql)) . ')'
+);
+
+$db->resetStatementCounter();
+$freshPlugin()->suggestEmerotecaSearch([], 'Calvino');
+$hitStatements = $db->preparedCount;
+check412(
+    $hitStatements <= 12,
+    "a catalogue search that matches costs at most 12 statements on a cold instance (measured {$hitStatements})"
+);
+
+// The table probes must be answered from the per-instance cache after the
+// first time. Without this the suite cannot tell a working cache from a
+// broken one — and it could not, until the sandbox stopped rewriting the
+// caller's own variables underneath it.
+$warm = $freshPlugin();
+$warm->suggestEmerotecaSearch([], 'zzz-warm-up-zzz');
+$db->resetStatementCounter();
+$warm->suggestEmerotecaSearch([], 'zzz-second-miss-zzz');
+$warmStatements = $db->preparedCount;
+check412(
+    $warmStatements < $missStatements,
+    "a second search on the same instance re-probes nothing (cold {$missStatements}, warm {$warmStatements})"
+);
+check412(
+    $warmStatements <= 4,
+    "a warm miss is down to the data queries alone (measured {$warmStatements})"
+);
+
+// "ino" is shorter than innodb_ft_min_token_size, so MATCH alone finds
+// nothing while the destination still lists the masthead by substring.
+$suggestSubtoken=$plugin->suggestEmerotecaSearch([],'ino');
+check412(count($suggestSubtoken)===1 && ($suggestSubtoken[0]['total']??0)>0,'a term FULLTEXT cannot tokenise still produces the masthead hint');
+$svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Calvino Notes I'),('Calvino Notes II'),('Calvino Notes III'),('Calvino Notes IV'),('Calvino Notes V')");
+$suggestSaturated=$plugin->suggestEmerotecaSearch([],'Calvino');
+check412(count($suggestSaturated[0]['items']??[])===5 && ($suggestSaturated[0]['total']??0)===7,'past five matches the section still reports the exact total behind its five items');
+$svc->rows("DELETE FROM emeroteca_articoli WHERE fascicolo_id=?",[$fascicolo]);
+$svc->rows("DELETE FROM emeroteca_testate WHERE titolo LIKE 'Calvino Notes%' OR titolo IN ('Il Caffè','Rivista di Calvino Studies')");
+
+    // The article image, on an install that predates the column: the real
+    // schema repair must add it, twice in a row, without touching the rows.
+    $db->query('ALTER TABLE emeroteca_contributi DROP COLUMN copertina_url');
+    $repair=(new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->ensureSchema();
+    (new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->ensureSchema();
+    check412($repair['failed']===[] && in_array('copertina_url',array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'),'Field'),true),'the real schema repair adds the article image column to an older install');
+    check412($svc->get($second)['titolo']==='Second Schweissinger piece','repairing the schema leaves the catalogued articles alone');
+    $rev=(int)$svc->get($id)['revision'];
+    $svc->save(array_replace($svc->get($id),['copertina_url'=>'/uploads/emeroteca/forged.jpg']),$id,$rev);
+    check412($svc->get($id)['copertina_url']===null,'the form body cannot point an article at a file of its own choosing');
+    $rev=(int)$svc->get($id)['revision'];
+    $svc->save($svc->get($id),$id,$rev,['copertina_url'=>'/uploads/emeroteca/real.jpg']);
+    check412($svc->get($id)['copertina_url']==='/uploads/emeroteca/real.jpg','the controller sets the image through the validated files argument');
+    $rev=(int)$svc->get($id)['revision'];
+    $svc->save($svc->get($id),$id,$rev,['copertina_url'=>null]);
+    check412($svc->get($id)['copertina_url']===null,'removing the image clears the column');
+    $svc->rows('DELETE FROM emeroteca_contributi WHERE id IN (?,?)',[$second,(int)$svc->rows("SELECT id FROM emeroteca_contributi WHERE titolo='Unpublished by the same author'")[0]['id']]);
     $public=ContributionService::publicData($svc->get($private));
     check412(!isset($public['note_private'],$public['collocazione'],$public['pdf_path']),'mobile projection excludes private data');
     $csv=new ContributionCsv($svc); $export=$csv->export();$preview=$csv->preview($export);
@@ -195,6 +374,11 @@ try {
     $withdrawn=$mobile->articles($request,new \Slim\Psr7\Response(),$id);
     check412(json_decode((string)$withdrawn->getBody(),true)['data']['pdf_url']===null && $withdrawn->getHeaderLine('ETag')!==$pdfResponse->getHeaderLine('ETag'),'withdrawing PDF clears its URL and invalidates the mobile ETag');
 
+    $svc->rows('UPDATE emeroteca_contributi SET copertina_url=? WHERE id=?',['/uploads/emeroteca/articolo_test.jpg',$id]);
+    $withCover=json_decode((string)$mobile->articles($request,new \Slim\Psr7\Response(),$id)->getBody(),true)['data'];
+    check412($withCover['cover_url']===absoluteUrl('/uploads/emeroteca/articolo_test.jpg'),'mobile article resolves the image to an absolute URL');
+    $svc->rows('UPDATE emeroteca_contributi SET copertina_url=NULL WHERE id=?',[$id]);
+    check412(json_decode((string)$mobile->articles($request,new \Slim\Psr7\Response(),$id)->getBody(),true)['data']['cover_url']===null,'an article without an image reports no URL instead of an empty path');
     check412($mobile->articles($request,new \Slim\Psr7\Response(),$private)->getStatusCode()===404,'mobile private detail returns 404');
     check412($mobile->articles($request->withQueryParams(['cursor'=>'bad']),new \Slim\Psr7\Response())->getStatusCode()===400,'malformed cursor rejected');
     for($i=0;$i<52;$i++) { $svc->save(['titolo'=>'Page article '.$i,'pubblico'=>1]); }

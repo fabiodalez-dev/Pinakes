@@ -316,6 +316,96 @@ try {
         'suggestion labels are HTML-escaped, not interpreted'
     );
 
+    // --- 7b. items + total: the matches themselves, validated one by one ---
+    $resetHooks();
+    Hooks::add('search.external_suggestions', function (array $suggestions): array {
+        $suggestions[] = [
+            'label' => 'zz Articoli (23)',
+            'url' => '/emeroteca/articoli?q=zz',
+            'total' => 23,
+            'items' => [
+                ['label' => 'zz Primo articolo', 'url' => '/emeroteca/articolo/1', 'meta' => 'zz Autore · 138-148'],
+                ['label' => 'zz Secondo articolo', 'url' => '/emeroteca/articolo/2'],
+                ['label' => 'zz Item javascript', 'url' => 'javascript:alert(1)'],
+                ['label' => 'zz Item offsite', 'url' => 'https://evil.example/x'],
+                ['label' => 'zz Item protocol', 'url' => '//evil.example/x'],
+                ['label' => '', 'url' => '/emeroteca/articolo/3'],
+                ['url' => '/emeroteca/articolo/4'],
+                'not-an-array',
+                ['label' => 'zz Item <script>alert(1)</script>', 'url' => '/emeroteca/articolo/5', 'meta' => '<b>zz meta</b>'],
+            ],
+        ];
+        return $suggestions;
+    });
+    $htmlItems = $renderCatalog($missTerm);
+    check(str_contains($htmlItems, 'zz Primo articolo'), 'a suggestion item is rendered with its own label');
+    check(str_contains($htmlItems, '/emeroteca/articolo/1'), 'a suggestion item links to the match itself, not only to the section');
+    check(str_contains($htmlItems, 'zz Autore · 138-148'), 'the item meta line is rendered');
+    check(str_contains($htmlItems, 'zz Secondo articolo'), 'an item without meta is still rendered');
+    check(
+        !str_contains($htmlItems, 'javascript:alert(1)')
+            && !str_contains($htmlItems, 'evil.example')
+            && !str_contains($htmlItems, 'zz Item javascript'),
+        'item URLs are held to the same same-origin rule as the suggestion URL'
+    );
+    check(!str_contains($htmlItems, '/emeroteca/articolo/3') && !str_contains($htmlItems, '/emeroteca/articolo/4'), 'an item without a usable label or url is dropped');
+    check(
+        !str_contains($htmlItems, 'zz Item <script>alert(1)</script>')
+            && str_contains($htmlItems, 'zz Item &lt;script&gt;alert(1)&lt;/script&gt;')
+            && str_contains($htmlItems, '&lt;b&gt;zz meta&lt;/b&gt;'),
+        'item labels and meta are escaped, not interpreted'
+    );
+    check(str_contains($htmlItems, 'zz Articoli (23)'), 'the section link survives next to its items');
+    // One bad item must not cost the visitor the good ones: 4 of the 9 entries
+    // above are valid, and the "see all" line is what says there are more.
+    check(substr_count($htmlItems, '/emeroteca/articoli?q=zz') >= 2, 'with more matches than items, a "see all" link points back at the section');
+
+    // --- 7c. a total lower than the items on screen is not believed --------
+    $resetHooks();
+    Hooks::add('search.external_suggestions', function (array $suggestions): array {
+        $suggestions[] = [
+            'label' => 'zz Bugiardo',
+            'url' => '/emeroteca/articoli?q=bugiardo',
+            'total' => 1,
+            'items' => [
+                ['label' => 'zz Uno', 'url' => '/emeroteca/articolo/11'],
+                ['label' => 'zz Due', 'url' => '/emeroteca/articolo/12'],
+            ],
+        ];
+        return $suggestions;
+    });
+    $htmlLiar = $renderCatalog($missTerm);
+    check(
+        str_contains($htmlLiar, 'zz Uno') && str_contains($htmlLiar, 'zz Due')
+            && substr_count($htmlLiar, '/emeroteca/articoli?q=bugiardo') === 1,
+        'a total below the item count never renders a "see all" line that would read "2 of 1"'
+    );
+
+    // --- 7d. at most 5 items, whatever the listener returns ---------------
+    $resetHooks();
+    Hooks::add('search.external_suggestions', function (array $suggestions): array {
+        $items = [];
+        for ($i = 1; $i <= 9; $i++) {
+            $items[] = ['label' => 'zz Molti ' . $i, 'url' => '/emeroteca/articolo/' . (100 + $i)];
+        }
+        $suggestions[] = ['label' => 'zz Molti', 'url' => '/emeroteca/articoli?q=molti', 'total' => 9, 'items' => $items];
+        return $suggestions;
+    });
+    $htmlMany = $renderCatalog($missTerm);
+    check(str_contains($htmlMany, 'zz Molti 5') && !str_contains($htmlMany, 'zz Molti 6'), 'at most 5 items are rendered, the rest stay behind the section link');
+
+    // --- 7e. label+url only: the 1.4.0 shape keeps working ----------------
+    $resetHooks();
+    Hooks::add('search.external_suggestions', function (array $suggestions): array {
+        $suggestions[] = ['label' => 'zz Solo sezione', 'url' => '/emeroteca?q=solo'];
+        return $suggestions;
+    });
+    $htmlLegacy = $renderCatalog($missTerm);
+    check(
+        str_contains($htmlLegacy, 'zz Solo sezione') && substr_count($htmlLegacy, '/emeroteca?q=solo') === 1,
+        'a listener that returns only label+url renders as the plain section link it always was'
+    );
+
     // A throwing listener must not break the catalogue page.
     $resetHooks();
     Hooks::add('search.external_suggestions', function (): array {

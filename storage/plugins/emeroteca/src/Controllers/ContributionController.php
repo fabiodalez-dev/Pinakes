@@ -96,6 +96,15 @@ final class ContributionController extends AbstractAdminController
      * the article; on any failure re-renders the form (HTTP 422) with the submitted values and
      * an error message, discarding any file already moved to disk. The previous PDF is deleted
      * only after the new row has actually been saved, so a failed save never loses the old file.
+     *
+     * The commit point is service()->save(). Everything after it is janitorial
+     * and runs in its own log-only try: removing a superseded file is
+     * housekeeping, and its failure must never be reported as — or acted on
+     * as — a save failure. $committed records that the row was written, so a
+     * rollback can never delete the file the committed row now names, and the
+     * operator is never handed back a retry form carrying a `revision` this
+     * request has already consumed (which the optimistic-concurrency check
+     * would then refuse with "someone else changed it").
      */
     public function save(Request $rq, Response $rs, array $args = []): Response
     {
@@ -105,11 +114,31 @@ final class ContributionController extends AbstractAdminController
         if ($id && !$old) {
             return $rs->withStatus(404);
         }
-        $pdf = [];
+        $files = [];
         $newPath = null;
+        $newCover = null;
+        $committed = false;
         try {
             ContributionService::normalize($body);
-            $file = $rq->getUploadedFiles()['pdf'] ?? null;
+            $uploads = $rq->getUploadedFiles();
+            $cover = $uploads['copertina'] ?? null;
+            if ($cover instanceof \Psr\Http\Message\UploadedFileInterface && $cover->getError() !== UPLOAD_ERR_NO_FILE) {
+                if ($cover->getError() !== UPLOAD_ERR_OK) {
+                    throw new \InvalidArgumentException(__('Errore durante l\'upload.'));
+                }
+                // Same validator as the issue and masthead images: extension,
+                // size and magic bytes, then a random name under
+                // public/uploads/emeroteca.
+                $stored = $this->storeManagedImage($cover, 'articolo');
+                if (empty($stored['success']) || empty($stored['path'])) {
+                    throw new \InvalidArgumentException((string)($stored['message'] ?? __('Errore durante l\'upload.')));
+                }
+                $newCover = (string)$stored['path'];
+                $files['copertina_url'] = $newCover;
+            } elseif (!empty($body['remove_copertina'])) {
+                $files['copertina_url'] = null;
+            }
+            $file = $uploads['pdf'] ?? null;
             if ($file && $file->getError() !== UPLOAD_ERR_NO_FILE) {
                 if ($file->getError() !== UPLOAD_ERR_OK || !$file->getSize() || $file->getSize() > 25 * 1024 * 1024) {
                     throw new \InvalidArgumentException(__('PDF non valido o superiore a 25 MB.'));
@@ -129,20 +158,52 @@ final class ContributionController extends AbstractAdminController
                 if ((new \finfo(FILEINFO_MIME_TYPE))->file($newPath) !== 'application/pdf') {
                     throw new \InvalidArgumentException(__('Carica un documento PDF.'));
                 }
-                $pdf = ['pdf_path' => $name,'pdf_nome_originale' => mb_substr(basename($file->getClientFilename() ?? 'articolo.pdf'), 0, 255),'pdf_dimensione' => filesize($newPath)];
+                $files += ['pdf_path' => $name,'pdf_nome_originale' => mb_substr(basename($file->getClientFilename() ?? 'articolo.pdf'), 0, 255),'pdf_dimensione' => filesize($newPath)];
             } elseif (!empty($body['remove_pdf'])) {
-                $pdf = ['pdf_path' => null,'pdf_nome_originale' => null,'pdf_dimensione' => null];
+                $files += ['pdf_path' => null,'pdf_nome_originale' => null,'pdf_dimensione' => null];
                 $body['pdf_pubblico'] = 0;
             }
-            $id = $this->service()->save($body, $id, isset($body['revision']) ? (int)$body['revision'] : null, $pdf);
-            if ($pdf && !empty($old['pdf_path'])) {
-                self::removePdf((string)$old['pdf_path']);
+            $id = $this->service()->save($body, $id, isset($body['revision']) ? (int)$body['revision'] : null, $files);
+            $committed = true;
+            // Post-commit housekeeping, in its own try: the row is durable
+            // (save() runs under autocommit), so a failing janitor owes the
+            // operator a log line, not a 422 telling them nothing was saved.
+            try {
+                if (array_key_exists('pdf_path', $files) && !empty($old['pdf_path'])) {
+                    self::removePdf((string)$old['pdf_path']);
+                }
+                // Only after the row points at the new image: a failed save must
+                // never leave the article showing a file that is no longer there.
+                $previousCover = (string)($old['copertina_url'] ?? '');
+                if (array_key_exists('copertina_url', $files) && $previousCover !== '' && $previousCover !== $newCover) {
+                    $this->deleteManagedImageIfUnreferenced($previousCover);
+                }
+            } catch (\Throwable $cleanup) {
+                SecureLogger::error('[Emeroteca] contribution save cleanup: '.$cleanup->getMessage());
             }
             $this->flashSuccess(__('Articolo salvato.'));
             return $this->redirect($rs, '/admin/periodicals/articles/'.$id);
         } catch (\Throwable $e) {
-            if ($newPath && is_file($newPath)) {
+            // Rollbacks belong to the pre-commit window only. Once the row is
+            // written it references these files, and deleting them would leave
+            // a pdf_path pointing at nothing.
+            if (!$committed && $newPath && is_file($newPath)) {
                 unlink($newPath);
+            }
+            if (!$committed && $newCover !== null) {
+                // Stored but never referenced: the reference check finds no
+                // row and removes it.
+                $this->deleteManagedImageIfUnreferenced($newCover);
+            }
+            if ($committed) {
+                // Defence in depth: with the janitors swallowing their own
+                // failures this is unreachable, but a statement added after
+                // the commit point must not resurrect the false "not saved"
+                // verdict — nor a retry form whose Save and Delete buttons
+                // both carry a revision the row has already moved past.
+                SecureLogger::error('[Emeroteca] contribution save after commit: '.$e->getMessage());
+                $this->flashError(__('Articolo salvato, ma la pulizia dei file non è riuscita.'));
+                return $this->redirect($rs, '/admin/periodicals/articles/'.$id);
             }
             if (!$e instanceof \InvalidArgumentException) {
                 SecureLogger::error('[Emeroteca] contribution save: '.$e->getMessage());
@@ -151,7 +212,7 @@ final class ContributionController extends AbstractAdminController
             // would win and the re-rendered form would show the article as
             // still published: the operator would republish it by resubmitting.
             $flags = [];
-            foreach (['pubblico','pdf_pubblico','remove_pdf'] as $flag) {
+            foreach (['pubblico','pdf_pubblico','remove_pdf','remove_copertina'] as $flag) {
                 $flags[$flag] = empty($body[$flag]) ? 0 : 1;
             }
             return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.')]);
@@ -316,6 +377,7 @@ final class ContributionController extends AbstractAdminController
             return $this->redirect($rs, '/admin/periodicals/articles/'.$id);
         }
         self::removePdf((string)($row['pdf_path'] ?? ''));
+        $this->deleteManagedImageIfUnreferenced((string)($row['copertina_url'] ?? ''));
         $this->flashSuccess(__('Articolo eliminato.'));
         return $this->redirect($rs, '/admin/periodicals/articles');
     }

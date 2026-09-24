@@ -1,4 +1,4 @@
-# Emeroteca 1.5
+# Emeroteca 1.6
 
 Emeroteca supports two workflows. **Simple** starts with standalone articles. **Complete** also exposes the existing mastheads, volume years, issues, Kardex and subscriptions. The same records remain available in either mode. Change the shared setting under **Plugins → Emeroteca → Settings**, or on the Periodicals/Articles page. Only administrators may change the installation-wide setting.
 
@@ -11,6 +11,14 @@ Choose **Add article**, enter its title and any known citation information, and 
 Articles are private initially. Publishing the article and allowing public access to its PDF are separate choices. Uploads accept PDF files up to 25 MB and are stored outside the public directory, under `storage/uploads/plugins/emeroteca/contributi`, so existing full backups include them. Downloads pass through the visibility check on every request and are not cacheable. Private notes and shelf marks are never returned by public pages or the mobile API.
 
 The existing **Issue article indexes** remain available from the Articles list. They are edited on their issue, while standalone articles have independent IDs and permanent detail URLs. No conversion or duplication occurs when switching views.
+
+## Finding an article, and moving between articles
+
+A catalogue search that matches a published article now answers with the article itself: the results page lists the matching titles, each with its authors, publication, date and page span, and links straight to the article. The catalogue only indexes books, so the matches arrive through the `search.external_suggestions` filter — the same route the mastheads use — and a search that matches nothing in the emeroteca adds nothing to the page. At most five matches are listed per section; the section heading carries the real total and links to the full article search.
+
+On an article, the author, the publication and each keyword are links to the article search narrowed by that value: every article by that author, every article from that publication, every article carrying that keyword. A citation crediting several authors becomes one link per name, so separate authors with a **semicolon**: `Schweissinger, Marc J.; Bianchi, Anna`. A comma is never a separator — a single name is routinely written inverted, as in `Schweissinger, Marc J.`, and splitting on it would turn one author into two half-names. A field written without a semicolon keeps behaving as one name. They are deliberately not links into the catalogue's author and publisher registries — on a standalone article those fields are citation text, and a library holding a single article by someone should not be made to create an author record for them. A narrowed listing is served `noindex, follow`: one canonical article search, not one indexable page per name.
+
+Each article can carry its own image, uploaded on the article form (JPG, PNG or WebP, up to 5 MB) and stored under `public/uploads/emeroteca` like the issue and masthead images. Articles without one show the same placeholder the catalogue uses for a book without a cover. Replacing or removing the image deletes the previous file once no other record refers to it, and never before the new row has been saved.
 
 ## Create the publication later
 
@@ -41,6 +49,8 @@ journal_article,Intertextuality in Daniel Kehlmann's Novel Tyll,"Schweissinger, 
 
 `journal_article` and `newspaper_article` also set the publication type, so `contenitore_tipo` can be left out. Columns you omit keep whatever the record already holds; an empty cell clears it.
 
+`autori` (alias `authors`) is free text and is stored exactly as supplied. Several authors are separated by a semicolon; the comma belongs to the name, which is why the row above quotes `"Schweissinger, Marc J."` as one author.
+
 Accepted aliases include `title`, `authors`, `container_title`, `journal_title`, `date`, `year`, `issue`, and `pages`. Header case and separators do not matter. `record_type` (alias `media_type`) accepts `article`, `articolo`, `journal_article`, or `newspaper_article`; it leads the template and the export because it is also what lets the book importer refuse a file of articles — omit it and that guard has nothing to read. The last two also identify the publication type. Unknown types or columns are reported instead of discarded. Article records sent to the book importer are explicitly rejected with directions to Emeroteca.
 
 Exports exceeding 500 rows or 5 MB download as a ZIP of numbered CSV files. Extract and import each CSV separately; every part includes its header and fits the same import limits. Duplicate citations and DOI values are checked within the batch and again at commit, with imports serialized per database. Citation matching includes the publication year and textual date, so recurring columns in different issues remain distinct; a matching DOI still identifies a duplicate. Exported data cells escape spreadsheet formula prefixes and leading apostrophes with an additional apostrophe, which the article importer removes on reimport to preserve the original text.
@@ -55,9 +65,11 @@ When both Emeroteca and Mobile API are active:
 - `GET /api/v1/periodicals/articles` lists public standalone articles with `q`, `testata_id`, `limit` (maximum 50) and `cursor` filters. Use `meta.next_cursor` for the next page.
 - `GET /api/v1/periodicals/articles/{id}` returns a public article or 404. Private records are never exposed.
 
-The routes use the existing bearer authentication, quota and response envelope. Lists and details support ETag/304. `kind` is `autonomo`; `has_public_pdf` indicates a public document. `pdf_url` supplies its absolute public streaming URL (including the installation subdirectory), or null when unavailable. Clients must not construct storage paths. Existing issue API responses are unchanged. Android must implement the new endpoints to display standalone articles; its previous issue browser continues to work.
+`cover_url` supplies the absolute URL of the article image, or null when it has none. The routes use the existing bearer authentication, quota and response envelope. Lists and details support ETag/304. `kind` is `autonomo`; `has_public_pdf` indicates a public document. `pdf_url` supplies its absolute public streaming URL (including the installation subdirectory), or null when unavailable. Clients must not construct storage paths. Existing issue API responses are unchanged. Android must implement the new endpoints to display standalone articles; its previous issue browser continues to work.
 
 ## Upgrade and verification
+
+Version 1.6 adds one nullable column, `emeroteca_contributi.copertina_url`, through the same idempotent additive-column repair as every column before it: no migration file is involved, and an installation upgraded from 1.5 gets it on the first boot after the update. Articles catalogued before the upgrade keep working with no image.
 
 Pinakes 0.7.84 includes `migrate_0.7.84.sql`, which preserves the workflow for existing plugin registrations. The plugin owns the table creation and repair in `ensureSchema()`, called at installation/activation and by the bundled-plugin schema recovery mechanism. The migration does not alter `libri.tipo_media` or existing holdings.
 

@@ -37,6 +37,12 @@ final class ContributionService
         'pdf_nome_originale' => "VARCHAR(255) NULL",
         'pdf_dimensione' => "BIGINT UNSIGNED NULL",
         'pdf_pubblico' => "TINYINT(1) NOT NULL DEFAULT 0",
+        // 1.6.0 — the article's own image, so a result list of articles is not
+        // a wall of text next to a catalogue of covers. Same managed-uploads
+        // path as the issue and masthead images (/uploads/emeroteca/…), never
+        // written from the form body: the controller sets it after validating
+        // the file. NULL is the norm, and the views draw a placeholder.
+        'copertina_url' => "VARCHAR(500) NULL",
         'revision' => "INT UNSIGNED NOT NULL DEFAULT 1",
         'created_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
         'updated_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
@@ -116,7 +122,16 @@ SQL;
      */
     public function get(int $id, bool $publicOnly = false): ?array
     {
-        return $this->rows('SELECT * FROM emeroteca_contributi WHERE id = ?' . ($publicOnly ? ' AND pubblico = 1' : ''), [$id])[0] ?? null;
+        // The masthead logo travels with the row so coverUrl() has one supplier
+        // rather than one per caller. LEFT JOIN: testata_id is nullable — a
+        // standalone article need not belong to a masthead at all — and an
+        // inner join would make those articles vanish from their own page.
+        return $this->rows(
+            'SELECT c.*, t.logo_url testata_logo_url FROM emeroteca_contributi c'
+            . ' LEFT JOIN emeroteca_testate t ON t.id = c.testata_id'
+            . ' WHERE c.id = ?' . ($publicOnly ? ' AND c.pubblico = 1' : ''),
+            [$id]
+        )[0] ?? null;
     }
 
     /** The plugin's workflow mode ('simple' or 'complete'), defaulting to 'complete' when unset. */
@@ -200,13 +215,22 @@ SQL;
         return $out;
     }
 
-    /** Full form or merged import snapshot; optimistic concurrency protects edits. */
-    public function save(array $data, int $id = 0, ?int $revision = null, array $pdf = []): int
+    /**
+     * Full form or merged import snapshot; optimistic concurrency protects edits.
+     *
+     * @param array<string, mixed> $files the upload columns the caller has
+     *        already validated and stored — PDF and cover image. They are
+     *        applied from HERE and never from $data, so a crafted form body
+     *        cannot point a row at a file of someone else's choosing; a key
+     *        that is absent leaves the stored value alone, and an explicit
+     *        null clears it.
+     */
+    public function save(array $data, int $id = 0, ?int $revision = null, array $files = []): int
     {
         $values = self::normalize($data);
-        foreach (['pdf_path','pdf_nome_originale','pdf_dimensione'] as $field) {
-            if (array_key_exists($field, $pdf)) {
-                $values[$field] = $pdf[$field];
+        foreach (['pdf_path','pdf_nome_originale','pdf_dimensione','copertina_url'] as $field) {
+            if (array_key_exists($field, $files)) {
+                $values[$field] = $files[$field];
             }
         }
         if ($id > 0) {
@@ -232,8 +256,55 @@ SQL;
         return $id;
     }
 
-    /** @return array{rows:array,total:int,page:int,pages:int} */
-    public function search(string $term = '', int $testata = 0, bool $public = false, int $page = 1): array
+    /**
+     * The filters the public article search accepts besides the free term:
+     * column => query-string parameter. They exist because on a standalone
+     * article the author, the container and the keywords are free text, not
+     * rows in the core registries, so "everything else by this author" can
+     * only be a filtered search — there is no author page to link to.
+     */
+    public const FILTER_FIELDS = ['autori' => 'autore', 'contenitore_titolo' => 'pubblicazione', 'keywords' => 'keyword'];
+
+    /**
+     * The names credited by a free-text `autori` citation, in the order they
+     * were written — one per narrowing link, because a filter value holding a
+     * whole credit line can only ever match the article it came from.
+     *
+     * The separator is the SEMICOLON and nothing else. A comma is NOT a
+     * separator here: a single name is routinely written inverted, and the
+     * plugin's own documented reference value is "Schweissinger, Marc J."
+     * (README.md, src/Views/article-import.php) — splitting on ',' would turn
+     * one author into two half-names that look plausible and mean nothing.
+     * ' and ' / ' & ' are excluded for the same reason: the CSV importer
+     * accepts corporate authors such as "Institute of Science and Technology".
+     *
+     * A string with no semicolon comes back as a single element, so the whole
+     * existing single-author corpus renders exactly as it did before.
+     * A null, empty or whitespace-only field yields [] — never [''].
+     *
+     * This is a RENDER-TIME split: the stored citation is never rewritten
+     * (ContributionCsv matches duplicates on exact equality of `autori`).
+     *
+     * @return list<string>
+     */
+    public static function authorList(?string $autori): array
+    {
+        if ($autori === null) {
+            return [];
+        }
+        $parts = array_map(
+            static fn (string $name): string => trim($name),
+            explode(';', $autori)
+        );
+        return array_values(array_filter($parts, static fn (string $name): bool => $name !== ''));
+    }
+
+    /**
+     * @param array<string, string> $filters subset of FILTER_FIELDS values ⇒ the
+     *        text to match; an empty or unknown key is ignored
+     * @return array{rows:array,total:int,page:int,pages:int}
+     */
+    public function search(string $term = '', int $testata = 0, bool $public = false, int $page = 1, array $filters = []): array
     {
         $where = ['1=1'];
         $params = [];
@@ -243,6 +314,17 @@ SQL;
         if ($testata > 0) {
             $where[] = 'c.testata_id=?';
             $params[] = $testata;
+        }
+        foreach (self::FILTER_FIELDS as $column => $key) {
+            $value = trim((string) ($filters[$key] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+            // Substring, not equality: keywords arrive as one comma-separated
+            // string, and an author field holding two names must still answer
+            // for each of them.
+            $where[] = "c.$column LIKE ? ESCAPE '='";
+            $params[] = '%' . strtr(mb_substr($value, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
         }
         if ($term !== '') {
             $where[] = "(c.titolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?)";
@@ -254,7 +336,7 @@ SQL;
         $pages = max(1, (int)ceil($total / 50));
         $page = min($pages, max(1, $page));
         $offset = ($page - 1) * 50;
-        $rows = $this->rows("SELECT c.*,t.titolo testata_titolo FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE $sql ORDER BY c.id DESC LIMIT 50 OFFSET $offset", $params);
+        $rows = $this->rows("SELECT c.*,t.titolo testata_titolo,t.logo_url testata_logo_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE $sql ORDER BY c.id DESC LIMIT 50 OFFSET $offset", $params);
         return compact('rows', 'total', 'page', 'pages');
     }
 
@@ -395,6 +477,40 @@ SQL;
      * @param array<string, mixed> $r a raw emeroteca_contributi row
      * @return array<string, mixed>
      */
+    /**
+     * The image to show for an article: its own, else the masthead's.
+     *
+     * An article carries a cover only since 1.6, and most never will — it is
+     * an optional field on a record that is usually just a citation. Falling
+     * straight through to the catalogue placeholder made a list of results a
+     * column of identical grey rectangles. The masthead's logo is the image
+     * the article genuinely belongs to, and in a list it does useful work:
+     * it says at a glance which publication each result came from.
+     *
+     * Deliberately NOT the issue's cover, even when the article is attached to
+     * one. A per-issue photograph varies row by row and stops carrying that
+     * signal; the masthead is the constant the reader is orienting by.
+     *
+     * The single owner of this rule. Both public views and the mobile
+     * projection ask it rather than each writing "own cover or else", because
+     * that is the shape that already produced two disagreeing definitions of
+     * "empty" in this plugin. Pure: the caller's row must already carry
+     * `testata_logo_url`, which every read path that renders an article joins
+     * in. A row without it degrades to the article's own cover, never to a
+     * query issued per rendered row.
+     *
+     * @param array<string,mixed> $row
+     * @return string '' when there is no image at all — the caller decides
+     *                what a missing image looks like (a placeholder on a page,
+     *                a null in a payload, an absent key in structured data).
+     */
+    public static function coverUrl(array $row): string
+    {
+        $own = trim((string) ($row['copertina_url'] ?? ''));
+
+        return $own !== '' ? $own : trim((string) ($row['testata_logo_url'] ?? ''));
+    }
+
     public static function publicData(array $r): array
     {
         $out = array_intersect_key($r, array_flip(['id','titolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','testata_id','fascicolo_id','updated_at']));

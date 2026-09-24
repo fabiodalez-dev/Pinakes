@@ -1245,6 +1245,19 @@ class FrontendController
      *     'url'   string  REQUIRED. Same-origin path starting with "/", e.g.
      *                     "/emeroteca?q=rivista". Absolute URLs and any other
      *                     scheme (javascript:, data:, //host) are rejected.
+     *     'items' array   OPTIONAL. The matches themselves, so the visitor
+     *                     reads the answer instead of a second search to run:
+     *                     each entry is ['label' => …, 'url' => …, 'meta' => …]
+     *                     with label/url validated exactly like the two above
+     *                     and 'meta' an optional plain-text detail line
+     *                     (authors, dates, pages). At most 5 are kept.
+     *     'total' int     OPTIONAL. How many matches exist in the plugin's
+     *                     corpus, which is what makes "showing 5 of 23"
+     *                     honest. Ignored when lower than the item count.
+     *
+     * A listener that returns only label+url keeps working unchanged: items
+     * and total are additive, and a suggestion without items renders as the
+     * plain section link it has always been.
      *
      * The listener MUST NOT return a suggestion when it has no match: the core
      * renders nothing when the array is empty, which is the whole point of the
@@ -1255,7 +1268,7 @@ class FrontendController
      * catalogue page — the hint is simply not rendered. At most 5 suggestions
      * are displayed.
      *
-     * @return array<int, array{label: string, url: string}>
+     * @return array<int, array{label: string, url: string, items: array<int, array{label: string, url: string, meta: string}>, total: int}>
      */
     private function collectExternalSearchSuggestions(string $term): array
     {
@@ -1296,19 +1309,86 @@ class FrontendController
                 $label = mb_substr($label, 0, 160);
             }
 
-            // Same-origin relative paths only: one leading slash NOT followed
-            // by a second one, so "//evil.example" (a protocol-relative URL
-            // that browsers resolve off-site) is rejected together with
-            // javascript:/data: URLs; the character class keeps control
-            // characters and spaces out of the href.
-            if (!preg_match('{^/(?!/)[\w/\-.~%?&=:;,@!$\'()*+\[\]#]*$}', $url)) {
+            if (!$this->isSameOriginPath($url)) {
                 continue;
             }
 
-            $suggestions[] = ['label' => $label, 'url' => $url];
+            $items = $this->sanitizeExternalSuggestionItems($candidate['items'] ?? null);
+            $total = $candidate['total'] ?? null;
+            $total = is_int($total) || (is_string($total) && ctype_digit($total)) ? (int) $total : 0;
+
+            $suggestions[] = [
+                'label' => $label,
+                'url' => $url,
+                'items' => $items,
+                // A total below the number of items on screen would print
+                // "5 of 3": trust the items, which are the thing the visitor
+                // can actually count.
+                'total' => max($total, count($items)),
+            ];
         }
 
         return $suggestions;
+    }
+
+    /**
+     * The matches a listener attached to its suggestion, validated one by one
+     * and capped at 5 — the block is a signpost, not a second results page.
+     *
+     * Each item is held to the same rules as the suggestion itself (plain-text
+     * label, same-origin relative URL) because it is rendered by the same
+     * partial; 'meta' is an optional one-line detail and is truncated, never
+     * interpreted. A malformed item is dropped on its own: one bad row must
+     * not cost the visitor the other four.
+     *
+     * @return array<int, array{label: string, url: string, meta: string}>
+     */
+    private function sanitizeExternalSuggestionItems(mixed $raw): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($raw as $candidate) {
+            if (count($items) >= 5) {
+                break;
+            }
+            if (!is_array($candidate)) {
+                continue;
+            }
+            $label = $candidate['label'] ?? null;
+            $url = $candidate['url'] ?? null;
+            if (!is_string($label) || !is_string($url)) {
+                continue;
+            }
+            $label = trim($label);
+            $url = trim($url);
+            if ($label === '' || !$this->isSameOriginPath($url)) {
+                continue;
+            }
+            $meta = $candidate['meta'] ?? '';
+            $meta = is_string($meta) ? trim($meta) : '';
+
+            $items[] = [
+                'label' => mb_substr($label, 0, 160),
+                'url' => $url,
+                'meta' => mb_substr($meta, 0, 200),
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * Same-origin relative paths only: one leading slash NOT followed by a
+     * second one, so "//evil.example" (a protocol-relative URL that browsers
+     * resolve off-site) is rejected together with javascript:/data: URLs; the
+     * character class keeps control characters and spaces out of the href.
+     */
+    private function isSameOriginPath(string $url): bool
+    {
+        return $url !== '' && preg_match('{^/(?!/)[\w/\-.~%?&=:;,@!$\'()*+\[\]#]*$}', $url) === 1;
     }
 
     private function getFilters(array $params): array

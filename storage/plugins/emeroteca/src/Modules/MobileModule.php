@@ -674,14 +674,19 @@ final class MobileModule
             } else {
                 $cursor=(string)($q['cursor']??'');
                 if ($cursor!=='' && (!ctype_digit($cursor) || strlen($cursor)>10)) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'invalid_cursor',__('Cursore non valido.'),400); }
-                $limit=$this->clampLimit($q['limit']??20); $where='pubblico=1 AND id>?'; $params=[(int)$cursor];
-                if (!empty($q['testata_id'])) { $where.=' AND testata_id=?'; $params[]=(int)$q['testata_id']; }
+                // Every column is qualified with `c.` because the masthead join
+                // below brings a second `titolo` and a second `issn` into scope:
+                // an unqualified name here is an "ambiguous column" error, not a
+                // wrong result, so it would take the endpoint down rather than
+                // quietly change it.
+                $limit=$this->clampLimit($q['limit']??20); $where='c.pubblico=1 AND c.id>?'; $params=[(int)$cursor];
+                if (!empty($q['testata_id'])) { $where.=' AND c.testata_id=?'; $params[]=(int)$q['testata_id']; }
                 if (is_string($q['q']??null) && $q['q']!=='') {
-                    $where.=" AND (titolo LIKE ? ESCAPE '=' OR autori LIKE ? ESCAPE '=' OR contenitore_titolo LIKE ? ESCAPE '=' OR keywords LIKE ? ESCAPE '=' OR issn=?)";
+                    $where.=" AND (c.titolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?)";
                     $pat='%'.strtr(mb_substr($q['q'],0,200),['='=>'==','%'=>'=%','_'=>'=_']).'%';
                     array_push($params,$pat,$pat,$pat,$pat,trim(mb_substr($q['q'],0,200)));
                 }
-                $rows=$service->rows('SELECT * FROM emeroteca_contributi WHERE '.$where.' ORDER BY id LIMIT '.($limit+1),$params);
+                $rows=$service->rows('SELECT c.*, t.logo_url testata_logo_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE '.$where.' ORDER BY c.id LIMIT '.($limit+1),$params);
                 $more=count($rows)>$limit; if ($more) { array_pop($rows); }
                 $items=array_map($this->mapContribution(...),$rows);
                 $meta=['next_cursor'=>$more?(string)end($rows)['id']:null,'limit'=>$limit];
@@ -695,13 +700,26 @@ final class MobileModule
         }
     }
 
-    /** Public article projection, including a server-resolved public PDF URL for clients. */
+    /**
+     * Public article projection, including server-resolved URLs for the public
+     * PDF and the article image.
+     *
+     * publicData() is a whitelist and deliberately leaves copertina_url out —
+     * it holds a storage path, not a URL — so the image is resolved here, the
+     * same way issues and volume years resolve theirs. The fallback to the
+     * masthead's logo comes from ContributionService::coverUrl(), the same
+     * call the public pages make, so the app and the site cannot show a
+     * different image for the same article.
+     */
     private function mapContribution(array $row): array
     {
         $data = \App\Plugins\Emeroteca\Services\ContributionService::publicData($row);
         $data['pdf_url'] = $data['has_public_pdf']
             ? absoluteUrl('/emeroteca/articolo/' . (int)$row['id'] . '/pdf')
             : null;
+        $data['cover_url'] = $this->mediaUrl(
+            \App\Plugins\Emeroteca\Services\ContributionService::coverUrl($row)
+        );
         return $data;
     }
 
