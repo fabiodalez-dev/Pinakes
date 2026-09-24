@@ -183,18 +183,45 @@ class PasswordController
             $stmt->close();
 
             $hash = password_hash($pwd1, PASSWORD_DEFAULT);
-            $stmt = $db->prepare("UPDATE utenti SET password = ?, token_reset_password = NULL, data_token_reset = NULL WHERE id = ?");
-            $stmt->bind_param('si', $hash, $uid);
-            $stmt->execute();
-            $stmt->close();
 
+            // The write and the revocations are one act, not two. In autocommit
+            // the UPDATE would land on its own and a revocation that failed
+            // afterwards would leave the account with a new password and the
+            // old access still open — while this page said the recovery had
+            // worked. Rolling back instead leaves the reset token unused, so
+            // the link in the mailbox still works and the person can retry.
+            //
             // Recovering an account has to end the access the old password was
             // protecting. A remember-me cookie and a Mobile API token both
             // outlive the session that made them, so without this someone who
             // held one kept their way in across the very act performed to take
             // the account back. Nothing is kept: whoever is at this page holds
             // a link sent to the address, not necessarily the owner's browser.
-            \App\Support\CredentialRevoker::revokeAll($db, $uid, false);
+            try {
+                \App\Support\CredentialRevoker::atomically($db, static function () use ($db, $hash, $uid): void {
+                    $stmt = $db->prepare("UPDATE utenti SET password = ?, token_reset_password = NULL, data_token_reset = NULL WHERE id = ?");
+                    if ($stmt === false) {
+                        throw new \RuntimeException($db->error);
+                    }
+                    $stmt->bind_param('si', $hash, $uid);
+                    $stmt->execute();
+                    $stmt->close();
+
+                    \App\Support\CredentialRevoker::revokeAll($db, $uid, false);
+                });
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error(
+                    '[PasswordController] Reset rolled back: the password was not changed because the old access could not be revoked',
+                    ['user_id' => $uid, 'error' => $e->getMessage()]
+                );
+
+                // Carry the token, like every other error on this page: the
+                // rollback kept it valid on purpose, and a form without it is
+                // a form nobody can submit.
+                return $response
+                    ->withHeader('Location', RouteTranslator::route('reset_password') . '?token=' . urlencode($token) . '&error=server')
+                    ->withStatus(302);
+            }
 
             return $response->withHeader('Location', RouteTranslator::route('login') . '?reset=1')->withStatus(302);
         }

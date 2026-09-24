@@ -105,24 +105,38 @@ class ProfileController
         }
 
         $hash = password_hash($p1, PASSWORD_DEFAULT);
-        $stmt = $db->prepare("UPDATE utenti SET password = ? WHERE id = ?");
-        if (!$stmt) {
-            SecureLogger::error('ProfileController: prepare failed for password update', [
-                'user_id' => $uid,
-                'db_error' => $db->error
-            ]);
-            $profileUrl = RouteTranslator::route('profile');
-            return $response->withHeader('Location', $profileUrl . '?error=server')->withStatus(302);
-        }
-        $stmt->bind_param('si', $hash, $uid);
-        $stmt->execute();
-        $stmt->close();
 
+        // One act, not two. In autocommit the UPDATE lands by itself, so a
+        // revocation that failed afterwards would leave the new password in
+        // place with the old devices still signed in — and this page would say
+        // they had been signed out.
+        //
         // Changing the password signs out every other device — the remember-me
         // cookies and the Mobile API tokens the old password authorised — while
         // keeping the session this was typed in, which is the one the person is
         // looking at.
-        $revoked = \App\Support\CredentialRevoker::revokeAll($db, $uid, true);
+        $revoked = ['sessions' => 0, 'mobile' => 0];
+        try {
+            \App\Support\CredentialRevoker::atomically($db, static function () use ($db, $hash, $uid, &$revoked): void {
+                $write = $db->prepare("UPDATE utenti SET password = ? WHERE id = ?");
+                if ($write === false) {
+                    throw new \RuntimeException($db->error);
+                }
+                $write->bind_param('si', $hash, $uid);
+                $write->execute();
+                $write->close();
+
+                $revoked = \App\Support\CredentialRevoker::revokeAll($db, $uid, true);
+            });
+        } catch (\Throwable $e) {
+            SecureLogger::error('ProfileController: password change rolled back, the other devices could not be signed out', [
+                'user_id' => $uid,
+                'error' => $e->getMessage(),
+            ]);
+            $profileUrl = RouteTranslator::route('profile');
+
+            return $response->withHeader('Location', $profileUrl . '?error=server')->withStatus(302);
+        }
 
         $_SESSION['success_message'] = ($revoked['sessions'] + $revoked['mobile']) > 0
             ? __('Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.')

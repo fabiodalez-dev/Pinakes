@@ -79,6 +79,68 @@ final class CredentialRevoker
     }
 
     /**
+     * Run the password write and the revocations as one unit.
+     *
+     * Without it the UPDATE commits on its own — the connection is in
+     * autocommit — and a revocation that fails afterwards leaves the account
+     * with a new password and the old access still open, which is the opposite
+     * of what both callers exist to do. A failure now rolls the whole thing
+     * back, so the reset token is still unused and the person can try again.
+     *
+     * Nesting is detected rather than assumed, per the project convention
+     * documented on BulkFieldEditor::hasActiveTransaction(): an explicit
+     * begin_transaction() leaves @@autocommit at 1, so the flag alone is not
+     * enough and a SAVEPOINT probe settles it.
+     *
+     * @param callable():void $work
+     */
+    public static function atomically(mysqli $db, callable $work): void
+    {
+        $owns = !self::inTransaction($db);
+        if ($owns) {
+            $db->begin_transaction();
+        }
+        try {
+            $work();
+            if ($owns) {
+                $db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($owns) {
+                $db->rollback();
+            }
+            throw $e;
+        }
+    }
+
+    /** @see BulkFieldEditor::hasActiveTransaction() — same two-part check. */
+    private static function inTransaction(mysqli $db): bool
+    {
+        $result = $db->query('SELECT @@autocommit AS ac');
+        if ($result instanceof \mysqli_result) {
+            $row = $result->fetch_assoc();
+            $result->free();
+            if ((int) ($row['ac'] ?? 1) === 0) {
+                return true;
+            }
+        }
+
+        // Outside a transaction a SAVEPOINT is accepted and discarded at once,
+        // so RELEASE cannot find it; inside one it can.
+        $probe = 'pinakes_revoke_probe_' . bin2hex(random_bytes(6));
+        try {
+            if (!$db->query("SAVEPOINT {$probe}")) {
+                return false;
+            }
+            $released = $db->query("RELEASE SAVEPOINT {$probe}");
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return $released !== false;
+    }
+
+    /**
      * Run one revocation statement, tolerating a table the installation does
      * not have. Returns the number of rows it changed.
      */
@@ -89,9 +151,17 @@ final class CredentialRevoker
                 "SELECT 1 FROM information_schema.TABLES
                   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '" . $db->real_escape_string($table) . "' LIMIT 1"
             );
+            if ($exists === false) {
+                throw new \RuntimeException($db->error);
+            }
             if (!($exists instanceof \mysqli_result) || $exists->num_rows === 0) {
                 // The Mobile API plugin is optional; an installation without it
-                // has no tokens to revoke and nothing has gone wrong.
+                // has no tokens to revoke and nothing has gone wrong. This is
+                // the ONLY reason this method is allowed to answer zero without
+                // having revoked anything.
+                if ($exists instanceof \mysqli_result) {
+                    $exists->free();
+                }
                 return 0;
             }
             $exists->free();
@@ -105,17 +175,24 @@ final class CredentialRevoker
             } else {
                 $stmt->bind_param('i', $userId);
             }
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                $error = $stmt->error;
+                $stmt->close();
+                throw new \RuntimeException($error);
+            }
             $affected = $db->affected_rows;
             $stmt->close();
 
             return max(0, (int) $affected);
         } catch (\Throwable $e) {
-            // Never turn a successful password change into an error the user
-            // cannot act on — but never lose the fact either, because what
-            // failed here is a revocation.
+            // Raise it. Answering zero here was the same shape of mistake this
+            // release fixed in the backup dump: it made "I could not revoke
+            // anything" indistinguishable from "there was nothing to revoke",
+            // and the caller reported the password change as done. On a reset
+            // performed BECAUSE an account was taken, that hands the intruder a
+            // live session and tells the owner they are safe.
             SecureLogger::error("[CredentialRevoker] Could not revoke {$table} for user {$userId}: " . $e->getMessage());
-            return 0;
+            throw $e;
         }
     }
 }
