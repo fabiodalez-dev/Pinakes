@@ -607,7 +607,9 @@ class FrbrLrmPlugin
             $response->getBody()->write(htmlspecialchars(__('Opera non trovata'), ENT_QUOTES, 'UTF-8'));
             return $response->withStatus(404);
         }
-        $edizioni = $repo->editionsForOpera((int) $opera['id']);
+        // Public route: the edition list (and the count the view derives from
+        // it) must not advertise titles the library only wishes it had.
+        $edizioni = $repo->editionsForOpera((int) $opera['id'], true);
 
         $viewFile = __DIR__ . '/views/frontend/opera.php';
         ob_start();

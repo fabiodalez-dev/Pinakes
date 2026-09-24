@@ -163,6 +163,10 @@ final class ActivityLog
         'origine' => 'Origine',
         'attivo' => 'Attivo',
         'queue_position' => 'Posizione in coda',
+        // Written by the desiderata sweep in DataIntegrity, which logs the
+        // request being fulfilled and the book entering the catalogue.
+        'is_desiderata' => 'Desiderata',
+        'catalogued_at' => 'Data di catalogazione',
     ];
 
     /**

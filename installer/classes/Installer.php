@@ -1550,6 +1550,15 @@ HTACCESS;
             ['name' => 'mobile_api.dispatch_push', 'callback_method' => 'dispatchPush', 'priority' => 20]
         ]);
         $installPlugin('emeroteca', [], false);
+        // Registered here for the same reason as emeroteca: autoRegisterBundledPlugins()
+        // would only pick it up on the first admin page load, so a freshly installed
+        // library would finish the wizard without it in the completion summary and
+        // without it in the plugins list until somebody happened to reload. Inactive
+        // on purpose — it adds a public donation form and a homepage section, which is
+        // a decision for the librarian, not a default. Its manifest carries
+        // metadata.optional = true, so the later auto-registration would also leave it
+        // off; this line only makes the moment deterministic.
+        $installPlugin('desiderata', [], false);
 
         // Configure Z39 Server with SBN (Servizio Bibliotecario Nazionale) as default
         $this->configureZ39DefaultSettings($pdo);

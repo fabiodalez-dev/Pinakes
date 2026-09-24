@@ -1117,6 +1117,7 @@ class NotificationService {
                 FROM wishlist w
                 JOIN utenti u ON w.utente_id = u.id
                 JOIN libri l ON w.libro_id = l.id AND l.deleted_at IS NULL
+                    AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . "
                 LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE w.libro_id = ?
@@ -1235,6 +1236,7 @@ class NotificationService {
                 SELECT DISTINCT w.libro_id
                 FROM wishlist w
                 JOIN libri l ON w.libro_id = l.id AND l.deleted_at IS NULL
+                    AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . "
                 JOIN utenti u ON w.utente_id = u.id
                 WHERE l.copie_disponibili > 0
                   AND l.stato = 'disponibile'

@@ -830,6 +830,13 @@ $htmlLang = substr($currentLocale, 0, 2);
       return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    // Injected from PHP: both quick-search renderers (desktop in
+    // initializeGlobalSearch, mobile in initializeDropdowns) build their HTML by
+    // string concatenation, so the label arrives already escaped for a JS
+    // string. Declared here, at the shared script scope, precisely so there is
+    // ONE of it — inside either function the other renderer could not see it.
+    const WANTED_LABEL = <?= json_encode(__('Cercato dalla biblioteca'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
     // Locale-aware date formatting (matches PHP format_date helper)
     const appLocale = '<?= \App\Support\I18n::getLocale() ?>';
     function formatDateLocale(date, includeTime = false, separator = '/') {
@@ -946,6 +953,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                       }
                       if (item.isbn) {
                         identifierHtml += `<div class="text-xs text-gray-400 dark:text-gray-500 font-mono">${escapeHtml(String(item.isbn))}</div>`;
+                      }
+                      if (item.wanted) {
+                        identifierHtml += '<div class="text-xs font-medium text-amber-700 mt-0.5">' + WANTED_LABEL + '</div>';
                       }
                       break;
                     case 'author':
@@ -1218,6 +1228,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                       if (item.identifier) {
                         identifierHtml += `<div class="text-xs text-gray-500 mt-1">${escapeHtml(String(item.identifier))}</div>`;
                       }
+                      if (item.wanted) {
+                        identifierHtml += '<div class="text-xs font-medium text-amber-700 mt-0.5">' + WANTED_LABEL + '</div>';
+                      }
                       break;
                     case 'author':
                       iconClass = 'fas fa-user-edit';
@@ -1266,6 +1279,14 @@ $htmlLang = substr($currentLocale, 0, 2);
     }
 
     // Load notifications
+    // A fetch still in flight when the operator navigates away is cancelled by
+    // the browser and rejects with "Failed to fetch". That is not a failure of
+    // the notification endpoint, and reporting it as one filled the console
+    // with a false error on every quick page change.
+    let notificationsPageLeaving = false;
+    window.addEventListener('pagehide', () => { notificationsPageLeaving = true; });
+    window.addEventListener('beforeunload', () => { notificationsPageLeaving = true; });
+
     async function loadNotifications() {
       const list = document.getElementById('notifications-list');
       const empty = document.getElementById('notifications-empty');
@@ -1389,6 +1410,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           });
         }
       } catch (error) {
+        if (notificationsPageLeaving) { return; }
         console.error('Error loading notifications:', error);
         if (empty) empty.classList.remove('hidden');
         list.innerHTML = '';
@@ -1413,6 +1435,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           }
         }
       } catch (error) {
+        if (notificationsPageLeaving) { return; }
         console.error('Error loading notification count:', error);
       }
     }

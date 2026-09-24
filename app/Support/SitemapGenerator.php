@@ -487,7 +487,7 @@ class SitemapGenerator
                        LIMIT 1
                    ) AS autore_principale_nome
             FROM libri l
-            WHERE l.deleted_at IS NULL
+            WHERE l.deleted_at IS NULL AND " . BookVisibility::catalogue($this->db, 'l') . "
             ORDER BY l.updated_at DESC
             LIMIT {$limit}
         ";
@@ -531,7 +531,7 @@ class SitemapGenerator
             SELECT a.nome, a.created_at
             FROM autori a
             JOIN libri_autori la ON la.autore_id = a.id
-            JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
+            JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL AND " . BookVisibility::catalogue($this->db, 'l') . "
             GROUP BY a.id, a.nome, a.created_at
             ORDER BY a.created_at DESC
             LIMIT {$limit}
@@ -584,7 +584,7 @@ class SitemapGenerator
         $sql = "
             SELECT e.nome
             FROM editori e
-            JOIN libri l ON ({$publisherMatch}) AND l.deleted_at IS NULL
+            JOIN libri l ON ({$publisherMatch}) AND l.deleted_at IS NULL AND " . BookVisibility::catalogue($this->db, 'l') . "
             GROUP BY e.id, e.nome
             HAVING COUNT(l.id) > 0
             ORDER BY e.nome ASC
@@ -623,7 +623,7 @@ class SitemapGenerator
         $sql = "
             SELECT g.nome
             FROM generi g
-            JOIN libri l ON l.genere_id = g.id AND l.deleted_at IS NULL
+            JOIN libri l ON l.genere_id = g.id AND l.deleted_at IS NULL AND " . BookVisibility::catalogue($this->db, 'l') . "
             GROUP BY g.id, g.nome
             HAVING COUNT(l.id) > 0
             ORDER BY g.nome ASC

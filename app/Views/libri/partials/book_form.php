@@ -497,6 +497,17 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= __('es. 21x14 cm') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
           </div>
           
+          <?php
+          // The id is cast, not passed through: handlers declare `?int $id`
+          // under strict_types and HookManager::doAction() swallows every
+          // \Throwable, so a numeric-STRING id would not raise an error — the
+          // handler would simply never run and its field would go missing with
+          // nothing in the page to say so. BookRepository::getById() returns a
+          // native int today (prepared statement + get_result), but a plain
+          // $db->query() on the same column yields a string, so the cast is
+          // what keeps that refactor from silently deleting a form field.
+          Hooks::do('book.form.before_copies', [$book, isset($book['id']) ? (int) $book['id'] : null]);
+          ?>
           <div class="form-grid-3">
             <div>
               <label for="copie_totali" class="form-label">
@@ -1027,7 +1038,8 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
       <?php
       // Plugin hook: Additional fields in book form (backend)
       $bookData = $mode === 'edit' ? ($libro ?? null) : null;
-      $bookId = $mode === 'edit' ? ($libro['id'] ?? null) : null;
+      // Cast for the same reason as book.form.before_copies above.
+      $bookId = $mode === 'edit' && isset($libro['id']) ? (int) $libro['id'] : null;
       \App\Support\Hooks::do('book.form.fields', [$bookData, $bookId]);
       ?>
 
@@ -3576,10 +3588,37 @@ function initializeFormValidation() {
 
         // Show confirmation dialog
         const confirmTitle = FORM_MODE === 'edit' ? __('Conferma Aggiornamento') : __('Conferma Salvataggio');
-        const confirmText = FORM_MODE === 'edit'
+        let confirmText = FORM_MODE === 'edit'
             ? __('Vuoi aggiornare il libro "%s"?').replace('%s', title)
             : __('Sei sicuro di voler salvare il libro "%s"?').replace('%s', title);
         const confirmButton = FORM_MODE === 'edit' ? __('Sì, Aggiorna') : __('Sì, Salva');
+
+        // A plugin that injects a field into this form may need to say what
+        // saving will actually DO, because the generic question above cannot:
+        // it only names the book. The desiderata plugin uses this to warn that
+        // clearing its checkbox creates real inventory copies — a consequence
+        // the operator should meet before confirming, not discover afterwards.
+        // Each note returns a string or nothing, and one that throws is skipped
+        // rather than allowed to take the save down with it.
+        window.bookFormConfirmNotes = window.bookFormConfirmNotes || [];
+        const extraNotes = window.bookFormConfirmNotes
+            .map(function (note) {
+                try {
+                    return typeof note === 'function' ? (note() || '') : '';
+                } catch (error) {
+                    console.error('book form confirm note failed', error);
+                    return '';
+                }
+            })
+            .filter(function (note) { return typeof note === 'string' && note !== ''; });
+        // Joined with spaces into one paragraph rather than with newlines:
+        // whether SweetAlert honours a line break in `text` depends on the
+        // white-space rule its stylesheet happens to carry, and a warning that
+        // renders as one run-on line in some builds is still read, while one
+        // that depends on a style we do not control may not be.
+        if (extraNotes.length) {
+            confirmText += ' ' + extraNotes.join(' ');
+        }
 
         const result = await Swal.fire({
             title: confirmTitle,
