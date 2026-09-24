@@ -2600,8 +2600,36 @@ class EmerotecaPlugin
      * optional because emeroteca_articoli / _fascicoli / _annate can be
      * missing on a degraded install, where the narrow form must still answer.
      * The MATCH arm is joined by three LIKEs on purpose: InnoDB FULLTEXT
-     * ignores tokens shorter than innodb_ft_min_token_size and stopwords, so
-     * MATCH alone would hide mastheads the listing does show.
+     * ignores tokens shorter than innodb_ft_min_token_size and stopwords, and
+     * matches whole tokens only — so MATCH alone would hide mastheads the
+     * listing does show.
+     *
+     * That correctness is not free, and the price has been measured rather
+     * than guessed. On a seeded corpus of 400 mastheads and 10.000 indexed
+     * articles (MySQL 9.6, warm buffer pool, best of seven):
+     *
+     *   term          MATCH+LIKE      MATCH only        LIKE only
+     *   miss          43.35 ms (0)     0.24 ms (0)      22.97 ms (0)
+     *   hit           18.06 ms (400)   7.50 ms (400)    36.21 ms (400)
+     *   'ric'          3.68 ms (400)   0.17 ms (0!)     30.94 ms (400)
+     *
+     * The third row is the whole argument: 'ric' is a substring of 'ricerca',
+     * which MATCH does not find and the LIKE does. Dropping the LIKE would
+     * make a catalogue search two orders of magnitude cheaper and quietly
+     * wrong, so it stays.
+     *
+     * Two rewrites were tried and rejected because the planner defeats both:
+     * `t.id IN (SELECT …)` is rewritten to a dependent EXISTS, and a derived
+     * table LEFT JOINed is still evaluated per row while the arm sits in an
+     * OR (measured 49 ms against the EXISTS form's 46 ms). Pre-resolving the
+     * article arm in PHP and passing the ids in costs 38 ms, because the
+     * unavoidable scan of the spoglio is what dominates — not the shape of
+     * the join.
+     *
+     * If this ever needs to be faster, the lever is the SEMANTICS (give up
+     * substring matching on the spoglio, or index for it), not the SQL: that
+     * is a product decision about what a search is expected to find, and it
+     * should be made deliberately rather than inside a performance fix.
      */
     public static function testataSearchWhere(bool $withArticles): string
     {

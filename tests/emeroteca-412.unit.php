@@ -19,15 +19,57 @@ final class Sandbox412Db extends mysqli
         $sql=preg_replace('/\b(fk_emeroteca_\w+|fk_contributo_\w+)\b/',$this->prefix.'$1',$sql);
         return $sql;
     }
+    /**
+     * Statements prepared since the counter was last reset. The hint listener
+     * runs on EVERY catalogue search, so how many queries it issues is part of
+     * its contract — and nothing else in this suite constrains it. The
+     * short-circuit it used to have was removed once without any check
+     * noticing, because every assertion here is about the RESULT and a slower
+     * implementation returns exactly the same one.
+     */
+    public int $preparedCount = 0;
+    /** @var list<string> Statements prepared since the reset, for diagnostics. */
+    public array $preparedSql = [];
+    public function resetStatementCounter(): void { $this->preparedCount = 0; $this->preparedSql = []; }
     public function query(string $query,int $result_mode=MYSQLI_STORE_RESULT): mysqli_result|bool { return parent::query($this->mapped($query),$result_mode); }
-    public function prepare(string $query): mysqli_stmt|false { return new Sandbox412Stmt($this, $this->mapped($query)); }
+    public function prepare(string $query): mysqli_stmt|false {
+        $this->preparedCount++;
+        $this->preparedSql[] = preg_replace('/\s+/', ' ', trim($query)) ?? $query;
+        return new Sandbox412Stmt($this, $this->mapped($query));
+    }
 }
 final class Sandbox412Stmt extends mysqli_stmt
 {
+    /**
+     * The remapped values, kept alive as a property.
+     *
+     * bind_param() binds by REFERENCE and mysqli reads the variables again at
+     * execute(), so the rewritten copies have to outlive this call — which is
+     * why the first version of this class rewrote the caller's own variables
+     * in place. That had a cost nobody saw: a method passing its own parameter
+     * ($table in emerotecaTableExists) got that parameter rewritten underneath
+     * it, so the value it used AFTER the bind was the prefixed one. The
+     * table-existence cache keyed its write on that mutated name and its read
+     * on the original, never hit, and the suite measured a probe-per-call that
+     * production does not perform. Copies on the instance keep the remapping
+     * without reaching back into the code under test.
+     *
+     * @var array<int,mixed>
+     */
+    private array $boundValues = [];
+
     public function __construct(private Sandbox412Db $sandbox, string $sql) { parent::__construct($sandbox,$sql); }
     public function bind_param(string $types, mixed &...$vars): bool {
-        foreach($vars as &$v) { if(is_string($v) && in_array($v,$this->sandbox->tables,true)) $v=$this->sandbox->prefix.$v; }
-        return parent::bind_param($types,...$vars);
+        $this->boundValues = [];
+        foreach ($vars as $i => $v) {
+            $this->boundValues[$i] = (is_string($v) && in_array($v, $this->sandbox->tables, true))
+                ? $this->sandbox->prefix . $v
+                : $v;
+        }
+        $refs = [];
+        foreach ($this->boundValues as $i => &$value) { $refs[$i] = &$value; }
+        unset($value);
+        return parent::bind_param($types, ...$refs);
     }
 }
 $root=dirname(__DIR__); $env=Dotenv\Dotenv::parse(file_get_contents($root.'/.env'));
@@ -196,6 +238,55 @@ $svc->rows("INSERT INTO emeroteca_articoli (fascicolo_id,titolo,autori) VALUES (
 $svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Rivista di Calvino Studies')");
 $suggestCalvino=$plugin->suggestEmerotecaSearch([],'Calvino');
 check412(count($suggestCalvino)===1 && ($suggestCalvino[0]['total']??0)===2,'the masthead hint counts the mastheads reachable through their indexed articles too');
+// How MANY statements the listener issues is part of its contract: it runs on
+// every catalogue search, on the unauthenticated /catalogo, which the core
+// deliberately refuses to cache when a search term is present. An upper bound,
+// not an equality: pinning the exact number would fail on any legitimate change
+// to the predicate, while a ceiling still catches the thing that actually went
+// wrong once — a probe quietly growing into a scan, or a section counting
+// before it knows there is anything to count.
+//
+// Measured on a FRESH instance, because that is what production does: the
+// plugin is constructed per request, so the table-existence probes are paid
+// once per request and the per-instance cache serves everything after them.
+$freshPlugin = static fn(): EmerotecaPlugin => new EmerotecaPlugin($db, new \App\Support\HookManager($db));
+
+$db->resetStatementCounter();
+$freshPlugin()->suggestEmerotecaSearch([], 'zzz-nothing-matches-this-zzz');
+$missStatements = $db->preparedCount;
+check412($missStatements > 0, 'the miss path does reach the database (the budget below is not measuring a no-op)');
+check412(
+    $missStatements <= 9,
+    "a catalogue search matching nothing costs at most 9 statements on a cold instance (measured {$missStatements}: "
+        . implode(' | ', array_map(static fn(string $q): string => substr($q, 0, 34), $db->preparedSql)) . ')'
+);
+
+$db->resetStatementCounter();
+$freshPlugin()->suggestEmerotecaSearch([], 'Calvino');
+$hitStatements = $db->preparedCount;
+check412(
+    $hitStatements <= 12,
+    "a catalogue search that matches costs at most 12 statements on a cold instance (measured {$hitStatements})"
+);
+
+// The table probes must be answered from the per-instance cache after the
+// first time. Without this the suite cannot tell a working cache from a
+// broken one — and it could not, until the sandbox stopped rewriting the
+// caller's own variables underneath it.
+$warm = $freshPlugin();
+$warm->suggestEmerotecaSearch([], 'zzz-warm-up-zzz');
+$db->resetStatementCounter();
+$warm->suggestEmerotecaSearch([], 'zzz-second-miss-zzz');
+$warmStatements = $db->preparedCount;
+check412(
+    $warmStatements < $missStatements,
+    "a second search on the same instance re-probes nothing (cold {$missStatements}, warm {$warmStatements})"
+);
+check412(
+    $warmStatements <= 4,
+    "a warm miss is down to the data queries alone (measured {$warmStatements})"
+);
+
 // "ino" is shorter than innodb_ft_min_token_size, so MATCH alone finds
 // nothing while the destination still lists the masthead by substring.
 $suggestSubtoken=$plugin->suggestEmerotecaSearch([],'ino');
