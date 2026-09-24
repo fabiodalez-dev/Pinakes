@@ -1377,7 +1377,17 @@ class DesiderataPlugin
         try {
             $books = $this->wantedWithOpenOffers(6);
             $offers = $this->db->query("SELECT * FROM desiderata_offers WHERE status = 'pending' ORDER BY id DESC LIMIT 6");
-            $offers = $offers === false ? [] : $offers->fetch_all(MYSQLI_ASSOC);
+            if ($offers === false) {
+                // Not an empty list. An empty list is a fact the operator acts
+                // on — "nothing to decide today" — and a failed query that says
+                // it hides the proposals panel while the dashboard looks
+                // healthy. Under this project's mysqli error mode a failing
+                // query throws and never reaches here; this branch exists for
+                // the window where BackupManager turns reporting off, and it
+                // has to reach the catch below like every other failure.
+                throw new \RuntimeException($this->db->error);
+            }
+            $offers = $offers->fetch_all(MYSQLI_ASSOC);
             $pendingTotal = $this->pendingOfferCount();
             $wantedTotal = $this->wantedCount();
         } catch (Throwable $e) {
