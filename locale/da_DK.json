@@ -7673,5 +7673,8 @@
   "Rimuovi il filtro": "Fjern filter",
   "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Billede af artiklen (JPG, PNG eller WebP, maks. 5 MB)",
   "%d articolo": "%d artikel",
-  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Filen blev fjernet, fordi de offentlige sider er ændret: /sitemap.xml svarer stadig og dannes undervejs. Gendan den for at udgive filen igen."
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Filen blev fjernet, fordi de offentlige sider er ændret: /sitemap.xml svarer stadig og dannes undervejs. Gendan den for at udgive filen igen.",
+  "L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.": "Invitationen blev ikke sendt: e-mailen med linket til at oprette adgangskoden gik ikke ud. Kontrollér e-mailindstillingerne og webstedets offentlige adresse, og send derefter invitationen igen fra brugerens post.",
+  "Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.": "Administrér de enheder, du har logget ind fra, inklusive den du bruger nu. Du kan logge ud af enkelte enheder eller af dem alle på én gang.",
+  "Nessuna sessione attiva.": "Ingen aktive sessioner."
 }

@@ -7673,5 +7673,8 @@
   "Rimuovi il filtro": "Rimuovi il filtro",
   "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)",
   "%d articolo": "%d articolo",
-  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file."
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.",
+  "L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.": "L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.",
+  "Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.": "Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.",
+  "Nessuna sessione attiva.": "Nessuna sessione attiva."
 }

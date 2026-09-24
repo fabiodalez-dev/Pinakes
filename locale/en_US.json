@@ -7673,5 +7673,8 @@
   "Rimuovi il filtro": "Remove filter",
   "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Article image (JPG, PNG or WebP, max 5 MB)",
   "%d articolo": "%d article",
-  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "The file was removed because the public pages changed: meanwhile /sitemap.xml still answers, generated on the fly. Regenerate it to republish the file."
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "The file was removed because the public pages changed: meanwhile /sitemap.xml still answers, generated on the fly. Regenerate it to republish the file.",
+  "L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.": "The invitation did not go out: the e-mail with the link to set the password was not sent. Check the e-mail settings and the site's public address, then send the invitation again from the user's record.",
+  "Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.": "Manage the devices you have signed in from, including the one you are using now. You can sign out of individual devices or of all of them at once.",
+  "Nessuna sessione attiva.": "No active sessions."
 }

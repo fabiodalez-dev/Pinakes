@@ -32,6 +32,18 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
 
+// Before the first line of output: PHP refuses to start a session once
+// anything has been printed, and section D2 needs a genuinely open one —
+// bindSessionToRow() guards on session_status(), which is the behaviour under
+// test. No cookie is involved on the command line.
+// use_cookies only. Disabling use_only_cookies is deprecated in PHP 8.4, and
+// the deprecation notice is itself output — which is exactly what stops the
+// session from starting. The guard it would have relaxed is irrelevant here.
+ini_set('session.use_cookies', '0');
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
 use App\Support\CredentialRevoker;
 use App\Support\PasswordSetupToken;
 use App\Support\RememberMeService;
@@ -161,7 +173,42 @@ try {
 
     unset($_SESSION[RememberMeService::SESSION_ROW_KEY]);
     $check($service->boundSessionIsRevoked() === false,
-        'a session bound to no row is left alone — an ordinary sign-in creates none and is listed as no device');
+        'a session bound to no row is left alone — an installation whose table predates this is not locked out');
+
+    echo "\nD2. An ordinary sign-in — no cookie, no \"remember me\" — is revocable too\n";
+
+    // The hole this closes: AuthMiddleware decides from $_SESSION alone and
+    // never asks the database, so before bindPlainSession() a reset ended the
+    // remembered devices while the browser the intruder was already signed in
+    // on carried on. Bind one the way a plain login does and revoke it the way
+    // a reset does; nothing here is simulated but the login form itself.
+    // bindSessionToRow() writes to $_SESSION only while a session is actually
+    // open, which is right — and means this section needs a real one, not the
+    // bare array the sections above set by hand.
+    $check(session_status() === PHP_SESSION_ACTIVE, 'a real PHP session is open for this section');
+    unset($_SESSION[RememberMeService::SESSION_ROW_KEY]);
+    $before = $liveSessions();
+    $bound = $service->bindPlainSession($userId);
+    $check($bound === true, 'a sign-in with no remember-me cookie still records a session row');
+    $plainRow = isset($_SESSION[RememberMeService::SESSION_ROW_KEY])
+        ? (int) $_SESSION[RememberMeService::SESSION_ROW_KEY]
+        : 0;
+    $check($plainRow > 0, 'and binds this session to it');
+    $check($liveSessions() === $before + 1, 'exactly one row, not one per request');
+
+    $plainHash = (string) ($db->query(
+        "SELECT token_hash FROM user_sessions WHERE id = {$plainRow}"
+    )->fetch_row()[0] ?? '');
+    $check($plainHash !== '', 'the row carries a token hash, as the column requires');
+    $_COOKIE['remember_token'] = $plainHash;
+    $check((new RememberMeService($db))->validateToken() === null,
+        'and that hash is not a usable cookie: the row can be revoked but never authenticates anyone');
+    unset($_COOKIE['remember_token']);
+
+    $check($service->boundSessionIsRevoked() === false, 'the ordinary session is live before the reset');
+    CredentialRevoker::revokeAll($db, $userId, false);
+    $check($service->boundSessionIsRevoked() === true,
+        'a password reset ends it on its next request — the claim "a reset ends every session" is now true');
 
     echo "\nE. An administrative endpoint decides on the account, not on the snapshot\n";
 

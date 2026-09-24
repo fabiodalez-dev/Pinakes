@@ -85,6 +85,75 @@ class RememberMeService
     }
 
     /**
+     * Record an ORDINARY sign-in — no "remember me", no cookie — as a row in
+     * user_sessions, and bind this session to it.
+     *
+     * Without this, revoking an account's credentials reached only the sessions
+     * that happened to carry a remember-me cookie. Everything else is decided
+     * from $_SESSION, which AuthMiddleware trusts without asking the database,
+     * so a password reset ended the intruder's automatic sign-ins while the
+     * browser they were already signed in on carried on until it expired by
+     * itself. That is the opposite of what a reset is for.
+     *
+     * The row's token_hash is the hash of 32 bytes that are generated here and
+     * never leave this method: nothing is ever sent to the client, so no cookie
+     * can present it and this row can never authenticate anyone. It exists to
+     * be revoked. Everything downstream — CredentialRevoker, the session list,
+     * boundSessionIsRevoked() — then treats an ordinary sign-in exactly like a
+     * remembered one, which is the behaviour a reader of "this ends every
+     * session" expects.
+     *
+     * expires_at follows the session's own lifetime (session.gc_maxlifetime, as
+     * public/index.php set it from the installation's setting) rather than the
+     * remember-me lifetime: this row must not outlive the session it describes,
+     * or the account's session list would fill with entries for browsers that
+     * were closed weeks ago.
+     */
+    public function bindPlainSession(int $userId): bool
+    {
+        if ($userId <= 0 || !$this->tableExists()) {
+            return false;
+        }
+
+        $tokenHash = hash('sha256', 'session:' . bin2hex(random_bytes(32)));
+        $ipAddress = $this->getClientIP();
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+        $deviceInfo = $this->parseDeviceInfo($userAgent);
+        $lifetime = (int) ini_get('session.gc_maxlifetime');
+        if ($lifetime <= 0) {
+            $lifetime = 24 * 60 * 60;
+        }
+        $expiresAt = gmdate('Y-m-d H:i:s', time() + $lifetime);
+
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO user_sessions (utente_id, token_hash, device_info, ip_address, user_agent, expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('isssss', $userId, $tokenHash, $deviceInfo, $ipAddress, $userAgent, $expiresAt);
+            $stmt->execute();
+            $rowId = (int) $this->db->insert_id;
+            $stmt->close();
+        } catch (\Throwable $e) {
+            // A sign-in must not fail because its audit row could not be
+            // written; log it and leave the session unbound, which is exactly
+            // how every session behaved before this method existed.
+            SecureLogger::warning('[RememberMeService] Could not record the sign-in: ' . $e->getMessage());
+            return false;
+        }
+
+        if ($rowId <= 0) {
+            return false;
+        }
+        $this->bindSessionToRow($rowId);
+
+        return true;
+    }
+
+    /**
      * Validate remember token from cookie and return user ID if valid.
      */
     public function validateToken(): ?int
@@ -213,9 +282,9 @@ class RememberMeService
     /**
      * Remember which `user_sessions` row this PHP session was opened from.
      *
-     * Only remember-me sign-ins create such a row, and only those appear in the
-     * "active sessions" list an operator can revoke — so binding exactly those
-     * is enough for revocation to mean what the interface says it means.
+     * Every sign-in creates one — createToken() with a cookie, bindPlainSession()
+     * without — so revoking an account's credentials reaches the browser it is
+     * being revoked from and not only the ones that asked to be remembered.
      */
     private function bindSessionToRow(int $rowId): void
     {
@@ -227,11 +296,12 @@ class RememberMeService
     /**
      * True when the row this session is bound to has been revoked or expired.
      *
-     * Answers false for a session that is bound to nothing: an ordinary
-     * sign-in without "remember me" creates no row, is not listed as a device,
-     * and therefore cannot have been revoked. Also false when the lookup
-     * fails — a database hiccup must not sign the whole library out, and the
-     * next request asks again.
+     * Answers false for a session that is bound to nothing. Every sign-in binds
+     * one now, so in practice that means a session opened before this shipped,
+     * or one on an installation whose user_sessions table is missing: neither
+     * can be judged, and refusing them would sign the library out on upgrade.
+     * Also false when the lookup fails — a database hiccup must not sign
+     * everyone out, and the next request asks again.
      */
     public function boundSessionIsRevoked(): bool
     {
@@ -241,9 +311,16 @@ class RememberMeService
         }
 
         try {
-            $this->db->query("SET SESSION time_zone = '+00:00'");
+            // UTC_TIMESTAMP() rather than the SET SESSION time_zone the other
+            // methods here use. expires_at is stored in UTC, so both spellings
+            // compare correctly — but this one runs on EVERY authenticated
+            // request through RememberMeMiddleware, and moving the shared
+            // connection's time zone that often would leave it changed under
+            // whatever reads a date next. A comparison does not need the
+            // session's clock; only formatting does.
             $stmt = $this->db->prepare(
-                'SELECT is_revoked, (expires_at > NOW()) AS still_valid FROM user_sessions WHERE id = ? LIMIT 1'
+                'SELECT is_revoked, (expires_at > UTC_TIMESTAMP()) AS still_valid
+                   FROM user_sessions WHERE id = ? LIMIT 1'
             );
             if ($stmt === false) {
                 return false;
@@ -325,10 +402,18 @@ class RememberMeService
         $stmt->execute();
         $result = $stmt->get_result();
 
+        // The row THIS session was opened from. Every sign-in binds one now,
+        // including one with no "remember me" cookie — and that is the case the
+        // cookie comparison below cannot answer, because there is no cookie to
+        // compare. Without this the browser the reader is looking at the page
+        // from would be listed as somebody else's device.
+        $boundRow = isset($_SESSION[self::SESSION_ROW_KEY]) ? (int) $_SESSION[self::SESSION_ROW_KEY] : 0;
+
         $sessions = [];
         while ($row = $result->fetch_assoc()) {
             // Timing-safe comparison to prevent timing attacks
-            $isCurrent = $currentTokenHash !== null && hash_equals($currentTokenHash, $row['token_hash']);
+            $isCurrent = ($boundRow > 0 && (int) $row['id'] === $boundRow)
+                || ($currentTokenHash !== null && hash_equals($currentTokenHash, $row['token_hash']));
 
             $sessions[] = [
                 'id' => (int) $row['id'],

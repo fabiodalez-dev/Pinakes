@@ -7673,5 +7673,8 @@
   "Rimuovi il filtro": "Filter entfernen",
   "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Artikelbild (JPG, PNG oder WebP, max. 5 MB)",
   "%d articolo": "%d Artikel",
-  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Die Datei wurde entfernt, weil sich die öffentlichen Seiten geändert haben: /sitemap.xml antwortet weiterhin und wird dabei zur Laufzeit erzeugt. Neu erzeugen, um die Datei wieder zu veröffentlichen."
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Die Datei wurde entfernt, weil sich die öffentlichen Seiten geändert haben: /sitemap.xml antwortet weiterhin und wird dabei zur Laufzeit erzeugt. Neu erzeugen, um die Datei wieder zu veröffentlichen.",
+  "L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.": "Die Einladung wurde nicht versendet: Die E-Mail mit dem Link zum Festlegen des Passworts ist nicht hinausgegangen. Prüfen Sie die E-Mail-Einstellungen und die öffentliche Adresse der Website und senden Sie die Einladung anschließend erneut über den Datensatz des Benutzers.",
+  "Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.": "Verwalten Sie die Geräte, von denen aus Sie sich angemeldet haben, einschließlich des Geräts, das Sie gerade verwenden. Sie können sich von einzelnen Geräten oder von allen gleichzeitig abmelden.",
+  "Nessuna sessione attiva.": "Keine aktiven Sitzungen."
 }

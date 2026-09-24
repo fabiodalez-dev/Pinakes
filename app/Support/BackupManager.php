@@ -682,6 +682,14 @@ class BackupManager
                 @unlink($maintenanceFile);
             }
             if ($incomplete) {
+                // Replace the "try again in a few minutes" text: it is not true
+                // any more, and the operator reading the page has one specific
+                // thing to do.
+                @file_put_contents($maintenanceFile, json_encode([
+                    'time' => time(),
+                    'sticky' => true,
+                    'message' => __('Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.'),
+                ]), LOCK_EX);
                 SecureLogger::error(
                     '[BackupManager] Restore left the database incomplete; maintenance mode stays ON until an '
                     . 'operator restores the safety backup: ' . (string) ($outcome['safety_backup'] ?? 'none')
@@ -706,8 +714,17 @@ class BackupManager
         }
         // Fail loud: if the flag can't be written the restore must NOT proceed,
         // otherwise visitors hit the site mid DROP/CREATE. (#167 review)
+        // 'sticky' switches off the 30-minute staleness net in public/index.php.
+        // That net exists for an update that died and left the flag behind, and
+        // it is right for one — but a restore is the one operation where
+        // reopening on a timer is the wrong answer: past the first DROP TABLE
+        // the database may be half old and half new, and thirty minutes is a
+        // plausible length for a large import, not evidence that it finished.
+        // The flag is cleared by the finally below on every outcome except the
+        // one where the database really was left incomplete.
         $written = @file_put_contents($maintenanceFile, json_encode([
             'time' => time(),
+            'sticky' => true,
             'message' => __('Ripristino in corso. Riprova tra qualche minuto.'),
         ]), LOCK_EX);
         if ($written === false) {
@@ -724,6 +741,10 @@ class BackupManager
         $stagingDir = null;
         $safetyName = null;
         $dbImported = false;
+        // Per restore, not per object: a second restore through the same
+        // instance would otherwise inherit the first one's verdict and report
+        // an untouched database as half-replaced.
+        $this->databaseReplacementStarted = false;
         try {
             // 1. Safety backup of the current state (always full) — the rollback
             //    path, since MySQL DDL can't run inside a transaction.
@@ -767,11 +788,10 @@ class BackupManager
                 $zip->close();
             }
 
-            // 4. Import the DB (hash-verified inside). From the line below until
-            //    importDatabase() returns, the database may be part old and part
-            //    new — the flag is what lets the failure paths tell that apart
-            //    from a restore that never touched anything.
-            $this->databaseReplacementStarted = true;
+            // 4. Import the DB (hash-verified inside). importDatabase() raises
+            //    $databaseReplacementStarted itself, once its own preconditions
+            //    have passed and the first DROP TABLE is imminent — that is the
+            //    only place that knows where "whole" ends.
             $this->importDatabase($sqlTmp, $expectedSha);
             // The live DB is now the restored one — any later failure is a
             // PARTIAL restore, not a no-op, and must be reported as such.
@@ -1014,6 +1034,10 @@ class BackupManager
     private function insertableColumns(string $table): array
     {
         $columns = [];
+        // Whether the catalogue ANSWERED, as opposed to returning nothing.
+        // The two are not the same thing and the difference decides whether an
+        // empty list is a fact or a failure — see the note below.
+        $probed = false;
         try {
             $stmt = $this->db->prepare(
                 'SELECT COLUMN_NAME FROM information_schema.COLUMNS
@@ -1027,30 +1051,62 @@ class BackupManager
             $stmt->bind_param('s', $table);
             $stmt->execute();
             $result = $stmt->get_result();
+            $probed = true;
             while ($result instanceof \mysqli_result && ($row = $result->fetch_row())) {
                 $columns[] = (string) $row[0];
             }
             $stmt->close();
         } catch (\Throwable $e) {
             SecureLogger::warning(
-                "[BackupManager] Could not read the column list of {$table}; dumping every column: " . $e->getMessage()
+                "[BackupManager] Could not read the column list of {$table} from information_schema: "
+                . $e->getMessage()
             );
+            $probed = false;
             $columns = [];
         }
 
-        if ($columns === []) {
-            // Fall back to the full column list from the open connection.
-            try {
-                $describe = $this->db->query("SHOW COLUMNS FROM `{$table}`");
-                while ($describe instanceof \mysqli_result && ($row = $describe->fetch_assoc())) {
-                    $columns[] = (string) $row['Field'];
-                }
-                if ($describe instanceof \mysqli_result) {
-                    $describe->free();
-                }
-            } catch (\Throwable $e) {
-                return [];
+        if ($probed) {
+            // Authoritative. An empty list here means the table really has no
+            // column that can be written — every one of them is generated —
+            // which dumpDatabaseTo() handles by emitting no INSERT at all.
+            return $columns;
+        }
+
+        // information_schema was unreadable. SHOW COLUMNS answers from the open
+        // connection and its Extra field names a generated column, so the same
+        // distinction survives the fallback. "DEFAULT_GENERATED" is an ordinary
+        // DEFAULT CURRENT_TIMESTAMP and must NOT be excluded — it contains the
+        // word, which is exactly how this check gets written wrong.
+        try {
+            $describe = $this->db->query("SHOW COLUMNS FROM `{$table}`");
+            if ($describe === false) {
+                throw new \RuntimeException($this->db->error);
             }
+            while ($describe instanceof \mysqli_result && ($row = $describe->fetch_assoc())) {
+                $extra = strtoupper((string) ($row['Extra'] ?? ''));
+                if (str_contains($extra, 'VIRTUAL GENERATED') || str_contains($extra, 'STORED GENERATED')) {
+                    continue;
+                }
+                $columns[] = (string) $row['Field'];
+            }
+            if ($describe instanceof \mysqli_result) {
+                $describe->free();
+            }
+        } catch (\Throwable $e) {
+            // NOT an empty list. Returning one would make dumpDatabaseTo() skip
+            // the table and write an archive that restores it empty, with no
+            // error anywhere — a backup that looks complete and has lost a
+            // table. A backup that cannot be trusted must not be produced.
+            throw new \RuntimeException(
+                sprintf(__('Errore nella lettura delle colonne della tabella %s'), $table) . ': ' . $e->getMessage()
+            );
+        }
+
+        if ($columns === []) {
+            throw new \RuntimeException(
+                sprintf(__('Errore nella lettura delle colonne della tabella %s'), $table)
+                . ': ' . __('nessuna colonna leggibile')
+            );
         }
 
         return $columns;
@@ -1218,6 +1274,13 @@ class BackupManager
                 throw new \RuntimeException(__('Il backup è corrotto (checksum del database non valido)'));
             }
         }
+
+        // Every check that can reject the dump has now passed. From here the
+        // first DROP TABLE may land at any moment, so this — not a line earlier
+        // — is where the database stops being whole. Setting it before the
+        // checksum would report a corrupt archive, which touched nothing, as a
+        // half-replaced database and keep the site closed for no reason.
+        $this->databaseReplacementStarted = true;
 
         if (!$this->importViaCli($sqlPath)) {
             $this->importViaPhp($sqlPath);

@@ -7673,5 +7673,8 @@
   "Rimuovi il filtro": "Retirer le filtre",
   "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Image de l'article (JPG, PNG ou WebP, 5 Mo maximum)",
   "%d articolo": "%d article",
-  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Le fichier a été supprimé parce que les pages publiques ont changé : entre-temps /sitemap.xml répond toujours, générée à la volée. Régénérez-la pour republier le fichier."
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Le fichier a été supprimé parce que les pages publiques ont changé : entre-temps /sitemap.xml répond toujours, générée à la volée. Régénérez-la pour republier le fichier.",
+  "L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.": "L’invitation n’est pas partie : le courriel contenant le lien pour définir le mot de passe n’a pas été envoyé. Vérifiez les réglages de messagerie et l’adresse publique du site, puis renvoyez l’invitation depuis la fiche de l’utilisateur.",
+  "Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.": "Gérez les appareils depuis lesquels vous vous êtes connecté, y compris celui que vous utilisez actuellement. Vous pouvez vous déconnecter d’appareils précis ou de tous en même temps.",
+  "Nessuna sessione attiva.": "Aucune session active."
 }

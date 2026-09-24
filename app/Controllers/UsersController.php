@@ -247,9 +247,16 @@ class UsersController
         // notifier then declines to send a link that could not work.
         $setupToken = $sendSetupEmail ? \App\Support\PasswordSetupToken::issue($db, $userId) : null;
 
+        // Whether the invitation actually left. The notifier returns false when
+        // it has no trustworthy address to build the link from, or when the
+        // mail itself fails — and an account created with a setup link that was
+        // never sent looks identical to one that works: the operator is told
+        // "created", nobody arrives, and the reason is only in a log.
+        $inviteSent = true;
+
         if ($isAdmin) {
             if ($sendSetupEmail) {
-                $notifier->sendAdminInvitation($userId, $setupToken);
+                $inviteSent = $notifier->sendAdminInvitation($userId, $setupToken);
             }
         } else {
             // Audit logging for user creation
@@ -263,14 +270,16 @@ class UsersController
             ]);
 
             if ($sendSetupEmail) {
-                $notifier->sendUserPasswordSetup($userId, $setupToken);
+                $inviteSent = $notifier->sendUserPasswordSetup($userId, $setupToken);
             }
             if ($stato === 'attivo') {
                 $notifier->sendUserAccountApproved($userId);
             }
         }
 
-        return $response->withHeader('Location', url('/admin/users?created=1'))->withStatus(302);
+        $createdUrl = url('/admin/users?created=1') . ($inviteSent ? '' : '&invite=failed');
+
+        return $response->withHeader('Location', $createdUrl)->withStatus(302);
     }
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
@@ -579,11 +588,17 @@ class UsersController
             $notifier->sendUserAccountApproved($id);
         }
 
+        // Same rule as creation: a promotion whose invitation never left leaves
+        // an administrator who cannot set a password, and saying "updated" hides
+        // it. The account keeps the new role either way — that part did happen.
+        $inviteSent = true;
         if ($isAdmin && ($original['tipo_utente'] ?? '') !== 'admin' && empty($data['password'])) {
-            $notifier->sendAdminInvitation($id, \App\Support\PasswordSetupToken::issue($db, $id));
+            $inviteSent = $notifier->sendAdminInvitation($id, \App\Support\PasswordSetupToken::issue($db, $id));
         }
 
-        return $response->withHeader('Location', url('/admin/users?updated=1'))->withStatus(302);
+        $updatedUrl = url('/admin/users?updated=1') . ($inviteSent ? '' : '&invite=failed');
+
+        return $response->withHeader('Location', $updatedUrl)->withStatus(302);
     }
 
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response

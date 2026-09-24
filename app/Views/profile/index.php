@@ -553,14 +553,14 @@
     </form>
   </div>
 
-  <!-- Sessioni attive (Remember Me) -->
+  <!-- Sessioni attive: ogni accesso registra una riga, non solo quelli con 'Ricordami' -->
   <div class="card">
     <h2 class="card-title">
       <i class="fas fa-desktop"></i>
       <?= __("Sessioni attive") ?>
     </h2>
     <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 1rem;">
-      <?= __("Gestisci i dispositivi su cui hai effettuato l'accesso con 'Ricordami'. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.") ?>
+      <?= __("Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.") ?>
     </p>
 
     <div id="sessions-container">
@@ -576,7 +576,7 @@
   const csrfToken = <?= json_encode(App\Support\Csrf::ensureToken(), JSON_HEX_TAG) ?>;
   const translations = {
     loading: <?= json_encode(__("Caricamento sessioni..."), JSON_HEX_TAG) ?>,
-    noSessions: <?= json_encode(__("Nessuna sessione attiva. Le sessioni vengono create quando accedi con 'Ricordami' selezionato."), JSON_HEX_TAG) ?>,
+    noSessions: <?= json_encode(__("Nessuna sessione attiva."), JSON_HEX_TAG) ?>,
     currentSession: <?= json_encode(__("Sessione corrente"), JSON_HEX_TAG) ?>,
     lastUsed: <?= json_encode(__("Ultimo utilizzo"), JSON_HEX_TAG) ?>,
     created: <?= json_encode(__("Creata"), JSON_HEX_TAG) ?>,

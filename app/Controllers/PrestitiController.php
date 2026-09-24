@@ -1868,19 +1868,33 @@ class PrestitiController
         // Nulla di ciò che restituisce viene dato per buono: serve solo a
         // sapere quali libri bloccare, e ogni prestito viene riletto e
         // rivalidato sotto il proprio lock più sotto, esattamente come prima.
-        $bookScan = $db->prepare("SELECT id, libro_id FROM prestiti WHERE id IN ($placeholders)");
-        $bookScan->bind_param(str_repeat('i', count($ids)), ...$ids);
-        $bookScan->execute();
-        $bookResult = $bookScan->get_result();
+        //
+        // Its own guard, because it is now outside the transaction and so
+        // outside the catch that used to cover it: under this project's mysqli
+        // error mode a failing prepare() throws, and moving the read out here
+        // would otherwise have turned a handled error into a 500 on the loans
+        // list. Same answer as every other failure in this action.
         $expectedBookByLoan = [];
         $bookIds = [];
-        while ($row = $bookResult->fetch_assoc()) {
-            $loanId = (int) $row['id'];
-            $bookId = (int) $row['libro_id'];
-            $expectedBookByLoan[$loanId] = $bookId;
-            $bookIds[$bookId] = $bookId;
+        try {
+            $bookScan = $db->prepare("SELECT id, libro_id FROM prestiti WHERE id IN ($placeholders)");
+            if ($bookScan === false) {
+                throw new \RuntimeException($db->error);
+            }
+            $bookScan->bind_param(str_repeat('i', count($ids)), ...$ids);
+            $bookScan->execute();
+            $bookResult = $bookScan->get_result();
+            while ($row = $bookResult->fetch_assoc()) {
+                $loanId = (int) $row['id'];
+                $bookId = (int) $row['libro_id'];
+                $expectedBookByLoan[$loanId] = $bookId;
+                $bookIds[$bookId] = $bookId;
+            }
+            $bookScan->close();
+        } catch (\Throwable $e) {
+            SecureLogger::error('Bulk loan extend failed while gathering the books: ' . $e->getMessage());
+            return $response->withHeader('Location', $backUrl . '?error=bulk_extend_failed')->withStatus(302);
         }
-        $bookScan->close();
         sort($bookIds, SORT_NUMERIC);
 
         $db->begin_transaction();

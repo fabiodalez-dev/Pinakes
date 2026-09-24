@@ -228,6 +228,17 @@ SQL;
     $check(str_contains((string) ($result['error'] ?? ''), 'manutenzione'),
         'and the operator is told what to do rather than handed the SQL error alone');
 
+    // Staying ON is not enough on its own. public/index.php clears a
+    // maintenance flag it judges stale after thirty minutes — a safety net for
+    // an update that died — and a large import is easily longer than that, so
+    // without an exemption the site would reopen itself on the half-replaced
+    // database and the check above would be worth nothing.
+    $flag = json_decode((string) @file_get_contents($maintenanceFile), true);
+    $check(is_array($flag) && ($flag['sticky'] ?? false) === true,
+        'the flag is marked sticky, so the staleness timer cannot lift it');
+    $check(is_array($flag) && str_contains((string) ($flag['message'] ?? ''), 'backup di sicurezza'),
+        'and the page a visitor lands on names the one thing the operator has to do');
+
     echo "\nE. A restore that succeeds still reopens the site\n";
 
     // The guard above must not turn into "every restore locks the library out".
@@ -275,6 +286,58 @@ SQL;
 } finally {
     $cleanup();
     $db->close();
+}
+
+// F. The other half of the guarantee, on the real entry point.
+//
+// Everything above happens inside a fake root; whether the site actually stays
+// closed is decided by public/index.php, which clears a maintenance flag older
+// than thirty minutes. This section puts a genuinely stale flag in front of a
+// real server and asks it. The installation's own flag is saved and put back
+// whatever happens — including if a check throws.
+echo "\nF. A stale sticky flag still closes the site (real request)\n";
+
+$liveFlag = dirname(__DIR__) . '/storage/.maintenance';
+$base     = getenv('E2E_BASE_URL') ?: 'http://localhost:8081';
+$probe    = static function (string $url): ?int {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8, CURLOPT_FOLLOWLOCATION => false]);
+    $body = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($body === false || $code === 0) {
+        return null;
+    }
+    return $code;
+};
+
+if ($probe($base . '/') === null) {
+    echo "NOTE: no server answering at {$base} — the two real-request checks are not running.\n";
+} else {
+    $saved = is_file($liveFlag) ? (string) file_get_contents($liveFlag) : null;
+    $stale = time() - 3600; // an hour old: comfortably past the thirty-minute net
+    try {
+        file_put_contents($liveFlag, json_encode([
+            'time' => $stale,
+            'sticky' => true,
+            'message' => 'zz-probe',
+        ]), LOCK_EX);
+        $check($probe($base . '/') === 503,
+            'an hour-old STICKY flag still closes the site — the staleness net does not reopen a restore');
+
+        file_put_contents($liveFlag, json_encode([
+            'time' => $stale,
+            'message' => 'zz-probe',
+        ]), LOCK_EX);
+        $check($probe($base . '/') !== 503,
+            'an hour-old ORDINARY flag is still cleared — the net an interrupted update relies on is intact');
+    } finally {
+        if ($saved !== null) {
+            file_put_contents($liveFlag, $saved, LOCK_EX);
+        } elseif (is_file($liveFlag)) {
+            @unlink($liveFlag);
+        }
+    }
 }
 
 echo "\n" . ($fail === 0

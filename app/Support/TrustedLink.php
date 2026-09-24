@@ -42,7 +42,11 @@ final class TrustedLink
 
         $trustedHost = HtmlHelper::configuredTrustedHost();
         if ($trustedHost !== null) {
-            return 'https://' . $trustedHost . $path;
+            // The base path belongs here too. A trusted host is only a host, and
+            // an installation living in a sub-directory — which this project
+            // supports and tests — would otherwise be sent a link one directory
+            // too high: a valid token pointing at a 404.
+            return 'https://' . $trustedHost . HtmlHelper::getBasePath() . $path;
         }
 
         return null;

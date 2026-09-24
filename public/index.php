@@ -170,9 +170,14 @@ if (file_exists($maintenanceFile)) {
         $maintenanceData = json_decode(file_get_contents($maintenanceFile), true);
         $message = $maintenanceData['message'] ?? 'Il sito è in manutenzione. Riprova tra qualche minuto.';
 
-        // Check if maintenance is stale (older than 30 minutes - safety net)
+        // Check if maintenance is stale (older than 30 minutes - safety net).
+        // A restore marks the flag 'sticky' and is exempt: past its first DROP
+        // TABLE the database may be part old and part new, so reopening the
+        // site on a timer would serve a catalogue that is neither version.
+        // Only an operator — or the restore itself, on the way out — clears it.
         $maintenanceTime = $maintenanceData['time'] ?? 0;
-        if (time() - $maintenanceTime > 1800) {
+        $maintenanceSticky = !empty($maintenanceData['sticky']);
+        if (!$maintenanceSticky && time() - $maintenanceTime > 1800) {
             // Stale maintenance file, remove it and continue
             unlink($maintenanceFile);
         } else {
