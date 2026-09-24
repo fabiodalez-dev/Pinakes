@@ -77,7 +77,7 @@ $mysqli->set_charset($charset);
 try {
     $baseUrl = SeoController::resolveBaseUrl();
     $generator = new SitemapGenerator($mysqli, $baseUrl);
-    $targetPath = $rootDir . '/public/sitemap.xml';
+    $targetPath = \App\Support\SitemapCache::publishedPath();
 
     $generator->saveTo($targetPath);
     $stats = $generator->getStats();

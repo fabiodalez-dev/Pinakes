@@ -7670,5 +7670,6 @@
   "Mostra tutti gli articoli": "Show all articles",
   "Rimuovi il filtro": "Remove filter",
   "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Article image (JPG, PNG or WebP, max 5 MB)",
-  "%d articolo": "%d article"
+  "%d articolo": "%d article",
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "The file was removed because the public pages changed: meanwhile /sitemap.xml still answers, generated on the fly. Regenerate it to republish the file."
 }

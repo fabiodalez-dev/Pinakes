@@ -7670,5 +7670,6 @@
   "Mostra tutti gli articoli": "Vis alle artikler",
   "Rimuovi il filtro": "Fjern filter",
   "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Billede af artiklen (JPG, PNG eller WebP, maks. 5 MB)",
-  "%d articolo": "%d artikel"
+  "%d articolo": "%d artikel",
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Filen blev fjernet, fordi de offentlige sider er ændret: /sitemap.xml svarer stadig og dannes undervejs. Gendan den for at udgive filen igen."
 }

@@ -2549,6 +2549,13 @@ class PluginManager
     /**
      * Invalidate the cross-request plugin caches. Must be called by every
      * plugin lifecycle mutation (install/activate/deactivate/uninstall).
+     *
+     * The published sitemap is one of those caches. A plugin owns public URLs
+     * — /emeroteca, /archivio — so enabling or removing one changes the set of
+     * addresses the site advertises, and a file written before that change
+     * keeps sending crawlers to pages that now answer 404. Dropping it is
+     * harmless: /sitemap.xml regenerates the correct document on the next
+     * request until the admin button or the cron republishes the file.
      */
     public static function clearPluginCache(): void
     {
@@ -2562,6 +2569,7 @@ class PluginManager
         QueryCache::clearByPrefix('plugins_payload_');
         QueryCache::clearByPrefix('plugins_maintenance_');
         self::$isActiveCache = [];
+        SitemapCache::invalidate('plugin lifecycle change');
     }
 
     /**
