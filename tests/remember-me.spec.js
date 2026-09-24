@@ -96,7 +96,12 @@ test.describe.serial('Remember Me checkbox', () => {
     }
   });
 
-  test('unticked → no remember_token cookie and no user_sessions row', async ({ browser }) => {
+  // The row is the point, and it is new in 0.7.86. Before it, only a remembered
+  // sign-in left anything revocable behind, so a password reset ended the
+  // automatic sign-ins while the browser an intruder was already using carried
+  // on — AuthMiddleware decides from the PHP session and the session was tied to
+  // nothing. What must stay absent when the box is unticked is the COOKIE.
+  test('unticked → no remember_token cookie, but a revocable user_sessions row', async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
     try {
@@ -106,8 +111,17 @@ test.describe.serial('Remember Me checkbox', () => {
       const remember = cookies.find(c => c.name === 'remember_token');
       expect(remember, 'no remember_token cookie when the box is left unticked').toBeFalsy();
 
-      const rows = dbQuery(`SELECT COUNT(*) FROM user_sessions WHERE utente_id=${adminId}`);
-      expect(rows).toBe('0');
+      const rows = dbQuery(
+        `SELECT COUNT(*) FROM user_sessions WHERE utente_id=${adminId} AND is_revoked=0 AND expires_at > UTC_TIMESTAMP()`,
+      );
+      expect(rows, 'an ordinary sign-in is recorded so it can be revoked').toBe('1');
+
+      // And revoking it ends the session on the next request, which is what
+      // makes "a password reset signs every device out" true rather than a
+      // claim about remembered devices only.
+      dbQuery(`UPDATE user_sessions SET is_revoked=1 WHERE utente_id=${adminId}`);
+      await page.goto(`${BASE}/admin/dashboard`, { waitUntil: 'domcontentloaded' });
+      expect(page.url(), 'a revoked row signs the browser out on its next request').not.toContain('/admin/dashboard');
     } finally {
       await context.close();
     }
