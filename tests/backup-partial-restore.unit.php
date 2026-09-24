@@ -299,16 +299,31 @@ echo "\nF. A stale sticky flag still closes the site (real request)\n";
 
 $liveFlag = dirname(__DIR__) . '/storage/.maintenance';
 $base     = getenv('E2E_BASE_URL') ?: 'http://localhost:8081';
+// Generous, and it retries. This runs inside the full battery, where the local
+// server competes with every other suite for the same database: a page that
+// answers in under a second on an idle machine has been measured at fifteen
+// here. A tight timeout would turn a real assertion into a coin toss decided by
+// machine load, which is the kind of test that teaches people to re-run CI
+// until it passes.
 $probe    = static function (string $url): ?int {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8, CURLOPT_FOLLOWLOCATION => false]);
-    $body = curl_exec($ch);
-    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($body === false || $code === 0) {
-        return null;
+    for ($attempt = 0; $attempt < 3; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 45,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_FOLLOWLOCATION => false,
+        ]);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($body !== false && $code !== 0) {
+            return $code;
+        }
+        usleep(500000);
     }
-    return $code;
+
+    return null;
 };
 
 if ($probe($base . '/') === null) {

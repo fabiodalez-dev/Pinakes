@@ -225,16 +225,14 @@ try {
                 return (new ResponseFactory())->createResponse(200);
             }
         };
-        // AdminAuthMiddleware memoises its answer in a STATIC keyed by user id,
-        // which is correct under PHP-FPM — the property is fresh for every
-        // request — and wrong inside one CLI process, where three "requests"
-        // would share the first answer. Clearing it is how this suite draws the
-        // request boundary the middleware is written against; without it the
-        // suspended checks below would read the decision taken while the
-        // account was still active and pass for the wrong reason.
-        $cache = new \ReflectionProperty(\App\Middleware\AdminAuthMiddleware::class, 'revalidationCache');
-        $cache->setAccessible(true);
-        $cache->setValue(null, []);
+        // The role decision is memoised in a STATIC keyed by user id, which is
+        // correct under PHP-FPM — it is fresh for every request — and wrong
+        // inside one CLI process, where three "requests" would share the first
+        // answer. reset() is how this suite draws the request boundary the
+        // middleware is written against; without it the suspended checks below
+        // would read the decision taken while the account was still active and
+        // pass for the wrong reason.
+        \App\Support\SessionRoleRevalidator::reset();
 
         return (new \App\Middleware\AdminAuthMiddleware($db))->process($request, $handler)->getStatusCode();
     };
