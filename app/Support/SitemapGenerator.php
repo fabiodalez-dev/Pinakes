@@ -187,8 +187,13 @@ class SitemapGenerator
         // work is already done by the time we can detect the change, and a
         // caller told "failed" over a correct state would only retry into it.
         if (SitemapCache::revision() !== $revisionBefore) {
+            // Withdraw the file THIS call wrote, not the published one: saveTo()
+            // takes an arbitrary path and the suites use a temporary file, so
+            // defaulting to publishedPath() would leave the stale document
+            // behind and delete an unrelated file instead.
             SitemapCache::invalidate(
-                'plugin state changed while the sitemap was being generated'
+                'plugin state changed while the sitemap was being generated',
+                $filePath
             );
         }
     }

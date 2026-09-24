@@ -150,6 +150,7 @@ $restore = static function () use (
     $clubId, $clubWasActive, $clubMarkerBack, $clubOrigVersion
 ): void {
     $db->query("UPDATE plugins SET is_active={$scraperWasActive} WHERE id={$scraperId}");
+    $db->query("DELETE FROM plugin_hooks WHERE plugin_id={$scraperId} AND hook_name='zz.selfheal.probe'");
     $db->query("DELETE FROM plugin_data WHERE plugin_id={$scraperId} AND data_key='" . MARKER_KEY . "'");
     if ($scraperMarkerBack !== null) {
         $v = $db->real_escape_string((string) $scraperMarkerBack['data_value']);
@@ -218,6 +219,35 @@ try {
         'that pass really did run the branch again');
 
     /* ======================================================================
+     * A-bis. Hooks appearing invalidate the marker
+     * ====================================================================== */
+
+    echo "\nA-bis. A marker is forgotten as soon as the plugin owns hooks\n";
+
+    // The marker means "onActivate() ran at this version and registered
+    // nothing". Configuring the plugin makes that false — saveSettings()
+    // registers the hooks itself and never comes through this branch — so a
+    // marker left behind would outlive its premise. It would matter later: if
+    // those hooks were then LOST (a wiped plugin_hooks, a half-applied merge),
+    // the stale marker would read the gap as the steady state and leave it
+    // unrepaired until the plugin's version changed. A hook row standing in for
+    // the configured state is enough to pin the rule.
+    $db->query(
+        "INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+         VALUES ({$scraperId}, 'zz.selfheal.probe', 'ZzSelfHealProbe', 'zzProbe', 10, 1, NOW())"
+    );
+    $check($hookCountOf($scraperId) === 1, 'the plugin now owns a hook (standing in for a configured plugin)');
+    $check($markerRow($scraperId) !== null, 'the marker from the earlier passes is still there');
+
+    $runSync();
+
+    $check($markerRow($scraperId) === null,
+        'the pass forgets the marker once hooks exist — a later hook loss is repaired, not mistaken for the steady state');
+
+    $db->query("DELETE FROM plugin_hooks WHERE plugin_id={$scraperId} AND hook_name='zz.selfheal.probe'");
+    $check($hookCountOf($scraperId) === 0, 'the stand-in hook is removed again');
+
+    /* ======================================================================
      * B. The marker never suppresses a real repair
      * ====================================================================== */
 
@@ -239,29 +269,51 @@ try {
         $club->onActivate();
         $check($tableExists('bookclub_external_books'), 'baseline: book-club schema is complete');
 
-        // Build the worst case for the optimisation: zero hooks AND a marker
-        // claiming "already tried at this version" AND a genuinely missing
-        // table. The marker must lose.
-        $db->query("DELETE FROM plugin_hooks WHERE plugin_id={$clubId}");
-        $clubVersion = $diskVersionOf('book-club');
-        $db->query("DELETE FROM plugin_data WHERE plugin_id={$clubId} AND data_key='" . MARKER_KEY . "'");
-        $db->query("INSERT INTO plugin_data (plugin_id, data_key, data_value, data_type, created_at)
-                    VALUES ({$clubId}, '" . MARKER_KEY . "', '"
-                    . $db->real_escape_string($clubVersion) . "', 'string', NOW())");
-        @$db->query("ALTER TABLE bookclub_books DROP FOREIGN KEY fk_bcbooks_external");
-        @$db->query("ALTER TABLE bookclub_books DROP KEY uq_bcbooks_external");
-        @$db->query("ALTER TABLE bookclub_books DROP KEY idx_bcbooks_external");
-        @$db->query("ALTER TABLE bookclub_books DROP COLUMN external_book_id");
-        $db->query("DROP TABLE IF EXISTS bookclub_external_books");
+        // What follows DROPs bookclub_external_books and the column that points
+        // at it. $restore() re-runs onActivate(), which rebuilds the schema —
+        // and nothing else: rows in that table, and the associations in
+        // bookclub_books, are gone for good. ensureSchema() restores shape, not
+        // data. On a database that holds real club data this section is
+        // destructive, so look before touching it and refuse rather than run.
+        // The marker is SKIP:, which strict mode turns into a failure — this
+        // section is the assertion that a real repair is never suppressed, and
+        // a suite that quietly dropped it would be exactly the green test that
+        // hides the #138 regression it exists to prevent.
+        $externalRows = (int) ($db->query('SELECT COUNT(*) FROM bookclub_external_books')?->fetch_row()[0] ?? 0);
+        $associatedRows = (int) ($db->query(
+            'SELECT COUNT(*) FROM bookclub_books WHERE external_book_id IS NOT NULL'
+        )?->fetch_row()[0] ?? 0);
 
-        $check(!$tableExists('bookclub_external_books'), 'forced broken state: the table is gone');
-        $check($hookCountOf($clubId) === 0, 'forced broken state: hooks are gone too (marker would apply)');
+        if ($externalRows > 0 || $associatedRows > 0) {
+            echo "SKIP: section B not run — this database holds real book-club data "
+                . "({$externalRows} external book(s), {$associatedRows} association(s)),\n";
+            echo "      and the forced-repair scenario would destroy it. Point E2E_DB_NAME "
+                . "at a scratch database to run it.\n";
+        } else {
+            // Build the worst case for the optimisation: zero hooks AND a marker
+            // claiming "already tried at this version" AND a genuinely missing
+            // table. The marker must lose.
+            $db->query("DELETE FROM plugin_hooks WHERE plugin_id={$clubId}");
+            $clubVersion = $diskVersionOf('book-club');
+            $db->query("DELETE FROM plugin_data WHERE plugin_id={$clubId} AND data_key='" . MARKER_KEY . "'");
+            $db->query("INSERT INTO plugin_data (plugin_id, data_key, data_value, data_type, created_at)
+                        VALUES ({$clubId}, '" . MARKER_KEY . "', '"
+                        . $db->real_escape_string($clubVersion) . "', 'string', NOW())");
+            @$db->query("ALTER TABLE bookclub_books DROP FOREIGN KEY fk_bcbooks_external");
+            @$db->query("ALTER TABLE bookclub_books DROP KEY uq_bcbooks_external");
+            @$db->query("ALTER TABLE bookclub_books DROP KEY idx_bcbooks_external");
+            @$db->query("ALTER TABLE bookclub_books DROP COLUMN external_book_id");
+            $db->query("DROP TABLE IF EXISTS bookclub_external_books");
 
-        $runSync();
+            $check(!$tableExists('bookclub_external_books'), 'forced broken state: the table is gone');
+            $check($hookCountOf($clubId) === 0, 'forced broken state: hooks are gone too (marker would apply)');
 
-        $check($tableExists('bookclub_external_books'),
-            'the schema self-healed despite the marker — a real repair is never suppressed');
-        $check($hookCountOf($clubId) > 0, 'hooks were re-registered by the same pass');
+            $runSync();
+
+            $check($tableExists('bookclub_external_books'),
+                'the schema self-healed despite the marker — a real repair is never suppressed');
+            $check($hookCountOf($clubId) > 0, 'hooks were re-registered by the same pass');
+        }
     }
 } finally {
     $restore();

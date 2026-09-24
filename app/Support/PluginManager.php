@@ -162,6 +162,31 @@ class PluginManager
         return (int) $hookCount;
     }
 
+    /**
+     * Forget the "this version tried and changed nothing" marker.
+     *
+     * The marker is only ever READ when a plugin currently owns no hooks, and
+     * it means "onActivate() was run at this version on a healthy schema and
+     * registered nothing". The moment hooks exist that statement is false:
+     * something — the operator configuring the plugin, a later activation —
+     * gave the plugin hooks to register. Leaving the row behind would let a
+     * LATER loss of those hooks (a wiped plugin_hooks, a half-applied merge)
+     * be mistaken for the steady state and go unrepaired until the plugin's
+     * version changed. Clearing it costs one statement on a pass that already
+     * decided nothing else needs doing.
+     */
+    private function clearSelfHealNoop(int $pluginId): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM plugin_data WHERE plugin_id = ? AND data_key = ?');
+        if ($stmt === false) {
+            return;
+        }
+        $key = self::SELFHEAL_NOOP_KEY;
+        $stmt->bind_param('is', $pluginId, $key);
+        $stmt->execute();
+        $stmt->close();
+    }
+
     /** True when a declared expectedTables() entry is absent from the schema. */
     private function expectedTablesMissing(object $instance): bool
     {
@@ -498,6 +523,10 @@ class PluginManager
                     if ($hookCount === 0) {
                         $noopVersion = (string) $this->getData($pluginIdInt, self::SELFHEAL_NOOP_KEY, '');
                         $hooklessIsKnownSteady = $noopVersion !== '' && $noopVersion === $diskVersion;
+                    } else {
+                        // Hooks exist, so any marker recorded for this version is
+                        // stale by definition — see clearSelfHealNoop().
+                        $this->clearSelfHealNoop($pluginIdInt);
                     }
                     try {
                         $syncInstance = $this->instantiatePlugin([
@@ -529,6 +558,12 @@ class PluginManager
                                 && !$this->bundledSchemaIncomplete($syncInstance);
                             if ($hooksAppeared || $schemaRepaired) {
                                 $mutated = true;
+                                if ($hooksAppeared) {
+                                    // Same reasoning as above, one pass earlier:
+                                    // this repair produced hooks, so a marker
+                                    // written for this version is now wrong.
+                                    $this->clearSelfHealNoop($pluginIdInt);
+                                }
                             } elseif ($hookCount === 0 && !$schemaIncomplete) {
                                 // onActivate() ran on a healthy schema and still
                                 // produced no hooks: this plugin has nothing to

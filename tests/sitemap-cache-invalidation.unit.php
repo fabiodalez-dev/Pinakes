@@ -169,15 +169,20 @@ try {
         // first: if this database HAS such a plugin, do not run the pass on it.
         // Refusing loudly is the point — a silent skip here would leave the
         // suite green while proving nothing.
+        // The directory is looked up by `path`, exactly as cleanupOrphanPlugins()
+        // does — NOT by `name`. A ZIP upgrade keeps the row's existing `path`,
+        // so the two can diverge; predicting the deletion from `name` would then
+        // find a directory production never looks at, judge the row safe and run
+        // the pass that deletes it.
         $orphans = [];
-        $orphanRows = $db->query('SELECT name FROM plugins');
+        $orphanRows = $db->query('SELECT name, path FROM plugins');
         if ($orphanRows) {
             while ($orphanRow = $orphanRows->fetch_assoc()) {
                 $orphanName = (string) $orphanRow['name'];
                 if (in_array($orphanName, \App\Support\BundledPlugins::LIST, true)) {
                     continue;
                 }
-                if (!is_dir(dirname(__DIR__) . '/storage/plugins/' . $orphanName)) {
+                if (!is_dir(dirname(__DIR__) . '/storage/plugins/' . (string) $orphanRow['path'])) {
                     $orphans[] = $orphanName;
                 }
             }

@@ -52,6 +52,14 @@ final class RacingSitemapGenerator extends SitemapGenerator
 {
     public bool $invalidateDuringGenerate = false;
 
+    /**
+     * Which file the mid-flight invalidation targets. Null means the published
+     * one, which is what a real plugin toggle does; a test that needs the
+     * published file to survive the simulation points this elsewhere, so the
+     * only thing the invalidation contributes is the bumped revision.
+     */
+    public ?string $invalidateTarget = null;
+
     public function __construct()
     {
         // Deliberately no parent::__construct(): this test drives saveTo()'s
@@ -61,7 +69,7 @@ final class RacingSitemapGenerator extends SitemapGenerator
     public function generate(): string
     {
         if ($this->invalidateDuringGenerate) {
-            SitemapCache::invalidate('test: plugin toggled mid-generation');
+            SitemapCache::invalidate('test: plugin toggled mid-generation', $this->invalidateTarget);
         }
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
@@ -146,6 +154,27 @@ try {
     $gen->invalidateDuringGenerate = false;
     $gen->saveTo($published);
     $check(is_file($published), 'the next regeneration publishes again');
+
+    echo "\nE. The withdrawal follows the path saveTo() was given\n";
+
+    // saveTo() accepts any destination — the suites use a temporary file, and
+    // scripts/generate-sitemap.php could be pointed elsewhere. Withdrawing the
+    // published path instead of the one just written would leave the stale
+    // document exactly where the caller will read it and delete a file the
+    // caller never asked about.
+    $elsewhere = $root . '/storage/cache/sitemap-race-probe-' . bin2hex(random_bytes(4)) . '.xml';
+    $gen = new RacingSitemapGenerator();
+    $gen->invalidateDuringGenerate = true;
+    // Point the simulated invalidation at a file that does not exist: it still
+    // bumps the revision — which is the only signal saveTo() reads — while
+    // leaving the published sitemap in place, so whatever removes it afterwards
+    // can only be the withdrawal under test.
+    $gen->invalidateTarget = $root . '/storage/cache/sitemap-race-absent-' . bin2hex(random_bytes(4)) . '.xml';
+    $gen->saveTo($elsewhere);
+
+    $check(!is_file($elsewhere), 'the stale document is withdrawn from the path it was written to');
+    $check(is_file($published), 'and the published sitemap, which this call never wrote, is left alone');
+    @unlink($elsewhere);
 } finally {
     $restore();
 }
