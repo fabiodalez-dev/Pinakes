@@ -1087,7 +1087,7 @@ class SettingsController
         try {
             $baseUrl = SeoController::resolveBaseUrl($request);
             $generator = new SitemapGenerator($db, $baseUrl);
-            $targetPath = dirname(__DIR__, 2) . '/public/sitemap.xml';
+            $targetPath = \App\Support\SitemapCache::publishedPath();
             $generator->saveTo($targetPath);
             $stats = $generator->getStats();
 

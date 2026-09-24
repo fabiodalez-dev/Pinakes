@@ -7563,6 +7563,7 @@
   "Articoli non disponibili.": "Articles unavailable.",
   "Articolo non trovato.": "Article not found.",
   "Articolo salvato.": "Article saved.",
+  "Articolo salvato, ma la pulizia dei file non è riuscita.": "Article saved, but the file cleanup did not complete.",
   "Associa gli articoli selezionati a una testata": "Associate selected articles with a publication",
   "Associazione non riuscita.": "Association failed.",
   "CSV UTF-8 separato da virgole, massimo 500 righe. La reference_key identifica gli aggiornamenti; le colonne assenti conservano i dati, le celle vuote li svuotano. Nessun fascicolo viene creato.": "Comma-separated UTF-8 CSV, up to 500 rows. reference_key identifies updates; omitted columns preserve data, empty cells clear it. No issues are created.",
@@ -7625,6 +7626,7 @@
   "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.": "Possible duplicate: use the existing reference_key to update, or verify the citation.",
   "Pronto": "Ready",
   "Puoi indicare anche solo mese e anno, per esempio giugno 2019.": "You can enter only a month and year, for example June 2019.",
+  "Separa più autori con un punto e virgola. La virgola resta parte del nome, per esempio Schweissinger, Marc J.": "Separate multiple authors with a semicolon. A comma stays part of the name, for example Schweissinger, Marc J.",
   "Registra un articolo, anche senza possedere la rivista completa.": "Record an article even without owning the complete journal.",
   "Ricarica la scheda prima di salvare.": "Reload the record before saving.",
   "Riga": "Row",
@@ -7663,5 +7665,13 @@
   "Valore non valido.": "Invalid value.",
   "Valore troppo lungo.": "Value too long.",
   "Verifica": "Check",
-  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Large exports contain multiple CSV files in a ZIP. Extract and import each CSV separately."
+  "Le esportazioni grandi contengono più CSV in uno ZIP. Estrai e importa ogni CSV separatamente.": "Large exports contain multiple CSV files in a ZIP. Extract and import each CSV separately.",
+  "Vedi tutti i %d risultati": "See all %d results",
+  "Articoli nell’emeroteca (%d)": "Articles in Periodicals (%d)",
+  "Testate nell’emeroteca (%d)": "Serial titles in Periodicals (%d)",
+  "Mostra tutti gli articoli": "Show all articles",
+  "Rimuovi il filtro": "Remove filter",
+  "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Article image (JPG, PNG or WebP, max 5 MB)",
+  "%d articolo": "%d article",
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "The file was removed because the public pages changed: meanwhile /sitemap.xml still answers, generated on the fly. Regenerate it to republish the file."
 }

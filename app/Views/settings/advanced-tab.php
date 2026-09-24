@@ -642,7 +642,7 @@ use App\Support\HtmlHelper;
         : 0;
     $projectRoot = dirname(__DIR__, 3);
     $cronExample = '0 2 * * * cd ' . $projectRoot . ' && /usr/bin/php scripts/generate-sitemap.php >> storage/logs/sitemap.log 2>&1';
-    $filesystemPath = $projectRoot . '/public/sitemap.xml';
+    $filesystemPath = \App\Support\SitemapCache::publishedPath();
     $sitemapExists = file_exists($filesystemPath) && is_readable($filesystemPath);
     $sitemapFileModified = $sitemapExists ? @filemtime($filesystemPath) : null;
     $publicBaseUrl = \App\Controllers\SeoController::resolveBaseUrl();
@@ -720,6 +720,12 @@ use App\Support\HtmlHelper;
           <div>
             <span class="text-red-700 font-medium"><?= __("File sitemap non trovato") ?></span>
             <span class="text-xs text-gray-500 ml-2"><?= sprintf(__("Usa il pulsante \"%s\" per crearla"), __("Rigenera adesso")) ?></span>
+            <?php if ($lastGeneratedDisplay !== null): ?>
+            <?php // Generata in passato e ora assente: il caso tipico è una
+                  // modifica ai plugin, che cambia le pagine pubbliche e fa
+                  // rimuovere il file perché non annunci più indirizzi spariti. ?>
+            <p class="mt-1 text-xs text-gray-600"><?= __("Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.") ?></p>
+            <?php endif; ?>
           </div>
         </div>
         <?php endif; ?>

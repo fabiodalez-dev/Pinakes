@@ -121,26 +121,26 @@ class PublicController
         $bindTypes = '';
         $bindValues = [];
         if ($q !== '') {
-            $where[] = '(t.titolo LIKE ? ESCAPE \'\\\\\'
-                         OR t.sottotitolo LIKE ? ESCAPE \'\\\\\'
-                         OR t.issn LIKE ? ESCAPE \'\\\\\'
-                         OR EXISTS (
-                            SELECT 1
-                              FROM emeroteca_articoli ar
-                              JOIN emeroteca_fascicoli ef ON ef.id = ar.fascicolo_id
-                              JOIN emeroteca_annate ea ON ea.id = ef.annata_id
-                             WHERE ea.testata_id = t.id AND ef.stato <> \'scartato\'
-                               AND (
-                                    MATCH(ar.titolo, ar.autori, ar.keywords)
-                                        AGAINST (? IN NATURAL LANGUAGE MODE)
-                                    OR ar.titolo LIKE ? ESCAPE \'\\\\\'
-                                    OR ar.autori LIKE ? ESCAPE \'\\\\\'
-                                    OR ar.keywords LIKE ? ESCAPE \'\\\\\'
-                               )
-                         ))';
+            // One owner for "does this masthead answer that term": the
+            // catalogue hint counts with the same fragment, so the number it
+            // prints next to this link is the number this link opens.
+            //
+            // The hint picks the reduced form when the article tables are
+            // absent, so this side has to make the same choice from the same
+            // evidence. Hard-coding `true` kept the invariant only on a healthy
+            // install: on a degraded one the hint counted with three binds
+            // while prepare() here failed on the missing table, and the link
+            // opened a page with no mastheads at all under a count promising
+            // some.
+            $withArticles = $this->tableExists('emeroteca_articoli')
+                && $this->tableExists('emeroteca_fascicoli')
+                && $this->tableExists('emeroteca_annate');
+            $where[] = \EmerotecaPlugin::testataSearchWhere($withArticles);
             $pattern = '%' . $this->escapeLike($q) . '%';
-            $bindTypes .= 'sssssss';
-            $bindValues = [$pattern, $pattern, $pattern, $q, $pattern, $pattern, $pattern];
+            $bindValues = $withArticles
+                ? [$pattern, $pattern, $pattern, $q, $pattern, $pattern, $pattern]
+                : [$pattern, $pattern, $pattern];
+            $bindTypes .= str_repeat('s', count($bindValues));
         }
         if ($tipo !== '') {
             $where[] = 't.tipo = ?';
@@ -157,7 +157,7 @@ class PublicController
             'argomento' => " ORDER BY (genere_nome IS NULL), genere_nome ASC, t.titolo ASC",
             default     => " ORDER BY t.titolo ASC",
         };
-        $sql .= ' LIMIT 500';
+        $sql .= ' LIMIT ' . \EmerotecaPlugin::TESTATA_SEARCH_LIMIT;
 
         $rows = $this->fetchAll($sql, $bindTypes, $bindValues);
 
@@ -173,6 +173,11 @@ class PublicController
             'seoTitle' => __('Emeroteca'),
             'seoDescription' => __('Consulta le testate di riviste, giornali e periodici conservate in emeroteca.'),
             'seoCanonical' => $this->baseUrl() . '/emeroteca',
+            // Same rule as the article search and as the core catalogue
+            // (app/Views/frontend/catalog.php): a narrowed or re-sorted view
+            // of one corpus declares the bare /emeroteca as its canonical, so
+            // it must not also ask to be indexed. Links are still followed.
+            'seoRobots' => ($q !== '' || $tipo !== '' || $vista !== 'az') ? 'noindex,follow' : 'index,follow',
         ]);
     }
 
@@ -501,14 +506,38 @@ class PublicController
      * an install whose schema step failed must still serve its mastheads and
      * issues. The sitemap hook and the catalogue hint already degrade this way.
      *
+     * @param array<string, string> $filters see ContributionService::FILTER_FIELDS
      * @return array{rows: array<int, array<string, mixed>>, total: int, page: int, pages: int}
      */
-    private function articleResults(string $term, int $testata, int $page = 1): array
+    private function articleResults(string $term, int $testata, int $page = 1, array $filters = []): array
     {
         if (!$this->tableExists('emeroteca_contributi')) {
             return ['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1];
         }
-        return $this->contributions()->search($term, $testata, true, $page);
+        return $this->contributions()->search($term, $testata, true, $page, $filters);
+    }
+
+    /**
+     * The filter values carried by the query string, trimmed and capped.
+     *
+     * @param array<string, mixed> $query
+     * @return array<string, string> only the keys that carry a value
+     */
+    private function articleFilters(array $query): array
+    {
+        // Plugin classes have no autoloader scope: reading a constant off the
+        // service is enough to need its file, and this method runs BEFORE
+        // contributions() does its own lazy require.
+        require_once __DIR__ . '/../Services/ContributionService.php';
+        $filters = [];
+        foreach (\App\Plugins\Emeroteca\Services\ContributionService::FILTER_FIELDS as $key) {
+            $value = $query[$key] ?? null;
+            $value = is_string($value) ? trim($value) : '';
+            if ($value !== '') {
+                $filters[$key] = mb_substr($value, 0, 200);
+            }
+        }
+        return $filters;
     }
 
     /** Build a ContributionService bound to this controller's DB connection, loading its class file. */
@@ -518,12 +547,42 @@ class PublicController
         return new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
     }
 
-    /** Public articles search/listing page. */
+    /**
+     * Public articles search/listing page, optionally narrowed by author,
+     * publication or keyword — the destinations the links on an article page
+     * point at.
+     *
+     * A narrowed listing is the same corpus seen through a filter, so it is
+     * served noindex/follow: one canonical /emeroteca/articoli, not one
+     * indexable page per author the library happens to hold. "Narrowed" means
+     * EVERY parameter that cuts the corpus — the free term and the masthead
+     * as much as the three named filters — and not just the subset that
+     * happens to live in ContributionService::FILTER_FIELDS.
+     *
+     * Pagination is the exception: page 2 is not a duplicate of page 1, so it
+     * canonicalises to itself, exactly as the core catalogue and the author /
+     * publisher archives do (app/Views/frontend/catalog.php,
+     * app/Views/frontend/archive.php).
+     */
     public function articles(ServerRequestInterface $request, ResponseInterface $response, array $args=[]): ResponseInterface
     {
         $q=$request->getQueryParams();
         $term=is_string($q['q']??null)?$q['q']:'';
-        return $this->renderPublic($response,'articles.php',$this->articleResults($term,(int)($q['testata']??0),(int)($q['page']??1))+['term'=>$term,'testata'=>(int)($q['testata']??0),'seoTitle'=>__('Articoli'),'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli']);
+        $filters=$this->articleFilters($q);
+        $testata=(int)($q['testata']??0);
+        $results=$this->articleResults($term,$testata,max(1,(int)($q['page']??1)),$filters);
+        // The page the listing actually settled on: a request past the last
+        // page is clamped, and the canonical must name the page it served.
+        $page=max(1,(int)$results['page']);
+        $narrowed=$filters!==[]||$term!==''||$testata>0;
+        return $this->renderPublic($response,'articles.php',$results+[
+            'term'=>$term,
+            'testata'=>$testata,
+            'filters'=>$filters,
+            'seoTitle'=>__('Articoli'),
+            'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli'.($page>1?'?page='.$page:''),
+            'seoRobots'=>$narrowed?'noindex,follow':'index,follow',
+        ]);
     }
 
     /**
