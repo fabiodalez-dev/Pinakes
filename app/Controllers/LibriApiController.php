@@ -455,7 +455,7 @@ class LibriApiController
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale','co-autore')
             LEFT JOIN autori a ON la.autore_id = a.id
-            WHERE l.genere_id = ? AND l.deleted_at IS NULL
+            WHERE l.genere_id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             GROUP BY l.id
             ORDER BY l.created_at DESC
             LIMIT ?

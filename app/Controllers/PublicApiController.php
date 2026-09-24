@@ -98,7 +98,7 @@ class PublicApiController
             return [];
         }
 
-        $whereClause = '(' . implode(' OR ', $conditions) . ') AND l.deleted_at IS NULL';
+        $whereClause = '(' . implode(' OR ', $conditions) . ') AND l.deleted_at IS NULL AND ' . \App\Support\BookVisibility::catalogue($db, 'l');
 
         // Main query to get books with all related data.
         // CI-SOFT-DELETE-EXEMPT: $whereClause above unconditionally ends with l.deleted_at IS NULL.

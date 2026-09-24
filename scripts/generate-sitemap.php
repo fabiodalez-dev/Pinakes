@@ -74,6 +74,24 @@ if ($mysqli->connect_error) {
 
 $mysqli->set_charset($charset);
 
+// Boot the plugin system the way public/index.php does. SitemapGenerator lets
+// active plugins add their own pages through the `sitemap.entries` filter, and
+// without a HookManager behind the Hooks facade — and the plugins loaded onto
+// it — that filter was a silent no-op here: a sitemap regenerated from cron or
+// the command line quietly lost every plugin page (periodicals, archive units)
+// that the same sitemap built from the admin button contained.
+$hookManager = new \App\Support\HookManager($mysqli);
+\App\Support\Hooks::init($hookManager);
+$GLOBALS['hookManager'] = $hookManager;
+try {
+    (new \App\Support\PluginManager($mysqli, $hookManager))->loadActivePlugins();
+} catch (\Throwable $pluginError) {
+    // A broken plugin must not stop the core sitemap from being written: log
+    // it, say so, and generate what the core alone can.
+    \App\Support\SecureLogger::error('generate-sitemap: plugins could not be loaded', ['error' => $pluginError->getMessage()]);
+    fwrite(STDERR, "Warning: plugins could not be loaded; the sitemap will contain core pages only.\n");
+}
+
 try {
     $baseUrl = SeoController::resolveBaseUrl();
     $generator = new SitemapGenerator($mysqli, $baseUrl);

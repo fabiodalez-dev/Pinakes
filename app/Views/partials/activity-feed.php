@@ -17,7 +17,7 @@ $renderActivityValue = static function (mixed $value, string $field): string {
     if ($value === null || $value === '') {
         return __('Non impostato');
     }
-    if ($field === 'attivo' && in_array($value, [true, false, 1, 0, '1', '0'], true)) {
+    if (in_array($field, ['attivo', 'is_desiderata'], true) && in_array($value, [true, false, 1, 0, '1', '0'], true)) {
         return in_array($value, [true, 1, '1'], true) ? __('Sì') : __('No');
     }
     if (is_string($value)) {
@@ -263,11 +263,6 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
     var feed = document.getElementById('activity-feed');
     if (feed) { feed.setAttribute('aria-busy', 'true'); feed.classList.add('opacity-60'); }
 
-    var active = document.activeElement;
-    var restoreSearch = active && active.name === 'activity_q'
-      ? { value: active.value, start: active.selectionStart, end: active.selectionEnd }
-      : null;
-
     fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal })
       .then(function (res) {
         if (!res.ok) { throw new Error('HTTP ' + res.status); }
@@ -281,16 +276,39 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
         var next = new DOMParser().parseFromString(markupOnly, 'text/html').getElementById('activity-feed');
         var current = document.getElementById('activity-feed');
         if (!next || !current) { window.location.assign(url); return; }
+
+        // Read the search box as it is NOW, when the response lands — not as
+        // it was when the request left. Someone who changes the type filter
+        // and starts typing straight away is typing while this request is in
+        // flight; the swap below replaces the box with the server's copy,
+        // which knows nothing of those keystrokes, and a snapshot taken at
+        // request time (when focus was still on the select) wiped them.
+        var live = current.querySelector('input[name="activity_q"]');
+        var typed = live
+          ? { value: live.value, focused: document.activeElement === live, start: live.selectionStart, end: live.selectionEnd }
+          : null;
+        var requested = new URL(url, window.location.href).searchParams.get('activity_q') || '';
+
         current.innerHTML = next.innerHTML;
         current.removeAttribute('aria-busy');
         current.classList.remove('opacity-60');
         window.history.replaceState(null, '', url);
-        if (restoreSearch) {
+
+        if (typed) {
           var input = current.querySelector('input[name="activity_q"]');
           if (input) {
-            input.value = restoreSearch.value;
-            input.focus();
-            try { input.setSelectionRange(restoreSearch.start, restoreSearch.end); } catch (e) { /* type=search quirks */ }
+            input.value = typed.value;
+            if (typed.focused) {
+              input.focus();
+              try { input.setSelectionRange(typed.start, typed.end); } catch (e) { /* type=search quirks */ }
+            }
+            // The results shown answer an older query than the one on
+            // screen: fetch the matching ones rather than leave the two out
+            // of step. The pending debounce, if any, is superseded.
+            if (typed.value.trim() !== requested.trim() && input.form) {
+              clearTimeout(debounceTimer);
+              swapFeed(formUrl(input.form));
+            }
           }
         }
       })
@@ -327,8 +345,13 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
     var input = e.target && e.target.closest ? e.target.closest('#activity-feed form input[name="activity_q"]') : null;
     if (!input || !input.form) { return; }
     clearTimeout(debounceTimer);
-    var form = input.form;
-    debounceTimer = setTimeout(function () { swapFeed(formUrl(form)); }, 350);
+    // Resolve the form when the timer fires, not now: a swap that lands in
+    // the meantime replaces the whole feed, and the form captured here would
+    // be a detached copy.
+    debounceTimer = setTimeout(function () {
+      var liveForm = document.querySelector('#activity-feed form input[name="activity_q"]');
+      if (liveForm && liveForm.form) { swapFeed(formUrl(liveForm.form)); }
+    }, 350);
   });
 
   document.addEventListener('click', function (e) {

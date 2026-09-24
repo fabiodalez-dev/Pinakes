@@ -384,6 +384,25 @@ class BookRepository
             $bindParams[] = $value;
         };
 
+        if ($this->hasColumn('is_desiderata')) {
+            $wanted = empty($data['is_desiderata']) ? 0 : 1;
+            $addField('is_desiderata', 'i', $wanted);
+            // A row born at is_desiderata = 0 is in the public catalogue from
+            // this instant, so it is stamped now; one born as a request is not,
+            // and stays NULL until it is received. That difference is the whole
+            // point of the column — see BookVisibility::everCatalogued() — and
+            // it can only be recorded here, because once the flag is set
+            // nothing afterwards can tell the two origins apart.
+            //
+            // Pushed as a literal rather than through $addField so the value
+            // comes from MySQL's clock, the same one created_at and updated_at
+            // use; a PHP-side timestamp would drift from them whenever the two
+            // disagree about the timezone.
+            if ($wanted === 0 && $this->hasColumn('catalogued_at')) {
+                $fields[] = 'catalogued_at';
+                $placeholders[] = 'NOW()';
+            }
+        }
         $addField('titolo', 's', \App\Support\HtmlHelper::decode($data['titolo'] ?? ''));
         $addField('sottotitolo', 's', \App\Support\HtmlHelper::decode($data['sottotitolo'] ?? null));
         $addField('isbn10', 's', $isbn10);
@@ -741,6 +760,17 @@ class BookRepository
             $bindParams[] = $value;
         };
 
+        if ($this->hasColumn('is_desiderata') && array_key_exists('is_desiderata', $data)) {
+            $wantedUpd = empty($data['is_desiderata']) ? 0 : 1;
+            $addSet('is_desiderata', 'i', $wantedUpd);
+            // Write-once, in the same statement that clears the flag: COALESCE
+            // keeps the first stamp, so a book that goes request → catalogue →
+            // request again still remembers that harvesters once had it. Raw,
+            // not bound, for the clock reason given in create().
+            if ($wantedUpd === 0 && $this->hasColumn('catalogued_at')) {
+                $setParts[] = 'catalogued_at = COALESCE(catalogued_at, NOW())';
+            }
+        }
         $addSet('titolo', 's', \App\Support\HtmlHelper::decode($data['titolo'] ?? ''));
         $addSet('sottotitolo', 's', \App\Support\HtmlHelper::decode($data['sottotitolo'] ?? null));
         $addSet('isbn10', 's', $isbn10_upd);

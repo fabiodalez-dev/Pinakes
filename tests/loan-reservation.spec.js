@@ -517,9 +517,24 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
       await textarea.fill('Test rejection reason');
     }
 
+      // Waited on the RESPONSE, not on a popup going away. The handler closes
+      // the prompt, then awaits the fetch, and only then opens the success
+      // dialog — so between the two there is an instant with no .swal2-popup in
+      // the document at all, and "or no popup" is already true while the POST is
+      // still in flight. The DB assertion below then reads a row the server has
+      // not written yet. This is how it failed in the deep-regression shard,
+      // where a loaded runner widens that instant; two sibling call sites in
+      // this suite already wait this way.
+    const rejectResponsePromise = adminPage.waitForResponse(
+      response => response.url().includes('/admin/loans/reject') && response.request().method() === 'POST',
+      { timeout: 15000 },
+    );
     await adminPage.locator('.swal2-confirm').click();
+    const rejectResponse = await rejectResponsePromise;
+    const rejectBody = await rejectResponse.json().catch(() => ({}));
+    expect(rejectResponse.ok(), `reject HTTP ${rejectResponse.status()}`).toBe(true);
+    expect(rejectBody.success, rejectBody.message || 'reject did not report success').toBe(true);
 
-    // Wait for success
     await adminPage.waitForFunction(
       () => !!document.querySelector('.swal2-icon-success') || !document.querySelector('.swal2-popup'),
       null,

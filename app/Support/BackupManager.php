@@ -1213,7 +1213,20 @@ class BackupManager
             throw new \RuntimeException(__('Dump del database vuoto o illeggibile'));
         }
 
-        $conn = $this->openImportConnection();
+        // openImportConnection() disarms mysqli's exception reporting, and
+        // mysqli_report() is PROCESS-WIDE: left off, it outlives the import and
+        // every later query in the request fails silently instead of throwing —
+        // including the optional-column probes other components rely on. PHP
+        // exposes no getter for the current mode, so the canonical one is
+        // restored: MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT is both what
+        // ConfigStore::connect() sets and PHP's own default since 8.1.
+        try {
+            $conn = $this->openImportConnection();
+        } catch (\Throwable $e) {
+            mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+            fclose($handle);
+            throw $e;
+        }
         try {
             $conn->autocommit(true);
 
@@ -1279,6 +1292,8 @@ class BackupManager
             if (is_resource($handle)) {
                 fclose($handle);
             }
+            // Re-arm reporting for the rest of the process, whatever happened.
+            mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
         }
     }
 
@@ -1397,6 +1412,13 @@ class BackupManager
 
     /**
      * Open a fresh mysqli connection to the same database (from env config).
+     *
+     * Turns mysqli's exception reporting OFF process-wide so the connect attempt
+     * (and the batched import that follows) can be handled by return value.
+     * The ONLY caller, importViaPhp(), is responsible for re-arming it in a
+     * finally — leaving it off would silence every query in the rest of the
+     * request, which is how an optional-column probe elsewhere can come back
+     * false and quietly drop a visibility filter.
      */
     private function openImportConnection(): mysqli
     {

@@ -109,11 +109,17 @@ jobs:
           composer install --no-interaction --prefer-dist --quiet
           composer audit --no-dev --abandoned=ignore 2>&1 || { echo "⚠ composer audit: vulnerabilities found (see above)"; exit 1; }
 
-      - name: npm audit (known CVEs)
+      - name: npm audit (known CVEs) # zizmor: ignore[adhoc-packages]
         run: |
           # npm bundled with Node 22 still POSTs the retired quick-audit
           # endpoint (400 since 2026-09-04); npm 11+ talks to the bulk one.
           # Tool upgrade, not a dependency: nothing from it ships in any asset.
+          # The zizmor exemption on this step's name is anchored to the step
+          # itself, not to a line number: a config pin drifts the moment
+          # anything above it changes, and it did three times in one day.
+          # It stays this narrow on purpose — nothing installed on an
+          # ephemeral runner ships in an asset, and asset reproducibility is
+          # enforced separately by the vendor-assets and double-build checks.
           npm install -g npm@11.19.1 --silent
           npm ci --silent
           bash scripts/ci-npm-audit.sh .
@@ -237,6 +243,36 @@ jobs:
           done
           [ "$FAILED" -eq 0 ] && echo "✓ Tutte le migration hanno versione ≤ $TARGET" || exit 1
 
+      # ── Plugin requires_app guard ─────────────────────────────────────────
+      # Same version_compare ordering hazard as the migration guard, one layer
+      # up: PluginManager refuses to activate a bundled plugin whose
+      # requires_app is above version.json, so the plugin ships registered,
+      # visible and permanently impossible to enable. An empty or absent
+      # requires_app means "no floor" and is skipped, not failed.
+      - name: Plugin requires_app guard (bundled plugin.json ≤ version.json)
+        run: |
+          TARGET=$(php -r "echo json_decode(file_get_contents('version.json'))->version;")
+          FAILED=0
+          for f in storage/plugins/*/plugin.json; do
+            [ -f "$f" ] || continue
+            plugin_name="$(basename "$(dirname "$f")")"
+            # The single quotes below are load-bearing: $m is a PHP variable and
+            # must reach php unexpanded. The manifest path travels through the
+            # environment (getenv), so nothing here needs shell interpolation.
+            # shellcheck disable=SC2016
+            REQ=$(MANIFEST="$f" php -r '
+              $m = json_decode((string)file_get_contents(getenv("MANIFEST")), true);
+              echo is_array($m) && isset($m["requires_app"]) ? (string)$m["requires_app"] : "";
+            ')
+            [ -n "$REQ" ] || continue
+            if ! REQUIRES_APP="$REQ" RELEASE_VERSION="$TARGET" php -r \
+              'exit(version_compare(getenv("REQUIRES_APP"), getenv("RELEASE_VERSION"), "<=") ? 0 : 1);'; then
+              echo "  ✗ ${plugin_name}: requires_app $REQ > $TARGET (il plugin non potrebbe mai essere attivato)"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" -eq 0 ] && echo "✓ Tutti i plugin bundled hanno requires_app ≤ $TARGET" || exit 1
+
       # DB-backed unit tests (migration-*, book-field-types, loan-edge-cases,
       # session-fixes) read credentials from .env and connect over TCP. Provide
       # a CI .env pointing at the MySQL service and load the base schema so the
@@ -306,6 +342,30 @@ jobs:
           php tests/plugin-zip-update.integration.php
           php tests/plugin-zip-update-all-bundled.integration.php
 
+      # The desiderata feature's advertised coverage: the lifecycle/offer suite
+      # and the interop-visibility contract (mobile-api, OAI-PMH, SRU, NCIP,
+      # OpenURL, BIBFRAME). Neither ran in any workflow before, so 400+ lines of
+      # regression checks executed only if a developer remembered to. Strict
+      # mode turns any remaining skip into a failure.
+      - name: PHP desiderata integration suites
+        env:
+          CI_STRICT_TESTS: '1'
+        run: |
+          php tests/desiderata.integration.php
+          php tests/desiderata-visibility.integration.php
+          php tests/desiderata-extended.integration.php
+          php tests/desiderata-recaptcha.unit.php
+          php tests/desiderata-core-hooks.unit.php
+          # desiderata-return-path, desiderata-bookclub-resolvable and
+          # desiderata-search-facets are NOT listed here: they are *.unit.php
+          # and the "PHP unit tests" step above already globs them. Naming them
+          # again would run each one twice.
+          # Run after plugin schema setup so the cross-plugin cases cannot skip.
+          REQUIRE_DESIDERATA_TESTS=1 php tests/bookclub-lending.unit.php
+
+      - name: Donation form CSRF concurrency regression
+        run: node --test tests/desiderata-csrf-concurrency.test.cjs
+
       - name: Shell test — bin/setup-permissions.sh
         run: bash tests/setup-permissions.test.sh
 
@@ -355,9 +415,15 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             frontend/package-lock.json
-      - name: Install and audit locked dependencies
+      - name: Install and audit locked dependencies # zizmor: ignore[adhoc-packages]
         run: |
           # Same retired quick-audit endpoint workaround as the root audit.
+          # The zizmor exemption on this step's name is anchored to the step
+          # itself, not to a line number: a config pin drifts the moment
+          # anything above it changes, and it did three times in one day.
+          # It stays this narrow on purpose — nothing installed on an
+          # ephemeral runner ships in an asset, and asset reproducibility is
+          # enforced separately by the vendor-assets and double-build checks.
           npm install -g npm@11.19.1 --silent
           npm ci --silent
           bash scripts/ci-npm-audit.sh .
