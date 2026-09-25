@@ -13,6 +13,11 @@
 //   2. box unticked → neither the cookie nor a row appears (fix is not "always on")
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
+const fs = require('fs');
+const http = require('http');
+const https = require('https');
+const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -71,8 +76,47 @@ test.describe.serial('Remember Me checkbox', () => {
   });
 
   test.afterAll(() => {
-    if (adminId) dbQuery(`DELETE FROM user_sessions WHERE utente_id=${adminId}`);
+    if (adminId) {
+      dbQuery(`DELETE FROM user_sessions WHERE utente_id=${adminId}`);
+      // Belt and braces for the suspension case below: a run killed between
+      // its UPDATE and its restore would otherwise leave the admin locked out
+      // of every other suite, with nothing on screen to explain why.
+      dbQuery(`UPDATE utenti SET stato='attivo' WHERE id=${adminId}`);
+    }
   });
+
+  /** Everything the browser still has after being closed and reopened. */
+  async function keepOnlyTheRememberedCookie(context) {
+    const kept = (await context.cookies()).filter(c => c.name === 'remember_token');
+    await context.clearCookies();
+    await context.addCookies(kept);
+
+    return kept[0];
+  }
+
+  /**
+   * PHP's session cookie, found rather than assumed — session.name is
+   * configurable, so it is whatever is left once the application's own
+   * cookies are set aside. Insisting there is exactly one means a cookie
+   * added later makes the callers fail out loud instead of quietly measuring
+   * the wrong header.
+   */
+  async function sessionCookie(context) {
+    const OURS = new Set(['remember_token', 'csrf_login']);
+    const candidates = (await context.cookies())
+      .filter(c => !OURS.has(c.name) && /^[A-Za-z0-9,-]{16,128}$/.test(c.value));
+    expect(candidates.length, `exactly one cookie is PHP's own session (${candidates.map(c => c.name).join(', ')})`).toBe(1);
+
+    return candidates[0];
+  }
+
+  /** The note the middleware publishes so siblings join instead of racing. */
+  function notePathFor(tokenValue) {
+    return path.join(
+      __dirname, '..', 'storage', 'tmp', 'remember-session',
+      crypto.createHash('sha256').update(tokenValue).digest('hex'),
+    );
+  }
 
   test('ticked → sets remember_token cookie and a user_sessions row', async ({ browser }) => {
     const context = await browser.newContext();
@@ -123,6 +167,144 @@ test.describe.serial('Remember Me checkbox', () => {
       await page.goto(`${BASE}/admin/dashboard`, { waitUntil: 'domcontentloaded' });
       expect(page.url(), 'a revoked row signs the browser out on its next request').not.toContain('/admin/dashboard');
     } finally {
+      await context.close();
+    }
+  });
+
+  /**
+   * One GET, carrying exactly the cookies given and nothing else.
+   *
+   * Playwright's own request object shares the context's cookie jar, so the
+   * second of two "parallel" requests can already be carrying the session the
+   * first was handed — which is precisely the thing under test, quietly
+   * arranged away. These go out raw so every one of them really does arrive
+   * holding nothing but the remembered cookie.
+   */
+  function rawGet(url, cookie) {
+    const target = new URL(url);
+    const agent = target.protocol === 'https:' ? https : http;
+
+    return new Promise((resolve, reject) => {
+      const request = agent.request(
+        {
+          protocol: target.protocol,
+          host: target.hostname,
+          port: target.port,
+          path: target.pathname + target.search,
+          method: 'GET',
+          headers: { Cookie: cookie },
+        },
+        (response) => {
+          response.resume();
+          response.on('end', () => resolve({
+            status: response.statusCode,
+            setCookie: response.headers['set-cookie'] || [],
+          }));
+        },
+      );
+      request.on('error', reject);
+      request.end();
+    });
+  }
+
+  /** The last value a response gives a cookie — what the browser would keep. */
+  function lastCookieValue(setCookie, name) {
+    let value = null;
+    for (const line of setCookie) {
+      const match = String(line).match(new RegExp(`^${name}=([^;]*)`));
+      if (match) value = match[1];
+    }
+
+    return value;
+  }
+
+  // A browser coming back with only the remembered cookie asks for several
+  // things at the same moment: the page, and whatever the page fetches for
+  // itself. None of them has a session, each authenticates from the same
+  // cookie, and each used to mint its own session with its own CSRF token.
+  // The browser keeps the last Set-Cookie it is given, so the token printed
+  // into the HTML could belong to a session already left behind, and the
+  // visitor's next form post came back "Errore di Sicurezza".
+  test('requests arriving together with only the remembered cookie end in one session', async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+      await login(page, { remember: true });
+      const sessionName = (await sessionCookie(context)).name;
+      const carried = await keepOnlyTheRememberedCookie(context);
+      expect(carried, 'the remembered cookie survived').toBeTruthy();
+
+      // Nothing published yet, so all three below start from the same place —
+      // which is what a browser reopened on a remembered site actually does.
+      const note = notePathFor(carried.value);
+      if (fs.existsSync(note)) fs.unlinkSync(note);
+
+      const only = `remember_token=${carried.value}`;
+      const burst = await Promise.all([
+        rawGet(`${BASE}/admin`, only),
+        rawGet(`${BASE}/api/stats/active-loans-count`, only),
+        rawGet(`${BASE}/admin`, only),
+      ]);
+
+      // Every one of them has to have been signed in, or the count below is
+      // one session for the trivial reason that nobody got one.
+      expect(burst.map(r => r.status), 'all three were served as a signed-in visitor')
+        .toEqual([302, 200, 302]);
+
+      const issued = new Set(
+        burst.map(r => lastCookieValue(r.setCookie, sessionName)).filter(Boolean),
+      );
+      expect(issued.size, `one session for the whole burst, not one each (${[...issued].join(', ')})`).toBe(1);
+    } finally {
+      await context.close();
+    }
+  });
+
+  // The token row says the device is still trusted. It says nothing about
+  // whether the account still is — that lives on the user row, and until now
+  // the only place it was read came *after* the decision to adopt a sibling's
+  // session, so a request that found one never asked at all.
+  //
+  // The sibling is staged rather than raced for, because a race reproduces
+  // about half the time and a regression here has to fail every run: the note
+  // is written by hand, pointing at the very session the sign-in above left
+  // behind, which is exactly what a sibling would have published a moment
+  // earlier. The account is then suspended and the endpoint asked is one with
+  // no AuthMiddleware in front of it, which reads $_SESSION['user'] straight —
+  // so nothing downstream can mask the answer.
+  test('a suspended account is not put back into the session its cookie opened', async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    let note = '';
+    let suspended = false;
+    try {
+      await login(page, { remember: true });
+      const live = (await sessionCookie(context)).value;
+      const carried = await keepOnlyTheRememberedCookie(context);
+      expect(carried, 'the sign-in leaves a cookie behind').toBeTruthy();
+
+      note = notePathFor(carried.value);
+      fs.mkdirSync(path.dirname(note), { recursive: true });
+      fs.writeFileSync(note, `${live}|${Math.floor(Date.now() / 1000)}`);
+
+      dbQuery(`UPDATE utenti SET stato='sospeso' WHERE id=${adminId}`);
+      suspended = true;
+
+      const answered = await page.request.get(`${BASE}/api/user/reservations/count`);
+      const handedBack = answered.headersArray()
+        .filter(h => h.name.toLowerCase() === 'set-cookie')
+        .flatMap(h => String(h.value).split('\n'))
+        .some(line => line.includes(live));
+      expect(handedBack, 'the suspended account is not handed the session it used to hold').toBe(false);
+      expect((await context.cookies()).some(c => c.value === live),
+        'and the browser does not end up carrying it either').toBe(false);
+
+      // Nor by the ordinary way in.
+      await page.goto(`${BASE}/admin`, { waitUntil: 'domcontentloaded' });
+      expect(page.url(), 'a suspended account is not signed in by its cookie').not.toMatch(/\/admin(\/|$|\?)/);
+    } finally {
+      if (suspended) dbQuery(`UPDATE utenti SET stato='attivo' WHERE id=${adminId}`);
+      if (note && fs.existsSync(note)) fs.unlinkSync(note);
       await context.close();
     }
   });

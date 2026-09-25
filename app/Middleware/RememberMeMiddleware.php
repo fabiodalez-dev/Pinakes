@@ -74,26 +74,6 @@ class RememberMeMiddleware implements MiddlewareInterface
             return;
         }
 
-        // A browser returning with only the remember-me cookie asks for
-        // several things at once — the page, and whatever the page fetches for
-        // itself. Each of those arrives without a session and reaches this
-        // method, and each used to mint its own, with its own CSRF token. The
-        // browser keeps the last Set-Cookie it receives, so the token printed
-        // into the HTML could belong to a session that no longer has anything
-        // to do with it, and the visitor's first form submission was refused.
-        // Measured: roughly half of page loads, with the dashboard's own
-        // /api/stats/active-loans-count request as the other creator.
-        //
-        // So a sibling that got here first is joined rather than raced. Note
-        // that session_start() below blocks until that sibling releases the
-        // session lock, which is the point: what comes back is a session that
-        // has already been populated, not a half-written one.
-        $tokenPlain = (string) ($_COOKIE['remember_token'] ?? '');
-        $joined = $this->joinSiblingSession($tokenPlain);
-        if ($joined && isset($_SESSION['user'])) {
-            return;
-        }
-
         // Fetch user data from database
         $stmt = $this->db->prepare("
             SELECT id, email, tipo_utente, email_verificata, stato, nome, cognome, locale
@@ -116,11 +96,39 @@ class RememberMeMiddleware implements MiddlewareInterface
             return;
         }
 
-        // Verify user is still active and verified
+        // Verify user is still active and verified. This runs before anything
+        // else this method can do, joining a sibling's session included: the
+        // token row says the device is still trusted, it says nothing about
+        // whether the account still is, and a suspended one must not be served
+        // by any path through here.
         if (((int) ($row['email_verificata'] ?? 0)) !== 1) {
             return;
         }
         if (($row['stato'] ?? '') !== 'attivo') {
+            return;
+        }
+
+        // A browser returning with only the remember-me cookie asks for
+        // several things at once — the page, and whatever the page fetches for
+        // itself. Each of those arrives without a session and reaches this
+        // method, and each used to mint its own, with its own CSRF token. The
+        // browser keeps the last Set-Cookie it receives, so the token printed
+        // into the HTML could belong to a session that no longer has anything
+        // to do with it, and the visitor's first form submission was refused.
+        // Measured: roughly half of page loads, with the dashboard's own
+        // /api/stats/active-loans-count request as the other creator.
+        //
+        // So a sibling that got here first is joined rather than raced. Note
+        // that session_start() inside blocks until that sibling releases the
+        // session lock, which is the point: what comes back is a session that
+        // has already been populated, not a half-written one.
+        $tokenPlain = (string) ($_COOKIE['remember_token'] ?? '');
+        $boundRow = isset($_SESSION[RememberMeService::SESSION_ROW_KEY])
+            ? (int) $_SESSION[RememberMeService::SESSION_ROW_KEY]
+            : 0;
+
+        $joined = $this->joinSession(RememberMeSessionRegistry::lookup($tokenPlain), $userId, $boundRow);
+        if ($joined === self::JOIN_READY) {
             return;
         }
 
@@ -132,16 +140,23 @@ class RememberMeMiddleware implements MiddlewareInterface
         // regeneration in public/index.php:259 already avoids the same way. The
         // fixation-critical regeneration with TRUE still happens at real login
         // (AuthController); auto-login is not a privilege-elevation boundary.
-        if (session_status() === PHP_SESSION_ACTIVE && !$joined) {
+        if (session_status() === PHP_SESSION_ACTIVE && $joined === self::JOIN_NOTHING) {
             session_regenerate_id(false);
         }
 
         // Whatever session this request ends up in, that is the one a sibling
         // arriving in the next few milliseconds should join. Written after the
         // regeneration above, so the id recorded is the one the browser will
-        // actually be given.
+        // actually be given — and answered by whoever published first, which
+        // may be a sibling that beat us between the lookup above and here. In
+        // that case we join it now instead of publishing a second id.
         if ($tokenPlain !== '' && session_status() === PHP_SESSION_ACTIVE) {
-            RememberMeSessionRegistry::remember($tokenPlain, (string) session_id());
+            $published = RememberMeSessionRegistry::claim($tokenPlain, (string) session_id());
+            if ($published !== null
+                && $published !== session_id()
+                && $this->joinSession($published, $userId, $boundRow) === self::JOIN_READY) {
+                return;
+            }
         }
 
         // Populate session with user data
@@ -173,24 +188,34 @@ class RememberMeMiddleware implements MiddlewareInterface
         ]);
     }
 
-    /**
-     * Adopt the session a concurrent request already created for this token.
-     *
-     * Returns true when this request is now inside that session — whether or
-     * not the sibling had finished populating it, which the caller checks.
-     * Returns false when there was nothing to join, or the note pointed at a
-     * session that no longer exists, in which case the caller carries on and
-     * creates one as before.
-     */
-    private function joinSiblingSession(string $tokenPlain): bool
-    {
-        if ($tokenPlain === '' || session_status() !== PHP_SESSION_ACTIVE) {
-            return false;
-        }
+    /** Still in this request's own session: there was nothing to join. */
+    private const JOIN_NOTHING = 0;
 
-        $sibling = RememberMeSessionRegistry::lookup($tokenPlain);
-        if ($sibling === null || $sibling === session_id()) {
-            return false;
+    /** Now inside the sibling's session, which nobody has filled in yet. */
+    private const JOIN_SHARED = 1;
+
+    /** Now inside the sibling's session, and it already holds this user. */
+    private const JOIN_READY = 2;
+
+    /**
+     * Move into the session a concurrent request created for this same token.
+     *
+     * Answers JOIN_READY only when this request is now inside a session that
+     * already holds this very user and is fit to serve; JOIN_SHARED when the
+     * move succeeded but the sibling had not filled it in, so the caller fills
+     * it in without regenerating the id out from under the sibling; and
+     * JOIN_NOTHING when there was nothing to join, the note pointed at a
+     * session that no longer exists, or what came back belongs to somebody
+     * else — in which case this request is back in its own session and carries
+     * on exactly as it did before any of this existed.
+     */
+    private function joinSession(?string $sibling, int $userId, int $boundRow): int
+    {
+        if ($sibling === null || session_status() !== PHP_SESSION_ACTIVE) {
+            return self::JOIN_NOTHING;
+        }
+        if ($sibling === session_id()) {
+            return self::JOIN_NOTHING;
         }
 
         // Nothing has been written into this request's own session yet — it
@@ -202,16 +227,38 @@ class RememberMeMiddleware implements MiddlewareInterface
             // Could not join; go back to our own session and carry on alone.
             session_id($ours);
             @session_start();
-            return false;
+            return self::JOIN_NOTHING;
         }
 
         // use_strict_mode refuses an id with no session behind it, leaving us
         // with a fresh empty one under a different id. That is not the sibling
         // we meant to join, so treat it as "nothing to join".
         if ((string) session_id() !== $sibling) {
-            return false;
+            return self::JOIN_NOTHING;
         }
 
-        return true;
+        // The note is named after a hash of the token, so it can only ever
+        // point at a session this same cookie opened — but this request is
+        // about to serve whatever identity it finds in there, so the identity
+        // is checked rather than assumed.
+        $occupant = $_SESSION['user']['id'] ?? null;
+        if ($occupant !== null && (int) $occupant !== $userId) {
+            // Somebody else's. Leave it untouched and go back to our own
+            // rather than writing this user over it.
+            session_write_close();
+            session_id($ours);
+            @session_start();
+
+            return self::JOIN_NOTHING;
+        }
+
+        // validateToken() bound this request's session to its user_sessions
+        // row, and that binding stayed behind in the session just abandoned.
+        // Without it here, revoking the device would have nothing to notice.
+        if ($boundRow > 0 && empty($_SESSION[RememberMeService::SESSION_ROW_KEY])) {
+            $_SESSION[RememberMeService::SESSION_ROW_KEY] = $boundRow;
+        }
+
+        return $occupant === null ? self::JOIN_SHARED : self::JOIN_READY;
     }
 }

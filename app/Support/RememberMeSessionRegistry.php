@@ -22,7 +22,10 @@ namespace App\Support;
  *
  * So the first request to authenticate a given token writes down the session
  * it created, and any sibling that arrives while that note is fresh joins that
- * session instead of starting another.
+ * session instead of starting another. The note is published in one step and
+ * only where there is none already, so the whole burst agrees on one session
+ * even when two of its requests reach this at the same instant: the loser is
+ * told who won and joins that one rather than keeping its own.
  *
  * Why a file and not APCu: the note has to be visible to whichever worker
  * handles the sibling request, and to CLI too. This project already reached
@@ -92,32 +95,110 @@ class RememberMeSessionRegistry
     }
 
     /**
-     * Write down the session this request created. Overwrites a note that is
-     * already there: the newest sign-in is the one siblings should join.
+     * Publish the session this request created, and say which one siblings
+     * should join from here on.
+     *
+     * Returns this request's own id when it got there first, the id already
+     * published when it did not, and null when nothing could be written. The
+     * caller compares the answer against the session it is sitting in and
+     * joins the winner, so a burst that loses the race by microseconds still
+     * ends in one session rather than two.
+     *
+     * The first writer wins rather than the last. Overwriting a live note
+     * would let two requests publish different ids in turn, and a third
+     * sibling would then join whichever happened to be on disk when it looked.
      */
-    public static function remember(string $tokenPlain, string $sessionId): bool
+    public static function claim(string $tokenPlain, string $sessionId): ?string
     {
         if (!self::isWellFormedSessionId($sessionId)) {
-            return false;
+            return null;
         }
         $path = self::pathFor($tokenPlain);
         if ($path === null) {
+            return null;
+        }
+
+        // Two passes at most. The first can lose to a note that turns out to
+        // be past its window, and clearing that earns exactly one more try;
+        // losing to a live one needs no retry, because the next read returns
+        // it and that is the answer.
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $published = self::lookup($tokenPlain);
+            if ($published !== null) {
+                return $published;
+            }
+
+            if (self::publish($path, $sessionId)) {
+                if (random_int(1, self::SWEEP_ONE_WRITE_IN) === 1) {
+                    self::sweep(dirname($path));
+                }
+
+                return $sessionId;
+            }
+
+            // The publish failed, so something is in the way. Read it again
+            // before doing anything to it: the read at the top of this pass
+            // happened before it existed, so "nothing there" and "a sibling
+            // published a moment ago" arrived as the same answer, and acting
+            // on the first reading would delete the note that just won.
+            $published = self::lookup($tokenPlain);
+            if ($published !== null) {
+                return $published;
+            }
+
+            // Still nothing a reader will accept, and yet something occupies
+            // the name: stale, malformed, or truncated by a process that died
+            // mid-write. It belongs to no session, so it goes.
+            if (file_exists($path)) {
+                @unlink($path);
+            }
+        }
+
+        return self::lookup($tokenPlain);
+    }
+
+    /**
+     * Put a complete note in place, and only where there is no note already.
+     *
+     * Writing straight to the destination is what makes a reader able to see a
+     * half-written one: `file_put_contents()` opens with `wb`, which truncates
+     * at open — before `LOCK_EX` is taken — so the window between the empty
+     * file and the finished note is visible to anybody reading in it. The note
+     * is therefore built off to the side and only then linked into place.
+     */
+    private static function publish(string $path, string $sessionId): bool
+    {
+        $directory = dirname($path);
+        $temporary = @tempnam($directory, '.note-');
+        if ($temporary === false) {
             return false;
         }
 
-        $line = $sessionId . '|' . time();
-        $written = @file_put_contents($path, $line, LOCK_EX) !== false;
+        if (@file_put_contents($temporary, $sessionId . '|' . time()) === false) {
+            @unlink($temporary);
 
-        // A note is worth keeping for seconds, so without a sweep the
-        // directory would grow by one file per remembered sign-in and never
-        // shrink. Done on a fraction of writes, the way PHP collects its own
-        // sessions: the cost is spread out and no request pays for a scan it
-        // did not cause.
-        if ($written && random_int(1, self::SWEEP_ONE_WRITE_IN) === 1) {
-            self::sweep(dirname($path));
+            return false;
+        }
+        @chmod($temporary, 0600);
+
+        // link() publishes something already complete and refuses to replace
+        // what is there: both halves of what this needs. Where it is missing —
+        // some shared hosts disable it — rename() still publishes in one step,
+        // so no reader ever sees a partial note, but it overwrites: on those
+        // installations the last request of a burst wins instead of the first.
+        if (function_exists('link')) {
+            $linked = @link($temporary, $path);
+            @unlink($temporary);
+
+            return $linked;
         }
 
-        return $written;
+        if (@rename($temporary, $path)) {
+            return true;
+        }
+        @unlink($temporary);
+
+        return false;
     }
 
     /**

@@ -52,12 +52,19 @@ try {
 
     // -----------------------------------------------------------------------
     echo "\nB. A sibling writes it down, the next request joins\n";
-    $check(RememberMeSessionRegistry::remember($token, $sid), 'the first sign-in records its session');
+    $check(RememberMeSessionRegistry::claim($token, $sid) === $sid,
+        'the first sign-in publishes its own session and is told so');
     $check(RememberMeSessionRegistry::lookup($token) === $sid, 'and a sibling is handed that same id');
 
+    // The first writer wins, not the last. Two requests can get past the read
+    // at the same instant; if the second then replaced the note, a third
+    // sibling would join whichever happened to be on disk when it looked, and
+    // the burst would end up split across two sessions again.
     $other = 'ffffffff11111111ffffffff';
-    $check(RememberMeSessionRegistry::remember($token, $other), 'a newer sign-in overwrites the note');
-    $check(RememberMeSessionRegistry::lookup($token) === $other, 'siblings now join the newer session');
+    $check(RememberMeSessionRegistry::claim($token, $other) === $sid,
+        'a request that loses the race is told which session won');
+    $check(RememberMeSessionRegistry::lookup($token) === $sid,
+        'and the published note is still the first one');
 
     $check(RememberMeSessionRegistry::lookup($token . 'x') === null,
         'a different token gets nothing — notes are per token');
@@ -65,7 +72,7 @@ try {
     // -----------------------------------------------------------------------
     echo "\nC. The token itself is never written down\n";
     $files = array_values(array_filter(scandir($dir) ?: [], static fn ($f) => $f !== '.' && $f !== '..'));
-    $check(count($files) === 1, 'one note on disk');
+    $check(count($files) === 1, 'one note on disk, and no half-built one left beside it');
     $check($files !== [] && $files[0] === hash('sha256', $token),
         'named after a hash of the token, not the token');
     $onDisk = (string) file_get_contents($dir . '/' . $files[0]);
@@ -112,11 +119,29 @@ try {
         $check(RememberMeSessionRegistry::lookup($token) === null, "refused: {$why}");
     }
 
-    $check(!RememberMeSessionRegistry::remember($token, 'not a session id'),
+    $check(RememberMeSessionRegistry::claim($token, 'not a session id') === null,
         'and a malformed id is refused on the way in too');
 
     // -----------------------------------------------------------------------
-    echo "\nF. Old notes do not pile up\n";
+    echo "\nF. A note that is nobody's session gets out of the way\n";
+    // First-writer-wins must not mean a dead note blocks the token forever.
+    // Anything the reader refuses — past its window, malformed, truncated by a
+    // process that died mid-write — belongs to no session and is replaced.
+    foreach ([
+        'abcdef0123456789abcdef01|' . (time() - 120) => 'a note past its window',
+        'garbage with no separator' => 'a malformed note',
+        '' => 'an empty note, as a truncated write would leave',
+    ] as $stale => $why) {
+        file_put_contents($dir . '/' . hash('sha256', $token), (string) $stale);
+        $check(RememberMeSessionRegistry::claim($token, $sid) === $sid,
+            "replaced: {$why}");
+        $check(RememberMeSessionRegistry::lookup($token) === $sid,
+            "  and siblings now join the live session: {$why}");
+        RememberMeSessionRegistry::forget($token);
+    }
+
+    // -----------------------------------------------------------------------
+    echo "\nG. Old notes do not pile up\n";
     // One note per remembered sign-in, kept for seconds: without a sweep the
     // directory would only ever grow. Writes tidy up on a fraction of calls,
     // so this keeps writing until one of them does.
@@ -128,9 +153,14 @@ try {
     $before = count(glob($dir . '/*') ?: []);
     $check($before >= 12, "stale notes are on disk to begin with ({$before})");
 
+    // A published note is never rewritten, so the sweep rides on new ones:
+    // each pass claims a token of its own and then drops it again.
     $fresh = 'sweep-token-' . bin2hex(random_bytes(4));
+    RememberMeSessionRegistry::claim($fresh, $sid);
     for ($i = 0; $i < 400 && count(glob($dir . '/*') ?: []) > 2; $i++) {
-        RememberMeSessionRegistry::remember($fresh, $sid);
+        $passing = 'sweep-pass-' . $i . '-' . bin2hex(random_bytes(4));
+        RememberMeSessionRegistry::claim($passing, $sid);
+        RememberMeSessionRegistry::forget($passing);
     }
     $after = count(glob($dir . '/*') ?: []);
     $check($after < $before, "a sweep ran and removed them ({$before} -> {$after})");
@@ -139,8 +169,8 @@ try {
     RememberMeSessionRegistry::forget($fresh);
 
     // -----------------------------------------------------------------------
-    echo "\nG. Retiring the cookie drops the note\n";
-    RememberMeSessionRegistry::remember($token, $sid);
+    echo "\nH. Retiring the cookie drops the note\n";
+    RememberMeSessionRegistry::claim($token, $sid);
     $check(RememberMeSessionRegistry::lookup($token) === $sid, 'a note is there to drop');
     $check(RememberMeSessionRegistry::forget($token), 'forget() reports success');
     $check(RememberMeSessionRegistry::lookup($token) === null, 'and nothing is left to join');
