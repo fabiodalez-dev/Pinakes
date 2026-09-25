@@ -438,19 +438,31 @@ test.describe('Catalog facets', () => {
 
     const states = await page.evaluate(() => {
       const list = document.querySelector('.filter-options:not(.facet-is-collapsed)');
-      if (!list) { return null; }
+      if (!list || !list.firstElementChild) { return null; }
       const cue = () => ({
         marked: list.classList.contains('facet-has-more'),
         faded: getComputedStyle(list).maskImage !== 'none'
               || getComputedStyle(list).webkitMaskImage !== 'none',
       });
+      // Both shapes are built here instead of being read off the page. How
+      // many authors the catalogue happens to hold is a property of the
+      // seed, not of the behaviour under test: a library with four of them
+      // overflows nothing, and an assertion resting on that is asserting
+      // the fixture. The clones are removed before the function returns.
+      const padding = [];
+      while (list.scrollHeight < 240) {
+        const clone = list.firstElementChild.cloneNode(true);
+        list.appendChild(clone);
+        padding.push(clone);
+      }
       const out = {};
-      // A short list must stay clean — the cue is not decoration.
-      list.style.maxHeight = '';
+      // Taller than its own content: nothing is hidden, so nothing is said.
+      list.style.maxHeight = `${list.scrollHeight + 64}px`;
       window.markScrollableFacets();
       out.short = cue();
-      // Force the shape the library actually has.
+      // Shorter than its own content: the shape the real authors list has.
       list.style.maxHeight = '60px';
+      out.overflowBy = list.scrollHeight - list.clientHeight;
       window.markScrollableFacets();
       out.overflowing = cue();
       list.scrollTop = list.scrollHeight;
@@ -460,12 +472,14 @@ test.describe('Catalog facets', () => {
       list.dispatchEvent(new Event('scroll'));
       out.backAtTop = cue();
       list.style.maxHeight = '';
+      padding.forEach((clone) => clone.remove());
       window.markScrollableFacets();
       out.closingRule = getComputedStyle(list).borderBottomWidth;
       return out;
     });
 
     expect(states, '.filter-options must exist on the catalog page').not.toBeNull();
+    expect(states.overflowBy, 'the overflowing shape must really overflow').toBeGreaterThan(0);
     expect(states.short.marked, 'a list with nothing hidden gets no cue').toBe(false);
     expect(states.overflowing.marked, 'a list with content below the fold is marked').toBe(true);
     expect(states.overflowing.faded, 'and the mark actually fades the last line').toBe(true);
