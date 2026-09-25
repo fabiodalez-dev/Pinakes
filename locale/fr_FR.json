@@ -7843,5 +7843,17 @@
   "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Restauration interrompue : la base de données est incomplète. Restaurez la sauvegarde de sécurité avant de rouvrir le site.",
   "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "La restauration s’est interrompue pendant le remplacement de la base de données, qui est désormais incomplète. Le site reste en maintenance : restaurez la sauvegarde de sécurité avant de le rouvrir.",
   "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Mot de passe mis à jour. Les autres appareils connectés ont été déconnectés.",
-  "anche nella vecchia forma": "aussi dans son ancienne forme"
+  "anche nella vecchia forma": "aussi dans son ancienne forme",
+  "Pagina Privacy Policy": "Page Politique de confidentialité",
+  "Anteprima privacy": "Aperçu confidentialité",
+  "Anteprima cookie policy": "Aperçu politique cookies",
+  "Salva le pagine": "Enregistrer les pages",
+  "Banner dei cookie": "Bandeau cookies",
+  "Se il banner compare all'arrivo, quali categorie offre e con quali testi. Si salva tutto insieme.": "Si le bandeau apparaît à l'arrivée, quelles catégories il propose et avec quels textes. Tout est enregistré ensemble.",
+  "Disattivandolo il banner non compare più all'arrivo. Se una pagina contiene qualcosa che richiede consenso, come la mappa dei contatti, restano comunque l'icona dei cookie e il pannello delle preferenze: altrimenti quel contenuto non potrebbe mai essere sbloccato.": "Désactivé, le bandeau n'apparaît plus à l'arrivée. Si une page contient un élément qui exige le consentement, comme la carte des contacts, l'icône des cookies et le panneau des préférences restent : sinon ce contenu ne pourrait jamais être débloqué.",
+  "Collegamenti nel pannello delle preferenze": "Liens dans le panneau des préférences",
+  "Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.": "Ils apparaissent au bas du panneau des préférences. Laissez le premier vide pour utiliser la page Politique cookies de ce site.",
+  "Salva il banner": "Enregistrer le bandeau",
+  "Pagine privacy e cookie aggiornate correttamente.": "Pages confidentialité et cookies mises à jour avec succès.",
+  "Impostazioni del banner cookie aggiornate correttamente.": "Réglages du bandeau cookies mis à jour avec succès."
 }

@@ -7843,5 +7843,17 @@
   "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Restore interrupted: the database is incomplete. Restore the safety backup before reopening the site.",
   "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "The restore stopped while it was replacing the database, which is now incomplete. The site stays in maintenance: restore the safety backup before reopening it.",
   "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Password updated. The other devices that were signed in have been signed out.",
-  "anche nella vecchia forma": "also in its older form"
+  "anche nella vecchia forma": "also in its older form",
+  "Pagina Privacy Policy": "Privacy Policy page",
+  "Anteprima privacy": "Preview privacy page",
+  "Anteprima cookie policy": "Preview cookie policy",
+  "Salva le pagine": "Save the pages",
+  "Banner dei cookie": "Cookie banner",
+  "Se il banner compare all'arrivo, quali categorie offre e con quali testi. Si salva tutto insieme.": "Whether the banner appears on arrival, which categories it offers and what it says. It is all saved together.",
+  "Disattivandolo il banner non compare più all'arrivo. Se una pagina contiene qualcosa che richiede consenso, come la mappa dei contatti, restano comunque l'icona dei cookie e il pannello delle preferenze: altrimenti quel contenuto non potrebbe mai essere sbloccato.": "Turning it off stops the banner appearing on arrival. If a page holds something that needs consent, such as the contacts map, the cookie icon and the preferences panel remain: otherwise that content could never be unlocked.",
+  "Collegamenti nel pannello delle preferenze": "Links in the preferences panel",
+  "Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.": "They appear at the foot of the preferences panel. Leave the first empty to use this site's own Cookie Policy page.",
+  "Salva il banner": "Save the banner",
+  "Pagine privacy e cookie aggiornate correttamente.": "Privacy and cookie pages updated successfully.",
+  "Impostazioni del banner cookie aggiornate correttamente.": "Cookie banner settings updated successfully."
 }

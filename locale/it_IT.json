@@ -7843,5 +7843,17 @@
   "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.",
   "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.",
   "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.",
-  "anche nella vecchia forma": "anche nella vecchia forma"
+  "anche nella vecchia forma": "anche nella vecchia forma",
+  "Pagina Privacy Policy": "Pagina Privacy Policy",
+  "Anteprima privacy": "Anteprima privacy",
+  "Anteprima cookie policy": "Anteprima cookie policy",
+  "Salva le pagine": "Salva le pagine",
+  "Banner dei cookie": "Banner dei cookie",
+  "Se il banner compare all'arrivo, quali categorie offre e con quali testi. Si salva tutto insieme.": "Se il banner compare all'arrivo, quali categorie offre e con quali testi. Si salva tutto insieme.",
+  "Disattivandolo il banner non compare più all'arrivo. Se una pagina contiene qualcosa che richiede consenso, come la mappa dei contatti, restano comunque l'icona dei cookie e il pannello delle preferenze: altrimenti quel contenuto non potrebbe mai essere sbloccato.": "Disattivandolo il banner non compare più all'arrivo. Se una pagina contiene qualcosa che richiede consenso, come la mappa dei contatti, restano comunque l'icona dei cookie e il pannello delle preferenze: altrimenti quel contenuto non potrebbe mai essere sbloccato.",
+  "Collegamenti nel pannello delle preferenze": "Collegamenti nel pannello delle preferenze",
+  "Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.": "Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.",
+  "Salva il banner": "Salva il banner",
+  "Pagine privacy e cookie aggiornate correttamente.": "Pagine privacy e cookie aggiornate correttamente.",
+  "Impostazioni del banner cookie aggiornate correttamente.": "Impostazioni del banner cookie aggiornate correttamente."
 }

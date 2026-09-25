@@ -7843,5 +7843,17 @@
   "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Gendannelsen blev afbrudt: databasen er ufuldstændig. Gendan sikkerhedskopien, før du åbner webstedet igen.",
   "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "Gendannelsen stoppede, mens den udskiftede databasen, som nu er ufuldstændig. Webstedet forbliver i vedligeholdelsestilstand: gendan sikkerhedskopien, før du åbner det igen.",
   "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Adgangskoden er opdateret. De øvrige enheder, der var logget ind, er blevet logget ud.",
-  "anche nella vecchia forma": "også i den gamle form"
+  "anche nella vecchia forma": "også i den gamle form",
+  "Pagina Privacy Policy": "Privatlivspolitik-side",
+  "Anteprima privacy": "Forhåndsvis privatliv",
+  "Anteprima cookie policy": "Forhåndsvis cookiepolitik",
+  "Salva le pagine": "Gem siderne",
+  "Banner dei cookie": "Cookiebanner",
+  "Se il banner compare all'arrivo, quali categorie offre e con quali testi. Si salva tutto insieme.": "Om banneret vises ved ankomst, hvilke kategorier det tilbyder og med hvilke tekster. Det hele gemmes samlet.",
+  "Disattivandolo il banner non compare più all'arrivo. Se una pagina contiene qualcosa che richiede consenso, come la mappa dei contatti, restano comunque l'icona dei cookie e il pannello delle preferenze: altrimenti quel contenuto non potrebbe mai essere sbloccato.": "Slået fra vises banneret ikke længere ved ankomst. Indeholder en side noget, der kræver samtykke, såsom kontaktkortet, bliver cookie-ikonet og præferencepanelet tilbage: ellers kunne det indhold aldrig låses op.",
+  "Collegamenti nel pannello delle preferenze": "Links i præferencepanelet",
+  "Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.": "De vises nederst i præferencepanelet. Lad det første stå tomt for at bruge dette websteds egen cookiepolitik-side.",
+  "Salva il banner": "Gem banneret",
+  "Pagine privacy e cookie aggiornate correttamente.": "Privatlivs- og cookiesider opdateret.",
+  "Impostazioni del banner cookie aggiornate correttamente.": "Indstillinger for cookiebanner opdateret."
 }

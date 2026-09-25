@@ -7843,5 +7843,17 @@
   "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Wiederherstellung abgebrochen: Die Datenbank ist unvollständig. Stellen Sie die Sicherheitskopie wieder her, bevor Sie die Website erneut öffnen.",
   "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "Die Wiederherstellung wurde beim Ersetzen der Datenbank abgebrochen; diese ist nun unvollständig. Die Website bleibt im Wartungsmodus: Stellen Sie die Sicherheitskopie wieder her, bevor Sie sie erneut öffnen.",
   "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Passwort aktualisiert. Die anderen angemeldeten Geräte wurden abgemeldet.",
-  "anche nella vecchia forma": "auch in der alten Form"
+  "anche nella vecchia forma": "auch in der alten Form",
+  "Pagina Privacy Policy": "Datenschutzseite",
+  "Anteprima privacy": "Datenschutzseite ansehen",
+  "Anteprima cookie policy": "Cookie-Richtlinie ansehen",
+  "Salva le pagine": "Seiten speichern",
+  "Banner dei cookie": "Cookie-Banner",
+  "Se il banner compare all'arrivo, quali categorie offre e con quali testi. Si salva tutto insieme.": "Ob das Banner beim Betreten erscheint, welche Kategorien es anbietet und mit welchen Texten. Alles wird gemeinsam gespeichert.",
+  "Disattivandolo il banner non compare più all'arrivo. Se una pagina contiene qualcosa che richiede consenso, come la mappa dei contatti, restano comunque l'icona dei cookie e il pannello delle preferenze: altrimenti quel contenuto non potrebbe mai essere sbloccato.": "Ausgeschaltet erscheint das Banner beim Betreten nicht mehr. Enthält eine Seite etwas, das Einwilligung braucht, etwa die Kontaktkarte, bleiben das Cookie-Symbol und das Einstellungsfenster erhalten: sonst ließe sich dieser Inhalt nie freigeben.",
+  "Collegamenti nel pannello delle preferenze": "Links im Einstellungsfenster",
+  "Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.": "Sie erscheinen am Fuß des Einstellungsfensters. Bleibt das erste leer, wird die Cookie-Richtlinie dieser Website verwendet.",
+  "Salva il banner": "Banner speichern",
+  "Pagine privacy e cookie aggiornate correttamente.": "Datenschutz- und Cookie-Seiten erfolgreich aktualisiert.",
+  "Impostazioni del banner cookie aggiornate correttamente.": "Cookie-Banner-Einstellungen erfolgreich aktualisiert."
 }

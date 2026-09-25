@@ -830,20 +830,26 @@ class SettingsController
         ];
     }
 
+    /**
+     * The two public pages, and nothing else.
+     *
+     * Everything about the cookie banner — whether it appears, which
+     * categories it offers, the links it shows, its wording — is saved by
+     * updateCookieBannerSettings() instead. The split used to run the other
+     * way and cut through the middle of one subject: a button labelled "Salva
+     * Privacy Policy" also wrote the banner switch and the category
+     * visibility, while that same banner's texts needed a second button
+     * nobody was told about.
+     *
+     * Keeping each switch in exactly one form is not only tidiness. An
+     * unchecked checkbox is simply absent from the post, so a handler that
+     * writes a flag its form does not carry writes `false` every time — which
+     * is how a save of one thing silently turns off another.
+     */
     public function updatePrivacySettings(Request $request, Response $response, mysqli $db): Response
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
-
-        $statementRaw = trim((string) ($data['cookie_statement_link'] ?? ''));
-        $technologiesRaw = trim((string) ($data['cookie_technologies_link'] ?? ''));
-        $statementUrl = HtmlHelper::sanitizePublicHttpUrl($statementRaw);
-        $technologiesUrl = HtmlHelper::sanitizePublicHttpUrl($technologiesRaw);
-        if (($statementRaw !== '' && $statementUrl === '')
-            || ($technologiesRaw !== '' && $technologiesUrl === '')) {
-            $_SESSION['error_message'] = __('I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.');
-            return $this->redirect($response, '/admin/settings?tab=privacy');
-        }
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
@@ -852,28 +858,14 @@ class SettingsController
             'page_title' => trim(strip_tags((string) ($data['page_title'] ?? 'Privacy Policy'))),
             'page_content' => HtmlHelper::sanitizeHtml((string) ($data['page_content'] ?? '')),
             'cookie_policy_content' => HtmlHelper::sanitizeHtml((string) ($data['cookie_policy_content'] ?? '')),
-            'cookie_banner_enabled' => isset($data['cookie_banner_enabled']) && $data['cookie_banner_enabled'] === '1',
-            'cookie_statement_link' => $statementUrl,
-            'cookie_technologies_link' => $technologiesUrl,
         ];
 
         foreach ($settings as $key => $value) {
-            // Convert boolean to string for repository
-            $dbValue = is_bool($value) ? ($value ? '1' : '0') : (string) $value;
-            $repository->set('privacy', $key, $dbValue);
+            $repository->set('privacy', $key, (string) $value);
             ConfigStore::set("privacy.$key", $value);
         }
 
-        // Save cookie banner category visibility flags
-        $showAnalytics = isset($data['show_analytics']) && $data['show_analytics'] === '1';
-        $showMarketing = isset($data['show_marketing']) && $data['show_marketing'] === '1';
-
-        $repository->set('cookie_banner', 'show_analytics', $showAnalytics ? '1' : '0');
-        $repository->set('cookie_banner', 'show_marketing', $showMarketing ? '1' : '0');
-        ConfigStore::set('cookie_banner.show_analytics', $showAnalytics);
-        ConfigStore::set('cookie_banner.show_marketing', $showMarketing);
-
-        $_SESSION['success_message'] = __('Impostazioni privacy aggiornate correttamente.');
+        $_SESSION['success_message'] = __('Pagine privacy e cookie aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=privacy');
     }
 
@@ -1337,10 +1329,22 @@ class SettingsController
         return $this->redirect($response, '/admin/settings?tab=advanced');
     }
 
-    public function updateCookieBannerTexts(Request $request, Response $response, mysqli $db): Response
+    /**
+     * The cookie banner as one subject: whether it appears, which categories
+     * it offers, the links it shows, and everything it says.
+     *
+     * It used to save only the texts, while the switch that turns the banner
+     * on and the category visibility were saved by the privacy page's button.
+     * That put one thing under two buttons with nothing on screen to say so.
+     *
+     * The whole of it is admin-only, as the texts already were: this governs
+     * what every visitor is asked to consent to, and turning the banner off
+     * is a larger decision than rewording it.
+     */
+    public function updateCookieBannerSettings(Request $request, Response $response, mysqli $db): Response
     {
-        // AdminAuthMiddleware also admits staff; these texts are rendered on
-        // every public page, so editing them is admin-only — re-check inline.
+        // AdminAuthMiddleware also admits staff; this governs consent on every
+        // public page, so editing it is admin-only — re-check inline.
         if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
             $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
             return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
@@ -1349,8 +1353,42 @@ class SettingsController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
+        // Refuse the whole save on a malformed link rather than storing an
+        // empty one: silently dropping a link the operator typed would read
+        // as "saved" while the preferences panel lost an entry.
+        $statementRaw = trim((string) ($data['cookie_statement_link'] ?? ''));
+        $technologiesRaw = trim((string) ($data['cookie_technologies_link'] ?? ''));
+        $statementUrl = HtmlHelper::sanitizePublicHttpUrl($statementRaw);
+        $technologiesUrl = HtmlHelper::sanitizePublicHttpUrl($technologiesRaw);
+        if (($statementRaw !== '' && $statementUrl === '')
+            || ($technologiesRaw !== '' && $technologiesUrl === '')) {
+            $_SESSION['error_message'] = __('I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.');
+            return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
+        }
+
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
+
+        // Behaviour. These three live in this form and only in this form, so
+        // an unchecked box means "off" here and cannot mean "off" anywhere
+        // else by accident.
+        $bannerEnabled = isset($data['cookie_banner_enabled']) && $data['cookie_banner_enabled'] === '1';
+        $showAnalytics = isset($data['show_analytics']) && $data['show_analytics'] === '1';
+        $showMarketing = isset($data['show_marketing']) && $data['show_marketing'] === '1';
+
+        foreach ([
+            'cookie_banner_enabled' => $bannerEnabled ? '1' : '0',
+            'cookie_statement_link' => $statementUrl,
+            'cookie_technologies_link' => $technologiesUrl,
+        ] as $key => $value) {
+            $repository->set('privacy', $key, $value);
+            ConfigStore::set("privacy.$key", $key === 'cookie_banner_enabled' ? $bannerEnabled : $value);
+        }
+
+        $repository->set('cookie_banner', 'show_analytics', $showAnalytics ? '1' : '0');
+        $repository->set('cookie_banner', 'show_marketing', $showMarketing ? '1' : '0');
+        ConfigStore::set('cookie_banner.show_analytics', $showAnalytics);
+        ConfigStore::set('cookie_banner.show_marketing', $showMarketing);
 
         $fieldMap = $this->getCookieBannerTextFieldMap();
         $cookieBannerTexts = [];
@@ -1386,7 +1424,7 @@ class SettingsController
             ConfigStore::set("cookie_banner.$key", $value);
         }
 
-        $_SESSION['success_message'] = 'Testi cookie banner aggiornati correttamente.';
+        $_SESSION['success_message'] = __('Impostazioni del banner cookie aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
     }
 
