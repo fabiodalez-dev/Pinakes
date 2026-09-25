@@ -423,6 +423,85 @@ test.describe('Catalog facets', () => {
     page.off('request', countCatalogRequest);
   });
 
+  // -------------------------------------------------------------------------
+  // 15. A facet list that is cut off says so
+  //
+  // Reported from a live library: the authors list stopped mid-alphabet with
+  // ninety-two names still inside it, with no rule, no fade and a scrollbar the
+  // platform only paints on hover. It read as a finished list, which made the
+  // short facet below it look broken rather than short. The cue is set from JS
+  // because CSS cannot ask whether a box overflows, so it is worth asserting
+  // that it is set, cleared at the bottom, and never put on a collapsed pill.
+  // -------------------------------------------------------------------------
+  test('15. An overflowing facet list carries a scroll cue that clears at the bottom', async () => {
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+    const states = await page.evaluate(() => {
+      const list = document.querySelector('.filter-options:not(.facet-is-collapsed)');
+      if (!list) { return null; }
+      const cue = () => ({
+        marked: list.classList.contains('facet-has-more'),
+        faded: getComputedStyle(list).maskImage !== 'none'
+              || getComputedStyle(list).webkitMaskImage !== 'none',
+      });
+      const out = {};
+      // A short list must stay clean — the cue is not decoration.
+      list.style.maxHeight = '';
+      window.markScrollableFacets();
+      out.short = cue();
+      // Force the shape the library actually has.
+      list.style.maxHeight = '60px';
+      window.markScrollableFacets();
+      out.overflowing = cue();
+      list.scrollTop = list.scrollHeight;
+      list.dispatchEvent(new Event('scroll'));
+      out.atBottom = cue();
+      list.scrollTop = 0;
+      list.dispatchEvent(new Event('scroll'));
+      out.backAtTop = cue();
+      list.style.maxHeight = '';
+      window.markScrollableFacets();
+      out.closingRule = getComputedStyle(list).borderBottomWidth;
+      return out;
+    });
+
+    expect(states, '.filter-options must exist on the catalog page').not.toBeNull();
+    expect(states.short.marked, 'a list with nothing hidden gets no cue').toBe(false);
+    expect(states.overflowing.marked, 'a list with content below the fold is marked').toBe(true);
+    expect(states.overflowing.faded, 'and the mark actually fades the last line').toBe(true);
+    expect(states.atBottom.marked, 'scrolled to the bottom the cue clears').toBe(false);
+    expect(states.backAtTop.marked, 'and comes back on the way up').toBe(true);
+    expect(states.closingRule, 'every open list is closed by a rule').not.toBe('0px');
+  });
+
+  // -------------------------------------------------------------------------
+  // 16. A collapsed facet is a pill, not a list: no rule, no fade, no scrollbar
+  // -------------------------------------------------------------------------
+  test('16. A collapsed facet carries neither the closing rule nor the fade', async () => {
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+    const verdict = await page.evaluate(() => {
+      const list = document.querySelector('.filter-options');
+      if (!list) { return null; }
+      list.classList.add('facet-is-collapsed');
+      window.markScrollableFacets();
+      const cs = getComputedStyle(list);
+      const out = {
+        marked: list.classList.contains('facet-has-more'),
+        border: cs.borderBottomWidth,
+        mask: cs.maskImage,
+      };
+      list.classList.remove('facet-is-collapsed');
+      window.markScrollableFacets();
+      return out;
+    });
+
+    expect(verdict, '.filter-options must exist').not.toBeNull();
+    expect(verdict.marked, 'a collapsed pill is never marked as scrollable').toBe(false);
+    expect(verdict.border, 'and carries no closing rule').toBe('0px');
+    expect(verdict.mask, 'and no fade').toBe('none');
+  });
+
   test('14. A newer catalog request aborts and supersedes the previous request', async () => {
     await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
 
