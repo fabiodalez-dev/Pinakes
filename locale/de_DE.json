@@ -4863,7 +4863,7 @@
   "URL non valido o non permesso.": "Ungültige oder nicht erlaubte URL.",
   "URL non valido.": "Ungültige URL.",
   "URL non valido. Deve essere un URL HTTPS valido.": "Ungültige URL. Muss eine gültige HTTPS-URL sein.",
-  "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed.html?...).": "Ungültige URL. Muss eine Google-Maps-URL (https://www.google.com/maps/embed?...) oder OpenStreetMap-URL (https://www.openstreetmap.org/export/embed.html?...) sein.",
+  "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed?...).": "Ungültige URL. Muss eine Google-Maps-URL (https://www.google.com/maps/embed?...) oder OpenStreetMap-URL (https://www.openstreetmap.org/export/embed?...) sein.",
   "URL obbligatorio.": "URL ist erforderlich.",
   "URL principale del sito. Se vuoto, usa l'URL corrente.": "Haupt-URL der Website. Wenn leer, wird die aktuelle URL verwendet.",
   "URL pubblico:": "Öffentliche URL:",
@@ -7842,5 +7842,6 @@
   "nessuna colonna leggibile": "keine lesbare Spalte",
   "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Wiederherstellung abgebrochen: Die Datenbank ist unvollständig. Stellen Sie die Sicherheitskopie wieder her, bevor Sie die Website erneut öffnen.",
   "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "Die Wiederherstellung wurde beim Ersetzen der Datenbank abgebrochen; diese ist nun unvollständig. Die Website bleibt im Wartungsmodus: Stellen Sie die Sicherheitskopie wieder her, bevor Sie sie erneut öffnen.",
-  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Passwort aktualisiert. Die anderen angemeldeten Geräte wurden abgemeldet."
+  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Passwort aktualisiert. Die anderen angemeldeten Geräte wurden abgemeldet.",
+  "anche nella vecchia forma": "auch in der alten Form"
 }

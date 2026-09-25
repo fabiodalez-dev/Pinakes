@@ -5,8 +5,26 @@ use App\Support\ConfigStore;
 
 // Check if cookie banner is enabled
 $cookieBannerEnabled = ConfigStore::get('privacy.cookie_banner_enabled', true);
-if ($cookieBannerEnabled === false || $cookieBannerEnabled === '0' || $cookieBannerEnabled === 0) {
-    return; // Don't show cookie banner if disabled
+$bannerSuppressed = ($cookieBannerEnabled === false || $cookieBannerEnabled === '0' || $cookieBannerEnabled === 0);
+
+// Content that is only shown once a visitor consents — today the contacts
+// map. Reported from a live library: with the banner switched off the
+// consent manager was never loaded at all, so `window.CookieControl` did not
+// exist. The map is hidden until a class the manager sets, the placeholder
+// offers a button that calls the manager to open preferences, and the
+// listener that would reveal the map returns early when the manager is
+// missing. The result was a map that could never appear and a button that
+// did nothing when clicked, with no way out from the visitor's side.
+//
+// So "no banner" is honoured as what it says — no banner on arrival — rather
+// than as "no consent mechanism at all": the manager still loads, the
+// floating cookie icon and the preferences panel still exist, and a visitor
+// who wants the map has a way to ask for it.
+$hasMapIframe = !empty(ConfigStore::get('contacts.google_maps_embed'));
+$consentedContentPresent = $hasMapIframe;
+
+if ($bannerSuppressed && !$consentedContentPresent) {
+    return; // Nothing needs consent and no banner was asked for.
 }
 
 if (!defined('SILKTIDE_COOKIE_BANNER_CSS_LOADED')) {
@@ -20,7 +38,6 @@ if (!defined('SILKTIDE_COOKIE_BANNER_JS_LOADED')) {
 }
 
 $hasAnalyticsCode = !empty(ConfigStore::get('advanced.custom_js_analytics'));
-$hasMapIframe = !empty(ConfigStore::get('contacts.google_maps_embed'));
 $showAnalytics = (bool)ConfigStore::get('cookie_banner.show_analytics', true) || $hasAnalyticsCode || $hasMapIframe;
 $showMarketing = (bool)ConfigStore::get('cookie_banner.show_marketing', true);
 $cookieBannerTexts = [
@@ -121,6 +138,10 @@ $cookieBannerTexts = [
                 banner: 'bottomRight',
                 cookieIcon: 'bottomLeft',
             },
+            // false skips the banner on arrival and shows the cookie icon
+            // instead, which is the whole difference between "no banner" and
+            // "no way to consent".
+            showBanner: <?= $bannerSuppressed ? 'false' : 'true' ?>,
                     });
                     return true;
                 }

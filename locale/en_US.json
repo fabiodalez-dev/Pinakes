@@ -4863,7 +4863,7 @@
   "URL non valido o non permesso.": "Invalid or unauthorized URL.",
   "URL non valido.": "Invalid URL.",
   "URL non valido. Deve essere un URL HTTPS valido.": "Invalid URL. Must be a valid HTTPS URL.",
-  "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed.html?...).": "Invalid URL. Must be a Google Maps URL (https://www.google.com/maps/embed?...) or OpenStreetMap URL (https://www.openstreetmap.org/export/embed.html?...).",
+  "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed?...).": "Invalid URL. Must be a Google Maps URL (https://www.google.com/maps/embed?...) or OpenStreetMap URL (https://www.openstreetmap.org/export/embed?...).",
   "URL obbligatorio.": "URL is required.",
   "URL principale del sito. Se vuoto, usa l'URL corrente.": "Main site URL. If empty, uses the current URL.",
   "URL pubblico:": "Public URL:",
@@ -7842,5 +7842,6 @@
   "nessuna colonna leggibile": "no readable column",
   "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Restore interrupted: the database is incomplete. Restore the safety backup before reopening the site.",
   "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "The restore stopped while it was replacing the database, which is now incomplete. The site stays in maintenance: restore the safety backup before reopening it.",
-  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Password updated. The other devices that were signed in have been signed out."
+  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Password updated. The other devices that were signed in have been signed out.",
+  "anche nella vecchia forma": "also in its older form"
 }

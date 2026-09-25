@@ -446,7 +446,7 @@ ob_start();
                         <p class="map-blocked-description">
                             <?= __("Per visualizzare la mappa, accetta i cookie di Analytics nelle preferenze cookie.") ?>
                         </p>
-                        <button type="button" class="map-blocked-button" onclick="if(window.CookieControl) window.CookieControl.open();">
+                        <button type="button" class="map-blocked-button" data-needs-consent-manager hidden onclick="if(window.CookieControl) window.CookieControl.open();">
                             <i class="fas fa-cookie-bite"></i>
                             <?= __("Gestisci preferenze cookie") ?>
                         </button>
@@ -546,7 +546,19 @@ document.getElementById('contact-form').addEventListener('submit', function(e) {
 (function() {
     'use strict';
 
+    // A control that silently does nothing is worse than no control. The
+    // button that opens cookie preferences starts hidden and is only shown
+    // once the manager that answers it is actually on the page.
+    function revealConsentControls() {
+        const ready = !!(window.CookieControl && window.CookieControl.open);
+        document.querySelectorAll('[data-needs-consent-manager]').forEach(function (el) {
+            el.hidden = !ready;
+        });
+    }
+
     function checkAndUpdateExternalContent() {
+        revealConsentControls();
+
         // Check if Silktide Cookie Control is loaded
         if (!window.CookieControl || !window.CookieControl.getCategoryConsent) {
             // Cookie Control not ready yet, will retry

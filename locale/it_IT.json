@@ -4863,7 +4863,7 @@
   "URL non valido o non permesso.": "URL non valido o non permesso.",
   "URL non valido.": "URL non valido.",
   "URL non valido. Deve essere un URL HTTPS valido.": "URL non valido. Deve essere un URL HTTPS valido.",
-  "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed.html?...).": "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed.html?...).",
+  "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed?...).": "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed?...).",
   "URL obbligatorio.": "URL obbligatorio.",
   "URL principale del sito. Se vuoto, usa l'URL corrente.": "URL principale del sito. Se vuoto, usa l'URL corrente.",
   "URL pubblico:": "URL pubblico:",
@@ -7842,5 +7842,6 @@
   "nessuna colonna leggibile": "nessuna colonna leggibile",
   "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.",
   "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.",
-  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi."
+  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.",
+  "anche nella vecchia forma": "anche nella vecchia forma"
 }

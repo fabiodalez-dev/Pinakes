@@ -4863,7 +4863,7 @@
   "URL non valido o non permesso.": "Ugyldig eller ikke tilladt URL.",
   "URL non valido.": "Ugyldig URL.",
   "URL non valido. Deve essere un URL HTTPS valido.": "Ugyldig URL. Skal være en gyldig HTTPS-URL.",
-  "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed.html?...).": "Ugyldig URL. Skal være en Google Maps-URL (https://www.google.com/maps/embed?...) eller OpenStreetMap-URL (https://www.openstreetmap.org/export/embed.html?...).",
+  "URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed?...).": "Ugyldig URL. Skal være en Google Maps-URL (https://www.google.com/maps/embed?...) eller OpenStreetMap-URL (https://www.openstreetmap.org/export/embed?...).",
   "URL obbligatorio.": "URL er påkrævet.",
   "URL principale del sito. Se vuoto, usa l'URL corrente.": "Webstedets hoved-URL. Hvis tom, bruges den aktuelle URL.",
   "URL pubblico:": "Offentlig URL:",
@@ -7842,5 +7842,6 @@
   "nessuna colonna leggibile": "ingen læsbar kolonne",
   "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Gendannelsen blev afbrudt: databasen er ufuldstændig. Gendan sikkerhedskopien, før du åbner webstedet igen.",
   "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "Gendannelsen stoppede, mens den udskiftede databasen, som nu er ufuldstændig. Webstedet forbliver i vedligeholdelsestilstand: gendan sikkerhedskopien, før du åbner det igen.",
-  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Adgangskoden er opdateret. De øvrige enheder, der var logget ind, er blevet logget ud."
+  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Adgangskoden er opdateret. De øvrige enheder, der var logget ind, er blevet logget ud.",
+  "anche nella vecchia forma": "også i den gamle form"
 }

@@ -2,6 +2,13 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.87]
+
+### Fixed
+- **The map snippet OpenStreetMap hands out is accepted again.** Its Share panel used to produce `…/export/embed.html?bbox=…` and now produces `…/export/embed?bbox=…`; the contacts form only knew the first spelling, so the one place a librarian is told to copy from produced the one thing the form refused, with a message naming a URL the site no longer gives out. Both spellings are accepted — OpenStreetMap serves both, and existing installs have the older one stored. Two related defects went with it: the query string of a pasted snippet arrives HTML-encoded, and escaping it a second time on the way out turned `&layer=mapnik` into a parameter called `amp;layer`, so every argument after the first was silently dropped; and the provider paths were matched by prefix, which also accepted `/export/embed.html.anything`.
+- **A map no longer depends on a consent banner that was switched off.** The contacts map is held back until a visitor consents, and the consent manager only loaded when the cookie banner was enabled. With the banner off the manager was absent entirely, so the map could never be shown, the placeholder's "manage cookie preferences" button called an API that did not exist and did nothing when clicked, and no floating cookie icon existed to reopen preferences from. "No banner" is now honoured as what it says — no banner on arrival — rather than as "no way to consent": when content needs consent the manager still loads, the cookie icon and the preferences panel are still there, and a visitor who wants the map has a way to ask for it. A control that cannot work is no longer shown at all.
+- **An upgraded install no longer runs the Content-Security-Policy it had years ago.** The policy used to be a static line in `public/.htaccess` and now comes from the application, per response and with a nonce, but that file is preserved across upgrades — for good reason, it holds the operator's own rules — so the old line survived and a header set by the web server is the one the browser obeys. It surfaced as a Google Maps embed refused by a policy that named only `openstreetmap.org`, a provider list from an earlier era. The quieter half matters more: the same line carries `script-src 'unsafe-inline'` and no nonce, so every install upgraded across that change had been running the weaker policy the move was made to replace, with nothing in the admin interface to show it. The upgrade now removes that one directive, keeps a copy of the file first, and leaves everything else in it alone.
+
 ## [0.7.86]
 
 ### Added

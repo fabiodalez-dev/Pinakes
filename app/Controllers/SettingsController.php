@@ -766,66 +766,21 @@ class SettingsController
 
         // Validate and sanitize Maps embed code (Google Maps or OpenStreetMap)
         if (!empty($settings['google_maps_embed'])) {
-            $embedCode = trim($settings['google_maps_embed']);
+            $mapUrl = \App\Support\MapEmbed::extractUrl((string) $settings['google_maps_embed']);
 
-            // Extract the URL from iframe if present
-            $mapUrl = '';
-            if (preg_match('/<iframe[^>]+src=["\']([^"\']+)["\']/', $embedCode, $matches)) {
-                $mapUrl = $matches[1];
-            } else {
-                $mapUrl = $embedCode;
-            }
-
-            // Parse the URL
-            $parsedUrl = parse_url($mapUrl);
-            if (!is_array($parsedUrl)
-                || strtolower((string) ($parsedUrl['scheme'] ?? '')) !== 'https'
-                || !isset($parsedUrl['host'])
-                || isset($parsedUrl['user'])
-                || isset($parsedUrl['pass'])
-            ) {
+            if (!\App\Support\MapEmbed::isSafeHttpsUrl($mapUrl)) {
                 $_SESSION['error_message'] = __('URL non valido. Deve essere un URL HTTPS valido.');
                 return $this->redirect($response, '/admin/settings?tab=contacts');
             }
-            $mapHost = strtolower((string) $parsedUrl['host']);
 
-            $isValidMap = false;
-            $mapProvider = '';
-
-            // Validate Google Maps
-            if (
-                $mapHost === 'www.google.com' &&
-                isset($parsedUrl['path']) &&
-                strpos($parsedUrl['path'], '/maps/embed') === 0
-            ) {
-                $isValidMap = true;
-                $mapProvider = 'google';
-            }
-
-            // Validate OpenStreetMap
-            if (
-                $mapHost === 'www.openstreetmap.org' &&
-                isset($parsedUrl['path']) &&
-                strpos($parsedUrl['path'], '/export/embed.html') === 0
-            ) {
-                $isValidMap = true;
-                $mapProvider = 'openstreetmap';
-            }
-
-            if (!$isValidMap) {
-                $_SESSION['error_message'] = __('URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed.html?...).');
+            $mapProvider = \App\Support\MapEmbed::provider($mapUrl);
+            if ($mapProvider === \App\Support\MapEmbed::PROVIDER_NONE) {
+                $_SESSION['error_message'] = __('URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed?...).');
                 return $this->redirect($response, '/admin/settings?tab=contacts');
             }
 
-            // Rebuild a safe iframe with only allowed attributes
-            $safeIframe = sprintf(
-                '<iframe src="%s" width="100%%" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" data-map-provider="%s"></iframe>',
-                htmlspecialchars($mapUrl, ENT_QUOTES, 'UTF-8'),
-                htmlspecialchars($mapProvider, ENT_QUOTES, 'UTF-8')
-            );
-
-            // Store the sanitized iframe
-            $settings['google_maps_embed'] = $safeIframe;
+            // Our attributes around the provider's URL — nothing pasted survives.
+            $settings['google_maps_embed'] = \App\Support\MapEmbed::buildIframe($mapUrl, $mapProvider);
         }
 
         foreach ($settings as $key => $value) {

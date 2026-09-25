@@ -3361,6 +3361,21 @@ class Updater
                 $this->debugLog('WARNING', 'LiteSpeed CacheLookup heal deferred; public/.htaccess not writable');
             }
 
+            // 0.7.87: the Content-Security-Policy used to be a static line in
+            // public/.htaccess and now comes from the application, per response
+            // and with a nonce. The file is on the preserved list, so on every
+            // install that predates the move the old line is still there — and
+            // a header set by the web server is the one the browser obeys.
+            // Two consequences, the second worse than the first: anything the
+            // application has since allowed to be framed is refused (a library
+            // reported a Google Maps embed blocked by a policy naming only
+            // openstreetmap.org), and `script-src 'unsafe-inline'` with no
+            // nonce means the weaker policy the move replaced is still in
+            // force, invisibly. Idempotent: a no-op once the line is gone.
+            if (!StaleCspHeader::heal()) {
+                $this->debugLog('WARNING', 'Stale CSP header left in public/.htaccess; remove the Header set Content-Security-Policy line by hand');
+            }
+
             return [
                 'success' => true,
                 'executed' => $executed,
