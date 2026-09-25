@@ -13,11 +13,8 @@
 //   2. box unticked → neither the cookie nor a row appears (fix is not "always on")
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
-const crypto = require('crypto');
-const fs = require('fs');
 const http = require('http');
 const https = require('https');
-const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -108,14 +105,6 @@ test.describe.serial('Remember Me checkbox', () => {
     expect(candidates.length, `exactly one cookie is PHP's own session (${candidates.map(c => c.name).join(', ')})`).toBe(1);
 
     return candidates[0];
-  }
-
-  /** The note the middleware publishes so siblings join instead of racing. */
-  function notePathFor(tokenValue) {
-    return path.join(
-      __dirname, '..', 'storage', 'tmp', 'remember-session',
-      crypto.createHash('sha256').update(tokenValue).digest('hex'),
-    );
   }
 
   test('ticked → sets remember_token cookie and a user_sessions row', async ({ browser }) => {
@@ -234,11 +223,9 @@ test.describe.serial('Remember Me checkbox', () => {
       const carried = await keepOnlyTheRememberedCookie(context);
       expect(carried, 'the remembered cookie survived').toBeTruthy();
 
-      // Nothing published yet, so all three below start from the same place —
-      // which is what a browser reopened on a remembered site actually does.
-      const note = notePathFor(carried.value);
-      if (fs.existsSync(note)) fs.unlinkSync(note);
-
+      // The cookie was minted moments ago, so nothing has been published
+      // under it yet and all three below start from the same place — which is
+      // what a browser reopened on a remembered site actually does.
       const only = `remember_token=${carried.value}`;
       const burst = await Promise.all([
         rawGet(`${BASE}/admin`, only),
@@ -266,45 +253,44 @@ test.describe.serial('Remember Me checkbox', () => {
   // session, so a request that found one never asked at all.
   //
   // The sibling is staged rather than raced for, because a race reproduces
-  // about half the time and a regression here has to fail every run: the note
-  // is written by hand, pointing at the very session the sign-in above left
-  // behind, which is exactly what a sibling would have published a moment
-  // earlier. The account is then suspended and the endpoint asked is one with
-  // no AuthMiddleware in front of it, which reads $_SESSION['user'] straight —
-  // so nothing downstream can mask the answer.
+  // about half the time and a regression here has to fail every run. It is
+  // staged through the application itself rather than by writing the note on
+  // disk: the directory belongs to whatever user the web server runs as, and
+  // a test that writes into it passes on a machine where those happen to be
+  // the same person and fails everywhere else. So one request while the
+  // account is still active publishes a session, the account is then
+  // suspended, and the next request arrives to find exactly what a sibling
+  // would have left behind. The endpoint asked second has no AuthMiddleware
+  // in front of it and reads $_SESSION['user'] straight, so nothing
+  // downstream can mask the answer by refusing the request for its own
+  // reasons.
   test('a suspended account is not put back into the session its cookie opened', async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
-    let note = '';
     let suspended = false;
     try {
       await login(page, { remember: true });
-      const live = (await sessionCookie(context)).value;
+      const sessionName = (await sessionCookie(context)).name;
       const carried = await keepOnlyTheRememberedCookie(context);
       expect(carried, 'the sign-in leaves a cookie behind').toBeTruthy();
 
-      note = notePathFor(carried.value);
-      fs.mkdirSync(path.dirname(note), { recursive: true });
-      fs.writeFileSync(note, `${live}|${Math.floor(Date.now() / 1000)}`);
+      const only = `remember_token=${carried.value}`;
+      const sibling = await rawGet(`${BASE}/admin`, only);
+      const published = lastCookieValue(sibling.setCookie, sessionName);
+      expect(published, 'the first request published a session for siblings to join').toBeTruthy();
 
       dbQuery(`UPDATE utenti SET stato='sospeso' WHERE id=${adminId}`);
       suspended = true;
 
-      const answered = await page.request.get(`${BASE}/api/user/reservations/count`);
-      const handedBack = answered.headersArray()
-        .filter(h => h.name.toLowerCase() === 'set-cookie')
-        .flatMap(h => String(h.value).split('\n'))
-        .some(line => line.includes(live));
-      expect(handedBack, 'the suspended account is not handed the session it used to hold').toBe(false);
-      expect((await context.cookies()).some(c => c.value === live),
-        'and the browser does not end up carrying it either').toBe(false);
+      const after = await rawGet(`${BASE}/api/user/reservations/count`, only);
+      expect(lastCookieValue(after.setCookie, sessionName),
+        'the suspended account is not handed the session it used to hold').not.toBe(published);
 
       // Nor by the ordinary way in.
       await page.goto(`${BASE}/admin`, { waitUntil: 'domcontentloaded' });
       expect(page.url(), 'a suspended account is not signed in by its cookie').not.toMatch(/\/admin(\/|$|\?)/);
     } finally {
       if (suspended) dbQuery(`UPDATE utenti SET stato='attivo' WHERE id=${adminId}`);
-      if (note && fs.existsSync(note)) fs.unlinkSync(note);
       await context.close();
     }
   });
