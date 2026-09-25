@@ -190,6 +190,15 @@ $additional_css = "
         transition: all 0.2s;
     }
 
+    /* The button is hidden until a consent manager exists to answer it, and
+       `hidden` alone does not do that here: the rule above sets a display, and
+       a class beats the [hidden] rule on specificity, so the attribute is set
+       and the button stays on screen. Measured before this line existed:
+       hidden=true, computed display flex, 265x50 px. */
+    .map-blocked-button[hidden] {
+        display: none;
+    }
+
     .map-blocked-button:hover {
         background: var(--primary-color);
         transform: translateY(-1px);

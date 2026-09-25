@@ -161,6 +161,37 @@ try {
     $check(StaleCspHeader::heal($dir . '/does-not-exist'),
         'a missing .htaccess is not a failure: there is no stale header in it');
 
+    // The replacement is a rename over the original, so the mode has to be
+    // carried across or an upgrade quietly changes the file's permissions.
+    $odd = $dir . '/odd-mode';
+    file_put_contents($odd, $legacyFile);
+    chmod($odd, 0640);
+    clearstatcache(true, $odd);
+    $modeBefore = fileperms($odd) & 07777;
+    $check(StaleCspHeader::heal($odd), 'a file with an unusual mode is healed');
+    clearstatcache(true, $odd);
+    $check((fileperms($odd) & 07777) === $modeBefore,
+        sprintf('and keeps its mode (%04o, not the default 0644)', $modeBefore));
+    $check(!StaleCspHeader::isPresent((string) file_get_contents($odd)),
+        'while still losing the stale policy');
+
+    // The backup is the only reason rewriting someone else's file is
+    // acceptable, so a backup that cannot be written must stop the rewrite.
+    $noBackup = $dir . '/nobackup/.htaccess';
+    mkdir($dir . '/nobackup', 0777, true);
+    file_put_contents($noBackup, $legacyFile);
+    chmod($dir . '/nobackup', 0500);
+    clearstatcache(true, $noBackup);
+    if (!is_writable($dir . '/nobackup')) {
+        $check(!StaleCspHeader::heal($noBackup),
+            'a backup that cannot be written stops the rewrite');
+        $check(StaleCspHeader::isPresent((string) file_get_contents($noBackup)),
+            'and the original is left exactly as it was');
+    } else {
+        echo "  --  skipped: running as a user that can write to a 0500 directory\n";
+    }
+    @chmod($dir . '/nobackup', 0755);
+
     // A file that cannot be read must not be reported as healed.
     $unreadable = $dir . '/unreadable';
     file_put_contents($unreadable, $legacyFile);
@@ -173,6 +204,15 @@ try {
     }
     @chmod($unreadable, 0644);
 } finally {
+    foreach (glob($dir . '/nobackup/*') ?: [] as $f) {
+        @unlink($f);
+    }
+    foreach (glob($dir . '/nobackup/.*') ?: [] as $f) {
+        if (!in_array(basename($f), ['.', '..'], true)) {
+            @unlink($f);
+        }
+    }
+    @rmdir($dir . '/nobackup');
     foreach (glob($dir . '/*') ?: [] as $f) {
         @unlink($f);
     }

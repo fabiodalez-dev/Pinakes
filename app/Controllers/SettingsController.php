@@ -36,6 +36,19 @@ class SettingsController
         // filter), runs before the templates are read for display below.
         $repository->healCorruptedTemplateUrls();
 
+        // The stale Content-Security-Policy in public/.htaccess is also
+        // repaired by the updater, but an in-app upgrade runs runMigrations()
+        // on the Updater instance already compiled in memory — the OLD one,
+        // which has no such call; the file on disk is replaced underneath it.
+        // The codebase has been bitten by that before (see the note on
+        // updateBundledPlugins) and it bites hardest here, because the installs
+        // carrying the stale header are precisely those upgrading from before
+        // it was removed. So it runs here too, under the new code, on a page
+        // an operator reaches while looking at exactly these settings.
+        // Idempotent and cheap: a read that returns immediately once the
+        // directive is gone.
+        \App\Support\StaleCspHeader::heal();
+
         $appSettings = $this->resolveAppSettings($repository);
         $emailSettings = $this->resolveEmailSettings($repository);
         $templates = $this->resolveEmailTemplates($repository, $templateLocale);

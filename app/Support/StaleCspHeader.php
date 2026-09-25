@@ -113,8 +113,22 @@ class StaleCspHeader
             return false;
         }
 
-        // Keep a copy: this edits a file the operator may have customised.
-        @copy($path, $path . '.bak-csp-' . date('YmdHis'));
+        // The mode is read before anything is written: the replacement is a
+        // rename over the original, so whatever permissions the operator chose
+        // for this file have to be carried onto the temporary one or the
+        // upgrade quietly changes them.
+        $originalMode = @fileperms($path);
+        if (!is_int($originalMode)) {
+            return false;
+        }
+
+        // Keep a copy: this edits a file the operator may have customised. If
+        // the copy cannot be made, stop — the promise of a backup is the only
+        // reason it is acceptable to rewrite someone else's file at all, and a
+        // caller told "healed" would never know it was broken.
+        if (!@copy($path, $path . '.bak-csp-' . date('YmdHis'))) {
+            return false;
+        }
 
         $temporary = @tempnam(dirname($path), '.pinakes-csp-');
         if (!is_string($temporary)) {
@@ -124,7 +138,9 @@ class StaleCspHeader
             if (@file_put_contents($temporary, $cleaned, LOCK_EX) === false) {
                 return false;
             }
-            @chmod($temporary, 0644);
+            if (!@chmod($temporary, $originalMode & 07777)) {
+                return false;
+            }
             if (!@rename($temporary, $path)) {
                 return false;
             }
