@@ -37,7 +37,16 @@ class AdminAuthMiddleware implements MiddlewareInterface
 
         // Check if this is an API request (starts with /api/)
         $uri = $request->getUri()->getPath();
-        $isApiRequest = strpos($uri, '/api/') === 0;
+        // A refusal has to arrive in the shape the caller can read. Path was the
+        // only signal, which is right for /api/* and wrong for an admin
+        // endpoint called by XHR — a plugin's upload, for instance: a 302 to an
+        // HTML page reaches JavaScript expecting JSON as an unexplained
+        // success-shaped blob, so the interface reports nothing while the
+        // upload silently did not happen. Asking what the caller wants back
+        // answers it for every such route, present and future.
+        $isApiRequest = strpos($uri, '/api/') === 0
+            || strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest'
+            || str_contains($request->getHeaderLine('Accept'), 'application/json');
 
         // Not authenticated
         if (!$user) {

@@ -32,6 +32,26 @@ class RememberMeService
     /**
      * Create a new remember token for a user and set the cookie.
      */
+    /**
+     * Session key holding the `user_sessions` row this PHP session belongs to.
+     *
+     * Revoking a device used to mark that row and stop there, and the check
+     * that reads it ran only for a request arriving WITHOUT a session — so a
+     * device already signed in kept using the session it had, and "revoke"
+     * meant no more than "no further automatic sign-ins here". Binding the
+     * session to its row is what lets a later request notice.
+     */
+    public const SESSION_ROW_KEY = 'remember_session_id';
+
+    /**
+     * True when the bound row belongs to an ordinary sign-in rather than a
+     * remembered one. The session knows how it was opened; the row does not,
+     * and the two kinds must not be treated alike — a remembered row's expiry
+     * is the life of the cookie and is deliberately fixed, while an ordinary
+     * one only has to outlast the session it describes.
+     */
+    public const SESSION_PLAIN_KEY = 'remember_session_plain';
+
     public function createToken(int $userId): bool
     {
         if (!$this->tableExists()) {
@@ -60,15 +80,143 @@ class RememberMeService
         }
         $stmt->bind_param('isssss', $userId, $tokenHash, $deviceInfo, $ipAddress, $userAgent, $expiresAt);
         $success = $stmt->execute();
+        $rowId = (int) $this->db->insert_id;
         $stmt->close();
 
         if ($success) {
             // Set cookie with original token (not the hash)
             $this->setCookie($token);
+            $this->bindSessionToRow($rowId);
             return true;
         }
 
         return false;
+    }
+
+    /**
+     * Record an ORDINARY sign-in — no "remember me", no cookie — as a row in
+     * user_sessions, and bind this session to it.
+     *
+     * Without this, revoking an account's credentials reached only the sessions
+     * that happened to carry a remember-me cookie. Everything else is decided
+     * from $_SESSION, which AuthMiddleware trusts without asking the database,
+     * so a password reset ended the intruder's automatic sign-ins while the
+     * browser they were already signed in on carried on until it expired by
+     * itself. That is the opposite of what a reset is for.
+     *
+     * The row's token_hash is the hash of 32 bytes that are generated here and
+     * never leave this method: nothing is ever sent to the client, so no cookie
+     * can present it and this row can never authenticate anyone. It exists to
+     * be revoked. Everything downstream — CredentialRevoker, the session list,
+     * boundSessionIsRevoked() — then treats an ordinary sign-in exactly like a
+     * remembered one, which is the behaviour a reader of "this ends every
+     * session" expects.
+     *
+     * expires_at starts at the session's own lifetime (session.gc_maxlifetime,
+     * as public/index.php set it from the installation's setting) rather than
+     * the remember-me lifetime, so the account's session list does not fill up
+     * with entries for browsers closed weeks ago. That figure is an INACTIVITY
+     * timeout, so keepBoundPlainSessionAlive() pushes the row forward while the
+     * person is still working — without it the stamp would act as an absolute
+     * deadline and sign an active session out.
+     */
+    public function bindPlainSession(int $userId): bool
+    {
+        if ($userId <= 0 || !$this->tableExists()) {
+            return false;
+        }
+
+        $tokenHash = hash('sha256', 'session:' . bin2hex(random_bytes(32)));
+        $ipAddress = $this->getClientIP();
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+        $deviceInfo = $this->parseDeviceInfo($userAgent);
+        $lifetime = (int) ini_get('session.gc_maxlifetime');
+        if ($lifetime <= 0) {
+            $lifetime = 24 * 60 * 60;
+        }
+        $expiresAt = gmdate('Y-m-d H:i:s', time() + $lifetime);
+
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO user_sessions (utente_id, token_hash, device_info, ip_address, user_agent, expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('isssss', $userId, $tokenHash, $deviceInfo, $ipAddress, $userAgent, $expiresAt);
+            $stmt->execute();
+            $rowId = (int) $this->db->insert_id;
+            $stmt->close();
+        } catch (\Throwable $e) {
+            // A sign-in must not fail because its audit row could not be
+            // written; log it and leave the session unbound, which is exactly
+            // how every session behaved before this method existed.
+            SecureLogger::warning('[RememberMeService] Could not record the sign-in: ' . $e->getMessage());
+            return false;
+        }
+
+        if ($rowId <= 0) {
+            return false;
+        }
+        $this->bindSessionToRow($rowId, true);
+
+        return true;
+    }
+
+    /**
+     * Push an ordinary sign-in's row forward while the person is still working.
+     *
+     * session.gc_maxlifetime is an INACTIVITY timeout: PHP renews it on every
+     * request, so an active session outlives it indefinitely. The row was
+     * stamped once at sign-in with that same figure, which made it an ABSOLUTE
+     * deadline instead — and since a bound row that has expired signs the
+     * session out, a librarian cataloguing for longer than the configured
+     * window was thrown out mid-form while their PHP session was perfectly
+     * alive. With the setting at its five-minute minimum that is almost
+     * immediate.
+     *
+     * Only ordinary rows move. A remembered row's expiry is the life of the
+     * cookie it issued and is deliberately fixed: renewing it would let a
+     * thirty-day cookie live for ever, one request at a time.
+     *
+     * One statement, no read, and the WHERE clause is the throttle — it writes
+     * only once the row is past the halfway mark, so a busy session costs one
+     * UPDATE per half window rather than one per request.
+     */
+    public function keepBoundPlainSessionAlive(): void
+    {
+        if (empty($_SESSION[self::SESSION_PLAIN_KEY])) {
+            return;
+        }
+        $rowId = isset($_SESSION[self::SESSION_ROW_KEY]) ? (int) $_SESSION[self::SESSION_ROW_KEY] : 0;
+        if ($rowId <= 0 || !$this->tableExists()) {
+            return;
+        }
+
+        $lifetime = (int) ini_get('session.gc_maxlifetime');
+        if ($lifetime <= 0) {
+            $lifetime = 24 * 60 * 60;
+        }
+        $renewTo = gmdate('Y-m-d H:i:s', time() + $lifetime);
+        $halfway = gmdate('Y-m-d H:i:s', time() + intdiv($lifetime, 2));
+
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE user_sessions SET expires_at = ?
+                  WHERE id = ? AND is_revoked = 0 AND expires_at < ?'
+            );
+            if ($stmt === false) {
+                return;
+            }
+            $stmt->bind_param('sis', $renewTo, $rowId, $halfway);
+            $stmt->execute();
+            $stmt->close();
+        } catch (\Throwable $e) {
+            // Never end a request over this: the worst case is the row expiring
+            // on its own schedule, which is where it was before.
+            SecureLogger::warning('[RememberMeService] Could not extend the sign-in row: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -112,6 +260,7 @@ class RememberMeService
             // Update last_used_at timestamp
             $sessionId = (int) $row['id'];
             $this->updateLastUsed($sessionId);
+            $this->bindSessionToRow($sessionId);
 
             return (int) $row['utente_id'];
         }
@@ -197,6 +346,76 @@ class RememberMeService
     }
 
     /**
+     * Remember which `user_sessions` row this PHP session was opened from.
+     *
+     * Every sign-in creates one — createToken() with a cookie, bindPlainSession()
+     * without — so revoking an account's credentials reaches the browser it is
+     * being revoked from and not only the ones that asked to be remembered.
+     */
+    private function bindSessionToRow(int $rowId, bool $plain = false): void
+    {
+        if ($rowId > 0 && session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION[self::SESSION_ROW_KEY] = $rowId;
+            if ($plain) {
+                $_SESSION[self::SESSION_PLAIN_KEY] = true;
+            } else {
+                unset($_SESSION[self::SESSION_PLAIN_KEY]);
+            }
+        }
+    }
+
+    /**
+     * True when the row this session is bound to has been revoked or expired.
+     *
+     * Answers false for a session that is bound to nothing. Every sign-in binds
+     * one now, so in practice that means a session opened before this shipped,
+     * or one on an installation whose user_sessions table is missing: neither
+     * can be judged, and refusing them would sign the library out on upgrade.
+     * Also false when the lookup fails — a database hiccup must not sign
+     * everyone out, and the next request asks again.
+     */
+    public function boundSessionIsRevoked(): bool
+    {
+        $rowId = isset($_SESSION[self::SESSION_ROW_KEY]) ? (int) $_SESSION[self::SESSION_ROW_KEY] : 0;
+        if ($rowId <= 0 || !$this->tableExists()) {
+            return false;
+        }
+
+        try {
+            // UTC_TIMESTAMP() rather than the SET SESSION time_zone the other
+            // methods here use. expires_at is stored in UTC, so both spellings
+            // compare correctly — but this one runs on EVERY authenticated
+            // request through RememberMeMiddleware, and moving the shared
+            // connection's time zone that often would leave it changed under
+            // whatever reads a date next. A comparison does not need the
+            // session's clock; only formatting does.
+            $stmt = $this->db->prepare(
+                'SELECT is_revoked, (expires_at > UTC_TIMESTAMP()) AS still_valid
+                   FROM user_sessions WHERE id = ? LIMIT 1'
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('i', $rowId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[RememberMeService] Could not check whether this session was revoked: ' . $e->getMessage());
+            return false;
+        }
+
+        // A row that has been DELETED outright counts as revoked: the operator
+        // asked for that device to stop, and a missing row is not a reason to
+        // keep going.
+        if (!is_array($row)) {
+            return true;
+        }
+
+        return (int) ($row['is_revoked'] ?? 0) === 1 || (int) ($row['still_valid'] ?? 0) !== 1;
+    }
+
+    /**
      * Revoke a specific session by ID (for session management UI).
      */
     public function revokeSession(int $sessionId, int $userId): bool
@@ -254,10 +473,18 @@ class RememberMeService
         $stmt->execute();
         $result = $stmt->get_result();
 
+        // The row THIS session was opened from. Every sign-in binds one now,
+        // including one with no "remember me" cookie — and that is the case the
+        // cookie comparison below cannot answer, because there is no cookie to
+        // compare. Without this the browser the reader is looking at the page
+        // from would be listed as somebody else's device.
+        $boundRow = isset($_SESSION[self::SESSION_ROW_KEY]) ? (int) $_SESSION[self::SESSION_ROW_KEY] : 0;
+
         $sessions = [];
         while ($row = $result->fetch_assoc()) {
             // Timing-safe comparison to prevent timing attacks
-            $isCurrent = $currentTokenHash !== null && hash_equals($currentTokenHash, $row['token_hash']);
+            $isCurrent = ($boundRow > 0 && (int) $row['id'] === $boundRow)
+                || ($currentTokenHash !== null && hash_equals($currentTokenHash, $row['token_hash']));
 
             $sessions[] = [
                 'id' => (int) $row['id'],
@@ -340,6 +567,18 @@ class RememberMeService
     /**
      * Clear the remember cookie.
      */
+    /**
+     * Drop the remember-me cookie of a session that has just been revoked.
+     *
+     * Without this the browser keeps presenting a token the next request would
+     * look up, fail to validate and clear anyway — one wasted round trip, and a
+     * confusing moment where the device looks signed in until it reloads.
+     */
+    public function clearCookieForRevokedSession(): void
+    {
+        $this->clearCookie();
+    }
+
     private function clearCookie(): void
     {
         setcookie(self::COOKIE_NAME, '', [

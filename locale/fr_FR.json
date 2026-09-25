@@ -7834,5 +7834,13 @@
   "Rimuovi il filtro": "Retirer le filtre",
   "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Image de l'article (JPG, PNG ou WebP, 5 Mo maximum)",
   "%d articolo": "%d article",
-  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Le fichier a été supprimé parce que les pages publiques ont changé : entre-temps /sitemap.xml répond toujours, générée à la volée. Régénérez-la pour republier le fichier."
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Le fichier a été supprimé parce que les pages publiques ont changé : entre-temps /sitemap.xml répond toujours, générée à la volée. Régénérez-la pour republier le fichier.",
+  "L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.": "L’invitation n’est pas partie : le courriel contenant le lien pour définir le mot de passe n’a pas été envoyé. Vérifiez les réglages de messagerie et l’adresse publique du site, puis renvoyez l’invitation depuis la fiche de l’utilisateur.",
+  "Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.": "Gérez les appareils depuis lesquels vous vous êtes connecté, y compris celui que vous utilisez actuellement. Vous pouvez vous déconnecter d’appareils précis ou de tous en même temps.",
+  "Nessuna sessione attiva.": "Aucune session active.",
+  "Errore nella lettura delle colonne della tabella %s": "Impossible de lire la liste des colonnes de la table %s",
+  "nessuna colonna leggibile": "aucune colonne lisible",
+  "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Restauration interrompue : la base de données est incomplète. Restaurez la sauvegarde de sécurité avant de rouvrir le site.",
+  "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "La restauration s’est interrompue pendant le remplacement de la base de données, qui est désormais incomplète. Le site reste en maintenance : restaurez la sauvegarde de sécurité avant de le rouvrir.",
+  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Mot de passe mis à jour. Les autres appareils connectés ont été déconnectés."
 }

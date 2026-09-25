@@ -53,6 +53,14 @@
         </div>
       </div>
     <?php endif; ?>
+    <?php if(isset($_GET['invite']) && $_GET['invite'] === 'failed'): ?>
+      <div class="mb-6 p-4 bg-amber-50 text-amber-800 rounded-lg border border-amber-200 slide-in-up" role="alert">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span><?= __("L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.") ?></span>
+        </div>
+      </div>
+    <?php endif; ?>
     <?php if(isset($_GET['updated']) && $_GET['updated'] == '1'): ?>
       <div class="mb-6 p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 slide-in-up" role="alert">
         <div class="flex items-center gap-2">

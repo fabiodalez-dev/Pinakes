@@ -1852,20 +1852,38 @@ class PrestitiController
         // Prestiti effettivamente estesi, per le conferme email POST-commit
         // (stesso contratto di renew(): mai inviare dentro la transazione).
         $extendedLoanIds = [];
-        $db->begin_transaction();
-        try {
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
-            // Discover the books first without taking loan locks, then lock every
-            // book in deterministic order. This preserves the application-wide
-            // canonical lock order (libri -> prestiti) and serializes capacity
-            // decisions with loan/reservation/copy mutations for the same title.
+        // ORDINE DI LOCK CANONICO (P3), come in close()/renew()/store(): la
+        // lettura che determina i libri va fatta NON bloccante e PRIMA di
+        // begin_transaction(). La read view REPEATABLE READ nasce alla prima
+        // consistent read in transazione, quindi anticiparla dentro la
+        // transazione rende cieche ai commit concorrenti TUTTE le SELECT non
+        // bloccanti successive — comprese le verifiche di capacità che girano
+        // DOPO aver preso i lock e che esistono proprio per vederli. Una
+        // prenotazione confermata fra questa scansione e il lock risultava
+        // invisibile, e la proroga veniva concessa sopra di essa.
+        //
+        // Questa lettura era l'unica del controller a violare la convenzione.
+        // Nulla di ciò che restituisce viene dato per buono: serve solo a
+        // sapere quali libri bloccare, e ogni prestito viene riletto e
+        // rivalidato sotto il proprio lock più sotto, esattamente come prima.
+        //
+        // Its own guard, because it is now outside the transaction and so
+        // outside the catch that used to cover it: under this project's mysqli
+        // error mode a failing prepare() throws, and moving the read out here
+        // would otherwise have turned a handled error into a 500 on the loans
+        // list. Same answer as every other failure in this action.
+        $expectedBookByLoan = [];
+        $bookIds = [];
+        try {
             $bookScan = $db->prepare("SELECT id, libro_id FROM prestiti WHERE id IN ($placeholders)");
+            if ($bookScan === false) {
+                throw new \RuntimeException($db->error);
+            }
             $bookScan->bind_param(str_repeat('i', count($ids)), ...$ids);
             $bookScan->execute();
             $bookResult = $bookScan->get_result();
-            $expectedBookByLoan = [];
-            $bookIds = [];
             while ($row = $bookResult->fetch_assoc()) {
                 $loanId = (int) $row['id'];
                 $bookId = (int) $row['libro_id'];
@@ -1873,8 +1891,14 @@ class PrestitiController
                 $bookIds[$bookId] = $bookId;
             }
             $bookScan->close();
-            sort($bookIds, SORT_NUMERIC);
+        } catch (\Throwable $e) {
+            SecureLogger::error('Bulk loan extend failed while gathering the books: ' . $e->getMessage());
+            return $response->withHeader('Location', $backUrl . '?error=bulk_extend_failed')->withStatus(302);
+        }
+        sort($bookIds, SORT_NUMERIC);
 
+        $db->begin_transaction();
+        try {
             // CI-SOFT-DELETE-EXEMPT: bulk edits serialize existing loans even if a referenced book was deleted.
             $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
             foreach ($bookIds as $bookId) {

@@ -31,7 +31,32 @@ class RememberMeMiddleware implements MiddlewareInterface
         // Only attempt auto-login if user is not already logged in
         if (!isset($_SESSION['user'])) {
             $this->attemptAutoLogin();
+
+            return $handler->handle($request);
         }
+
+        // Already signed in — and this is the half that was missing. Marking a
+        // device revoked did nothing to the session that device already held,
+        // because the only place the row was ever consulted was the branch
+        // above, which runs exclusively for requests arriving WITHOUT one. The
+        // operator saw "revoked" and the device carried on.
+        $service = new RememberMeService($this->db);
+        if ($service->boundSessionIsRevoked()) {
+            $service->clearCookieForRevokedSession();
+            $_SESSION = [];
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_destroy();
+            }
+
+            return $handler->handle($request);
+        }
+
+        // Still here, so the row is live: push an ordinary sign-in's row
+        // forward while the person keeps working. Its stamp comes from
+        // session.gc_maxlifetime, which PHP treats as inactivity and renews on
+        // every request — without this the row would act as an absolute
+        // deadline and sign an active session out mid-form.
+        $service->keepBoundPlainSessionAlive();
 
         return $handler->handle($request);
     }

@@ -488,11 +488,24 @@ $svc->rows("DELETE FROM emeroteca_testate WHERE titolo LIKE 'Calvino Notes%' OR 
         $acquired=$blocker->query("SELECT GET_LOCK('$escapedLock', 5) a")->fetch_row()[0];
     }
     check412((string)$acquired==='1','the blocking connection holds the import lock (got '.var_export($acquired,true).')');
+    // Measured as a RATIO, not against a wall clock. A fixed "under 20 s" bound
+    // says as much about how busy the machine is as about the code: on a loaded
+    // runner the 10 s GET_LOCK itself has been seen to return after 60 s, which
+    // failed this check while the batch was taking exactly one lock. Timing one
+    // row against three removes the machine from the comparison — one lock per
+    // batch makes the two waits the same, one lock per row makes the second
+    // three times the first, and that holds whatever the absolute numbers are.
+    $timeContended=static function(array $rows) use ($csv): array {
+        $start=microtime(true); $busy=null;
+        try { $csv->commit($rows); } catch (InvalidArgumentException $e) { $busy=$e->getMessage(); }
+        return [$busy, microtime(true)-$start];
+    };
+    $oneRow=$csv->preview("titolo\nBusy one\n");
     $contended=$csv->preview("titolo\nBusy one\nBusy two\nBusy three\n");
-    $start=microtime(true); $busy=null;
-    try { $csv->commit($contended); } catch (InvalidArgumentException $e) { $busy=$e->getMessage(); }
-    $waited=microtime(true)-$start;
-    check412($busy!==null && $waited<20,sprintf('a contended import waits once for the batch, not once per row (esito=%s, attesa=%.1fs, lock=%s, held=%s)',var_export($busy,true),$waited,$lockName,var_export($blocker->query("SELECT IS_USED_LOCK('".$blocker->real_escape_string($lockName)."') u")->fetch_row()[0],true)));
+    [$busyOne,$waitedOne]=$timeContended($oneRow);
+    [$busy,$waited]=$timeContended($contended);
+    check412($busyOne!==null && $busy!==null,sprintf('a contended import reports that another one is running (uno=%s, tre=%s)',var_export($busyOne,true),var_export($busy,true)));
+    check412($waited < max(2.0, $waitedOne*2),sprintf('a contended import waits once for the batch, not once per row (1 riga=%.1fs, 3 righe=%.1fs, lock=%s, held=%s)',$waitedOne,$waited,$lockName,var_export($blocker->query("SELECT IS_USED_LOCK('".$blocker->real_escape_string($lockName)."') u")->fetch_row()[0],true)));
     check412((int)$svc->rows("SELECT COUNT(*) n FROM emeroteca_contributi WHERE titolo LIKE 'Busy %'")[0]['n']===0,'a contended import writes nothing at all');
     $blocker->query("SELECT RELEASE_LOCK('$escapedLock')"); $blocker->close();
     check412(count(array_filter($csv->commit($contended),fn($r)=>$r['error']===null))===3,'the same batch imports once the lock is free');

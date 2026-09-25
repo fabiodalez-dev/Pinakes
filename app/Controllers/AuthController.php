@@ -154,10 +154,32 @@ class AuthController
                 $_SESSION['locale'] = $requestedLocale;
                 $_SESSION['user']['locale'] = $requestedLocale;
 
-                // Handle "Remember Me" functionality with database-backed tokens
+                // Handle "Remember Me" functionality with database-backed tokens.
+                // Either way the sign-in gets a row in user_sessions and this
+                // session is bound to it: createToken() does that as part of
+                // issuing the cookie, and bindPlainSession() does it for a
+                // sign-in that asked for no cookie at all. That row is what
+                // revoking the account's credentials acts on, so a password
+                // reset now reaches an ordinary browser session and not only
+                // the ones that chose to be remembered.
+                $rememberMeService = new RememberMeService($db);
+
+                // Retire whatever remember-me cookie this browser was already
+                // carrying, before issuing anything new. On a shared terminal —
+                // a reading-room machine is the obvious one — the previous
+                // person may have signed in with "remember me" and walked away:
+                // session_regenerate_id() above replaces the PHP session but
+                // not their cookie, so once this session lapsed the middleware
+                // would find that cookie and sign the browser back in as THEM,
+                // with no login and no trace. Revoking the row it points at
+                // costs its owner only this device, which is the one being
+                // handed over.
+                $rememberMeService->revokeCurrentToken();
+
                 if ($remember) {
-                    $rememberMeService = new RememberMeService($db);
                     $rememberMeService->createToken((int) $row['id']);
+                } else {
+                    $rememberMeService->bindPlainSession((int) $row['id']);
                 }
 
                 // Log successful login

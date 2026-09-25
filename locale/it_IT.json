@@ -7834,5 +7834,13 @@
   "Rimuovi il filtro": "Rimuovi il filtro",
   "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)": "Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)",
   "%d articolo": "%d articolo",
-  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file."
+  "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.": "Il file è stato rimosso perché le pagine pubbliche sono cambiate: nel frattempo /sitemap.xml continua a rispondere, generata al momento. Rigenerala per ripubblicare il file.",
+  "L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.": "L'invito non è partito: l'email con il link per impostare la password non è stata inviata. Controlla le impostazioni email e l'indirizzo pubblico del sito, poi invia di nuovo l'invito dalla scheda dell'utente.",
+  "Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.": "Gestisci i dispositivi da cui hai effettuato l'accesso, compreso quello che stai usando ora. Puoi disconnetterti da singoli dispositivi o da tutti contemporaneamente.",
+  "Nessuna sessione attiva.": "Nessuna sessione attiva.",
+  "Errore nella lettura delle colonne della tabella %s": "Errore nella lettura delle colonne della tabella %s",
+  "nessuna colonna leggibile": "nessuna colonna leggibile",
+  "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.": "Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.",
+  "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.": "Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.",
+  "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi.": "Password aggiornata. Gli altri dispositivi collegati sono stati disconnessi."
 }
