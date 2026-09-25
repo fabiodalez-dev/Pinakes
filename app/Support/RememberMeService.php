@@ -581,6 +581,16 @@ class RememberMeService
 
     private function clearCookie(): void
     {
+        // The note that lets concurrent sign-ins share one session is keyed by
+        // this token. Retiring the cookie without dropping it would leave an
+        // id that a later request could still be pointed at — bounded by the
+        // note's own short life, but there is no reason to rely on that when
+        // every path that retires the cookie comes through here.
+        $token = (string) ($_COOKIE[self::COOKIE_NAME] ?? '');
+        if ($token !== '') {
+            RememberMeSessionRegistry::forget($token);
+        }
+
         setcookie(self::COOKIE_NAME, '', [
             'expires' => time() - 3600,
             'path' => '/',
