@@ -238,6 +238,19 @@ try {
         $check(str_contains($src, 'class="container emeroteca-public"'),
             "{$shell} uses the same page container as the rest of the emeroteca");
     }
+
+    // Agreeing on the class is only half of it: `emeroteca-public` is where
+    // the vertical rhythm lives, so a shell that names it without loading the
+    // stylesheet that defines it looks aligned horizontally and wrong
+    // vertically — which is how /emeroteca/articoli shipped at first.
+    foreach (glob($views . '*.php') ?: [] as $path) {
+        $src = (string) file_get_contents($path);
+        if (!str_contains($src, 'emeroteca-public')) {
+            continue;
+        }
+        $check(str_contains($src, 'assets/css/emeroteca.css'),
+            basename($path) . ' loads the stylesheet that defines emeroteca-public');
+    }
 } finally {
     $db->rollback();
     $db->close();

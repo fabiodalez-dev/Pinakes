@@ -576,4 +576,65 @@ test.describe('Catalog facets', () => {
       }).catch(() => {});
     }
   });
+
+  // -------------------------------------------------------------------------
+  // 17. On a phone the filters panel starts closed, and a closed panel has no
+  // height: every measurement taken while it is hidden answers "nothing below
+  // the fold", whatever the list actually holds. The cue therefore has to be
+  // recomputed when the panel is revealed — otherwise the one place the scroll
+  // hint matters most, a narrow screen, is the one place it never appears.
+  // Kept last in the file: it resizes the shared page.
+  // -------------------------------------------------------------------------
+  test('17. Revealing the filters panel on a phone recomputes the scroll cue', async () => {
+    const original = page.viewportSize();
+    try {
+      await page.setViewportSize({ width: 390, height: 800 });
+      await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+      const panel = page.locator('#catalog-filters-content');
+      await expect(panel, 'the panel starts closed on a phone').toBeHidden();
+
+      // Build an overflowing list while the panel can still be measured, then
+      // put it back exactly as the page had it.
+      const hiddenVerdict = await page.evaluate(() => {
+        const content = document.getElementById('catalog-filters-content');
+        const list = document.querySelector('.filter-options:not(.facet-is-collapsed)');
+        if (!content || !list || !list.firstElementChild) { return null; }
+        content.hidden = false;
+        while (list.scrollHeight < 240) {
+          list.appendChild(list.firstElementChild.cloneNode(true));
+        }
+        list.style.maxHeight = '60px';
+        content.hidden = true;
+        window.markScrollableFacets();
+        return {
+          measuredHeight: list.scrollHeight,
+          marked: list.classList.contains('facet-has-more'),
+        };
+      });
+
+      expect(hiddenVerdict, 'the filters panel and a facet list must exist').not.toBeNull();
+      expect(hiddenVerdict.measuredHeight, 'a hidden panel measures nothing').toBe(0);
+      expect(hiddenVerdict.marked, 'so nothing can be marked while it is closed').toBe(false);
+
+      await page.locator('#catalog-filters-toggle').click();
+      await expect(panel, 'the toggle opens the panel').toBeVisible();
+
+      const revealed = await page.evaluate(() => {
+        const list = document.querySelector('.filter-options:not(.facet-is-collapsed)');
+        return {
+          overflowBy: list.scrollHeight - list.clientHeight,
+          marked: list.classList.contains('facet-has-more'),
+        };
+      });
+
+      expect(revealed.overflowBy, 'the list really does overflow once visible').toBeGreaterThan(0);
+      expect(revealed.marked, 'and revealing the panel brings the cue with it').toBe(true);
+    } finally {
+      if (original) {
+        await page.setViewportSize(original);
+      }
+      await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
+    }
+  });
 });

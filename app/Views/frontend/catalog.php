@@ -267,10 +267,15 @@ $additional_css = "
        read as a cue. A mask is used rather than a gradient over the content
        because the panel is transparent: the four layouts and the colour theme
        paint different things behind it, and a fade hard-coded to white would
-       be a white smear on three of them. */
+       be a white smear on three of them.
+       The last pixel row is deliberately opaque again. A mask is clipped to
+       the border box, so a fade that reaches zero at 100 per cent takes the
+       closing rule with it — and it does so exactly when the list is long,
+       which is when the rule is carrying the most weight. Measured: the row
+       holding the border goes from 29 to 0 ink the moment the cue turns on. */
     .filter-options.facet-has-more {
-        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent 100%);
-        mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent 100%);
+        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent calc(100% - 1px), #000 calc(100% - 1px));
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent calc(100% - 1px), #000 calc(100% - 1px));
     }
     @media (prefers-reduced-motion: reduce) {
         .filter-options.facet-has-more { transition: none; }
@@ -1857,6 +1862,10 @@ document.addEventListener('DOMContentLoaded', () => {
             filtersContent.hidden = false;
             filtersToggle.setAttribute('aria-expanded', 'true');
         }
+        // A hidden box has no height, so every measurement taken while the
+        // panel was closed said "nothing below the fold". Revealing it is the
+        // first moment the question can honestly be asked.
+        markScrollableFacets();
     };
 
     if (filtersToggle && filtersContent) {
@@ -1867,6 +1876,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const expanded = filtersToggle.getAttribute('aria-expanded') === 'true';
             filtersToggle.setAttribute('aria-expanded', String(!expanded));
             filtersContent.hidden = expanded;
+            markScrollableFacets();
         });
         if (typeof mobileFilters.addEventListener === 'function') {
             mobileFilters.addEventListener('change', syncMobileFilters);
@@ -2418,6 +2428,10 @@ function renderFacetOptions(container, key) {
     container.classList.remove('facet-fade-in');
     void container.offsetWidth; // restart animation
     container.classList.add('facet-fade-in');
+    // The cue belongs to this function, not only to the renderFacets() sweep.
+    // Reopening a collapsed facet from its Cambia link comes through here and
+    // nowhere else, and it can restore a list long enough to need the cue.
+    markScrollableFacets();
 }
 
 function renderCollapsedPill(container, key, selectedLabel) {
