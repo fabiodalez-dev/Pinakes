@@ -7855,5 +7855,6 @@
   "Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.": "Ils apparaissent au bas du panneau des préférences. Laissez le premier vide pour utiliser la page Politique cookies de ce site.",
   "Salva il banner": "Enregistrer le bandeau",
   "Pagine privacy e cookie aggiornate correttamente.": "Pages confidentialité et cookies mises à jour avec succès.",
-  "Impostazioni del banner cookie aggiornate correttamente.": "Réglages du bandeau cookies mis à jour avec succès."
+  "Impostazioni del banner cookie aggiornate correttamente.": "Réglages du bandeau cookies mis à jour avec succès.",
+  "Il file public/.htaccess contiene ancora una vecchia direttiva Content-Security-Policy che non è stato possibile rimuovere, e finché resta prevale su quella dell'applicazione: mappe e altri contenuti incorporati restano bloccati. Rimuovere a mano la riga che inizia con \"Header always set Content-Security-Policy\".": "Le fichier public/.htaccess contient encore une ancienne directive Content-Security-Policy qui n'a pas pu être supprimée ; tant qu'elle y reste, elle prévaut sur celle de l'application : les cartes et autres contenus intégrés restent bloqués. Supprimez à la main la ligne commençant par \"Header always set Content-Security-Policy\"."
 }

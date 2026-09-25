@@ -1,7 +1,6 @@
 <?php
 /** @var string $activeTab */
 /** @var string $csrfToken */
-use App\Support\HtmlHelper;
 
 /**
  * Two subjects, two forms, two save buttons — and the boundary between them is
@@ -25,7 +24,7 @@ use App\Support\HtmlHelper;
        A. The two public pages
        ===================================================================== -->
   <form action="<?= htmlspecialchars(url('/admin/settings/privacy'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
-    <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string) ($csrfToken), ENT_QUOTES, 'UTF-8') ?>">
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">
@@ -41,7 +40,7 @@ use App\Support\HtmlHelper;
           <input type="text"
                  id="privacy_page_title"
                  name="page_title"
-                 value="<?php echo HtmlHelper::e($privacySettings['page_title'] ?? ''); ?>"
+                 value="<?= htmlspecialchars((string) ($privacySettings['page_title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                  placeholder="<?= __('Privacy Policy') ?>" />
         </div>
@@ -51,7 +50,7 @@ use App\Support\HtmlHelper;
           <textarea id="privacy_page_content"
                     name="page_content"
                     rows="10"
-                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo HtmlHelper::e($privacySettings['page_content'] ?? ''); ?></textarea>
+                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?= htmlspecialchars((string) ($privacySettings['page_content'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
         </div>
       </div>
     </div>
@@ -70,7 +69,7 @@ use App\Support\HtmlHelper;
           <textarea id="cookie_policy_content"
                     name="cookie_policy_content"
                     rows="10"
-                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo HtmlHelper::e($privacySettings['cookie_policy_content'] ?? ''); ?></textarea>
+                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?= htmlspecialchars((string) ($privacySettings['cookie_policy_content'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
           <p class="mt-2 text-xs text-gray-500"><?= __("Questo contenuto verrà mostrato nella pagina /cookies linkata dal cookie banner") ?></p>
         </div>
       </div>
@@ -98,7 +97,7 @@ use App\Support\HtmlHelper;
        ===================================================================== -->
   <div class="mt-12 pt-12 border-t border-gray-200">
     <form action="<?= htmlspecialchars(url('/admin/settings/cookie-banner'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
-      <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string) ($csrfToken), ENT_QUOTES, 'UTF-8') ?>">
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="space-y-4">
@@ -190,7 +189,7 @@ use App\Support\HtmlHelper;
             <input type="url"
                    id="cookie_statement_link"
                    name="cookie_statement_link"
-                   value="<?php echo HtmlHelper::e($privacySettings['cookie_statement_link'] ?? ''); ?>"
+                   value="<?= htmlspecialchars((string) ($privacySettings['cookie_statement_link'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="<?= __('https://esempio.com/cookie-policy') ?>" />
             <p class="mt-1 text-xs text-gray-500"><?= __("URL della pagina con la cookie policy") ?></p>
@@ -201,7 +200,7 @@ use App\Support\HtmlHelper;
             <input type="url"
                    id="cookie_technologies_link"
                    name="cookie_technologies_link"
-                   value="<?php echo HtmlHelper::e($privacySettings['cookie_technologies_link'] ?? ''); ?>"
+                   value="<?= htmlspecialchars((string) ($privacySettings['cookie_technologies_link'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="<?= __('https://esempio.com/tecnologie-cookie') ?>" />
             <p class="mt-1 text-xs text-gray-500"><?= __("URL della pagina con le tecnologie dei cookie") ?></p>
@@ -249,7 +248,7 @@ use App\Support\HtmlHelper;
                     <textarea id="cookie_banner_description"
                               name="cookie_banner_description"
                               rows="4"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo HtmlHelper::e($cookieBannerTexts['banner_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?= htmlspecialchars((string) ($cookieBannerTexts['banner_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -257,7 +256,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_accept_all_text"
                              name="cookie_accept_all_text"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['accept_all_text'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['accept_all_text'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                     <div>
@@ -265,7 +264,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_reject_non_essential_text"
                              name="cookie_reject_non_essential_text"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['reject_non_essential_text'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['reject_non_essential_text'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                   </div>
@@ -275,7 +274,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_preferences_button_text"
                              name="cookie_preferences_button_text"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['preferences_button_text'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['preferences_button_text'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                     <div>
@@ -283,7 +282,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_save_selected_text"
                              name="cookie_save_selected_text"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['save_selected_text'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['save_selected_text'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                   </div>
@@ -303,7 +302,7 @@ use App\Support\HtmlHelper;
                     <input type="text"
                            id="cookie_preferences_title"
                            name="cookie_preferences_title"
-                           value="<?php echo HtmlHelper::e($cookieBannerTexts['preferences_title'] ?? ''); ?>"
+                           value="<?= htmlspecialchars((string) ($cookieBannerTexts['preferences_title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                            class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                   </div>
                   <div>
@@ -311,7 +310,7 @@ use App\Support\HtmlHelper;
                     <textarea id="cookie_preferences_description"
                               name="cookie_preferences_description"
                               rows="4"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo HtmlHelper::e($cookieBannerTexts['preferences_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?= htmlspecialchars((string) ($cookieBannerTexts['preferences_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                 </div>
               </div>
@@ -330,7 +329,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_essential_name"
                              name="cookie_essential_name"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['cookie_essential_name'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['cookie_essential_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                     <div>
@@ -338,7 +337,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_analytics_name"
                              name="cookie_analytics_name"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['cookie_analytics_name'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['cookie_analytics_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                     <div>
@@ -346,7 +345,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_marketing_name"
                              name="cookie_marketing_name"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['cookie_marketing_name'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['cookie_marketing_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                   </div>
@@ -355,21 +354,21 @@ use App\Support\HtmlHelper;
                     <textarea id="cookie_essential_description"
                               name="cookie_essential_description"
                               rows="3"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?php echo HtmlHelper::e($cookieBannerTexts['cookie_essential_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?= htmlspecialchars((string) ($cookieBannerTexts['cookie_essential_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                   <div>
                     <label for="cookie_analytics_description" class="block text-sm font-medium text-gray-700"><?= __("Descrizione cookie analitici") ?></label>
                     <textarea id="cookie_analytics_description"
                               name="cookie_analytics_description"
                               rows="3"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?php echo HtmlHelper::e($cookieBannerTexts['cookie_analytics_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?= htmlspecialchars((string) ($cookieBannerTexts['cookie_analytics_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                   <div>
                     <label for="cookie_marketing_description" class="block text-sm font-medium text-gray-700"><?= __("Descrizione cookie marketing") ?></label>
                     <textarea id="cookie_marketing_description"
                               name="cookie_marketing_description"
                               rows="3"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?php echo HtmlHelper::e($cookieBannerTexts['cookie_marketing_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?= htmlspecialchars((string) ($cookieBannerTexts['cookie_marketing_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                 </div>
               </div>

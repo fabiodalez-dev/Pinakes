@@ -47,7 +47,16 @@ class SettingsController
         // an operator reaches while looking at exactly these settings.
         // Idempotent and cheap: a read that returns immediately once the
         // directive is gone.
-        \App\Support\StaleCspHeader::heal();
+        //
+        // A failure is said out loud rather than swallowed. It means the file
+        // still carries the old policy — so embeds stay blocked and the site
+        // still runs on `script-src 'unsafe-inline'` — and the operator would
+        // otherwise be left looking at a map that does not work with nothing
+        // anywhere to explain it. The message names the one line to remove.
+        if (!\App\Support\StaleCspHeader::heal()) {
+            SecureLogger::error('[Settings] stale CSP header could not be removed from public/.htaccess');
+            $_SESSION['error_message'] = __('Il file public/.htaccess contiene ancora una vecchia direttiva Content-Security-Policy che non è stato possibile rimuovere, e finché resta prevale su quella dell\'applicazione: mappe e altri contenuti incorporati restano bloccati. Rimuovere a mano la riga che inizia con "Header always set Content-Security-Policy".');
+        }
 
         $appSettings = $this->resolveAppSettings($repository);
         $emailSettings = $this->resolveEmailSettings($repository);

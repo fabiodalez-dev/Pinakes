@@ -7855,5 +7855,6 @@
   "Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.": "They appear at the foot of the preferences panel. Leave the first empty to use this site's own Cookie Policy page.",
   "Salva il banner": "Save the banner",
   "Pagine privacy e cookie aggiornate correttamente.": "Privacy and cookie pages updated successfully.",
-  "Impostazioni del banner cookie aggiornate correttamente.": "Cookie banner settings updated successfully."
+  "Impostazioni del banner cookie aggiornate correttamente.": "Cookie banner settings updated successfully.",
+  "Il file public/.htaccess contiene ancora una vecchia direttiva Content-Security-Policy che non è stato possibile rimuovere, e finché resta prevale su quella dell'applicazione: mappe e altri contenuti incorporati restano bloccati. Rimuovere a mano la riga che inizia con \"Header always set Content-Security-Policy\".": "The file public/.htaccess still carries an old Content-Security-Policy directive that could not be removed, and while it stays there it overrides the application's own: maps and other embedded content remain blocked. Remove by hand the line starting with \"Header always set Content-Security-Policy\"."
 }

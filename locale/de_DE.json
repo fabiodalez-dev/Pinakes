@@ -7855,5 +7855,6 @@
   "Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.": "Sie erscheinen am Fuß des Einstellungsfensters. Bleibt das erste leer, wird die Cookie-Richtlinie dieser Website verwendet.",
   "Salva il banner": "Banner speichern",
   "Pagine privacy e cookie aggiornate correttamente.": "Datenschutz- und Cookie-Seiten erfolgreich aktualisiert.",
-  "Impostazioni del banner cookie aggiornate correttamente.": "Cookie-Banner-Einstellungen erfolgreich aktualisiert."
+  "Impostazioni del banner cookie aggiornate correttamente.": "Cookie-Banner-Einstellungen erfolgreich aktualisiert.",
+  "Il file public/.htaccess contiene ancora una vecchia direttiva Content-Security-Policy che non è stato possibile rimuovere, e finché resta prevale su quella dell'applicazione: mappe e altri contenuti incorporati restano bloccati. Rimuovere a mano la riga che inizia con \"Header always set Content-Security-Policy\".": "Die Datei public/.htaccess enthält weiterhin eine alte Content-Security-Policy-Direktive, die nicht entfernt werden konnte; solange sie dort steht, überschreibt sie die der Anwendung: Karten und andere eingebettete Inhalte bleiben blockiert. Entfernen Sie die Zeile, die mit \"Header always set Content-Security-Policy\" beginnt, von Hand."
 }

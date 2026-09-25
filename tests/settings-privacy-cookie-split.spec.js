@@ -56,6 +56,10 @@ function dbQuery(sql) {
   return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
 }
 
+function dbExec(sql) {
+  execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000 });
+}
+
 /**
  * The settings this tab owns, as one comparable snapshot. A missing row and an
  * empty row are different things here, so the absent ones are named rather
@@ -91,6 +95,21 @@ function only(snap, keys) {
   const out = {};
   keys.forEach((k) => { out[k] = snap[k]; });
   return out;
+}
+
+/**
+ * Drop a row that did not exist when the suite started.
+ *
+ * Saving a form writes every field it carries, so a setting an installation
+ * had simply never stored comes into existence the first time the test
+ * submits. Leaving it behind would make "restored" differ from "original" for
+ * a key that only has a value because the test ran.
+ */
+function forgetRow(qualifiedKey) {
+  const dot = qualifiedKey.indexOf('.');
+  const category = qualifiedKey.slice(0, dot);
+  const key = qualifiedKey.slice(dot + 1);
+  dbExec(`DELETE FROM system_settings WHERE category = '${category}' AND setting_key = '${key}'`);
 }
 
 async function loginAsAdmin(page) {
@@ -131,11 +150,15 @@ test.describe.serial('Privacy tab — pages and cookie banner are saved apart', 
   let page;
   /** @type {Record<string,string>} */
   let original;
+  /** Keys with no stored row at the start — the save will create them. */
+  /** @type {string[]} */
+  let absentAtStart;
 
   test.beforeAll(async ({ browser }) => {
     context = await browser.newContext();
     page = await context.newPage();
     original = snapshot();
+    absentAtStart = bannerKeys.filter((key) => original[key] === undefined);
     await loginAsAdmin(page);
   });
 
@@ -281,6 +304,11 @@ test.describe.serial('Privacy tab — pages and cookie banner are saved apart', 
     await openPrivacyTab(page);
     await page.fill('#privacy_page_title', original['privacy.page_title'] || 'Privacy Policy');
     await submitForm(page, 'settings/privacy');
+
+    // Anything the suite brought into existence goes away again, so an
+    // installation that never stored these keys does not acquire them by
+    // having been tested.
+    absentAtStart.forEach(forgetRow);
 
     const restored = snapshot();
     expect(only(restored, bannerKeys)).toEqual(only(original, bannerKeys));
