@@ -96,7 +96,7 @@ use App\Support\HtmlHelper;
        B. The cookie banner: whether it appears, what it offers, what it says.
        All of it saved by one button, because it is all one thing.
        ===================================================================== -->
-  <div class="mt-12 pt-10 border-t border-gray-200">
+  <div class="mt-12 pt-12 border-t border-gray-200">
     <form action="<?= htmlspecialchars(url('/admin/settings/cookie-banner'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
       <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
 
