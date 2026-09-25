@@ -219,22 +219,22 @@ class RememberMeMiddleware implements MiddlewareInterface
         }
 
         // Nothing has been written into this request's own session yet — it
-        // was created empty moments ago — so discarding it loses nothing.
+        // was created empty moments ago — so setting it aside loses nothing,
+        // and it is still there to come back to if the move does not take.
         $ours = (string) session_id();
         session_write_close();
         session_id($sibling);
         if (!@session_start()) {
-            // Could not join; go back to our own session and carry on alone.
-            session_id($ours);
-            @session_start();
-            return self::JOIN_NOTHING;
+            return $this->backToOwnSession($ours);
         }
 
-        // use_strict_mode refuses an id with no session behind it, leaving us
-        // with a fresh empty one under a different id. That is not the sibling
-        // we meant to join, so treat it as "nothing to join".
+        // use_strict_mode refuses an id with no session behind it and hands
+        // back a fresh empty one under a different id. That is not the sibling
+        // we meant to join, and it is not our own session either: leaving the
+        // request in it would drop the user_sessions binding validateToken()
+        // wrote, so a later revocation would have nothing to notice. Go back.
         if ((string) session_id() !== $sibling) {
-            return self::JOIN_NOTHING;
+            return $this->backToOwnSession($ours);
         }
 
         // The note is named after a hash of the token, so it can only ever
@@ -243,13 +243,9 @@ class RememberMeMiddleware implements MiddlewareInterface
         // is checked rather than assumed.
         $occupant = $_SESSION['user']['id'] ?? null;
         if ($occupant !== null && (int) $occupant !== $userId) {
-            // Somebody else's. Leave it untouched and go back to our own
-            // rather than writing this user over it.
-            session_write_close();
-            session_id($ours);
-            @session_start();
-
-            return self::JOIN_NOTHING;
+            // Somebody else's. Leave it untouched rather than writing this
+            // user over it.
+            return $this->backToOwnSession($ours);
         }
 
         // validateToken() bound this request's session to its user_sessions
@@ -260,5 +256,28 @@ class RememberMeMiddleware implements MiddlewareInterface
         }
 
         return $occupant === null ? self::JOIN_SHARED : self::JOIN_READY;
+    }
+
+    /**
+     * Put the request back in the session it arrived holding, and report that
+     * there was nothing to join.
+     *
+     * Every way of failing to join ends here, because all of them leave the
+     * request somewhere it should not stay: inside a session belonging to
+     * somebody else, or inside an empty one strict mode minted when it refused
+     * the id we asked for. Either way the session this request created and
+     * validateToken() bound to its user_sessions row is the one to carry on
+     * in — otherwise the binding is gone and revoking the device would end
+     * nothing.
+     */
+    private function backToOwnSession(string $ours): int
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        session_id($ours);
+        @session_start();
+
+        return self::JOIN_NOTHING;
     }
 }

@@ -71,8 +71,15 @@ try {
 
     // -----------------------------------------------------------------------
     echo "\nC. The token itself is never written down\n";
-    $files = array_values(array_filter(scandir($dir) ?: [], static fn ($f) => $f !== '.' && $f !== '..'));
+    // Notes only: the registry's lock lives here too, under a leading dot so
+    // the sweep's glob passes over it.
+    $files = array_values(array_filter(
+        scandir($dir) ?: [],
+        static fn ($f) => $f !== '' && $f[0] !== '.',
+    ));
     $check(count($files) === 1, 'one note on disk, and no half-built one left beside it');
+    $check(is_file($dir . '/.lock'), 'the lock every read and write is serialised on is there');
+    $check(file_get_contents($dir . '/.lock') === '', 'and it carries nothing — it is a lock, not a note');
     $check($files !== [] && $files[0] === hash('sha256', $token),
         'named after a hash of the token, not the token');
     $onDisk = (string) file_get_contents($dir . '/' . $files[0]);

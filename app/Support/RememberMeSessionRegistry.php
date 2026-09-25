@@ -22,10 +22,10 @@ namespace App\Support;
  *
  * So the first request to authenticate a given token writes down the session
  * it created, and any sibling that arrives while that note is fresh joins that
- * session instead of starting another. The note is published in one step and
- * only where there is none already, so the whole burst agrees on one session
- * even when two of its requests reach this at the same instant: the loser is
- * told who won and joins that one rather than keeping its own.
+ * session instead of starting another. Reading a note, judging it and writing
+ * one happen under a single lock, so two requests reaching this at the same
+ * instant cannot both decide the note is theirs to write: one publishes, the
+ * other is told which session won and joins that one.
  *
  * Why a file and not APCu: the note has to be visible to whichever worker
  * handles the sibling request, and to CLI too. This project already reached
@@ -54,6 +54,19 @@ class RememberMeSessionRegistry
      */
     private const SESSION_ID_PATTERN = '/^[A-Za-z0-9,\-]{16,128}$/';
 
+    /**
+     * The file every read and write of a note is serialised on.
+     *
+     * One lock for the registry rather than one per token: it is held for the
+     * length of opening a 43-byte file, reading it and possibly rewriting it,
+     * and the only requests that ever contend for it are simultaneous
+     * remembered sign-ins. A per-token lock file would be finer-grained and
+     * worse — it would need sweeping like any other file, and sweeping a lock
+     * somebody is holding hands the next request a different inode, which is
+     * no lock at all. The leading dot keeps it out of the sweep's glob.
+     */
+    private const LOCK_FILE = '.lock';
+
     private static ?string $directoryOverride = null;
 
     /** Point the registry somewhere else. For tests. */
@@ -73,25 +86,14 @@ class RememberMeSessionRegistry
             return null;
         }
 
-        $raw = @file_get_contents($path);
-        if (!is_string($raw) || $raw === '') {
-            return null;
-        }
+        $lock = self::lock(LOCK_SH);
+        try {
+            $raw = @file_get_contents($path);
 
-        $parts = explode('|', trim($raw), 2);
-        if (count($parts) !== 2) {
-            return null;
+            return is_string($raw) ? self::readNote($raw) : null;
+        } finally {
+            self::unlock($lock);
         }
-        [$sessionId, $writtenAt] = $parts;
-
-        if (!self::isWellFormedSessionId($sessionId)) {
-            return null;
-        }
-        if (!ctype_digit($writtenAt) || (time() - (int) $writtenAt) > self::FRESH_FOR_SECONDS) {
-            return null;
-        }
-
-        return $sessionId;
     }
 
     /**
@@ -118,87 +120,106 @@ class RememberMeSessionRegistry
             return null;
         }
 
-        // Two passes at most. The first can lose to a note that turns out to
-        // be past its window, and clearing that earns exactly one more try;
-        // losing to a live one needs no retry, because the next read returns
-        // it and that is the answer.
-        for ($attempt = 0; $attempt < 2; $attempt++) {
-            $published = self::lookup($tokenPlain);
+        $lock = self::lock(LOCK_EX);
+        try {
+            $raw = @file_get_contents($path);
+            $published = is_string($raw) ? self::readNote($raw) : null;
             if ($published !== null) {
                 return $published;
             }
 
-            if (self::publish($path, $sessionId)) {
-                if (random_int(1, self::SWEEP_ONE_WRITE_IN) === 1) {
-                    self::sweep(dirname($path));
-                }
-
-                return $sessionId;
+            // Nothing worth joining: no note at all, or one past its window,
+            // malformed, or truncated by a process that died mid-write. Any
+            // of those belongs to no session, so this request takes the name.
+            if (@file_put_contents($path, $sessionId . '|' . time()) === false) {
+                return null;
             }
-
-            // The publish failed, so something is in the way. Read it again
-            // before doing anything to it: the read at the top of this pass
-            // happened before it existed, so "nothing there" and "a sibling
-            // published a moment ago" arrived as the same answer, and acting
-            // on the first reading would delete the note that just won.
-            $published = self::lookup($tokenPlain);
-            if ($published !== null) {
-                return $published;
-            }
-
-            // Still nothing a reader will accept, and yet something occupies
-            // the name: stale, malformed, or truncated by a process that died
-            // mid-write. It belongs to no session, so it goes.
-            if (file_exists($path)) {
-                @unlink($path);
-            }
+            @chmod($path, 0600);
+            $published = $sessionId;
+        } finally {
+            self::unlock($lock);
         }
 
-        return self::lookup($tokenPlain);
+        // A note is worth keeping for seconds, so without a sweep the
+        // directory would grow by one file per remembered sign-in and never
+        // shrink. Done on a fraction of writes, the way PHP collects its own
+        // sessions: the cost is spread out and no request pays for a scan it
+        // did not cause. Outside the lock, because it is nobody's critical
+        // section — a note it removes is already being treated as absent.
+        if (random_int(1, self::SWEEP_ONE_WRITE_IN) === 1) {
+            self::sweep(dirname($path));
+        }
+
+        return $published;
     }
 
     /**
-     * Put a complete note in place, and only where there is no note already.
+     * The session id a note names, when it is still worth joining.
      *
-     * Writing straight to the destination is what makes a reader able to see a
-     * half-written one: `file_put_contents()` opens with `wb`, which truncates
-     * at open — before `LOCK_EX` is taken — so the window between the empty
-     * file and the finished note is visible to anybody reading in it. The note
-     * is therefore built off to the side and only then linked into place.
+     * Everything this refuses — a malformed id, a timestamp that is not one, a
+     * note past its window, a half-written file — comes back as null, which
+     * the callers read as "nothing to join". That is deliberate: the value
+     * decides which session a request is put into, so anything not recognised
+     * is treated as absent rather than repaired or guessed at.
      */
-    private static function publish(string $path, string $sessionId): bool
+    private static function readNote(string $raw): ?string
     {
-        $directory = dirname($path);
-        $temporary = @tempnam($directory, '.note-');
-        if ($temporary === false) {
-            return false;
+        $parts = explode('|', trim($raw), 2);
+        if (count($parts) !== 2) {
+            return null;
+        }
+        [$sessionId, $writtenAt] = $parts;
+
+        if (!self::isWellFormedSessionId($sessionId)) {
+            return null;
+        }
+        if (!ctype_digit($writtenAt) || (time() - (int) $writtenAt) > self::FRESH_FOR_SECONDS) {
+            return null;
         }
 
-        if (@file_put_contents($temporary, $sessionId . '|' . time()) === false) {
-            @unlink($temporary);
+        return $sessionId;
+    }
 
-            return false;
+    /**
+     * Take the registry lock, or carry on without it.
+     *
+     * A host where flock() does not work is a host where PHP's own file
+     * session handler does not lock either, so refusing to work at all here
+     * would disable joining on an installation whose sessions are already
+     * racing. Best effort is the right answer: without the lock this is what
+     * it was before the lock existed, which is a narrower race than the one
+     * the whole class exists to close.
+     *
+     * @return resource|null
+     */
+    private static function lock(int $mode)
+    {
+        $directory = self::directory();
+        if ($directory === null) {
+            return null;
         }
-        @chmod($temporary, 0600);
 
-        // link() publishes something already complete and refuses to replace
-        // what is there: both halves of what this needs. Where it is missing —
-        // some shared hosts disable it — rename() still publishes in one step,
-        // so no reader ever sees a partial note, but it overwrites: on those
-        // installations the last request of a burst wins instead of the first.
-        if (function_exists('link')) {
-            $linked = @link($temporary, $path);
-            @unlink($temporary);
+        $handle = @fopen($directory . '/' . self::LOCK_FILE, 'c');
+        if ($handle === false) {
+            return null;
+        }
+        if (!@flock($handle, $mode)) {
+            @fclose($handle);
 
-            return $linked;
+            return null;
         }
 
-        if (@rename($temporary, $path)) {
-            return true;
-        }
-        @unlink($temporary);
+        return $handle;
+    }
 
-        return false;
+    /** @param resource|null $handle */
+    private static function unlock($handle): void
+    {
+        if ($handle === null) {
+            return;
+        }
+        @flock($handle, LOCK_UN);
+        @fclose($handle);
     }
 
     /**
@@ -230,10 +251,17 @@ class RememberMeSessionRegistry
         if ($path === null) {
             return false;
         }
-        if (!file_exists($path)) {
-            return true;
+
+        $lock = self::lock(LOCK_EX);
+        try {
+            if (!file_exists($path)) {
+                return true;
+            }
+
+            return @unlink($path);
+        } finally {
+            self::unlock($lock);
         }
-        return @unlink($path);
     }
 
     public static function isWellFormedSessionId(string $sessionId): bool
@@ -254,6 +282,7 @@ class RememberMeSessionRegistry
         if ($directory === null) {
             return null;
         }
+
         return $directory . '/' . hash('sha256', $tokenPlain);
     }
 
@@ -268,6 +297,7 @@ class RememberMeSessionRegistry
         if (!@mkdir($directory, 0770, true) && !is_dir($directory)) {
             return null;
         }
+
         return is_writable($directory) ? $directory : null;
     }
 }
