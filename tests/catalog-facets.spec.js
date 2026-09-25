@@ -437,8 +437,21 @@ test.describe('Catalog facets', () => {
     await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
 
     const states = await page.evaluate(() => {
-      const list = document.querySelector('.filter-options:not(.facet-is-collapsed)');
-      if (!list || !list.firstElementChild) { return null; }
+      // Put the sidebar somewhere a list can actually be measured first.
+      // applySuppression() sets display:none on a facet with one reachable
+      // value or fewer, and the phone breakpoint closes the whole panel;
+      // both report zero for every metric there is, which is neither the
+      // clean shape nor the overflowing one. Which facets a catalogue
+      // suppresses is a property of its holdings, so the test stops
+      // depending on it rather than hoping.
+      const content = document.getElementById('catalog-filters-content');
+      if (content) { content.hidden = false; }
+      document.querySelectorAll('[id$="-filter-section"]').forEach((section) => {
+        section.style.display = '';
+      });
+      const list = Array.from(document.querySelectorAll('.filter-options:not(.facet-is-collapsed)'))
+        .find((el) => el.clientHeight > 0 && el.firstElementChild);
+      if (!list) { return { laidOut: false }; }
       const cue = () => ({
         marked: list.classList.contains('facet-has-more'),
         faded: getComputedStyle(list).maskImage !== 'none'
@@ -449,13 +462,18 @@ test.describe('Catalog facets', () => {
       // seed, not of the behaviour under test: a library with four of them
       // overflows nothing, and an assertion resting on that is asserting
       // the fixture. The clones are removed before the function returns.
+      // The counter is not decoration: a grow-until-it-fits loop against a
+      // layout metric that cannot grow never ends, and a test that hangs
+      // costs the whole shard rather than reporting one red line.
       const padding = [];
-      while (list.scrollHeight < 240) {
+      let guard = 0;
+      while (list.scrollHeight < 240 && guard < 60) {
         const clone = list.firstElementChild.cloneNode(true);
         list.appendChild(clone);
         padding.push(clone);
+        guard += 1;
       }
-      const out = {};
+      const out = { laidOut: true, paddedTo: list.scrollHeight };
       // Taller than its own content: nothing is hidden, so nothing is said.
       list.style.maxHeight = `${list.scrollHeight + 64}px`;
       window.markScrollableFacets();
@@ -479,6 +497,9 @@ test.describe('Catalog facets', () => {
     });
 
     expect(states, '.filter-options must exist on the catalog page').not.toBeNull();
+    expect(states.laidOut, 'at least one facet list must be laid out to measure').toBe(true);
+    expect(states.paddedTo, 'the test must be able to build a list taller than its box')
+      .toBeGreaterThanOrEqual(240);
     expect(states.overflowBy, 'the overflowing shape must really overflow').toBeGreaterThan(0);
     expect(states.short.marked, 'a list with nothing hidden gets no cue').toBe(false);
     expect(states.overflowing.marked, 'a list with content below the fold is marked').toBe(true);
@@ -598,22 +619,39 @@ test.describe('Catalog facets', () => {
       // put it back exactly as the page had it.
       const hiddenVerdict = await page.evaluate(() => {
         const content = document.getElementById('catalog-filters-content');
-        const list = document.querySelector('.filter-options:not(.facet-is-collapsed)');
-        if (!content || !list || !list.firstElementChild) { return null; }
+        if (!content) { return null; }
         content.hidden = false;
-        while (list.scrollHeight < 240) {
+        // Same reasoning as 15: a suppressed section stays display:none even
+        // with the panel open, and a box that is not laid out reports zero,
+        // which is both a meaningless measurement and an endless padding
+        // loop. The panel's own hidden flag is the subject here, so that is
+        // the one thing left alone.
+        document.querySelectorAll('[id$="-filter-section"]').forEach((section) => {
+          section.style.display = '';
+        });
+        const list = Array.from(document.querySelectorAll('.filter-options:not(.facet-is-collapsed)'))
+          .find((el) => el.clientHeight > 0 && el.firstElementChild);
+        if (!list) { content.hidden = true; return { laidOut: false }; }
+        let guard = 0;
+        while (list.scrollHeight < 240 && guard < 60) {
           list.appendChild(list.firstElementChild.cloneNode(true));
+          guard += 1;
         }
+        const paddedTo = list.scrollHeight;
         list.style.maxHeight = '60px';
         content.hidden = true;
         window.markScrollableFacets();
         return {
+          laidOut: true,
+          paddedTo,
           measuredHeight: list.scrollHeight,
           marked: list.classList.contains('facet-has-more'),
         };
       });
 
       expect(hiddenVerdict, 'the filters panel and a facet list must exist').not.toBeNull();
+      expect(hiddenVerdict.laidOut, 'a facet list must be laid out once the panel is open').toBe(true);
+      expect(hiddenVerdict.paddedTo, 'and must be paddable past its box').toBeGreaterThanOrEqual(240);
       expect(hiddenVerdict.measuredHeight, 'a hidden panel measures nothing').toBe(0);
       expect(hiddenVerdict.marked, 'so nothing can be marked while it is closed').toBe(false);
 
@@ -621,7 +659,8 @@ test.describe('Catalog facets', () => {
       await expect(panel, 'the toggle opens the panel').toBeVisible();
 
       const revealed = await page.evaluate(() => {
-        const list = document.querySelector('.filter-options:not(.facet-is-collapsed)');
+        const list = Array.from(document.querySelectorAll('.filter-options:not(.facet-is-collapsed)'))
+          .find((el) => el.clientHeight > 0) || document.querySelector('.filter-options');
         return {
           overflowBy: list.scrollHeight - list.clientHeight,
           marked: list.classList.contains('facet-has-more'),
