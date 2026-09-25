@@ -163,6 +163,19 @@ class AuthController
                 // reset now reaches an ordinary browser session and not only
                 // the ones that chose to be remembered.
                 $rememberMeService = new RememberMeService($db);
+
+                // Retire whatever remember-me cookie this browser was already
+                // carrying, before issuing anything new. On a shared terminal —
+                // a reading-room machine is the obvious one — the previous
+                // person may have signed in with "remember me" and walked away:
+                // session_regenerate_id() above replaces the PHP session but
+                // not their cookie, so once this session lapsed the middleware
+                // would find that cookie and sign the browser back in as THEM,
+                // with no login and no trace. Revoking the row it points at
+                // costs its owner only this device, which is the one being
+                // handed over.
+                $rememberMeService->revokeCurrentToken();
+
                 if ($remember) {
                     $rememberMeService->createToken((int) $row['id']);
                 } else {
