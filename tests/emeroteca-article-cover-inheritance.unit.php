@@ -199,6 +199,45 @@ try {
         : null;
     $check(is_array($ldBare) && !isset($ldBare['image']),
         'but never declares the placeholder as its image — that would tell an aggregator every article looks alike');
+    echo "\nE. The article block sits on the page's own margin\n";
+
+    // Reported from a live library: on /emeroteca the Articoli block was inset
+    // eighty-six pixels further than everything above it, because the shared
+    // block carried a width container of its own (max-w-6xl) while the pages
+    // use the site's `container emeroteca-public`. A shared block must not
+    // decide how wide the page is — only where it sits vertically.
+    $views = $root . '/storage/plugins/emeroteca/src/Views/public/';
+    $block = (string) file_get_contents($views . 'article-results.php');
+    $openingSection = preg_match('/<section class="([^"]*)"/', $block, $m) === 1 ? $m[1] : '(none)';
+
+    $check(!str_contains($openingSection, 'max-w-'),
+        "the shared article block imposes no width of its own (class=\"{$openingSection}\")");
+    $check(!str_contains($openingSection, 'mx-auto'),
+        'and does not centre itself independently of the page');
+
+    // …which only works if every caller puts it INSIDE the container. It used
+    // to be required after </main>, where it had no choice but to invent one.
+    foreach (['index.php', 'testata.php', 'articles.php'] as $caller) {
+        $src = (string) file_get_contents($views . $caller);
+        $pos = strpos($src, 'article-results.php');
+        $check($pos !== false, "{$caller} still includes the shared article block");
+        if ($pos === false) {
+            continue;
+        }
+        $before = substr($src, 0, $pos);
+        $opens = substr_count($before, '<main');
+        $closes = substr_count($before, '</main>');
+        $check($opens > $closes,
+            "{$caller} includes it inside the page container, not after </main> "
+                . "({$opens} open, {$closes} closed before the include)");
+    }
+
+    // And the three shells agree on which container that is.
+    foreach (['index.php', 'testata.php', 'articles.php'] as $shell) {
+        $src = (string) file_get_contents($views . $shell);
+        $check(str_contains($src, 'class="container emeroteca-public"'),
+            "{$shell} uses the same page container as the rest of the emeroteca");
+    }
 } finally {
     $db->rollback();
     $db->close();

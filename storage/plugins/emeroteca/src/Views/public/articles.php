@@ -25,7 +25,7 @@ $filterLabels=['autore'=>__('Autore'),'pubblicazione'=>__('Pubblicazione'),'keyw
 $keep=static fn(mixed $value):bool=>(string)$value!=='';
 $testataParam=static fn(int $id):string=>$id>0?(string)$id:'';
 ?>
-<main class="max-w-6xl mx-auto px-4 py-10"><h1 class="text-3xl font-bold mb-6"><?= __('Articoli') ?></h1>
+<main id="emeroteca-articoli" class="container emeroteca-public"><h1 class="text-3xl font-bold mb-6"><?= __('Articoli') ?></h1>
 <form class="flex flex-wrap gap-3" method="get"><label for="article-q" class="sr-only"><?= __('Cerca titolo, autore o pubblicazione') ?></label><input id="article-q" class="form-input" name="q" maxlength="200" value="<?= $e($term) ?>"><input type="hidden" name="testata" value="<?= (int)$testata ?>"><?php foreach($filters as $key=>$value): ?><input type="hidden" name="<?= $e($key) ?>" value="<?= $e($value) ?>"><?php endforeach; ?><button class="btn-primary"><?= __('Cerca') ?></button></form>
 <?php if($filters): ?><p class="mt-4 text-sm"><?php foreach($filters as $key=>$value): $remaining=array_diff_key($filters,[$key=>true]); ?><span class="mr-3"><?= $e(($filterLabels[$key]??$key).': '.$value) ?> <?php $rest=array_filter(['q'=>$term,'testata'=>$testataParam((int)$testata)]+$remaining,$keep); ?><a class="underline" href="<?= $e(url('/emeroteca/articoli').($rest?'?'.http_build_query($rest):'')) ?>" aria-label="<?= $e(__('Rimuovi il filtro')) ?>">&times;</a></span><?php endforeach; ?>
 <a class="underline" href="<?= $e(url('/emeroteca/articoli')) ?>"><?= __('Mostra tutti gli articoli') ?></a></p><?php endif; ?>
