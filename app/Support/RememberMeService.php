@@ -43,6 +43,15 @@ class RememberMeService
      */
     public const SESSION_ROW_KEY = 'remember_session_id';
 
+    /**
+     * True when the bound row belongs to an ordinary sign-in rather than a
+     * remembered one. The session knows how it was opened; the row does not,
+     * and the two kinds must not be treated alike — a remembered row's expiry
+     * is the life of the cookie and is deliberately fixed, while an ordinary
+     * one only has to outlast the session it describes.
+     */
+    public const SESSION_PLAIN_KEY = 'remember_session_plain';
+
     public function createToken(int $userId): bool
     {
         if (!$this->tableExists()) {
@@ -103,11 +112,13 @@ class RememberMeService
      * remembered one, which is the behaviour a reader of "this ends every
      * session" expects.
      *
-     * expires_at follows the session's own lifetime (session.gc_maxlifetime, as
-     * public/index.php set it from the installation's setting) rather than the
-     * remember-me lifetime: this row must not outlive the session it describes,
-     * or the account's session list would fill with entries for browsers that
-     * were closed weeks ago.
+     * expires_at starts at the session's own lifetime (session.gc_maxlifetime,
+     * as public/index.php set it from the installation's setting) rather than
+     * the remember-me lifetime, so the account's session list does not fill up
+     * with entries for browsers closed weeks ago. That figure is an INACTIVITY
+     * timeout, so keepBoundPlainSessionAlive() pushes the row forward while the
+     * person is still working — without it the stamp would act as an absolute
+     * deadline and sign an active session out.
      */
     public function bindPlainSession(int $userId): bool
     {
@@ -148,9 +159,64 @@ class RememberMeService
         if ($rowId <= 0) {
             return false;
         }
-        $this->bindSessionToRow($rowId);
+        $this->bindSessionToRow($rowId, true);
 
         return true;
+    }
+
+    /**
+     * Push an ordinary sign-in's row forward while the person is still working.
+     *
+     * session.gc_maxlifetime is an INACTIVITY timeout: PHP renews it on every
+     * request, so an active session outlives it indefinitely. The row was
+     * stamped once at sign-in with that same figure, which made it an ABSOLUTE
+     * deadline instead — and since a bound row that has expired signs the
+     * session out, a librarian cataloguing for longer than the configured
+     * window was thrown out mid-form while their PHP session was perfectly
+     * alive. With the setting at its five-minute minimum that is almost
+     * immediate.
+     *
+     * Only ordinary rows move. A remembered row's expiry is the life of the
+     * cookie it issued and is deliberately fixed: renewing it would let a
+     * thirty-day cookie live for ever, one request at a time.
+     *
+     * One statement, no read, and the WHERE clause is the throttle — it writes
+     * only once the row is past the halfway mark, so a busy session costs one
+     * UPDATE per half window rather than one per request.
+     */
+    public function keepBoundPlainSessionAlive(): void
+    {
+        if (empty($_SESSION[self::SESSION_PLAIN_KEY])) {
+            return;
+        }
+        $rowId = isset($_SESSION[self::SESSION_ROW_KEY]) ? (int) $_SESSION[self::SESSION_ROW_KEY] : 0;
+        if ($rowId <= 0 || !$this->tableExists()) {
+            return;
+        }
+
+        $lifetime = (int) ini_get('session.gc_maxlifetime');
+        if ($lifetime <= 0) {
+            $lifetime = 24 * 60 * 60;
+        }
+        $renewTo = gmdate('Y-m-d H:i:s', time() + $lifetime);
+        $halfway = gmdate('Y-m-d H:i:s', time() + intdiv($lifetime, 2));
+
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE user_sessions SET expires_at = ?
+                  WHERE id = ? AND is_revoked = 0 AND expires_at < ?'
+            );
+            if ($stmt === false) {
+                return;
+            }
+            $stmt->bind_param('sis', $renewTo, $rowId, $halfway);
+            $stmt->execute();
+            $stmt->close();
+        } catch (\Throwable $e) {
+            // Never end a request over this: the worst case is the row expiring
+            // on its own schedule, which is where it was before.
+            SecureLogger::warning('[RememberMeService] Could not extend the sign-in row: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -286,10 +352,15 @@ class RememberMeService
      * without — so revoking an account's credentials reaches the browser it is
      * being revoked from and not only the ones that asked to be remembered.
      */
-    private function bindSessionToRow(int $rowId): void
+    private function bindSessionToRow(int $rowId, bool $plain = false): void
     {
         if ($rowId > 0 && session_status() === PHP_SESSION_ACTIVE) {
             $_SESSION[self::SESSION_ROW_KEY] = $rowId;
+            if ($plain) {
+                $_SESSION[self::SESSION_PLAIN_KEY] = true;
+            } else {
+                unset($_SESSION[self::SESSION_PLAIN_KEY]);
+            }
         }
     }
 

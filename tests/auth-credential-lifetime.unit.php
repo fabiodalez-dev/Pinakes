@@ -206,6 +206,38 @@ try {
     unset($_COOKIE['remember_token']);
 
     $check($service->boundSessionIsRevoked() === false, 'the ordinary session is live before the reset');
+
+    echo "\nD3. And it does not expire under someone who is still working\n";
+
+    // session.gc_maxlifetime is an INACTIVITY timeout that PHP renews on every
+    // request, so an active session outlives it. Stamped once on the row it
+    // became an absolute deadline instead, and a bound row that has expired
+    // signs the session out — with the setting at its five-minute minimum, mid
+    // catalogue entry.
+    $expiryOf = static function () use ($db, $plainRow): string {
+        return (string) ($db->query("SELECT expires_at FROM user_sessions WHERE id = {$plainRow}")->fetch_row()[0] ?? '');
+    };
+    $db->query("UPDATE user_sessions SET expires_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 SECOND) WHERE id = {$plainRow}");
+    $nearly = $expiryOf();
+    $service->keepBoundPlainSessionAlive();
+    $check($expiryOf() > $nearly, 'a row about to lapse is pushed forward while the session is in use');
+    $check($service->boundSessionIsRevoked() === false, 'so the person is not signed out from under themselves');
+
+    // Twice in a row must not write twice: the WHERE clause is the throttle.
+    $settled = $expiryOf();
+    $service->keepBoundPlainSessionAlive();
+    $check($expiryOf() === $settled, 'a row with most of its window left is left alone — one write per half window, not per request');
+
+    // A remembered row must never move: its expiry is the life of the cookie
+    // it issued, and renewing it would let a thirty-day cookie live for ever.
+    unset($_SESSION[RememberMeService::SESSION_PLAIN_KEY]);
+    $db->query("UPDATE user_sessions SET expires_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 SECOND) WHERE id = {$plainRow}");
+    $rememberedExpiry = $expiryOf();
+    $service->keepBoundPlainSessionAlive();
+    $check($expiryOf() === $rememberedExpiry, 'a remembered row keeps its fixed expiry — a cookie must not renew itself');
+    $_SESSION[RememberMeService::SESSION_PLAIN_KEY] = true;
+
+    $db->query("UPDATE user_sessions SET expires_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 1 DAY) WHERE id = {$plainRow}");
     CredentialRevoker::revokeAll($db, $userId, false);
     $check($service->boundSessionIsRevoked() === true,
         'a password reset ends it on its next request — the claim "a reset ends every session" is now true');

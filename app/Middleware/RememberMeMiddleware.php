@@ -47,7 +47,16 @@ class RememberMeMiddleware implements MiddlewareInterface
             if (session_status() === PHP_SESSION_ACTIVE) {
                 session_destroy();
             }
+
+            return $handler->handle($request);
         }
+
+        // Still here, so the row is live: push an ordinary sign-in's row
+        // forward while the person keeps working. Its stamp comes from
+        // session.gc_maxlifetime, which PHP treats as inactivity and renews on
+        // every request — without this the row would act as an absolute
+        // deadline and sign an active session out mid-form.
+        $service->keepBoundPlainSessionAlive();
 
         return $handler->handle($request);
     }
