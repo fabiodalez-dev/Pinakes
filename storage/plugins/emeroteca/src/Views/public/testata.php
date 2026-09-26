@@ -261,6 +261,5 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
             <?php endif; ?>
         </section>
     <?php endif; ?>
+    <?php if (isset($articleResults)): require __DIR__."/article-results.php"; endif; ?>
 </main>
-
-<?php if (isset($articleResults)): require __DIR__."/article-results.php"; endif; ?>

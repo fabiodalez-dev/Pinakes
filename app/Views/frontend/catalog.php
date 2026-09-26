@@ -243,8 +243,7 @@ $additional_css = "
         flex-direction: column;
         gap: 0.25rem;
         /* Long facet lists (authors, genres, publishers) scroll inside the
-           section instead of stretching the whole sidebar. A light-grey border
-           signals the area is scrollable. */
+           section instead of stretching the whole sidebar. */
         max-height: 24rem;
         overflow-y: auto;
         overflow-x: hidden;
@@ -254,7 +253,32 @@ $additional_css = "
            Small right inset so the scrollbar never overlaps the counts. */
         border: none;
         border-radius: 0;
-        padding: 0 0.375rem 0 0;
+        /* …but it does need an end. Without one the authors list stops
+           mid-alphabet with ninety-two names still inside it and reads as a
+           finished list, so the facet below looks like the empty one. The rule
+           closes the box without putting a frame back around it. */
+        border-bottom: 1px solid var(--border-color);
+        padding: 0 0.375rem 0.25rem 0;
+    }
+    /* And this is what says scroll: the last line fades out, but only while
+       something is actually below it. The class is set from JS because CSS
+       cannot ask whether a box overflows, and it is cleared again once the
+       list is scrolled to the bottom — a cue that never goes away stops being
+       read as a cue. A mask is used rather than a gradient over the content
+       because the panel is transparent: the four layouts and the colour theme
+       paint different things behind it, and a fade hard-coded to white would
+       be a white smear on three of them.
+       The last pixel row is deliberately opaque again. A mask is clipped to
+       the border box, so a fade that reaches zero at 100 per cent takes the
+       closing rule with it — and it does so exactly when the list is long,
+       which is when the rule is carrying the most weight. Measured: the row
+       holding the border goes from 29 to 0 ink the moment the cue turns on. */
+    .filter-options.facet-has-more {
+        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent calc(100% - 1px), #000 calc(100% - 1px));
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent calc(100% - 1px), #000 calc(100% - 1px));
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .filter-options.facet-has-more { transition: none; }
     }
     .filter-options::-webkit-scrollbar { width: 6px; }
     .filter-options::-webkit-scrollbar-track { background: transparent; }
@@ -263,12 +287,16 @@ $additional_css = "
         border-radius: 999px;
     }
     .filter-options::-webkit-scrollbar-thumb:hover { background: var(--text-muted, #94a3b8); }
-    /* A collapsed facet (single pill) must never show a scrollbar or box. */
+    /* A collapsed facet (single pill) must never show a scrollbar, a box or a
+       closing rule: there is nothing to scroll and nothing to delimit. */
     .filter-options.facet-is-collapsed {
         max-height: none;
         overflow: visible;
         border: none;
+        border-bottom: none;
         padding: 0;
+        -webkit-mask-image: none;
+        mask-image: none;
     }
 
     .filter-option {
@@ -1834,6 +1862,10 @@ document.addEventListener('DOMContentLoaded', () => {
             filtersContent.hidden = false;
             filtersToggle.setAttribute('aria-expanded', 'true');
         }
+        // A hidden box has no height, so every measurement taken while the
+        // panel was closed said "nothing below the fold". Revealing it is the
+        // first moment the question can honestly be asked.
+        markScrollableFacets();
     };
 
     if (filtersToggle && filtersContent) {
@@ -1844,6 +1876,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const expanded = filtersToggle.getAttribute('aria-expanded') === 'true';
             filtersToggle.setAttribute('aria-expanded', String(!expanded));
             filtersContent.hidden = expanded;
+            markScrollableFacets();
         });
         if (typeof mobileFilters.addEventListener === 'function') {
             mobileFilters.addEventListener('change', syncMobileFilters);
@@ -1880,6 +1913,14 @@ document.addEventListener('DOMContentLoaded', () => {
         applyFacetCollapse(genresInit, 'genere_id', genereSelectedLabel(), genresInit.innerHTML);
     }
     renderFacets();
+
+    // A narrower window changes how much of a list fits, so the cue has to be
+    // recomputed. Debounced: resize fires continuously while dragging.
+    let facetCueResizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(facetCueResizeTimer);
+        facetCueResizeTimer = setTimeout(markScrollableFacets, 150);
+    }, { passive: true });
 
     const initialPagination = {$initialPaginationJson};
     updatePagination(initialPagination);
@@ -2387,6 +2428,10 @@ function renderFacetOptions(container, key) {
     container.classList.remove('facet-fade-in');
     void container.offsetWidth; // restart animation
     container.classList.add('facet-fade-in');
+    // The cue belongs to this function, not only to the renderFacets() sweep.
+    // Reopening a collapsed facet from its Cambia link comes through here and
+    // nowhere else, and it can restore a list long enough to need the cue.
+    markScrollableFacets();
 }
 
 function renderCollapsedPill(container, key, selectedLabel) {
@@ -2524,6 +2569,37 @@ function renderFacets() {
         applyFacetCollapse(mediaTypes, 'tipo_media', mediaSelectedLabel(), buildMediaTypeOptions);
     }
     applySuppression();
+    markScrollableFacets();
+}
+
+// Which facet lists have something below the fold, right now.
+//
+// CSS cannot ask whether a box overflows, so the cue that tells a reader to
+// scroll has to be set from here. It runs on load and after every facet
+// re-render, because an AJAX refresh replaces the options and a list that was
+// long can become short (or the reverse) without the page reloading.
+function markScrollableFacets() {
+    document.querySelectorAll('.filter-options').forEach((list) => {
+        if (list.classList.contains('facet-is-collapsed')) {
+            list.classList.remove('facet-has-more');
+            return;
+        }
+        updateFacetOverflowCue(list);
+        if (!list.dataset.scrollCueBound) {
+            // Once per element, not once per render: renderFacets() runs on
+            // every keystroke of the search box.
+            list.dataset.scrollCueBound = '1';
+            list.addEventListener('scroll', () => updateFacetOverflowCue(list), { passive: true });
+        }
+    });
+}
+
+function updateFacetOverflowCue(list) {
+    // The 2px tolerance is for sub-pixel heights: a list scrolled fully to the
+    // bottom can report a remainder of a fraction of a pixel, which would keep
+    // the cue on for ever and teach the reader to ignore it.
+    const more = list.scrollHeight - list.clientHeight - list.scrollTop > 2;
+    list.classList.toggle('facet-has-more', more);
 }
 
 // Hide a whole facet section when the backend marks it as noise

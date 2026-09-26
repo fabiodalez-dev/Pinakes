@@ -423,6 +423,120 @@ test.describe('Catalog facets', () => {
     page.off('request', countCatalogRequest);
   });
 
+  // -------------------------------------------------------------------------
+  // 15. A facet list that is cut off says so
+  //
+  // Reported from a live library: the authors list stopped mid-alphabet with
+  // ninety-two names still inside it, with no rule, no fade and a scrollbar the
+  // platform only paints on hover. It read as a finished list, which made the
+  // short facet below it look broken rather than short. The cue is set from JS
+  // because CSS cannot ask whether a box overflows, so it is worth asserting
+  // that it is set, cleared at the bottom, and never put on a collapsed pill.
+  // -------------------------------------------------------------------------
+  test('15. An overflowing facet list carries a scroll cue that clears at the bottom', async () => {
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+    const states = await page.evaluate(() => {
+      // Put the sidebar somewhere a list can actually be measured first.
+      // applySuppression() sets display:none on a facet with one reachable
+      // value or fewer, and the phone breakpoint closes the whole panel;
+      // both report zero for every metric there is, which is neither the
+      // clean shape nor the overflowing one. Which facets a catalogue
+      // suppresses is a property of its holdings, so the test stops
+      // depending on it rather than hoping.
+      const content = document.getElementById('catalog-filters-content');
+      if (content) { content.hidden = false; }
+      document.querySelectorAll('[id$="-filter-section"]').forEach((section) => {
+        section.style.display = '';
+      });
+      const list = Array.from(document.querySelectorAll('.filter-options:not(.facet-is-collapsed)'))
+        .find((el) => el.clientHeight > 0 && el.firstElementChild);
+      if (!list) { return { laidOut: false }; }
+      const cue = () => ({
+        marked: list.classList.contains('facet-has-more'),
+        faded: getComputedStyle(list).maskImage !== 'none'
+              || getComputedStyle(list).webkitMaskImage !== 'none',
+      });
+      // Both shapes are built here instead of being read off the page. How
+      // many authors the catalogue happens to hold is a property of the
+      // seed, not of the behaviour under test: a library with four of them
+      // overflows nothing, and an assertion resting on that is asserting
+      // the fixture. The clones are removed before the function returns.
+      // The counter is not decoration: a grow-until-it-fits loop against a
+      // layout metric that cannot grow never ends, and a test that hangs
+      // costs the whole shard rather than reporting one red line.
+      const padding = [];
+      let guard = 0;
+      while (list.scrollHeight < 240 && guard < 60) {
+        const clone = list.firstElementChild.cloneNode(true);
+        list.appendChild(clone);
+        padding.push(clone);
+        guard += 1;
+      }
+      const out = { laidOut: true, paddedTo: list.scrollHeight };
+      // Taller than its own content: nothing is hidden, so nothing is said.
+      list.style.maxHeight = `${list.scrollHeight + 64}px`;
+      window.markScrollableFacets();
+      out.short = cue();
+      // Shorter than its own content: the shape the real authors list has.
+      list.style.maxHeight = '60px';
+      out.overflowBy = list.scrollHeight - list.clientHeight;
+      window.markScrollableFacets();
+      out.overflowing = cue();
+      list.scrollTop = list.scrollHeight;
+      list.dispatchEvent(new Event('scroll'));
+      out.atBottom = cue();
+      list.scrollTop = 0;
+      list.dispatchEvent(new Event('scroll'));
+      out.backAtTop = cue();
+      list.style.maxHeight = '';
+      padding.forEach((clone) => clone.remove());
+      window.markScrollableFacets();
+      out.closingRule = getComputedStyle(list).borderBottomWidth;
+      return out;
+    });
+
+    expect(states, '.filter-options must exist on the catalog page').not.toBeNull();
+    expect(states.laidOut, 'at least one facet list must be laid out to measure').toBe(true);
+    expect(states.paddedTo, 'the test must be able to build a list taller than its box')
+      .toBeGreaterThanOrEqual(240);
+    expect(states.overflowBy, 'the overflowing shape must really overflow').toBeGreaterThan(0);
+    expect(states.short.marked, 'a list with nothing hidden gets no cue').toBe(false);
+    expect(states.overflowing.marked, 'a list with content below the fold is marked').toBe(true);
+    expect(states.overflowing.faded, 'and the mark actually fades the last line').toBe(true);
+    expect(states.atBottom.marked, 'scrolled to the bottom the cue clears').toBe(false);
+    expect(states.backAtTop.marked, 'and comes back on the way up').toBe(true);
+    expect(states.closingRule, 'every open list is closed by a rule').not.toBe('0px');
+  });
+
+  // -------------------------------------------------------------------------
+  // 16. A collapsed facet is a pill, not a list: no rule, no fade, no scrollbar
+  // -------------------------------------------------------------------------
+  test('16. A collapsed facet carries neither the closing rule nor the fade', async () => {
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+    const verdict = await page.evaluate(() => {
+      const list = document.querySelector('.filter-options');
+      if (!list) { return null; }
+      list.classList.add('facet-is-collapsed');
+      window.markScrollableFacets();
+      const cs = getComputedStyle(list);
+      const out = {
+        marked: list.classList.contains('facet-has-more'),
+        border: cs.borderBottomWidth,
+        mask: cs.maskImage,
+      };
+      list.classList.remove('facet-is-collapsed');
+      window.markScrollableFacets();
+      return out;
+    });
+
+    expect(verdict, '.filter-options must exist').not.toBeNull();
+    expect(verdict.marked, 'a collapsed pill is never marked as scrollable').toBe(false);
+    expect(verdict.border, 'and carries no closing rule').toBe('0px');
+    expect(verdict.mask, 'and no fade').toBe('none');
+  });
+
   test('14. A newer catalog request aborts and supersedes the previous request', async () => {
     await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
 
@@ -481,6 +595,85 @@ test.describe('Catalog facets', () => {
         delete window.__catalogFetchOriginal;
         delete window.__catalogRequests;
       }).catch(() => {});
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 17. On a phone the filters panel starts closed, and a closed panel has no
+  // height: every measurement taken while it is hidden answers "nothing below
+  // the fold", whatever the list actually holds. The cue therefore has to be
+  // recomputed when the panel is revealed — otherwise the one place the scroll
+  // hint matters most, a narrow screen, is the one place it never appears.
+  // Kept last in the file: it resizes the shared page.
+  // -------------------------------------------------------------------------
+  test('17. Revealing the filters panel on a phone recomputes the scroll cue', async () => {
+    const original = page.viewportSize();
+    try {
+      await page.setViewportSize({ width: 390, height: 800 });
+      await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+
+      const panel = page.locator('#catalog-filters-content');
+      await expect(panel, 'the panel starts closed on a phone').toBeHidden();
+
+      // Build an overflowing list while the panel can still be measured, then
+      // put it back exactly as the page had it.
+      const hiddenVerdict = await page.evaluate(() => {
+        const content = document.getElementById('catalog-filters-content');
+        if (!content) { return null; }
+        content.hidden = false;
+        // Same reasoning as 15: a suppressed section stays display:none even
+        // with the panel open, and a box that is not laid out reports zero,
+        // which is both a meaningless measurement and an endless padding
+        // loop. The panel's own hidden flag is the subject here, so that is
+        // the one thing left alone.
+        document.querySelectorAll('[id$="-filter-section"]').forEach((section) => {
+          section.style.display = '';
+        });
+        const list = Array.from(document.querySelectorAll('.filter-options:not(.facet-is-collapsed)'))
+          .find((el) => el.clientHeight > 0 && el.firstElementChild);
+        if (!list) { content.hidden = true; return { laidOut: false }; }
+        let guard = 0;
+        while (list.scrollHeight < 240 && guard < 60) {
+          list.appendChild(list.firstElementChild.cloneNode(true));
+          guard += 1;
+        }
+        const paddedTo = list.scrollHeight;
+        list.style.maxHeight = '60px';
+        content.hidden = true;
+        window.markScrollableFacets();
+        return {
+          laidOut: true,
+          paddedTo,
+          measuredHeight: list.scrollHeight,
+          marked: list.classList.contains('facet-has-more'),
+        };
+      });
+
+      expect(hiddenVerdict, 'the filters panel and a facet list must exist').not.toBeNull();
+      expect(hiddenVerdict.laidOut, 'a facet list must be laid out once the panel is open').toBe(true);
+      expect(hiddenVerdict.paddedTo, 'and must be paddable past its box').toBeGreaterThanOrEqual(240);
+      expect(hiddenVerdict.measuredHeight, 'a hidden panel measures nothing').toBe(0);
+      expect(hiddenVerdict.marked, 'so nothing can be marked while it is closed').toBe(false);
+
+      await page.locator('#catalog-filters-toggle').click();
+      await expect(panel, 'the toggle opens the panel').toBeVisible();
+
+      const revealed = await page.evaluate(() => {
+        const list = Array.from(document.querySelectorAll('.filter-options:not(.facet-is-collapsed)'))
+          .find((el) => el.clientHeight > 0) || document.querySelector('.filter-options');
+        return {
+          overflowBy: list.scrollHeight - list.clientHeight,
+          marked: list.classList.contains('facet-has-more'),
+        };
+      });
+
+      expect(revealed.overflowBy, 'the list really does overflow once visible').toBeGreaterThan(0);
+      expect(revealed.marked, 'and revealing the panel brings the cue with it').toBe(true);
+    } finally {
+      if (original) {
+        await page.setViewportSize(original);
+      }
+      await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
     }
   });
 });
