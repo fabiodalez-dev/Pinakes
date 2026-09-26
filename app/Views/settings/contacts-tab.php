@@ -105,7 +105,7 @@ use App\Support\HtmlHelper;
           <p><i class="fas fa-info-circle mr-1"></i><strong><?= __("Come ottenere il codice") ?></strong></p>
           <ul class="ml-4 space-y-1">
             <li>• <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">Google Maps</a>: https://www.google.com/maps/embed?pb=...</li>
-            <li>• <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">OpenStreetMap</a>: https://www.openstreetmap.org/export/embed.html?bbox=...</li>
+            <li>• <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">OpenStreetMap</a>: https://www.openstreetmap.org/export/embed?bbox=... (<?= __("anche nella vecchia forma") ?> /export/embed.html?bbox=...)</li>
           </ul>
         </div>
       </div>

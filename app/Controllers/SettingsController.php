@@ -36,6 +36,28 @@ class SettingsController
         // filter), runs before the templates are read for display below.
         $repository->healCorruptedTemplateUrls();
 
+        // The stale Content-Security-Policy in public/.htaccess is also
+        // repaired by the updater, but an in-app upgrade runs runMigrations()
+        // on the Updater instance already compiled in memory — the OLD one,
+        // which has no such call; the file on disk is replaced underneath it.
+        // The codebase has been bitten by that before (see the note on
+        // updateBundledPlugins) and it bites hardest here, because the installs
+        // carrying the stale header are precisely those upgrading from before
+        // it was removed. So it runs here too, under the new code, on a page
+        // an operator reaches while looking at exactly these settings.
+        // Idempotent and cheap: a read that returns immediately once the
+        // directive is gone.
+        //
+        // A failure is said out loud rather than swallowed. It means the file
+        // still carries the old policy — so embeds stay blocked and the site
+        // still runs on `script-src 'unsafe-inline'` — and the operator would
+        // otherwise be left looking at a map that does not work with nothing
+        // anywhere to explain it. The message names the one line to remove.
+        if (!\App\Support\StaleCspHeader::heal()) {
+            SecureLogger::error('[Settings] stale CSP header could not be removed from public/.htaccess');
+            $_SESSION['error_message'] = __('Il file public/.htaccess contiene ancora una vecchia direttiva Content-Security-Policy che non è stato possibile rimuovere, e finché resta prevale su quella dell\'applicazione: mappe e altri contenuti incorporati restano bloccati. Rimuovere a mano la riga che inizia con "Header always set Content-Security-Policy".');
+        }
+
         $appSettings = $this->resolveAppSettings($repository);
         $emailSettings = $this->resolveEmailSettings($repository);
         $templates = $this->resolveEmailTemplates($repository, $templateLocale);
@@ -766,66 +788,21 @@ class SettingsController
 
         // Validate and sanitize Maps embed code (Google Maps or OpenStreetMap)
         if (!empty($settings['google_maps_embed'])) {
-            $embedCode = trim($settings['google_maps_embed']);
+            $mapUrl = \App\Support\MapEmbed::extractUrl((string) $settings['google_maps_embed']);
 
-            // Extract the URL from iframe if present
-            $mapUrl = '';
-            if (preg_match('/<iframe[^>]+src=["\']([^"\']+)["\']/', $embedCode, $matches)) {
-                $mapUrl = $matches[1];
-            } else {
-                $mapUrl = $embedCode;
-            }
-
-            // Parse the URL
-            $parsedUrl = parse_url($mapUrl);
-            if (!is_array($parsedUrl)
-                || strtolower((string) ($parsedUrl['scheme'] ?? '')) !== 'https'
-                || !isset($parsedUrl['host'])
-                || isset($parsedUrl['user'])
-                || isset($parsedUrl['pass'])
-            ) {
+            if (!\App\Support\MapEmbed::isSafeHttpsUrl($mapUrl)) {
                 $_SESSION['error_message'] = __('URL non valido. Deve essere un URL HTTPS valido.');
                 return $this->redirect($response, '/admin/settings?tab=contacts');
             }
-            $mapHost = strtolower((string) $parsedUrl['host']);
 
-            $isValidMap = false;
-            $mapProvider = '';
-
-            // Validate Google Maps
-            if (
-                $mapHost === 'www.google.com' &&
-                isset($parsedUrl['path']) &&
-                strpos($parsedUrl['path'], '/maps/embed') === 0
-            ) {
-                $isValidMap = true;
-                $mapProvider = 'google';
-            }
-
-            // Validate OpenStreetMap
-            if (
-                $mapHost === 'www.openstreetmap.org' &&
-                isset($parsedUrl['path']) &&
-                strpos($parsedUrl['path'], '/export/embed.html') === 0
-            ) {
-                $isValidMap = true;
-                $mapProvider = 'openstreetmap';
-            }
-
-            if (!$isValidMap) {
-                $_SESSION['error_message'] = __('URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed.html?...).');
+            $mapProvider = \App\Support\MapEmbed::provider($mapUrl);
+            if ($mapProvider === \App\Support\MapEmbed::PROVIDER_NONE) {
+                $_SESSION['error_message'] = __('URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed?...).');
                 return $this->redirect($response, '/admin/settings?tab=contacts');
             }
 
-            // Rebuild a safe iframe with only allowed attributes
-            $safeIframe = sprintf(
-                '<iframe src="%s" width="100%%" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" data-map-provider="%s"></iframe>',
-                htmlspecialchars($mapUrl, ENT_QUOTES, 'UTF-8'),
-                htmlspecialchars($mapProvider, ENT_QUOTES, 'UTF-8')
-            );
-
-            // Store the sanitized iframe
-            $settings['google_maps_embed'] = $safeIframe;
+            // Our attributes around the provider's URL — nothing pasted survives.
+            $settings['google_maps_embed'] = \App\Support\MapEmbed::buildIframe($mapUrl, $mapProvider);
         }
 
         foreach ($settings as $key => $value) {
@@ -875,20 +852,26 @@ class SettingsController
         ];
     }
 
+    /**
+     * The two public pages, and nothing else.
+     *
+     * Everything about the cookie banner — whether it appears, which
+     * categories it offers, the links it shows, its wording — is saved by
+     * updateCookieBannerSettings() instead. The split used to run the other
+     * way and cut through the middle of one subject: a button labelled "Salva
+     * Privacy Policy" also wrote the banner switch and the category
+     * visibility, while that same banner's texts needed a second button
+     * nobody was told about.
+     *
+     * Keeping each switch in exactly one form is not only tidiness. An
+     * unchecked checkbox is simply absent from the post, so a handler that
+     * writes a flag its form does not carry writes `false` every time — which
+     * is how a save of one thing silently turns off another.
+     */
     public function updatePrivacySettings(Request $request, Response $response, mysqli $db): Response
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
-
-        $statementRaw = trim((string) ($data['cookie_statement_link'] ?? ''));
-        $technologiesRaw = trim((string) ($data['cookie_technologies_link'] ?? ''));
-        $statementUrl = HtmlHelper::sanitizePublicHttpUrl($statementRaw);
-        $technologiesUrl = HtmlHelper::sanitizePublicHttpUrl($technologiesRaw);
-        if (($statementRaw !== '' && $statementUrl === '')
-            || ($technologiesRaw !== '' && $technologiesUrl === '')) {
-            $_SESSION['error_message'] = __('I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.');
-            return $this->redirect($response, '/admin/settings?tab=privacy');
-        }
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
@@ -897,28 +880,14 @@ class SettingsController
             'page_title' => trim(strip_tags((string) ($data['page_title'] ?? 'Privacy Policy'))),
             'page_content' => HtmlHelper::sanitizeHtml((string) ($data['page_content'] ?? '')),
             'cookie_policy_content' => HtmlHelper::sanitizeHtml((string) ($data['cookie_policy_content'] ?? '')),
-            'cookie_banner_enabled' => isset($data['cookie_banner_enabled']) && $data['cookie_banner_enabled'] === '1',
-            'cookie_statement_link' => $statementUrl,
-            'cookie_technologies_link' => $technologiesUrl,
         ];
 
         foreach ($settings as $key => $value) {
-            // Convert boolean to string for repository
-            $dbValue = is_bool($value) ? ($value ? '1' : '0') : (string) $value;
-            $repository->set('privacy', $key, $dbValue);
+            $repository->set('privacy', $key, (string) $value);
             ConfigStore::set("privacy.$key", $value);
         }
 
-        // Save cookie banner category visibility flags
-        $showAnalytics = isset($data['show_analytics']) && $data['show_analytics'] === '1';
-        $showMarketing = isset($data['show_marketing']) && $data['show_marketing'] === '1';
-
-        $repository->set('cookie_banner', 'show_analytics', $showAnalytics ? '1' : '0');
-        $repository->set('cookie_banner', 'show_marketing', $showMarketing ? '1' : '0');
-        ConfigStore::set('cookie_banner.show_analytics', $showAnalytics);
-        ConfigStore::set('cookie_banner.show_marketing', $showMarketing);
-
-        $_SESSION['success_message'] = __('Impostazioni privacy aggiornate correttamente.');
+        $_SESSION['success_message'] = __('Pagine privacy e cookie aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=privacy');
     }
 
@@ -1382,10 +1351,22 @@ class SettingsController
         return $this->redirect($response, '/admin/settings?tab=advanced');
     }
 
-    public function updateCookieBannerTexts(Request $request, Response $response, mysqli $db): Response
+    /**
+     * The cookie banner as one subject: whether it appears, which categories
+     * it offers, the links it shows, and everything it says.
+     *
+     * It used to save only the texts, while the switch that turns the banner
+     * on and the category visibility were saved by the privacy page's button.
+     * That put one thing under two buttons with nothing on screen to say so.
+     *
+     * The whole of it is admin-only, as the texts already were: this governs
+     * what every visitor is asked to consent to, and turning the banner off
+     * is a larger decision than rewording it.
+     */
+    public function updateCookieBannerSettings(Request $request, Response $response, mysqli $db): Response
     {
-        // AdminAuthMiddleware also admits staff; these texts are rendered on
-        // every public page, so editing them is admin-only — re-check inline.
+        // AdminAuthMiddleware also admits staff; this governs consent on every
+        // public page, so editing it is admin-only — re-check inline.
         if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
             $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
             return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
@@ -1394,8 +1375,42 @@ class SettingsController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
+        // Refuse the whole save on a malformed link rather than storing an
+        // empty one: silently dropping a link the operator typed would read
+        // as "saved" while the preferences panel lost an entry.
+        $statementRaw = trim((string) ($data['cookie_statement_link'] ?? ''));
+        $technologiesRaw = trim((string) ($data['cookie_technologies_link'] ?? ''));
+        $statementUrl = HtmlHelper::sanitizePublicHttpUrl($statementRaw);
+        $technologiesUrl = HtmlHelper::sanitizePublicHttpUrl($technologiesRaw);
+        if (($statementRaw !== '' && $statementUrl === '')
+            || ($technologiesRaw !== '' && $technologiesUrl === '')) {
+            $_SESSION['error_message'] = __('I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.');
+            return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
+        }
+
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
+
+        // Behaviour. These three live in this form and only in this form, so
+        // an unchecked box means "off" here and cannot mean "off" anywhere
+        // else by accident.
+        $bannerEnabled = isset($data['cookie_banner_enabled']) && $data['cookie_banner_enabled'] === '1';
+        $showAnalytics = isset($data['show_analytics']) && $data['show_analytics'] === '1';
+        $showMarketing = isset($data['show_marketing']) && $data['show_marketing'] === '1';
+
+        foreach ([
+            'cookie_banner_enabled' => $bannerEnabled ? '1' : '0',
+            'cookie_statement_link' => $statementUrl,
+            'cookie_technologies_link' => $technologiesUrl,
+        ] as $key => $value) {
+            $repository->set('privacy', $key, $value);
+            ConfigStore::set("privacy.$key", $key === 'cookie_banner_enabled' ? $bannerEnabled : $value);
+        }
+
+        $repository->set('cookie_banner', 'show_analytics', $showAnalytics ? '1' : '0');
+        $repository->set('cookie_banner', 'show_marketing', $showMarketing ? '1' : '0');
+        ConfigStore::set('cookie_banner.show_analytics', $showAnalytics);
+        ConfigStore::set('cookie_banner.show_marketing', $showMarketing);
 
         $fieldMap = $this->getCookieBannerTextFieldMap();
         $cookieBannerTexts = [];
@@ -1431,7 +1446,7 @@ class SettingsController
             ConfigStore::set("cookie_banner.$key", $value);
         }
 
-        $_SESSION['success_message'] = 'Testi cookie banner aggiornati correttamente.';
+        $_SESSION['success_message'] = __('Impostazioni del banner cookie aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
     }
 
