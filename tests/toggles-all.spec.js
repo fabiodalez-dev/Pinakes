@@ -114,7 +114,13 @@ test.describe.serial('All toggles turn ON after the restyle', () => {
     await flipAndSubmit(page, 'api_enabled', wasOn);
   });
 
-  // Privacy toggles persist via the "Salva Privacy Policy" form submit.
+  // These three belong to the cookie banner and are saved with the rest of it.
+  // They used to sit under the privacy page's button, which is why this test
+  // once reached for one labelled "Salva Privacy"; the tab is now split by
+  // subject, so the form is addressed by its action rather than its wording —
+  // a label is translated and rephrased, an endpoint is not.
+  const BANNER_SAVE = 'form[action*="cookie-banner"] button[type="submit"]';
+
   test('Privacy: cookie/analytics/marketing toggles persist ON', async () => {
     await page.goto(`${BASE}/admin/settings?tab=privacy`);
     const ids = ['cookie_banner_enabled', 'show_analytics', 'show_marketing'];
@@ -122,7 +128,7 @@ test.describe.serial('All toggles turn ON after the restyle', () => {
     for (const id of ids) before[id] = await page.locator(`#${id}`).isChecked();
 
     for (const id of ids) await setToggle(page, id, true);
-    await page.locator('button[type="submit"]:has-text("Salva Privacy")').first().click();
+    await page.locator(BANNER_SAVE).first().click();
     await expect(page.locator('.bg-green-50, .swal2-icon-success').first())
       .toBeVisible({ timeout: 10000 });
 
@@ -131,7 +137,7 @@ test.describe.serial('All toggles turn ON after the restyle', () => {
 
     // Restore original states
     for (const id of ids) await setToggle(page, id, before[id]);
-    await page.locator('button[type="submit"]:has-text("Salva Privacy")').first().click();
+    await page.locator(BANNER_SAVE).first().click();
     await expect(page.locator('.bg-green-50, .swal2-icon-success').first())
       .toBeVisible({ timeout: 10000 });
   });

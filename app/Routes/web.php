@@ -683,7 +683,7 @@ return function (App $app): void {
     $app->post('/admin/settings/cookie-banner', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
-        return $controller->updateCookieBannerTexts($request, $response, $db);
+        return $controller->updateCookieBannerSettings($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/templates/{template}', function ($request, $response, $args) use ($app) {
