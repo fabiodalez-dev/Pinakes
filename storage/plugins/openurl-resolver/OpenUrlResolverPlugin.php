@@ -219,12 +219,14 @@ class OpenUrlResolverPlugin
         if ($rftValFmt === 'info:ofi/fmt:kev:mtx:journal') {
             $article = $this->findArticle($params);
             if ($article !== null) {
-                $base = defined('BASE_PATH') ? (string) BASE_PATH : '';
-                $uri = $request->getUri();
-                $origin = $uri->getScheme() . '://' . $uri->getAuthority();
-
-                return $response->withStatus(302)
-                    ->withHeader('Location', $origin . $base . '/emeroteca/articolo/' . (int) $article['id']);
+                // absoluteUrl(), for the same reason localBookUrl() uses it:
+                // $request->getUri()->getAuthority() is the client-supplied Host
+                // header, so building the origin from it sends the visitor
+                // wherever that header says and skips APP_TRUSTED_HOSTS.
+                return $response->withStatus(302)->withHeader(
+                    'Location',
+                    absoluteUrl('/emeroteca/articolo/' . (int) $article['id'])
+                );
             }
 
             return $response->withStatus(302)
@@ -499,10 +501,21 @@ class OpenUrlResolverPlugin
             return self::GOOGLE_BOOKS_ISBN . rawurlencode($isbn);
         }
 
-        // Build search query from title + author
+        // Build the search query from whatever title and author the request
+        // carries. Every key goes through param(), which asks for both
+        // spellings: read directly, `rft.btitle` and friends are never present
+        // because PHP has already turned the dot into an underscore, so a
+        // spec-conformant OpenURL used to fall through to an EMPTY WorldCat
+        // search and only the undotted aliases beside them ever matched.
+        //
+        // `rft.atitle` and `rft.jtitle` are the journal keys: an unmatched
+        // journal request reaches here, and without them the one thing the
+        // researcher actually typed — the article title — was dropped.
         $parts = [];
         foreach ([
+            'rft.atitle',
             'rft.btitle',
+            'rft.jtitle',
             'title',
             'rft.au',
             'au',
@@ -511,8 +524,8 @@ class OpenUrlResolverPlugin
             'au_last',
             'au_first',
         ] as $k) {
-            $v = trim((string) ($params[$k] ?? ''));
-            if ($v !== '') {
+            $v = self::param($params, $k);
+            if ($v !== '' && !in_array($v, $parts, true)) {
                 $parts[] = $v;
             }
         }

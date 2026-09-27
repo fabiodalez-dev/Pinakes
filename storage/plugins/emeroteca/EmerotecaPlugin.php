@@ -2677,13 +2677,20 @@ class EmerotecaPlugin
             return $empty;
         }
         $pattern = $this->likePattern($term);
+        // These columns must stay the same set ContributionService::search()
+        // uses, in the same order: this counter labels a link, and the number
+        // beside a link has to be the number of results that link opens. When
+        // sottotitolo became searchable on the article page (#412) and not
+        // here, a term living only in a subtitle produced no suggestion at all
+        // while the linked page listed the article.
         $where = "pubblico = 1
                   AND (titolo LIKE ? ESCAPE '\\\\'
+                       OR sottotitolo LIKE ? ESCAPE '\\\\'
                        OR autori LIKE ? ESCAPE '\\\\'
                        OR contenitore_titolo LIKE ? ESCAPE '\\\\'
                        OR keywords LIKE ? ESCAPE '\\\\'
                        OR issn = ?)";
-        $params = [$pattern, $pattern, $pattern, $pattern, $term];
+        $params = [$pattern, $pattern, $pattern, $pattern, $pattern, $term];
 
         // Fetch first, count only when the page comes back saturated: a term
         // with five or fewer matches already knows its own total, and this
@@ -2693,14 +2700,14 @@ class EmerotecaPlugin
         $rows = $this->emerotecaRows(
             "SELECT id, titolo, autori, contenitore_titolo, data_pubblicazione_testo, pagine
              FROM emeroteca_contributi WHERE $where ORDER BY id DESC LIMIT 6",
-            'sssss',
+            'ssssss',
             $params
         );
         if ($rows === []) {
             return $empty;
         }
         $total = count($rows) > 5
-            ? $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_contributi WHERE $where", 'sssss', $params)
+            ? $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_contributi WHERE $where", 'ssssss', $params)
             : count($rows);
         $rows = array_slice($rows, 0, 5);
         $items = [];

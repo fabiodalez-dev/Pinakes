@@ -97,10 +97,19 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.locator('input[name="pubblico"]').check();
 
     await page.locator('button[type=submit]:has-text("Salva")').first().click();
-    await page.waitForURL(u => u.pathname.includes('/admin/periodicals/articles'));
 
-    articleId = Number(db(`SELECT id FROM emeroteca_contributi WHERE titolo LIKE '${marker}%' ORDER BY id DESC LIMIT 1`) || '0');
-    expect(articleId, 'the article was saved').toBeGreaterThan(0);
+    // Wait for the DETAIL url, not merely for a path containing
+    // '/admin/periodicals/articles': the create page satisfies that prefix
+    // already, so the wait would resolve before the POST completed and the
+    // lookup below could read the table before the INSERT landed. A successful
+    // store redirects to /admin/periodicals/articles/{id}, so the id comes from
+    // the url the application chose rather than from a LIKE on the title.
+    await page.waitForURL(/\/admin\/periodicals\/articles\/\d+(\?|$)/);
+    articleId = Number((page.url().match(/\/articles\/(\d+)/) || [])[1] || '0');
+    expect(articleId, 'the article was saved and the app redirected to it').toBeGreaterThan(0);
+
+    const savedTitle = db(`SELECT titolo FROM emeroteca_contributi WHERE id=${articleId}`);
+    expect(savedTitle, 'and that id really is the row this test just created').toContain(marker);
 
     const stored = db(`SELECT CONCAT_WS('|', lingua, paese, classificazione_schema, classificazione, nota_possesso, risorsa_pubblica) FROM emeroteca_contributi WHERE id=${articleId}`);
     expect(stored, 'every analytic field reached the database').toBe('dan|DK|DK5|33.129|Copy / offprint only|1');

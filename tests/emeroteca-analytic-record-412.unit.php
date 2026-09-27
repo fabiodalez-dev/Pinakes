@@ -208,13 +208,32 @@ try {
         'risorsa_accesso' => ['varchar(255)','YES',null],
         'risorsa_pubblica' => ['tinyint(1)','NO','0'],
     ];
+    // "No default" has two spellings. MySQL reports COLUMN_DEFAULT as SQL NULL
+    // for a nullable column that declares no default; MariaDB reports the
+    // four-character STRING 'NULL' (verified: MySQL 9.6 vs MariaDB 12.3, and
+    // the CI matrix agrees). Reading it as SQL NULL alone passes on MySQL and
+    // fails on every MariaDB, which is a difference in information_schema, not
+    // in the schema the plugin built.
+    $noDefault = static fn ($raw): bool => $raw === null || strtoupper((string) $raw) === 'NULL';
+
     foreach ($expected as $column => [$type, $nullable, $default]) {
         $got = $types[$column] ?? null;
-        $check($got !== null
-            && strtolower((string) $got['COLUMN_TYPE']) === $type
-            && $got['IS_NULLABLE'] === $nullable
-            && (string) ($got['COLUMN_DEFAULT'] ?? '') === (string) ($default ?? ''),
-            "  {$column} is {$type}, nullable={$nullable}");
+        // One assertion per property: a single compound check reports only
+        // "the column is wrong" and leaves the reader to guess which of three
+        // facts broke.
+        $check($got !== null, "  {$column} exists");
+        if ($got === null) {
+            continue;
+        }
+        $check(strtolower((string) $got['COLUMN_TYPE']) === $type,
+            "  {$column} is {$type} (got " . strtolower((string) $got['COLUMN_TYPE']) . ')');
+        $check($got['IS_NULLABLE'] === $nullable,
+            "  {$column} nullable={$nullable} (got {$got['IS_NULLABLE']})");
+        $check($default === null
+                ? $noDefault($got['COLUMN_DEFAULT'])
+                : (string) $got['COLUMN_DEFAULT'] === (string) $default,
+            "  {$column} default=" . ($default ?? 'none')
+                . ' (got ' . ($got['COLUMN_DEFAULT'] === null ? 'SQL NULL' : (string) $got['COLUMN_DEFAULT']) . ')');
     }
 
     // Every new field is OPTIONAL. A library that catalogues nothing but books
@@ -545,6 +564,50 @@ try {
         'a record with nothing but a title still renders — every analytic field is optional');
     $check(!str_contains($bare, 'DK5') && substr_count($bare, 'class="btn-primary') === 0,
         'and shows none of the analytic apparatus it does not have');
+
+    // ── K. The number beside a link is the number of results that link opens ──
+    //
+    // The catalogue search offers "Articoli nell'emeroteca (N)" pointing at
+    // /emeroteca/articoli?q=. Two different queries produce N and that page, so
+    // making one of them search a new column and not the other is how a counter
+    // starts lying. Here the term exists ONLY in a subtitle: before the counter
+    // learned about sottotitolo there was no suggestion at all while the linked
+    // page listed the article.
+    echo "\nK. The suggestion counter agrees with the page it links to\n";
+
+    $db->query("DELETE FROM emeroteca_contributi");
+    $onlyInSubtitle = 'Zwischenkriegszeit';
+    $svc->save([
+        'titolo' => 'A title that does not contain the term',
+        'sottotitolo' => 'eine Studie zur ' . $onlyInSubtitle,
+        'autori' => 'Petersen, Hans Uwe',
+        'contenitore_titolo' => 'Arbejderhistorie',
+        'pubblico' => 1,
+    ]);
+    $svc->save([
+        'titolo' => 'Another record entirely',
+        'autori' => 'Rossi, Mario',
+        'pubblico' => 1,
+    ]);
+
+    // $public = true: the counter only ever counts published articles, so the
+    // page has to be asked the same way or the two disagree for a second reason.
+    $pageTotal = (int) $svc->search($onlyInSubtitle, 0, true)['total'];
+    $check($pageTotal === 1, "the linked page finds the article by its subtitle alone (total {$pageTotal})");
+
+    $suggested = $plugin->suggestEmerotecaSearch([], $onlyInSubtitle);
+    $articleSuggestion = null;
+    foreach ((array) $suggested as $entry) {
+        if (is_array($entry) && isset($entry['total'], $entry['url'])
+            && str_contains((string) $entry['url'], '/emeroteca/articoli')) {
+            $articleSuggestion = $entry;
+        }
+    }
+    $check($articleSuggestion !== null, 'and the catalogue offers a suggestion for it at all');
+    $check($articleSuggestion !== null && (int) $articleSuggestion['total'] === $pageTotal,
+        'with the same total the page returns (counter '
+        . ($articleSuggestion === null ? 'absent' : (string) $articleSuggestion['total'])
+        . " vs page {$pageTotal})");
 
 } finally {
     foreach (array_reverse($db->tables) as $table) {

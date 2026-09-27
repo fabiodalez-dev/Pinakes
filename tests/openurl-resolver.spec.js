@@ -202,7 +202,13 @@ test.describe.serial('OpenURL Z39.88 Resolver + COinS plugin — v0.7.2 (10 test
         // It used to answer 400 "books only". The question a researcher asks a
         // link resolver — do you have this article — was the one it refused.
         expect(r.status()).toBe(302);
-        expect(r.headers()['location']).toContain('worldcat');
+        const location = r.headers()['location'];
+        expect(location).toContain('worldcat');
+        // `toContain('worldcat')` alone is true of the bare search URL with no
+        // query at all, so it passes whether or not the title survived. Assert
+        // the title reached the query: an off-site handover that forgets what
+        // the researcher asked for is a dead end dressed up as a redirect.
+        expect(decodeURIComponent(location)).toContain('Nothing Here At All');
     });
 
     test('12. an exact title resolves to the local article', async ({ request }) => {
@@ -234,9 +240,14 @@ test.describe.serial('OpenURL Z39.88 Resolver + COinS plugin — v0.7.2 (10 test
         test.skip(articleId === 0, 'Emeroteca standalone articles are not available');
         // Matching is exact on purpose. Sending a reader to a different paper
         // with a similar name is worse than sending them off-site.
-        const r = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:journal&rft_atitle=${encodeURIComponent(articleTitle.slice(0, 8))}`, { maxRedirects: 0 });
+        const fragment = articleTitle.slice(0, 8);
+        const r = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:journal&rft_atitle=${encodeURIComponent(fragment)}`, { maxRedirects: 0 });
         expect(r.status()).toBe(302);
-        expect(r.headers()['location']).toContain('worldcat');
+        const location = r.headers()['location'];
+        expect(location).toContain('worldcat');
+        expect(location).not.toContain('/emeroteca/articolo/');
+        // And it hands the fragment over rather than dropping it.
+        expect(decodeURIComponent(location)).toContain(fragment);
     });
 
     test('16. an article carries its own mtx:journal COinS', async ({ request }) => {

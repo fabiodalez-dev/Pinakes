@@ -302,13 +302,21 @@ test.describe.serial('Interop specific — 15 persistent tests (v0.7.4)', () => 
 
     // ── Test 12: OpenURL COinS script path ────────────────────────────────────
 
-    test('12. OpenURL COinS injection: script uses unescaped /api/coins/book/ path', async ({ page }) => {
+    // The script serves books and standalone articles from one endpoint family
+    // and appends the kind at runtime (#412), so the literal `/api/coins/book/`
+    // is no longer in the source. What this test has always been about is the
+    // ESCAPING: json_encode() backslash-escapes forward slashes unless
+    // JSON_UNESCAPED_SLASHES is passed, and `fetch("\/api\/coins\/")` is a URL
+    // no browser resolves. Assert the prefix and the absence of the escaped form.
+    test('12. OpenURL COinS injection: script uses an unescaped /api/coins/ path', async ({ page }) => {
         const bookId = dbQuery("SELECT id FROM libri WHERE deleted_at IS NULL ORDER BY id LIMIT 1");
         test.skip(!bookId, 'No book in DB');
         await page.goto(`${BASE}/libro/${bookId}`);
         const headHtml = await page.evaluate(() => document.head.innerHTML);
-        expect(headHtml).toContain('/api/coins/book/');
-        expect(headHtml).not.toContain('\\/api\\/coins\\/book\\/');
+        expect(headHtml).toContain('/api/coins/');
+        expect(headHtml).not.toContain('\\/api\\/coins\\/');
+        // And the kind really is appended, rather than the path having lost it.
+        expect(headHtml).toContain('data-libro-id');
     });
 
     // ── Test 13: Archives OAI Identify ────────────────────────────────────────
