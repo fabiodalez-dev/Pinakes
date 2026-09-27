@@ -7,8 +7,12 @@ namespace App\Plugins\Emeroteca\Controllers;
 require_once __DIR__ . '/AbstractAdminController.php';
 require_once __DIR__ . '/../Services/ContributionService.php';
 require_once __DIR__ . '/../Services/ContributionCsv.php';
+// Plugin classes have no autoloader scope: every file this one names must be
+// required by hand, or the class is missing only at the moment the route runs.
+require_once __DIR__ . '/../Support/CitationFormatter.php';
 use App\Plugins\Emeroteca\Services\ContributionService;
 use App\Plugins\Emeroteca\Services\ContributionCsv;
+use App\Plugins\Emeroteca\Support\CitationFormatter;
 use App\Support\SecureLogger;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -212,7 +216,7 @@ final class ContributionController extends AbstractAdminController
             // would win and the re-rendered form would show the article as
             // still published: the operator would republish it by resubmitting.
             $flags = [];
-            foreach (['pubblico','pdf_pubblico','remove_pdf','remove_copertina'] as $flag) {
+            foreach (['pubblico','pdf_pubblico','risorsa_pubblica','remove_pdf','remove_copertina'] as $flag) {
                 $flags[$flag] = empty($body[$flag]) ? 0 : 1;
             }
             return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.')]);
@@ -522,6 +526,48 @@ final class ContributionController extends AbstractAdminController
         if (preg_match('/^[a-f0-9]{40}\.pdf$/D', $name) && is_file(self::pdfDir().'/'.$name)) {
             unlink(self::pdfDir().'/'.$name);
         }
+    }
+    /** Admin-only citation download: any contribution, published or not. */
+    public function ris(Request $rq, Response $rs, array $args = []): Response
+    {
+        return $this->serveRis($rq, $rs, (int)($args['id'] ?? 0), false);
+    }
+    /** Public citation download: only published contributions. */
+    public function publicRis(Request $rq, Response $rs, array $args = []): Response
+    {
+        return $this->serveRis($rq, $rs, (int)($args['id'] ?? 0), true);
+    }
+    /**
+     * Hand the record to a reference manager.
+     *
+     * The two URLs inside the file are built from the REQUEST rather than from
+     * a setting, so an installation reached on a second hostname exports links
+     * that resolve on that hostname. The PDF link is only ever included when
+     * the reader could open it anyway: a URL in a citation file is followed
+     * unattended by the reference manager, and one that answers 404 is worse
+     * than one that is absent.
+     */
+    private function serveRis(Request $rq, Response $rs, int $id, bool $public): Response
+    {
+        $row = $this->service()->get($id, $public);
+        if (!$row) {
+            return $rs->withStatus(404)->withHeader('Cache-Control', 'private, no-store');
+        }
+        $uri = $rq->getUri();
+        $origin = $uri->getScheme().'://'.$uri->getAuthority();
+        $recordUrl = !empty($row['pubblico']) ? $origin.url('/emeroteca/articolo/'.$id) : '';
+        $fileUrl = (!empty($row['pdf_path']) && !empty($row['pdf_pubblico']))
+            ? $origin.url('/emeroteca/articolo/'.$id.'/pdf')
+            : '';
+        $body = CitationFormatter::ris($row, $recordUrl, $fileUrl);
+        $rs->getBody()->write($body);
+
+        return $rs
+            ->withHeader('Content-Type', 'application/x-research-info-systems; charset=UTF-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="'.CitationFormatter::fileName($id).'"')
+            ->withHeader('Content-Length', (string) strlen($body))
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('Cache-Control', 'private, no-store');
     }
     /** Admin-only PDF download: any contribution, published or not. */
     public function pdf(Request $rq, Response $rs, array $args = []): Response

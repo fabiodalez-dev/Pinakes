@@ -1,4 +1,4 @@
-# Emeroteca 1.6
+# Emeroteca 1.7
 
 Emeroteca supports two workflows. **Simple** starts with standalone articles. **Complete** also exposes the existing mastheads, volume years, issues, Kardex and subscriptions. The same records remain available in either mode. Change the shared setting under **Plugins → Emeroteca → Settings**, or on the Periodicals/Articles page. Only administrators may change the installation-wide setting.
 
@@ -11,6 +11,26 @@ Choose **Add article**, enter its title and any known citation information, and 
 Articles are private initially. Publishing the article and allowing public access to its PDF are separate choices. Uploads accept PDF files up to 25 MB and are stored outside the public directory, under `storage/uploads/plugins/emeroteca/contributi`, so existing full backups include them. Downloads pass through the visibility check on every request and are not cacheable. Private notes and shelf marks are never returned by public pages or the mobile API.
 
 The existing **Issue article indexes** remain available from the Articles list. They are edited on their issue, while standalone articles have independent IDs and permanent detail URLs. No conversion or duplication occurs when switching views.
+
+## The analytic record
+
+A standalone article is, in library terms, an **analytic** (component-part) record: it describes a piece *of* something the library may not hold at all. Everything needed to say so properly is on the article form, and **all of it is optional** — a collection that only wants a citation fills in the title and stops there.
+
+Under **Advanced bibliographic description** the form carries the subtitle, the language and country of publication, a classification, and a holdings note. The classification is stored as a **scheme plus a value** — `DK5` and `33.129`, or `DDC` and `853.92`, or `UDC`, `LCC`, `RVK` — which is MARC 21 084 `$2` and `$a`. No scheme is privileged: a notation without the name of the list it comes from cannot be read by anyone who does not already know which list was meant.
+
+Language and country are stored as **ISO codes** (639 for the language, 3166-1 alpha-2 for the country), not as names, and the page renders them in the reader's own language: `dan` reads as “Danish” to one visitor and “danese” to another. A language *name* typed into the box would be that name for everybody. Two-letter and three-letter language codes are both accepted.
+
+Under **Electronic resource** the form carries the danMARC2/MARC 21 **856** triple: the address, the link text (`$y`) and the access conditions (`$z`), with its own visibility switch. An `http`/`https` address becomes a link; **anything else** — a UNC share, a `file:` URI, an identifier in a document management system — is kept as written and shown as text, never as something a browser is invited to follow. A record may have both an uploaded PDF and an external address: the PDF is always the primary action, because it is the copy the library actually holds, and the external address becomes secondary. There is never more than one primary action on the page.
+
+## Citing an article
+
+The public page renders the citation in **APA 7** and **Harvard**, each with a copy button, and offers the record as **RIS** for EndNote, Mendeley and Zotero at `/emeroteca/articolo/{id}/citazione.ris`. The same file is available in the admin form for an article that is not published, at `/admin/periodicals/articles/{id}/citation.ris`.
+
+The citation is assembled from the record rather than retyped, so a corrected volume number corrects the bibliography too. A name written inverted (`Petersen, Hans Uwe`) is reduced to initials; a name with no comma is treated as corporate and used verbatim, because guessing which word of `Marc J. Schweissinger` is the surname is wrong often enough, and invisibly enough, not to guess. With no author the title takes the author slot, as both styles prescribe; with no year the citation says `n.d.` rather than inventing one, though a year written only in a free-text date (`June 2019`) is still found.
+
+RIS lines end CR LF and no value may contain a line break — an abstract pasted out of a PDF is collapsed to one line, because in RIS a break starts a new tag and would truncate the record at its first paragraph.
+
+With the **OpenURL Z39.88** plugin active, the article page also carries COinS metadata, so Zotero and Mendeley can import the record straight from the page, and `/openurl` resolves an incoming journal request to a local article by DOI or exact title before falling back to an external resolver.
 
 ## Finding an article, and moving between articles
 
@@ -65,11 +85,17 @@ When both Emeroteca and Mobile API are active:
 - `GET /api/v1/periodicals/articles` lists public standalone articles with `q`, `testata_id`, `limit` (maximum 50) and `cursor` filters. Use `meta.next_cursor` for the next page.
 - `GET /api/v1/periodicals/articles/{id}` returns a public article or 404. Private records are never exposed.
 
+The analytic fields travel with the record: `sottotitolo`, `lingua`, `paese`, `classificazione_schema`, `classificazione` and `nota_possesso`. `has_public_resource` says whether the article carries a published electronic resource; when it does, `risorsa_url`, `risorsa_testo` and `risorsa_accesso` accompany it. When it does not, **those three keys are absent rather than null** — a null address in a payload still tells a client that one exists. Shelf marks and private notes remain out of the payload, as before.
+
 `cover_url` supplies the absolute URL of the article image, or null when it has none. The routes use the existing bearer authentication, quota and response envelope. Lists and details support ETag/304. `kind` is `autonomo`; `has_public_pdf` indicates a public document. `pdf_url` supplies its absolute public streaming URL (including the installation subdirectory), or null when unavailable. Clients must not construct storage paths. Existing issue API responses are unchanged. Android must implement the new endpoints to display standalone articles; its previous issue browser continues to work.
 
 ## Upgrade and verification
 
-Version 1.6 adds one nullable column, `emeroteca_contributi.copertina_url`, through the same idempotent additive-column repair as every column before it: no migration file is involved, and an installation upgraded from 1.5 gets it on the first boot after the update. Articles catalogued before the upgrade keep working with no image.
+Version 1.7 adds ten columns to `emeroteca_contributi` — `sottotitolo`, `lingua`, `paese`, `classificazione_schema`, `classificazione`, `nota_possesso`, `risorsa_url`, `risorsa_testo`, `risorsa_accesso` and `risorsa_pubblica` — through the same idempotent additive-column repair as every column before them: no migration file is involved, and an installation upgraded from 1.6 gets them on the first boot after the update. Nine are nullable and the tenth, the resource visibility flag, arrives as hidden, so every article catalogued before the upgrade keeps working exactly as it did and shows none of the new apparatus until someone fills it in.
+
+The new fragments are appended after `updated_at` and carry no `AFTER` clause. That is not a style choice: the same fragments are interpolated into `CREATE TABLE` by `ContributionService::ddl()`, where `AFTER` is a syntax error, and an `ALTER` without it appends — so a fresh install and an upgraded one end with one column order. `tests/emeroteca-412.unit.php` asserts both.
+
+Version 1.6 added one nullable column, `emeroteca_contributi.copertina_url`, the same way. Articles catalogued before that upgrade keep working with no image.
 
 Pinakes 0.7.84 includes `migrate_0.7.84.sql`, which preserves the workflow for existing plugin registrations. The plugin owns the table creation and repair in `ensureSchema()`, called at installation/activation and by the bundled-plugin schema recovery mechanism. The migration does not alter `libri.tipo_media` or existing holdings.
 

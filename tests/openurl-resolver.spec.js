@@ -13,6 +13,10 @@
  *  8. COinS HTML contains <span class="Z3988"
  *  9. GET /api/coins/book/9999999 → 404
  * 10. COinS is injected on book detail page (script tag present in <head>)
+ * 11-16. Journal articles (#412): a journal request is resolved against the
+ *        Emeroteca's standalone articles instead of being refused, by DOI and
+ *        by exact title, under both spellings PHP can produce for rft.atitle;
+ *        an article carries its own mtx:journal COinS.
  *
  * Run: /tmp/run-e2e.sh tests/openurl-resolver.spec.js --config=tests/playwright.config.js --workers=1
  */
@@ -56,7 +60,32 @@ test.describe.serial('OpenURL Z39.88 Resolver + COinS plugin — v0.7.2 (10 test
             "SELECT id FROM libri WHERE deleted_at IS NULL ORDER BY id LIMIT 1"
         );
         testBookId = parseInt(result) || 0;
+
+        const hasArticles = dbQuery(
+            "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi'"
+        ) === '1';
+        if (hasArticles) {
+            dbQuery(
+                `INSERT INTO emeroteca_contributi (reference_key, titolo, autori, contenitore_titolo, numero, pagine, anno_pubblicazione, lingua, doi, pubblico)
+                 VALUES ('openurl412-${Date.now()}', '${articleTitle}', 'Petersen, Hans Uwe', 'Arbejderhistorie', '31', '18-38', 1988, 'dan', '${articleDoi}', 1)`
+            );
+            articleId = parseInt(dbQuery(`SELECT id FROM emeroteca_contributi WHERE titolo='${articleTitle}'`)) || 0;
+        }
     });
+
+    test.afterAll(async () => {
+        if (articleId > 0) dbQuery(`DELETE FROM emeroteca_contributi WHERE id=${articleId}`);
+    });
+
+    /**
+     * A published standalone article to resolve against. Emeroteca may be
+     * inactive or absent — it is an optional plugin — in which case these
+     * cases skip rather than fail: the resolver's contract is that it never
+     * breaks when the article table is not there.
+     */
+    let articleId = 0;
+    const articleTitle = `OpenUrl412 ${Date.now()}`;
+    const articleDoi = `10.5555/openurl412.${Date.now()}`;
 
     // ── Test 1: Plugin registration ──────────────────────────────────────────
 
@@ -148,8 +177,85 @@ test.describe.serial('OpenURL Z39.88 Resolver + COinS plugin — v0.7.2 (10 test
         test.skip(testBookId === 0, 'No book in DB');
         await page.goto(`${BASE}/libro/${testBookId}`, { waitUntil: 'domcontentloaded' });
 
-        // The plugin injects a <script> tag that includes the coins endpoint URL
+        // The injected script builds its endpoint from the kind of record the
+        // page turns out to be, so the base path is the literal to look for —
+        // it used to be '/api/coins/book/' and stopped being a literal when
+        // the script learned about articles.
         const headContent = await page.evaluate(() => document.head.innerHTML);
-        expect(headContent).toContain('/api/coins/book/');
+        expect(headContent).toContain('/api/coins/');
+        expect(headContent).toContain('data-libro-id');
+        expect(headContent, 'the same script also recognises an article page').toContain('data-articolo-id');
+
+        // And it must actually resolve to the book endpoint on a book page.
+        await expect.poll(
+            async () => page.evaluate(() => document.querySelectorAll('span.Z3988').length),
+            { timeout: 10_000 },
+        ).toBeGreaterThan(0);
+        const kev = await page.evaluate(() => (document.querySelector('span.Z3988') || { title: '' }).title);
+        expect(decodeURIComponent(kev)).toContain('info:ofi/fmt:kev:mtx:book');
+    });
+
+    // ── Tests 11-16: journal articles (#412) ─────────────────────────────────
+
+    test('11. a journal request is no longer refused outright', async ({ request }) => {
+        const r = await request.get(`${BASE}/openurl?url_ver=Z39.88-2004&rft_val_fmt=info:ofi/fmt:kev:mtx:journal&rft.atitle=Nothing+Here+At+All`, { maxRedirects: 0 });
+        // It used to answer 400 "books only". The question a researcher asks a
+        // link resolver — do you have this article — was the one it refused.
+        expect(r.status()).toBe(302);
+        expect(r.headers()['location']).toContain('worldcat');
+    });
+
+    test('12. an exact title resolves to the local article', async ({ request }) => {
+        test.skip(articleId === 0, 'Emeroteca standalone articles are not available');
+        const r = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:journal&rft.atitle=${encodeURIComponent(articleTitle)}`, { maxRedirects: 0 });
+        expect(r.status()).toBe(302);
+        expect(r.headers()['location']).toContain(`/emeroteca/articolo/${articleId}`);
+    });
+
+    test('13. and so does the spelling PHP actually produces', async ({ request }) => {
+        test.skip(articleId === 0, 'Emeroteca standalone articles are not available');
+        // PHP turns the dot in rft.atitle into an underscore while parsing the
+        // query string, so the dotted key a reader of the specification would
+        // send never exists in $_GET. Both spellings have to work, and this is
+        // the case that fails if only the documented one is read.
+        const r = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:journal&rft_atitle=${encodeURIComponent(articleTitle)}`, { maxRedirects: 0 });
+        expect(r.status()).toBe(302);
+        expect(r.headers()['location']).toContain(`/emeroteca/articolo/${articleId}`);
+    });
+
+    test('14. a DOI resolves without a title', async ({ request }) => {
+        test.skip(articleId === 0, 'Emeroteca standalone articles are not available');
+        const r = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:journal&rft_id=${encodeURIComponent('info:doi/' + articleDoi)}`, { maxRedirects: 0 });
+        expect(r.status()).toBe(302);
+        expect(r.headers()['location']).toContain(`/emeroteca/articolo/${articleId}`);
+    });
+
+    test('15. a near-miss title goes to the publisher, not to the wrong paper', async ({ request }) => {
+        test.skip(articleId === 0, 'Emeroteca standalone articles are not available');
+        // Matching is exact on purpose. Sending a reader to a different paper
+        // with a similar name is worse than sending them off-site.
+        const r = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:journal&rft_atitle=${encodeURIComponent(articleTitle.slice(0, 8))}`, { maxRedirects: 0 });
+        expect(r.status()).toBe(302);
+        expect(r.headers()['location']).toContain('worldcat');
+    });
+
+    test('16. an article carries its own mtx:journal COinS', async ({ request }) => {
+        test.skip(articleId === 0, 'Emeroteca standalone articles are not available');
+        const r = await request.get(`${BASE}/api/coins/article/${articleId}`);
+        expect(r.status()).toBe(200);
+        const body = await r.json();
+        const kev = decodeURIComponent(String(body.coins_title).replace(/\+/g, ' '));
+        expect(kev).toContain('info:ofi/fmt:kev:mtx:journal');
+        expect(kev).toContain('rft.genre=article');
+        expect(kev).toContain('rft.jtitle=Arbejderhistorie');
+        expect(kev).toContain('rft.spage=18');
+        expect(kev).toContain('rft.epage=38');
+        // The language arrives as the stored ISO code, which the book path's
+        // name-to-code table would have dropped on the floor.
+        expect(kev).toContain('rft.language=dan');
+        expect(String(body.coins_html)).toContain('<span class="Z3988"');
+
+        const missing = await request.get(`${BASE}/api/coins/article/9999999`);
+        expect(missing.status()).toBe(404);
     });
 });

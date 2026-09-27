@@ -130,7 +130,16 @@ try {
     $db->query("DELETE FROM emeroteca_testate WHERE titolo='Held'");
     $svc->setMode('simple');
     $db->query(ContributionService::ddl()); $db->query(ContributionService::ddl());
-    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','copertina_url','revision','created_at','updated_at'], 'fresh and repeated schema DDL');
+    // Still derived from TEXT_FIELDS, still asserting ORDER: the 1.7 analytic
+    // fields are appended after updated_at, which is the only order an ALTER
+    // without AFTER can produce on an upgraded install — so a fresh install
+    // that disagreed with it would mean CREATE TABLE and ALTER had drifted.
+    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7,9),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','copertina_url','revision','created_at','updated_at',...array_slice(array_keys(ContributionService::TEXT_FIELDS),16),'risorsa_pubblica'], 'fresh and repeated schema DDL');
+    // The fragments in COLUMN_DEFINITIONS are interpolated into CREATE TABLE
+    // by ddl() AND into ALTER TABLE by ensureAdditiveColumns(). AFTER is legal
+    // in the second and a syntax error in the first, so one copied fragment
+    // would break every fresh install while every upgrade stayed green.
+    check412(!str_contains(ContributionService::ddl(), ' AFTER '), 'no AFTER clause can reach CREATE TABLE');
     $base=['titolo'=>"Intertextuality in Daniel Kehlmann's Novel Tyll",'autori'=>'Marc J. Schweissinger','contenitore_titolo'=>'International Journal of Language and Literature','data_pubblicazione_testo'=>'giugno 2019','anno_pubblicazione'=>'2019','volume'=>'7','numero'=>'1','pagine'=>'138–148','pubblico'=>1];
     $id=$svc->save($base);$row=$svc->get($id);
     check412($id>0 && $row['pagine']==='138–148' && $row['fascicolo_id']===null,'single article without any host');

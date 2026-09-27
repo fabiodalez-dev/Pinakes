@@ -46,15 +46,42 @@ final class ContributionService
         'revision' => "INT UNSIGNED NOT NULL DEFAULT 1",
         'created_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
         'updated_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        // 1.7.0 — what turns a citation into an analytic (component-part)
+        // record: the article's own subtitle, the 008 language and country of
+        // the host publication, a classification carried WITH its scheme, the
+        // holdings note that says the library owns a copy and not the run,
+        // and the danMARC2 856 triple (address, link text, access conditions).
+        //
+        // Appended after updated_at, and with no AFTER clause, on purpose:
+        // these same fragments are interpolated into CREATE TABLE by ddl(),
+        // where AFTER is a syntax error, and an ALTER without AFTER appends —
+        // so a fresh install and an upgraded one end with one column order.
+        'sottotitolo' => "VARCHAR(500) NULL",
+        'lingua' => "VARCHAR(10) NULL",
+        'paese' => "VARCHAR(2) NULL",
+        'classificazione_schema' => "VARCHAR(20) NULL",
+        'classificazione' => "VARCHAR(100) NULL",
+        'nota_possesso' => "VARCHAR(255) NULL",
+        'risorsa_url' => "VARCHAR(500) NULL",
+        'risorsa_testo' => "VARCHAR(255) NULL",
+        'risorsa_accesso' => "VARCHAR(255) NULL",
+        'risorsa_pubblica' => "TINYINT(1) NOT NULL DEFAULT 0",
     ];
     public const TEXT_FIELDS = ['titolo' => 500,'autori' => 500,'tipo_contributo' => 30,'contenitore_tipo' => 30,
         'contenitore_titolo' => 255,'issn' => 9,'data_pubblicazione_testo' => 100,'volume' => 50,'numero' => 50,
-        'pagine' => 100,'doi' => 255,'supporto' => 20,'keywords' => 500,'abstract' => 10000,'collocazione' => 255,'note_private' => 10000];
+        'pagine' => 100,'doi' => 255,'supporto' => 20,'keywords' => 500,'abstract' => 10000,'collocazione' => 255,'note_private' => 10000,
+        // 1.7.0 — appended, never spliced: tests/emeroteca-412.unit.php asserts
+        // the physical column order from this map's key order.
+        'sottotitolo' => 500,'lingua' => 10,'paese' => 2,'classificazione_schema' => 20,
+        'classificazione' => 100,'nota_possesso' => 255,'risorsa_url' => 500,
+        'risorsa_testo' => 255,'risorsa_accesso' => 255];
     /** A reference_key the table accepts: shared by save() and the CSV preview. */
     public const REFERENCE_KEY_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,190}$/D';
 
-    public const CSV_FIELDS = ['reference_key','titolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo',
-        'issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','collocazione','note_private','pubblico'];
+    public const CSV_FIELDS = ['reference_key','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo',
+        'issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract',
+        'lingua','paese','classificazione_schema','classificazione','nota_possesso',
+        'risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica','collocazione','note_private','pubblico'];
 
     /**
      * The header the template and the export carry.
@@ -206,7 +233,45 @@ SQL;
             throw new \InvalidArgumentException(__('Anno non valido.'));
         }
         $out['anno_pubblicazione'] = $year === '' ? null : (int) $year;
-        foreach (['pubblico','pdf_pubblico'] as $key) {
+
+        // 008 language and country are stored as CODES, never as names. The
+        // application is multilingual per user: "Dansk" typed into a box reads
+        // as "Dansk" to an Italian reader, while `dan` can be rendered as
+        // "danese" to them and "Danish" to someone else. Two or three letters
+        // covers ISO 639-1 and 639-2 without making the librarian care which.
+        if ($out['lingua'] !== null) {
+            $out['lingua'] = strtolower($out['lingua']);
+            if (preg_match('/^[a-z]{2,3}$/D', $out['lingua']) !== 1) {
+                throw new \InvalidArgumentException(__('Codice lingua non valido.'));
+            }
+        }
+        if ($out['paese'] !== null) {
+            $out['paese'] = strtoupper($out['paese']);
+            if (preg_match('/^[A-Z]{2}$/D', $out['paese']) !== 1) {
+                throw new \InvalidArgumentException(__('Codice paese non valido.'));
+            }
+        }
+
+        // The 856 triple. A line break inside any of the three would split a
+        // RIS record in two at export time, so it is refused at the door
+        // rather than escaped at every point of use.
+        foreach (['nota_possesso','risorsa_url','risorsa_testo','risorsa_accesso'] as $key) {
+            if ($out[$key] !== null && preg_match('/[\r\n]/', $out[$key]) === 1) {
+                throw new \InvalidArgumentException(__('Il valore non può contenere a capo.'));
+            }
+        }
+        // An http(s) address must be a real one, because it becomes an href.
+        // Anything else — a UNC share, a file: URI, an identifier in a
+        // document management system — is accepted verbatim as an opaque
+        // reference and is NEVER rendered as a link. That asymmetry is what
+        // makes accepting the opaque form safe.
+        if ($out['risorsa_url'] !== null
+            && preg_match('~^https?://~i', $out['risorsa_url']) === 1
+            && filter_var($out['risorsa_url'], FILTER_VALIDATE_URL) === false) {
+            throw new \InvalidArgumentException(__('Indirizzo della risorsa non valido.'));
+        }
+
+        foreach (['pubblico','pdf_pubblico','risorsa_pubblica'] as $key) {
             if (!in_array($input[$key] ?? 0, [0,1,'0','1',null,''], true)) {
                 throw new \InvalidArgumentException(__('Visibilità non valida.'));
             }
@@ -327,9 +392,9 @@ SQL;
             $params[] = '%' . strtr(mb_substr($value, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
         }
         if ($term !== '') {
-            $where[] = "(c.titolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?)";
+            $where[] = "(c.titolo LIKE ? ESCAPE '=' OR c.sottotitolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?)";
             $pattern = '%' . strtr(mb_substr($term, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
-            array_push($params, $pattern, $pattern, $pattern, $pattern, $term);
+            array_push($params, $pattern, $pattern, $pattern, $pattern, $pattern, $term);
         }
         $sql = implode(' AND ', $where);
         $total = (int)$this->rows("SELECT COUNT(*) n FROM emeroteca_contributi c WHERE $sql", $params)[0]['n'];
@@ -478,6 +543,63 @@ SQL;
      * @return array<string, mixed>
      */
     /**
+     * The electronic resource of danMARC2 856, as one decision instead of
+     * three fields every caller has to re-combine.
+     *
+     * Returns null when there is nothing to show — no address, or an address
+     * the librarian has not published — so a caller cannot accidentally leak
+     * it by reading the columns directly. `linkable` is the whole point of the
+     * shape: an http(s) address becomes an href, and ANY other value (a UNC
+     * share, a file: URI, an identifier in a document management system) is a
+     * reference the library can read and a browser cannot, so it is rendered
+     * as text. Deciding that here, once, is what stops one of the four call
+     * sites from putting a `file:` path in an anchor.
+     *
+     * @param array<string,mixed> $row
+     * @param bool $public true on the website and the mobile API, false in the
+     *        admin interface, where an unpublished resource is still shown
+     * @return array{url:string,text:string,access:string,linkable:bool}|null
+     */
+    public static function resource(array $row, bool $public): ?array
+    {
+        $url = trim((string) ($row['risorsa_url'] ?? ''));
+        if ($url === '' || ($public && empty($row['risorsa_pubblica']))) {
+            return null;
+        }
+
+        return [
+            'url' => $url,
+            'text' => trim((string) ($row['risorsa_testo'] ?? '')),
+            'access' => trim((string) ($row['risorsa_accesso'] ?? '')),
+            'linkable' => preg_match('~^https?://~i', $url) === 1,
+        ];
+    }
+
+    /**
+     * What this record IS, in one line, for a reader who does not know what an
+     * analytic record is.
+     *
+     * The distinction a component-part record exists to make — this is a piece
+     * OF something, not a thing the library holds — is currently implicit: it
+     * lives in the table the row sits in and in the JSON-LD nobody reads. A
+     * catalogue that knows the difference should say it on the page.
+     *
+     * @param array<string,mixed> $row
+     */
+    public static function materialType(array $row): string
+    {
+        $container = (string) ($row['contenitore_tipo'] ?? '');
+        if ($container === 'giornale') {
+            return __('Articolo di giornale');
+        }
+        if ($container !== '') {
+            return __('Articolo di rivista');
+        }
+
+        return __('Articolo');
+    }
+
+    /**
      * The image to show for an article: its own, else the masthead's.
      *
      * An article carries a cover only since 1.6, and most never will — it is
@@ -513,12 +635,24 @@ SQL;
 
     public static function publicData(array $r): array
     {
-        $out = array_intersect_key($r, array_flip(['id','titolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','testata_id','fascicolo_id','updated_at']));
+        $out = array_intersect_key($r, array_flip(['id','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','lingua','paese','classificazione_schema','classificazione','nota_possesso','testata_id','fascicolo_id','updated_at']));
         foreach (['id','anno_pubblicazione','testata_id','fascicolo_id'] as $key) {
             if (isset($out[$key])) { $out[$key] = (int) $out[$key]; }
         }
         $out['kind'] = 'autonomo';
         $out['has_public_pdf'] = !empty($r['pdf_path']) && !empty($r['pdf_pubblico']);
+        // The 856 triple travels only when it has been published, and the
+        // three keys are ABSENT rather than null when it has not: a null
+        // address in a payload still says one exists. `collocazione`, the
+        // archive box, stays out of both cases — it is a shelf mark, and this
+        // whitelist has never carried one.
+        $resource = self::resource($r, true);
+        $out['has_public_resource'] = $resource !== null;
+        if ($resource !== null) {
+            $out['risorsa_url'] = $resource['url'];
+            $out['risorsa_testo'] = $resource['text'];
+            $out['risorsa_accesso'] = $resource['access'];
+        }
         return $out;
     }
 }

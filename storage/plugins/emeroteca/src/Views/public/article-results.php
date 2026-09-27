@@ -36,6 +36,10 @@ $articleKeep=static fn(mixed $value):bool=>trim((string)$value)!=='';
 <a href="<?= $ae(url('/emeroteca/articolo/'.(int)$a['id'])) ?>" tabindex="-1" aria-hidden="true" style="flex:0 0 auto;"><?php $articleCover=\App\Plugins\Emeroteca\Services\ContributionService::coverUrl($a); ?><img src="<?= $ae(url($articleCover!==''?$articleCover:'/uploads/copertine/placeholder.jpg')) ?>" alt="" loading="lazy" decoding="async" style="width:72px;height:96px;object-fit:cover;border-radius:.25rem;" onerror="this.onerror=null;this.src=<?= $ae(json_encode($articlePlaceholder, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>"></a>
 <div style="flex:1 1 auto;min-width:0;">
 <a class="font-semibold underline" href="<?= $ae(url('/emeroteca/articolo/'.(int)$a['id'])) ?>"><?= $ae($a['titolo']) ?></a>
+<?php /* On these records the subtitle routinely carries half the meaning of
+         the title; hiding it in the list makes two different articles look
+         like the same one. */ ?>
+<?php if(($a['sottotitolo']??'')!==''): ?><span class="text-sm text-gray-600"> : <?= $ae($a['sottotitolo']) ?></span><?php endif; ?>
 <?php if(($a['autori']??'')!==''): $rowAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorList((string)$a['autori']); ?><p><?php if($rowAuthors): foreach($rowAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a class="underline" href="<?= $ae($articleFilterUrl('autore',$an)) ?>"><?= $ae($an) ?></a><?php endforeach; else: ?><?= $ae($a['autori']) ?><?php endif; ?></p><?php endif; ?>
 <p class="text-sm"><?php if(($a['contenitore_titolo']??'')!==''): ?><a class="underline" href="<?= $ae($articleFilterUrl('pubblicazione',(string)$a['contenitore_titolo'])) ?>"><?= $ae($a['contenitore_titolo']) ?></a><?php $rest=array_filter([$a['data_pubblicazione_testo']??'',$a['volume']??'',$a['numero']??'',$a['pagine']??''],$articleKeep); if($rest): ?> · <?php endif; ?><?php else: $rest=array_filter([$a['data_pubblicazione_testo']??'',$a['volume']??'',$a['numero']??'',$a['pagine']??''],$articleKeep); endif; ?><?= $ae(implode(' · ',$rest)) ?></p>
 </div></div></li><?php endforeach; ?></ul>

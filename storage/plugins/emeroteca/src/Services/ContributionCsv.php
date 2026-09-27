@@ -64,7 +64,7 @@ final class ContributionCsv
             fclose($stream);
             throw new \InvalidArgumentException(__('CSV vuoto.'));
         }
-        $aliases = ['title' => 'titolo','authors' => 'autori','container_title' => 'contenitore_titolo','journal_title' => 'contenitore_titolo','issue' => 'numero','pages' => 'pagine','volume' => 'volume','date' => 'data_pubblicazione_testo','year' => 'anno_pubblicazione','media_type' => 'record_type'];
+        $aliases = ['title' => 'titolo','authors' => 'autori','container_title' => 'contenitore_titolo','journal_title' => 'contenitore_titolo','issue' => 'numero','pages' => 'pagine','volume' => 'volume','date' => 'data_pubblicazione_testo','year' => 'anno_pubblicazione','media_type' => 'record_type','subtitle' => 'sottotitolo','language' => 'lingua','country' => 'paese','classification' => 'classificazione','classification_scheme' => 'classificazione_schema','holdings_note' => 'nota_possesso','url' => 'risorsa_url','link_text' => 'risorsa_testo','access_conditions' => 'risorsa_accesso'];
         $headers = array_map(static fn ($h) => $aliases[strtolower(trim((string)$h))] ?? strtolower(trim((string)$h)), $headers);
         if (count($headers) !== count(array_unique($headers)) || !in_array('titolo', $headers, true)) {
             fclose($stream);
