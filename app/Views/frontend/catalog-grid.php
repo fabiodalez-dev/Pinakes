@@ -46,6 +46,7 @@ $getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
 <?php $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg'); ?>
 <?php if (!empty($books)): ?>
     <?php foreach($books as $book): ?>
+        <?php if (($book['_record_kind'] ?? '') === 'article') { include __DIR__ . '/partials/catalog-article-card.php'; continue; } ?>
         <div class="book-card">
             <div class="book-image-container">
                 <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>">
@@ -115,7 +116,7 @@ $getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
 <?php else: ?>
     <div class="empty-state">
         <i class="fas fa-search empty-state-icon"></i>
-        <h4 class="empty-state-title"><?= __("Nessun libro trovato") ?></h4>
+        <h4 class="empty-state-title"><?= __("Nessun risultato trovato") ?></h4>
         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
         <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
             <i class="fas fa-redo mr-2"></i>

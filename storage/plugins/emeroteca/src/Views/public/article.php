@@ -2,8 +2,7 @@
 /**
  * Public page of a standalone article.
  *
- * Author, publication and each keyword are links into the article search
- * narrowed by that value. They are deliberately NOT links to the core author
+ * Authors link to the shared catalogue; publication and keywords narrow the article search. They are deliberately NOT links to the core author
  * or publisher pages: on a standalone article these are free-text fields, and
  * the library may hold a single article by someone who has no author record —
  * inventing one would put a person in the catalogue's registry on the strength
@@ -13,7 +12,7 @@
  */
 $article=$article??[]; $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
 $articlePlaceholder=url('/uploads/copertine/placeholder.jpg');
-$articleFilterUrl=static fn(string $key,string $value):string=>url('/emeroteca/articoli').'?'.http_build_query([$key=>$value]);
+$articleFilterUrl=static fn(string $key,string $value):string=>($key==='autore' ? route_path('catalog') : url('/emeroteca/articoli')).'?'.http_build_query([$key=>$value]);
 // Plugin classes have no autoloader scope and a view must not depend on the
 // controller having loaded them: require the service before reading it.
 require_once __DIR__.'/../../Services/ContributionService.php';

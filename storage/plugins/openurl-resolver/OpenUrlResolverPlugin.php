@@ -589,7 +589,8 @@ class OpenUrlResolverPlugin
     {
         $res = $this->db->query(
             "SELECT 1 FROM information_schema.TABLES
-              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'emeroteca_contributi' LIMIT 1"
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'emeroteca_contributi'
+                AND EXISTS (SELECT 1 FROM plugins WHERE name = 'emeroteca' AND is_active = 1) LIMIT 1"
         );
 
         return $res instanceof \mysqli_result && $res->num_rows > 0;
@@ -638,18 +639,30 @@ class OpenUrlResolverPlugin
         if ($title === '') {
             return null;
         }
-        $stmt = $this->db->prepare(
-            'SELECT id FROM emeroteca_contributi WHERE pubblico = 1 AND titolo = ? LIMIT 1'
-        );
+        // Accept the same complete title that our COinS exports. Never strip a
+        // colon: it may be part of the actual title rather than punctuation.
+        $where = ["pubblico = 1", "(titolo = ? OR CONCAT(titolo, CASE WHEN COALESCE(sottotitolo, '') = '' THEN '' ELSE CONCAT(' : ', sottotitolo) END) = ?)"];
+        $values = [$title, $title];
+        foreach (['rft.issn' => 'issn', 'rft.jtitle' => 'contenitore_titolo',
+                  'rft.volume' => 'volume', 'rft.issue' => 'numero'] as $key => $column) {
+            $value = self::param($params, $key);
+            if ($value !== '') {
+                $where[] = "$column = ?";
+                $values[] = $value;
+            }
+        }
+        $stmt = $this->db->prepare('SELECT id FROM emeroteca_contributi WHERE ' . implode(' AND ', $where) . ' LIMIT 2');
         if ($stmt === false) {
             return null;
         }
-        $stmt->bind_param('s', $title);
+        $stmt->bind_param(str_repeat('s', count($values)), ...$values);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        return is_array($row) ? $row : null;
+        // A common title is not an identifier. Let the external resolver handle
+        // ambiguity rather than arbitrarily returning the first local record.
+        return count($rows) === 1 ? $rows[0] : null;
     }
 
     /**

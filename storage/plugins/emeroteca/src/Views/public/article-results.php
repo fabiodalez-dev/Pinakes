@@ -6,17 +6,16 @@
  * Each row carries its image — its own, else the masthead's, else the
  * catalogue's placeholder, resolved by ContributionService::coverUrl() so this
  * block and the article page cannot disagree — and
- * the three links that make the list navigable: the author, the publication
- * and each keyword, all pointing at the same article search narrowed by that
- * value — on a standalone article those fields are free text, not rows in the
- * core registries, so a filtered search is the only honest destination.
+ * the links that make the list navigable. Authors open the shared catalogue
+ * filter; publication and keywords narrow the article search. Citation names
+ * remain free text and are never automatically merged into authority records.
  *
  * @var array{rows: array<int, array<string, mixed>>} $articleResults
  */
 $articleResults=$articleResults??['rows'=>[]]; $ae=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
 $articlePlaceholder=url('/uploads/copertine/placeholder.jpg');
 /** Article search narrowed by one field: ['autore'|'pubblicazione'|'keyword' => value]. */
-$articleFilterUrl=static fn(string $key,string $value):string=>url('/emeroteca/articoli').'?'.http_build_query([$key=>$value]);
+$articleFilterUrl=static fn(string $key,string $value):string=>($key==='autore' ? route_path('catalog') : url('/emeroteca/articoli')).'?'.http_build_query([$key=>$value]);
 // Plugin classes have no autoloader scope and a view must not depend on the
 // controller having loaded them: require the service before reading it.
 require_once __DIR__.'/../../Services/ContributionService.php';

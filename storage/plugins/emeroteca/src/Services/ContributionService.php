@@ -139,6 +139,11 @@ SQL;
         $result = $stmt->get_result();
         $rows = $result instanceof \mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
+        if ($this->affectedRows > 0 && preg_match('/^\s*(?:INSERT|UPDATE|DELETE)\b/i', $sql) === 1) {
+            // Articles now participate in the main catalogue. Defer until the
+            // caller's transaction finishes, including CSV batches and deletes.
+            \App\Support\ContentCache::deferBooksChanged();
+        }
         return $rows;
     }
 

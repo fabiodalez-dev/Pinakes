@@ -324,10 +324,30 @@ class FrontendController
 
         // Listing rows: cached only for the bounded filter states (availability
         // fields stripped from the cached copy and merged back live per request).
-        $books = $this->loadCatalogPageRows($db, $books_query, $param_types, $query_params, $filters, $limit, $offset, $page);
+        $mixed = (new \App\Services\UnifiedCatalogService($db))->page(
+            $base_query, $this->catalogAuthorSelect($db), $param_types, $query_params,
+            $filters, (int)$total_books, $limit, $offset
+        );
+        $books = $mixed !== null ? $mixed['rows']
+            : $this->loadCatalogPageRows($db, $books_query, $param_types, $query_params, $filters, $limit, $offset, $page);
+        $total_articles = $mixed['articles'] ?? 0;
+        $total_books = $mixed['total'] ?? $total_books;
+        $total_pages = ceil($total_books / $limit);
+
+        if ($mixed !== null) {
+            $articlePath = url('/emeroteca/articoli');
+            $externalSearchSuggestions = array_values(array_filter($externalSearchSuggestions,
+                static fn(array $suggestion): bool => !str_starts_with($suggestion['url'], $articlePath . '?')));
+        }
 
         // Ottieni le opzioni per i filtri
         $filter_options = $this->getFilterOptions($db, $filters);
+        // "All" removes only the loan-availability facet and includes articles.
+        // Keep this live, outside the cached book-facet projection.
+        if (($params['with_stats'] ?? '') !== '1') {
+            $filter_options['availability_stats']['total'] += (new \App\Services\UnifiedCatalogService($db))
+                ->countArticles(array_replace($filters, ['disponibilita' => '']));
+        }
 
         // Get hierarchical genre display based on current selection
         $genre_display = $this->getDisplayGenres($filter_options['generi'], (int)($filters['genere_id'] ?? 0));
@@ -345,6 +365,11 @@ class FrontendController
         $content = ob_get_clean();
 
         $response->getBody()->write($content);
+        if ($mixed !== null) {
+            // Publication can be revoked independently of book holdings.
+            return $response->withHeader('Content-Type', 'text/html')
+                ->withHeader('Cache-Control', 'private, no-store');
+        }
         return $response
             ->withHeader('Content-Type', 'text/html')
             ->withHeader(\App\Support\LiteSpeedCache::MARKER_HEADER, 'catalog');
@@ -431,7 +456,15 @@ class FrontendController
 
         // Listing rows: cached only for the bounded filter states (availability
         // fields stripped from the cached copy and merged back live per request).
-        $books = $this->loadCatalogPageRows($db, $books_query, $param_types, $query_params, $filters, $limit, $offset, $page);
+        $mixed = (new \App\Services\UnifiedCatalogService($db))->page(
+            $base_query, $this->catalogAuthorSelect($db), $param_types, $query_params,
+            array_merge($filters, ['_books_only' => ($params['with_stats'] ?? '') === '1']), (int)$total_books, $limit, $offset
+        );
+        $books = $mixed !== null ? $mixed['rows']
+            : $this->loadCatalogPageRows($db, $books_query, $param_types, $query_params, $filters, $limit, $offset, $page);
+        $total_articles = $mixed['articles'] ?? 0;
+        $total_books = $mixed['total'] ?? $total_books;
+        $total_pages = ceil($total_books / $limit);
 
         // Render only the books grid
         ob_start();
@@ -440,6 +473,12 @@ class FrontendController
 
         // Get updated filter options based on current filters
         $filter_options = $this->getFilterOptions($db, $filters);
+        // "All" removes only the loan-availability facet and includes articles.
+        // Keep this live, outside the cached book-facet projection.
+        if (($params['with_stats'] ?? '') !== '1') {
+            $filter_options['availability_stats']['total'] += (new \App\Services\UnifiedCatalogService($db))
+                ->countArticles(array_replace($filters, ['disponibilita' => '']));
+        }
 
         // Get hierarchical genre display for correct sidebar rendering
         $genre_display = $this->getDisplayGenres($filter_options['generi'], (int)($filters['genere_id'] ?? 0));
@@ -500,6 +539,7 @@ class FrontendController
                 'current_page' => $page,
                 'total_pages' => $total_pages,
                 'total_books' => $total_books,
+                'total_articles' => $total_articles,
                 'available_books' => $available_books,
                 'start' => $offset + 1,
                 'end' => min($offset + $limit, $total_books)
@@ -1434,6 +1474,7 @@ class FrontendController
             'anno_max' => $params['anno_max'] ?? '',
             'tipo_media' => trim((string) $rawTipoMedia),
             'autore_id' => (int)($params['autore_id'] ?? 0),
+            'autore' => is_scalar($params['autore'] ?? '') ? mb_substr(trim((string)($params['autore'] ?? '')), 0, 200) : '',
             'sort' => $params['sort'] ?? 'newest'
         ];
     }
@@ -1530,6 +1571,16 @@ class FrontendController
             $conditions[] = "l.tipo_media = ?";
             $params[] = $filters['tipo_media'];
             $types .= 's';
+        }
+
+        if (!empty($filters['autore'])) {
+            $variants = \App\Services\UnifiedCatalogService::nameVariants((string)$filters['autore']);
+            $marks = implode(',', array_fill(0, count($variants), '?'));
+            $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_name JOIN autori a_name ON a_name.id=la_name.autore_id
+                WHERE la_name.libro_id=l.id AND la_name.ruolo IN ('principale','co-autore')
+                  AND (TRIM(a_name.nome) IN ($marks) OR TRIM(a_name.pseudonimo) IN ($marks)))";
+            array_push($params, ...$variants, ...$variants);
+            $types .= str_repeat('s', count($variants) * 2);
         }
 
         if (!empty($filters['autore_id'])) {
@@ -1685,6 +1736,7 @@ private function hasBoundedCatalogCacheKey(array $filters): bool
         && trim((string) ($filters['anno_max'] ?? '')) === ''
         && trim((string) ($filters['tipo_media'] ?? '')) === ''
         && (int) ($filters['autore_id'] ?? 0) === 0
+        && trim((string) ($filters['autore'] ?? '')) === ''
         && in_array($availability, ['', 'disponibile', 'prenotato', 'prestato'], true);
 }
 
@@ -2151,60 +2203,8 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
 
         $author = $authorResult->fetch_assoc();
 
-        // Count total books
-        $countQuery = "
-            SELECT COUNT(DISTINCT l.id) as total
-            FROM libri l
-            JOIN libri_autori la ON l.id = la.libro_id
-            JOIN autori a ON la.autore_id = a.id
-            WHERE a.nome = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
-        ";
-        $stmt = $db->prepare($countQuery);
-        $stmt->bind_param('s', $authorName);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $totalBooks = $row['total'] ?? 0;
-        $totalPages = ceil($totalBooks / $limit);
-
-        // Query per i libri dell'autore
-        $booksQuery = "
-            SELECT DISTINCT l.*,
-                   (SELECT " . \App\Support\AuthorName::displaySql('a2') . " FROM libri_autori la2 JOIN autori a2 ON la2.autore_id = a2.id
-                    WHERE la2.libro_id = l.id AND la2.ruolo = 'principale' LIMIT 1) AS autore,
-                   (SELECT a2.nome FROM libri_autori la2 JOIN autori a2 ON la2.autore_id = a2.id
-                    WHERE la2.libro_id = l.id AND la2.ruolo = 'principale' LIMIT 1) AS autore_principale_nome,
-                   e.nome AS editore,
-                   g.nome AS genere
-            FROM libri l
-            JOIN libri_autori la ON l.id = la.libro_id
-            JOIN autori a ON la.autore_id = a.id
-            LEFT JOIN editori e ON l.editore_id = e.id
-            LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE a.nome = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
-            ORDER BY l.created_at DESC
-            LIMIT ? OFFSET ?
-        ";
-
-        $stmt = $db->prepare($booksQuery);
-        $stmt->bind_param('sii', $authorName, $limit, $offset);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        $books = [];
-        while ($book = $result->fetch_assoc()) {
-            $books[] = $book;
-        }
-
-        $container = $this->container;
-        ob_start();
-        // Title, meta, canonical and JSON-LD are centralized in archive.php.
-        $archive_type = 'autore';
-        $archive_info = $author;
-        include __DIR__ . '/../Views/frontend/archive.php';
-        $content = ob_get_clean();
-
-        $response->getBody()->write($content);
-        return $response->withHeader('Content-Type', 'text/html');
+        $stmt->close();
+        return $this->authorArchiveById($request, $response, $db, (int)$author['id']);
     }
 
     public function publisherArchive(Request $request, Response $response, mysqli $db, string $publisherName): Response
@@ -2859,7 +2859,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             SELECT COUNT(DISTINCT l.id) as total
             FROM libri l
             JOIN libri_autori la ON l.id = la.libro_id
-            WHERE la.autore_id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            WHERE la.autore_id = ? AND la.ruolo IN ('principale','co-autore') AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         ";
         $stmt = $db->prepare($countQuery);
         $stmt->bind_param('i', $authorId);
@@ -2885,7 +2885,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE la.autore_id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            WHERE la.autore_id = ? AND la.ruolo IN ('principale','co-autore') AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             ORDER BY l.anno_pubblicazione DESC, l.titolo ASC
             LIMIT ? OFFSET ?
         ";
@@ -2894,6 +2894,21 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $stmt->bind_param('iii', $authorId, $limit, $offset);
         $stmt->execute();
         $books = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+        $authorFilters = $this->getFilters(['autore_id' => $authorId, 'sort' => 'title_asc']);
+        $authorConditions = $this->buildWhereConditions($authorFilters, $db);
+        $authorFrom = 'FROM libri l LEFT JOIN editori e ON e.id=l.editore_id LEFT JOIN generi g ON g.id=l.genere_id LEFT JOIN generi gp ON gp.id=g.parent_id WHERE l.deleted_at IS NULL AND '
+            . \App\Support\BookVisibility::catalogue($db, 'l') . ' AND ' . implode(' AND ', $authorConditions['conditions']);
+        $mixed = (new \App\Services\UnifiedCatalogService($db))->page(
+            $authorFrom, $this->catalogAuthorSelect($db), $authorConditions['types'], $authorConditions['params'],
+            $authorFilters, (int)$totalBooks, $limit, $offset
+        );
+        if ($mixed !== null) {
+            $books = $mixed['rows'];
+            $totalBooks = $mixed['total'];
+            $totalPages = ceil($totalBooks / $limit);
+        }
+        $totalArticles = $mixed['articles'] ?? 0;
 
         // Pagination info
         $pagination = [
