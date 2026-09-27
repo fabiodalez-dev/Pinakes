@@ -41,7 +41,7 @@ function check(bool $ok, string $label): void {
 try {
     $schemas = [
         'plugins' => 'name VARCHAR(100), is_active INT',
-        'libri' => 'id INT PRIMARY KEY, titolo VARCHAR(500), created_at DATETIME, test_author VARCHAR(255), editore_id INT NULL, genere_id INT NULL, deleted_at DATETIME NULL',
+        'libri' => 'id INT PRIMARY KEY, titolo VARCHAR(500), created_at DATETIME, anno_pubblicazione INT NULL, test_author VARCHAR(255), editore_id INT NULL, genere_id INT NULL, deleted_at DATETIME NULL',
         'autori' => 'id INT PRIMARY KEY, nome VARCHAR(255), pseudonimo VARCHAR(255)',
         'editori' => 'id INT PRIMARY KEY, nome VARCHAR(255)',
         'generi' => 'id INT PRIMARY KEY, nome VARCHAR(255)',
@@ -85,6 +85,11 @@ try {
     foreach (['genere_id'=>1,'editore'=>'Publisher','disponibilita'=>'disponibile','tipo_media'=>'libro','_books_only'=>true] as $key=>$value) {
         check($page([$key=>$value])===null, "$key does not leak unfiltered articles");
     }
+    $db->query("UPDATE libri SET anno_pubblicazione=2020 WHERE id=2");
+    $chronology = array_merge($page(['search'=>'Probe','sort'=>'publication_desc'])['rows'], $page(['search'=>'Probe','sort'=>'publication_desc'],12)['rows']);
+    check($chronology[0]['titolo']==='Probe 99 Book' && $chronology[16]['titolo']==='Probe 00 Book', 'publication order spans pages with undated records last');
+    check($chronology[1]['titolo']==='Probe 01 Article' && $chronology[15]['titolo']==='Probe 15 Article', 'same-year records use title ordering');
+    check($page(['search'=>str_repeat('Probe ',20).'unmatched'])['articles']===15, 'long search bounds article predicates to twenty words');
     $resolver = (new ReflectionClass(OpenUrlResolverPlugin::class))->newInstanceWithoutConstructor();
     (new ReflectionProperty($resolver,'db'))->setValue($resolver,$db);
     $find = new ReflectionMethod($resolver,'findArticle');

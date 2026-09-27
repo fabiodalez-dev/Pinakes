@@ -324,10 +324,15 @@ class FrontendController
 
         // Listing rows: cached only for the bounded filter states (availability
         // fields stripped from the cached copy and merged back live per request).
-        $mixed = (new \App\Services\UnifiedCatalogService($db))->page(
-            $base_query, $this->catalogAuthorSelect($db), $param_types, $query_params,
-            $filters, (int)$total_books, $limit, $offset
-        );
+        try {
+            $mixed = (new \App\Services\UnifiedCatalogService($db))->page(
+                $base_query, $this->catalogAuthorSelect($db), $param_types, $query_params,
+                $filters, (int)$total_books, $limit, $offset
+            );
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('Unified catalogue unavailable', ['error' => $e->getMessage()]);
+            $mixed = null;
+        }
         $books = $mixed !== null ? $mixed['rows']
             : $this->loadCatalogPageRows($db, $books_query, $param_types, $query_params, $filters, $limit, $offset, $page);
         $total_articles = $mixed['articles'] ?? 0;
@@ -345,8 +350,12 @@ class FrontendController
         // "All" removes only the loan-availability facet and includes articles.
         // Keep this live, outside the cached book-facet projection.
         if (($params['with_stats'] ?? '') !== '1') {
-            $filter_options['availability_stats']['total'] += (new \App\Services\UnifiedCatalogService($db))
-                ->countArticles(array_replace($filters, ['disponibilita' => '']));
+            try {
+                $filter_options['availability_stats']['total'] += (new \App\Services\UnifiedCatalogService($db))
+                    ->countArticles(array_replace($filters, ['disponibilita' => '']));
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error('Article facet count unavailable', ['error' => $e->getMessage()]);
+            }
         }
 
         // Get hierarchical genre display based on current selection
@@ -456,10 +465,15 @@ class FrontendController
 
         // Listing rows: cached only for the bounded filter states (availability
         // fields stripped from the cached copy and merged back live per request).
-        $mixed = (new \App\Services\UnifiedCatalogService($db))->page(
-            $base_query, $this->catalogAuthorSelect($db), $param_types, $query_params,
-            array_merge($filters, ['_books_only' => ($params['with_stats'] ?? '') === '1']), (int)$total_books, $limit, $offset
-        );
+        try {
+            $mixed = (new \App\Services\UnifiedCatalogService($db))->page(
+                $base_query, $this->catalogAuthorSelect($db), $param_types, $query_params,
+                array_merge($filters, ['_books_only' => ($params['with_stats'] ?? '') === '1']), (int)$total_books, $limit, $offset
+            );
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('Unified catalogue unavailable', ['error' => $e->getMessage()]);
+            $mixed = null;
+        }
         $books = $mixed !== null ? $mixed['rows']
             : $this->loadCatalogPageRows($db, $books_query, $param_types, $query_params, $filters, $limit, $offset, $page);
         $total_articles = $mixed['articles'] ?? 0;
@@ -476,8 +490,12 @@ class FrontendController
         // "All" removes only the loan-availability facet and includes articles.
         // Keep this live, outside the cached book-facet projection.
         if (($params['with_stats'] ?? '') !== '1') {
-            $filter_options['availability_stats']['total'] += (new \App\Services\UnifiedCatalogService($db))
-                ->countArticles(array_replace($filters, ['disponibilita' => '']));
+            try {
+                $filter_options['availability_stats']['total'] += (new \App\Services\UnifiedCatalogService($db))
+                    ->countArticles(array_replace($filters, ['disponibilita' => '']));
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error('Article facet count unavailable', ['error' => $e->getMessage()]);
+            }
         }
 
         // Get hierarchical genre display for correct sidebar rendering
@@ -2895,14 +2913,20 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $stmt->execute();
         $books = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-        $authorFilters = $this->getFilters(['autore_id' => $authorId, 'sort' => 'title_asc']);
+        $authorFilters = $this->getFilters(['autore_id' => $authorId]);
+        $authorFilters['sort'] = 'publication_desc';
         $authorConditions = $this->buildWhereConditions($authorFilters, $db);
         $authorFrom = 'FROM libri l LEFT JOIN editori e ON e.id=l.editore_id LEFT JOIN generi g ON g.id=l.genere_id LEFT JOIN generi gp ON gp.id=g.parent_id WHERE l.deleted_at IS NULL AND '
             . \App\Support\BookVisibility::catalogue($db, 'l') . ' AND ' . implode(' AND ', $authorConditions['conditions']);
-        $mixed = (new \App\Services\UnifiedCatalogService($db))->page(
-            $authorFrom, $this->catalogAuthorSelect($db), $authorConditions['types'], $authorConditions['params'],
-            $authorFilters, (int)$totalBooks, $limit, $offset
-        );
+        try {
+            $mixed = (new \App\Services\UnifiedCatalogService($db))->page(
+                $authorFrom, $this->catalogAuthorSelect($db), $authorConditions['types'], $authorConditions['params'],
+                $authorFilters, (int)$totalBooks, $limit, $offset
+            );
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('Unified catalogue unavailable', ['error' => $e->getMessage()]);
+            $mixed = null;
+        }
         if ($mixed !== null) {
             $books = $mixed['rows'];
             $totalBooks = $mixed['total'];

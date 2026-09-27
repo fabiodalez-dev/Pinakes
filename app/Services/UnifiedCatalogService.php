@@ -66,17 +66,18 @@ final class UnifiedCatalogService
         [$articleFrom, $types, $params] = $query;
         $articleTotal = (int)$this->rows('SELECT COUNT(*) n' . $articleFrom, $types, $params)[0]['n'];
         if ($articleTotal === 0) { return null; }
-        $bookSelect = "SELECT l.id, l.titolo, l.created_at, $authorSelect $bookFrom";
+        $bookSelect = "SELECT l.id, l.titolo, l.created_at, l.anno_pubblicazione, $authorSelect $bookFrom";
         $union = "SELECT id, 'book' AS kind, titolo COLLATE utf8mb4_unicode_ci AS title_sort,
-                         created_at, autore_cognome COLLATE utf8mb4_unicode_ci AS author_sort FROM ($bookSelect) books
+                         created_at, anno_pubblicazione AS publication_sort, autore_cognome COLLATE utf8mb4_unicode_ci AS author_sort FROM ($bookSelect) books
                   UNION ALL
-                  SELECT c.id, 'article', c.titolo COLLATE utf8mb4_unicode_ci, c.created_at,
+                  SELECT c.id, 'article', c.titolo COLLATE utf8mb4_unicode_ci, c.created_at, c.anno_pubblicazione,
                          NULLIF(TRIM(CASE WHEN SUBSTRING_INDEX(c.autori, ';', 1) LIKE '%,%'
                            THEN SUBSTRING_INDEX(SUBSTRING_INDEX(c.autori, ';', 1), ',', 1)
                            ELSE SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(c.autori, ';', 1)), ' ', -1) END), '') COLLATE utf8mb4_unicode_ci
                   $articleFrom";
         $order = match ($filters['sort'] ?? 'newest') {
             'oldest' => 'created_at ASC',
+            'publication_desc' => 'publication_sort DESC, title_sort ASC',
             'title_asc' => 'title_sort ASC',
             'title_desc' => 'title_sort DESC',
             'author_asc' => 'author_sort IS NULL, author_sort ASC',
@@ -132,7 +133,7 @@ final class UnifiedCatalogService
             // Same word-wise semantics as the book index; punctuation in an
             // inverted personal name must not prevent a natural-order search.
             $words = preg_split('/[^\p{L}\p{N}_%]+/u', mb_substr($term, 0, 200), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            foreach ($words as $word) {
+            foreach (array_slice($words, 0, 20) as $word) {
                 $where[] = "CONCAT_WS(' ', c.titolo, c.sottotitolo, c.autori, c.contenitore_titolo, c.keywords, c.abstract, c.issn) LIKE ? ESCAPE '='";
                 $params[] = '%' . strtr($word, ['=' => '==', '%' => '=%', '_' => '=_']) . '%';
             }
@@ -167,10 +168,23 @@ final class UnifiedCatalogService
     private function rows(string $sql, string $types, array $params): array
     {
         $stmt = $this->db->prepare($sql);
-        if ($types !== '') { $stmt->bind_param($types, ...$params); }
-        $stmt->execute();
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-        return $rows;
+        if ($stmt === false) {
+            throw new \RuntimeException('Unified catalogue prepare failed');
+        }
+        try {
+            if ($types !== '' && !$stmt->bind_param($types, ...$params)) {
+                throw new \RuntimeException('Unified catalogue parameter binding failed');
+            }
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Unified catalogue execute failed');
+            }
+            $result = $stmt->get_result();
+            if ($result === false) {
+                throw new \RuntimeException('Unified catalogue result unavailable');
+            }
+            return $result->fetch_all(MYSQLI_ASSOC);
+        } finally {
+            $stmt->close();
+        }
     }
 }
