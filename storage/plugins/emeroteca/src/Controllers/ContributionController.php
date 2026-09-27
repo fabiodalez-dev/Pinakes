@@ -563,8 +563,15 @@ final class ContributionController extends AbstractAdminController
         if (!$row) {
             return $rs->withStatus(404)->withHeader('Cache-Control', 'private, no-store');
         }
-        $recordUrl = !empty($row['pubblico']) ? absoluteUrl('/emeroteca/articolo/'.$id) : '';
-        $fileUrl = (!empty($row['pdf_path']) && !empty($row['pdf_pubblico']))
+        // Both URLs are PUBLIC routes, so both need the article itself to be
+        // published — not just the PDF flag. The public PDF route resolves
+        // through get($id, true), which refuses an unpublished article, so an
+        // admin-side export of a draft used to carry an L1 that answers 404 for
+        // everyone including the cataloguer. pdf_pubblico alone is the flag for
+        // "this file may be served", never for "this record exists publicly".
+        $published = !empty($row['pubblico']);
+        $recordUrl = $published ? absoluteUrl('/emeroteca/articolo/'.$id) : '';
+        $fileUrl = ($published && !empty($row['pdf_path']) && !empty($row['pdf_pubblico']))
             ? absoluteUrl('/emeroteca/articolo/'.$id.'/pdf')
             : '';
         $body = CitationFormatter::ris($row, $recordUrl, $fileUrl);

@@ -216,8 +216,26 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await login(page);
     const admin = await page.request.get(`${BASE}/admin/periodicals/articles/${articleId}/citation.ris`);
     expect(admin.status(), 'while the admin route still answers').toBe(200);
-    expect(await admin.text()).toContain('TY  - JOUR\r\n');
+    const adminBody = await admin.text();
+    expect(adminBody).toContain('TY  - JOUR\r\n');
+    // Both URLs in the file are PUBLIC routes. An unpublished record has no
+    // public page and its public PDF route answers 404, so neither may appear:
+    // a reference manager follows them unattended and would store a dead link.
+    // pdf_pubblico alone does not make a draft's PDF reachable.
+    db(`UPDATE emeroteca_contributi SET pdf_path='${'a'.repeat(40)}.pdf', pdf_pubblico=1 WHERE id=${articleId}`);
+    const draft = await page.request.get(`${BASE}/admin/periodicals/articles/${articleId}/citation.ris`);
+    const draftBody = await draft.text();
+    expect(draftBody, 'a draft exports no record URL').not.toContain('UR  - ');
+    expect(draftBody, 'and no file link, even with pdf_pubblico set').not.toContain('L1  - ');
 
+    // Publishing it makes both appear — otherwise the two checks above would
+    // pass for a formatter that never emits UR or L1 at all.
     db(`UPDATE emeroteca_contributi SET pubblico=1 WHERE id=${articleId}`);
+    const live = await page.request.get(`${BASE}/admin/periodicals/articles/${articleId}/citation.ris`);
+    const liveBody = await live.text();
+    expect(liveBody, 'a published record does export its page').toContain(`UR  - `);
+    expect(liveBody, 'and its PDF').toContain(`L1  - `);
+
+    db(`UPDATE emeroteca_contributi SET pdf_path=NULL, pdf_pubblico=0 WHERE id=${articleId}`);
   });
 });
