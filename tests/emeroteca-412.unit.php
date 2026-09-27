@@ -399,6 +399,11 @@ $svc->rows("DELETE FROM emeroteca_testate WHERE titolo LIKE 'Calvino Notes%' OR 
     check412($svc->search('',0,true,2)['page']===2 && count($svc->search('',0,true,2)['rows'])===3,'browser pagination counts public rows');
     require_once $root.'/storage/plugins/emeroteca/src/Controllers/ContributionController.php';
     $controller=new \App\Plugins\Emeroteca\Controllers\ContributionController($db,new \App\Support\HookManager($db));
+    $marc=$controller->publicMarcXml($request,new \Slim\Psr7\Response(),['id'=>$private]);
+    check412($marc->getStatusCode()===404 && (string)$marc->getBody()==='', 'MARCXML refuses unpublished article');
+    $marc=$controller->marcXml($request,new \Slim\Psr7\Response(),['id'=>$private]);
+    check412($marc->getStatusCode()===200 && str_contains((string)$marc->getBody(), 'MARC21/slim'), 'admin MARCXML exports draft');
+    check412($marc->getHeaderLine('Cache-Control')==='private, no-store', 'MARCXML is never cached publicly');
     $_SESSION=['user'=>['tipo_utente'=>'staff']];
     check412($controller->mode($request->withParsedBody(['mode'=>'simple']),new \Slim\Psr7\Response())->getStatusCode()===403,'staff cannot change site-wide mode');
     check412($controller->delete($request,new \Slim\Psr7\Response(),['id'=>$id])->getStatusCode()===403,'staff cannot delete standalone records');

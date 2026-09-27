@@ -10,6 +10,7 @@ require_once __DIR__ . '/../Services/ContributionCsv.php';
 // Plugin classes have no autoloader scope: every file this one names must be
 // required by hand, or the class is missing only at the moment the route runs.
 require_once __DIR__ . '/../Support/CitationFormatter.php';
+require_once __DIR__ . '/../Support/ArticleMarcXml.php';
 use App\Plugins\Emeroteca\Services\ContributionService;
 use App\Plugins\Emeroteca\Services\ContributionCsv;
 use App\Plugins\Emeroteca\Support\CitationFormatter;
@@ -583,6 +584,27 @@ final class ContributionController extends AbstractAdminController
             ->withHeader('Content-Length', (string) strlen($body))
             ->withHeader('X-Content-Type-Options', 'nosniff')
             ->withHeader('Cache-Control', 'private, no-store');
+    }
+    public function marcXml(Request $rq, Response $rs, array $args = []): Response
+    {
+        return $this->serveMarcXml($rs, (int)($args['id'] ?? 0), false);
+    }
+    public function publicMarcXml(Request $rq, Response $rs, array $args = []): Response
+    {
+        return $this->serveMarcXml($rs, (int)($args['id'] ?? 0), true);
+    }
+    private function serveMarcXml(Response $rs, int $id, bool $public): Response
+    {
+        $rs = $rs->withHeader('Cache-Control', 'private, no-store');
+        $row = $this->service()->get($id, $public);
+        if (!$row) { return $rs->withStatus(404); }
+        $body = \App\Plugins\Emeroteca\Support\ArticleMarcXml::format($row,
+            !empty($row['pubblico']) ? absoluteUrl('/emeroteca/articolo/'.$id) : '',
+            !empty($row['testata_id']) ? 'periodical:'.(int)$row['testata_id'] : '');
+        $rs->getBody()->write($body);
+        return $rs->withHeader('Content-Type', 'application/marcxml+xml; charset=UTF-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="article-'.$id.'.marc.xml"')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
     }
     /** Admin-only PDF download: any contribution, published or not. */
     public function pdf(Request $rq, Response $rs, array $args = []): Response

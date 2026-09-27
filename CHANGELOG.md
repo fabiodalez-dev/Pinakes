@@ -4,6 +4,9 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 
 ## [Unreleased]
 
+### Added
+- **Emeroteca #412:** “Add article” is available beside “New book” in book management. Article records offer MARCXML downloads with analytic Leader/07, author/title fields, extent (300), and host entry (773), including the existing masthead control number when linked. Public exports exclude unpublished records and private metadata.
+
 ### Fixed
 - **Emeroteca #412:** published articles now share catalogue results, sorting and pagination with books, and author navigation searches both corpora. OpenURL resolves complete titles with subtitles and rejects ambiguous title matches or disabled plugin content.
 

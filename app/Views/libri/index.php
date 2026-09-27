@@ -66,6 +66,9 @@ $libri = $data['libri'];
               </a>
             </div>
           </div>
+          <?php if (($articleHintState ?? '') === \App\Support\PeriodicalArticlesHint::ACTIVE): ?>
+          <a href="<?= htmlspecialchars(url('/admin/periodicals/articles/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary"><?= __('Aggiungi articolo') ?></a>
+          <?php endif; ?>
           <a href="<?= htmlspecialchars(url('/admin/books/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary">
             <i class="fas fa-plus mr-2"></i><?= __("Nuovo Libro") ?>
           </a>
@@ -98,6 +101,9 @@ $libri = $data['libri'];
         <a href="<?= htmlspecialchars(url('/admin/books/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary w-full">
           <i class="fas fa-plus mr-1"></i><?= __("Nuovo") ?>
         </a>
+        <?php if (($articleHintState ?? '') === \App\Support\PeriodicalArticlesHint::ACTIVE): ?>
+        <a href="<?= htmlspecialchars(url('/admin/periodicals/articles/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary col-span-3"><?= __('Aggiungi articolo') ?></a>
+        <?php endif; ?>
       </div>
     </div>
 

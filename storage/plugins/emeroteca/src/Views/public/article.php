@@ -96,7 +96,7 @@ $articleCodeLabel=static function(string $code,bool $region):string{
 <button type="button" class="btn-secondary mt-3" data-citation-copy><?= __('Copia') ?></button>
 </div>
 <?php endforeach; ?>
-<p class="mt-5"><a class="underline" href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/citazione.ris')) ?>"><?= __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)') ?></a></p>
+<p class="mt-5"><a class="underline" href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/citazione.ris')) ?>"><?= __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)') ?></a> · <a class="underline" href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/marc.xml')) ?>">MARCXML</a></p>
 </section>
 </main>
 

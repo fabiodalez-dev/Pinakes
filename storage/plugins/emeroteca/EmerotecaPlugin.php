@@ -1667,7 +1667,7 @@ class EmerotecaPlugin
         $public = 'App\\Plugins\\Emeroteca\\Controllers\\PublicController';
 
         $articles = 'App\\Plugins\\Emeroteca\\Controllers\\ContributionController';
-        foreach (['' => 'index', '/create' => 'form', '/{id:[0-9]+}' => 'form', '/import' => 'importForm', '/export' => 'export', '/issues' => 'issueOptions', '/{id:[0-9]+}/pdf' => 'pdf', '/{id:[0-9]+}/citation.ris' => 'ris'] as $path => $method) {
+        foreach (['' => 'index', '/create' => 'form', '/{id:[0-9]+}' => 'form', '/import' => 'importForm', '/export' => 'export', '/issues' => 'issueOptions', '/{id:[0-9]+}/pdf' => 'pdf', '/{id:[0-9]+}/citation.ris' => 'ris', '/{id:[0-9]+}/marc.xml' => 'marcXml'] as $path => $method) {
             $app->get('/admin/periodicals/articles' . $path, function ($rq, $rs, $args) use ($plugin, $articles, $method) {
                 return $plugin->dispatch($articles, $method, $rq, $rs, $args);
             })->add($adminMiddleware);
@@ -1683,6 +1683,7 @@ class EmerotecaPlugin
         // The citation as a file a reference manager can swallow. Public route
         // and admin route are separate because they answer differently for an
         // unpublished article: 404 out here, the record in there.
+        $app->get('/emeroteca/articolo/{id:[0-9]+}/marc.xml', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicMarcXml', $rq,$rs,$args));
         $app->get('/emeroteca/articolo/{id:[0-9]+}/citazione.ris', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicRis', $rq,$rs,$args));
 
         // ── Admin — testate (periodical titles) ──────────────────────
