@@ -4030,6 +4030,9 @@ input:where([type='file']):focus {
 .col-span-2 {
   grid-column: span 2 / span 2;
 }
+.col-span-3 {
+  grid-column: span 3 / span 3;
+}
 .-m-2 {
   margin: -0.5rem;
 }
