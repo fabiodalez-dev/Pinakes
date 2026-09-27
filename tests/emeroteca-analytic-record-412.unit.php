@@ -609,6 +609,78 @@ try {
         . ($articleSuggestion === null ? 'absent' : (string) $articleSuggestion['total'])
         . " vs page {$pageTotal})");
 
+    // ── L. The URLs a reference manager follows unattended ────────────────────
+    //
+    // serveRis() writes UR and L1 into the downloaded file through absoluteUrl()
+    // rather than from $request->getUri()->getAuthority(). A reference manager
+    // fetches those without asking, so a poisoned Host header would send it
+    // somewhere the library never published. These checks pin the property that
+    // decision rests on, in the three configurations an installation can be in —
+    // otherwise "absoluteUrl() is safer" is an assumption, not a guarantee.
+    echo "\nL. absoluteUrl() under a poisoned Host header\n";
+
+    require_once dirname(__DIR__).'/app/helpers.php';
+    $envKeys = ['APP_CANONICAL_URL', 'APP_TRUSTED_HOSTS'];
+    $savedEnv = [];
+    foreach ($envKeys as $k) {
+        $savedEnv[$k] = $_ENV[$k] ?? null;
+    }
+    $savedHost = $_SERVER['HTTP_HOST'] ?? null;
+    $savedPort = $_SERVER['SERVER_PORT'] ?? null;
+
+    /** @param array<string,string> $env */
+    $origin = static function (array $env, string $host) use ($envKeys): string {
+        foreach ($envKeys as $k) {
+            unset($_ENV[$k]);
+            putenv($k);
+        }
+        foreach ($env as $k => $v) {
+            $_ENV[$k] = $v;
+            putenv("{$k}={$v}");
+        }
+        $_SERVER['HTTP_HOST'] = $host;
+        $_SERVER['SERVER_PORT'] = '80';
+
+        return \App\Support\HtmlHelper::absoluteUrl('/emeroteca/articolo/7');
+    };
+
+    $twoHosts = ['APP_TRUSTED_HOSTS' => 'biblio.example,catalogo.example'];
+
+    // The property that makes this safer than reading the Host directly.
+    $check($origin($twoHosts, 'evil.example') === 'http://biblio.example/emeroteca/articolo/7',
+        'a Host outside the whitelist is clamped to the first entry, not echoed');
+
+    // And the property the previous comment was afraid of losing: an install
+    // legitimately reached on a second hostname still exports that hostname.
+    $check($origin($twoHosts, 'catalogo.example') === 'http://catalogo.example/emeroteca/articolo/7',
+        'while a Host that IS whitelisted is honoured — multi-hostname survives');
+
+    $check($origin(['APP_CANONICAL_URL' => 'https://biblio.example'], 'evil.example')
+            === 'https://biblio.example/emeroteca/articolo/7',
+        'APP_CANONICAL_URL wins outright, whatever the Host says');
+
+    // Stated rather than asserted as a virtue: with NEITHER variable set — the
+    // default small-library install — the helper echoes the request Host, so
+    // this change is behaviour-preserving there, not protective. The guarantee
+    // arrives with APP_TRUSTED_HOSTS.
+    $check($origin([], 'evil.example') === 'http://evil.example/emeroteca/articolo/7',
+        'with no host configuration at all the helper still echoes the request Host');
+
+    foreach ($envKeys as $k) {
+        unset($_ENV[$k]);
+        putenv($k);
+        if ($savedEnv[$k] !== null) {
+            $_ENV[$k] = $savedEnv[$k];
+            putenv("{$k}={$savedEnv[$k]}");
+        }
+    }
+    if ($savedHost !== null) {
+        $_SERVER['HTTP_HOST'] = $savedHost;
+    }
+    if ($savedPort !== null) {
+        $_SERVER['SERVER_PORT'] = $savedPort;
+    }
+
 } finally {
     foreach (array_reverse($db->tables) as $table) {
         @$db->real_query("DROP TABLE IF EXISTS {$db->prefix}{$table}");

@@ -74,6 +74,15 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     expect(await advanced.evaluate(el => el.open), 'the advanced section starts folded away').toBe(false);
     expect(await resource.evaluate(el => el.open), 'and so does the electronic resource').toBe(false);
 
+    // The authors field asks for a semicolon; keywords split on a comma
+    // everywhere in the plugin. Without saying so, a cataloguer who read the
+    // instruction two fields above types a semicolon here and silently gets one
+    // keyword with a semicolon inside it — in the page, the JSON-LD and the RIS.
+    await expect(
+      page.locator('main, form').getByText(/Separa le parole chiave con una virgola|Separate keywords with a comma/),
+      'the keywords field states its separator',
+    ).toBeVisible();
+
     await page.locator('#article-titolo').fill(`${marker} On the trail`);
     await page.locator('#article-sottotitolo').fill('a subtitle that carries half the meaning');
     await page.locator('#article-autori').fill('Petersen, Hans Uwe');

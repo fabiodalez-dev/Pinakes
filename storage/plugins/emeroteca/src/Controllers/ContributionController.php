@@ -530,34 +530,42 @@ final class ContributionController extends AbstractAdminController
     /** Admin-only citation download: any contribution, published or not. */
     public function ris(Request $rq, Response $rs, array $args = []): Response
     {
-        return $this->serveRis($rq, $rs, (int)($args['id'] ?? 0), false);
+        return $this->serveRis($rs, (int)($args['id'] ?? 0), false);
     }
     /** Public citation download: only published contributions. */
     public function publicRis(Request $rq, Response $rs, array $args = []): Response
     {
-        return $this->serveRis($rq, $rs, (int)($args['id'] ?? 0), true);
+        return $this->serveRis($rs, (int)($args['id'] ?? 0), true);
     }
     /**
      * Hand the record to a reference manager.
      *
-     * The two URLs inside the file are built from the REQUEST rather than from
-     * a setting, so an installation reached on a second hostname exports links
-     * that resolve on that hostname. The PDF link is only ever included when
-     * the reader could open it anyway: a URL in a citation file is followed
-     * unattended by the reference manager, and one that answers 404 is worse
-     * than one that is absent.
+     * The two URLs inside the file go through absoluteUrl(), like every other
+     * URL that leaves this application (mail, Open Graph, schema.org,
+     * OpenUrlResolverPlugin::localBookUrl). They used to be built from
+     * $rq->getUri()->getAuthority() — the client-supplied Host header — so that
+     * an installation reached on a second hostname would export links resolving
+     * on that hostname. absoluteUrl() keeps that: with APP_TRUSTED_HOSTS listing
+     * several hosts it honours whichever listed host was used, and only clamps
+     * to the first entry when the Host is not one of them. With
+     * APP_CANONICAL_URL set the front controller already 301s a foreign Host
+     * before this code runs, so the two spellings agree there anyway.
+     *
+     * It matters here more than in a page: a reference manager follows UR and
+     * L1 unattended, so a poisoned Host would send it somewhere the library
+     * never published. The PDF link is still only included when the reader
+     * could open it anyway — a citation URL that answers 404 is worse than one
+     * that is absent.
      */
-    private function serveRis(Request $rq, Response $rs, int $id, bool $public): Response
+    private function serveRis(Response $rs, int $id, bool $public): Response
     {
         $row = $this->service()->get($id, $public);
         if (!$row) {
             return $rs->withStatus(404)->withHeader('Cache-Control', 'private, no-store');
         }
-        $uri = $rq->getUri();
-        $origin = $uri->getScheme().'://'.$uri->getAuthority();
-        $recordUrl = !empty($row['pubblico']) ? $origin.url('/emeroteca/articolo/'.$id) : '';
+        $recordUrl = !empty($row['pubblico']) ? absoluteUrl('/emeroteca/articolo/'.$id) : '';
         $fileUrl = (!empty($row['pdf_path']) && !empty($row['pdf_pubblico']))
-            ? $origin.url('/emeroteca/articolo/'.$id.'/pdf')
+            ? absoluteUrl('/emeroteca/articolo/'.$id.'/pdf')
             : '';
         $body = CitationFormatter::ris($row, $recordUrl, $fileUrl);
         $rs->getBody()->write($body);
